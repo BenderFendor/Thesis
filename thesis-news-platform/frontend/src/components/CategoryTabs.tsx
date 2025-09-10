@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import { API_ENDPOINTS, apiCall } from '@/config/api';
 
 interface CategoryTabsProps {
   selectedCategory: string;
@@ -16,11 +17,12 @@ export default function CategoryTabs({ selectedCategory, onCategoryChange }: Cat
 
   const fetchCategories = async () => {
     try {
-      const response = await fetch('http://localhost:8000/categories');
-      const data = await response.json();
+      const data: { categories: string[] } = await apiCall(API_ENDPOINTS.categories);
       setCategories(data.categories || ['general']);
     } catch (error) {
       console.error('Error fetching categories:', error);
+      // Fallback to default categories
+      setCategories(['general', 'politics', 'technology', 'sports', 'business']);
     }
   };
 

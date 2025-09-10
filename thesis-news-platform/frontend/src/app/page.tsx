@@ -5,6 +5,7 @@ import { Globe, Newspaper, Filter, Search } from 'lucide-react';
 import NewsCard from '@/components/NewsCard';
 import CategoryTabs from '@/components/CategoryTabs';
 import { NewsArticle, NewsResponse } from '@/types';
+import { API_ENDPOINTS, apiCall } from '@/config/api';
 
 export default function Home() {
   const [articles, setArticles] = useState<NewsArticle[]>([]);
@@ -19,13 +20,14 @@ export default function Home() {
   const fetchNews = async () => {
     try {
       setLoading(true);
-      const response = await fetch(
-        `http://localhost:8000/news?limit=20&category=${selectedCategory}`
+      const data: NewsResponse = await apiCall(
+        `${API_ENDPOINTS.news}?limit=20&category=${selectedCategory}`
       );
-      const data: NewsResponse = await response.json();
       setArticles(data.articles);
     } catch (error) {
       console.error('Error fetching news:', error);
+      // Set empty articles array on error to show "No articles found" message
+      setArticles([]);
     } finally {
       setLoading(false);
     }
