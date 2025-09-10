@@ -1,42 +1,171 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
 @import "tailwindcss";
 
+:root {
+  --background: 12, 12, 12;
+  --foreground: 255, 255, 255;
+  --card: 18, 18, 18;
+  --card-foreground: 255, 255, 255;
+  --border: 30, 30, 30;
+  --accent-green: 34, 197, 94;
+  --accent-red: 239, 68, 68;
+  --accent-orange: 249, 115, 22;
+  --accent-blue: 59, 130, 246;
+  --muted: 64, 64, 64;
+  --muted-foreground: 161, 161, 170;
+}
+
 * {
-  box-sizing: border-box;
   margin: 0;
   padding: 0;
+  box-sizing: border-box;
 }
 
 html {
+  scroll-behavior: smooth;
   height: 100%;
   overflow-x: hidden;
 }
 
 body {
-  background: #000000;
-  color: #ffffff;
-  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+  color: rgb(var(--foreground));
+  background: rgb(var(--background));
+  line-height: 1.6;
   min-height: 100vh;
   overflow-x: hidden;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
 }
 
-/* Custom scrollbar for dark theme */
+/* Smooth snap scrolling for grid */
+.snap-container {
+  scroll-snap-type: y mandatory;
+  scroll-behavior: smooth;
+  height: 100vh;
+  overflow-y: auto;
+}
+
+.snap-item {
+  scroll-snap-align: start;
+  scroll-snap-stop: always;
+  min-height: 100vh;
+}
+
+/* Custom scrollbar */
 ::-webkit-scrollbar {
-  width: 8px;
+  width: 6px;
 }
 
 ::-webkit-scrollbar-track {
-  background: #111111;
+  background: rgb(var(--background));
 }
 
 ::-webkit-scrollbar-thumb {
-  background: #333333;
-  border-radius: 4px;
+  background: rgb(var(--muted));
+  border-radius: 3px;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: #444444;
+  background: rgb(var(--muted-foreground));
 }
 
+/* Shimmer animation */
+@keyframes shimmer {
+  0% {
+    background-position: -200px 0;
+  }
+  100% {
+    background-position: calc(200px + 100%) 0;
+  }
+}
+
+.shimmer {
+  background: linear-gradient(
+    90deg,
+    rgb(var(--card)) 0px,
+    rgba(255, 255, 255, 0.03) 50px,
+    rgb(var(--card)) 100px
+  );
+  background-size: 200px 100%;
+  animation: shimmer 1.8s infinite ease-in-out;
+}
+
+/* Premium card effects */
+.card-premium {
+  background: rgb(var(--card));
+  border: 1px solid rgb(var(--border));
+  transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+  transform-style: preserve-3d;
+}
+
+.card-premium:hover {
+  transform: translateY(-8px) scale(1.02);
+  border-color: rgba(var(--accent-green), 0.3);
+  box-shadow: 
+    0 25px 50px -12px rgba(0, 0, 0, 0.8),
+    0 0 0 1px rgba(var(--accent-green), 0.1),
+    inset 0 1px 0 rgba(255, 255, 255, 0.03);
+}
+
+/* Button styles */
+.btn-primary {
+  background: rgb(var(--accent-green));
+  color: rgb(var(--background));
+  border: none;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  font-weight: 500;
+}
+
+.btn-primary:hover {
+  background: rgba(var(--accent-green), 0.9);
+  transform: translateY(-2px);
+  box-shadow: 0 10px 25px -5px rgba(var(--accent-green), 0.4);
+}
+
+.btn-secondary {
+  background: rgba(255, 255, 255, 0.05);
+  color: rgb(var(--foreground));
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  transition: all 0.3s ease;
+}
+
+.btn-secondary:hover {
+  background: rgba(255, 255, 255, 0.08);
+  border-color: rgba(255, 255, 255, 0.2);
+}
+
+/* Category pill styles */
+.category-pill {
+  font-size: 0.75rem;
+  font-weight: 500;
+  padding: 0.25rem 0.75rem;
+  border-radius: 9999px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.category-general {
+  background: rgba(var(--accent-blue), 0.15);
+  color: rgb(var(--accent-blue));
+}
+
+.category-politics {
+  background: rgba(var(--accent-red), 0.15);
+  color: rgb(var(--accent-red));
+}
+
+.category-technology {
+  background: rgba(var(--accent-green), 0.15);
+  color: rgb(var(--accent-green));
+}
+
+.category-business {
+  background: rgba(var(--accent-orange), 0.15);
+  color: rgb(var(--accent-orange));
+}
+
+/* Text utilities */
 .line-clamp-2 {
   display: -webkit-box;
   -webkit-line-clamp: 2;
@@ -53,13 +182,9 @@ body {
   overflow: hidden;
 }
 
-/* Animation classes */
+/* Animations */
 .animate-fade-in {
   animation: fadeIn 0.6s ease-out forwards;
-}
-
-.animate-shimmer {
-  animation: shimmer 2s infinite;
 }
 
 @keyframes fadeIn {
@@ -73,60 +198,30 @@ body {
   }
 }
 
-@keyframes shimmer {
-  0% {
-    transform: translateX(-100%);
-  }
-  100% {
-    transform: translateX(100%);
-  }
-}
-
-/* Modern shadow effects */
-.shadow-3xl {
-  box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25);
-}
-
-/* Additional color utilities */
-.bg-gray-850 {
-  background-color: #1a1a1a;
-}
-
-/* Backdrop blur support */
-.backdrop-blur-sm {
-  backdrop-filter: blur(4px);
-}
-
-/* Enhanced glass effect */
-.glass-effect {
-  background: rgba(17, 24, 39, 0.8);
-  backdrop-filter: blur(16px);
-  border: 1px solid rgba(75, 85, 99, 0.2);
-}
-
-/* Smooth hover effects */
-.hover-lift {
-  transition: transform 0.2s ease-in-out;
-}
-
-.hover-lift:hover {
-  transform: translateY(-2px);
-}
-
-/* Focus rings for accessibility */
-.focus-ring {
-  outline: 2px solid #3b82f6;
+/* Focus styles */
+button:focus-visible,
+input:focus-visible {
+  outline: 2px solid rgb(var(--accent-green));
   outline-offset: 2px;
 }
 
-/* Custom gradient backgrounds */
-.gradient-card {
-  background: linear-gradient(145deg, rgba(31, 41, 55, 0.9), rgba(17, 24, 39, 0.9));
+/* Text selection */
+::selection {
+  background: rgba(var(--accent-green), 0.3);
+  color: rgb(var(--foreground));
 }
 
-/* Loading shimmer for better skeleton effect */
-.shimmer {
-  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.1), transparent);
-  background-size: 200% 100%;
-  animation: shimmer 2s infinite;
+/* Glassmorphism effect */
+.glass {
+  background: rgba(255, 255, 255, 0.02);
+  backdrop-filter: blur(12px);
+  border: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+/* Utility classes */
+.text-gradient {
+  background: linear-gradient(135deg, rgb(var(--accent-green)), rgb(var(--accent-blue)));
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
 }

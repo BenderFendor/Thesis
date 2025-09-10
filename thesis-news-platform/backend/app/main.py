@@ -217,6 +217,111 @@ RSS_SOURCES = {
         "country": "JP",
         "funding_type": "Commercial",
         "bias_rating": "Center"
+    },
+    "Axios": {
+        "url": "https://www.axios.com/feed",
+        "category": "general",
+        "country": "US",
+        "funding_type": "Commercial",
+        "bias_rating": "Center"
+    },
+    "Hacker News": {
+        "url": "https://news.ycombinator.com/rss",
+        "category": "technology",
+        "country": "US",
+        "funding_type": "Independent",
+        "bias_rating": "Center"
+    },
+    "Hacker News Frontpage": {
+        "url": "https://hnrss.org/frontpage",
+        "category": "technology",
+        "country": "US",
+        "funding_type": "Independent",
+        "bias_rating": "Center"
+    },
+    "CNN Technology": {
+        "url": "http://rss.cnn.com/rss/edition_technology.rss",
+        "category": "technology",
+        "country": "US",
+        "funding_type": "Commercial",
+        "bias_rating": "Left-Center"
+    },
+    "CNN Politics": {
+        "url": "http://rss.cnn.com/rss/edition_politics.rss",
+        "category": "politics",
+        "country": "US",
+        "funding_type": "Commercial",
+        "bias_rating": "Left-Center"
+    },
+    "IGN": {
+        "url": "https://feeds.ign.com/ign/all",
+        "category": "technology",
+        "country": "US",
+        "funding_type": "Commercial",
+        "bias_rating": "Center"
+    },
+    "PC Gamer": {
+        "url": "https://www.pcgamer.com/rss/",
+        "category": "technology",
+        "country": "US",
+        "funding_type": "Commercial",
+        "bias_rating": "Center"
+    },
+    "Human Rights Watch": {
+        "url": "https://www.hrw.org/rss/news",
+        "category": "politics",
+        "country": "US",
+        "funding_type": "Non-profit",
+        "bias_rating": "Left-Center"
+    },
+    "Amnesty International": {
+        "url": "https://www.amnesty.org/en/latest/feed/",
+        "category": "politics",
+        "country": "International",
+        "funding_type": "Non-profit",
+        "bias_rating": "Left-Center"
+    },
+    "Doctors Without Borders": {
+        "url": "https://www.doctorswithoutborders.org/rss.xml",
+        "category": "general",
+        "country": "International",
+        "funding_type": "Non-profit",
+        "bias_rating": "Center"
+    },
+    "Liberation News": {
+        "url": "https://www.liberationnews.org/feed/",
+        "category": "politics",
+        "country": "US",
+        "funding_type": "Independent",
+        "bias_rating": "Left"
+    },
+    "Electronic Intifada": {
+        "url": "https://electronicintifada.net/rss.xml",
+        "category": "politics",
+        "country": "US",
+        "funding_type": "Independent",
+        "bias_rating": "Left"
+    },
+    "WHYY": {
+        "url": "https://whyy.org/feed/",
+        "category": "general",
+        "country": "US",
+        "funding_type": "Public",
+        "bias_rating": "Center"
+    },
+    "PhillyVoice": {
+        "url": "https://www.phillyvoice.com/feed/",
+        "category": "general",
+        "country": "US",
+        "funding_type": "Commercial",
+        "bias_rating": "Center"
+    },
+    "NBC10 Philadelphia": {
+        "url": "https://news.google.com/rss/search?q=site:nbcphiladelphia.com",
+        "category": "general",
+        "country": "US",
+        "funding_type": "Commercial",
+        "bias_rating": "Center"
     }
 }
 

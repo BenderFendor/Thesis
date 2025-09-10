@@ -1,6 +1,6 @@
 'use client';
 
-import { Grid3X3, Play } from 'lucide-react';
+import { Grid3X3, List } from 'lucide-react';
 
 interface ViewToggleProps {
   view: 'grid' | 'tiktok';
@@ -9,28 +9,31 @@ interface ViewToggleProps {
 
 export default function ViewToggle({ view, onViewChange }: ViewToggleProps) {
   return (
-    <div className="flex items-center bg-gray-800/80 backdrop-blur-sm rounded-lg p-1 border border-gray-700/50 shadow-lg">
+    <div className="flex items-center bg-gray-900/50 border border-gray-700/50 rounded-lg p-1 backdrop-blur-sm">
       <button
         onClick={() => onViewChange('grid')}
-        className={`flex items-center px-4 py-2 rounded-md text-sm font-medium transition-all duration-200 ${
+        className={`flex items-center space-x-2 px-3 py-2 rounded-md text-sm font-medium transition-all duration-200 ${
           view === 'grid'
-            ? 'bg-blue-600 text-white shadow-lg shadow-blue-600/25 scale-105'
-            : 'text-gray-400 hover:text-white hover:bg-gray-700/50'
+            ? 'bg-green-500 text-white shadow-lg'
+            : 'text-gray-400 hover:text-white hover:bg-gray-800/50'
         }`}
+        title="Grid View"
       >
-        <Grid3X3 className="w-4 h-4 mr-2" />
-        Grid
+        <Grid3X3 size={16} />
+        <span className="hidden sm:inline">Grid</span>
       </button>
+      
       <button
         onClick={() => onViewChange('tiktok')}
-        className={`flex items-center px-4 py-2 rounded-md text-sm font-medium transition-all duration-200 ${
+        className={`flex items-center space-x-2 px-3 py-2 rounded-md text-sm font-medium transition-all duration-200 ${
           view === 'tiktok'
-            ? 'bg-blue-600 text-white shadow-lg shadow-blue-600/25 scale-105'
-            : 'text-gray-400 hover:text-white hover:bg-gray-700/50'
+            ? 'bg-green-500 text-white shadow-lg'
+            : 'text-gray-400 hover:text-white hover:bg-gray-800/50'
         }`}
+        title="TikTok View"
       >
-        <Play className="w-4 h-4 mr-2" />
-        Scroll
+        <List size={16} />
+        <span className="hidden sm:inline">Scroll</span>
       </button>
     </div>
   );
