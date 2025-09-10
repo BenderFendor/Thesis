@@ -19,7 +19,6 @@ class NewsArticle(BaseModel):
     published: str
     source: str
     category: str = "general"
-    image: Optional[str] = None
 
 class NewsResponse(BaseModel):
     articles: List[NewsArticle]
@@ -72,13 +71,40 @@ RSS_SOURCES = {
         "bias_rating": "Right"
     },
     "Associated Press": {
-        "url": "https://feeds.feedburner.com/ap-topnews",
+        "url": "feedx.net/rss/ap.xml",
         "category": "general",
         "country": "US",
         "funding_type": "Non-profit",
         "bias_rating": "Center"
+    },
+    "New York Times": {
+        "url": "https://rss.nytimes.com/services/xml/rss/nyt/HomePage.xml",
+        "category": "general",
+        "country": "US",
+        "funding_type": "Commercial",
+        "bias_rating": "Left"
+    },
+    "The Guardian": {
+        "url": "https://www.theguardian.com/world/rss",
+        "category": "general",
+        "country": "UK",
+        "funding_type": "Commercial",
+        "bias_rating": "Left"
+    },
+    "The Washington Post": {
+        "url": "http://feeds.washingtonpost.com/rss/national",
+        "category": "general",
+        "country": "US",
+        "funding_type": "Commercial",
+        "bias_rating": "Left-Center"
+    },
+    "Al Jazeera": {
+        "url": "https://www.aljazeera.com/xml/rss/all.xml",
+        "category": "general",
+        "country": "QA",
+        "funding_type": "State-funded",
+        "bias_rating": "Left-Center"
     }
-}
 
 app = FastAPI(
     title="Global News Aggregation API", 
@@ -102,57 +128,13 @@ def parse_rss_feed(url: str, source_name: str, source_info: Dict) -> List[NewsAr
         articles = []
         
         for entry in feed.entries[:15]:  # Limit to 15 articles per source
-            # Extract image URL from various possible locations
-            image_url = None
-            
-            # Check for media:thumbnail
-            if hasattr(entry, 'media_thumbnail') and entry.media_thumbnail:
-                image_url = entry.media_thumbnail[0].get('url') if isinstance(entry.media_thumbnail, list) else entry.media_thumbnail.get('url')
-            
-            # Check for media:content
-            elif hasattr(entry, 'media_content') and entry.media_content:
-                for media in entry.media_content:
-                    if media.get('type', '').startswith('image/'):
-                        image_url = media.get('url')
-                        break
-            
-            # Check for enclosure (podcast/media)
-            elif hasattr(entry, 'enclosures') and entry.enclosures:
-                for enclosure in entry.enclosures:
-                    if enclosure.get('type', '').startswith('image/'):
-                        image_url = enclosure.get('href')
-                        break
-            
-            # Check for image in links
-            elif hasattr(entry, 'links') and entry.links:
-                for link in entry.links:
-                    if link.get('type', '').startswith('image/'):
-                        image_url = link.get('href')
-                        break
-            
-            # Check for image tag in content
-            elif hasattr(entry, 'content') and entry.content:
-                import re
-                content_text = entry.content[0].value if isinstance(entry.content, list) else str(entry.content)
-                img_match = re.search(r'<img[^>]+src="([^"]+)"', content_text)
-                if img_match:
-                    image_url = img_match.group(1)
-            
-            # Check for image in description/summary
-            if not image_url and entry.get('description'):
-                import re
-                img_match = re.search(r'<img[^>]+src="([^"]+)"', entry.description)
-                if img_match:
-                    image_url = img_match.group(1)
-            
             article = NewsArticle(
                 title=entry.get('title', 'No title'),
                 link=entry.get('link', ''),
                 description=entry.get('description', 'No description'),
                 published=entry.get('published', str(datetime.now())),
                 source=source_name,
-                category=source_info.get('category', 'general'),
-                image=image_url
+                category=source_info.get('category', 'general')
             )
             articles.append(article)
         
@@ -275,4 +257,4 @@ async def get_categories():
 
 if __name__ == "__main__":
     import uvicorn
-    uvicorn.run(app, host="0.0.0.0", port=8001)
+    uvicorn.run(app, host="0.0.0.0", port=8000)
