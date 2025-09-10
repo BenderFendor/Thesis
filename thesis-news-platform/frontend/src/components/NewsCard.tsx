@@ -28,30 +28,30 @@ export default function NewsCard({ article }: NewsCardProps) {
 
   const getSourceColor = (source: string) => {
     const colors: { [key: string]: string } = {
-      'BBC': 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200',
-      'CNN': 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200',
-      'Reuters': 'bg-orange-100 text-orange-800 dark:bg-orange-900 dark:text-orange-200',
-      'NPR': 'bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-200',
-      'Fox News': 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200',
-      'Associated Press': 'bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-200'
+      'BBC': 'bg-red-500/20 text-red-300 border-red-500/30',
+      'CNN': 'bg-blue-500/20 text-blue-300 border-blue-500/30',
+      'Reuters': 'bg-orange-500/20 text-orange-300 border-orange-500/30',
+      'NPR': 'bg-purple-500/20 text-purple-300 border-purple-500/30',
+      'Fox News': 'bg-green-500/20 text-green-300 border-green-500/30',
+      'Associated Press': 'bg-gray-500/20 text-gray-300 border-gray-500/30'
     };
-    return colors[source] || 'bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-200';
+    return colors[source] || 'bg-gray-500/20 text-gray-300 border-gray-500/30';
   };
 
   return (
-    <div className="bg-white dark:bg-gray-800 rounded-lg shadow-md hover:shadow-lg transition-shadow duration-200 overflow-hidden">
+    <div className="bg-gray-900/95 backdrop-blur-sm rounded-xl shadow-2xl hover:shadow-3xl transition-all duration-300 overflow-hidden border border-gray-700/30 hover:border-gray-600/50 group hover:transform hover:scale-[1.02]">
       {/* Article Image */}
       {article.image && !imageError && (
-        <div className="relative h-48 bg-gray-200 dark:bg-gray-700">
+        <div className="relative h-48 bg-gray-800 overflow-hidden">
           {imageLoading && (
-            <div className="absolute inset-0 flex items-center justify-center">
-              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+            <div className="absolute inset-0 flex items-center justify-center bg-gray-800">
+              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500"></div>
             </div>
           )}
           <img
             src={article.image}
             alt={article.title}
-            className={`w-full h-full object-cover transition-opacity duration-300 ${
+            className={`w-full h-full object-cover transition-all duration-500 group-hover:scale-110 ${
               imageLoading ? 'opacity-0' : 'opacity-100'
             }`}
             onLoad={() => setImageLoading(false)}
@@ -60,42 +60,43 @@ export default function NewsCard({ article }: NewsCardProps) {
               setImageLoading(false);
             }}
           />
+          <div className="absolute inset-0 bg-gradient-to-t from-gray-900/60 via-transparent to-transparent" />
         </div>
       )}
       
       {/* Fallback placeholder when no image or error */}
       {(!article.image || imageError) && (
-        <div className="h-48 bg-gradient-to-br from-gray-100 to-gray-200 dark:from-gray-700 dark:to-gray-800 flex items-center justify-center">
-          <ImageIcon className="h-12 w-12 text-gray-400" />
+        <div className="h-48 bg-gradient-to-br from-gray-800 via-gray-850 to-gray-900 flex items-center justify-center">
+          <ImageIcon className="h-16 w-16 text-gray-600 group-hover:text-gray-500 transition-colors" />
         </div>
       )}
 
-      <div className="p-6">
+      <div className="p-6 space-y-4">
         {/* Source and Date */}
-        <div className="flex items-center justify-between mb-3">
-          <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${getSourceColor(article.source)}`}>
-            <Building className="w-3 h-3 mr-1" />
+        <div className="flex items-center justify-between">
+          <span className={`inline-flex items-center px-3 py-1 rounded-full text-xs font-medium border ${getSourceColor(article.source)}`}>
+            <Building className="w-3 h-3 mr-1.5" />
             {article.source}
           </span>
-          <div className="flex items-center text-sm text-gray-500 dark:text-gray-400">
-            <Clock className="w-4 h-4 mr-1" />
+          <div className="flex items-center text-xs text-gray-400">
+            <Clock className="w-3 h-3 mr-1" />
             {formatDate(article.published)}
           </div>
         </div>
 
         {/* Title */}
-        <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-3 line-clamp-2">
+        <h3 className="text-lg font-semibold text-white line-clamp-2 group-hover:text-blue-400 transition-colors leading-tight">
           {article.title}
         </h3>
 
         {/* Description */}
-        <p className="text-gray-600 dark:text-gray-300 text-sm mb-4 line-clamp-3">
+        <p className="text-gray-300 text-sm line-clamp-3 leading-relaxed">
           {article.description.replace(/<[^>]*>/g, '')} {/* Strip HTML tags */}
         </p>
 
-        {/* Category */}
-        <div className="flex items-center justify-between">
-          <span className="inline-flex items-center px-2 py-1 rounded-md text-xs font-medium bg-blue-50 text-blue-700 dark:bg-blue-900 dark:text-blue-200">
+        {/* Category and Read More */}
+        <div className="flex items-center justify-between pt-2">
+          <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-blue-500/20 text-blue-300 border border-blue-500/30">
             {article.category}
           </span>
           
@@ -103,7 +104,7 @@ export default function NewsCard({ article }: NewsCardProps) {
             href={article.link}
             target="_blank"
             rel="noopener noreferrer"
-            className="inline-flex items-center text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-300 text-sm font-medium"
+            className="inline-flex items-center text-blue-400 hover:text-blue-300 text-sm font-medium transition-all group-hover:translate-x-1"
           >
             Read more
             <ExternalLink className="w-4 h-4 ml-1" />

@@ -19,6 +19,7 @@ class NewsArticle(BaseModel):
     published: str
     source: str
     category: str = "general"
+    image: Optional[str] = None
 
 class NewsResponse(BaseModel):
     articles: List[NewsArticle]
@@ -43,21 +44,21 @@ RSS_SOURCES = {
         "bias_rating": "Center"
     },
     "CNN": {
-        "url": "http://rss.cnn.com/rss/edition.rss",
+        "url": "https://rss.cnn.com/rss/cnn_topstories.rss",
         "category": "general", 
         "country": "US",
         "funding_type": "Commercial",
         "bias_rating": "Left-Center"
     },
     "Reuters": {
-        "url": "https://www.reuters.com/rssFeed/topNews",
+        "url": "https://www.reuters.com/tools/rss",
         "category": "general",
         "country": "UK", 
         "funding_type": "Commercial",
         "bias_rating": "Center"
     },
     "NPR": {
-        "url": "https://feeds.npr.org/1001/rss.xml",
+        "url": "http://www.npr.org/rss/rss.php?id=1001",
         "category": "general",
         "country": "US",
         "funding_type": "Public",
@@ -71,7 +72,7 @@ RSS_SOURCES = {
         "bias_rating": "Right"
     },
     "Associated Press": {
-        "url": "feedx.net/rss/ap.xml",
+        "url": "https://apnews.com/rss/topnews",
         "category": "general",
         "country": "US",
         "funding_type": "Non-profit",
@@ -104,7 +105,120 @@ RSS_SOURCES = {
         "country": "QA",
         "funding_type": "State-funded",
         "bias_rating": "Left-Center"
+    },
+    "972mag.com": {
+        "url": "https://972mag.com/feed/",
+        "category": "general",
+        "country": "IL",
+        "funding_type": "Independent",
+        "bias_rating": "Left"
+    },
+    "NGO Monitor": {
+        "url": "https://ngo-monitor.org/feed/",
+        "category": "politics",
+        "country": "IL",
+        "funding_type": "Non-profit",
+        "bias_rating": "Right-Center"
+    },
+    "Truth Out": {
+        "url": "https://truthout.org/feed/",
+        "category": "politics",
+        "country": "US",
+        "funding_type": "Non-profit",
+        "bias_rating": "Left"
+    },
+    "Psychology Today": {
+        "url": "https://www.psychologytoday.com/intl/rss",
+        "category": "general",
+        "country": "US",
+        "funding_type": "Commercial",
+        "bias_rating": "Center"
+    },
+    "Novara Media": {
+        "url": "https://novaramedia.com/feed/",
+        "category": "politics",
+        "country": "UK",
+        "funding_type": "Independent",
+        "bias_rating": "Left"
+    },
+    "Democracy Now!": {
+        "url": "https://www.democracynow.org/democracynow.rss",
+        "category": "politics",
+        "country": "US",
+        "funding_type": "Independent",
+        "bias_rating": "Left"
+    },
+    "The Wall Street Journal": {
+        "url": "https://feeds.content.dowjones.io/public/rss/RSSWorldNews",
+        "category": "business",
+        "country": "US",
+        "funding_type": "Commercial",
+        "bias_rating": "Right-Center"
+    },
+    "Monthly Review": {
+        "url": "https://monthlyreview.org/feed/",
+        "category": "politics",
+        "country": "US",
+        "funding_type": "Independent",
+        "bias_rating": "Left"
+    },
+    "Big Think": {
+        "url": "https://bigthink.com/feed/",
+        "category": "technology",
+        "country": "US",
+        "funding_type": "Commercial",
+        "bias_rating": "Center"
+    },
+    "Beautiful Pixels": {
+        "url": "https://beautifulpixels.com/feed/",
+        "category": "technology",
+        "country": "US",
+        "funding_type": "Independent",
+        "bias_rating": "Center"
+    },
+    "National Geographic": {
+        "url": "https://www.nationalgeographic.com/rss/daily-news",
+        "category": "general",
+        "country": "US",
+        "funding_type": "Commercial",
+        "bias_rating": "Center"
+    },
+    "WSWS": {
+        "url": "https://www.wsws.org/en/rss.xml",
+        "category": "politics",
+        "country": "US",
+        "funding_type": "Independent",
+        "bias_rating": "Left"
+    },
+    "CounterPunch": {
+        "url": "https://www.counterpunch.org/feed/",
+        "category": "politics",
+        "country": "US",
+        "funding_type": "Independent",
+        "bias_rating": "Left"
+    },
+    "Project Syndicate": {
+        "url": "https://www.project-syndicate.org/rss",
+        "category": "general",
+        "country": "International",
+        "funding_type": "Non-profit",
+        "bias_rating": "Center"
+    },
+    "Japan Today": {
+        "url": "https://japantoday.com/rss",
+        "category": "general",
+        "country": "JP",
+        "funding_type": "Commercial",
+        "bias_rating": "Center"
+    },
+    "The Japan Times": {
+        "url": "https://www.japantimes.co.jp/feed/",
+        "category": "general",
+        "country": "JP",
+        "funding_type": "Commercial",
+        "bias_rating": "Center"
     }
+}
 
 app = FastAPI(
     title="Global News Aggregation API", 
@@ -128,13 +242,57 @@ def parse_rss_feed(url: str, source_name: str, source_info: Dict) -> List[NewsAr
         articles = []
         
         for entry in feed.entries[:15]:  # Limit to 15 articles per source
+            # Extract image URL from various possible locations
+            image_url = None
+            
+            # Check for media:thumbnail
+            if hasattr(entry, 'media_thumbnail') and entry.media_thumbnail:
+                image_url = entry.media_thumbnail[0].get('url') if isinstance(entry.media_thumbnail, list) else entry.media_thumbnail.get('url')
+            
+            # Check for media:content
+            elif hasattr(entry, 'media_content') and entry.media_content:
+                for media in entry.media_content:
+                    if media.get('type', '').startswith('image/'):
+                        image_url = media.get('url')
+                        break
+            
+            # Check for enclosure (podcast/media)
+            elif hasattr(entry, 'enclosures') and entry.enclosures:
+                for enclosure in entry.enclosures:
+                    if enclosure.get('type', '').startswith('image/'):
+                        image_url = enclosure.get('href')
+                        break
+            
+            # Check for image in links
+            elif hasattr(entry, 'links') and entry.links:
+                for link in entry.links:
+                    if link.get('type', '').startswith('image/'):
+                        image_url = link.get('href')
+                        break
+            
+            # Check for image tag in content
+            elif hasattr(entry, 'content') and entry.content:
+                import re
+                content_text = entry.content[0].value if isinstance(entry.content, list) else str(entry.content)
+                img_match = re.search(r'<img[^>]+src="([^"]+)"', content_text)
+                if img_match:
+                    image_url = img_match.group(1)
+            
+            # Check for image in description/summary
+            if not image_url and entry.get('description'):
+                import re
+                img_match = re.search(r'<img[^>]+src="([^"]+)"', entry.description)
+                if img_match:
+                    image_url = img_match.group(1)
+            
             article = NewsArticle(
                 title=entry.get('title', 'No title'),
                 link=entry.get('link', ''),
                 description=entry.get('description', 'No description'),
                 published=entry.get('published', str(datetime.now())),
                 source=source_name,
-                category=source_info.get('category', 'general')
+                category=source_info.get('category', 'general'),
+                image=image_url
             )
             articles.append(article)
         
