@@ -35,14 +35,14 @@ export default function NewsCard({ article }: NewsCardProps) {
   };
 
   return (
-    <article className="news-card group cursor-pointer h-full">
+    <article className="news-card responsive-news-card group cursor-pointer h-full">
       <div className="relative overflow-hidden rounded-t-xl h-48 bg-gray-900">
         {article.image ? (
           <Image
             src={article.image}
             alt={article.title}
             fill
-            className="object-cover transition-transform duration-300 group-hover:scale-105"
+            className="object-cover responsive-news-image transition-transform duration-300 group-hover:scale-105"
             sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw"
             onError={(e) => {
               const target = e.target as HTMLImageElement;

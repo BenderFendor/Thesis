@@ -225,3 +225,42 @@ input:focus-visible {
   -webkit-text-fill-color: transparent;
   background-clip: text;
 }
+
+/* Responsive grid and card styles for dynamic article layout and image aspect ratio */
+.responsive-news-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap: 2rem;
+  padding: 1.5rem 0;
+  scroll-snap-type: y mandatory;
+}
+
+.responsive-news-card {
+  scroll-snap-align: start;
+  background: rgb(var(--card));
+  border-radius: 1rem;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  min-height: 100%;
+}
+
+.responsive-news-image {
+  width: 100%;
+  aspect-ratio: 16/9;
+  object-fit: cover;
+  border-top-left-radius: 1rem;
+  border-top-right-radius: 1rem;
+}
+
+@media (min-width: 640px) {
+  .responsive-news-grid {
+    grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+  }
+}
+
+@media (min-width: 1024px) {
+  .responsive-news-grid {
+    grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+  }
+}

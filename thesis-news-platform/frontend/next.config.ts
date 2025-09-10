@@ -1,7 +1,51 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
-  /* config options here */
+  images: {
+    remotePatterns: [
+      { protocol: 'https', hostname: 'www.japantimes.co.jp', port: '', pathname: '/**' },
+      { protocol: 'https', hostname: 'feeds.bbci.co.uk', port: '', pathname: '/**' },
+      { protocol: 'https', hostname: 'ichef.bbci.co.uk', port: '', pathname: '/**' },
+      { protocol: 'https', hostname: 'rss.cnn.com', port: '', pathname: '/**' },
+      { protocol: 'https', hostname: 'www.reuters.com', port: '', pathname: '/**' },
+      { protocol: 'http', hostname: 'www.npr.org', port: '', pathname: '/**' },
+      { protocol: 'https', hostname: 'feeds.foxnews.com', port: '', pathname: '/**' },
+      { protocol: 'https', hostname: 'apnews.com', port: '', pathname: '/**' },
+      { protocol: 'https', hostname: 'rss.nytimes.com', port: '', pathname: '/**' },
+      { protocol: 'https', hostname: 'www.theguardian.com', port: '', pathname: '/**' },
+      { protocol: 'http', hostname: 'feeds.washingtonpost.com', port: '', pathname: '/**' },
+      { protocol: 'https', hostname: 'www.aljazeera.com', port: '', pathname: '/**' },
+      { protocol: 'https', hostname: '972mag.com', port: '', pathname: '/**' },
+      { protocol: 'https', hostname: 'ngo-monitor.org', port: '', pathname: '/**' },
+      { protocol: 'https', hostname: 'truthout.org', port: '', pathname: '/**' },
+      { protocol: 'https', hostname: 'www.psychologytoday.com', port: '', pathname: '/**' },
+      { protocol: 'https', hostname: 'novaramedia.com', port: '', pathname: '/**' },
+      { protocol: 'https', hostname: 'www.democracynow.org', port: '', pathname: '/**' },
+      { protocol: 'https', hostname: 'feeds.content.dowjones.io', port: '', pathname: '/**' },
+      { protocol: 'https', hostname: 'monthlyreview.org', port: '', pathname: '/**' },
+      { protocol: 'https', hostname: 'bigthink.com', port: '', pathname: '/**' },
+      { protocol: 'https', hostname: 'beautifulpixels.com', port: '', pathname: '/**' },
+      { protocol: 'https', hostname: 'www.nationalgeographic.com', port: '', pathname: '/**' },
+      { protocol: 'https', hostname: 'www.wsws.org', port: '', pathname: '/**' },
+      { protocol: 'https', hostname: 'www.counterpunch.org', port: '', pathname: '/**' },
+      { protocol: 'https', hostname: 'www.project-syndicate.org', port: '', pathname: '/**' },
+      { protocol: 'https', hostname: 'japantoday.com', port: '', pathname: '/**' },
+      { protocol: 'https', hostname: 'www.axios.com', port: '', pathname: '/**' },
+      { protocol: 'https', hostname: 'news.ycombinator.com', port: '', pathname: '/**' },
+      { protocol: 'https', hostname: 'hnrss.org', port: '', pathname: '/**' },
+      { protocol: 'http', hostname: 'rss.cnn.com', port: '', pathname: '/**' },
+      { protocol: 'https', hostname: 'feeds.ign.com', port: '', pathname: '/**' },
+      { protocol: 'https', hostname: 'www.pcgamer.com', port: '', pathname: '/**' },
+      { protocol: 'https', hostname: 'www.hrw.org', port: '', pathname: '/**' },
+      { protocol: 'https', hostname: 'www.amnesty.org', port: '', pathname: '/**' },
+      { protocol: 'https', hostname: 'www.doctorswithoutborders.org', port: '', pathname: '/**' },
+      { protocol: 'https', hostname: 'www.liberationnews.org', port: '', pathname: '/**' },
+      { protocol: 'https', hostname: 'electronicintifada.net', port: '', pathname: '/**' },
+      { protocol: 'https', hostname: 'whyy.org', port: '', pathname: '/**' },
+      { protocol: 'https', hostname: 'www.phillyvoice.com', port: '', pathname: '/**' },
+      { protocol: 'https', hostname: 'news.google.com', port: '', pathname: '/**' }
+    ],
+  },
 };
 
 export default nextConfig;

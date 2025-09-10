@@ -197,20 +197,18 @@ export default function Home() {
 
         {/* News Grid with Snap Scrolling */}
         {!loading && initialLoad && filteredArticles.length > 0 && (
-          <div className="snap-container">
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
-              {filteredArticles.map((article, index) => (
-                <div
-                  key={`${article.link}-${index}`}
-                  className="snap-item animate-fade-in"
-                  style={{
-                    animationDelay: `${(index % 6) * 100}ms`,
-                  }}
-                >
-                  <NewsCard article={article} />
-                </div>
-              ))}
-            </div>
+          <div className="snap-container responsive-news-grid">
+            {filteredArticles.map((article, index) => (
+              <div
+                key={`${article.link}-${index}`}
+                className="snap-item responsive-news-card animate-fade-in"
+                style={{
+                  animationDelay: `${(index % 6) * 100}ms`,
+                }}
+              >
+                <NewsCard article={article} />
+              </div>
+            ))}
           </div>
         )}
 
