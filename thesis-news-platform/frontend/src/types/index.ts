@@ -5,6 +5,7 @@ export interface NewsArticle {
   published: string;
   source: string;
   category: string;
+  image?: string;
 }
 
 export interface NewsResponse {

@@ -1,13 +1,17 @@
 'use client';
 
-import { ExternalLink, Clock, Building } from 'lucide-react';
+import { ExternalLink, Clock, Building, Image as ImageIcon } from 'lucide-react';
 import { NewsArticle } from '@/types';
+import { useState } from 'react';
 
 interface NewsCardProps {
   article: NewsArticle;
 }
 
 export default function NewsCard({ article }: NewsCardProps) {
+  const [imageError, setImageError] = useState(false);
+  const [imageLoading, setImageLoading] = useState(true);
+
   const formatDate = (dateString: string) => {
     try {
       const date = new Date(dateString);
@@ -36,6 +40,36 @@ export default function NewsCard({ article }: NewsCardProps) {
 
   return (
     <div className="bg-white dark:bg-gray-800 rounded-lg shadow-md hover:shadow-lg transition-shadow duration-200 overflow-hidden">
+      {/* Article Image */}
+      {article.image && !imageError && (
+        <div className="relative h-48 bg-gray-200 dark:bg-gray-700">
+          {imageLoading && (
+            <div className="absolute inset-0 flex items-center justify-center">
+              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+            </div>
+          )}
+          <img
+            src={article.image}
+            alt={article.title}
+            className={`w-full h-full object-cover transition-opacity duration-300 ${
+              imageLoading ? 'opacity-0' : 'opacity-100'
+            }`}
+            onLoad={() => setImageLoading(false)}
+            onError={() => {
+              setImageError(true);
+              setImageLoading(false);
+            }}
+          />
+        </div>
+      )}
+      
+      {/* Fallback placeholder when no image or error */}
+      {(!article.image || imageError) && (
+        <div className="h-48 bg-gradient-to-br from-gray-100 to-gray-200 dark:from-gray-700 dark:to-gray-800 flex items-center justify-center">
+          <ImageIcon className="h-12 w-12 text-gray-400" />
+        </div>
+      )}
+
       <div className="p-6">
         {/* Source and Date */}
         <div className="flex items-center justify-between mb-3">
