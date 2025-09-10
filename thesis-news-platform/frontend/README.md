@@ -1,3 +1,6 @@
+# For this project
+I'm using docker so just use docker compose up to run the front and backend
+# This is the auto generated Documentation
 This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
 
 ## Getting Started

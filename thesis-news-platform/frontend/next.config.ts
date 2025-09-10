@@ -6,6 +6,7 @@ const nextConfig: NextConfig = {
       { protocol: 'https', hostname: 'www.japantimes.co.jp', port: '', pathname: '/**' },
       { protocol: 'https', hostname: 'feeds.bbci.co.uk', port: '', pathname: '/**' },
       { protocol: 'https', hostname: 'ichef.bbci.co.uk', port: '', pathname: '/**' },
+      { protocol: 'https', hostname: '*', port: '', pathname: '/**' },
       { protocol: 'https', hostname: 'rss.cnn.com', port: '', pathname: '/**' },
       { protocol: 'https', hostname: 'www.reuters.com', port: '', pathname: '/**' },
       { protocol: 'http', hostname: 'www.npr.org', port: '', pathname: '/**' },
