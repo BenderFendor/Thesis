@@ -14,7 +14,6 @@ import re
 from urllib.parse import urljoin, urlparse
 import json
 import requests
-import requests
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -81,7 +80,7 @@ RSS_SOURCES = {
         "bias_rating": "Center"
     },
     "CNN": {
-        "url": "https://rss.cnn.com/rss/cnn_topstories.rss",
+        "url": "http://rss.cnn.com/rss/cnn_topstories.rss",
         "category": "general", 
         "country": "US",
         "funding_type": "Commercial",
@@ -109,7 +108,22 @@ RSS_SOURCES = {
         "bias_rating": "Right"
     },
     "Associated Press": {
-        "url": "https://apnews.com/rss/topnews",
+        "url": [
+            "http://associated-press.s3-website-us-east-1.amazonaws.com/business.xml",
+            "http://associated-press.s3-website-us-east-1.amazonaws.com/climate-and-environment.xml",
+            "http://associated-press.s3-website-us-east-1.amazonaws.com/entertainment.xml",
+            "http://associated-press.s3-website-us-east-1.amazonaws.com/health.xml",
+            "http://associated-press.s3-website-us-east-1.amazonaws.com/lifestyle.xml",
+            "http://associated-press.s3-website-us-east-1.amazonaws.com/oddities.xml",
+            "http://associated-press.s3-website-us-east-1.amazonaws.com/politics.xml",
+            "http://associated-press.s3-website-us-east-1.amazonaws.com/religion.xml",
+            "http://associated-press.s3-website-us-east-1.amazonaws.com/science.xml",
+            "http://associated-press.s3-website-us-east-1.amazonaws.com/sports.xml",
+            "http://associated-press.s3-website-us-east-1.amazonaws.com/technology.xml",
+            "http://associated-press.s3-website-us-east-1.amazonaws.com/travel.xml",
+            "http://associated-press.s3-website-us-east-1.amazonaws.com/us-news.xml",
+            "http://associated-press.s3-website-us-east-1.amazonaws.com/world-news.xml"
+        ],
         "category": "general",
         "country": "US",
         "funding_type": "Non-profit",
@@ -566,51 +580,42 @@ def refresh_news_cache():
     
     for source_name, source_info in RSS_SOURCES.items():
         try:
-            # Get RSS as JSON for better debugging
-            feed_json, feed = get_rss_as_json(source_info['url'], source_name)
-            
-            # Log JSON representation for debugging
-            if source_name in ['Novara Media', 'CNN Politics']:  # Log problematic sources
-                logger.info(f"📄 RSS JSON for {source_name}: {json.dumps(feed_json, indent=2)}")
-            
-            # Initialize status
+            urls = source_info['url']
+            if isinstance(urls, str):
+                urls = [urls]
+            articles = []
             feed_status = "success"
             error_message = None
-            
-            # Check for HTTP errors
-            if hasattr(feed, 'status') and feed.status >= 400:
-                feed_status = "error"
-                error_message = f"HTTP {feed.status} error"
-                article_count = 0
-                articles = []
-                logger.error(f"❌ HTTP {feed.status} for {source_name}: {source_info['url']}")
-            # Check for parsing errors
-            elif hasattr(feed, 'bozo') and feed.bozo:
-                feed_status = "warning"
-                bozo_error = str(getattr(feed, 'bozo_exception', 'Unknown error'))
-                error_message = f"Parse warning: {bozo_error}"
-                articles = parse_rss_feed_entries(feed.entries, source_name, source_info)
-                article_count = len(articles)
-                logger.warning(f"⚠️  XML parsing issue for {source_name}: {bozo_error} (still got {article_count} articles)")
-            # Check if no entries found
-            elif not hasattr(feed, 'entries') or len(feed.entries) == 0:
-                feed_status = "warning"
-                error_message = "No articles found in feed"
-                article_count = 0
-                articles = []
-                logger.warning(f"⚠️  No entries found for {source_name}: {source_info['url']}")
-            else:
-                articles = parse_rss_feed_entries(feed.entries, source_name, source_info)
-                article_count = len(articles)
-                logger.info(f"✅ Successfully parsed {article_count} articles from {source_name}")
-            
-            # Add articles to main list
+            for url in urls:
+                feed_json, feed = get_rss_as_json(url, source_name)
+                if source_name in ['Novara Media', 'CNN Politics']:
+                    logger.info(f"📄 RSS JSON for {source_name}: {json.dumps(feed_json, indent=2)}")
+                if hasattr(feed, 'status') and feed.status >= 400:
+                    feed_status = "error"
+                    error_message = f"HTTP {feed.status} error"
+                    logger.error(f"❌ HTTP {feed.status} for {source_name}: {url}")
+                    continue
+                elif hasattr(feed, 'bozo') and feed.bozo:
+                    feed_status = "warning"
+                    bozo_error = str(getattr(feed, 'bozo_exception', 'Unknown error'))
+                    error_message = f"Parse warning: {bozo_error}"
+                    parsed_articles = parse_rss_feed_entries(feed.entries, source_name, source_info)
+                    articles.extend(parsed_articles)
+                    logger.warning(f"⚠️  XML parsing issue for {source_name}: {bozo_error} (got {len(parsed_articles)} articles)")
+                elif not hasattr(feed, 'entries') or len(feed.entries) == 0:
+                    feed_status = "warning"
+                    error_message = "No articles found in feed"
+                    logger.warning(f"⚠️  No entries found for {source_name}: {url}")
+                    continue
+                else:
+                    parsed_articles = parse_rss_feed_entries(feed.entries, source_name, source_info)
+                    articles.extend(parsed_articles)
+                    logger.info(f"✅ Parsed {len(parsed_articles)} articles from {source_name} ({url})")
+            article_count = len(articles)
             all_articles.extend(articles)
-            
-            # Create source stat
             source_stat = {
                 "name": source_name,
-                "url": source_info['url'],
+                "url": urls if len(urls) > 1 else urls[0],
                 "category": source_info.get('category', 'general'),
                 "country": source_info.get('country', 'US'),
                 "funding_type": source_info.get('funding_type'),
@@ -621,9 +626,7 @@ def refresh_news_cache():
                 "last_checked": datetime.now().isoformat()
             }
             source_stats.append(source_stat)
-            
         except Exception as e:
-            # Create error source stat
             source_stat = {
                 "name": source_name,
                 "url": source_info['url'],
@@ -831,16 +834,18 @@ async def get_sources():
     """Get list of available news sources with their information"""
     sources = []
     for name, info in RSS_SOURCES.items():
+        url = info['url']
+        if isinstance(url, list) and len(url) == 1:
+            url = url[0]
         source = SourceInfo(
             name=name,
-            url=info['url'],
+            url=url,
             category=info.get('category', 'general'),
             country=info.get('country', 'US'),
             funding_type=info.get('funding_type'),
             bias_rating=info.get('bias_rating')
         )
         sources.append(source)
-    
     return sources
 
 @app.get("/categories")
