@@ -341,10 +341,28 @@ app.add_middleware(
 )
 
 def parse_rss_feed(url: str, source_name: str, source_info: Dict) -> List[NewsArticle]:
-    """Parse RSS feed and return list of articles"""
+    """Parse RSS feed and return list of articles with improved error handling"""
+    import html
+    import re
+    from urllib.parse import urljoin, urlparse
+    
     try:
-        feed = feedparser.parse(url)
+        # Add user agent to avoid blocking
+        feed = feedparser.parse(url, agent='NewsAggregator/1.0')
         articles = []
+        
+        # Check if feed was parsed successfully
+        if hasattr(feed, 'bozo') and feed.bozo:
+            logger.warning(f"Feed parsing warning for {source_name}: {getattr(feed, 'bozo_exception', 'Unknown error')}")
+        
+        # Check feed status
+        if hasattr(feed, 'status') and feed.status >= 400:
+            logger.error(f"HTTP error {feed.status} for {source_name}: {url}")
+            return []
+        
+        if not hasattr(feed, 'entries') or len(feed.entries) == 0:
+            logger.warning(f"No entries found for {source_name}: {url}")
+            return []
         
         for entry in feed.entries[:15]:  # Limit to 15 articles per source
             # Extract image URL from various possible locations
@@ -385,15 +403,38 @@ def parse_rss_feed(url: str, source_name: str, source_info: Dict) -> List[NewsAr
             
             # Check for image in description/summary
             if not image_url and entry.get('description'):
-                import re
                 img_match = re.search(r'<img[^>]+src="([^"]+)"', entry.description)
                 if img_match:
                     image_url = img_match.group(1)
             
+            # Clean title and description
+            title = entry.get('title', 'No title')
+            description = entry.get('description', 'No description')
+            
+            # Decode HTML entities and remove HTML tags
+            title = html.unescape(title)
+            title = re.sub(r'<[^>]+>', '', title).strip()
+            
+            description = html.unescape(description)
+            # Remove HTML tags but preserve some basic structure
+            description = re.sub(r'<script[^>]*>.*?</script>', '', description, flags=re.DOTALL | re.IGNORECASE)
+            description = re.sub(r'<style[^>]*>.*?</style>', '', description, flags=re.DOTALL | re.IGNORECASE)
+            description = re.sub(r'<[^>]+>', ' ', description)
+            description = re.sub(r'\s+', ' ', description).strip()
+            
+            # Ensure image URL is absolute
+            if image_url and not image_url.startswith(('http://', 'https://')):
+                try:
+                    parsed_url = urlparse(url)
+                    base_url = f"{parsed_url.scheme}://{parsed_url.netloc}"
+                    image_url = urljoin(base_url, image_url)
+                except:
+                    image_url = None
+            
             article = NewsArticle(
-                title=entry.get('title', 'No title'),
+                title=title,
                 link=entry.get('link', ''),
-                description=entry.get('description', 'No description'),
+                description=description,
                 published=entry.get('published', str(datetime.now())),
                 source=source_name,
                 category=source_info.get('category', 'general'),
@@ -517,6 +558,62 @@ async def get_categories():
         categories.add(source_info.get('category', 'general'))
     
     return {"categories": list(categories)}
+
+@app.get("/sources/stats")
+async def get_source_stats():
+    """Get statistics for each RSS source including article counts and parse status"""
+    source_stats = []
+    
+    for source_name, source_info in RSS_SOURCES.items():
+        try:
+            # Parse the RSS feed to get article count using improved method
+            feed = feedparser.parse(source_info['url'], agent='NewsAggregator/1.0')
+            
+            # Initialize status
+            feed_status = "success"
+            error_message = None
+            
+            # Check for HTTP errors
+            if hasattr(feed, 'status') and feed.status >= 400:
+                feed_status = "error"
+                error_message = f"HTTP {feed.status} error"
+                article_count = 0
+            # Check for parsing errors
+            elif hasattr(feed, 'bozo') and feed.bozo:
+                feed_status = "warning"
+                error_message = f"Parse warning: {getattr(feed, 'bozo_exception', 'Unknown error')}"
+                article_count = len(feed.entries[:15]) if hasattr(feed, 'entries') else 0
+            # Check if no entries found
+            elif not hasattr(feed, 'entries') or len(feed.entries) == 0:
+                feed_status = "warning"
+                error_message = "No articles found in feed"
+                article_count = 0
+            else:
+                article_count = len(feed.entries[:15])  # Limit to 15 like in main parsing
+            
+        except Exception as e:
+            article_count = 0
+            feed_status = "error" 
+            error_message = str(e)
+        
+        source_stat = {
+            "name": source_name,
+            "url": source_info['url'],
+            "category": source_info.get('category', 'general'),
+            "country": source_info.get('country', 'US'),
+            "funding_type": source_info.get('funding_type'),
+            "bias_rating": source_info.get('bias_rating'),
+            "article_count": article_count,
+            "status": feed_status,
+            "error_message": error_message,
+            "last_checked": datetime.now().isoformat()
+        }
+        source_stats.append(source_stat)
+        
+        # Log the result
+        logger.info(f"Source check - {source_name}: {article_count} articles, status: {feed_status}")
+    
+    return {"sources": source_stats, "total_sources": len(source_stats)}
 
 if __name__ == "__main__":
     import uvicorn

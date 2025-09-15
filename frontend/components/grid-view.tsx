@@ -37,19 +37,30 @@ export function GridView() {
   const gridRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
-    const loadNews = async () => {
-      setLoading(true)
+    const loadNews = async (showLoading = true) => {
+      if (showLoading) setLoading(true)
       try {
         const fetchedArticles = await fetchNews({ limit: 50, category: 'politics' })
         setArticles(fetchedArticles)
+        console.log(`🔄 Background refresh: Loaded ${fetchedArticles.length} articles at ${new Date().toLocaleTimeString()}`)
       } catch (error) {
         console.error('Failed to load news:', error)
       } finally {
-        setLoading(false)
+        if (showLoading) setLoading(false)
       }
     }
     
+    // Initial load
     loadNews()
+    
+    // Set up background refresh every 5 minutes
+    const refreshInterval = setInterval(() => {
+      console.log('🔄 Starting background article refresh...')
+      loadNews(false) // Don't show loading spinner for background updates
+    }, 5 * 60 * 1000) // 5 minutes
+    
+    // Cleanup interval on unmount
+    return () => clearInterval(refreshInterval)
   }, [])
 
   const filteredNews = articles.filter((article: NewsArticle) => {

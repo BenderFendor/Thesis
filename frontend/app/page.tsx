@@ -17,7 +17,9 @@ import {
   Palette,
   Laptop,
   Trophy,
+  Activity,
 } from "lucide-react"
+import Link from "next/link"
 import { GlobeView } from "@/components/globe-view"
 import { GridView } from "@/components/grid-view"
 import { ScrollView } from "@/components/scroll-view"
@@ -90,6 +92,12 @@ export default function NewsPage() {
 
               {/* User Actions */}
               <div className="flex items-center gap-2">
+                <Link href="/sources">
+                  <Button variant="ghost" size="sm" className="gap-2">
+                    <Activity className="w-4 h-4" />
+                    Sources
+                  </Button>
+                </Link>
                 <Button variant="ghost" size="sm" className="relative">
                   <Bell className="w-4 h-4" />
                   <Badge className="absolute -top-1 -right-1 w-2 h-2 p-0 bg-destructive" />

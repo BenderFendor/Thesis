@@ -33,19 +33,29 @@ export function ScrollView() {
   const containerRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
-    const loadNews = async () => {
-      setLoading(true)
+    const loadNews = async (showLoading = true) => {
+      if (showLoading) setLoading(true)
       try {
         const articles = await fetchNews({ limit: 5, category: 'politics' })
         setScrollNews(articles)
+        console.log(`🔄 Scroll view refresh: Loaded ${articles.length} articles at ${new Date().toLocaleTimeString()}`)
       } catch (error) {
         console.error('Failed to load news:', error)
       } finally {
-        setLoading(false)
+        if (showLoading) setLoading(false)
       }
     }
     
+    // Initial load
     loadNews()
+    
+    // Set up background refresh every 3 minutes for scroll view (more frequent)
+    const refreshInterval = setInterval(() => {
+      console.log('🔄 Starting background scroll view refresh...')
+      loadNews(false) // Don't show loading spinner for background updates
+    }, 3 * 60 * 1000) // 3 minutes
+    
+    return () => clearInterval(refreshInterval)
   }, [])
 
   useEffect(() => {
