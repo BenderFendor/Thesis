@@ -5,11 +5,10 @@ I would like to add sql backend for this so that I don't have to load the articl
 
 
 # Source debugging
-Add a feature to see if the images are getting parse and to give out each source as a json that can be view and debugged in the source page.
+http://localhost:3000/sources/972mag.com/debug
 
-Add a search bar.
+Fix the debug page is right now is it not working at all it if you can the docker compose to say backend:8001 instead of localhost:8001 that works but it breaks the rest of the website so it needs to be something else to fix it.
 
-Sort sources by working not working and other errors in the main source page.
 
 # Styling
 
