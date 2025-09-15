@@ -1,7 +1,7 @@
 from fastapi import FastAPI, HTTPException, BackgroundTasks
 from fastapi.middleware.cors import CORSMiddleware
 import feedparser
-from typing import List, Dict, Any, Optional
+from typing import List, Dict, Any, Optional, Tuple
 from pydantic import BaseModel
 import asyncio
 from datetime import datetime
@@ -566,8 +566,79 @@ def get_rss_as_json(url: str, source_name: str) -> Dict[str, Any]:
         feed = feedparser.parse(url, agent='NewsAggregator/1.0')
         return {"error": str(e), "fallback": True}, feed
 
+import concurrent.futures
+
+def _process_source(source_name: str, source_info: Dict) -> Tuple[List[NewsArticle], Dict]:
+    """Process a single RSS source, fetching and parsing its feed."""
+    try:
+        urls = source_info['url']
+        if isinstance(urls, str):
+            urls = [urls]
+        
+        articles = []
+        feed_status = "success"
+        error_message = None
+        
+        for url in urls:
+            feed_json, feed = get_rss_as_json(url, source_name)
+            
+            if source_name in ['Novara Media', 'CNN Politics']:
+                logger.info(f"📄 RSS JSON for {source_name}: {json.dumps(feed_json, indent=2)}")
+            
+            if hasattr(feed, 'status') and feed.status >= 400:
+                feed_status = "error"
+                error_message = f"HTTP {feed.status} error"
+                logger.error(f"❌ HTTP {feed.status} for {source_name}: {url}")
+                continue
+            elif hasattr(feed, 'bozo') and feed.bozo:
+                feed_status = "warning"
+                bozo_error = str(getattr(feed, 'bozo_exception', 'Unknown error'))
+                error_message = f"Parse warning: {bozo_error}"
+                parsed_articles = parse_rss_feed_entries(feed.entries, source_name, source_info)
+                articles.extend(parsed_articles)
+                logger.warning(f"⚠️  XML parsing issue for {source_name}: {bozo_error} (got {len(parsed_articles)} articles)")
+            elif not hasattr(feed, 'entries') or len(feed.entries) == 0:
+                feed_status = "warning"
+                error_message = "No articles found in feed"
+                logger.warning(f"⚠️  No entries found for {source_name}: {url}")
+                continue
+            else:
+                parsed_articles = parse_rss_feed_entries(feed.entries, source_name, source_info)
+                articles.extend(parsed_articles)
+                logger.info(f"✅ Parsed {len(parsed_articles)} articles from {source_name} ({url})")
+
+        source_stat = {
+            "name": source_name,
+            "url": urls if len(urls) > 1 else urls[0],
+            "category": source_info.get('category', 'general'),
+            "country": source_info.get('country', 'US'),
+            "funding_type": source_info.get('funding_type'),
+            "bias_rating": source_info.get('bias_rating'),
+            "article_count": len(articles),
+            "status": feed_status,
+            "error_message": error_message,
+            "last_checked": datetime.now().isoformat()
+        }
+        return articles, source_stat
+
+    except Exception as e:
+        logger.error(f"💥 Error processing {source_name}: {e}")
+        source_stat = {
+            "name": source_name,
+            "url": source_info.get('url'),
+            "category": source_info.get('category', 'general'),
+            "country": source_info.get('country', 'US'),
+            "funding_type": source_info.get('funding_type'),
+            "bias_rating": source_info.get('bias_rating'),
+            "article_count": 0,
+            "status": "error",
+            "error_message": str(e),
+            "last_checked": datetime.now().isoformat()
+        }
+        return [], source_stat
+
 def refresh_news_cache():
-    """Refresh the news cache by parsing all RSS sources"""
+    """Refresh the news cache by parsing all RSS sources concurrently."""
     if news_cache.update_in_progress:
         logger.info("Cache update already in progress, skipping...")
         return
@@ -577,70 +648,31 @@ def refresh_news_cache():
     
     all_articles = []
     source_stats = []
-    
-    for source_name, source_info in RSS_SOURCES.items():
-        try:
-            urls = source_info['url']
-            if isinstance(urls, str):
-                urls = [urls]
-            articles = []
-            feed_status = "success"
-            error_message = None
-            for url in urls:
-                feed_json, feed = get_rss_as_json(url, source_name)
-                if source_name in ['Novara Media', 'CNN Politics']:
-                    logger.info(f"📄 RSS JSON for {source_name}: {json.dumps(feed_json, indent=2)}")
-                if hasattr(feed, 'status') and feed.status >= 400:
-                    feed_status = "error"
-                    error_message = f"HTTP {feed.status} error"
-                    logger.error(f"❌ HTTP {feed.status} for {source_name}: {url}")
-                    continue
-                elif hasattr(feed, 'bozo') and feed.bozo:
-                    feed_status = "warning"
-                    bozo_error = str(getattr(feed, 'bozo_exception', 'Unknown error'))
-                    error_message = f"Parse warning: {bozo_error}"
-                    parsed_articles = parse_rss_feed_entries(feed.entries, source_name, source_info)
-                    articles.extend(parsed_articles)
-                    logger.warning(f"⚠️  XML parsing issue for {source_name}: {bozo_error} (got {len(parsed_articles)} articles)")
-                elif not hasattr(feed, 'entries') or len(feed.entries) == 0:
-                    feed_status = "warning"
-                    error_message = "No articles found in feed"
-                    logger.warning(f"⚠️  No entries found for {source_name}: {url}")
-                    continue
-                else:
-                    parsed_articles = parse_rss_feed_entries(feed.entries, source_name, source_info)
-                    articles.extend(parsed_articles)
-                    logger.info(f"✅ Parsed {len(parsed_articles)} articles from {source_name} ({url})")
-            article_count = len(articles)
-            all_articles.extend(articles)
-            source_stat = {
-                "name": source_name,
-                "url": urls if len(urls) > 1 else urls[0],
-                "category": source_info.get('category', 'general'),
-                "country": source_info.get('country', 'US'),
-                "funding_type": source_info.get('funding_type'),
-                "bias_rating": source_info.get('bias_rating'),
-                "article_count": article_count,
-                "status": feed_status,
-                "error_message": error_message,
-                "last_checked": datetime.now().isoformat()
-            }
-            source_stats.append(source_stat)
-        except Exception as e:
-            source_stat = {
-                "name": source_name,
-                "url": source_info['url'],
-                "category": source_info.get('category', 'general'),
-                "country": source_info.get('country', 'US'),
-                "funding_type": source_info.get('funding_type'),
-                "bias_rating": source_info.get('bias_rating'),
-                "article_count": 0,
-                "status": "error",
-                "error_message": str(e),
-                "last_checked": datetime.now().isoformat()
-            }
-            source_stats.append(source_stat)
-            logger.error(f"💥 Error processing {source_name}: {e}")
+
+    with concurrent.futures.ThreadPoolExecutor(max_workers=10) as executor:
+        future_to_source = {executor.submit(_process_source, name, info): name for name, info in RSS_SOURCES.items()}
+        
+        for future in concurrent.futures.as_completed(future_to_source):
+            source_name = future_to_source[future]
+            try:
+                articles, source_stat = future.result()
+                all_articles.extend(articles)
+                source_stats.append(source_stat)
+            except Exception as exc:
+                logger.error(f"💥 Exception for {source_name}: {exc}")
+                source_stat = {
+                    "name": source_name,
+                    "url": RSS_SOURCES[source_name].get('url'),
+                    "category": RSS_SOURCES[source_name].get('category', 'general'),
+                    "country": RSS_SOURCES[source_name].get('country', 'US'),
+                    "funding_type": RSS_SOURCES[source_name].get('funding_type'),
+                    "bias_rating": RSS_SOURCES[source_name].get('bias_rating'),
+                    "article_count": 0,
+                    "status": "error",
+                    "error_message": str(exc),
+                    "last_checked": datetime.now().isoformat()
+                }
+                source_stats.append(source_stat)
     
     # Sort articles by published date (newest first)
     try:
