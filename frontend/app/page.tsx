@@ -152,41 +152,17 @@ export default function NewsPage() {
                       <h2 className="text-xl font-semibold text-foreground">{category.label}</h2>
                       <p className="text-sm text-muted-foreground">{category.description}</p>
                     </div>
-                    <div className="ml-auto">
-                      <Badge variant="secondary" className="text-xs">
-                        {category.id === "politics" ? "Primary Focus" : "Coming Soon"}
-                      </Badge>
-                    </div>
                   </div>
                 </div>
 
                 {/* Content Views */}
-                {category.id === "politics" ? (
-                  <>
-                    {currentView === "globe" && (
-                      <GlobeView selectedCountry={selectedCountry} onCountrySelect={setSelectedCountry} />
-                    )}
-                    {currentView === "grid" && <GridView />}
-                    {currentView === "scroll" && <ScrollView />}
-                  </>
-                ) : (
-                  // Placeholder for other categories
-                  <div className="flex items-center justify-center h-96 bg-muted/30 rounded-lg border-2 border-dashed border-muted-foreground/20">
-                    <div className="text-center space-y-4">
-                      <IconComponent className="w-16 h-16 text-muted-foreground mx-auto" />
-                      <div>
-                        <h3 className="text-lg font-semibold text-foreground">{category.label} Section Coming Soon</h3>
-                        <p className="text-sm text-muted-foreground max-w-md">
-                          We're working on bringing you the best {category.label.toLowerCase()} content from around the
-                          world. Stay tuned for updates!
-                        </p>
-                      </div>
-                      <Button variant="outline" disabled>
-                        Notify Me When Ready
-                      </Button>
-                    </div>
-                  </div>
-                )}
+                <>
+                  {currentView === "globe" && (
+                    <GlobeView />
+                  )}
+                  {currentView === "grid" && <GridView />}
+                  {currentView === "scroll" && <ScrollView />}
+                </>
               </TabsContent>
             )
           })}

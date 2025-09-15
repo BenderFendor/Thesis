@@ -2,6 +2,8 @@
 
 import { useEffect, useRef, useState } from "react"
 import * as THREE from "three"
+import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js"
+import { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js"
 
 interface ThreeGlobeProps {
   onCountrySelect: (country: string | null) => void
@@ -25,7 +27,7 @@ export function ThreeGlobe({ onCountrySelect, selectedCountry }: ThreeGlobeProps
   const mountRef = useRef<HTMLDivElement>(null)
   const sceneRef = useRef<THREE.Scene>()
   const rendererRef = useRef<THREE.WebGLRenderer>()
-  const globeRef = useRef<THREE.Mesh>()
+  const globeRef = useRef<THREE.Object3D>()
   const markersRef = useRef<THREE.Group>()
   const [isLoaded, setIsLoaded] = useState(false)
 
@@ -38,7 +40,7 @@ export function ThreeGlobe({ onCountrySelect, selectedCountry }: ThreeGlobeProps
 
     // Camera setup
     const camera = new THREE.PerspectiveCamera(75, 1, 0.1, 1000)
-    camera.position.z = 3
+    camera.position.z = 850
 
     // Renderer setup
     const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true })
@@ -47,58 +49,48 @@ export function ThreeGlobe({ onCountrySelect, selectedCountry }: ThreeGlobeProps
     rendererRef.current = renderer
     mountRef.current.appendChild(renderer.domElement)
 
-    const geometry = new THREE.SphereGeometry(1, 64, 64)
+    const controls = new OrbitControls(camera, renderer.domElement);
+    controls.enableDamping = true;
+    controls.dampingFactor = 0.05;
+    controls.enableZoom = false; // Optional: disable zoom
 
-    // Create Earth texture using canvas
-    const canvas = document.createElement("canvas")
-    canvas.width = 1024
-    canvas.height = 512
-    const ctx = canvas.getContext("2d")!
-
-    // Create a gradient for ocean (blue) and land (green/brown)
-    const gradient = ctx.createLinearGradient(0, 0, canvas.width, canvas.height)
-    gradient.addColorStop(0, "#1e40af") // Ocean blue
-    gradient.addColorStop(0.3, "#059669") // Land green
-    gradient.addColorStop(0.6, "#92400e") // Land brown
-    gradient.addColorStop(1, "#1e40af") // Ocean blue
-
-    ctx.fillStyle = gradient
-    ctx.fillRect(0, 0, canvas.width, canvas.height)
-
-    // Add some continent-like shapes
-    ctx.fillStyle = "#065f46"
-    // North America
-    ctx.fillRect(150, 100, 200, 150)
-    // Europe/Africa
-    ctx.fillRect(450, 80, 150, 200)
-    // Asia
-    ctx.fillRect(650, 60, 250, 180)
-    // Australia
-    ctx.fillRect(750, 300, 100, 80)
-    // South America
-    ctx.fillRect(250, 280, 120, 200)
-
-    const texture = new THREE.CanvasTexture(canvas)
-
-    const material = new THREE.MeshPhongMaterial({
-      map: texture,
-      shininess: 100,
-      transparent: false,
-    })
-
-    const globe = new THREE.Mesh(geometry, material)
-    globeRef.current = globe
-    scene.add(globe)
-
-    const atmosphereGeometry = new THREE.SphereGeometry(1.05, 64, 64)
-    const atmosphereMaterial = new THREE.MeshBasicMaterial({
-      color: 0x4fc3f7,
-      transparent: true,
-      opacity: 0.1,
-      side: THREE.BackSide,
-    })
-    const atmosphere = new THREE.Mesh(atmosphereGeometry, atmosphereMaterial)
-    scene.add(atmosphere)
+    const loader = new GLTFLoader();
+    loader.load(
+      "/3dmodel/earth 2.glb", // Assuming the model is converted and placed in public/3dmodel
+      (gltf) => {
+        console.log("GLTF model loaded:", gltf)
+        const globe = gltf.scene
+        globe.traverse((child) => {
+          if (child.name === "Background") {
+            child.visible = false
+          }
+          if ((child as THREE.Mesh).isMesh) {
+            const mesh = child as THREE.Mesh
+            console.log("Inspecting mesh:", mesh.name, mesh)
+            const materials = Array.isArray(mesh.material) ? mesh.material : [mesh.material]
+            materials.forEach((material) => {
+              if (material) {
+                console.log("Material:", material.name, material)
+                if (material.map) {
+                  console.log("Texture found for material:", material.name, material.map)
+                } else {
+                  console.log("No texture map for material:", material.name)
+                }
+                material.side = THREE.DoubleSide
+              }
+            })
+          }
+        })
+        globe.scale.set(1, 1, 1) // Adjust scale if necessary
+        globeRef.current = globe
+        scene.add(globe)
+        setIsLoaded(true)
+      },
+      undefined,
+      (error) => {
+        console.error("An error happened while loading the model:", error)
+      }
+    )
 
     // Country markers
     const markersGroup = new THREE.Group()
@@ -139,11 +131,11 @@ export function ThreeGlobe({ onCountrySelect, selectedCountry }: ThreeGlobeProps
       markersGroup.add(marker)
     })
 
-    const ambientLight = new THREE.AmbientLight(0x404040, 0.4)
+    const ambientLight = new THREE.AmbientLight(0xffffff, 1.5)
     scene.add(ambientLight)
 
-    const directionalLight = new THREE.DirectionalLight(0xffffff, 1.2)
-    directionalLight.position.set(2, 1, 1)
+    const directionalLight = new THREE.DirectionalLight(0xffffff, 2.5)
+    directionalLight.position.set(5, 5, 5)
     scene.add(directionalLight)
 
     // Add rim lighting
@@ -176,22 +168,13 @@ export function ThreeGlobe({ onCountrySelect, selectedCountry }: ThreeGlobeProps
     const animate = () => {
       requestAnimationFrame(animate)
 
-      // Rotate globe slowly
-      if (globeRef.current) {
-        globeRef.current.rotation.y += 0.005
-      }
-      if (markersRef.current) {
-        markersRef.current.rotation.y += 0.005
-      }
-      if (atmosphere) {
-        atmosphere.rotation.y += 0.003
-      }
+      // Update controls
+      controls.update()
 
       renderer.render(scene, camera)
     }
 
     animate()
-    setIsLoaded(true)
 
     // Cleanup
     return () => {
