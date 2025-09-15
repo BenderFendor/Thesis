@@ -42,7 +42,11 @@ export function GridView() {
       try {
         const fetchedArticles = await fetchNews({ limit: 50, category: 'politics' })
         setArticles(fetchedArticles)
-        console.log(`🔄 Background refresh: Loaded ${fetchedArticles.length} articles at ${new Date().toLocaleTimeString()}`)
+        console.log(`🔄 Grid View: Loaded ${fetchedArticles.length} articles at ${new Date().toLocaleTimeString()}`)
+        
+        if (fetchedArticles.length === 0) {
+          console.log(`⚠️ Grid View: No articles loaded. This will show "No articles found" message.`)
+        }
       } catch (error) {
         console.error('Failed to load news:', error)
       } finally {
@@ -74,6 +78,26 @@ export function GridView() {
 
     return matchesSearch && matchesCategory && matchesCountry && matchesCredibility
   })
+
+  // Debug filtering results
+  useEffect(() => {
+    console.log(`🔍 Grid View Filter Debug:`, {
+      totalArticles: articles.length,
+      filteredArticles: filteredNews.length,
+      filters: {
+        searchTerm,
+        selectedCategory,
+        selectedCountry, 
+        selectedCredibility
+      }
+    });
+    
+    if (articles.length > 0 && filteredNews.length === 0) {
+      console.log(`⚠️ Grid View: Filters eliminated all articles. Original articles:`, 
+        articles.slice(0, 3).map(a => ({ title: a.title, category: a.category, country: a.country, credibility: a.credibility }))
+      );
+    }
+  }, [articles, filteredNews.length, searchTerm, selectedCategory, selectedCountry, selectedCredibility])
 
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {

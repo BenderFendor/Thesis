@@ -38,6 +38,11 @@ export function ScrollView() {
       try {
         const articles = await fetchNews({ limit: 5, category: 'politics' })
         setScrollNews(articles)
+        console.log(`🔄 Scroll View: Loaded ${articles.length} articles at ${new Date().toLocaleTimeString()}`)
+        
+        if (articles.length === 0) {
+          console.log(`⚠️ Scroll View: No articles loaded. This will show "No articles available" message.`)
+        }
         console.log(`🔄 Scroll view refresh: Loaded ${articles.length} articles at ${new Date().toLocaleTimeString()}`)
       } catch (error) {
         console.error('Failed to load news:', error)
@@ -222,6 +227,7 @@ export function ScrollView() {
   }
 
   if (scrollNews.length === 0) {
+    console.log(`📺 Scroll View: Displaying "No articles available" message (loading: ${loading})`);
     return (
       <div className="relative h-[calc(100vh-140px)] overflow-hidden flex items-center justify-center">
         <div className="text-center">

@@ -14,3 +14,6 @@ Sort sources by working not working and other errors in the main source page.
 # Styling
 
 The font like the main main header one should be like garamond or some seirf then it should use geisit for the most of the other fonts.
+
+# Add a logger feature
+So it like turns the debug print logs off or on

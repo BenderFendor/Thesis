@@ -691,6 +691,18 @@ def refresh_news_cache():
     # Update cache
     news_cache.update_cache(all_articles, source_stats)
     logger.info(f"✅ Cache refresh completed: {len(all_articles)} total articles")
+    
+    if len(all_articles) == 0:
+        logger.warning(f"⚠️ Cache refresh resulted in 0 articles! Check RSS sources.")
+        working_sources = [s for s in source_stats if s['status'] == 'success']
+        error_sources = [s for s in source_stats if s['status'] == 'error']
+        logger.info(f"📊 Source status: {len(working_sources)} working, {len(error_sources)} with errors")
+    else:
+        # Log category breakdown for debugging
+        category_counts = {}
+        for article in all_articles:
+            category_counts[article.category] = category_counts.get(article.category, 0) + 1
+        logger.info(f"📊 Articles by category: {category_counts}")
 
 def parse_rss_feed_entries(entries, source_name: str, source_info: Dict) -> List[NewsArticle]:
     """Parse RSS feed entries into NewsArticle objects"""
@@ -811,6 +823,7 @@ async def get_news(
     """Get aggregated news from cached data with optional filtering"""
     # Get all articles from cache
     all_articles = news_cache.get_articles()
+    logger.info(f"📡 /news endpoint called - Total cached articles: {len(all_articles)}, filters: category={category}, source={source}, limit={limit}")
     
     # Apply filters
     filtered_articles = []
@@ -830,6 +843,15 @@ async def get_news(
     
     # Limit results
     limited_articles = filtered_articles[:limit]
+    
+    if len(limited_articles) == 0:
+        logger.warning(f"⚠️ No articles to return after filtering. Cache has {len(all_articles)} total articles")
+        if len(all_articles) > 0:
+            # Log sample of available articles for debugging
+            sample_articles = all_articles[:3]
+            logger.info(f"📋 Sample cached articles: {[{'title': a.title, 'category': a.category, 'source': a.source} for a in sample_articles]}")
+    else:
+        logger.info(f"✅ Returning {len(limited_articles)} articles from {len(sources_included)} sources")
     
     return NewsResponse(
         articles=limited_articles,
@@ -930,6 +952,9 @@ async def get_cache_status():
     for article in articles:
         category_counts[article.category] += 1
     
+    # Log cache status for debugging
+    logger.info(f"📊 Cache Status: {total_articles} articles, {sources_with_articles} working sources, {sources_with_errors} error sources")
+    
     return {
         "last_updated": news_cache.last_updated.isoformat(),
         "update_in_progress": news_cache.update_in_progress,
@@ -1008,7 +1033,6 @@ async def get_source_debug_data(source_name: str):
                 content_images = []
                 if hasattr(entry, 'content'):
                     content_text = entry.content[0].value if isinstance(entry.content, list) else str(entry.content)
-                    import re
                     img_matches = re.findall(r'<img[^>]+src="([^"]+)"', content_text)
                     content_images = img_matches
                 
