@@ -228,7 +228,7 @@ RSS_SOURCES = {
         "bias_rating": "Center"
     },
     "National Geographic": {
-        "url": "https://www.nationalgeographic.com/rss/daily-news",
+        "url": "https://rss-bridge.org/bridge01/?action=display&bridge=NationalGeographicBridge&context=By+Topic&topic=latest-stories&full=on&format=Mrss",
         "category": "general",
         "country": "US",
         "funding_type": "Commercial",
@@ -364,6 +364,13 @@ RSS_SOURCES = {
         "url": "https://www.phillyvoice.com/feed/",
         "category": "general",
         "country": "US",
+        "funding_type": "Commercial",
+        "bias_rating": "Center"
+    },
+    "Financial Times": {
+        "url": "https://www.ft.com/myft/following/7d5b226f-2da0-4530-b9ab-15675a1b5f22.rss",
+        "category": "business",
+        "country": "International",
         "funding_type": "Commercial",
         "bias_rating": "Center"
     },
@@ -934,6 +941,119 @@ async def get_cache_status():
         "category_breakdown": dict(category_counts),
         "cache_age_seconds": (datetime.now() - news_cache.last_updated).total_seconds()
     }
+
+@app.get("/debug/source/{source_name}")
+async def get_source_debug_data(source_name: str):
+    """Get detailed debug data for a specific RSS source including parsed feed data"""
+    
+    if source_name not in RSS_SOURCES:
+        raise HTTPException(status_code=404, detail=f"Source '{source_name}' not found")
+    
+    source_info = RSS_SOURCES[source_name]
+    
+    try:
+        # Get fresh parse of the RSS feed with detailed debug info
+        feed = feedparser.parse(source_info["url"], agent='NewsAggregator/1.0')
+        
+        # Get cached articles for this source
+        cached_articles = [article for article in news_cache.get_articles() if article.source == source_name]
+        
+        # Get source stats
+        source_stats = [stats for stats in news_cache.get_source_stats() if stats['name'] == source_name]
+        source_stat = source_stats[0] if source_stats else None
+        
+        debug_data = {
+            "source_name": source_name,
+            "source_config": source_info,
+            "rss_url": source_info["url"],
+            "feed_metadata": {
+                "title": getattr(feed.feed, 'title', 'N/A'),
+                "description": getattr(feed.feed, 'description', 'N/A'),
+                "link": getattr(feed.feed, 'link', 'N/A'),
+                "language": getattr(feed.feed, 'language', 'N/A'),
+                "updated": getattr(feed.feed, 'updated', 'N/A'),
+                "generator": getattr(feed.feed, 'generator', 'N/A'),
+            },
+            "feed_status": {
+                "http_status": getattr(feed, 'status', 'N/A'),
+                "bozo": getattr(feed, 'bozo', False),
+                "bozo_exception": str(getattr(feed, 'bozo_exception', 'None')),
+                "entries_count": len(feed.entries) if hasattr(feed, 'entries') else 0,
+            },
+            "parsed_entries": [],
+            "cached_articles": [article.dict() for article in cached_articles],
+            "source_statistics": source_stat,
+            "debug_timestamp": datetime.now().isoformat(),
+            "image_analysis": {
+                "total_entries": len(feed.entries) if hasattr(feed, 'entries') else 0,
+                "entries_with_images": 0,
+                "image_sources": []
+            }
+        }
+        
+        # Parse first 10 entries for detailed analysis
+        if hasattr(feed, 'entries'):
+            for i, entry in enumerate(feed.entries[:10]):
+                # Extract all possible image sources
+                image_sources = []
+                
+                if hasattr(entry, 'media_thumbnail'):
+                    image_sources.append({"type": "media_thumbnail", "url": entry.media_thumbnail})
+                if hasattr(entry, 'media_content'):
+                    image_sources.append({"type": "media_content", "data": entry.media_content})
+                if hasattr(entry, 'enclosures'):
+                    image_sources.append({"type": "enclosures", "data": entry.enclosures})
+                
+                # Check for images in content
+                content_images = []
+                if hasattr(entry, 'content'):
+                    content_text = entry.content[0].value if isinstance(entry.content, list) else str(entry.content)
+                    import re
+                    img_matches = re.findall(r'<img[^>]+src="([^"]+)"', content_text)
+                    content_images = img_matches
+                
+                # Check for images in description
+                desc_images = []
+                if entry.get('description'):
+                    desc_matches = re.findall(r'<img[^>]+src="([^"]+)"', entry.description)
+                    desc_images = desc_matches
+                
+                has_images = bool(image_sources or content_images or desc_images)
+                if has_images:
+                    debug_data["image_analysis"]["entries_with_images"] += 1
+                
+                parsed_entry = {
+                    "index": i,
+                    "title": entry.get('title', 'No title'),
+                    "link": entry.get('link', ''),
+                    "description": entry.get('description', 'No description')[:200] + "..." if entry.get('description') and len(entry.get('description', '')) > 200 else entry.get('description', 'No description'),
+                    "published": entry.get('published', 'No date'),
+                    "author": entry.get('author', 'No author'),
+                    "tags": entry.get('tags', []),
+                    "has_images": has_images,
+                    "image_sources": image_sources,
+                    "content_images": content_images,
+                    "description_images": desc_images,
+                    "raw_entry_keys": list(entry.keys()) if hasattr(entry, 'keys') else []
+                }
+                
+                debug_data["parsed_entries"].append(parsed_entry)
+                debug_data["image_analysis"]["image_sources"].extend([
+                    {"entry_index": i, "source": "content", "urls": content_images},
+                    {"entry_index": i, "source": "description", "urls": desc_images},
+                    {"entry_index": i, "source": "metadata", "data": image_sources}
+                ])
+        
+        return debug_data
+        
+    except Exception as e:
+        logger.error(f"Error fetching debug data for {source_name}: {str(e)}")
+        return {
+            "source_name": source_name,
+            "source_config": source_info,
+            "error": str(e),
+            "debug_timestamp": datetime.now().isoformat()
+        }
 
 if __name__ == "__main__":
     import uvicorn

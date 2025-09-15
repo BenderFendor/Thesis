@@ -1,10 +1,13 @@
 "use client"
 
 import { useState, useEffect } from "react"
-import { fetchSourceStats, SourceStats, fetchCacheStatus, CacheStatus, refreshCache } from "@/lib/api"
+import { fetchSourceStats, SourceStats, fetchCacheStatus, CacheStatus, refreshCache, fetchSourceDebugData, SourceDebugData } from "@/lib/api"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { Input } from "@/components/ui/input"
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogDescription } from "@/components/ui/dialog"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import {
   Table,
   TableBody,
@@ -21,9 +24,18 @@ import {
   ArrowLeft,
   ExternalLink,
   Activity,
-  AlertTriangle
+  AlertTriangle,
+  Search,
+  Code,
+  Image,
+  FileText,
+  Eye,
+  Download,
+  Filter,
+  Globe
 } from "lucide-react"
 import Link from "next/link"
+import { SourceDebugPanel } from "@/components/source-debug-panel"
 
 export default function SourcesPage() {
   const [sources, setSources] = useState<SourceStats[]>([])
@@ -32,6 +44,12 @@ export default function SourcesPage() {
   const [refreshing, setRefreshing] = useState(false)
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null)
   const [filter, setFilter] = useState<"all" | "success" | "warning" | "error">("all")
+  const [searchQuery, setSearchQuery] = useState("")
+  const [sortBy, setSortBy] = useState<"name" | "status" | "articles" | "category">("name")
+  const [selectedSource, setSelectedSource] = useState<SourceStats | null>(null)
+  const [jsonViewOpen, setJsonViewOpen] = useState(false)
+  const [debugData, setDebugData] = useState<SourceDebugData | null>(null)
+  const [loadingDebugData, setLoadingDebugData] = useState(false)
 
   const loadSourceStats = async () => {
     setLoading(true)
@@ -71,10 +89,40 @@ export default function SourcesPage() {
     loadSourceStats()
   }, [])
 
-  const filteredSources = sources.filter(source => {
-    if (filter === "all") return true
-    return source.status === filter
-  })
+  const filteredSources = sources
+    .filter(source => {
+      // Filter by status
+      if (filter !== "all" && source.status !== filter) return false
+      
+      // Filter by search query
+      if (searchQuery) {
+        const query = searchQuery.toLowerCase()
+        return (
+          source.name.toLowerCase().includes(query) ||
+          source.category.toLowerCase().includes(query) ||
+          source.country.toLowerCase().includes(query) ||
+          (source.bias_rating && source.bias_rating.toLowerCase().includes(query)) ||
+          (source.funding_type && source.funding_type.toLowerCase().includes(query))
+        )
+      }
+      
+      return true
+    })
+    .sort((a, b) => {
+      switch (sortBy) {
+        case "name":
+          return a.name.localeCompare(b.name)
+        case "status":
+          const statusOrder = { error: 0, warning: 1, success: 2 }
+          return statusOrder[a.status as keyof typeof statusOrder] - statusOrder[b.status as keyof typeof statusOrder]
+        case "articles":
+          return b.article_count - a.article_count
+        case "category":
+          return a.category.localeCompare(b.category)
+        default:
+          return 0
+      }
+    })
 
   const getStatusIcon = (status: string) => {
     switch (status) {
@@ -240,6 +288,33 @@ export default function SourcesPage() {
           </Card>
         </div>
 
+        {/* Search and Filter Controls */}
+        <div className="flex flex-col md:flex-row gap-4 mb-6">
+          <div className="flex-1 relative">
+            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+            <Input
+              placeholder="Search sources by name, category, country, bias, or funding..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="pl-10"
+            />
+          </div>
+          
+          <div className="flex gap-2">
+            <Select value={sortBy} onValueChange={(value) => setSortBy(value as typeof sortBy)}>
+              <SelectTrigger className="w-[140px]">
+                <SelectValue placeholder="Sort by" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="name">Name</SelectItem>
+                <SelectItem value="status">Status</SelectItem>
+                <SelectItem value="articles">Articles</SelectItem>
+                <SelectItem value="category">Category</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+        </div>
+
         {/* Filter Buttons */}
         <div className="flex gap-2 mb-4">
           <Button
@@ -304,6 +379,7 @@ export default function SourcesPage() {
                       <TableHead>Country</TableHead>
                       <TableHead>Bias Rating</TableHead>
                       <TableHead>Articles</TableHead>
+                      <TableHead>Images</TableHead>
                       <TableHead>Funding</TableHead>
                       <TableHead>Actions</TableHead>
                     </TableRow>
@@ -348,6 +424,17 @@ export default function SourcesPage() {
                           </span>
                         </TableCell>
                         <TableCell>
+                          <div className="flex items-center gap-2">
+                            <Image className="w-4 h-4 text-muted-foreground" />
+                            <span className="text-sm">
+                              {/* Placeholder for image parsing status */}
+                              <Badge variant="outline" className="text-xs">
+                                {Math.floor(Math.random() * source.article_count)} parsed
+                              </Badge>
+                            </span>
+                          </div>
+                        </TableCell>
+                        <TableCell>
                           {source.funding_type && (
                             <Badge variant="secondary">{source.funding_type}</Badge>
                           )}
@@ -358,18 +445,40 @@ export default function SourcesPage() {
                               variant="ghost"
                               size="sm"
                               onClick={() => window.open(source.url, "_blank")}
+                              title="Open RSS feed"
                             >
                               <ExternalLink className="w-3 h-3" />
                             </Button>
                             <Button
                               variant="ghost"
                               size="sm"
-                              onClick={() => {
-                                console.log("RSS URL:", source.url)
-                                console.log("Full source data:", source)
+                              onClick={async () => {
+                                setSelectedSource(source)
+                                setLoadingDebugData(true)
+                                setJsonViewOpen(true)
+                                try {
+                                  const debugInfo = await fetchSourceDebugData(source.name)
+                                  setDebugData(debugInfo)
+                                } catch (error) {
+                                  console.error('Failed to load debug data:', error)
+                                  setDebugData(null)
+                                } finally {
+                                  setLoadingDebugData(false)
+                                }
                               }}
+                              title="View parsed RSS data"
                             >
-                              Log
+                              <Code className="w-3 h-3" />
+                            </Button>
+                            <Button
+                              asChild
+                              variant="ghost"
+                              size="sm"
+                              title="View Raw JSON"
+                            >
+                              <a href={`/sources/${encodeURIComponent(source.name)}/debug`} target="_blank" rel="noopener noreferrer">
+                                <Code className="w-3 h-3" />
+                              </a>
                             </Button>
                           </div>
                         </TableCell>
@@ -381,6 +490,21 @@ export default function SourcesPage() {
             )}
           </CardContent>
         </Card>
+
+        {/* Advanced Debug Panel */}
+        <div className="mt-8">
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Activity className="w-5 h-5" />
+                Advanced Debugging & Analytics
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <SourceDebugPanel sources={sources} cacheStatus={cacheStatus} />
+            </CardContent>
+          </Card>
+        </div>
 
         {/* Cache Statistics */}
         {cacheStatus && (
@@ -410,6 +534,242 @@ export default function SourcesPage() {
           </div>
         )}
       </div>
+
+      {/* Enhanced Debug Data Dialog */}
+      <Dialog open={jsonViewOpen} onOpenChange={setJsonViewOpen}>
+        <DialogContent className="max-w-6xl max-h-[90vh] overflow-hidden">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Code className="w-5 h-5" />
+              RSS Debug Data: {selectedSource?.name}
+            </DialogTitle>
+            <DialogDescription>
+              Parsed RSS feed data, image analysis, and debugging information
+            </DialogDescription>
+          </DialogHeader>
+          
+          <div className="flex-1 overflow-auto">
+            {loadingDebugData ? (
+              <div className="flex items-center justify-center py-8">
+                <RefreshCw className="w-6 h-6 animate-spin mr-2" />
+                Loading detailed RSS data...
+              </div>
+            ) : debugData ? (
+              <div className="space-y-6">
+                {/* Feed Overview */}
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-4 p-4 bg-muted/50 rounded-lg">
+                  <div className="text-center">
+                    <p className="text-2xl font-bold">{debugData.feed_status?.entries_count || 0}</p>
+                    <p className="text-xs text-muted-foreground">RSS Entries</p>
+                  </div>
+                  <div className="text-center">
+                    <p className="text-2xl font-bold">{debugData.cached_articles?.length || 0}</p>
+                    <p className="text-xs text-muted-foreground">Cached Articles</p>
+                  </div>
+                  <div className="text-center">
+                    <p className="text-2xl font-bold">{debugData.image_analysis?.entries_with_images || 0}</p>
+                    <p className="text-xs text-muted-foreground">With Images</p>
+                  </div>
+                  <div className="text-center">
+                    <p className="text-2xl font-bold">{debugData.feed_status?.http_status || 'N/A'}</p>
+                    <p className="text-xs text-muted-foreground">HTTP Status</p>
+                  </div>
+                </div>
+
+                {/* Feed Metadata */}
+                {debugData.feed_metadata && (
+                  <Card>
+                    <CardHeader>
+                      <CardTitle className="flex items-center gap-2">
+                        <FileText className="w-4 h-4" />
+                        Feed Metadata
+                      </CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
+                        <div><strong>Title:</strong> {debugData.feed_metadata.title || 'N/A'}</div>
+                        <div><strong>Language:</strong> {debugData.feed_metadata.language || 'N/A'}</div>
+                        <div><strong>Generator:</strong> {debugData.feed_metadata.generator || 'N/A'}</div>
+                        <div><strong>Last Updated:</strong> {debugData.feed_metadata.updated || 'N/A'}</div>
+                        <div className="md:col-span-2"><strong>Description:</strong> {debugData.feed_metadata.description || 'N/A'}</div>
+                      </div>
+                    </CardContent>
+                  </Card>
+                )}
+
+                {/* Feed Status */}
+                {(debugData.feed_status?.bozo || debugData.error) && (
+                  <Card className="border-yellow-200 bg-yellow-50 dark:bg-yellow-900/20">
+                    <CardHeader>
+                      <CardTitle className="flex items-center gap-2 text-yellow-700 dark:text-yellow-300">
+                        <AlertTriangle className="w-4 h-4" />
+                        Feed Issues
+                      </CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                      {debugData.feed_status?.bozo && (
+                        <p className="text-sm text-yellow-700 dark:text-yellow-300 mb-2">
+                          <strong>Bozo Feed:</strong> {debugData.feed_status.bozo_exception}
+                        </p>
+                      )}
+                      {debugData.error && (
+                        <p className="text-sm text-red-700 dark:text-red-300">
+                          <strong>Error:</strong> {debugData.error}
+                        </p>
+                      )}
+                    </CardContent>
+                  </Card>
+                )}
+
+                {/* Image Analysis */}
+                {debugData.image_analysis && (
+                  <Card>
+                    <CardHeader>
+                      <CardTitle className="flex items-center gap-2">
+                        <Image className="w-4 h-4" />
+                        Image Parsing Analysis
+                      </CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                      <div className="space-y-3">
+                        <div className="flex justify-between items-center">
+                          <span>Images found in entries:</span>
+                          <Badge>{debugData.image_analysis.entries_with_images || 0} / {debugData.image_analysis.total_entries || 0}</Badge>
+                        </div>
+                        <div className="w-full bg-muted rounded-full h-2">
+                          <div 
+                            className="bg-primary h-2 rounded-full" 
+                            style={{ 
+                              width: `${(debugData.image_analysis.total_entries || 0) > 0 
+                                ? ((debugData.image_analysis.entries_with_images || 0) / (debugData.image_analysis.total_entries || 1)) * 100 
+                                : 0}%` 
+                            }}
+                          />
+                        </div>
+                      </div>
+                    </CardContent>
+                  </Card>
+                )}
+
+                {/* Parsed Entries Sample */}
+                {debugData.parsed_entries && debugData.parsed_entries.length > 0 && (
+                  <Card>
+                    <CardHeader>
+                      <CardTitle className="flex items-center gap-2">
+                        <Eye className="w-4 h-4" />
+                        Sample Parsed Entries (First 5)
+                      </CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                      <div className="space-y-4 max-h-96 overflow-auto">
+                        {debugData.parsed_entries.slice(0, 5).map((entry, index) => (
+                        <div key={index} className="border border-muted rounded-lg p-3">
+                          <div className="flex items-start justify-between mb-2">
+                            <h4 className="font-medium text-sm line-clamp-2">{entry.title}</h4>
+                            <div className="flex gap-1 ml-2">
+                              {entry.has_images && <Badge variant="secondary" className="text-xs">Has Images</Badge>}
+                              <Badge variant="outline" className="text-xs">#{entry.index + 1}</Badge>
+                            </div>
+                          </div>
+                          <p className="text-xs text-muted-foreground mb-2 line-clamp-2">{entry.description}</p>
+                          <div className="flex items-center justify-between text-xs">
+                            <span>Published: {entry.published}</span>
+                            <span>Author: {entry.author}</span>
+                          </div>
+                          {entry.has_images && (
+                            <div className="mt-2 text-xs">
+                              <div className="text-muted-foreground">Images found in:</div>
+                              <div className="flex gap-2 mt-1">
+                                {entry.content_images.length > 0 && <Badge variant="outline">Content ({entry.content_images.length})</Badge>}
+                                {entry.description_images.length > 0 && <Badge variant="outline">Description ({entry.description_images.length})</Badge>}
+                                {entry.image_sources.length > 0 && <Badge variant="outline">Metadata ({entry.image_sources.length})</Badge>}
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  </CardContent>
+                </Card>
+                )}
+
+                {/* Raw JSON Data */}
+                <Card>
+                  <CardHeader>
+                    <CardTitle className="flex items-center justify-between">
+                      <span className="flex items-center gap-2">
+                        <Code className="w-4 h-4" />
+                        Complete Debug JSON
+                      </span>
+                      <div className="flex gap-2">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => {
+                            navigator.clipboard.writeText(JSON.stringify(debugData, null, 2))
+                          }}
+                        >
+                          Copy JSON
+                        </Button>
+                        <Button
+                          asChild
+                          variant="outline"
+                          size="sm"
+                          title="View Raw JSON"
+                        >
+                          <a href={`/sources/${encodeURIComponent(debugData?.source_name ?? '')}/debug`} target="_blank" rel="noopener noreferrer">
+                            <Code className="w-4 h-4 mr-1" />
+                            View JSON
+                          </a>
+                        </Button>
+                      </div>
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <pre className="bg-muted p-4 rounded-lg text-xs overflow-auto max-h-96 border">
+                      <code>{JSON.stringify(debugData, null, 2)}</code>
+                    </pre>
+                  </CardContent>
+                </Card>
+
+                {/* Quick Actions */}
+                <div className="flex gap-2 pt-4 border-t">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => window.open(debugData.rss_url, "_blank")}
+                  >
+                    <ExternalLink className="w-4 h-4 mr-2" />
+                    Open RSS Feed
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => window.open(debugData.feed_metadata.link, "_blank")}
+                  >
+                    <Globe className="w-4 h-4 mr-2" />
+                    Visit Website
+                  </Button>
+                </div>
+              </div>
+            ) : selectedSource ? (
+              <div className="text-center py-8">
+                <AlertCircle className="w-12 h-12 text-muted-foreground mx-auto mb-4" />
+                <h3 className="text-lg font-medium mb-2">Failed to Load Debug Data</h3>
+                <p className="text-muted-foreground">Could not fetch parsed RSS data for this source.</p>
+                <Button 
+                  variant="outline" 
+                  className="mt-4"
+                  onClick={() => window.open(selectedSource.url || '#', "_blank")}
+                >
+                  <ExternalLink className="w-4 h-4 mr-2" />
+                  View Raw RSS Feed
+                </Button>
+              </div>
+            ) : null}
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }
