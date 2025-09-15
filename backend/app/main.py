@@ -661,39 +661,39 @@ def parse_rss_feed_entries(entries, source_name: str, source_info: Dict) -> List
         # Extract image URL from various possible locations
         image_url = None
         
+        # Check for image tag in content:encoded first, as it's often the main image
+        if hasattr(entry, 'content') and entry.content:
+            content_text = entry.content[0].value if isinstance(entry.content, list) else str(entry.content)
+            img_match = re.search(r'<img[^>]+src="([^"]+)"', content_text)
+            if img_match:
+                image_url = img_match.group(1)
+
         # Check for media:thumbnail
-        if hasattr(entry, 'media_thumbnail') and entry.media_thumbnail:
+        if not image_url and hasattr(entry, 'media_thumbnail') and entry.media_thumbnail:
             image_url = entry.media_thumbnail[0].get('url') if isinstance(entry.media_thumbnail, list) else entry.media_thumbnail.get('url')
         
         # Check for media:content
-        elif hasattr(entry, 'media_content') and entry.media_content:
+        elif not image_url and hasattr(entry, 'media_content') and entry.media_content:
             for media in entry.media_content:
                 if media.get('type', '').startswith('image/'):
                     image_url = media.get('url')
                     break
         
         # Check for enclosure (podcast/media)
-        elif hasattr(entry, 'enclosures') and entry.enclosures:
+        elif not image_url and hasattr(entry, 'enclosures') and entry.enclosures:
             for enclosure in entry.enclosures:
                 if enclosure.get('type', '').startswith('image/'):
                     image_url = enclosure.get('href')
                     break
         
         # Check for image in links
-        elif hasattr(entry, 'links') and entry.links:
+        elif not image_url and hasattr(entry, 'links') and entry.links:
             for link in entry.links:
                 if link.get('type', '').startswith('image/'):
                     image_url = link.get('href')
                     break
         
-        # Check for image tag in content
-        elif hasattr(entry, 'content') and entry.content:
-            content_text = entry.content[0].value if isinstance(entry.content, list) else str(entry.content)
-            img_match = re.search(r'<img[^>]+src="([^"]+)"', content_text)
-            if img_match:
-                image_url = img_match.group(1)
-        
-        # Check for image in description/summary
+        # Check for image in description/summary as a fallback
         if not image_url and entry.get('description'):
             img_match = re.search(r'<img[^>]+src="([^"]+)"', entry.description)
             if img_match:
