@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, useEffect } from "react"
-import { fetchSourceStats, SourceStats } from "@/lib/api"
+import { fetchSourceStats, SourceStats, fetchCacheStatus, CacheStatus, refreshCache } from "@/lib/api"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -27,20 +27,43 @@ import Link from "next/link"
 
 export default function SourcesPage() {
   const [sources, setSources] = useState<SourceStats[]>([])
+  const [cacheStatus, setCacheStatus] = useState<CacheStatus | null>(null)
   const [loading, setLoading] = useState(true)
+  const [refreshing, setRefreshing] = useState(false)
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null)
   const [filter, setFilter] = useState<"all" | "success" | "warning" | "error">("all")
 
   const loadSourceStats = async () => {
     setLoading(true)
     try {
-      const stats = await fetchSourceStats()
+      const [stats, cache] = await Promise.all([
+        fetchSourceStats(),
+        fetchCacheStatus()
+      ])
       setSources(stats)
+      setCacheStatus(cache)
       setLastUpdated(new Date())
     } catch (error) {
       console.error("Failed to load source statistics:", error)
     } finally {
       setLoading(false)
+    }
+  }
+
+  const handleRefreshCache = async () => {
+    setRefreshing(true)
+    try {
+      const success = await refreshCache()
+      if (success) {
+        // Wait a moment then reload data
+        setTimeout(() => {
+          loadSourceStats()
+        }, 2000)
+      }
+    } catch (error) {
+      console.error("Failed to refresh cache:", error)
+    } finally {
+      setRefreshing(false)
     }
   }
 
@@ -129,6 +152,43 @@ export default function SourcesPage() {
       </header>
 
       <div className="container mx-auto px-4 py-6">
+        {/* Cache Status Card */}
+        {cacheStatus && (
+          <Card className="mb-6">
+            <CardContent className="p-6">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-4">
+                  <div className="flex items-center gap-2">
+                    <div className={`w-3 h-3 rounded-full ${
+                      cacheStatus.update_in_progress ? 'bg-yellow-500 animate-pulse' : 
+                      cacheStatus.cache_age_seconds < 60 ? 'bg-green-500' : 
+                      cacheStatus.cache_age_seconds < 300 ? 'bg-yellow-500' : 'bg-red-500'
+                    }`} />
+                    <div>
+                      <p className="font-medium">
+                        Cache Status: {cacheStatus.update_in_progress ? 'Updating...' : 'Active'}
+                      </p>
+                      <p className="text-sm text-muted-foreground">
+                        Last updated: {new Date(cacheStatus.last_updated).toLocaleTimeString()} 
+                        ({Math.round(cacheStatus.cache_age_seconds)}s ago)
+                      </p>
+                    </div>
+                  </div>
+                </div>
+                <Button
+                  onClick={handleRefreshCache}
+                  disabled={refreshing || cacheStatus.update_in_progress}
+                  variant="outline"
+                  size="sm"
+                >
+                  <RefreshCw className={`w-4 h-4 mr-2 ${refreshing ? "animate-spin" : ""}`} />
+                  {refreshing ? "Refreshing..." : "Refresh Cache"}
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+        )}
+
         {/* Summary Cards */}
         <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
           <Card>
@@ -136,8 +196,8 @@ export default function SourcesPage() {
               <div className="flex items-center gap-2">
                 <Activity className="w-5 h-5 text-blue-500" />
                 <div>
-                  <p className="text-2xl font-bold">{sources.length}</p>
-                  <p className="text-sm text-muted-foreground">Total Sources</p>
+                  <p className="text-2xl font-bold">{cacheStatus?.total_articles || sources.length}</p>
+                  <p className="text-sm text-muted-foreground">{cacheStatus ? 'Total Articles' : 'Total Sources'}</p>
                 </div>
               </div>
             </CardContent>
@@ -322,15 +382,33 @@ export default function SourcesPage() {
           </CardContent>
         </Card>
 
-        {/* Total Articles Summary */}
-        <Card className="mt-6">
-          <CardContent className="p-6">
-            <div className="text-center">
-              <p className="text-3xl font-bold text-primary">{totalArticles}</p>
-              <p className="text-muted-foreground">Total articles parsed across all sources</p>
-            </div>
-          </CardContent>
-        </Card>
+        {/* Cache Statistics */}
+        {cacheStatus && (
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-6">
+            <Card>
+              <CardContent className="p-6">
+                <div className="text-center">
+                  <p className="text-3xl font-bold text-primary">{cacheStatus.total_articles}</p>
+                  <p className="text-muted-foreground">Total articles in cache</p>
+                </div>
+              </CardContent>
+            </Card>
+            
+            <Card>
+              <CardContent className="p-6">
+                <h3 className="font-medium mb-3">Category Breakdown</h3>
+                <div className="space-y-2">
+                  {Object.entries(cacheStatus.category_breakdown).map(([category, count]) => (
+                    <div key={category} className="flex justify-between items-center">
+                      <span className="text-sm capitalize">{category}</span>
+                      <Badge variant="outline">{count}</Badge>
+                    </div>
+                  ))}
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+        )}
       </div>
     </div>
   )

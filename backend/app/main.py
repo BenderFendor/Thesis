@@ -1,4 +1,4 @@
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, BackgroundTasks
 from fastapi.middleware.cors import CORSMiddleware
 import feedparser
 from typing import List, Dict, Any, Optional
@@ -6,6 +6,12 @@ from pydantic import BaseModel
 import asyncio
 from datetime import datetime
 import logging
+import threading
+import time
+from collections import defaultdict
+import html
+import re
+from urllib.parse import urljoin, urlparse
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -20,6 +26,34 @@ class NewsArticle(BaseModel):
     source: str
     category: str = "general"
     image: Optional[str] = None
+
+# Global cache system
+class NewsCache:
+    def __init__(self):
+        self.articles: List[NewsArticle] = []
+        self.source_stats: List[Dict] = []
+        self.last_updated: datetime = datetime.now()
+        self.lock = threading.Lock()
+        self.update_in_progress = False
+    
+    def get_articles(self) -> List[NewsArticle]:
+        with self.lock:
+            return self.articles.copy()
+    
+    def get_source_stats(self) -> List[Dict]:
+        with self.lock:
+            return self.source_stats.copy()
+    
+    def update_cache(self, articles: List[NewsArticle], source_stats: List[Dict]):
+        with self.lock:
+            self.articles = articles
+            self.source_stats = source_stats
+            self.last_updated = datetime.now()
+            self.update_in_progress = False
+            logger.info(f"🔄 Cache updated: {len(articles)} articles from {len(source_stats)} sources")
+
+# Global cache instance
+news_cache = NewsCache()
 
 class NewsResponse(BaseModel):
     articles: List[NewsArticle]
@@ -340,6 +374,19 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+@app.on_event("startup")
+async def startup_event():
+    """Initialize cache and start background refresh scheduler on startup"""
+    logger.info("🚀 Starting Global News Aggregation API...")
+    
+    # Initial cache population
+    refresh_news_cache()
+    
+    # Start background refresh scheduler
+    start_cache_refresh_scheduler()
+    
+    logger.info("✅ API startup complete!")
+
 def parse_rss_feed(url: str, source_name: str, source_info: Dict) -> List[NewsArticle]:
     """Parse RSS feed and return list of articles with improved error handling"""
     import html
@@ -448,6 +495,193 @@ def parse_rss_feed(url: str, source_name: str, source_info: Dict) -> List[NewsAr
         logger.error(f"Error parsing {source_name}: {e}")
         return []
 
+def refresh_news_cache():
+    """Refresh the news cache by parsing all RSS sources"""
+    if news_cache.update_in_progress:
+        logger.info("Cache update already in progress, skipping...")
+        return
+    
+    news_cache.update_in_progress = True
+    logger.info("🔄 Starting cache refresh...")
+    
+    all_articles = []
+    source_stats = []
+    
+    for source_name, source_info in RSS_SOURCES.items():
+        try:
+            # Parse the RSS feed 
+            feed = feedparser.parse(source_info['url'], agent='NewsAggregator/1.0')
+            
+            # Initialize status
+            feed_status = "success"
+            error_message = None
+            
+            # Check for HTTP errors
+            if hasattr(feed, 'status') and feed.status >= 400:
+                feed_status = "error"
+                error_message = f"HTTP {feed.status} error"
+                article_count = 0
+                articles = []
+            # Check for parsing errors
+            elif hasattr(feed, 'bozo') and feed.bozo:
+                feed_status = "warning"
+                error_message = f"Parse warning: {getattr(feed, 'bozo_exception', 'Unknown error')}"
+                articles = parse_rss_feed_entries(feed.entries, source_name, source_info)
+                article_count = len(articles)
+            # Check if no entries found
+            elif not hasattr(feed, 'entries') or len(feed.entries) == 0:
+                feed_status = "warning"
+                error_message = "No articles found in feed"
+                article_count = 0
+                articles = []
+            else:
+                articles = parse_rss_feed_entries(feed.entries, source_name, source_info)
+                article_count = len(articles)
+            
+            # Add articles to main list
+            all_articles.extend(articles)
+            
+            # Create source stat
+            source_stat = {
+                "name": source_name,
+                "url": source_info['url'],
+                "category": source_info.get('category', 'general'),
+                "country": source_info.get('country', 'US'),
+                "funding_type": source_info.get('funding_type'),
+                "bias_rating": source_info.get('bias_rating'),
+                "article_count": article_count,
+                "status": feed_status,
+                "error_message": error_message,
+                "last_checked": datetime.now().isoformat()
+            }
+            source_stats.append(source_stat)
+            
+        except Exception as e:
+            # Create error source stat
+            source_stat = {
+                "name": source_name,
+                "url": source_info['url'],
+                "category": source_info.get('category', 'general'),
+                "country": source_info.get('country', 'US'),
+                "funding_type": source_info.get('funding_type'),
+                "bias_rating": source_info.get('bias_rating'),
+                "article_count": 0,
+                "status": "error",
+                "error_message": str(e),
+                "last_checked": datetime.now().isoformat()
+            }
+            source_stats.append(source_stat)
+            logger.error(f"Error processing {source_name}: {e}")
+    
+    # Sort articles by published date (newest first)
+    try:
+        all_articles.sort(key=lambda x: x.published, reverse=True)
+    except:
+        # Fallback if date parsing fails
+        pass
+    
+    # Update cache
+    news_cache.update_cache(all_articles, source_stats)
+    logger.info(f"✅ Cache refresh completed: {len(all_articles)} total articles")
+
+def parse_rss_feed_entries(entries, source_name: str, source_info: Dict) -> List[NewsArticle]:
+    """Parse RSS feed entries into NewsArticle objects"""
+    articles = []
+    
+    for entry in entries[:15]:  # Limit to 15 articles per source
+        # Extract image URL from various possible locations
+        image_url = None
+        
+        # Check for media:thumbnail
+        if hasattr(entry, 'media_thumbnail') and entry.media_thumbnail:
+            image_url = entry.media_thumbnail[0].get('url') if isinstance(entry.media_thumbnail, list) else entry.media_thumbnail.get('url')
+        
+        # Check for media:content
+        elif hasattr(entry, 'media_content') and entry.media_content:
+            for media in entry.media_content:
+                if media.get('type', '').startswith('image/'):
+                    image_url = media.get('url')
+                    break
+        
+        # Check for enclosure (podcast/media)
+        elif hasattr(entry, 'enclosures') and entry.enclosures:
+            for enclosure in entry.enclosures:
+                if enclosure.get('type', '').startswith('image/'):
+                    image_url = enclosure.get('href')
+                    break
+        
+        # Check for image in links
+        elif hasattr(entry, 'links') and entry.links:
+            for link in entry.links:
+                if link.get('type', '').startswith('image/'):
+                    image_url = link.get('href')
+                    break
+        
+        # Check for image tag in content
+        elif hasattr(entry, 'content') and entry.content:
+            content_text = entry.content[0].value if isinstance(entry.content, list) else str(entry.content)
+            img_match = re.search(r'<img[^>]+src="([^"]+)"', content_text)
+            if img_match:
+                image_url = img_match.group(1)
+        
+        # Check for image in description/summary
+        if not image_url and entry.get('description'):
+            img_match = re.search(r'<img[^>]+src="([^"]+)"', entry.description)
+            if img_match:
+                image_url = img_match.group(1)
+        
+        # Clean title and description
+        title = entry.get('title', 'No title')
+        description = entry.get('description', 'No description')
+        
+        # Decode HTML entities and remove HTML tags
+        title = html.unescape(title)
+        title = re.sub(r'<[^>]+>', '', title).strip()
+        
+        description = html.unescape(description)
+        # Remove HTML tags but preserve some basic structure
+        description = re.sub(r'<script[^>]*>.*?</script>', '', description, flags=re.DOTALL | re.IGNORECASE)
+        description = re.sub(r'<style[^>]*>.*?</style>', '', description, flags=re.DOTALL | re.IGNORECASE)
+        description = re.sub(r'<[^>]+>', ' ', description)
+        description = re.sub(r'\s+', ' ', description).strip()
+        
+        # Ensure image URL is absolute
+        if image_url and not image_url.startswith(('http://', 'https://')):
+            try:
+                parsed_url = urlparse(source_info['url'])
+                base_url = f"{parsed_url.scheme}://{parsed_url.netloc}"
+                image_url = urljoin(base_url, image_url)
+            except:
+                image_url = None
+        
+        article = NewsArticle(
+            title=title,
+            link=entry.get('link', ''),
+            description=description,
+            published=entry.get('published', str(datetime.now())),
+            source=source_name,
+            category=source_info.get('category', 'general'),
+            image=image_url
+        )
+        articles.append(article)
+    
+    return articles
+
+def start_cache_refresh_scheduler():
+    """Start the background thread that refreshes the cache every 30 seconds"""
+    def cache_scheduler():
+        while True:
+            try:
+                refresh_news_cache()
+                time.sleep(30)  # Wait 30 seconds before next refresh
+            except Exception as e:
+                logger.error(f"Error in cache scheduler: {e}")
+                time.sleep(30)  # Still wait 30 seconds even if there's an error
+    
+    thread = threading.Thread(target=cache_scheduler, daemon=True)
+    thread.start()
+    logger.info("🚀 Cache refresh scheduler started (30-second intervals)")
+
 @app.get("/", response_model=Dict[str, str])
 async def read_root():
     return {
@@ -466,71 +700,64 @@ async def get_news(
     category: Optional[str] = None,
     source: Optional[str] = None
 ):
-    """Get aggregated news from all sources with optional filtering"""
-    all_articles = []
+    """Get aggregated news from cached data with optional filtering"""
+    # Get all articles from cache
+    all_articles = news_cache.get_articles()
     
-    # Filter sources based on parameters
-    sources_to_parse = RSS_SOURCES
-    if source and source in RSS_SOURCES:
-        sources_to_parse = {source: RSS_SOURCES[source]}
+    # Apply filters
+    filtered_articles = []
+    sources_included = set()
     
-    # Parse all RSS feeds
-    for source_name, source_info in sources_to_parse.items():
-        if category and source_info.get('category') != category:
+    for article in all_articles:
+        # Apply source filter
+        if source and article.source != source:
             continue
-            
-        articles = parse_rss_feed(source_info['url'], source_name, source_info)
-        all_articles.extend(articles)
-    
-    # Sort by published date (newest first)
-    try:
-        all_articles.sort(key=lambda x: x.published, reverse=True)
-    except:
-        # Fallback if date parsing fails
-        pass
+        
+        # Apply category filter  
+        if category and article.category != category:
+            continue
+        
+        filtered_articles.append(article)
+        sources_included.add(article.source)
     
     # Limit results
-    limited_articles = all_articles[:limit]
+    limited_articles = filtered_articles[:limit]
     
     return NewsResponse(
         articles=limited_articles,
         total=len(limited_articles),
-        sources=list(sources_to_parse.keys())
+        sources=list(sources_included)
     )
 
 @app.get("/news/source/{source_name}", response_model=List[NewsArticle])
 async def get_news_by_source(source_name: str):
-    """Get news from a specific source"""
+    """Get news from a specific source from cached data"""
     if source_name not in RSS_SOURCES:
         raise HTTPException(status_code=404, detail="Source not found")
     
-    source_info = RSS_SOURCES[source_name]
-    articles = parse_rss_feed(source_info['url'], source_name, source_info)
+    # Get articles from cache and filter by source
+    all_articles = news_cache.get_articles()
+    source_articles = [article for article in all_articles if article.source == source_name]
     
-    return articles
+    return source_articles
 
 @app.get("/news/category/{category_name}", response_model=NewsResponse)
 async def get_news_by_category(category_name: str, limit: int = 30):
-    """Get news from a specific category"""
-    all_articles = []
+    """Get news from a specific category from cached data"""
+    # Get articles from cache and filter by category
+    all_articles = news_cache.get_articles()
+    category_articles = [article for article in all_articles if article.category == category_name]
     
-    for source_name, source_info in RSS_SOURCES.items():
-        if source_info.get('category') == category_name:
-            articles = parse_rss_feed(source_info['url'], source_name, source_info)
-            all_articles.extend(articles)
+    # Get unique sources for this category
+    sources_included = list(set(article.source for article in category_articles))
     
-    # Sort by published date
-    try:
-        all_articles.sort(key=lambda x: x.published, reverse=True)
-    except:
-        pass
-    
-    limited_articles = all_articles[:limit]
+    # Limit results
+    limited_articles = category_articles[:limit]
     
     return NewsResponse(
         articles=limited_articles,
         total=len(limited_articles),
-        sources=[name for name, info in RSS_SOURCES.items() if info.get('category') == category_name]
+        sources=sources_included
     )
 
 @app.get("/sources", response_model=List[SourceInfo])
@@ -561,59 +788,49 @@ async def get_categories():
 
 @app.get("/sources/stats")
 async def get_source_stats():
-    """Get statistics for each RSS source including article counts and parse status"""
-    source_stats = []
-    
-    for source_name, source_info in RSS_SOURCES.items():
-        try:
-            # Parse the RSS feed to get article count using improved method
-            feed = feedparser.parse(source_info['url'], agent='NewsAggregator/1.0')
-            
-            # Initialize status
-            feed_status = "success"
-            error_message = None
-            
-            # Check for HTTP errors
-            if hasattr(feed, 'status') and feed.status >= 400:
-                feed_status = "error"
-                error_message = f"HTTP {feed.status} error"
-                article_count = 0
-            # Check for parsing errors
-            elif hasattr(feed, 'bozo') and feed.bozo:
-                feed_status = "warning"
-                error_message = f"Parse warning: {getattr(feed, 'bozo_exception', 'Unknown error')}"
-                article_count = len(feed.entries[:15]) if hasattr(feed, 'entries') else 0
-            # Check if no entries found
-            elif not hasattr(feed, 'entries') or len(feed.entries) == 0:
-                feed_status = "warning"
-                error_message = "No articles found in feed"
-                article_count = 0
-            else:
-                article_count = len(feed.entries[:15])  # Limit to 15 like in main parsing
-            
-        except Exception as e:
-            article_count = 0
-            feed_status = "error" 
-            error_message = str(e)
-        
-        source_stat = {
-            "name": source_name,
-            "url": source_info['url'],
-            "category": source_info.get('category', 'general'),
-            "country": source_info.get('country', 'US'),
-            "funding_type": source_info.get('funding_type'),
-            "bias_rating": source_info.get('bias_rating'),
-            "article_count": article_count,
-            "status": feed_status,
-            "error_message": error_message,
-            "last_checked": datetime.now().isoformat()
-        }
-        source_stats.append(source_stat)
-        
-        # Log the result
-        logger.info(f"Source check - {source_name}: {article_count} articles, status: {feed_status}")
-    
+    """Get statistics for each RSS source from cached data"""
+    source_stats = news_cache.get_source_stats()
     return {"sources": source_stats, "total_sources": len(source_stats)}
+
+@app.post("/cache/refresh")
+async def manual_cache_refresh():
+    """Manually trigger a cache refresh"""
+    if news_cache.update_in_progress:
+        return {"message": "Cache refresh already in progress", "status": "in_progress"}
+    
+    # Trigger refresh in background
+    threading.Thread(target=refresh_news_cache, daemon=True).start()
+    
+    return {"message": "Cache refresh started", "status": "started"}
+
+@app.get("/cache/status")
+async def get_cache_status():
+    """Get current cache status and statistics"""
+    articles = news_cache.get_articles()
+    source_stats = news_cache.get_source_stats()
+    
+    # Calculate some statistics
+    total_articles = len(articles)
+    sources_with_articles = len([s for s in source_stats if s['article_count'] > 0])
+    sources_with_errors = len([s for s in source_stats if s['status'] == 'error'])
+    sources_with_warnings = len([s for s in source_stats if s['status'] == 'warning'])
+    
+    # Get category breakdown
+    category_counts = defaultdict(int)
+    for article in articles:
+        category_counts[article.category] += 1
+    
+    return {
+        "last_updated": news_cache.last_updated.isoformat(),
+        "update_in_progress": news_cache.update_in_progress,
+        "total_articles": total_articles,
+        "total_sources": len(source_stats),
+        "sources_working": sources_with_articles,
+        "sources_with_errors": sources_with_errors,
+        "sources_with_warnings": sources_with_warnings,
+        "category_breakdown": dict(category_counts),
+        "cache_age_seconds": (datetime.now() - news_cache.last_updated).total_seconds()
+    }
 
 if __name__ == "__main__":
     import uvicorn
