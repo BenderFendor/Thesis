@@ -12,6 +12,9 @@ from collections import defaultdict
 import html
 import re
 from urllib.parse import urljoin, urlparse
+import json
+import requests
+import requests
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -495,6 +498,60 @@ def parse_rss_feed(url: str, source_name: str, source_info: Dict) -> List[NewsAr
         logger.error(f"Error parsing {source_name}: {e}")
         return []
 
+def get_rss_as_json(url: str, source_name: str) -> Dict[str, Any]:
+    """Fetch RSS feed and convert to JSON for better debugging"""
+    try:
+        # First try with requests to get raw content
+        headers = {
+            'User-Agent': 'NewsAggregator/1.0 (RSS to JSON converter)',
+            'Accept': 'application/rss+xml, application/xml, text/xml, */*'
+        }
+        response = requests.get(url, headers=headers, timeout=30)
+        response.raise_for_status()
+        
+        # Clean up potential XML issues
+        content = response.text.strip()
+        # Remove any leading whitespace or BOM that might cause XML parsing issues
+        content = content.lstrip('\ufeff\xff\xfe')
+        
+        # Parse with feedparser using the cleaned content
+        feed = feedparser.parse(content)
+        
+        # Convert feedparser result to clean JSON structure
+        feed_json = {
+            "feed_info": {
+                "title": getattr(feed.feed, 'title', ''),
+                "description": getattr(feed.feed, 'description', ''),
+                "link": getattr(feed.feed, 'link', ''),
+                "updated": getattr(feed.feed, 'updated', ''),
+                "language": getattr(feed.feed, 'language', ''),
+            },
+            "status": getattr(feed, 'status', None),
+            "bozo": getattr(feed, 'bozo', False),
+            "bozo_exception": str(getattr(feed, 'bozo_exception', '')),
+            "total_entries": len(feed.entries),
+            "entries": []
+        }
+        
+        # Add first few entries as examples
+        for i, entry in enumerate(feed.entries[:3]):  # Just first 3 for logging
+            entry_json = {
+                "title": getattr(entry, 'title', ''),
+                "link": getattr(entry, 'link', ''),
+                "description": getattr(entry, 'description', '')[:200] + '...' if len(getattr(entry, 'description', '')) > 200 else getattr(entry, 'description', ''),
+                "published": getattr(entry, 'published', ''),
+                "author": getattr(entry, 'author', ''),
+            }
+            feed_json["entries"].append(entry_json)
+        
+        return feed_json, feed
+        
+    except Exception as e:
+        logger.error(f"Failed to fetch {source_name} as JSON: {e}")
+        # Fallback to regular feedparser
+        feed = feedparser.parse(url, agent='NewsAggregator/1.0')
+        return {"error": str(e), "fallback": True}, feed
+
 def refresh_news_cache():
     """Refresh the news cache by parsing all RSS sources"""
     if news_cache.update_in_progress:
@@ -509,8 +566,12 @@ def refresh_news_cache():
     
     for source_name, source_info in RSS_SOURCES.items():
         try:
-            # Parse the RSS feed 
-            feed = feedparser.parse(source_info['url'], agent='NewsAggregator/1.0')
+            # Get RSS as JSON for better debugging
+            feed_json, feed = get_rss_as_json(source_info['url'], source_name)
+            
+            # Log JSON representation for debugging
+            if source_name in ['Novara Media', 'CNN Politics']:  # Log problematic sources
+                logger.info(f"📄 RSS JSON for {source_name}: {json.dumps(feed_json, indent=2)}")
             
             # Initialize status
             feed_status = "success"
@@ -522,21 +583,26 @@ def refresh_news_cache():
                 error_message = f"HTTP {feed.status} error"
                 article_count = 0
                 articles = []
+                logger.error(f"❌ HTTP {feed.status} for {source_name}: {source_info['url']}")
             # Check for parsing errors
             elif hasattr(feed, 'bozo') and feed.bozo:
                 feed_status = "warning"
-                error_message = f"Parse warning: {getattr(feed, 'bozo_exception', 'Unknown error')}"
+                bozo_error = str(getattr(feed, 'bozo_exception', 'Unknown error'))
+                error_message = f"Parse warning: {bozo_error}"
                 articles = parse_rss_feed_entries(feed.entries, source_name, source_info)
                 article_count = len(articles)
+                logger.warning(f"⚠️  XML parsing issue for {source_name}: {bozo_error} (still got {article_count} articles)")
             # Check if no entries found
             elif not hasattr(feed, 'entries') or len(feed.entries) == 0:
                 feed_status = "warning"
                 error_message = "No articles found in feed"
                 article_count = 0
                 articles = []
+                logger.warning(f"⚠️  No entries found for {source_name}: {source_info['url']}")
             else:
                 articles = parse_rss_feed_entries(feed.entries, source_name, source_info)
                 article_count = len(articles)
+                logger.info(f"✅ Successfully parsed {article_count} articles from {source_name}")
             
             # Add articles to main list
             all_articles.extend(articles)
@@ -571,7 +637,7 @@ def refresh_news_cache():
                 "last_checked": datetime.now().isoformat()
             }
             source_stats.append(source_stat)
-            logger.error(f"Error processing {source_name}: {e}")
+            logger.error(f"💥 Error processing {source_name}: {e}")
     
     # Sort articles by published date (newest first)
     try:
