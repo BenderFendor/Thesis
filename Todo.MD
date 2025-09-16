@@ -16,3 +16,5 @@ The font like the main main header one should be like garamond or some seirf the
 
 # Add a logger feature
 So it like turns the debug print logs off or on
+
+# add support for loading new articles using the stream anding dynammic add more and more cards to the grid view and more feeds instead of the feed one.

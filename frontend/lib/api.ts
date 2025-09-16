@@ -47,6 +47,39 @@ export interface NewsArticle {
   translated: boolean
 }
 
+// Add streaming interfaces
+export interface StreamOptions {
+  useCache?: boolean;
+  onProgress?: (progress: StreamProgress) => void;
+  onSourceComplete?: (source: string, articles: NewsArticle[]) => void;
+  onError?: (error: string) => void;
+  signal?: AbortSignal;
+}
+
+export interface StreamProgress {
+  completed: number;
+  total: number;
+  percentage: number;
+  currentSource?: string;
+  message?: string;
+}
+
+export interface StreamEvent {
+  status: 'starting' | 'cache_data' | 'source_complete' | 'source_error' | 'complete' | 'error';
+  stream_id?: string;
+  message?: string;
+  source?: string;
+  articles?: any[];
+  source_stat?: any;
+  error?: string;
+  progress?: StreamProgress;
+  cache_age_seconds?: number;
+  total_articles?: number;
+  successful_sources?: number;
+  failed_sources?: number;
+  timestamp?: string;
+}
+
 // API functions
 export async function fetchNews(params?: {
   limit?: number;
@@ -174,13 +207,15 @@ export async function fetchNewsFromSource(sourceId: string): Promise<NewsArticle
     const data = await response.json();
     console.log(`📡 Backend response for source ${sourceId}:`, data);
     
-    if (!data || data.length === 0) {
+    const mapped = mapBackendArticles(Array.isArray(data) ? data : (data?.articles || []));
+    
+    if (!mapped || mapped.length === 0) {
       console.log(`⚠️ No articles received from source ${sourceId}. Full response:`, JSON.stringify(data, null, 2));
     } else {
-      console.log(`✅ Received ${data.length} articles from source ${sourceId}`);
+      console.log(`✅ Received ${mapped.length} articles from source ${sourceId}`);
     }
     
-    return data;
+    return mapped;
   } catch (error) {
     console.error(`❌ Failed to fetch news from source ${sourceId}:`, error);
     return [];
@@ -200,16 +235,16 @@ export async function fetchNewsByCategory(category: string): Promise<NewsArticle
     const data = await response.json();
     console.log(`📡 Backend response for category ${category}:`, data);
     
-    // Backend returns { articles: [...], total: number, sources: [...] } for category endpoint
-    const articles = data.articles || data;
+    const raw = Array.isArray(data) ? data : (data?.articles || []);
+    const mapped = mapBackendArticles(raw);
     
-    if (!articles || articles.length === 0) {
+    if (!mapped || mapped.length === 0) {
       console.log(`⚠️ No articles received for category ${category}. Full response:`, JSON.stringify(data, null, 2));
     } else {
-      console.log(`✅ Received ${articles.length} articles for category ${category}`);
+      console.log(`✅ Received ${mapped.length} articles for category ${category}`);
     }
     
-    return articles;
+    return mapped;
   } catch (error) {
     console.error(`❌ Failed to fetch news by category ${category}:`, error);
     return [];
@@ -269,7 +304,9 @@ export async function fetchCategories(): Promise<string[]> {
       throw new Error(`HTTP error! status: ${response.status}`);
     }
     
-    return await response.json();
+    const data = await response.json();
+    // Backend returns { categories: [...] }
+    return Array.isArray(data) ? data : (data?.categories || []);
   } catch (error) {
     console.error('Failed to fetch categories:', error);
     return [];
@@ -433,11 +470,12 @@ export async function fetchSourceDebugData(sourceName: string): Promise<SourceDe
   }
   const encodedSourceName = encodeURIComponent(decodedSourceName);
 
-  const url = `${API_BASE_URL}/sources/${encodedSourceName}/debug`;
-  console.log(`🔄 Fetching debug data for source: ${url}`);
+  // FIXED: Use correct endpoint path
+  const url = `${API_BASE_URL}/debug/source/${encodedSourceName}`;
+  console.log(`� Fetching debug data for source: ${url}`);
   try {
     const response = await fetch(url);
-    console.log(`📡 Response status for source ${sourceName}:`, response.status);
+    console.log(`📡 Debug response status for source ${sourceName}:`, response.status);
     if (!response.ok) {
       return {
         source_name: sourceName,
@@ -469,7 +507,15 @@ export async function fetchSourceDebugData(sourceName: string): Promise<SourceDe
         error: `HTTP error! status: ${response.status}`
       };
     }
-    return await response.json();
+    
+    const debugData = await response.json();
+    console.log(`✅ Debug data received for ${sourceName}:`, {
+      entriesCount: debugData.feed_status?.entries_count,
+      cachedArticles: debugData.cached_articles?.length,
+      hasError: !!debugData.error
+    });
+    
+    return debugData;
   } catch (error: any) {
     console.error('Error fetching source debug data:', error);
     return {
@@ -501,5 +547,295 @@ export async function fetchSourceDebugData(sourceName: string): Promise<SourceDe
       },
       error: error?.message || "Unknown fetch error"
     };
+  }
+}
+
+// Enhanced news streaming function
+export async function streamNews(options: StreamOptions = {}): Promise<{
+  articles: NewsArticle[];
+  sources: string[];
+  streamId?: string;
+  errors: string[];
+}> {
+  const { useCache = true, onProgress, onSourceComplete, onError, signal } = options;
+  
+  console.log(`🎯 Starting news stream with useCache=${useCache}`);
+  
+  return new Promise((resolve, reject) => {
+    const articles: NewsArticle[] = [];
+    const sources = new Set<string>();
+    const errors: string[] = [];
+    let streamId: string | undefined;
+    let hasReceivedData = false;
+    let settled = false;
+    
+    // Build SSE URL with parameters
+    const baseUrl = (process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000').replace(/\/+$/, '');
+    const sseUrl = `${baseUrl}/news/stream?use_cache=${useCache}`;
+    
+    console.log(`🔗 Connecting to stream: ${sseUrl}`);
+    
+    const eventSource = new EventSource(sseUrl);
+    let timeoutId: NodeJS.Timeout;
+    
+    // Set timeout to prevent hanging
+    const startTimeout = () => {
+      if (timeoutId) clearTimeout(timeoutId);
+      timeoutId = setTimeout(() => {
+        console.error('🚨 Stream timeout - closing connection');
+        eventSource.close();
+        if (!hasReceivedData) {
+          reject(new Error('Stream timeout - no data received'));
+        } else {
+          resolve({
+            articles,
+            sources: Array.from(sources),
+            streamId,
+            errors: [...errors, 'Stream timeout']
+          });
+        }
+      }, 120000); // 2 minutes timeout
+    };
+    
+    startTimeout();
+    
+    // Allow external abort to close SSE and resolve with partial data
+    const handleAbort = () => {
+      if (settled) return;
+      console.warn('🧹 Streaming aborted by signal. Closing SSE.');
+      try { clearTimeout(timeoutId); } catch {}
+      try { eventSource.close(); } catch {}
+      settled = true;
+      resolve({
+        articles: removeDuplicateArticles(articles),
+        sources: Array.from(sources),
+        streamId,
+        errors: [...errors, 'aborted']
+      });
+    };
+    if (signal) {
+      if (signal.aborted) {
+        return handleAbort();
+      }
+      signal.addEventListener('abort', handleAbort, { once: true });
+    }
+    
+    eventSource.onopen = () => {
+      console.log('✅ SSE connection opened');
+    };
+    
+    eventSource.onmessage = (event) => {
+      try {
+        const data: StreamEvent = JSON.parse(event.data);
+        console.log(`📨 Stream event [${data.status}]:`, {
+          streamId: data.stream_id,
+          source: data.source,
+          articlesCount: data.articles?.length,
+          progress: data.progress,
+          message: data.message
+        });
+        
+        // Update stream ID
+        if (data.stream_id && !streamId) {
+          streamId = data.stream_id;
+        }
+        
+        // Reset timeout on each message
+        startTimeout();
+        
+        switch (data.status) {
+          case 'starting':
+            console.log(`🚀 Stream ${streamId} starting: ${data.message}`);
+            onProgress?.({
+              completed: 0,
+              total: 0,
+              percentage: 0,
+              message: data.message
+            });
+            break;
+            
+          case 'cache_data':
+            hasReceivedData = true;
+            if (data.articles) {
+              const mappedArticles = mapBackendArticles(data.articles);
+              articles.push(...mappedArticles);
+              mappedArticles.forEach(article => sources.add(article.source));
+              
+              console.log(`💾 Stream ${streamId} cache data: ${mappedArticles.length} articles (cache age: ${data.cache_age_seconds}s)`);
+              
+              onProgress?.({
+                completed: 0,
+                total: 0,
+                percentage: 0,
+                message: `Loaded ${mappedArticles.length} cached articles`
+              });
+            }
+            break;
+            
+          case 'source_complete':
+            hasReceivedData = true;
+            if (data.articles && data.source) {
+              const mappedArticles = mapBackendArticles(data.articles);
+              articles.push(...mappedArticles);
+              sources.add(data.source);
+              
+              console.log(`✅ Stream ${streamId} source complete: ${data.source} (${mappedArticles.length} articles)`);
+              
+              onSourceComplete?.(data.source, mappedArticles);
+              
+              if (data.progress) {
+                onProgress?.(data.progress);
+              }
+            }
+            break;
+            
+          case 'source_error':
+            const errorMsg = `Error loading ${data.source}: ${data.error}`;
+            console.warn(`❌ Stream ${streamId} source error:`, errorMsg);
+            errors.push(errorMsg);
+            onError?.(errorMsg);
+            
+            if (data.progress) {
+              onProgress?.(data.progress);
+            }
+            break;
+            
+          case 'complete':
+            console.log(`🏁 Stream ${streamId} complete:`, {
+              totalArticles: data.total_articles,
+              successfulSources: data.successful_sources,
+              failedSources: data.failed_sources,
+              message: data.message
+            });
+            
+            clearTimeout(timeoutId);
+            eventSource.close();
+            
+            if (!settled) {
+              settled = true;
+              resolve({
+                articles: removeDuplicateArticles(articles),
+                sources: Array.from(sources),
+                streamId,
+                errors
+              });
+            }
+            break;
+            
+          case 'error':
+            console.error(`💥 Stream ${streamId} error:`, data.error);
+            clearTimeout(timeoutId);
+            eventSource.close();
+            
+            if (hasReceivedData) {
+              // Return partial data if we got some
+              if (!settled) {
+                settled = true;
+                resolve({
+                  articles: removeDuplicateArticles(articles),
+                  sources: Array.from(sources),
+                  streamId,
+                  errors: [...errors, data.error || 'Stream error']
+                });
+              }
+            } else {
+              if (!settled) {
+                settled = true;
+                reject(new Error(data.error || 'Stream error'));
+              }
+            }
+            break;
+            
+          default:
+            console.log(`❓ Stream ${streamId} unknown status: ${data.status}`);
+        }
+        
+      } catch (error) {
+        console.error('🚨 Error parsing stream event:', error, 'Raw data:', event.data);
+        onError?.(`Parse error: ${error}`);
+      }
+    };
+    
+    eventSource.onerror = (error) => {
+      console.error('🚨 SSE connection error:', error);
+      clearTimeout(timeoutId);
+      eventSource.close();
+      
+      const errorMsg = 'Stream connection error';
+      
+      if (hasReceivedData) {
+        // Return partial data if we got some
+        if (!settled) {
+          settled = true;
+          resolve({
+            articles: removeDuplicateArticles(articles),
+            sources: Array.from(sources),
+            streamId,
+            errors: [...errors, errorMsg]
+          });
+        }
+      } else {
+        if (!settled) {
+          settled = true;
+          reject(new Error(errorMsg));
+        }
+      }
+    };
+  });
+}
+
+// Helper function to map backend articles to frontend format
+function mapBackendArticles(backendArticles: any[]): NewsArticle[] {
+  return backendArticles.map((article: any, index: number) => ({
+    id: Date.now() + index + Math.random(), // More unique ID
+    title: article.title || 'No title',
+    source: article.source || 'Unknown',
+    sourceId: (article.source || 'unknown').toLowerCase().replace(/\s+/g, '-'),
+    country: getCountryFromSource(article.source),
+    credibility: getCredibilityFromSource(article.source),
+    bias: getBiasFromSource(article.source),
+    summary: article.description || 'No description',
+    content: article.description || 'No description',
+    image: article.image || "/placeholder.svg",
+    publishedAt: article.published || new Date().toISOString(),
+    category: article.category || 'general',
+    url: article.link || '',
+    likes: Math.floor(Math.random() * 100),
+    comments: Math.floor(Math.random() * 50),
+    shares: Math.floor(Math.random() * 25),
+    tags: [article.category, article.source].filter(Boolean),
+    originalLanguage: "en",
+    translated: false
+  }));
+}
+
+// Helper function to remove duplicate articles
+function removeDuplicateArticles(articles: NewsArticle[]): NewsArticle[] {
+  const seen = new Set<string>();
+  return articles.filter(article => {
+    const key = `${article.title}-${article.source}`;
+    if (seen.has(key)) {
+      return false;
+    }
+    seen.add(key);
+    return true;
+  });
+}
+
+// Add debug endpoint for stream status
+export async function fetchStreamStatus(): Promise<any> {
+  try {
+    const response = await fetch(`${API_BASE_URL}/debug/streams`);
+    
+    if (!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status}`);
+    }
+    
+    const data = await response.json();
+    console.log('📊 Stream status:', data);
+    return data;
+  } catch (error) {
+    console.error('❌ Failed to fetch stream status:', error);
+    return null;
   }
 }

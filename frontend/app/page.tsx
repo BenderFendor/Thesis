@@ -158,10 +158,10 @@ export default function NewsPage() {
                 {/* Content Views */}
                 <>
                   {currentView === "globe" && (
-                    <GlobeView />
+                    <GlobeView key={activeCategory + "-globe"} />
                   )}
-                  {currentView === "grid" && <GridView />}
-                  {currentView === "scroll" && <ScrollView />}
+                  {currentView === "grid" && <GridView key={activeCategory + "-grid"} />}
+                  {currentView === "scroll" && <ScrollView key={activeCategory + "-scroll"} />}
                 </>
               </TabsContent>
             )

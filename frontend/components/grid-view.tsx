@@ -59,6 +59,7 @@ export function GridView() {
   // Traditional API loading function
   const loadNewsFromAPI = async (showLoading = true) => {
     if (showLoading) setLoading(true)
+    console.log('🔄 Grid View: Fetching news from API...')
     try {
       const fetchedArticles = await fetchNews({ limit: 1000 }) // Get all articles
       setArticles(fetchedArticles)
@@ -74,23 +75,31 @@ export function GridView() {
     }
   }
 
-  // Initial load and refresh setup
+  // Initial load and refresh setup with fallback if stream yields nothing
   useEffect(() => {
+    let fallbackTimer: NodeJS.Timeout | undefined
     if (useStream) {
-      // Start with stream
       setLoading(true)
+      console.log('🔄 Grid View: Starting news stream...')
       streamHook.startStream()
+      // If no articles arrive within 7s, fall back to REST
+      fallbackTimer = setTimeout(async () => {
+        if (articles.length === 0) {
+          console.log('⏳ No streamed articles yet; falling back to REST fetch')
+          await loadNewsFromAPI()
+        }
+      }, 7000)
     } else {
-      // Load from API
+      console.log('🔄 Grid View: Loading news from API...')
       loadNewsFromAPI()
-      
-      // Set up background refresh every 5 minutes for API mode
       const refreshInterval = setInterval(() => {
         console.log('🔄 Starting background article refresh...')
-        loadNewsFromAPI(false) // Don't show loading spinner for background updates
-      }, 5 * 60 * 1000) // 5 minutes
-      
+        loadNewsFromAPI(false)
+      }, 5 * 60 * 1000)
       return () => clearInterval(refreshInterval)
+    }
+    return () => {
+      if (fallbackTimer) clearTimeout(fallbackTimer)
     }
   }, [useStream])
 
@@ -215,6 +224,18 @@ export function GridView() {
           <div className="text-center">
             <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto mb-4"></div>
             <p className="text-muted-foreground">Loading news articles...</p>
+            {useStream && streamHook.isStreaming && (
+              <div className="mt-4 space-y-2">
+                <p className="text-sm text-muted-foreground">{streamHook.currentMessage}</p>
+                <div className="flex items-center justify-center gap-2">
+                  <Progress value={streamHook.progress} className="w-32" />
+                  <span className="text-sm">{streamHook.progress.toFixed(0)}%</span>
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  {streamHook.completedSources}/{streamHook.totalSources} sources
+                </p>
+              </div>
+            )}
           </div>
         </div>
       </div>
@@ -257,7 +278,10 @@ export function GridView() {
               {useStream ? (
                 <div className="flex items-center gap-2">
                   <Button
-                    onClick={streamHook.startStream}
+                    onClick={() => {
+                      console.log('🔄 Grid View: Manually starting stream...')
+                      streamHook.startStream()
+                    }}
                     disabled={streamHook.isStreaming}
                     size="sm"
                     variant="outline"
@@ -266,7 +290,10 @@ export function GridView() {
                     Start Stream
                   </Button>
                   <Button
-                    onClick={streamHook.stopStream}
+                    onClick={() => {
+                      console.log('🔄 Grid View: Stopping stream...')
+                      streamHook.stopStream()
+                    }}
                     disabled={!streamHook.isStreaming}
                     size="sm"
                     variant="outline"
@@ -277,7 +304,10 @@ export function GridView() {
                 </div>
               ) : (
                 <Button
-                  onClick={() => loadNewsFromAPI()}
+                  onClick={() => {
+                    console.log('🔄 Grid View: Manually refreshing from API...')
+                    loadNewsFromAPI()
+                  }}
                   disabled={loading}
                   size="sm"
                   variant="outline"

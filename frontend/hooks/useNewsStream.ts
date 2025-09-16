@@ -1,232 +1,197 @@
-import { useState, useEffect, useRef } from 'react'
-import type { NewsArticle } from '@/lib/api'
+import { useState, useEffect, useRef, useCallback } from 'react'
+import { streamNews, type NewsArticle, type StreamOptions, type StreamProgress } from '@/lib/api'
 
-interface SSENewsArticle {
-  title: string
-  link: string
-  description: string
-  published: string
-  source: string
-  category: string
-  image?: string
-}
-
-interface StreamEvent {
-  status: string
-  message?: string
-  source?: string
-  articles?: SSENewsArticle[]
-  source_stat?: any
-  error?: string
-  progress?: {
-    completed: number
-    total: number
-    percentage: number
-  }
-}
-
-interface UseNewsStreamOptions {
+interface UseNewsStreamOptions extends Omit<StreamOptions, 'onProgress' | 'onSourceComplete' | 'onError'> {
   onUpdate?: (articles: NewsArticle[]) => void
-  onProgress?: (progress: { completed: number; total: number; percentage: number }) => void
-  onComplete?: () => void
+  onComplete?: (result: { articles: NewsArticle[]; sources: string[]; errors: string[] }) => void
   onError?: (error: string) => void
+  autoStart?: boolean
 }
 
 export const useNewsStream = (options: UseNewsStreamOptions = {}) => {
   const [isStreaming, setIsStreaming] = useState(false)
   const [articles, setArticles] = useState<NewsArticle[]>([])
-  const [progress, setProgress] = useState(0)
+  const [progress, setProgress] = useState<StreamProgress>({ completed: 0, total: 0, percentage: 0 })
   const [status, setStatus] = useState<string>('idle')
-  const [completedSources, setCompletedSources] = useState(0)
-  const [totalSources, setTotalSources] = useState(0)
   const [currentMessage, setCurrentMessage] = useState('')
-  const eventSourceRef = useRef<EventSource | null>(null)
-  const timeoutRef = useRef<NodeJS.Timeout | null>(null)
+  const [sources, setSources] = useState<string[]>([])
+  const [errors, setErrors] = useState<string[]>([])
+  const [streamId, setStreamId] = useState<string>()
 
-  const startStream = () => {
-    if (isStreaming) return
+  const streamPromiseRef = useRef<Promise<any> | null>(null)
+  const abortControllerRef = useRef<AbortController | null>(null)
+  const isMountedRef = useRef<boolean>(true)
+  const startingRef = useRef<boolean>(false)
 
-    // Close any existing connection
-    if (eventSourceRef.current) {
-      eventSourceRef.current.close()
-      eventSourceRef.current = null
+  const startStream = useCallback(async (streamOptions?: Partial<StreamOptions>) => {
+    if (startingRef.current || isStreaming) {
+      console.warn('⚠️ Stream already in progress, ignoring start request');
+      return;
     }
 
+    console.log('🚀 Starting news stream with options:', { ...options, ...streamOptions });
+
+    // Cancel any existing stream
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort();
+    }
+    
+    abortControllerRef.current = new AbortController();
+    startingRef.current = true;
+    
+    // Reset state
     setIsStreaming(true)
     setArticles([])
-    setProgress(0)
+    setProgress({ completed: 0, total: 0, percentage: 0 })
     setStatus('starting')
-    setCurrentMessage('Connecting to news stream...')
-    setCompletedSources(0)
-    setTotalSources(0)
+    setCurrentMessage('Initializing stream...')
+    setSources([])
+    setErrors([])
+    setStreamId(undefined)
 
-    // Create EventSource connection
-  const sseUrl = (process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000').replace(/\/+$/, '') + '/news/stream'
-  console.log(`[36mConnecting to SSE at: ${sseUrl}[0m`)
-  const eventSource = new EventSource(sseUrl)
-    eventSourceRef.current = eventSource
-
-    // Set a timeout to prevent hanging
-    timeoutRef.current = setTimeout(() => {
-      console.warn('SSE stream timeout - closing connection')
-      if (eventSourceRef.current) {
-        eventSourceRef.current.close()
-        eventSourceRef.current = null
-      }
-      setStatus('error')
-      setCurrentMessage('Stream timeout')
-      setIsStreaming(false)
-      options.onError?.('Stream timeout')
-    }, 60000) // 60 seconds timeout
-
-    eventSource.onopen = () => {
-      console.log('SSE connection opened')
-      setStatus('connected')
-      setCurrentMessage('Connected! Loading news articles...')
-    }
-
-    eventSource.onmessage = (event) => {
-      try {
-        // Some SSE messages may not be valid JSON or may be ping/status messages.
-        const parsed = JSON.parse(event.data)
-        if (!parsed || typeof parsed !== 'object') {
-          console.warn('Received unexpected SSE payload, ignoring:', event.data)
-          return
+    try {
+      const streamPromise = streamNews({
+        useCache: options.useCache ?? true,
+        ...streamOptions,
+        signal: abortControllerRef.current.signal,
+        onProgress: (progress) => {
+          console.log('📊 Stream progress:', progress);
+          if (!isMountedRef.current) return;
+          setProgress(progress);
+          setCurrentMessage(progress.message || `${progress.completed}/${progress.total} sources processed`);
+          setStatus('loading');
+        },
+        onSourceComplete: (source, sourceArticles) => {
+          console.log(`✅ Source ${source} completed with ${sourceArticles.length} articles`);
+          if (!isMountedRef.current) return;
+          setArticles(prev => {
+            const newArticles = [...prev, ...sourceArticles];
+            options.onUpdate?.(newArticles);
+            return newArticles;
+          });
+          setSources(prev => Array.from(new Set([...prev, source])));
+        },
+        onError: (error) => {
+          console.warn('⚠️ Stream error:', error);
+          if (!isMountedRef.current) return;
+          setErrors(prev => [...prev, error]);
+          options.onError?.(error);
         }
+      });
 
-        const data: StreamEvent = parsed as StreamEvent
-        console.log('SSE Event received:', data)
+      streamPromiseRef.current = streamPromise;
+      
+      const result = await streamPromise;
+      
+      console.log('🏁 Stream completed:', {
+        articlesCount: result.articles.length,
+        sourcesCount: result.sources.length,
+        errorsCount: result.errors.length,
+        streamId: result.streamId
+      });
 
-        switch (data.status) {
-          case 'starting':
-            setStatus('loading')
-            setCurrentMessage(data.message || 'Loading news articles...')
-            break
-
-          case 'partial_update':
-            if (Array.isArray(data.articles) && data.source) {
-              // Map SSE articles to NewsArticle format
-              const mappedArticles: NewsArticle[] = data.articles.map((article, index) => ({
-                id: Date.now() + index, // Generate unique ID
-                title: article.title,
-                source: article.source,
-                sourceId: article.source.toLowerCase().replace(/\s+/g, '-'),
-                country: 'Unknown', // Will be filled from source data
-                credibility: 'medium' as const,
-                bias: 'center' as const,
-                summary: article.description,
-                content: article.description,
-                image: article.image || '',
-                publishedAt: article.published,
-                category: article.category,
-                url: article.link,
-                likes: 0,
-                comments: 0,
-                shares: 0,
-                tags: [],
-                originalLanguage: 'en',
-                translated: false
-              }))
-
-              setArticles(prev => {
-                const newArticles = [...prev, ...mappedArticles]
-                options.onUpdate?.(newArticles)
-                return newArticles
-              })
-              setCurrentMessage(`Loaded ${data.articles.length} articles from ${data.source}`)
-
-              if (data.progress) {
-                setProgress(data.progress.percentage)
-                setCompletedSources(data.progress.completed)
-                setTotalSources(data.progress.total)
-                options.onProgress?.(data.progress)
-              }
-            }
-            break
-
-          case 'source_error':
-            console.warn(`Error loading from ${data.source}:`, data.error)
-            options.onError?.(`Error loading from ${data.source}: ${data.error}`)
-            if (data.progress) {
-              setProgress(data.progress.percentage)
-              setCompletedSources(data.progress.completed)
-              setTotalSources(data.progress.total)
-              options.onProgress?.(data.progress)
-            }
-            break
-
-          case 'complete':
-            if (timeoutRef.current) {
-              clearTimeout(timeoutRef.current)
-              timeoutRef.current = null
-            }
-            setStatus('complete')
-            setCurrentMessage(data.message || 'Stream completed!')
-            setProgress(100)
-            setIsStreaming(false)
-            eventSource.close()
-            options.onComplete?.()
-            break
-
-          default:
-            console.log('Unknown SSE event status:', data.status)
-        }
-      } catch (error) {
-        console.error('Error parsing SSE event:', error)
-        options.onError?.('Error parsing stream data')
+      if (isMountedRef.current) {
+        setArticles(result.articles);
+        setSources(result.sources);
+        setErrors(result.errors);
+        setStreamId(result.streamId);
+        setStatus('complete');
+        setCurrentMessage(`Completed! Loaded ${result.articles.length} articles from ${result.sources.length} sources`);
+        setProgress({ completed: result.sources.length, total: result.sources.length, percentage: 100 });
       }
-    }
-
-    eventSource.onerror = (error) => {
-      if (timeoutRef.current) {
-        clearTimeout(timeoutRef.current)
-        timeoutRef.current = null
+      
+      options.onComplete?.(result);
+      
+    } catch (error: any) {
+      console.error('💥 Stream failed:', error);
+      if (isMountedRef.current) {
+        setStatus('error');
+        setCurrentMessage(`Stream failed: ${error.message}`);
+        setErrors(prev => [...prev, error.message]);
       }
-      console.error('SSE connection error:', error)
-      setStatus('error')
-      setCurrentMessage('Connection error occurred')
-      setIsStreaming(false)
-      eventSource.close()
-      options.onError?.('Connection error occurred')
+      options.onError?.(error.message);
+    } finally {
+      startingRef.current = false;
+      if (isMountedRef.current) {
+        setIsStreaming(false);
+      }
+      streamPromiseRef.current = null;
+      abortControllerRef.current = null;
     }
-  }
+  }, [options]);
 
-  const stopStream = () => {
-    if (timeoutRef.current) {
-      clearTimeout(timeoutRef.current)
-      timeoutRef.current = null
+  const stopStream = useCallback(() => {
+    console.log('🛑 Stopping stream');
+    
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort();
+      abortControllerRef.current = null;
     }
-    if (eventSourceRef.current) {
-      eventSourceRef.current.close()
-      eventSourceRef.current = null
+    
+    if (streamPromiseRef.current) {
+      streamPromiseRef.current = null;
     }
-    setIsStreaming(false)
-    setStatus('stopped')
-    setCurrentMessage('Stream stopped')
-  }
+    
+    if (isMountedRef.current) {
+      setIsStreaming(false);
+      setStatus('stopped');
+      setCurrentMessage('Stream stopped by user');
+    }
+  }, []);
 
+  const resetStream = useCallback(() => {
+    console.log('🔄 Resetting stream state');
+    stopStream();
+    setArticles([]);
+    setProgress({ completed: 0, total: 0, percentage: 0 });
+    setStatus('idle');
+    setCurrentMessage('');
+    setSources([]);
+    setErrors([]);
+    setStreamId(undefined);
+  }, [stopStream]);
+
+  // Auto-start if requested
   useEffect(() => {
-    // Cleanup on unmount
-    return () => {
-      if (timeoutRef.current) {
-        clearTimeout(timeoutRef.current)
-        timeoutRef.current = null
-      }
-      if (eventSourceRef.current) {
-        eventSourceRef.current.close()
-      }
+    if (options.autoStart && !isStreaming && status === 'idle') {
+      console.log('🚀 Auto-starting stream');
+      startStream();
     }
-  }, [])
+  }, [options.autoStart, isStreaming, status, startStream]);
+
+  // Cleanup on unmount
+  useEffect(() => {
+    isMountedRef.current = true;
+    return () => {
+      isMountedRef.current = false;
+      if (abortControllerRef.current) {
+        abortControllerRef.current.abort();
+      }
+    };
+  }, []);
 
   return {
+    // State
     isStreaming,
     articles,
-    progress,
+    progress: progress.percentage,
+    progressDetails: progress,
     status,
-    completedSources,
-    totalSources,
     currentMessage,
+    sources,
+    errors,
+    streamId,
+    
+    // Computed values
+    completedSources: progress.completed,
+    totalSources: progress.total,
+    hasErrors: errors.length > 0,
+    isComplete: status === 'complete',
+    isError: status === 'error',
+    
+    // Actions
     startStream,
-    stopStream
+    stopStream,
+    resetStream
   }
 }

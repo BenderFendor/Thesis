@@ -18,9 +18,73 @@ import json
 import requests
 import concurrent.futures
 
-# Configure logging
-logging.basicConfig(level=logging.INFO)
+# Enhanced logging configuration
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(name)s - %(levelname)s - [%(funcName)s:%(lineno)d] - %(message)s'
+)
 logger = logging.getLogger(__name__)
+
+# Add streaming-specific logger
+stream_logger = logging.getLogger("news_stream")
+stream_logger.setLevel(logging.DEBUG)
+
+# Global tracking for active streams and rate limiting
+class StreamManager:
+    def __init__(self):
+        self.active_streams = {}  # stream_id -> stream_info
+        self.source_last_accessed = {}  # source_name -> timestamp
+        self.stream_counter = 0
+        self.lock = threading.Lock()
+    
+    def register_stream(self, stream_id: str) -> Dict:
+        with self.lock:
+            stream_info = {
+                "id": stream_id,
+                "start_time": datetime.now(),
+                "status": "starting",
+                "sources_completed": 0,
+                "total_sources": len(RSS_SOURCES),
+                "client_connected": True
+            }
+            self.active_streams[stream_id] = stream_info
+            self.stream_counter += 1
+            stream_logger.info(f"🆕 Stream {stream_id} registered. Active streams: {len(self.active_streams)}")
+            return stream_info
+    
+    def update_stream(self, stream_id: str, **updates):
+        with self.lock:
+            if stream_id in self.active_streams:
+                self.active_streams[stream_id].update(updates)
+                stream_logger.debug(f"🔄 Stream {stream_id} updated: {updates}")
+    
+    def unregister_stream(self, stream_id: str):
+        with self.lock:
+            if stream_id in self.active_streams:
+                stream_info = self.active_streams.pop(stream_id)
+                duration = (datetime.now() - stream_info["start_time"]).total_seconds()
+                stream_logger.info(f"🏁 Stream {stream_id} completed in {duration:.2f}s. Active streams: {len(self.active_streams)}")
+    
+    def get_active_stream_count(self) -> int:
+        with self.lock:
+            return len(self.active_streams)
+    
+    def should_throttle_source(self, source_name: str, min_interval: int = 10) -> Tuple[bool, float]:
+        """Check if source should be throttled and return wait time if needed"""
+        with self.lock:
+            now = time.time()
+            last_access = self.source_last_accessed.get(source_name, 0)
+            elapsed = now - last_access
+            
+            if elapsed < min_interval:
+                wait_time = min_interval - elapsed
+                return True, wait_time
+            else:
+                self.source_last_accessed[source_name] = now
+                return False, 0
+
+# Global stream manager
+stream_manager = StreamManager()
 
 # Data models
 class NewsArticle(BaseModel):
@@ -43,19 +107,29 @@ class NewsCache:
     
     def get_articles(self) -> List[NewsArticle]:
         with self.lock:
+            logger.debug(f"📋 Cache accessed: {len(self.articles)} articles available")
             return self.articles.copy()
     
     def get_source_stats(self) -> List[Dict]:
         with self.lock:
+            logger.debug(f"📊 Source stats accessed: {len(self.source_stats)} sources")
             return self.source_stats.copy()
     
     def update_cache(self, articles: List[NewsArticle], source_stats: List[Dict]):
         with self.lock:
+            old_count = len(self.articles)
             self.articles = articles
             self.source_stats = source_stats
             self.last_updated = datetime.now()
             self.update_in_progress = False
-            logger.info(f"🔄 Cache updated: {len(articles)} articles from {len(source_stats)} sources")
+            self.update_count = getattr(self, 'update_count', 0) + 1
+            
+            logger.info(f"🔄 Cache updated #{self.update_count}: {old_count} -> {len(articles)} articles from {len(source_stats)} sources")
+            
+            # Log cache health
+            working_sources = [s for s in source_stats if s.get('status') == 'success']
+            error_sources = [s for s in source_stats if s.get('status') == 'error']
+            logger.info(f"📊 Cache health: {len(working_sources)} working, {len(error_sources)} error sources")
 
 # Global cache instance
 news_cache = NewsCache()
@@ -606,8 +680,6 @@ def get_rss_as_json(url: str, source_name: str) -> Tuple[Dict[str, Any], Any]:
                 feed = feedparser.parse(url, agent='NewsAggregator/1.0')
                 return {"error": str(e), "fallback": True}, feed
 
-import concurrent.futures
-
 def _process_source(source_name: str, source_info: Dict) -> Tuple[List[NewsArticle], Dict]:
     """Process a single RSS source, fetching and parsing its feed, with per-source throttling."""
     try:
@@ -676,6 +748,29 @@ def _process_source(source_name: str, source_info: Dict) -> Tuple[List[NewsArtic
             "last_checked": datetime.now().isoformat()
         }
         return [], source_stat
+
+def _process_source_with_debug(source_name: str, source_info: Dict, stream_id: str) -> Tuple[List[NewsArticle], Dict]:
+    """Enhanced version of _process_source with detailed debug logging for streaming"""
+    stream_logger.debug(f"🔍 Stream {stream_id} processing source: {source_name}")
+    
+    try:
+        start_time = time.time()
+        articles, source_stat = _process_source(source_name, source_info)
+        processing_time = time.time() - start_time
+        
+        stream_logger.info(f"⚡ Stream {stream_id} processed {source_name} in {processing_time:.2f}s: {len(articles)} articles, status: {source_stat.get('status')}")
+        
+        # Add stream-specific metadata
+        source_stat.update({
+            "stream_id": stream_id,
+            "processing_time_seconds": round(processing_time, 2)
+        })
+        
+        return articles, source_stat
+        
+    except Exception as e:
+        stream_logger.error(f"💥 Stream {stream_id} error processing {source_name}: {e}")
+        raise
 
 def refresh_news_cache():
     """Refresh the news cache by parsing all RSS sources concurrently, with per-source throttling to avoid rate limits."""
@@ -868,38 +963,50 @@ async def get_news(
     category: Optional[str] = None,
     source: Optional[str] = None
 ):
-    """Get aggregated news from cached data with optional filtering"""
+    """Get aggregated news from cached data with enhanced debugging"""
+    start_time = time.time()
+    
     # Get all articles from cache
     all_articles = news_cache.get_articles()
-    logger.info(f"📡 /news endpoint called - Total cached articles: {len(all_articles)}, filters: category={category}, source={source}, limit={limit}")
+    cache_age = (datetime.now() - news_cache.last_updated).total_seconds()
     
-    # Apply filters
+    logger.info(f"📡 /news endpoint called - Cache: {len(all_articles)} articles (age: {cache_age:.1f}s), filters: category={category}, source={source}, limit={limit}")
+    
+    if len(all_articles) == 0:
+        logger.warning(f"⚠️ Cache is empty! Last updated: {news_cache.last_updated}, update in progress: {getattr(news_cache, 'update_in_progress', False)}")
+        # Check if cache refresh is stuck
+        if cache_age > 300:  # 5 minutes
+            logger.error(f"🚨 Cache is very stale ({cache_age:.1f}s)! Triggering manual refresh")
+            threading.Thread(target=refresh_news_cache, daemon=True).start()
+    
+    # Apply filters with debugging
     filtered_articles = []
     sources_included = set()
+    filter_stats = {"total": len(all_articles), "source_filtered": 0, "category_filtered": 0, "included": 0}
     
     for article in all_articles:
         # Apply source filter
         if source and article.source != source:
+            filter_stats["source_filtered"] += 1
             continue
         
         # Apply category filter  
         if category and article.category != category:
+            filter_stats["category_filtered"] += 1
             continue
         
         filtered_articles.append(article)
         sources_included.add(article.source)
+        filter_stats["included"] += 1
     
     # Limit results
     limited_articles = filtered_articles[:limit]
+    processing_time = time.time() - start_time
     
-    if len(limited_articles) == 0:
-        logger.warning(f"⚠️ No articles to return after filtering. Cache has {len(all_articles)} total articles")
-        if len(all_articles) > 0:
-            # Log sample of available articles for debugging
-            sample_articles = all_articles[:3]
-            logger.info(f"📋 Sample cached articles: {[{'title': a.title, 'category': a.category, 'source': a.source} for a in sample_articles]}")
-    else:
-        logger.info(f"✅ Returning {len(limited_articles)} articles from {len(sources_included)} sources")
+    logger.info(f"🔍 /news filtering stats: {filter_stats}, final count: {len(limited_articles)}, processing time: {processing_time:.3f}s")
+    
+    if len(limited_articles) == 0 and len(all_articles) > 0:
+        logger.warning(f"⚠️ Filters too restrictive! Available categories: {set(a.category for a in all_articles[:10])}, sources: {set(a.source for a in all_articles[:10])}")
     
     return NewsResponse(
         articles=limited_articles,
@@ -1141,77 +1248,222 @@ async def get_source_debug_data(source_name: str):
         }
 
 @app.get("/news/stream")
-async def stream_news(request: Request):
-    """Stream news articles as they are loaded using Server-Sent Events (SSE)."""
+async def stream_news(request: Request, use_cache: bool = True):
+    """
+    Stream news articles with enhanced debugging and logic improvements.
+    
+    Parameters:
+    - use_cache: If True, stream from cache + fresh updates. If False, fetch everything fresh.
+    """
+    
+    # Generate unique stream ID
+    stream_id = f"stream_{int(time.time())}_{random.randint(1000, 9999)}"
+    stream_logger.info(f"🎯 NEW STREAM REQUEST: {stream_id}, use_cache={use_cache}")
+    
+    # Check active stream limits
+    active_count = stream_manager.get_active_stream_count()
+    if active_count >= 3:  # Limit concurrent streams
+        stream_logger.warning(f"🚫 Stream {stream_id} rejected: too many active streams ({active_count})")
+        async def error_stream():
+            yield f"data: {json.dumps({'status': 'error', 'message': f'Too many active streams ({active_count}). Please try again later.'})}\n\n"
+        return StreamingResponse(error_stream(), media_type="text/event-stream")
+    
+    # Register stream
+    stream_info = stream_manager.register_stream(stream_id)
+    
     async def event_generator():
-        # Send initial status message
-        yield f"data: {json.dumps({'status': 'starting', 'message': 'Loading news articles...'})}\n\n"
-        
-        loop = asyncio.get_event_loop()
-        
-        with concurrent.futures.ThreadPoolExecutor(max_workers=10) as executor:
-            # Submit all RSS source processing tasks
-            future_to_source = {
-                loop.run_in_executor(executor, _process_source, name, info): name 
-                for name, info in RSS_SOURCES.items()
+        try:
+            stream_logger.info(f"🚀 Stream {stream_id} starting event generation")
+            
+            # Send initial status
+            initial_status = {
+                'status': 'starting',
+                'stream_id': stream_id,
+                'message': f'Initializing news stream (use_cache={use_cache})...',
+                'timestamp': datetime.now().isoformat(),
+                'active_streams': stream_manager.get_active_stream_count()
             }
+            stream_logger.debug(f"📤 Stream {stream_id} sending initial status")
+            yield f"data: {json.dumps(initial_status)}\n\n"
             
-            completed_sources = 0
-            total_sources = len(RSS_SOURCES)
+            if use_cache:
+                stream_logger.info(f"💾 Stream {stream_id} using cache-first approach")
+                
+                # First, send cached articles immediately
+                cached_articles = news_cache.get_articles()
+                cached_stats = news_cache.get_source_stats()
+                cache_age = (datetime.now() - news_cache.last_updated).total_seconds()
+                
+                stream_logger.info(f"📋 Stream {stream_id} found {len(cached_articles)} cached articles (age: {cache_age:.1f}s)")
+                
+                if cached_articles:
+                    cache_data = {
+                        "status": "cache_data",
+                        "stream_id": stream_id,
+                        "articles": [a.dict() for a in cached_articles[:50]],  # Limit initial burst
+                        "source_stats": cached_stats,
+                        "cache_age_seconds": cache_age,
+                        "message": f"Loaded {len(cached_articles)} cached articles",
+                        "timestamp": datetime.now().isoformat()
+                    }
+                    stream_logger.debug(f"📤 Stream {stream_id} sending cached data: {len(cached_articles)} articles")
+                    yield f"data: {json.dumps(cache_data)}\n\n"
+                
+                # Check if cache is fresh enough (less than 2 minutes old)
+                # Only consider cache fresh if it actually contains articles
+                if cache_age < 120 and len(cached_articles) > 0:
+                    stream_logger.info(f"✅ Stream {stream_id} cache is fresh enough ({cache_age:.1f}s), ending stream")
+                    final_data = {
+                        "status": "complete",
+                        "stream_id": stream_id,
+                        "message": "Used fresh cached data",
+                        "cache_age_seconds": cache_age,
+                        "timestamp": datetime.now().isoformat()
+                    }
+                    yield f"data: {json.dumps(final_data)}\n\n"
+                    return
+                else:
+                    stream_logger.info(f"⏰ Stream {stream_id} cache is stale ({cache_age:.1f}s), fetching fresh data")
             
-            # Process sources as they complete
-            for future in asyncio.as_completed(future_to_source):
-                # Check if client disconnected
-                if await request.is_disconnected():
-                    break
+            # Fetch fresh data
+            stream_logger.info(f"🔄 Stream {stream_id} starting fresh data fetch")
+            stream_manager.update_stream(stream_id, status="fetching_fresh")
+            
+            loop = asyncio.get_event_loop()
+            
+            # Process sources with rate limiting awareness
+            sources_to_process = list(RSS_SOURCES.items())
+            stream_logger.info(f"📊 Stream {stream_id} will process {len(sources_to_process)} sources")
+            
+            with concurrent.futures.ThreadPoolExecutor(max_workers=5) as executor:  # Reduced concurrency
+                # Create futures with throttling
+                future_to_source = {}
+                
+                for name, info in sources_to_process:
+                    # Check if this source needs throttling
+                    should_throttle, wait_time = stream_manager.should_throttle_source(name)
+                    
+                    if should_throttle:
+                        stream_logger.info(f"⏳ Stream {stream_id} throttling source {name} for {wait_time:.1f}s")
+                        # Create a delayed task
+                        async def delayed_process():
+                            await asyncio.sleep(wait_time)
+                            return await loop.run_in_executor(executor, _process_source_with_debug, name, info, stream_id)
+                        future = asyncio.create_task(delayed_process())
+                    else:
+                        future = loop.run_in_executor(executor, _process_source_with_debug, name, info, stream_id)
+                    
+                    future_to_source[future] = name
+                
+                completed_sources = 0
+                total_sources = len(sources_to_process)
+                all_articles = []
+                all_source_stats = []
+                
+                stream_logger.info(f"⚡ Stream {stream_id} processing {total_sources} sources with {len(future_to_source)} futures")
+                
+                # Process completed futures
+                for future in asyncio.as_completed(list(future_to_source.keys())):
+                    # Check if client disconnected
+                    if await request.is_disconnected():
+                        stream_logger.warning(f"🔌 Stream {stream_id} client disconnected")
+                        stream_manager.update_stream(stream_id, client_connected=False)
+                        break
+                    
+                    try:
+                        articles, source_stat = await future
+                        source_name = source_stat.get('name', 'unknown') if isinstance(source_stat, dict) else 'unknown'
+                        completed_sources += 1
+                        
+                        all_articles.extend(articles)
+                        all_source_stats.append(source_stat)
+                        
+                        # Update stream tracking
+                        stream_manager.update_stream(stream_id, 
+                                                   sources_completed=completed_sources,
+                                                   status="processing")
+                        
+                        stream_logger.info(f"✅ Stream {stream_id} completed source {source_name}: {len(articles)} articles")
+                        
+                        # Send progress update
+                        progress_data = {
+                            "status": "source_complete",
+                            "stream_id": stream_id,
+                            "source": source_name,
+                            "articles": [a.dict() for a in articles] if len(articles) <= 20 else [a.dict() for a in articles[:20]],  # Limit per-source articles
+                            "source_stat": source_stat,
+                            "progress": {
+                                "completed": completed_sources,
+                                "total": total_sources,
+                                "percentage": round((completed_sources / total_sources) * 100, 1)
+                            },
+                            "timestamp": datetime.now().isoformat()
+                        }
+                        
+                        stream_logger.debug(f"📤 Stream {stream_id} sending progress: {completed_sources}/{total_sources}")
+                        yield f"data: {json.dumps(progress_data)}\n\n"
+                        
+                    except Exception as exc:
+                        completed_sources += 1
+                        source_name = future_to_source.get(future, "unknown")
+                        stream_logger.error(f"❌ Stream {stream_id} error for {source_name}: {exc}")
+                        
+                        # Send error for this source
+                        error_data = {
+                            "status": "source_error",
+                            "stream_id": stream_id,
+                            "source": source_name,
+                            "error": str(exc),
+                            "progress": {
+                                "completed": completed_sources,
+                                "total": total_sources,
+                                "percentage": round((completed_sources / total_sources) * 100, 1)
+                            },
+                            "timestamp": datetime.now().isoformat()
+                        }
+                        yield f"data: {json.dumps(error_data)}\n\n"
+                
+                # Sort and send final results
+                stream_logger.info(f"🏁 Stream {stream_id} completed: {len(all_articles)} total articles from {len(all_source_stats)} sources")
                 
                 try:
-                    articles, source_stat = await future
-                    completed_sources += 1
-                    
-                    # Send progress update with articles from this source
-                    data = {
-                        "status": "partial_update",
-                        "source": source_stat["name"],
-                        "articles": [a.dict() for a in articles],
-                        "source_stat": source_stat,
-                        "progress": {
-                            "completed": completed_sources,
-                            "total": total_sources,
-                            "percentage": round((completed_sources / total_sources) * 100, 1)
-                        }
-                    }
-                    yield f"data: {json.dumps(data)}\n\n"
-                    
-                except Exception as exc:
-                    completed_sources += 1
-                    source_name = future_to_source.get(future, "unknown")
-                    logger.error(f"SSE stream error for {source_name}: {exc}")
-                    
-                    # Send error for this source
-                    error_data = {
-                        "status": "source_error",
-                        "source": source_name,
-                        "error": str(exc),
-                        "progress": {
-                            "completed": completed_sources,
-                            "total": total_sources,
-                            "percentage": round((completed_sources / total_sources) * 100, 1)
-                        }
-                    }
-                    yield f"data: {json.dumps(error_data)}\n\n"
-            
-            # Send completion message
-            final_data = {
-                "status": "complete",
-                "message": f"Loaded articles from {total_sources} sources",
-                "progress": {
-                    "completed": total_sources,
-                    "total": total_sources,
-                    "percentage": 100
+                    all_articles.sort(key=lambda x: x.published, reverse=True)
+                except Exception as e:
+                    stream_logger.warning(f"⚠️ Stream {stream_id} couldn't sort articles: {e}")
+                
+                # Send completion message
+                final_data = {
+                    "status": "complete",
+                    "stream_id": stream_id,
+                    "message": f"Successfully loaded {len(all_articles)} articles from {len(all_source_stats)} sources",
+                    "total_articles": len(all_articles),
+                    "successful_sources": len([s for s in all_source_stats if s.get('status') == 'success']),
+                    "failed_sources": len([s for s in all_source_stats if s.get('status') == 'error']),
+                    "progress": {
+                        "completed": total_sources,
+                        "total": total_sources,
+                        "percentage": 100
+                    },
+                    "timestamp": datetime.now().isoformat()
                 }
+                stream_logger.info(f"📤 Stream {stream_id} sending completion data")
+                yield f"data: {json.dumps(final_data)}\n\n"
+                
+        except asyncio.CancelledError:
+            stream_logger.warning(f"🚫 Stream {stream_id} was cancelled")
+            raise
+        except Exception as e:
+            stream_logger.error(f"💥 Stream {stream_id} unexpected error: {e}")
+            error_response = {
+                "status": "error",
+                "stream_id": stream_id,
+                "error": str(e),
+                "timestamp": datetime.now().isoformat()
             }
-            yield f"data: {json.dumps(final_data)}\n\n"
+            yield f"data: {json.dumps(error_response)}\n\n"
+        finally:
+            stream_manager.unregister_stream(stream_id)
+            stream_logger.info(f"🧹 Stream {stream_id} cleanup completed")
     
     return StreamingResponse(
         event_generator(), 
@@ -1220,8 +1472,30 @@ async def stream_news(request: Request):
             "Cache-Control": "no-cache",
             "Connection": "keep-alive",
             "Access-Control-Allow-Origin": "*",
+            "X-Stream-ID": stream_id,
         }
     )
+
+# Add endpoint to get stream manager status
+@app.get("/debug/streams")
+async def get_stream_status():
+    """Get current streaming status for debugging"""
+    with stream_manager.lock:
+        return {
+            "active_streams": len(stream_manager.active_streams),
+            "total_streams_created": stream_manager.stream_counter,
+            "streams": {
+                stream_id: {
+                    "status": info["status"],
+                    "sources_completed": info["sources_completed"],
+                    "total_sources": info["total_sources"],
+                    "duration_seconds": (datetime.now() - info["start_time"]).total_seconds(),
+                    "client_connected": info["client_connected"]
+                }
+                for stream_id, info in stream_manager.active_streams.items()
+            },
+            "source_throttling": dict(stream_manager.source_last_accessed)
+        }
 
 if __name__ == "__main__":
     import uvicorn

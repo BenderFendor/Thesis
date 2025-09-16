@@ -73,23 +73,28 @@ export function ScrollView() {
     }
   }
 
-  // Initial load and refresh setup
+  // Initial load and refresh setup with fallback if stream yields nothing
   useEffect(() => {
+    let fallbackTimer: NodeJS.Timeout | undefined
     if (useStream) {
-      // Start with stream
       setLoading(true)
       streamHook.startStream()
+      fallbackTimer = setTimeout(async () => {
+        if (scrollNews.length === 0) {
+          console.log('⏳ No streamed articles yet in ScrollView; falling back to REST fetch')
+          await loadNewsFromAPI()
+        }
+      }, 7000)
     } else {
-      // Load from API
       loadNewsFromAPI()
-      
-      // Set up background refresh every 3 minutes for API mode
       const refreshInterval = setInterval(() => {
         console.log('🔄 Starting background scroll view refresh...')
-        loadNewsFromAPI(false) // Don't show loading spinner for background updates
-      }, 3 * 60 * 1000) // 3 minutes
-      
+        loadNewsFromAPI(false)
+      }, 3 * 60 * 1000)
       return () => clearInterval(refreshInterval)
+    }
+    return () => {
+      if (fallbackTimer) clearTimeout(fallbackTimer)
     }
   }, [useStream])
 
@@ -284,7 +289,7 @@ export function ScrollView() {
             {useStream ? (
               <div className="flex items-center gap-2">
                 <Button
-                  onClick={streamHook.startStream}
+                  onClick={() => streamHook.startStream()}
                   disabled={streamHook.isStreaming}
                   size="sm"
                   variant="outline"
