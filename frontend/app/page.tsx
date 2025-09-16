@@ -52,8 +52,8 @@ export default function NewsPage() {
                 <Globe className="w-5 h-5 text-primary-foreground" />
               </div>
               <div>
-                <h1 className="text-2xl font-bold text-foreground">GlobalNews</h1>
-                <p className="text-xs text-muted-foreground">Multi-perspective news aggregation</p>
+                <h1 className="text-2xl font-bold font-serif text-foreground">Scoop</h1>
+                <p className="text-xs text-muted-foreground">Multi-perspective news aggregation from around the globe</p>
               </div>
             </div>
 

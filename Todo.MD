@@ -5,22 +5,15 @@ I would like to add sql backend for this so that I don't have to load the articl
 
 
 # Source debugging
-http://localhost:3000/sources/972mag.com/debug
-
-Fix the debug page is right now is it not working at all it if you can the docker compose to say backend:8001 instead of localhost:8001 that works but it breaks the rest of the website so it needs to be something else to fix it.
-
 Also update the source page to work with the new backend and add a like toggle for debugging mode and user mode and have it so that you can debug mode has all the console.log prints and all those debugging like meals then those are removed when your in user mode so the end user doesn't have hella things on the screen
 
 # Styling
-
 The font like the main main header one should be like garamond or some seirf then it should use geisit for the most of the other fonts.
 Also there is no hover animation or color for any of the button on this page and the backgroudns and secondy backgruonds are the same color I like the dark black but there should be a lighter black for the other panels like 20% lighter
 
 
 # Add a logger feature
 So it like turns the debug print logs off or on
-
-# add support for loading new articles using the stream anding dynammic add more and more cards to the grid view and more feeds instead of the feed one.
 
 # RSS and Image Parsing
 I need a more robust image parsing and also some that can get the images and load them when they are http or https
