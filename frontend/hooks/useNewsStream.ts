@@ -41,9 +41,16 @@ export const useNewsStream = (options: UseNewsStreamOptions = {}) => {
   const [totalSources, setTotalSources] = useState(0)
   const [currentMessage, setCurrentMessage] = useState('')
   const eventSourceRef = useRef<EventSource | null>(null)
+  const timeoutRef = useRef<NodeJS.Timeout | null>(null)
 
   const startStream = () => {
     if (isStreaming) return
+
+    // Close any existing connection
+    if (eventSourceRef.current) {
+      eventSourceRef.current.close()
+      eventSourceRef.current = null
+    }
 
     setIsStreaming(true)
     setArticles([])
@@ -58,6 +65,19 @@ export const useNewsStream = (options: UseNewsStreamOptions = {}) => {
   console.log(`[36mConnecting to SSE at: ${sseUrl}[0m`)
   const eventSource = new EventSource(sseUrl)
     eventSourceRef.current = eventSource
+
+    // Set a timeout to prevent hanging
+    timeoutRef.current = setTimeout(() => {
+      console.warn('SSE stream timeout - closing connection')
+      if (eventSourceRef.current) {
+        eventSourceRef.current.close()
+        eventSourceRef.current = null
+      }
+      setStatus('error')
+      setCurrentMessage('Stream timeout')
+      setIsStreaming(false)
+      options.onError?.('Stream timeout')
+    }, 60000) // 60 seconds timeout
 
     eventSource.onopen = () => {
       console.log('SSE connection opened')
@@ -136,6 +156,10 @@ export const useNewsStream = (options: UseNewsStreamOptions = {}) => {
             break
 
           case 'complete':
+            if (timeoutRef.current) {
+              clearTimeout(timeoutRef.current)
+              timeoutRef.current = null
+            }
             setStatus('complete')
             setCurrentMessage(data.message || 'Stream completed!')
             setProgress(100)
@@ -154,6 +178,10 @@ export const useNewsStream = (options: UseNewsStreamOptions = {}) => {
     }
 
     eventSource.onerror = (error) => {
+      if (timeoutRef.current) {
+        clearTimeout(timeoutRef.current)
+        timeoutRef.current = null
+      }
       console.error('SSE connection error:', error)
       setStatus('error')
       setCurrentMessage('Connection error occurred')
@@ -164,6 +192,10 @@ export const useNewsStream = (options: UseNewsStreamOptions = {}) => {
   }
 
   const stopStream = () => {
+    if (timeoutRef.current) {
+      clearTimeout(timeoutRef.current)
+      timeoutRef.current = null
+    }
     if (eventSourceRef.current) {
       eventSourceRef.current.close()
       eventSourceRef.current = null
@@ -176,6 +208,10 @@ export const useNewsStream = (options: UseNewsStreamOptions = {}) => {
   useEffect(() => {
     // Cleanup on unmount
     return () => {
+      if (timeoutRef.current) {
+        clearTimeout(timeoutRef.current)
+        timeoutRef.current = null
+      }
       if (eventSourceRef.current) {
         eventSourceRef.current.close()
       }

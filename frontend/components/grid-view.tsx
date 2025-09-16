@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect, useRef } from "react"
+import { useState, useEffect, useRef, useCallback } from "react"
 import { Card, CardContent } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -41,18 +41,19 @@ export function GridView() {
 
   // SSE Stream hook
   const streamHook = useNewsStream({
-    onUpdate: (newArticles) => {
+    onUpdate: useCallback((newArticles: NewsArticle[]) => {
       setArticles(newArticles)
       setLoading(false)
       console.log(`🔄 Grid View: Stream updated with ${newArticles.length} articles`)
-    },
-    onComplete: () => {
+    }, []),
+    onComplete: useCallback(() => {
       console.log('🔄 Grid View: Stream completed')
-    },
-    onError: (error) => {
+      setLoading(false)
+    }, []),
+    onError: useCallback((error: string) => {
       console.error('Grid View: Stream error:', error)
       setLoading(false)
-    }
+    }, [])
   })
 
   // Traditional API loading function
