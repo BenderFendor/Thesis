@@ -896,8 +896,14 @@ async def get_sources():
     sources = []
     for name, info in RSS_SOURCES.items():
         url = info['url']
-        if isinstance(url, list) and len(url) == 1:
-            url = url[0]
+        if isinstance(url, list):
+            if len(url) == 1:
+                # Single URL in a list
+                url = url[0]
+            else:
+                # Multiple URLs - use the first one as primary or create separate entries
+                # For now, use the first URL as the primary
+                url = url[0]
         source = SourceInfo(
             name=name,
             url=url,
@@ -977,8 +983,14 @@ async def get_source_debug_data(source_name: str):
     source_info = RSS_SOURCES[source_name]
     
     try:
+        # Get the URL to parse - handle both single URL and list of URLs
+        rss_url = source_info["url"]
+        if isinstance(rss_url, list):
+            # For sources with multiple URLs, use the first one for debug data
+            rss_url = rss_url[0]
+        
         # Get fresh parse of the RSS feed with detailed debug info
-        feed = feedparser.parse(source_info["url"], agent='NewsAggregator/1.0')
+        feed = feedparser.parse(rss_url, agent='NewsAggregator/1.0')
         
         # Get cached articles for this source
         cached_articles = [article for article in news_cache.get_articles() if article.source == source_name]
@@ -990,7 +1002,8 @@ async def get_source_debug_data(source_name: str):
         debug_data = {
             "source_name": source_name,
             "source_config": source_info,
-            "rss_url": source_info["url"],
+            "rss_url": rss_url,
+            "all_urls": source_info["url"] if isinstance(source_info["url"], list) else [source_info["url"]],
             "feed_metadata": {
                 "title": getattr(feed.feed, 'title', 'N/A'),
                 "description": getattr(feed.feed, 'description', 'N/A'),

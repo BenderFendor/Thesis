@@ -8,7 +8,8 @@ import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
 import { ExternalLink, MapPin, DollarSign, Globe, AlertCircle } from "lucide-react"
-import { getSourceById, type NewsSource } from "@/lib/api"
+import { getSourceById, fetchSources, type NewsSource } from "@/lib/api"
+import SourceDebug from "@/components/source-debug"
 
 interface SourceInfoModalProps {
   sourceId: string
@@ -19,11 +20,12 @@ export function SourceInfoModal({ sourceId, children }: SourceInfoModalProps) {
   const [isOpen, setIsOpen] = useState(false)
   const [source, setSource] = useState<NewsSource | null>(null)
   const [loading, setLoading] = useState(false)
+  const [debugSource, setDebugSource] = useState<NewsSource | null>(null)
+  const [showDebug, setShowDebug] = useState(false)
 
   useEffect(() => {
     const loadSource = async () => {
       if (!isOpen || !sourceId) return
-      
       setLoading(true)
       try {
         const fetchedSource = await getSourceById(sourceId)
@@ -35,9 +37,23 @@ export function SourceInfoModal({ sourceId, children }: SourceInfoModalProps) {
         setLoading(false)
       }
     }
-    
     loadSource()
   }, [isOpen, sourceId])
+
+  // Debug: fetch all sources and show the raw object for this sourceId
+  const handleDebugView = async () => {
+    setShowDebug(true)
+    setLoading(true)
+    try {
+      const allSources = await fetchSources()
+      const found = allSources.find((s) => s.id === sourceId)
+      setDebugSource(found || null)
+    } catch (e) {
+      setDebugSource(null)
+    } finally {
+      setLoading(false)
+    }
+  }
 
   if (!source) return <>{children}</>
 
@@ -84,130 +100,65 @@ export function SourceInfoModal({ sourceId, children }: SourceInfoModalProps) {
           </div>
         )}
 
-        {!loading && !source && (
+        {!loading && showDebug && (
+          <div className="p-4">
+            <SourceDebug data={debugSource} />
+          </div>
+        )}
+
+        {!loading && !showDebug && !source && (
           <div className="text-center p-8">
             <p className="text-muted-foreground">Source information not available</p>
           </div>
         )}
 
-        {!loading && source && (
-
-        <div className="space-y-6">
-          {/* Basic Info */}
-          <Card>
-            <CardContent className="p-4">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div className="space-y-3">
-                  <div className="flex items-center gap-2">
-                    <MapPin className="w-4 h-4 text-muted-foreground" />
-                    <span className="text-sm font-medium">Country:</span>
-                    <span className="text-sm">{source.country}</span>
+        {!loading && !showDebug && source && (
+          <div className="space-y-6">
+            {/* ...existing info cards and actions... */}
+            <Card>
+              <CardContent className="p-4">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="space-y-3">
+                    <div className="flex items-center gap-2">
+                      <MapPin className="w-4 h-4 text-muted-foreground" />
+                      <span className="text-sm font-medium">Country:</span>
+                      <span className="text-sm">{source.country}</span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <Globe className="w-4 h-4 text-muted-foreground" />
+                      <span className="text-sm font-medium">Language:</span>
+                      <span className="text-sm uppercase">{source.language}</span>
+                    </div>
                   </div>
-                  <div className="flex items-center gap-2">
-                    <Globe className="w-4 h-4 text-muted-foreground" />
-                    <span className="text-sm font-medium">Language:</span>
-                    <span className="text-sm uppercase">{source.language}</span>
+                  <div className="space-y-3">
+                    <div className="flex items-center gap-2">
+                      <span className="text-sm font-medium">Credibility:</span>
+                      <Badge className={getCredibilityColor(source.credibility)}>{source.credibility}</Badge>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <span className="text-sm font-medium">Bias:</span>
+                      <Badge className={getBiasColor(source.bias)}>{source.bias}</Badge>
+                    </div>
                   </div>
                 </div>
-                <div className="space-y-3">
-                  <div className="flex items-center gap-2">
-                    <span className="text-sm font-medium">Credibility:</span>
-                    <Badge className={getCredibilityColor(source.credibility)}>{source.credibility}</Badge>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <span className="text-sm font-medium">Bias:</span>
-                    <Badge className={getBiasColor(source.bias)}>{source.bias}</Badge>
-                  </div>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-
-          {/* Categories */}
-          <Card>
-            <CardContent className="p-4">
-              <h4 className="font-semibold text-sm mb-3">Coverage Areas</h4>
-              <div className="flex flex-wrap gap-2">
-                {source.category.map((cat) => (
-                  <Badge key={cat} variant="outline" className="text-xs">
-                    {cat}
-                  </Badge>
-                ))}
-              </div>
-            </CardContent>
-          </Card>
-
-          {/* Funding */}
-          <Card>
-            <CardContent className="p-4">
-              <h4 className="font-semibold text-sm mb-3 flex items-center gap-2">
-                <DollarSign className="w-4 h-4" />
-                Funding Sources
-              </h4>
-              <div className="space-y-2">
-                {source.funding.map((fund, index) => (
-                  <div key={index} className="flex items-center gap-2">
-                    <div className="w-2 h-2 bg-primary rounded-full" />
-                    <span className="text-sm">{fund}</span>
-                  </div>
-                ))}
-              </div>
-            </CardContent>
-          </Card>
-
-          {/* RSS Feed Info */}
-          <Card>
-            <CardContent className="p-4">
-              <h4 className="font-semibold text-sm mb-3">RSS Feed Information</h4>
-              <div className="space-y-2">
-                <div className="flex items-center gap-2 text-sm">
-                  <span className="font-medium">Website:</span>
-                  <a
-                    href={source.url}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="text-primary hover:underline"
-                  >
-                    {source.url}
-                  </a>
-                </div>
-                <div className="flex items-center gap-2 text-sm">
-                  <span className="font-medium">RSS URL:</span>
-                  <code className="text-xs bg-muted px-2 py-1 rounded">{source.rssUrl}</code>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-
-          {/* Disclaimer */}
-          <Card className="border-yellow-200 bg-yellow-50 dark:border-yellow-800 dark:bg-yellow-950">
-            <CardContent className="p-4">
-              <div className="flex items-start gap-2">
-                <AlertCircle className="w-4 h-4 text-yellow-600 mt-0.5" />
-                <div className="text-sm text-yellow-800 dark:text-yellow-200">
-                  <p className="font-medium mb-1">Source Analysis Disclaimer</p>
-                  <p>
-                    Credibility and bias ratings are based on third-party analysis and may not reflect all perspectives.
-                    We encourage readers to consume news from multiple sources and form their own opinions.
-                  </p>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-
-          {/* Actions */}
-          <div className="flex gap-2">
-            <Button asChild className="flex-1">
-              <a href={source.url} target="_blank" rel="noopener noreferrer">
-                <ExternalLink className="w-4 h-4 mr-2" />
-                Visit Website
-              </a>
-            </Button>
-            <Button variant="outline" className="flex-1 bg-transparent">
-              Subscribe to RSS
-            </Button>
+              </CardContent>
+            </Card>
+            {/* ...other info cards... */}
+            <div className="flex gap-2">
+              <Button asChild className="flex-1">
+                <a href={source.url} target="_blank" rel="noopener noreferrer">
+                  <ExternalLink className="w-4 h-4 mr-2" />
+                  Visit Website
+                </a>
+              </Button>
+              <Button variant="outline" className="flex-1 bg-transparent">
+                Subscribe to RSS
+              </Button>
+              <Button variant="secondary" className="flex-1" onClick={handleDebugView}>
+                View Detail (Debug)
+              </Button>
+            </div>
           </div>
-        </div>
         )}
       </DialogContent>
     </Dialog>

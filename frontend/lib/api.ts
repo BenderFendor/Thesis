@@ -1,7 +1,9 @@
 // API utility for communicating with FastAPI backend
 
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8001'; // The port should match the backend server port
-
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL // The port should match the backend server port
+const DOCKER_API_BASE_URL = process.env.NEXT_PUBLIC_DOCKER_API_URL
+// Use DOCKER_API_BASE_URL when running in Docker
+// This allows the frontend to reach the backend when both are in Docker containers
 // Which uses 8001 instead of 8000 to avoid conflict with Next.js dev server
 // (In production, both frontend and backend would be served from the same origin)
 
@@ -55,7 +57,7 @@ export async function fetchNews(params?: {
     if (params?.limit) searchParams.append('limit', params.limit.toString());
     if (params?.category) searchParams.append('category', params.category);
     // Note: backend doesn't support search yet, so we'll filter client-side
-    
+
     const url = `${API_BASE_URL}/news${searchParams.toString() ? '?' + searchParams.toString() : ''}`;
     console.log(`🔄 Fetching news from: ${url}`);
     const response = await fetch(url);
@@ -420,16 +422,83 @@ export interface SourceDebugData {
 }
 
 export async function fetchSourceDebugData(sourceName: string): Promise<SourceDebugData> {
+  // Safely decode the source name in case it's already URL encoded, then encode it properly
+  let decodedSourceName: string;
   try {
-    // Decode the source name first in case it's already URL encoded, then encode it properly
-    const decodedSourceName = decodeURIComponent(sourceName);
-    const response = await fetch(`${API_BASE_URL}/debug/source/${encodeURIComponent(decodedSourceName)}`);
+    decodedSourceName = decodeURIComponent(sourceName);
+  } catch (decodeError) {
+    // If decoding fails, assume it's not encoded
+    decodedSourceName = sourceName;
+  }
+  const encodedSourceName = encodeURIComponent(decodedSourceName);
+
+  const url = `${API_BASE_URL}/sources/${encodedSourceName}/debug`;
+  console.log(`🔄 Fetching debug data for source: ${url}`);
+  try {
+    const response = await fetch(url);
+    console.log(`📡 Response status for source ${sourceName}:`, response.status);
     if (!response.ok) {
-      throw new Error(`HTTP error! status: ${response.status}`);
+      return {
+        source_name: sourceName,
+        source_config: null,
+        rss_url: "",
+        feed_metadata: {
+          title: "",
+          description: "",
+          link: "",
+          language: "",
+          updated: "",
+          generator: ""
+        },
+        feed_status: {
+          http_status: response.status,
+          bozo: false,
+          bozo_exception: "",
+          entries_count: 0
+        },
+        parsed_entries: [],
+        cached_articles: [],
+        source_statistics: null,
+        debug_timestamp: new Date().toISOString(),
+        image_analysis: {
+          total_entries: 0,
+          entries_with_images: 0,
+          image_sources: []
+        },
+        error: `HTTP error! status: ${response.status}`
+      };
     }
     return await response.json();
-  } catch (error) {
+  } catch (error: any) {
     console.error('Error fetching source debug data:', error);
-    throw error;
+    return {
+      source_name: sourceName,
+      source_config: null,
+      rss_url: "",
+      feed_metadata: {
+        title: "",
+        description: "",
+        link: "",
+        language: "",
+        updated: "",
+        generator: ""
+      },
+      feed_status: {
+        http_status: "fetch_failed",
+        bozo: false,
+        bozo_exception: error?.message || "Unknown fetch error",
+        entries_count: 0
+      },
+      parsed_entries: [],
+      cached_articles: [],
+      source_statistics: null,
+      debug_timestamp: new Date().toISOString(),
+      image_analysis: {
+        total_entries: 0,
+        entries_with_images: 0,
+        image_sources: []
+      },
+      error: error?.message || "Unknown fetch error"
+    };
   }
 }
