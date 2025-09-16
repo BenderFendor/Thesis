@@ -4,6 +4,7 @@ import { useState, useEffect, useRef } from "react"
 import { Card, CardContent } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
+import { Progress } from "@/components/ui/progress"
 import {
   Heart,
   MessageCircle,
@@ -16,10 +17,14 @@ import {
   Bookmark,
   Info,
   Eye,
+  Play,
+  Square,
+  RefreshCw,
 } from "lucide-react"
 import { SourceInfoModal } from "./source-info-modal"
 import { ArticleDetailModal } from "./article-detail-modal"
 import { fetchNews, getSourceById, type NewsArticle } from "@/lib/api"
+import { useNewsStream } from "@/hooks/useNewsStream"
 
 export function ScrollView() {
   const [currentIndex, setCurrentIndex] = useState(0)
@@ -28,40 +33,64 @@ export function ScrollView() {
   const [selectedArticle, setSelectedArticle] = useState<NewsArticle | null>(null)
   const [isArticleModalOpen, setIsArticleModalOpen] = useState(false)
   const [scrollNews, setScrollNews] = useState<NewsArticle[]>([])
-  const [loading, setLoading] = useState(true)
+  const [loading, setLoading] = useState(false)
+  const [useStream, setUseStream] = useState(true)
   const [currentSource, setCurrentSource] = useState<any>(null)
   const containerRef = useRef<HTMLDivElement>(null)
 
-  useEffect(() => {
-    const loadNews = async (showLoading = true) => {
-      if (showLoading) setLoading(true)
-      try {
-        const articles = await fetchNews({ limit: 5, category: 'politics' })
-        setScrollNews(articles)
-        console.log(`🔄 Scroll View: Loaded ${articles.length} articles at ${new Date().toLocaleTimeString()}`)
-        
-        if (articles.length === 0) {
-          console.log(`⚠️ Scroll View: No articles loaded. This will show "No articles available" message.`)
-        }
-        console.log(`🔄 Scroll view refresh: Loaded ${articles.length} articles at ${new Date().toLocaleTimeString()}`)
-      } catch (error) {
-        console.error('Failed to load news:', error)
-      } finally {
-        if (showLoading) setLoading(false)
-      }
+  // SSE Stream hook
+  const streamHook = useNewsStream({
+    onUpdate: (newArticles) => {
+      setScrollNews(newArticles)
+      setLoading(false)
+      console.log(`🔄 Scroll View: Stream updated with ${newArticles.length} articles`)
+    },
+    onComplete: () => {
+      console.log('🔄 Scroll View: Stream completed')
+    },
+    onError: (error) => {
+      console.error('Scroll View: Stream error:', error)
+      setLoading(false)
     }
-    
-    // Initial load
-    loadNews()
-    
-    // Set up background refresh every 3 minutes for scroll view (more frequent)
-    const refreshInterval = setInterval(() => {
-      console.log('🔄 Starting background scroll view refresh...')
-      loadNews(false) // Don't show loading spinner for background updates
-    }, 3 * 60 * 1000) // 3 minutes
-    
-    return () => clearInterval(refreshInterval)
-  }, [])
+  })
+
+  // Traditional API loading function
+  const loadNewsFromAPI = async (showLoading = true) => {
+    if (showLoading) setLoading(true)
+    try {
+      const articles = await fetchNews({ limit: 1000 }) // Get all articles
+      setScrollNews(articles)
+      console.log(`🔄 Scroll View: Loaded ${articles.length} articles from API at ${new Date().toLocaleTimeString()}`)
+      
+      if (articles.length === 0) {
+        console.log(`⚠️ Scroll View: No articles loaded. This will show "No articles available" message.`)
+      }
+    } catch (error) {
+      console.error('Failed to load news:', error)
+    } finally {
+      if (showLoading) setLoading(false)
+    }
+  }
+
+  // Initial load and refresh setup
+  useEffect(() => {
+    if (useStream) {
+      // Start with stream
+      setLoading(true)
+      streamHook.startStream()
+    } else {
+      // Load from API
+      loadNewsFromAPI()
+      
+      // Set up background refresh every 3 minutes for API mode
+      const refreshInterval = setInterval(() => {
+        console.log('🔄 Starting background scroll view refresh...')
+        loadNewsFromAPI(false) // Don't show loading spinner for background updates
+      }, 3 * 60 * 1000) // 3 minutes
+      
+      return () => clearInterval(refreshInterval)
+    }
+  }, [useStream])
 
   useEffect(() => {
     const loadCurrentSource = async () => {
@@ -238,8 +267,78 @@ export function ScrollView() {
   }
 
   return (
-    <div className="relative h-[calc(100vh-140px)] overflow-hidden" ref={containerRef}>
-      {/* Navigation Arrows */}
+    <div className="space-y-4">
+      {/* Stream Controls */}
+      <div className="flex items-center justify-between bg-muted/30 p-4 rounded-lg">
+        <div className="flex items-center gap-4">
+          <div className="flex items-center gap-2">
+            <Button
+              onClick={() => setUseStream(!useStream)}
+              variant={useStream ? "default" : "outline"}
+              size="sm"
+            >
+              {useStream ? "Live Stream" : "Static Load"}
+            </Button>
+            
+            {useStream ? (
+              <div className="flex items-center gap-2">
+                <Button
+                  onClick={streamHook.startStream}
+                  disabled={streamHook.isStreaming}
+                  size="sm"
+                  variant="outline"
+                >
+                  <Play className="w-4 h-4 mr-1" />
+                  Start Stream
+                </Button>
+                <Button
+                  onClick={streamHook.stopStream}
+                  disabled={!streamHook.isStreaming}
+                  size="sm"
+                  variant="outline"
+                >
+                  <Square className="w-4 h-4 mr-1" />
+                  Stop
+                </Button>
+              </div>
+            ) : (
+              <Button
+                onClick={() => loadNewsFromAPI()}
+                disabled={loading}
+                size="sm"
+                variant="outline"
+              >
+                <RefreshCw className={`w-4 h-4 mr-1 ${loading ? 'animate-spin' : ''}`} />
+                Refresh
+              </Button>
+            )}
+          </div>
+          
+          <Badge variant="secondary" className="text-sm">
+            {scrollNews.length} articles
+          </Badge>
+          {useStream && streamHook.isStreaming && (
+            <Badge variant="outline" className="text-sm">
+              {streamHook.completedSources}/{streamHook.totalSources} sources
+            </Badge>
+          )}
+        </div>
+
+        {useStream && (
+          <div className="flex items-center gap-4 text-sm text-muted-foreground">
+            <span>{streamHook.currentMessage}</span>
+            {streamHook.progress > 0 && (
+              <div className="flex items-center gap-2 min-w-[120px]">
+                <Progress value={streamHook.progress} className="w-20" />
+                <span>{streamHook.progress.toFixed(0)}%</span>
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+
+      <div className="relative h-[calc(100vh-200px)] overflow-hidden" ref={containerRef}>
+        {/* Navigation Arrows */}
       <div className="absolute right-4 top-1/2 transform -translate-y-1/2 z-20 flex flex-col gap-2">
         <Button
           variant="outline"
@@ -419,6 +518,7 @@ export function ScrollView() {
           setSelectedArticle(null)
         }}
       />
+      </div>
     </div>
   )
 }

@@ -6,10 +6,12 @@ import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { ExternalLink, Search, Filter, Clock, MapPin, Info } from "lucide-react"
+import { Progress } from "@/components/ui/progress"
+import { ExternalLink, Search, Filter, Clock, MapPin, Info, Play, Square, RefreshCw } from "lucide-react"
 import { SourceInfoModal } from "./source-info-modal"
 import { ArticleDetailModal } from "./article-detail-modal"
 import { fetchNews, getSourceById, type NewsArticle } from "@/lib/api"
+import { useNewsStream } from "@/hooks/useNewsStream"
 
 const categories = [
   "All",
@@ -33,39 +35,63 @@ export function GridView() {
   const [selectedArticle, setSelectedArticle] = useState<NewsArticle | null>(null)
   const [isArticleModalOpen, setIsArticleModalOpen] = useState(false)
   const [articles, setArticles] = useState<NewsArticle[]>([])
-  const [loading, setLoading] = useState(true)
+  const [loading, setLoading] = useState(false)
+  const [useStream, setUseStream] = useState(true)
   const gridRef = useRef<HTMLDivElement>(null)
 
-  useEffect(() => {
-    const loadNews = async (showLoading = true) => {
-      if (showLoading) setLoading(true)
-      try {
-        const fetchedArticles = await fetchNews({ limit: 50, category: 'politics' })
-        setArticles(fetchedArticles)
-        console.log(`🔄 Grid View: Loaded ${fetchedArticles.length} articles at ${new Date().toLocaleTimeString()}`)
-        
-        if (fetchedArticles.length === 0) {
-          console.log(`⚠️ Grid View: No articles loaded. This will show "No articles found" message.`)
-        }
-      } catch (error) {
-        console.error('Failed to load news:', error)
-      } finally {
-        if (showLoading) setLoading(false)
-      }
+  // SSE Stream hook
+  const streamHook = useNewsStream({
+    onUpdate: (newArticles) => {
+      setArticles(newArticles)
+      setLoading(false)
+      console.log(`🔄 Grid View: Stream updated with ${newArticles.length} articles`)
+    },
+    onComplete: () => {
+      console.log('🔄 Grid View: Stream completed')
+    },
+    onError: (error) => {
+      console.error('Grid View: Stream error:', error)
+      setLoading(false)
     }
-    
-    // Initial load
-    loadNews()
-    
-    // Set up background refresh every 5 minutes
-    const refreshInterval = setInterval(() => {
-      console.log('🔄 Starting background article refresh...')
-      loadNews(false) // Don't show loading spinner for background updates
-    }, 5 * 60 * 1000) // 5 minutes
-    
-    // Cleanup interval on unmount
-    return () => clearInterval(refreshInterval)
-  }, [])
+  })
+
+  // Traditional API loading function
+  const loadNewsFromAPI = async (showLoading = true) => {
+    if (showLoading) setLoading(true)
+    try {
+      const fetchedArticles = await fetchNews({ limit: 1000 }) // Get all articles
+      setArticles(fetchedArticles)
+      console.log(`🔄 Grid View: Loaded ${fetchedArticles.length} articles from API at ${new Date().toLocaleTimeString()}`)
+      
+      if (fetchedArticles.length === 0) {
+        console.log(`⚠️ Grid View: No articles loaded. This will show "No articles found" message.`)
+      }
+    } catch (error) {
+      console.error('Failed to load news:', error)
+    } finally {
+      if (showLoading) setLoading(false)
+    }
+  }
+
+  // Initial load and refresh setup
+  useEffect(() => {
+    if (useStream) {
+      // Start with stream
+      setLoading(true)
+      streamHook.startStream()
+    } else {
+      // Load from API
+      loadNewsFromAPI()
+      
+      // Set up background refresh every 5 minutes for API mode
+      const refreshInterval = setInterval(() => {
+        console.log('🔄 Starting background article refresh...')
+        loadNewsFromAPI(false) // Don't show loading spinner for background updates
+      }, 5 * 60 * 1000) // 5 minutes
+      
+      return () => clearInterval(refreshInterval)
+    }
+  }, [useStream])
 
   const filteredNews = articles.filter((article: NewsArticle) => {
     const matchesSearch =
@@ -203,9 +229,76 @@ export function GridView() {
             <h2 className="text-2xl font-bold text-foreground">News Grid</h2>
             <p className="text-muted-foreground">Browse news articles from around the world</p>
           </div>
-          <Badge variant="secondary" className="text-sm">
-            {filteredNews.length} articles
-          </Badge>
+          <div className="flex items-center gap-4">
+            <Badge variant="secondary" className="text-sm">
+              {filteredNews.length} articles
+            </Badge>
+            {useStream && streamHook.isStreaming && (
+              <Badge variant="outline" className="text-sm">
+                {streamHook.completedSources}/{streamHook.totalSources} sources
+              </Badge>
+            )}
+          </div>
+        </div>
+
+        {/* Stream Controls */}
+        <div className="flex items-center justify-between bg-muted/30 p-4 rounded-lg">
+          <div className="flex items-center gap-4">
+            <div className="flex items-center gap-2">
+              <Button
+                onClick={() => setUseStream(!useStream)}
+                variant={useStream ? "default" : "outline"}
+                size="sm"
+              >
+                {useStream ? "Live Stream" : "Static Load"}
+              </Button>
+              
+              {useStream ? (
+                <div className="flex items-center gap-2">
+                  <Button
+                    onClick={streamHook.startStream}
+                    disabled={streamHook.isStreaming}
+                    size="sm"
+                    variant="outline"
+                  >
+                    <Play className="w-4 h-4 mr-1" />
+                    Start Stream
+                  </Button>
+                  <Button
+                    onClick={streamHook.stopStream}
+                    disabled={!streamHook.isStreaming}
+                    size="sm"
+                    variant="outline"
+                  >
+                    <Square className="w-4 h-4 mr-1" />
+                    Stop
+                  </Button>
+                </div>
+              ) : (
+                <Button
+                  onClick={() => loadNewsFromAPI()}
+                  disabled={loading}
+                  size="sm"
+                  variant="outline"
+                >
+                  <RefreshCw className={`w-4 h-4 mr-1 ${loading ? 'animate-spin' : ''}`} />
+                  Refresh
+                </Button>
+              )}
+            </div>
+          </div>
+
+          {useStream && (
+            <div className="flex items-center gap-4 text-sm text-muted-foreground">
+              <span>{streamHook.currentMessage}</span>
+              {streamHook.progress > 0 && (
+                <div className="flex items-center gap-2 min-w-[120px]">
+                  <Progress value={streamHook.progress} className="w-20" />
+                  <span>{streamHook.progress.toFixed(0)}%</span>
+                </div>
+              )}
+            </div>
+          )}
         </div>
 
         {/* Search and Filters */}

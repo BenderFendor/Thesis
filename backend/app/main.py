@@ -1,5 +1,6 @@
-from fastapi import FastAPI, HTTPException, BackgroundTasks
+from fastapi import FastAPI, HTTPException, BackgroundTasks, Request
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import StreamingResponse
 import feedparser
 from typing import List, Dict, Any, Optional, Tuple
 from pydantic import BaseModel
@@ -14,6 +15,7 @@ import re
 from urllib.parse import urljoin, urlparse
 import json
 import requests
+import concurrent.futures
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -435,48 +437,67 @@ def parse_rss_feed(url: str, source_name: str, source_info: Dict) -> List[NewsAr
             logger.warning(f"No entries found for {source_name}: {url}")
             return []
         
-        for entry in feed.entries[:15]:  # Limit to 15 articles per source
+
+
+        # Try to get channel-level image (for fallback)
+        channel_image_url = None
+        if hasattr(feed, 'feed') and hasattr(feed.feed, 'image') and feed.feed.image:
+            # feed.feed.image is a dict, can have 'url' or 'href'
+            if isinstance(feed.feed.image, dict):
+                channel_image_url = feed.feed.image.get('url') or feed.feed.image.get('href')
+
+        for entry in feed.entries:  # Get all articles from source
             # Extract image URL from various possible locations
             image_url = None
-            
+
             # Check for media:thumbnail
             if hasattr(entry, 'media_thumbnail') and entry.media_thumbnail:
                 image_url = entry.media_thumbnail[0].get('url') if isinstance(entry.media_thumbnail, list) else entry.media_thumbnail.get('url')
-            
+
             # Check for media:content
             elif hasattr(entry, 'media_content') and entry.media_content:
                 for media in entry.media_content:
                     if media.get('type', '').startswith('image/'):
                         image_url = media.get('url')
                         break
-            
+
             # Check for enclosure (podcast/media)
             elif hasattr(entry, 'enclosures') and entry.enclosures:
                 for enclosure in entry.enclosures:
                     if enclosure.get('type', '').startswith('image/'):
                         image_url = enclosure.get('href')
                         break
-            
+
             # Check for image in links
             elif hasattr(entry, 'links') and entry.links:
                 for link in entry.links:
                     if link.get('type', '').startswith('image/'):
                         image_url = link.get('href')
                         break
-            
-            # Check for image tag in content
+
+            # Check for <img> tag in content:encoded (WordPress feeds)
             elif hasattr(entry, 'content') and entry.content:
                 import re
                 content_text = entry.content[0].value if isinstance(entry.content, list) else str(entry.content)
                 img_match = re.search(r'<img[^>]+src="([^"]+)"', content_text)
                 if img_match:
                     image_url = img_match.group(1)
-            
-            # Check for image in description/summary
+
+            # Check for <img> tag in description/summary
             if not image_url and entry.get('description'):
                 img_match = re.search(r'<img[^>]+src="([^"]+)"', entry.description)
                 if img_match:
                     image_url = img_match.group(1)
+
+            # If still no image, check for <img> in content:encoded (sometimes present as entry.content:encoded)
+            if not image_url and hasattr(entry, 'content_encoded'):
+                img_match = re.search(r'<img[^>]+src="([^"]+)"', entry.content_encoded)
+                if img_match:
+                    image_url = img_match.group(1)
+
+            # If still no image, use channel-level image as fallback
+            if not image_url and channel_image_url:
+                image_url = channel_image_url
             
             # Clean title and description
             title = entry.get('title', 'No title')
@@ -649,24 +670,27 @@ def refresh_news_cache():
     if news_cache.update_in_progress:
         logger.info("Cache update already in progress, skipping...")
         return
-    
-    news_cache.update_in_progress = True
-    logger.info("🔄 Starting cache refresh...")
-    
     all_articles = []
     source_stats = []
 
+    def partial_update_callback(new_articles, new_source_stat):
+        # This callback can be used to update the cache with partial results
+        # For now, just log the partial update
+        logger.info(f"[Partial] Loaded {len(new_articles)} articles from {new_source_stat['name']}")
+        # Optionally, update a partial cache here if desired
+
     with concurrent.futures.ThreadPoolExecutor(max_workers=10) as executor:
         future_to_source = {executor.submit(_process_source, name, info): name for name, info in RSS_SOURCES.items()}
-        
         for future in concurrent.futures.as_completed(future_to_source):
             source_name = future_to_source[future]
             try:
                 articles, source_stat = future.result()
                 all_articles.extend(articles)
                 source_stats.append(source_stat)
+                # Call the partial update callback for each source as soon as it's loaded
+                partial_update_callback(articles, source_stat)
             except Exception as exc:
-                logger.error(f"💥 Exception for {source_name}: {exc}")
+                logger.error(f"\U0001F4A5 Exception for {source_name}: {exc}")
                 source_stat = {
                     "name": source_name,
                     "url": RSS_SOURCES[source_name].get('url'),
@@ -680,25 +704,26 @@ def refresh_news_cache():
                     "last_checked": datetime.now().isoformat()
                 }
                 source_stats.append(source_stat)
-    
+
     # Sort articles by published date (newest first)
     try:
         all_articles.sort(key=lambda x: x.published, reverse=True)
     except:
-        # Fallback if date parsing fails
         pass
-    
-    # Update cache
+
     news_cache.update_cache(all_articles, source_stats)
     logger.info(f"✅ Cache refresh completed: {len(all_articles)} total articles")
-    
+
     if len(all_articles) == 0:
         logger.warning(f"⚠️ Cache refresh resulted in 0 articles! Check RSS sources.")
         working_sources = [s for s in source_stats if s['status'] == 'success']
         error_sources = [s for s in source_stats if s['status'] == 'error']
         logger.info(f"📊 Source status: {len(working_sources)} working, {len(error_sources)} with errors")
     else:
-        # Log category breakdown for debugging
+        category_counts = {}
+        for article in all_articles:
+            category_counts[article.category] = category_counts.get(article.category, 0) + 1
+        logger.info(f"📊 Articles by category: {category_counts}")
         category_counts = {}
         for article in all_articles:
             category_counts[article.category] = category_counts.get(article.category, 0) + 1
@@ -708,7 +733,7 @@ def parse_rss_feed_entries(entries, source_name: str, source_info: Dict) -> List
     """Parse RSS feed entries into NewsArticle objects"""
     articles = []
     
-    for entry in entries[:15]:  # Limit to 15 articles per source
+    for entry in entries:  # Get all articles from source
         # Extract image URL from various possible locations
         image_url = None
         
@@ -1091,6 +1116,89 @@ async def get_source_debug_data(source_name: str):
             "error": str(e),
             "debug_timestamp": datetime.now().isoformat()
         }
+
+@app.get("/news/stream")
+async def stream_news(request: Request):
+    """Stream news articles as they are loaded using Server-Sent Events (SSE)."""
+    async def event_generator():
+        # Send initial status message
+        yield f"data: {json.dumps({'status': 'starting', 'message': 'Loading news articles...'})}\n\n"
+        
+        loop = asyncio.get_event_loop()
+        
+        with concurrent.futures.ThreadPoolExecutor(max_workers=10) as executor:
+            # Submit all RSS source processing tasks
+            future_to_source = {
+                loop.run_in_executor(executor, _process_source, name, info): name 
+                for name, info in RSS_SOURCES.items()
+            }
+            
+            completed_sources = 0
+            total_sources = len(RSS_SOURCES)
+            
+            # Process sources as they complete
+            for future in asyncio.as_completed(future_to_source):
+                # Check if client disconnected
+                if await request.is_disconnected():
+                    break
+                
+                try:
+                    articles, source_stat = await future
+                    completed_sources += 1
+                    
+                    # Send progress update with articles from this source
+                    data = {
+                        "status": "partial_update",
+                        "source": source_stat["name"],
+                        "articles": [a.dict() for a in articles],
+                        "source_stat": source_stat,
+                        "progress": {
+                            "completed": completed_sources,
+                            "total": total_sources,
+                            "percentage": round((completed_sources / total_sources) * 100, 1)
+                        }
+                    }
+                    yield f"data: {json.dumps(data)}\n\n"
+                    
+                except Exception as exc:
+                    completed_sources += 1
+                    source_name = future_to_source.get(future, "unknown")
+                    logger.error(f"SSE stream error for {source_name}: {exc}")
+                    
+                    # Send error for this source
+                    error_data = {
+                        "status": "source_error",
+                        "source": source_name,
+                        "error": str(exc),
+                        "progress": {
+                            "completed": completed_sources,
+                            "total": total_sources,
+                            "percentage": round((completed_sources / total_sources) * 100, 1)
+                        }
+                    }
+                    yield f"data: {json.dumps(error_data)}\n\n"
+            
+            # Send completion message
+            final_data = {
+                "status": "complete",
+                "message": f"Loaded articles from {total_sources} sources",
+                "progress": {
+                    "completed": total_sources,
+                    "total": total_sources,
+                    "percentage": 100
+                }
+            }
+            yield f"data: {json.dumps(final_data)}\n\n"
+    
+    return StreamingResponse(
+        event_generator(), 
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "Connection": "keep-alive",
+            "Access-Control-Allow-Origin": "*",
+        }
+    )
 
 if __name__ == "__main__":
     import uvicorn

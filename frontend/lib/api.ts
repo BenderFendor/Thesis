@@ -1,7 +1,8 @@
 // API utility for communicating with FastAPI backend
 
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL // The port should match the backend server port
-const DOCKER_API_BASE_URL = process.env.NEXT_PUBLIC_DOCKER_API_URL
+// Default to localhost backend when env var is not set (makes dev easier)
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'
+const DOCKER_API_BASE_URL = process.env.NEXT_PUBLIC_DOCKER_API_URL || API_BASE_URL
 // Use DOCKER_API_BASE_URL when running in Docker
 // This allows the frontend to reach the backend when both are in Docker containers
 // Which uses 8001 instead of 8000 to avoid conflict with Next.js dev server
