@@ -27,7 +27,11 @@ const categories = [
 const countries = ["All", "United States", "United Kingdom", "Germany", "France", "Canada", "Australia", "India", "China", "Japan", "Russia", "Spain"]
 const credibilityLevels = ["All", "High", "Medium", "Low"]
 
-export function GridView() {
+interface GridViewProps {
+  onCountChange?: (count: number) => void
+}
+
+export function GridView({ onCountChange }: GridViewProps) {
   const [searchTerm, setSearchTerm] = useState("")
   const [selectedCategory, setSelectedCategory] = useState("All")
   const [selectedCountry, setSelectedCountry] = useState("All")
@@ -114,6 +118,15 @@ export function GridView() {
 
     return matchesSearch && matchesCategory && matchesCountry && matchesCredibility
   })
+
+  // Notify parent about current filtered count when it changes
+  useEffect(() => {
+    try {
+      onCountChange?.(filteredNews.length)
+    } catch (e) {
+      // ignore
+    }
+  }, [filteredNews.length, onCountChange])
 
   // Debug filtering results
   useEffect(() => {
@@ -244,13 +257,11 @@ export function GridView() {
 
   return (
     <div className="space-y-6">
-      {/* Header and Filters */}
+      {/* Filters (header moved to page.tsx) */}
       <div className="space-y-4">
+        {/* Keep badges and filters but header/title handled by page-level component */}
         <div className="flex items-center justify-between">
-          <div>
-            <h2 className="text-2xl font-bold text-foreground">News Grid</h2>
-            <p className="text-muted-foreground">Browse news articles from around the world</p>
-          </div>
+          <div />
           <div className="flex items-center gap-4">
             <Badge variant="secondary" className="text-sm">
               {filteredNews.length} articles
@@ -262,76 +273,6 @@ export function GridView() {
             )}
           </div>
         </div>
-
-        {/* Stream Controls */}
-        <div className="flex items-center justify-between bg-muted/30 p-4 rounded-lg">
-          <div className="flex items-center gap-4">
-            <div className="flex items-center gap-2">
-              <Button
-                onClick={() => setUseStream(!useStream)}
-                variant={useStream ? "default" : "outline"}
-                size="sm"
-              >
-                {useStream ? "Live Stream" : "Static Load"}
-              </Button>
-              
-              {useStream ? (
-                <div className="flex items-center gap-2">
-                  <Button
-                    onClick={() => {
-                      console.log('🔄 Grid View: Manually starting stream...')
-                      streamHook.startStream()
-                    }}
-                    disabled={streamHook.isStreaming}
-                    size="sm"
-                    variant="outline"
-                  >
-                    <Play className="w-4 h-4 mr-1" />
-                    Start Stream
-                  </Button>
-                  <Button
-                    onClick={() => {
-                      console.log('🔄 Grid View: Stopping stream...')
-                      streamHook.stopStream()
-                    }}
-                    disabled={!streamHook.isStreaming}
-                    size="sm"
-                    variant="outline"
-                  >
-                    <Square className="w-4 h-4 mr-1" />
-                    Stop
-                  </Button>
-                </div>
-              ) : (
-                <Button
-                  onClick={() => {
-                    console.log('🔄 Grid View: Manually refreshing from API...')
-                    loadNewsFromAPI()
-                  }}
-                  disabled={loading}
-                  size="sm"
-                  variant="outline"
-                >
-                  <RefreshCw className={`w-4 h-4 mr-1 ${loading ? 'animate-spin' : ''}`} />
-                  Refresh
-                </Button>
-              )}
-            </div>
-          </div>
-
-          {useStream && (
-            <div className="flex items-center gap-4 text-sm text-muted-foreground">
-              <span>{streamHook.currentMessage}</span>
-              {streamHook.progress > 0 && (
-                <div className="flex items-center gap-2 min-w-[120px]">
-                  <Progress value={streamHook.progress} className="w-20" />
-                  <span>{streamHook.progress.toFixed(0)}%</span>
-                </div>
-              )}
-            </div>
-          )}
-        </div>
-
         {/* Search and Filters */}
         <div className="flex flex-col sm:flex-row gap-4">
           <div className="relative flex-1">
