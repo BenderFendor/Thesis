@@ -406,11 +406,17 @@ async def startup_event():
     """Initialize cache and start background refresh scheduler on startup"""
     logger.info("🚀 Starting Global News Aggregation API...")
     
-    # Initial cache population
-    refresh_news_cache()
-    
-    # Start background refresh scheduler
+    # Start background refresh scheduler first
     start_cache_refresh_scheduler()
+    
+    # Initial cache population in background thread
+    import threading
+    def init_cache():
+        refresh_news_cache()
+        logger.info("✅ Initial cache population complete!")
+    
+    thread = threading.Thread(target=init_cache, daemon=True)
+    thread.start()
     
     logger.info("✅ API startup complete!")
 
