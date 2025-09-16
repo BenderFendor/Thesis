@@ -1,3 +1,4 @@
+version: '3.8'
 services:
   backend:
     build: 
@@ -13,6 +14,11 @@ services:
       - backend_cache:/app/.venv
     command: uvicorn app.main:app --host 0.0.0.0 --port 8001 --reload
     restart: unless-stopped
+    networks:
+      - thesis_network
+    dns:
+      - 8.8.8.8  # Google DNS
+      - 1.1.1.1  # Cloudflare DNS
 
   frontend:
     build:
@@ -31,6 +37,12 @@ services:
     depends_on:
       - backend
     restart: unless-stopped
+    networks:
+      - thesis_network
+
+networks:
+  thesis_network:
+    driver: bridge
 
 volumes:
   backend_cache:

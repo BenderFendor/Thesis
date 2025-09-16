@@ -9,6 +9,7 @@ from datetime import datetime
 import logging
 import threading
 import time
+import random  # For jitter in backoff
 from collections import defaultdict
 import html
 import re
@@ -540,64 +541,69 @@ def parse_rss_feed(url: str, source_name: str, source_info: Dict) -> List[NewsAr
         logger.error(f"Error parsing {source_name}: {e}")
         return []
 
-def get_rss_as_json(url: str, source_name: str) -> Dict[str, Any]:
-    """Fetch RSS feed and convert to JSON for better debugging"""
-    try:
-        # First try with requests to get raw content
-        headers = {
-            'User-Agent': 'NewsAggregator/1.0 (RSS to JSON converter)',
-            'Accept': 'application/rss+xml, application/xml, text/xml, */*'
-        }
-        response = requests.get(url, headers=headers, timeout=30)
-        response.raise_for_status()
-        
-        # Clean up potential XML issues
-        content = response.text.strip()
-        # Remove any leading whitespace or BOM that might cause XML parsing issues
-        content = content.lstrip('\ufeff\xff\xfe')
-        
-        # Parse with feedparser using the cleaned content
-        feed = feedparser.parse(content)
-        
-        # Convert feedparser result to clean JSON structure
-        feed_json = {
-            "feed_info": {
-                "title": getattr(feed.feed, 'title', ''),
-                "description": getattr(feed.feed, 'description', ''),
-                "link": getattr(feed.feed, 'link', ''),
-                "updated": getattr(feed.feed, 'updated', ''),
-                "language": getattr(feed.feed, 'language', ''),
-            },
-            "status": getattr(feed, 'status', None),
-            "bozo": getattr(feed, 'bozo', False),
-            "bozo_exception": str(getattr(feed, 'bozo_exception', '')),
-            "total_entries": len(feed.entries),
-            "entries": []
-        }
-        
-        # Add first few entries as examples
-        for i, entry in enumerate(feed.entries[:3]):  # Just first 3 for logging
-            entry_json = {
-                "title": getattr(entry, 'title', ''),
-                "link": getattr(entry, 'link', ''),
-                "description": getattr(entry, 'description', '')[:200] + '...' if len(getattr(entry, 'description', '')) > 200 else getattr(entry, 'description', ''),
-                "published": getattr(entry, 'published', ''),
-                "author": getattr(entry, 'author', ''),
+def get_rss_as_json(url: str, source_name: str) -> Tuple[Dict[str, Any], Any]:
+    """Fetch RSS feed and convert to JSON for better debugging, with retry logic for network errors."""
+    max_retries = 3
+    base_delay = 5  # seconds
+    for attempt in range(max_retries):
+        try:
+            headers = {
+                'User-Agent': 'NewsAggregator/1.0 (RSS to JSON converter)',
+                'Accept': 'application/rss+xml, application/xml, text/xml, */*'
             }
-            feed_json["entries"].append(entry_json)
+            response = requests.get(url, headers=headers, timeout=60)  # Increased timeout
+            response.raise_for_status()
+            
+            # Clean up potential XML issues
+            content = response.text.strip()
+            content = content.lstrip('\ufeff\xff\xfe')
+            
+            feed = feedparser.parse(content)
+            
+            # Convert feedparser result to clean JSON structure
+            feed_json = {
+                "feed_info": {
+                    "title": getattr(feed.feed, 'title', ''),
+                    "description": getattr(feed.feed, 'description', ''),
+                    "link": getattr(feed.feed, 'link', ''),
+                    "updated": getattr(feed.feed, 'updated', ''),
+                    "language": getattr(feed.feed, 'language', ''),
+                },
+                "status": getattr(feed, 'status', None),
+                "bozo": getattr(feed, 'bozo', False),
+                "bozo_exception": str(getattr(feed, 'bozo_exception', '')),
+                "total_entries": len(feed.entries),
+                "entries": []
+            }
+            
+            # Add first few entries as examples
+            for i, entry in enumerate(feed.entries[:3]):  # Just first 3 for logging
+                entry_json = {
+                    "title": getattr(entry, 'title', ''),
+                    "link": getattr(entry, 'link', ''),
+                    "description": getattr(entry, 'description', '')[:200] + '...' if len(getattr(entry, 'description', '')) > 200 else getattr(entry, 'description', ''),
+                    "published": getattr(entry, 'published', ''),
+                    "author": getattr(entry, 'author', ''),
+                }
+                feed_json["entries"].append(entry_json)
+            
+            return feed_json, feed
         
-        return feed_json, feed
-        
-    except Exception as e:
-        logger.error(f"Failed to fetch {source_name} as JSON: {e}")
-        # Fallback to regular feedparser
-        feed = feedparser.parse(url, agent='NewsAggregator/1.0')
-        return {"error": str(e), "fallback": True}, feed
+        except (requests.exceptions.RequestException, OSError) as e:
+            logger.warning(f"Attempt {attempt + 1}/{max_retries} failed for {source_name}: {e}")
+            if attempt < max_retries - 1:
+                delay = base_delay * (2 ** attempt) + random.uniform(0, 1)  # Exponential backoff with jitter
+                logger.info(f"Retrying {source_name} in {delay:.2f}s...")
+                time.sleep(delay)
+            else:
+                logger.error(f"All retries failed for {source_name}: {e}")
+                feed = feedparser.parse(url, agent='NewsAggregator/1.0')
+                return {"error": str(e), "fallback": True}, feed
 
 import concurrent.futures
 
 def _process_source(source_name: str, source_info: Dict) -> Tuple[List[NewsArticle], Dict]:
-    """Process a single RSS source, fetching and parsing its feed."""
+    """Process a single RSS source, fetching and parsing its feed, with per-source throttling."""
     try:
         urls = source_info['url']
         if isinstance(urls, str):
@@ -624,11 +630,11 @@ def _process_source(source_name: str, source_info: Dict) -> Tuple[List[NewsArtic
                 error_message = f"Parse warning: {bozo_error}"
                 parsed_articles = parse_rss_feed_entries(feed.entries, source_name, source_info)
                 articles.extend(parsed_articles)
-                logger.warning(f"⚠️  XML parsing issue for {source_name}: {bozo_error} (got {len(parsed_articles)} articles)")
+                logger.warning(f"⚠️ XML parsing issue for {source_name}: {bozo_error} (got {len(parsed_articles)} articles)")
             elif not hasattr(feed, 'entries') or len(feed.entries) == 0:
                 feed_status = "warning"
                 error_message = "No articles found in feed"
-                logger.warning(f"⚠️  No entries found for {source_name}: {url}")
+                logger.warning(f"⚠️ No entries found for {source_name}: {url}")
                 continue
             else:
                 parsed_articles = parse_rss_feed_entries(feed.entries, source_name, source_info)
@@ -666,31 +672,42 @@ def _process_source(source_name: str, source_info: Dict) -> Tuple[List[NewsArtic
         return [], source_stat
 
 def refresh_news_cache():
-    """Refresh the news cache by parsing all RSS sources concurrently."""
+    """Refresh the news cache by parsing all RSS sources concurrently, with per-source throttling to avoid rate limits."""
     if news_cache.update_in_progress:
         logger.info("Cache update already in progress, skipping...")
         return
+    
     all_articles = []
     source_stats = []
+    source_last_processed = {}  # Per-source throttle tracking
 
     def partial_update_callback(new_articles, new_source_stat):
-        # This callback can be used to update the cache with partial results
-        # For now, just log the partial update
         logger.info(f"[Partial] Loaded {len(new_articles)} articles from {new_source_stat['name']}")
-        # Optionally, update a partial cache here if desired
 
-    with concurrent.futures.ThreadPoolExecutor(max_workers=10) as executor:
-        future_to_source = {executor.submit(_process_source, name, info): name for name, info in RSS_SOURCES.items()}
+    throttle_interval = 20  # seconds per source
+
+    def throttled_process_source(name, info):
+        now = time.time()
+        last_time = source_last_processed.get(name, 0)
+        elapsed = now - last_time
+        if elapsed < throttle_interval:
+            sleep_time = throttle_interval - elapsed
+            logger.info(f"Throttling {name}: Sleeping {sleep_time:.1f}s (per-source limit)")
+            time.sleep(sleep_time)
+        source_last_processed[name] = time.time()
+        return _process_source(name, info)
+
+    with concurrent.futures.ThreadPoolExecutor(max_workers=5) as executor:  # Reduced workers for less concurrency
+        future_to_source = {executor.submit(throttled_process_source, name, info): name for name, info in RSS_SOURCES.items()}
         for future in concurrent.futures.as_completed(future_to_source):
             source_name = future_to_source[future]
             try:
                 articles, source_stat = future.result()
                 all_articles.extend(articles)
                 source_stats.append(source_stat)
-                # Call the partial update callback for each source as soon as it's loaded
                 partial_update_callback(articles, source_stat)
             except Exception as exc:
-                logger.error(f"\U0001F4A5 Exception for {source_name}: {exc}")
+                logger.error(f"💥 Exception for {source_name}: {exc}")
                 source_stat = {
                     "name": source_name,
                     "url": RSS_SOURCES[source_name].get('url'),
