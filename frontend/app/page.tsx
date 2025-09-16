@@ -125,7 +125,7 @@ export default function NewsPage() {
                   <TabsTrigger
                     key={category.id}
                     value={category.id}
-                    className="flex flex-col items-center gap-1 py-3 px-2 data-[state=active]:bg-primary/10 data-[state=active]:text-primary border-b-2 border-transparent data-[state=active]:border-primary rounded-none"
+                    className="flex flex-col items-center gap-1 py-3 px-2 rounded-md border-b-2 border-transparent data-[state=active]:border-emerald-500 data-[state=active]:bg-emerald-600/20 data-[state=active]:text-emerald-400"
                   >
                     <IconComponent className="w-5 h-5" />
                     <span className="text-xs font-medium">{category.label}</span>
@@ -144,17 +144,6 @@ export default function NewsPage() {
             const IconComponent = category.icon
             return (
               <TabsContent key={category.id} value={category.id} className="mt-0">
-                {/* Category Header */}
-                <div className="mb-6 p-4 bg-card rounded-lg border border-border">
-                  <div className="flex items-center gap-3">
-                    <IconComponent className="w-6 h-6 text-primary" />
-                    <div>
-                      <h2 className="text-xl font-semibold text-foreground">{category.label}</h2>
-                      <p className="text-sm text-muted-foreground">{category.description}</p>
-                    </div>
-                  </div>
-                </div>
-
                 {/* Content Views */}
                 <>
                   {currentView === "globe" && (

@@ -1,10 +1,10 @@
 "use client"
 
 import { useState, useEffect } from "react"
-import { X, ExternalLink, Heart, MessageCircle, Share2, Bookmark, AlertTriangle, DollarSign } from "lucide-react"
+import { X, ExternalLink, Heart, MessageCircle, Share2, Bookmark, AlertTriangle, DollarSign, Bug, Link as LinkIcon, Rss } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
-import { type NewsArticle, getSourceById, type NewsSource } from "@/lib/api"
+import { type NewsArticle, getSourceById, type NewsSource, fetchSourceDebugData, type SourceDebugData } from "@/lib/api"
 
 interface ArticleDetailModalProps {
   article: NewsArticle | null
@@ -18,6 +18,10 @@ export function ArticleDetailModal({ article, isOpen, onClose }: ArticleDetailMo
   const [showSourceDetails, setShowSourceDetails] = useState(false)
   const [source, setSource] = useState<NewsSource | null>(null)
   const [sourceLoading, setSourceLoading] = useState(false)
+  const [debugOpen, setDebugOpen] = useState(false)
+  const [debugLoading, setDebugLoading] = useState(false)
+  const [debugData, setDebugData] = useState<SourceDebugData | null>(null)
+  const [matchedEntryIndex, setMatchedEntryIndex] = useState<number | null>(null)
 
   useEffect(() => {
     const loadSource = async () => {
@@ -39,6 +43,40 @@ export function ArticleDetailModal({ article, isOpen, onClose }: ArticleDetailMo
       loadSource()
     }
   }, [isOpen, article])
+
+  // Reset debugger state when article changes or modal opens
+  useEffect(() => {
+    setDebugOpen(false)
+    setDebugData(null)
+    setMatchedEntryIndex(null)
+  }, [article?.url, isOpen])
+
+  const loadDebug = async () => {
+    if (!article) return
+    try {
+      setDebugLoading(true)
+      const data = await fetchSourceDebugData(article.source)
+      setDebugData(data)
+      // Try to match entry by link, else by title
+      let idx: number | null = null
+      if (data?.parsed_entries?.length) {
+        idx = data.parsed_entries.findIndex(e => e.link === article.url)
+        if (idx === -1) {
+          const norm = (s: string) => (s || '').toLowerCase().replace(/\s+/g, ' ').trim()
+          const at = norm(article.title)
+          idx = data.parsed_entries.findIndex(e => norm(e.title) === at)
+        }
+        if (idx === -1) idx = null
+      }
+      setMatchedEntryIndex(idx)
+    } catch (e) {
+      console.error('Failed to fetch debug data:', e)
+      setDebugData(null)
+      setMatchedEntryIndex(null)
+    } finally {
+      setDebugLoading(false)
+    }
+  }
 
   if (!isOpen || !article) return null
 
@@ -126,9 +164,14 @@ export function ArticleDetailModal({ article, isOpen, onClose }: ArticleDetailMo
                   <AlertTriangle className="h-5 w-5 text-yellow-400" />
                   Source Transparency
                 </h3>
-                <Button variant="outline" size="sm" onClick={() => setShowSourceDetails(!showSourceDetails)}>
-                  {showSourceDetails ? "Hide Details" : "Show Details"}
-                </Button>
+                <div className="flex items-center gap-2">
+                  <Button variant="outline" size="sm" onClick={() => setShowSourceDetails(!showSourceDetails)}>
+                    {showSourceDetails ? "Hide Details" : "Show Details"}
+                  </Button>
+                  <Button variant="outline" size="sm" onClick={() => { setDebugOpen(true); loadDebug(); }}>
+                    <Bug className="h-4 w-4 mr-1" /> Debug Images
+                  </Button>
+                </div>
               </div>
 
               {sourceLoading ? (
@@ -192,6 +235,78 @@ export function ArticleDetailModal({ article, isOpen, onClose }: ArticleDetailMo
                 </div>
               )}
             </div>
+
+            {/* Debug Panel */}
+            {debugOpen && (
+              <div className="bg-gray-900/60 rounded-lg p-6 mb-6 border border-gray-800">
+                <div className="flex items-center justify-between mb-3">
+                  <h3 className="text-lg font-semibold text-white flex items-center gap-2">
+                    <Bug className="h-5 w-5 text-emerald-400" /> Image Debugger
+                  </h3>
+                  <Button variant="ghost" size="sm" onClick={() => setDebugOpen(false)}>
+                    <X className="h-4 w-4" />
+                  </Button>
+                </div>
+                {debugLoading ? (
+                  <div className="flex items-center justify-center p-6">
+                    <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-primary"></div>
+                  </div>
+                ) : debugData ? (
+                  <div className="space-y-4 text-sm">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <div className="p-3 bg-black/40 rounded border border-gray-800">
+                        <h4 className="text-white font-medium mb-2">Feed</h4>
+                        <div className="text-gray-400 flex items-center gap-2"><Rss className="h-4 w-4" /> {debugData.rss_url}</div>
+                        <div className="text-gray-400">Entries: {debugData.feed_status?.entries_count}</div>
+                        <div className="text-gray-400">Has Images: {debugData.image_analysis?.entries_with_images}/{debugData.image_analysis?.total_entries}</div>
+                      </div>
+                      <div className="p-3 bg-black/40 rounded border border-gray-800">
+                        <h4 className="text-white font-medium mb-2">Cache Match</h4>
+                        <div className="text-gray-400">Matched by: {matchedEntryIndex !== null ? 'link/title' : 'not found'}</div>
+                        <div className="text-gray-400">Index: {matchedEntryIndex !== null ? matchedEntryIndex : '-'}</div>
+                      </div>
+                    </div>
+
+                    {matchedEntryIndex !== null && debugData.parsed_entries?.[matchedEntryIndex] && (
+                      <div className="p-3 bg-black/40 rounded border border-gray-800">
+                        <h4 className="text-white font-medium mb-2">Parsed Entry</h4>
+                        <div className="text-gray-300 mb-2">{debugData.parsed_entries[matchedEntryIndex].title}</div>
+                        <div className="text-gray-400 break-all flex items-center gap-2"><LinkIcon className="h-4 w-4" /> {debugData.parsed_entries[matchedEntryIndex].link}</div>
+                        <div className="text-gray-400 mt-2">Has Images: {debugData.parsed_entries[matchedEntryIndex].has_images ? 'yes' : 'no'}</div>
+                        {debugData.parsed_entries[matchedEntryIndex].content_images?.length > 0 && (
+                          <div className="mt-2">
+                            <div className="text-gray-400">Content Images:</div>
+                            <ul className="list-disc list-inside text-gray-400 text-xs space-y-1">
+                              {debugData.parsed_entries[matchedEntryIndex].content_images.map((u, i) => (
+                                <li key={i} className="break-all">{u}</li>
+                              ))}
+                            </ul>
+                          </div>
+                        )}
+                        {debugData.parsed_entries[matchedEntryIndex].description_images?.length > 0 && (
+                          <div className="mt-2">
+                            <div className="text-gray-400">Description Images:</div>
+                            <ul className="list-disc list-inside text-gray-400 text-xs space-y-1">
+                              {debugData.parsed_entries[matchedEntryIndex].description_images.map((u, i) => (
+                                <li key={i} className="break-all">{u}</li>
+                              ))}
+                            </ul>
+                          </div>
+                        )}
+                      </div>
+                    )}
+
+                    {/* Raw JSON (collapsed) */}
+                    <details className="p-3 bg-black/40 rounded border border-gray-800">
+                      <summary className="cursor-pointer text-white">Raw Debug JSON</summary>
+                      <pre className="mt-2 text-xs text-gray-300 overflow-x-auto whitespace-pre-wrap break-words">{JSON.stringify(debugData, null, 2)}</pre>
+                    </details>
+                  </div>
+                ) : (
+                  <div className="text-gray-400">No debug data available.</div>
+                )}
+              </div>
+            )}
 
             {/* Tags */}
             <div className="mb-6">

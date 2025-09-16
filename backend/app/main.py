@@ -531,9 +531,40 @@ def parse_rss_feed(url: str, source_name: str, source_info: Dict) -> List[NewsAr
             # Extract image URL from various possible locations
             image_url = None
 
-            # Check for media:thumbnail
+            # Check for media:thumbnail (CNN and some feeds nest url arrays)
             if hasattr(entry, 'media_thumbnail') and entry.media_thumbnail:
-                image_url = entry.media_thumbnail[0].get('url') if isinstance(entry.media_thumbnail, list) else entry.media_thumbnail.get('url')
+                thumb = entry.media_thumbnail
+                try:
+                    # Case 1: list of dicts
+                    if isinstance(thumb, list):
+                        first = thumb[0]
+                        if isinstance(first, dict):
+                            url_field = first.get('url') or first.get('href')
+                            if isinstance(url_field, list) and len(url_field) > 0:
+                                first_inner = url_field[0]
+                                if isinstance(first_inner, dict):
+                                    image_url = first_inner.get('url') or first_inner.get('href')
+                                elif isinstance(first_inner, str):
+                                    image_url = first_inner
+                            elif isinstance(url_field, str):
+                                image_url = url_field
+                            elif isinstance(url_field, dict):
+                                image_url = url_field.get('url') or url_field.get('href')
+                    # Case 2: single dict
+                    elif isinstance(thumb, dict):
+                        url_field = thumb.get('url') or thumb.get('href')
+                        if isinstance(url_field, list) and len(url_field) > 0:
+                            first_inner = url_field[0]
+                            if isinstance(first_inner, dict):
+                                image_url = first_inner.get('url') or first_inner.get('href')
+                            elif isinstance(first_inner, str):
+                                image_url = first_inner
+                        elif isinstance(url_field, str):
+                            image_url = url_field
+                        elif isinstance(url_field, dict):
+                            image_url = url_field.get('url') or url_field.get('href')
+                except Exception:
+                    pass
 
             # Check for media:content
             elif hasattr(entry, 'media_content') and entry.media_content:
@@ -862,9 +893,38 @@ def parse_rss_feed_entries(entries, source_name: str, source_info: Dict) -> List
             if img_match:
                 image_url = img_match.group(1)
 
-        # Check for media:thumbnail
+        # Check for media:thumbnail (handle nested url list like CNN)
         if not image_url and hasattr(entry, 'media_thumbnail') and entry.media_thumbnail:
-            image_url = entry.media_thumbnail[0].get('url') if isinstance(entry.media_thumbnail, list) else entry.media_thumbnail.get('url')
+            thumb = entry.media_thumbnail
+            try:
+                if isinstance(thumb, list):
+                    first = thumb[0]
+                    if isinstance(first, dict):
+                        url_field = first.get('url') or first.get('href')
+                        if isinstance(url_field, list) and len(url_field) > 0:
+                            first_inner = url_field[0]
+                            if isinstance(first_inner, dict):
+                                image_url = first_inner.get('url') or first_inner.get('href')
+                            elif isinstance(first_inner, str):
+                                image_url = first_inner
+                        elif isinstance(url_field, str):
+                            image_url = url_field
+                        elif isinstance(url_field, dict):
+                            image_url = url_field.get('url') or url_field.get('href')
+                elif isinstance(thumb, dict):
+                    url_field = thumb.get('url') or thumb.get('href')
+                    if isinstance(url_field, list) and len(url_field) > 0:
+                        first_inner = url_field[0]
+                        if isinstance(first_inner, dict):
+                            image_url = first_inner.get('url') or first_inner.get('href')
+                        elif isinstance(first_inner, str):
+                            image_url = first_inner
+                    elif isinstance(url_field, str):
+                        image_url = url_field
+                    elif isinstance(url_field, dict):
+                        image_url = url_field.get('url') or url_field.get('href')
+            except Exception:
+                pass
         
         # Check for media:content
         elif not image_url and hasattr(entry, 'media_content') and entry.media_content:
@@ -1192,6 +1252,36 @@ async def get_source_debug_data(source_name: str):
                 
                 if hasattr(entry, 'media_thumbnail'):
                     image_sources.append({"type": "media_thumbnail", "url": entry.media_thumbnail})
+                    # Attempt to normalize CNN-style nested url
+                    try:
+                        thumb = entry.media_thumbnail
+                        normalized = None
+                        if isinstance(thumb, list) and thumb:
+                            first = thumb[0]
+                            if isinstance(first, dict):
+                                url_field = first.get('url') or first.get('href')
+                                if isinstance(url_field, list) and url_field:
+                                    inner = url_field[0]
+                                    if isinstance(inner, dict):
+                                        normalized = inner.get('url') or inner.get('href')
+                                    elif isinstance(inner, str):
+                                        normalized = inner
+                                elif isinstance(url_field, str):
+                                    normalized = url_field
+                        elif isinstance(thumb, dict):
+                            url_field = thumb.get('url') or thumb.get('href')
+                            if isinstance(url_field, list) and url_field:
+                                inner = url_field[0]
+                                if isinstance(inner, dict):
+                                    normalized = inner.get('url') or inner.get('href')
+                                elif isinstance(inner, str):
+                                    normalized = inner
+                            elif isinstance(url_field, str):
+                                normalized = url_field
+                        if normalized:
+                            image_sources.append({"type": "media_thumbnail_normalized", "url": normalized})
+                    except Exception:
+                        pass
                 if hasattr(entry, 'media_content'):
                     image_sources.append({"type": "media_content", "data": entry.media_content})
                 if hasattr(entry, 'enclosures'):
