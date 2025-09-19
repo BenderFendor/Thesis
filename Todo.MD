@@ -11,6 +11,11 @@ Also update the source page to work with the new backend and add a like toggle f
 The font like the main main header one should be like garamond or some seirf then it should use geisit for the most of the other fonts.
 Also there is no hover animation or color for any of the button on this page and the backgroudns and secondy backgruonds are the same color I like the dark black but there should be a lighter black for the other panels like 20% lighter
 
+# Image source debugging
+For this Im thinking we have to add like errors for parsing but what type of error. Like image found but not parsedable by frontend. No images in the json/source at all. Images founded and we can use them but it still doesn't any us to display them idk why?
+
+# The stream vs static source.
+I don't really understand why that exist it really show be the same thing and just two parts of it right now it is coded like two different features instead of one fused backend feature for getting sources.
 
 # Add a logger feature
 So it like turns the debug print logs off or on

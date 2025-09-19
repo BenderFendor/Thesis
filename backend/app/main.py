@@ -606,7 +606,15 @@ def parse_rss_feed(url: str, source_name: str, source_info: Dict) -> List[NewsAr
                 img_match = re.search(r'<img[^>]+src="([^"]+)"', entry.content_encoded)
                 if img_match:
                     image_url = img_match.group(1)
-
+                    
+            # if there is no images just take any link that ends with jpg/png/gif
+            if not image_url:
+                if hasattr(entry, 'links') and entry.links:
+                    for link in entry.links:
+                        href = link.get('href', '')
+                        if re.search(r'\.(jpg|jpeg|png|gif)$', href, re.IGNORECASE):
+                            image_url = href
+                            break
             # If still no image, use channel-level image as fallback
             if not image_url and channel_image_url:
                 image_url = channel_image_url
