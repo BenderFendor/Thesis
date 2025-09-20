@@ -1040,7 +1040,7 @@ async def get_news_by_source(source_name: str):
     return source_articles
 
 @app.get("/news/category/{category_name}", response_model=NewsResponse)
-async def get_news_by_category(category_name: str, limit: int = 30):
+async def get_news_by_category(category_name: str, limit: int = 1000000):
     """Get news from a specific category from cached data"""
     # Get articles from cache and filter by category
     all_articles = news_cache.get_articles()
@@ -1049,8 +1049,8 @@ async def get_news_by_category(category_name: str, limit: int = 30):
     # Get unique sources for this category
     sources_included = list(set(article.source for article in category_articles))
     
-    # Limit results
-    limited_articles = category_articles[:limit]
+    # Limit results # Removed this limit
+    limited_articles = category_articles[:limit] 
     
     return NewsResponse(
         articles=limited_articles,

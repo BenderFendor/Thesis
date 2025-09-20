@@ -392,7 +392,7 @@ export async function getSourceById(id: string): Promise<NewsSource | undefined>
 
 export async function getArticlesByCountry(country: string): Promise<NewsArticle[]> {
   if (cachedArticles.length === 0) {
-    cachedArticles = await fetchNews({ limit: 1000 }); // Get more articles for filtering
+    cachedArticles = await fetchNews({ limit: 3000 }); // Get more articles for filtering
   }
   return cachedArticles.filter(article => 
     article.country.toLowerCase() === country.toLowerCase()
@@ -403,7 +403,7 @@ export async function getArticlesByCountry(country: string): Promise<NewsArticle
 export async function initializeData() {
   try {
     cachedSources = await fetchSources();
-    cachedArticles = await fetchNews({ limit: 100 });
+    cachedArticles = await fetchNews({ limit: 1000 });
   } catch (error) {
     console.error('Failed to initialize data:', error);
   }
