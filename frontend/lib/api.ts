@@ -50,6 +50,7 @@ export interface NewsArticle {
 // Add streaming interfaces
 export interface StreamOptions {
   useCache?: boolean;
+  category?: string;
   onProgress?: (progress: StreamProgress) => void;
   onSourceComplete?: (source: string, articles: NewsArticle[]) => void;
   onError?: (error: string) => void;
@@ -116,27 +117,7 @@ export async function fetchNews(params?: {
     }
     
     // Convert backend format to frontend format
-    articles = articles.map((article: any) => ({
-      id: Math.random(), // Generate a temporary ID since backend doesn't provide one
-      title: article.title,
-      source: article.source,
-      sourceId: article.source.toLowerCase(),
-      country: getCountryFromSource(article.source),
-      credibility: getCredibilityFromSource(article.source),
-      bias: getBiasFromSource(article.source),
-      summary: article.description,
-      content: article.description,
-      image: article.image || "/placeholder.svg",
-      publishedAt: article.published,
-      category: article.category,
-      url: article.link,
-      likes: Math.floor(Math.random() * 100),
-      comments: Math.floor(Math.random() * 50),
-      shares: Math.floor(Math.random() * 25),
-      tags: [article.category, article.source],
-      originalLanguage: "en",
-      translated: false
-    }));
+    articles = mapBackendArticles(articles);
     
     // Client-side search filtering if needed
     if (params?.search) {
@@ -563,27 +544,42 @@ export async function fetchSourceDebugData(sourceName: string): Promise<SourceDe
 }
 
 // Enhanced news streaming function
-export async function streamNews(options: StreamOptions = {}): Promise<{
-  articles: NewsArticle[];
-  sources: string[];
-  streamId?: string;
-  errors: string[];
-}> {
-  const { useCache = true, onProgress, onSourceComplete, onError, signal } = options;
+export function streamNews(options: StreamOptions = {}): {
+  promise: Promise<{
+    articles: NewsArticle[];
+    sources: string[];
+    streamId?: string;
+    errors: string[];
+  }>;
+  url: string;
+} {
+  const { useCache = true, category, onProgress, onSourceComplete, onError, signal } = options;
   
-  console.log(`🎯 Starting news stream with useCache=${useCache}`);
+  console.log(`🎯 Starting news stream with useCache=${useCache} and category=${category}`);
   
-  return new Promise((resolve, reject) => {
+  // Build SSE URL with parameters
+  const baseUrl = (process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000').replace(/\/+$/, '');
+  const params = new URLSearchParams({
+    use_cache: String(useCache),
+    immediate: 'false'
+  });
+  if (category) {
+    params.append('category', category);
+  }
+  const sseUrl = `${baseUrl}/news/stream?${params.toString()}`;
+  
+  const promise = new Promise<{
+    articles: NewsArticle[];
+    sources: string[];
+    streamId?: string;
+    errors: string[];
+  }>((resolve, reject) => {
     const articles: NewsArticle[] = [];
     const sources = new Set<string>();
     const errors: string[] = [];
     let streamId: string | undefined;
     let hasReceivedData = false;
     let settled = false;
-    
-    // Build SSE URL with parameters
-    const baseUrl = (process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000').replace(/\/+$/, '');
-    const sseUrl = `${baseUrl}/news/stream?use_cache=${useCache}&immediate=false`;
     
     console.log(`🔗 Connecting to unified stream endpoint: ${sseUrl}`);
     
@@ -627,7 +623,8 @@ export async function streamNews(options: StreamOptions = {}): Promise<{
     };
     if (signal) {
       if (signal.aborted) {
-        return handleAbort();
+        handleAbort();
+        return;
       }
       signal.addEventListener('abort', handleAbort, { once: true });
     }
@@ -636,10 +633,21 @@ export async function streamNews(options: StreamOptions = {}): Promise<{
       console.log('✅ SSE connection opened');
     };
     
-    eventSource.onmessage = (event) => {
+    eventSource.onmessage = (event: MessageEvent) => {
       try {
-        const data: StreamEvent = JSON.parse(event.data);
-        console.log(`📨 Stream event [${data.status}]:`, {
+        console.log(`[streamNews] Raw SSE event data:`, event.data);
+        
+        let data: StreamEvent;
+        try {
+          // First attempt to parse, assuming it's a clean JSON object string
+          data = JSON.parse(event.data);
+        } catch (e) {
+          // If it fails, it might be a string-encoded JSON (e.g. '"{\\"status\\":...}"')
+          console.warn(`[streamNews] First JSON.parse failed, attempting to re-parse as string-encoded JSON.`);
+          data = JSON.parse(JSON.parse(`"${event.data}"`));
+        }
+
+        console.log(`📬 Stream event [${data.status}]:`, {
           streamId: data.stream_id,
           source: data.source,
           articlesCount: data.articles?.length,
@@ -668,19 +676,27 @@ export async function streamNews(options: StreamOptions = {}): Promise<{
             
           case 'cache_data':
             hasReceivedData = true;
-            if (data.articles) {
+            if (data.articles && Array.isArray(data.articles)) {
               const mappedArticles = mapBackendArticles(data.articles);
               articles.push(...mappedArticles);
               mappedArticles.forEach(article => sources.add(article.source));
               
               console.log(`💾 Stream ${streamId} cache data: ${mappedArticles.length} articles (cache age: ${data.cache_age_seconds}s)`);
               
+              // Immediately notify about the cached articles
+              if (onSourceComplete) {
+                // We can use a special source name for cached data
+                onSourceComplete('cache', mappedArticles);
+              }
+
               onProgress?.({
-                completed: 0,
-                total: 0,
-                percentage: 0,
+                completed: sources.size, // Or some other logic for progress
+                total: sources.size, // Unsure of total at this point
+                percentage: 0, // Or calculate based on expected sources
                 message: `Loaded ${mappedArticles.length} cached articles`
               });
+            } else {
+                console.warn(`[streamNews] 'cache_data' event received but 'articles' is not an array or is missing.`, data);
             }
             break;
             
@@ -764,11 +780,11 @@ export async function streamNews(options: StreamOptions = {}): Promise<{
         
       } catch (error) {
         console.error('🚨 Error parsing stream event:', error, 'Raw data:', event.data);
-        onError?.(`Parse error: ${error}`);
+        onError?.(`Parse error: ${error instanceof Error ? error.message : String(error)}`);
       }
     };
     
-    eventSource.onerror = (error) => {
+    eventSource.onerror = (error: Event) => {
       console.error('🚨 SSE connection error:', error);
       clearTimeout(timeoutId);
       eventSource.close();
@@ -794,31 +810,42 @@ export async function streamNews(options: StreamOptions = {}): Promise<{
       }
     };
   });
+    
+  return { promise, url: sseUrl };
 }
+
+// A simple in-memory cache for API responses
+const apiCache = new Map<string, { data: any; timestamp: number }>();
 
 // Helper function to map backend articles to frontend format
 function mapBackendArticles(backendArticles: any[]): NewsArticle[] {
-  return backendArticles.map((article: any, index: number) => ({
-    id: Date.now() + index + Math.random(), // More unique ID
-    title: article.title || 'No title',
-    source: article.source || 'Unknown',
-    sourceId: (article.source || 'unknown').toLowerCase().replace(/\s+/g, '-'),
-    country: getCountryFromSource(article.source),
-    credibility: getCredibilityFromSource(article.source),
-    bias: getBiasFromSource(article.source),
-    summary: article.description || 'No description',
-    content: article.description || 'No description',
-    image: article.image || "/placeholder.svg",
-    publishedAt: article.published || new Date().toISOString(),
-    category: article.category || 'general',
-    url: article.link || '',
-    likes: Math.floor(Math.random() * 100),
-    comments: Math.floor(Math.random() * 50),
-    shares: Math.floor(Math.random() * 25),
-    tags: [article.category, article.source].filter(Boolean),
-    originalLanguage: "en",
-    translated: false
-  }));
+  console.log(`[mapBackendArticles] Mapping ${backendArticles.length} articles from backend format to frontend format.`);
+  return backendArticles.map((article: any, index: number) => {
+    // console.log(`[mapBackendArticles] Processing article at index ${index}:`, article);
+    const mappedArticle: NewsArticle = {
+      id: Date.now() + index + Math.random(), // More unique ID
+      title: article.title || 'No title',
+      source: article.source || 'Unknown',
+      sourceId: (article.source || 'unknown').toLowerCase().replace(/\s+/g, '-'),
+      country: getCountryFromSource(article.source),
+      credibility: getCredibilityFromSource(article.source),
+      bias: getBiasFromSource(article.source),
+      summary: article.description || 'No description',
+      content: article.description || 'No description',
+      image: article.image || "/placeholder.svg",
+      publishedAt: article.published || new Date().toISOString(),
+      category: article.category || 'general',
+      url: article.link || '',
+      likes: Math.floor(Math.random() * 100), // This should be removed
+      comments: Math.floor(Math.random() * 50),
+      shares: Math.floor(Math.random() * 25),
+      tags: [article.category, article.source].filter(Boolean),
+      originalLanguage: "en",
+      translated: false
+    };
+    //console.log(`[mapBackendArticles] Mapped article at index ${index}:`, mappedArticle);
+    return mappedArticle;
+  });
 }
 
 // Helper function to remove duplicate articles

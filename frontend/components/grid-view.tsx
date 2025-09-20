@@ -30,9 +30,10 @@ interface GridViewProps {
   articles: NewsArticle[]
   loading: boolean
   onCountChange?: (count: number) => void
+  apiUrl?: string | null
 }
 
-export function GridView({ articles, loading, onCountChange }: GridViewProps) {
+export function GridView({ articles, loading, onCountChange, apiUrl }: GridViewProps) {
   const [searchTerm, setSearchTerm] = useState("")
   const [selectedCategory, setSelectedCategory] = useState("All")
   const [selectedCountry, setSelectedCountry] = useState("All")
@@ -40,41 +41,6 @@ export function GridView({ articles, loading, onCountChange }: GridViewProps) {
   const [selectedArticle, setSelectedArticle] = useState<NewsArticle | null>(null)
   const [isArticleModalOpen, setIsArticleModalOpen] = useState(false)
   const gridRef = useRef<HTMLDivElement>(null)
-
-  // Traditional API loading function - removed, now handled by parent
-  // const loadNewsFromAPI = async (showLoading = true) => {
-  //   if (showLoading) setLoading(true)
-  //   console.log('🔄 Grid View: Fetching news from API...')
-  //   try {
-  //     const fetchedArticles = await fetchNews({ limit: 1000 }) // Get all articles
-  //     setArticles(fetchedArticles)
-  //     console.log(`🔄 Grid View: Loaded ${fetchedArticles.length} articles from API at ${new Date().toLocaleTimeString()}`)
-  //     
-  //     if (fetchedArticles.length === 0) {
-  //       console.log(`⚠️ Grid View: No articles loaded. This will show "No articles found" message.`)
-  //     }
-  //   } catch (error) {
-  //     console.error('Failed to load news:', error)
-  //   } finally {
-  //     if (showLoading) setLoading(false)
-  //   }
-  // }
-
-  // Initial load and refresh setup - removed, now handled by parent
-  // useEffect(() => {
-  //   setLoading(true)
-  //   console.log('🔄 Grid View: Starting news stream...')
-  //   streamHook.startStream()
-  //   // If no articles arrive within 7s, fall back to REST
-  //   const fallbackTimer = setTimeout(async () => {
-  //     if (articles.length === 0) {
-  //       console.log('⏳ No streamed articles yet; falling back to REST fetch')
-  //       await loadNewsFromAPI()
-  //     }
-  //   }, 7000)
-
-  //   return () => clearTimeout(fallbackTimer)
-  // }, [])
 
   const filteredNews = articles.filter((article: NewsArticle) => {
     const matchesSearch =
@@ -99,23 +65,42 @@ export function GridView({ articles, loading, onCountChange }: GridViewProps) {
 
   // Debug filtering results
   useEffect(() => {
-    console.log(`🔍 Grid View Filter Debug:`, {
-      totalArticles: articles.length,
-      filteredArticles: filteredNews.length,
-      filters: {
+    const requestInfo = {
+      sentUrl: apiUrl || `API call is handled by parent component`,
+      filtersApplied: {
         searchTerm,
         selectedCategory,
-        selectedCountry, 
-        selectedCredibility
-      }
-    });
-    
-    if (articles.length > 0 && filteredNews.length === 0) {
-      console.log(`⚠️ Grid View: Filters eliminated all articles. Original articles:`, 
-        articles.slice(0, 3).map(a => ({ title: a.title, category: a.category, country: a.country, credibility: a.credibility }))
-      );
+        selectedCountry,
+        selectedCredibility,
+      },
     }
-  }, [articles, filteredNews.length, searchTerm, selectedCategory, selectedCountry, selectedCredibility])
+
+    const responseInfo = {
+      totalArticlesReceived: articles.length,
+      filteredArticlesCount: filteredNews.length,
+      sampleArticles: articles.slice(0, 3).map(a => ({ 
+        title: a.title, 
+        category: a.category, 
+        country: a.country, 
+        credibility: a.credibility 
+      })),
+    }
+
+    console.log(`🔍 Grid View Filter Debug:`, {
+      requestInfo,
+      responseInfo,
+    })
+
+    if (articles.length > 0 && filteredNews.length === 0) {
+      console.log(
+        `⚠️ Grid View: Filters eliminated all articles.`,
+        { 
+          filters: requestInfo.filtersApplied, 
+          articlesPreview: responseInfo.sampleArticles 
+        }
+      )
+    }
+  }, [articles, filteredNews.length, searchTerm, selectedCategory, selectedCountry, selectedCredibility, apiUrl])
 
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {

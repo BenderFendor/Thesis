@@ -17,6 +17,7 @@ export const useNewsStream = (options: UseNewsStreamOptions = {}) => {
   const [sources, setSources] = useState<string[]>([])
   const [errors, setErrors] = useState<string[]>([])
   const [streamId, setStreamId] = useState<string>()
+  const [apiUrl, setApiUrl] = useState<string | null>(null)
 
   const streamPromiseRef = useRef<Promise<any> | null>(null)
   const abortControllerRef = useRef<AbortController | null>(null)
@@ -48,10 +49,12 @@ export const useNewsStream = (options: UseNewsStreamOptions = {}) => {
     setSources([])
     setErrors([])
     setStreamId(undefined)
+    setApiUrl(null)
 
     try {
-      const streamPromise = streamNews({
+      const streamData = streamNews({
         useCache: options.useCache ?? true,
+        category: options.category,
         ...streamOptions,
         signal: abortControllerRef.current.signal,
         onProgress: (progress) => {
@@ -79,9 +82,10 @@ export const useNewsStream = (options: UseNewsStreamOptions = {}) => {
         }
       });
 
-      streamPromiseRef.current = streamPromise;
+      streamPromiseRef.current = streamData.promise;
+      setApiUrl(streamData.url);
       
-      const result = await streamPromise;
+      const result = await streamData.promise;
       
       console.log('🏁 Stream completed:', {
         articlesCount: result.articles.length,
@@ -174,13 +178,13 @@ export const useNewsStream = (options: UseNewsStreamOptions = {}) => {
     // State
     isStreaming,
     articles,
-    progress: progress.percentage,
-    progressDetails: progress,
+    progress,
     status,
     currentMessage,
     sources,
     errors,
     streamId,
+    apiUrl,
     
     // Computed values
     completedSources: progress.completed,

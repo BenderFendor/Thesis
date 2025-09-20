@@ -18,6 +18,7 @@ import {
   Laptop,
   Trophy,
   Activity,
+  Newspaper,
 } from "lucide-react"
 import Link from "next/link"
 import { GlobeView } from "@/components/globe-view"
@@ -25,24 +26,26 @@ import { GridView } from "@/components/grid-view"
 import { ScrollView } from "@/components/scroll-view"
 import Footer from "@/components/footer"
 import { useNewsStream } from "@/hooks/useNewsStream"
-import { NewsArticle } from "@/lib/api"
+import { fetchCategories, NewsArticle } from "@/lib/api"
 
 type ViewMode = "globe" | "grid" | "scroll"
-type Category = "politics" | "games" | "fashion" | "hobbies" | "technology" | "sports"
 
-const categories = [
-  { id: "politics", label: "Politics", icon: Building2, description: "Political news and analysis" },
-  { id: "games", label: "Games", icon: Gamepad2, description: "Gaming industry and esports" },
-  { id: "fashion", label: "Fashion", icon: Shirt, description: "Fashion trends and industry news" },
-  { id: "hobbies", label: "Hobbies", icon: Palette, description: "Hobby communities and trends" },
-  { id: "technology", label: "Technology", icon: Laptop, description: "Tech innovations and startups" },
-  { id: "sports", label: "Sports", icon: Trophy, description: "Sports news and updates" },
-]
+const categoryIcons: { [key: string]: React.ElementType } = {
+  politics: Building2,
+  games: Gamepad2,
+  fashion: Shirt,
+  hobbies: Palette,
+  technology: Laptop,
+  sports: Trophy,
+  general: Newspaper,
+  all: Grid3X3,
+};
 
 export default function NewsPage() {
   const [currentView, setCurrentView] = useState<ViewMode>("globe")
   const [selectedCountry, setSelectedCountry] = useState<string | null>(null)
-  const [activeCategory, setActiveCategory] = useState<Category>("politics")
+  const [categories, setCategories] = useState<{ id: string; label: string; icon: React.ElementType }[]>([]);
+  const [activeCategory, setActiveCategory] = useState<string>("all")
   const [articleCount, setArticleCount] = useState<number>(0)
   const [headerHidden, setHeaderHidden] = useState<boolean>(false)
   const [footerHidden, setFooterHidden] = useState<boolean>(true)
@@ -56,42 +59,62 @@ export default function NewsPage() {
   const ticking = useRef<boolean>(false)
 
   // New: State for articles per category to avoid reloading on view switches
-  const [articlesByCategory, setArticlesByCategory] = useState<Record<Category, NewsArticle[]>>({
-    politics: [],
-    games: [],
-    fashion: [],
-    hobbies: [],
-    technology: [],
-    sports: [],
-  })
+  const [articlesByCategory, setArticlesByCategory] = useState<Record<string, NewsArticle[]>>({})
   const [loading, setLoading] = useState(false)
+  const [apiUrl, setApiUrl] = useState<string | null>(null)
+
+  useEffect(() => {
+    const getCategories = async () => {
+      const backendCategories = await fetchCategories();
+      const allCategories = ["all", ...backendCategories].map(cat => ({
+        id: cat,
+        label: cat.charAt(0).toUpperCase() + cat.slice(1),
+        icon: categoryIcons[cat] || Newspaper,
+      }));
+      setCategories(allCategories);
+      setArticlesByCategory(
+        allCategories.reduce((acc, cat) => ({ ...acc, [cat.id]: [] }), {})
+      );
+    };
+    getCategories();
+  }, []);
 
   // New: Stream hook at page level - fetches once per category
   const streamHook = useNewsStream({
-    onUpdate: useCallback((newArticles: NewsArticle[]) => {
+    onUpdate: (newArticles: NewsArticle[]) => {
       setArticlesByCategory((prev) => ({
         ...prev,
-        [activeCategory]: newArticles,  // Update only the active category
-      }))
-      setLoading(false)
-      console.log(`🔄 NewsPage: Stream updated ${newArticles.length} articles for ${activeCategory}`)
-    }, [activeCategory]),
-    onComplete: useCallback(() => {
-      console.log(`🔄 NewsPage: Stream completed for ${activeCategory}`)
-      setLoading(false)
-    }, [activeCategory]),
-    onError: useCallback((error: string) => {
-      console.error(`NewsPage: Stream error for ${activeCategory}:`, error)
-      setLoading(false)
-    }, [activeCategory]),
-  })
+        [activeCategory]: newArticles,
+      }));
+      setLoading(false);
+      console.log(`🔄 NewsPage: Stream updated ${newArticles.length} articles for ${activeCategory}`);
+    },
+    onComplete: (result: { articles: NewsArticle[]; sources: string[]; errors: string[] }) => {
+      console.log(`🔄 NewsPage: Stream completed for ${activeCategory}`, result);
+      setLoading(false);
+    },
+    onError: (error: string) => {
+      console.error(`NewsPage: Stream error for ${activeCategory}:`, error);
+      setLoading(false);
+    },
+  });
 
   // New: Start stream when category changes
   useEffect(() => {
     setLoading(true)
     console.log(`🔄 NewsPage: Starting stream for category: ${activeCategory}`)
-    streamHook.startStream()  // This will fetch for the new category
-  }, [activeCategory])  // Only restart on category change, not view change
+    
+    streamHook.startStream({
+      category: activeCategory === "all" ? undefined : activeCategory,
+    })
+
+  }, [activeCategory])
+
+  useEffect(() => {
+    if (streamHook.apiUrl) {
+      setApiUrl(streamHook.apiUrl);
+    }
+  }, [streamHook.apiUrl]);
 
   useEffect(() => {
     const header = headerRef.current
@@ -324,8 +347,8 @@ export default function NewsPage() {
         }}
       >
         <div className="container mx-auto px-4">
-          <Tabs value={activeCategory} onValueChange={(value) => setActiveCategory(value as Category)}>
-            <TabsList className="grid w-full grid-cols-6 bg-transparent h-auto p-0">
+          <Tabs value={activeCategory} onValueChange={(value) => setActiveCategory(value)}>
+            <TabsList className={`grid w-full grid-cols-${categories.length} bg-transparent h-auto p-0`}>
               {categories.map((category) => {
                 const IconComponent = category.icon
                 return (
@@ -375,7 +398,7 @@ export default function NewsPage() {
           </div>
         </div>
 
-        <Tabs value={activeCategory} onValueChange={(value) => setActiveCategory(value as Category)}>
+        <Tabs value={activeCategory} onValueChange={(value) => setActiveCategory(value)}>
           {categories.map((category) => {
             const IconComponent = category.icon
             return (
@@ -383,10 +406,17 @@ export default function NewsPage() {
                 {/* Content Views - Pass articles as props */}
                 <>
                   {currentView === "globe" && (
-                    <GlobeView key={`${category.id}-globe`} articles={articlesByCategory[category.id as Category]} loading={loading} />
+                    <GlobeView key={`${category.id}-globe`} articles={articlesByCategory[category.id]} loading={loading} />
                   )}
-                  {currentView === "grid" && <GridView key={`${category.id}-grid`} articles={articlesByCategory[category.id as Category]} loading={loading} onCountChange={setArticleCount} />}
-                  {currentView === "scroll" && <ScrollView key={`${category.id}-scroll`} articles={articlesByCategory[category.id as Category]} loading={loading} />}
+                  {currentView === "grid" && (
+                    <GridView
+                      articles={articlesByCategory[activeCategory] || []}
+                      loading={loading}
+                      onCountChange={setArticleCount}
+                      apiUrl={apiUrl}
+                    />
+                  )}
+                  {currentView === "scroll" && <ScrollView key={`${category.id}-scroll`} articles={articlesByCategory[category.id]} loading={loading} />}
                 </>
               </TabsContent>
             )
