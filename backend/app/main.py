@@ -1025,62 +1025,7 @@ async def read_root():
 async def health_check():
     return {"status": "healthy", "timestamp": datetime.now().isoformat()}
 
-@app.get("/news", response_model=NewsResponse)
-async def get_news(
-    limit: int = 50,
-    category: Optional[str] = None,
-    source: Optional[str] = None
-):
-    """Get aggregated news from cached data with enhanced debugging"""
-    start_time = time.time()
-    
-    # Get all articles from cache
-    all_articles = news_cache.get_articles()
-    cache_age = (datetime.now() - news_cache.last_updated).total_seconds()
-    
-    logger.info(f"📡 /news endpoint called - Cache: {len(all_articles)} articles (age: {cache_age:.1f}s), filters: category={category}, source={source}, limit={limit}")
-    
-    if len(all_articles) == 0:
-        logger.warning(f"⚠️ Cache is empty! Last updated: {news_cache.last_updated}, update in progress: {getattr(news_cache, 'update_in_progress', False)}")
-        # Check if cache refresh is stuck
-        if cache_age > 300:  # 5 minutes
-            logger.error(f"🚨 Cache is very stale ({cache_age:.1f}s)! Triggering manual refresh")
-            threading.Thread(target=refresh_news_cache, daemon=True).start()
-    
-    # Apply filters with debugging
-    filtered_articles = []
-    sources_included = set()
-    filter_stats = {"total": len(all_articles), "source_filtered": 0, "category_filtered": 0, "included": 0}
-    
-    for article in all_articles:
-        # Apply source filter
-        if source and article.source != source:
-            filter_stats["source_filtered"] += 1
-            continue
-        
-        # Apply category filter  
-        if category and article.category != category:
-            filter_stats["category_filtered"] += 1
-            continue
-        
-        filtered_articles.append(article)
-        sources_included.add(article.source)
-        filter_stats["included"] += 1
-    
-    # Limit results
-    limited_articles = filtered_articles[:limit]
-    processing_time = time.time() - start_time
-    
-    logger.info(f"🔍 /news filtering stats: {filter_stats}, final count: {len(limited_articles)}, processing time: {processing_time:.3f}s")
-    
-    if len(limited_articles) == 0 and len(all_articles) > 0:
-        logger.warning(f"⚠️ Filters too restrictive! Available categories: {set(a.category for a in all_articles[:10])}, sources: {set(a.source for a in all_articles[:10])}")
-    
-    return NewsResponse(
-        articles=limited_articles,
-        total=len(limited_articles),
-        sources=list(sources_included)
-    )
+# DEPRECATED: /news endpoint removed - use /news/stream?immediate=true instead
 
 @app.get("/news/source/{source_name}", response_model=List[NewsArticle])
 async def get_news_by_source(source_name: str):
@@ -1346,28 +1291,118 @@ async def get_source_debug_data(source_name: str):
         }
 
 @app.get("/news/stream")
-async def stream_news(request: Request, use_cache: bool = True):
+async def stream_news(request: Request, use_cache: bool = True, immediate: bool = False):
     """
-    Stream news articles with enhanced debugging and logic improvements.
+    Unified news endpoint supporting both streaming and static modes.
     
     Parameters:
-    - use_cache: If True, stream from cache + fresh updates. If False, fetch everything fresh.
+    - use_cache: If True, use cached data when available. If False, fetch everything fresh.
+    - immediate: If True, return all data at once as JSON. If False, stream data progressively.
     """
     
-    # Generate unique stream ID
+    # Generate unique stream ID for tracking
     stream_id = f"stream_{int(time.time())}_{random.randint(1000, 9999)}"
-    stream_logger.info(f"🎯 NEW STREAM REQUEST: {stream_id}, use_cache={use_cache}")
+    stream_logger.info(f"🎯 NEWS REQUEST: {stream_id}, use_cache={use_cache}, immediate={immediate}")
     
-    # Check active stream limits
-    active_count = stream_manager.get_active_stream_count()
-    if active_count >= 3:  # Limit concurrent streams
-        stream_logger.warning(f"🚫 Stream {stream_id} rejected: too many active streams ({active_count})")
-        async def error_stream():
-            yield f"data: {json.dumps({'status': 'error', 'message': f'Too many active streams ({active_count}). Please try again later.'})}\n\n"
-        return StreamingResponse(error_stream(), media_type="text/event-stream")
+    # Check active stream limits (only for streaming mode)
+    if not immediate:
+        active_count = stream_manager.get_active_stream_count()
+        if active_count >= 3:  # Limit concurrent streams
+            stream_logger.warning(f"🚫 Stream {stream_id} rejected: too many active streams ({active_count})")
+            async def error_stream():
+                yield f"data: {json.dumps({'status': 'error', 'message': f'Too many active streams ({active_count}). Please try again later.'})}\n\n"
+            return StreamingResponse(error_stream(), media_type="text/event-stream")
     
-    # Register stream
+    # Register stream for tracking
     stream_info = stream_manager.register_stream(stream_id)
+    
+    # For immediate mode, collect all data and return as JSON
+    if immediate:
+        stream_logger.info(f"⚡ {stream_id} using immediate mode - collecting all data")
+        
+        all_articles = []
+        all_source_stats = []
+        
+        # First, check cache if requested
+        if use_cache:
+            cached_articles = news_cache.get_articles()
+            cached_stats = news_cache.get_source_stats()
+            cache_age = (datetime.now() - news_cache.last_updated).total_seconds()
+            
+            if cached_articles and cache_age < 120:  # Cache is fresh
+                stream_logger.info(f"💾 {stream_id} using fresh cache: {len(cached_articles)} articles")
+                all_articles = cached_articles
+                all_source_stats = cached_stats
+            else:
+                stream_logger.info(f"⏰ {stream_id} cache stale ({cache_age:.1f}s), fetching fresh data")
+        
+        # If no cache or cache is stale, fetch fresh data
+        if not all_articles or len(all_articles) == 0:
+            stream_logger.info(f"🔄 {stream_id} fetching fresh data for immediate mode")
+            
+            loop = asyncio.get_event_loop()
+            sources_to_process = list(RSS_SOURCES.items())
+            
+            with concurrent.futures.ThreadPoolExecutor(max_workers=5) as executor:
+                future_to_source = {}
+                
+                for name, info in sources_to_process:
+                    # Check throttling
+                    should_throttle, wait_time = stream_manager.should_throttle_source(name)
+                    
+                    if should_throttle:
+                        stream_logger.info(f"⏳ {stream_id} throttling source {name} for {wait_time:.1f}s")
+                        async def delayed_process():
+                            await asyncio.sleep(wait_time)
+                            return await loop.run_in_executor(executor, _process_source_with_debug, name, info, stream_id)
+                        future = asyncio.create_task(delayed_process())
+                    else:
+                        future = loop.run_in_executor(executor, _process_source_with_debug, name, info, stream_id)
+                    
+                    future_to_source[future] = name
+                
+                # Process all futures
+                for future in asyncio.as_completed(list(future_to_source.keys())):
+                    try:
+                        articles, source_stat = await future
+                        source_name = source_stat.get('name', 'unknown')
+                        all_articles.extend(articles)
+                        all_source_stats.append(source_stat)
+                        stream_logger.info(f"✅ {stream_id} completed source {source_name}: {len(articles)} articles")
+                    except Exception as exc:
+                        source_name = future_to_source.get(future, "unknown")
+                        stream_logger.error(f"❌ {stream_id} error for {source_name}: {exc}")
+                        all_source_stats.append({
+                            'name': source_name,
+                            'status': 'error',
+                            'error': str(exc)
+                        })
+            
+            # Update cache with fresh data
+            if all_articles:
+                news_cache.update_cache(all_articles, all_source_stats)
+        
+        # Sort articles by published date
+        try:
+            all_articles.sort(key=lambda x: x.published, reverse=True)
+        except Exception as e:
+            stream_logger.warning(f"⚠️ {stream_id} couldn't sort articles: {e}")
+        
+        # Return as JSON response
+        stream_logger.info(f"🏁 {stream_id} immediate mode complete: {len(all_articles)} articles from {len(all_source_stats)} sources")
+        stream_manager.unregister_stream(stream_id)
+        
+        return {
+            "articles": [a.dict() for a in all_articles],
+            "total": len(all_articles),
+            "sources": list(set(a.source for a in all_articles)),
+            "source_stats": all_source_stats,
+            "stream_id": stream_id
+        }
+    
+    # Streaming mode (existing logic)
+    stream_logger.info(f"🚀 {stream_id} using streaming mode")
+    stream_manager.update_stream(stream_id, status="starting")
     
     async def event_generator():
         try:
@@ -1384,6 +1419,8 @@ async def stream_news(request: Request, use_cache: bool = True):
             stream_logger.debug(f"📤 Stream {stream_id} sending initial status")
             yield f"data: {json.dumps(initial_status)}\n\n"
             
+            # Check if we should use cache
+            cached_articles = []
             if use_cache:
                 stream_logger.info(f"💾 Stream {stream_id} using cache-first approach")
                 
@@ -1408,7 +1445,6 @@ async def stream_news(request: Request, use_cache: bool = True):
                     yield f"data: {json.dumps(cache_data)}\n\n"
                 
                 # Check if cache is fresh enough (less than 2 minutes old)
-                # Only consider cache fresh if it actually contains articles
                 if cache_age < 120 and len(cached_articles) > 0:
                     stream_logger.info(f"✅ Stream {stream_id} cache is fresh enough ({cache_age:.1f}s), ending stream")
                     final_data = {

@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect, useRef } from "react"
+import { useState, useEffect, useRef, useCallback } from "react"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
@@ -24,6 +24,8 @@ import { GlobeView } from "@/components/globe-view"
 import { GridView } from "@/components/grid-view"
 import { ScrollView } from "@/components/scroll-view"
 import Footer from "@/components/footer"
+import { useNewsStream } from "@/hooks/useNewsStream"
+import { NewsArticle } from "@/lib/api"
 
 type ViewMode = "globe" | "grid" | "scroll"
 type Category = "politics" | "games" | "fashion" | "hobbies" | "technology" | "sports"
@@ -42,7 +44,6 @@ export default function NewsPage() {
   const [selectedCountry, setSelectedCountry] = useState<string | null>(null)
   const [activeCategory, setActiveCategory] = useState<Category>("politics")
   const [articleCount, setArticleCount] = useState<number>(0)
-  const [liveOpen, setLiveOpen] = useState<boolean>(false)
   const [headerHidden, setHeaderHidden] = useState<boolean>(false)
   const [footerHidden, setFooterHidden] = useState<boolean>(true)
   const [isScrollingDown, setIsScrollingDown] = useState<boolean>(false)
@@ -53,6 +54,44 @@ export default function NewsPage() {
   const lastScrollY = useRef<number>(0)
   const scrollTimeoutRef = useRef<NodeJS.Timeout | null>(null)
   const ticking = useRef<boolean>(false)
+
+  // New: State for articles per category to avoid reloading on view switches
+  const [articlesByCategory, setArticlesByCategory] = useState<Record<Category, NewsArticle[]>>({
+    politics: [],
+    games: [],
+    fashion: [],
+    hobbies: [],
+    technology: [],
+    sports: [],
+  })
+  const [loading, setLoading] = useState(false)
+
+  // New: Stream hook at page level - fetches once per category
+  const streamHook = useNewsStream({
+    onUpdate: useCallback((newArticles: NewsArticle[]) => {
+      setArticlesByCategory((prev) => ({
+        ...prev,
+        [activeCategory]: newArticles,  // Update only the active category
+      }))
+      setLoading(false)
+      console.log(`🔄 NewsPage: Stream updated ${newArticles.length} articles for ${activeCategory}`)
+    }, [activeCategory]),
+    onComplete: useCallback(() => {
+      console.log(`🔄 NewsPage: Stream completed for ${activeCategory}`)
+      setLoading(false)
+    }, [activeCategory]),
+    onError: useCallback((error: string) => {
+      console.error(`NewsPage: Stream error for ${activeCategory}:`, error)
+      setLoading(false)
+    }, [activeCategory]),
+  })
+
+  // New: Start stream when category changes
+  useEffect(() => {
+    setLoading(true)
+    console.log(`🔄 NewsPage: Starting stream for category: ${activeCategory}`)
+    streamHook.startStream()  // This will fetch for the new category
+  }, [activeCategory])  // Only restart on category change, not view change
 
   useEffect(() => {
     const header = headerRef.current
@@ -328,34 +367,10 @@ export default function NewsPage() {
               <span className="hidden sm:inline-flex text-sm text-muted-foreground bg-card/20 px-2 py-1 rounded-md">{articleCount} article{articleCount === 1 ? '' : 's'}</span>
             </div>
 
-            {/* hover-expand live controls - collapsed to a small pill with icons, expands on hover */}
-            <div className="relative">
-              <div className="group flex items-center">
-                <div
-                  role="button"
-                  aria-expanded={liveOpen}
-                  onClick={() => setLiveOpen((v) => !v)}
-                  className="transition-all duration-200 ease-in-out bg-muted/50 rounded-md px-2 py-1 flex items-center gap-2 cursor-pointer group-hover:shadow-lg"
-                >
-                  <Button size="sm" variant="ghost" className="h-7 px-2 text-xs p-0">
-                    <span className="sr-only">Live Stream</span>
-                    <div className="w-3 h-3 rounded bg-emerald-500" />
-                  </Button>
-                  <div className="hidden md:flex items-center gap-2 opacity-80">
-                    <Button size="sm" className="h-7 px-3 text-xs">Live Stream</Button>
-                    <Button size="sm" variant="ghost" className="h-7 px-3 text-xs"><span className="sr-only">Start Stream</span>▶</Button>
-                    <Button size="sm" variant="ghost" className="h-7 px-3 text-xs"><span className="sr-only">Stop</span>⏹</Button>
-                  </div>
-                </div>
-                {/* expand panel on hover for small screens or click toggle */}
-                <div className={`absolute right-0 top-full mt-2 w-max transition-all duration-200 ${liveOpen ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none'} group-hover:opacity-100 group-hover:pointer-events-auto`}>
-                  <div className="bg-card border border-border p-2 rounded-md shadow-lg flex items-center gap-2">
-                    <Button size="sm" className="h-7 px-3 text-xs">Live Stream</Button>
-                    <Button size="sm" variant="ghost" className="h-7 px-3 text-xs">▶</Button>
-                    <Button size="sm" variant="ghost" className="h-7 px-3 text-xs">⏹</Button>
-                  </div>
-                </div>
-              </div>
+            {/* Live Stream Status - Always active */}
+            <div className="flex items-center gap-2">
+              <div className="w-3 h-3 rounded bg-emerald-500" />
+              <span className="text-sm text-muted-foreground hidden md:inline">Live Stream Active</span>
             </div>
           </div>
         </div>
@@ -365,13 +380,13 @@ export default function NewsPage() {
             const IconComponent = category.icon
             return (
               <TabsContent key={category.id} value={category.id} className="mt-0">
-                {/* Content Views */}
+                {/* Content Views - Pass articles as props */}
                 <>
                   {currentView === "globe" && (
-                    <GlobeView key={activeCategory + "-globe"} />
+                    <GlobeView key={`${category.id}-globe`} articles={articlesByCategory[category.id as Category]} loading={loading} />
                   )}
-                  {currentView === "grid" && <GridView key={activeCategory + "-grid"} onCountChange={setArticleCount} />}
-                  {currentView === "scroll" && <ScrollView key={activeCategory + "-scroll"} />}
+                  {currentView === "grid" && <GridView key={`${category.id}-grid`} articles={articlesByCategory[category.id as Category]} loading={loading} onCountChange={setArticleCount} />}
+                  {currentView === "scroll" && <ScrollView key={`${category.id}-scroll`} articles={articlesByCategory[category.id as Category]} loading={loading} />}
                 </>
               </TabsContent>
             )

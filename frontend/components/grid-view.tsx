@@ -11,7 +11,6 @@ import { ExternalLink, Search, Filter, Clock, MapPin, Info, Play, Square, Refres
 import { SourceInfoModal } from "./source-info-modal"
 import { ArticleDetailModal } from "./article-detail-modal"
 import { fetchNews, getSourceById, type NewsArticle } from "@/lib/api"
-import { useNewsStream } from "@/hooks/useNewsStream"
 
 const categories = [
   "All",
@@ -28,84 +27,54 @@ const countries = ["All", "United States", "United Kingdom", "Germany", "France"
 const credibilityLevels = ["All", "High", "Medium", "Low"]
 
 interface GridViewProps {
+  articles: NewsArticle[]
+  loading: boolean
   onCountChange?: (count: number) => void
 }
 
-export function GridView({ onCountChange }: GridViewProps) {
+export function GridView({ articles, loading, onCountChange }: GridViewProps) {
   const [searchTerm, setSearchTerm] = useState("")
   const [selectedCategory, setSelectedCategory] = useState("All")
   const [selectedCountry, setSelectedCountry] = useState("All")
   const [selectedCredibility, setSelectedCredibility] = useState("All")
   const [selectedArticle, setSelectedArticle] = useState<NewsArticle | null>(null)
   const [isArticleModalOpen, setIsArticleModalOpen] = useState(false)
-  const [articles, setArticles] = useState<NewsArticle[]>([])
-  const [loading, setLoading] = useState(false)
-  const [useStream, setUseStream] = useState(true)
   const gridRef = useRef<HTMLDivElement>(null)
 
-  // SSE Stream hook
-  const streamHook = useNewsStream({
-    onUpdate: useCallback((newArticles: NewsArticle[]) => {
-      setArticles(newArticles)
-      setLoading(false)
-      console.log(`🔄 Grid View: Stream updated with ${newArticles.length} articles`)
-    }, []),
-    onComplete: useCallback(() => {
-      console.log('🔄 Grid View: Stream completed')
-      setLoading(false)
-    }, []),
-    onError: useCallback((error: string) => {
-      console.error('Grid View: Stream error:', error)
-      setLoading(false)
-    }, [])
-  })
+  // Traditional API loading function - removed, now handled by parent
+  // const loadNewsFromAPI = async (showLoading = true) => {
+  //   if (showLoading) setLoading(true)
+  //   console.log('🔄 Grid View: Fetching news from API...')
+  //   try {
+  //     const fetchedArticles = await fetchNews({ limit: 1000 }) // Get all articles
+  //     setArticles(fetchedArticles)
+  //     console.log(`🔄 Grid View: Loaded ${fetchedArticles.length} articles from API at ${new Date().toLocaleTimeString()}`)
+  //     
+  //     if (fetchedArticles.length === 0) {
+  //       console.log(`⚠️ Grid View: No articles loaded. This will show "No articles found" message.`)
+  //     }
+  //   } catch (error) {
+  //     console.error('Failed to load news:', error)
+  //   } finally {
+  //     if (showLoading) setLoading(false)
+  //   }
+  // }
 
-  // Traditional API loading function
-  const loadNewsFromAPI = async (showLoading = true) => {
-    if (showLoading) setLoading(true)
-    console.log('🔄 Grid View: Fetching news from API...')
-    try {
-      const fetchedArticles = await fetchNews({ limit: 1000 }) // Get all articles
-      setArticles(fetchedArticles)
-      console.log(`🔄 Grid View: Loaded ${fetchedArticles.length} articles from API at ${new Date().toLocaleTimeString()}`)
-      
-      if (fetchedArticles.length === 0) {
-        console.log(`⚠️ Grid View: No articles loaded. This will show "No articles found" message.`)
-      }
-    } catch (error) {
-      console.error('Failed to load news:', error)
-    } finally {
-      if (showLoading) setLoading(false)
-    }
-  }
+  // Initial load and refresh setup - removed, now handled by parent
+  // useEffect(() => {
+  //   setLoading(true)
+  //   console.log('🔄 Grid View: Starting news stream...')
+  //   streamHook.startStream()
+  //   // If no articles arrive within 7s, fall back to REST
+  //   const fallbackTimer = setTimeout(async () => {
+  //     if (articles.length === 0) {
+  //       console.log('⏳ No streamed articles yet; falling back to REST fetch')
+  //       await loadNewsFromAPI()
+  //     }
+  //   }, 7000)
 
-  // Initial load and refresh setup with fallback if stream yields nothing
-  useEffect(() => {
-    let fallbackTimer: NodeJS.Timeout | undefined
-    if (useStream) {
-      setLoading(true)
-      console.log('🔄 Grid View: Starting news stream...')
-      streamHook.startStream()
-      // If no articles arrive within 7s, fall back to REST
-      fallbackTimer = setTimeout(async () => {
-        if (articles.length === 0) {
-          console.log('⏳ No streamed articles yet; falling back to REST fetch')
-          await loadNewsFromAPI()
-        }
-      }, 7000)
-    } else {
-      console.log('🔄 Grid View: Loading news from API...')
-      loadNewsFromAPI()
-      const refreshInterval = setInterval(() => {
-        console.log('🔄 Starting background article refresh...')
-        loadNewsFromAPI(false)
-      }, 5 * 60 * 1000)
-      return () => clearInterval(refreshInterval)
-    }
-    return () => {
-      if (fallbackTimer) clearTimeout(fallbackTimer)
-    }
-  }, [useStream])
+  //   return () => clearTimeout(fallbackTimer)
+  // }, [])
 
   const filteredNews = articles.filter((article: NewsArticle) => {
     const matchesSearch =
@@ -237,18 +206,6 @@ export function GridView({ onCountChange }: GridViewProps) {
           <div className="text-center">
             <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto mb-4"></div>
             <p className="text-muted-foreground">Loading news articles...</p>
-            {useStream && streamHook.isStreaming && (
-              <div className="mt-4 space-y-2">
-                <p className="text-sm text-muted-foreground">{streamHook.currentMessage}</p>
-                <div className="flex items-center justify-center gap-2">
-                  <Progress value={streamHook.progress} className="w-32" />
-                  <span className="text-sm">{streamHook.progress.toFixed(0)}%</span>
-                </div>
-                <p className="text-xs text-muted-foreground">
-                  {streamHook.completedSources}/{streamHook.totalSources} sources
-                </p>
-              </div>
-            )}
           </div>
         </div>
       </div>
@@ -266,11 +223,6 @@ export function GridView({ onCountChange }: GridViewProps) {
             <Badge variant="secondary" className="text-sm">
               {filteredNews.length} articles
             </Badge>
-            {useStream && streamHook.isStreaming && (
-              <Badge variant="outline" className="text-sm">
-                {streamHook.completedSources}/{streamHook.totalSources} sources
-              </Badge>
-            )}
           </div>
         </div>
         {/* Search and Filters */}

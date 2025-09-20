@@ -2,15 +2,19 @@
 
 import { useState } from "react"
 import { ThreeGlobe } from "./three-globe"
-import { SourceInfoModal, SourceInfoModalProps } from "./source-info-modal"
-import { newsData } from "@/lib/news-data"
+import { SourceInfoModal } from "./source-info-modal"
 import { ScrollView } from "./scroll-view"
 import { ArticleDetailModal } from "./article-detail-modal"
+import { NewsArticle } from "@/lib/api"
 
-export function GlobeView() {
+interface GlobeViewProps {
+  articles: NewsArticle[]
+  loading: boolean
+}
+
+export function GlobeView({ articles, loading }: GlobeViewProps) {
   const [selectedCountry, setSelectedCountry] = useState<string | null>(null)
   const [selectedArticle, setSelectedArticle] = useState<any | null>(null)
-  const [isSourceModalOpen, setIsSourceModalOpen] = useState(false)
   const [isArticleModalOpen, setIsArticleModalOpen] = useState(false)
 
   const handleCountrySelect = (country: string | null) => {
@@ -22,9 +26,10 @@ export function GlobeView() {
     setIsArticleModalOpen(true)
   }
 
-  const articles = selectedCountry
-    ? newsData.filter((article) => article.country === selectedCountry)
-    : newsData
+  // Filter articles by selected country if one is selected
+  const filteredArticles = selectedCountry
+    ? articles.filter((article) => article.country === selectedCountry)
+    : articles
 
   return (
     <div className="h-[calc(100vh-150px)] w-full bg-background text-foreground">
@@ -34,16 +39,11 @@ export function GlobeView() {
             <ThreeGlobe onCountrySelect={handleCountrySelect} selectedCountry={selectedCountry} />
           </div>
           <div className="h-full rounded-lg border">
-            <ScrollView
-              articles={articles}
-              onArticleSelect={handleArticleSelect}
-              onSourceClick={() => setIsSourceModalOpen(true)}
-            />
+            <ScrollView articles={filteredArticles} loading={loading} />
           </div>
         </div>
       </main>
 
-      <SourceInfoModal isOpen={isSourceModalOpen} onClose={() => setIsSourceModalOpen(false)} />
       <ArticleDetailModal isOpen={isArticleModalOpen} onClose={() => setIsArticleModalOpen(false)} article={selectedArticle} />
     </div>
   )

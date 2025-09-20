@@ -6,6 +6,8 @@ use docker compose to manage the multi-container setup.
 
 for python it uses .venv for virtual environment management.
 
+It uses tailwind as the css framework.
+
 When generating React component:
 
 - Always use TypeScript.

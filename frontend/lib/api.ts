@@ -88,12 +88,15 @@ export async function fetchNews(params?: {
 }): Promise<NewsArticle[]> {
   try {
     const searchParams = new URLSearchParams();
+    searchParams.append('immediate', 'true'); // Use immediate mode for static loading
+    searchParams.append('use_cache', 'true'); // Use cache by default
+    
     if (params?.limit) searchParams.append('limit', params.limit.toString());
-    if (params?.category) searchParams.append('category', params.category);
-    // Note: backend doesn't support search yet, so we'll filter client-side
+    // Note: category and search filtering will be done client-side for now
+    // The unified endpoint doesn't support these yet, but we can add them later
 
-    const url = `${API_BASE_URL}/news${searchParams.toString() ? '?' + searchParams.toString() : ''}`;
-    console.log(`🔄 Fetching news from: ${url}`);
+    const url = `${API_BASE_URL}/news/stream${searchParams.toString() ? '?' + searchParams.toString() : ''}`;
+    console.log(`🔄 Fetching news from unified endpoint: ${url}`);
     const response = await fetch(url);
     
     if (!response.ok) {
@@ -103,13 +106,13 @@ export async function fetchNews(params?: {
     const data = await response.json();
     console.log(`📡 Backend response:`, data);
     
-    // Backend returns { articles: [...], total: number, sources: [...] }
+    // Backend returns { articles: [...], total: number, sources: [...], stream_id: string }
     let articles = data.articles || [];
     
     if (articles.length === 0) {
       console.log(`⚠️ No articles received from backend. Full response:`, JSON.stringify(data, null, 2));
     } else {
-      console.log(`✅ Received ${articles.length} articles from backend`);
+      console.log(`✅ Received ${articles.length} articles from unified backend endpoint`);
     }
     
     // Convert backend format to frontend format
@@ -146,14 +149,23 @@ export async function fetchNews(params?: {
       console.log(`🔍 Search filter applied: ${beforeFilterCount} → ${articles.length} articles (search: "${params.search}")`);
     }
     
+    // Client-side category filtering if needed
+    if (params?.category) {
+      const beforeFilterCount = articles.length;
+      articles = articles.filter((article: NewsArticle) =>
+        article.category.toLowerCase() === params.category!.toLowerCase()
+      );
+      console.log(`🏷️ Category filter applied: ${beforeFilterCount} → ${articles.length} articles (category: "${params.category}")`);
+    }
+    
     if (articles.length === 0) {
       console.log(`❌ No articles to return after processing. Params:`, params);
     }
     
     return articles;
   } catch (error) {
-    console.error('❌ Failed to fetch news:', error);
-    return [];
+    console.error('Failed to fetch news from unified endpoint:', error);
+    throw error;
   }
 }
 
@@ -571,9 +583,9 @@ export async function streamNews(options: StreamOptions = {}): Promise<{
     
     // Build SSE URL with parameters
     const baseUrl = (process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000').replace(/\/+$/, '');
-    const sseUrl = `${baseUrl}/news/stream?use_cache=${useCache}`;
+    const sseUrl = `${baseUrl}/news/stream?use_cache=${useCache}&immediate=false`;
     
-    console.log(`🔗 Connecting to stream: ${sseUrl}`);
+    console.log(`🔗 Connecting to unified stream endpoint: ${sseUrl}`);
     
     const eventSource = new EventSource(sseUrl);
     let timeoutId: NodeJS.Timeout;
