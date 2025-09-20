@@ -1050,7 +1050,7 @@ async def get_news_by_category(category_name: str, limit: int = 1000000):
     sources_included = list(set(article.source for article in category_articles))
     
     # Limit results # Removed this limit
-    limited_articles = category_articles[:limit] 
+    limited_articles = category_articles
     
     return NewsResponse(
         articles=limited_articles,
