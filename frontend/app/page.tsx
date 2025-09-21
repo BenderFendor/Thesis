@@ -28,7 +28,7 @@ import Footer from "@/components/footer"
 import { useNewsStream } from "@/hooks/useNewsStream"
 import { fetchCategories, NewsArticle } from "@/lib/api"
 import { ErrorBoundary } from '@/components/ErrorBoundary';
-import { NotificationsPopup } from '@/components/notification-popup';
+import { NotificationsPopup, Notification } from '@/components/notification-popup';
 
 type ViewMode = "globe" | "grid" | "scroll"
 
@@ -59,7 +59,8 @@ function NewsPage() {
   const lastScrollY = useRef<number>(0)
   const scrollTimeoutRef = useRef<NodeJS.Timeout | null>(null)
   const ticking = useRef<boolean>(false)
-  const [showNotifications, setShowNotifications] = useState(false)
+  const [showNotifications, setShowNotifications] = useState(false);
+  const [notifications, setNotifications] = useState<Notification[]>([]);
 
   // New: State for articles per category to avoid reloading on view switches
   const [articlesByCategory, setArticlesByCategory] = useState<Record<string, NewsArticle[]>>({})
@@ -146,6 +147,27 @@ function NewsPage() {
       setApiUrl(streamHook.apiUrl);
     }
   }, [streamHook.apiUrl]);
+
+  useEffect(() => {
+    const errorNotifications: Notification[] = streamHook.errors.map((error, index) => ({
+      id: `error-${index}`,
+      title: 'Stream Error',
+      description: error,
+      type: 'error',
+    }));
+    setNotifications(errorNotifications);
+  }, [streamHook.errors]);
+
+  const handleClearNotification = (id: string) => {
+    const notificationToClear = notifications.find(n => n.id === id);
+    if (notificationToClear) {
+      streamHook.removeError(notificationToClear.description);
+    }
+  };
+
+  const handleClearAllNotifications = () => {
+    streamHook.clearErrors();
+  };
 
   useEffect(() => {
     const header = headerRef.current
@@ -286,38 +308,6 @@ function NewsPage() {
         </div>
       )}
 
-      {/* Error state */}
-      {streamHook.errors.length > 0 && !streamHook.isStreaming && (
-        <div className="border-l-4 p-4 m-4 rounded-md fixed bottom-4 right-4 z-50 shadow-lg" style={{ backgroundColor: 'var(--card)', borderColor: 'var(--destructive)', color: 'var(--destructive-foreground)' }}>
-          <div className="flex">
-            <div className="flex-shrink-0">
-              <svg className="h-5 w-5" style={{ color: 'var(--destructive)' }} viewBox="0 0 20 20" fill="currentColor">
-                <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
-              </svg>
-            </div>
-            <div className="ml-3">
-              <h3 className="text-sm font-medium" style={{ color: 'var(--destructive-foreground)' }}>
-                {streamHook.errors.length} error{streamHook.errors.length !== 1 ? 's' : ''} occurred
-              </h3>
-              <div className="mt-2 text-sm" style={{ color: 'var(--destructive-foreground)' }}>
-                <ul className="list-disc pl-5 space-y-1">
-                  {streamHook.errors.slice(0, 2).map((error, index) => (
-                    <li key={index}>{error}</li>
-                  ))}
-                </ul>
-              </div>
-              <div className="mt-4">
-                <button
-                  onClick={handleRetry}
-                  className="px-4 py-2 rounded-md" style={{ backgroundColor: 'var(--card)', color: 'var(--destructive-foreground)' }}
-                >
-                  Retry Loading
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
 
       {/* Header */}
       <header
@@ -410,9 +400,11 @@ function NewsPage() {
                 </Link>
                 <Button variant="ghost" size="sm" className="relative" onClick={() => setShowNotifications(!showNotifications)}>
                   <Bell className="w-4 h-4" />
-                  <Badge className="absolute -top-1 -right-1 w-2 h-2 p-0 bg-destructive" />
+                  {notifications.length > 0 && (
+                    <Badge className="absolute -top-1 -right-1 w-4 h-4 p-0 flex items-center justify-center text-xs bg-destructive">{notifications.length}</Badge>
+                  )}
                 </Button>
-                {showNotifications && <NotificationsPopup />}
+                {showNotifications && <NotificationsPopup notifications={notifications} onClear={handleClearNotification} onClearAll={handleClearAllNotifications} />}
                 <Link href="/settings">
                   <Button variant="ghost" size="sm">
                     <Settings className="w-4 h-4" />

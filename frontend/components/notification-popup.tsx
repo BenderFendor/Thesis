@@ -1,48 +1,64 @@
-import { Bell } from 'lucide-react';
+import { Bell, XCircle } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 
-const notifications = [
-  {
-    id: 1,
-    title: 'New Feature Alert',
-    description: 'We\'ve just launched a new feature that you might like.',
-    time: '15m ago',
-    read: false,
-  },
-  {
-    id: 2,
-    title: 'System Update',
-    description: 'Our servers will be down for maintenance tonight.',
-    time: '1h ago',
-    read: true,
-  },
-  {
-    id: 3,
-    title: 'Your subscription is expiring soon',
-    description: 'Please update your billing information.',
-    time: '1d ago',
-    read: false,
-  },
-];
+export interface Notification {
+  id: string;
+  title: string;
+  description: string;
+  type: 'error' | 'info' | 'success';
+}
 
-export function NotificationsPopup() {
+interface NotificationsPopupProps {
+  notifications: Notification[];
+  onClear: (id: string) => void;
+  onClearAll: () => void;
+}
+
+export function NotificationsPopup({ notifications, onClear, onClearAll }: NotificationsPopupProps) {
+  const unreadCount = notifications.length;
+
   return (
-    <Card className="absolute top-12 right-0 w-80 rounded-lg shadow-lg z-50" style={{ backgroundColor: 'var(--news-bg-secondary)', borderColor: 'var(--border)' }}>
-      <CardHeader className="flex flex-row items-center justify-between">
-        <CardTitle className="text-lg font-bold">Notifications</CardTitle>
-        <Badge variant="destructive">{notifications.filter(n => !n.read).length} new</Badge>
-      </CardHeader>
-      <CardContent>
-        <div className="flex flex-col gap-4">
-          {notifications.map(notification => (
-            <div key={notification.id} className={`p-2 rounded-md ${notification.read ? '' : 'bg-primary/10'}`}>
-              <div className="font-semibold">{notification.title}</div>
-              <p className="text-sm" style={{ color: 'var(--muted-foreground)' }}>{notification.description}</p>
-              <div className="text-xs mt-1" style={{ color: 'var(--muted-foreground)' }}>{notification.time}</div>
-            </div>
-          ))}
+    <Card className="absolute top-16 right-0 w-96 rounded-xl shadow-2xl z-50 border-2 backdrop-blur-xl" style={{ backgroundColor: 'rgba(var(--card-rgb), 0.8)', borderColor: 'var(--border)' }}>
+      <CardHeader className="flex flex-row items-center justify-between p-4 border-b" style={{ borderColor: 'var(--border)' }}>
+        <div className="flex items-center gap-2">
+          <Bell className="w-5 h-5" />
+          <CardTitle className="text-lg font-semibold">Notifications</CardTitle>
         </div>
+        {unreadCount > 0 && (
+          <Badge variant="destructive" className="px-2.5 py-1 text-xs font-bold rounded-full">{unreadCount}</Badge>
+        )}
+      </CardHeader>
+      <CardContent className="p-0">
+        {notifications.length > 0 ? (
+          <div className="flex flex-col max-h-96 overflow-y-auto">
+            {notifications.map(notification => (
+              <div key={notification.id} className="flex items-start gap-4 p-4 border-b hover:bg-muted/50 transition-colors" style={{ borderColor: 'var(--border)' }}>
+                <div className="mt-1">
+                  <XCircle className="w-5 h-5 text-destructive" />
+                </div>
+                <div className="flex-1">
+                  <div className="font-semibold text-sm">{notification.title}</div>
+                  <p className="text-xs" style={{ color: 'var(--muted-foreground)' }}>{notification.description}</p>
+                </div>
+                <button onClick={() => onClear(notification.id)} className="text-muted-foreground hover:text-foreground transition-colors">
+                  <XCircle className="w-4 h-4" />
+                </button>
+              </div>
+            ))}
+            <div className="p-2 text-center border-t" style={{ borderColor: 'var(--border)' }}>
+                <button onClick={onClearAll} className="text-sm font-medium text-primary hover:underline">
+                    Clear all notifications
+                </button>
+            </div>
+          </div>
+        ) : (
+          <div className="p-8 text-center">
+            <Bell className="mx-auto w-12 h-12 text-muted-foreground/50" />
+            <p className="mt-4 text-sm font-medium" style={{ color: 'var(--muted-foreground)' }}>You're all caught up!</p>
+            <p className="mt-1 text-xs" style={{ color: 'var(--muted-foreground)' }}>No new notifications.</p>
+          </div>
+        )}
       </CardContent>
     </Card>
   );

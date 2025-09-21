@@ -173,6 +173,18 @@ export const useNewsStream = (options: UseNewsStreamOptions = {}) => {
     };
   }, [abortStream]);
 
+  const clearErrors = useCallback(() => {
+    if (isMountedRef.current) {
+      setErrors([]);
+    }
+  }, []);
+
+  const removeError = useCallback((errorToRemove: string) => {
+    if (isMountedRef.current) {
+      setErrors(prev => prev.filter(error => error !== errorToRemove));
+    }
+  }, []);
+
   return {
     // State
     isStreaming,
@@ -195,6 +207,8 @@ export const useNewsStream = (options: UseNewsStreamOptions = {}) => {
     // Actions
     startStream,
     abortStream,
+    clearErrors,
+    removeError,
     retryCount,
     maxRetries
   }
