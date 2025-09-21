@@ -27,6 +27,7 @@ import { ScrollView } from "@/components/scroll-view"
 import Footer from "@/components/footer"
 import { useNewsStream } from "@/hooks/useNewsStream"
 import { fetchCategories, NewsArticle } from "@/lib/api"
+import { ErrorBoundary } from '@/components/ErrorBoundary';
 
 type ViewMode = "globe" | "grid" | "scroll"
 
@@ -41,7 +42,7 @@ const categoryIcons: { [key: string]: React.ElementType } = {
   all: Grid3X3,
 };
 
-export default function NewsPage() {
+function NewsPage() {
   const [currentView, setCurrentView] = useState<ViewMode>("globe")
   const [selectedCountry, setSelectedCountry] = useState<string | null>(null)
   const [categories, setCategories] = useState<{ id: string; label: string; icon: React.ElementType }[]>([]);
@@ -79,36 +80,64 @@ export default function NewsPage() {
     getCategories();
   }, []);
 
-  // New: Stream hook at page level - fetches once per category
   const streamHook = useNewsStream({
     onUpdate: (newArticles: NewsArticle[]) => {
-      setArticlesByCategory((prev) => ({
-        ...prev,
-        [activeCategory]: newArticles,
-      }));
-      setLoading(false);
-      console.log(`🔄 NewsPage: Stream updated ${newArticles.length} articles for ${activeCategory}`);
-    },
-    onComplete: (result: { articles: NewsArticle[]; sources: string[]; errors: string[] }) => {
-      console.log(`🔄 NewsPage: Stream completed for ${activeCategory}`, result);
+      setArticlesByCategory(prev => {
+        const updated = {
+          ...prev,
+          [activeCategory]: newArticles
+        };
+        return updated;
+      });
       setLoading(false);
     },
-    onError: (error: string) => {
-      console.error(`NewsPage: Stream error for ${activeCategory}:`, error);
+    onComplete: (result) => {
+      setLoading(false);
+      setArticleCount(result.articles.length);
+    },
+    onError: (error) => {
+      console.error(`❌ Stream error for ${activeCategory}:`, error);
       setLoading(false);
     },
+    autoStart: false // We'll start it manually
   });
 
-  // New: Start stream when category changes
+  // Load articles when category changes
   useEffect(() => {
-    setLoading(true)
-    console.log(`🔄 NewsPage: Starting stream for category: ${activeCategory}`)
-    
-    streamHook.startStream({
-      category: activeCategory === "all" ? undefined : activeCategory,
-    })
+    const loadArticles = async () => {
+      if (streamHook.isStreaming) {
+        streamHook.abortStream();
+      }
+      
+      setLoading(true);
+      
+      try {
+        // Clear previous articles for this category
+        setArticlesByCategory(prev => ({
+          ...prev,
+          [activeCategory]: []
+        }));
+        
+        // Start the stream with the current category
+        await streamHook.startStream({ 
+          category: activeCategory === 'all' ? undefined : activeCategory 
+        });
+      } catch (error) {
+        console.error('Failed to load articles:', error);
+      } finally {
+        setLoading(false);
+      }
+    };
 
-  }, [activeCategory])
+    loadArticles();
+    
+    // Cleanup function
+    return () => {
+      if (streamHook.isStreaming) {
+        streamHook.abortStream();
+      }
+    };
+  }, [activeCategory]);
 
   useEffect(() => {
     if (streamHook.apiUrl) {
@@ -205,8 +234,89 @@ export default function NewsPage() {
     }
   }, [isScrollingDown])
 
+  const handleRetry = () => {
+    setArticlesByCategory(prev => ({
+      ...prev,
+      [activeCategory]: []
+    }));
+    streamHook.startStream({ 
+      category: activeCategory === 'all' ? undefined : activeCategory 
+    });
+  };
+
   return (
-    <div className="min-h-screen bg-background dark">
+    <div className="min-h-screen text-white" style={{ backgroundColor: 'var(--news-bg-primary)' }}>
+      {/* Enhanced Loading state */}
+      {(loading || streamHook.isStreaming) && (
+        <div className="fixed inset-0 flex items-center justify-center z-50" style={{ backgroundColor: 'var(--news-bg-primary)' }}>
+          <div className="relative
+            before:absolute before:inset-0 before:bg-gradient-to-r before:from-emerald-500/20 before:to-transparent before:animate-[shimmer_2s_infinite] before:rounded-full
+            after:absolute after:inset-0 after:bg-gradient-to-r after:from-emerald-500/10 after:via-emerald-500/20 after:to-emerald-500/10 after:animate-[shimmer_2s_infinite] after:rounded-full
+            after:blur-xl
+            before:blur-xl
+            ">
+            <div className="relative z-10 p-8 rounded-2xl border shadow-2xl backdrop-blur-sm" style={{ backgroundColor: 'var(--news-bg-secondary)', borderColor: 'var(--border)' }}>
+              <div className="flex flex-col items-center">
+                <div className="relative">
+                  <div className="w-16 h-16 border-4 rounded-full" style={{ borderColor: 'var(--muted)' }}></div>
+                  <div className="absolute top-0 left-0 w-16 h-16 border-t-4 border-emerald-400 rounded-full animate-spin"></div>
+                  <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 text-emerald-400">
+                    <Newspaper className="w-6 h-6" />
+                  </div>
+                </div>
+                <h3 className="mt-6 text-xl font-semibold text-white">Fetching the latest news</h3>
+                <p className="mt-2 text-sm max-w-xs text-center" style={{ color: 'var(--muted-foreground)' }}>
+                  {streamHook.currentMessage || 'Scanning global sources...'}
+                </p>
+                {streamHook.retryCount > 0 && (
+                  <div className="mt-4 px-4 py-2 rounded-full border" style={{ backgroundColor: 'var(--news-bg-secondary)', borderColor: 'var(--ring)', color: 'var(--ring)' }}>
+                    <p className="text-sm">
+                      Retry attempt {streamHook.retryCount}/{streamHook.maxRetries}
+                    </p>
+                  </div>
+                )}
+                <div className="mt-6 w-48 h-1 rounded-full overflow-hidden" style={{ backgroundColor: 'var(--muted)' }}>
+                  <div className="h-full bg-gradient-to-r from-emerald-400 to-cyan-400 animate-pulse"></div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Error state */}
+      {streamHook.errors.length > 0 && !streamHook.isStreaming && (
+        <div className="border-l-4 p-4 m-4 rounded-md fixed bottom-4 right-4 z-50 shadow-lg" style={{ backgroundColor: 'var(--card)', borderColor: 'var(--destructive)', color: 'var(--destructive-foreground)' }}>
+          <div className="flex">
+            <div className="flex-shrink-0">
+              <svg className="h-5 w-5" style={{ color: 'var(--destructive)' }} viewBox="0 0 20 20" fill="currentColor">
+                <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
+              </svg>
+            </div>
+            <div className="ml-3">
+              <h3 className="text-sm font-medium" style={{ color: 'var(--destructive-foreground)' }}>
+                {streamHook.errors.length} error{streamHook.errors.length !== 1 ? 's' : ''} occurred
+              </h3>
+              <div className="mt-2 text-sm" style={{ color: 'var(--destructive-foreground)' }}>
+                <ul className="list-disc pl-5 space-y-1">
+                  {streamHook.errors.slice(0, 2).map((error, index) => (
+                    <li key={index}>{error}</li>
+                  ))}
+                </ul>
+              </div>
+              <div className="mt-4">
+                <button
+                  onClick={handleRetry}
+                  className="px-4 py-2 rounded-md" style={{ backgroundColor: 'var(--card)', color: 'var(--destructive-foreground)' }}
+                >
+                  Retry Loading
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Header */}
       <header
         ref={headerRef}
@@ -217,7 +327,7 @@ export default function NewsPage() {
           const windowHeight = window.innerHeight
           const isNearTop = currentScrollY <= 150
           const isNearBottom = currentScrollY >= documentHeight - windowHeight - 200
-          
+
           if (isNearTop || isNearBottom) {
             setHeaderHidden(false)
           }
@@ -228,13 +338,15 @@ export default function NewsPage() {
           const documentHeight = document.body.offsetHeight
           const windowHeight = window.innerHeight
           const isInMiddle = currentScrollY > 150 && currentScrollY < documentHeight - windowHeight - 200
-          
+
           if (isInMiddle) {
             setHeaderHidden(true)
           }
         }}
-        className="border-b border-border bg-card/50 backdrop-blur-sm fixed top-0 left-0 right-0 z-50 transform transition-transform duration-300"
+        className="border-b fixed top-0 left-0 right-0 z-50 transform transition-all duration-300 shadow-lg"
         style={{
+          borderColor: 'var(--border)',
+          backgroundColor: 'var(--news-bg-secondary)',
           transform: headerHidden
             ? `translateY(${-(headerHeightRef.current ? headerHeightRef.current - 8 : 65)}px)`
             : "translateY(0)"
@@ -249,14 +361,14 @@ export default function NewsPage() {
               </div>
               <div>
                 <h1 className="text-2xl font-bold font-serif text-foreground">Scoop</h1>
-                <p className="text-xs text-muted-foreground">Multi-perspective news aggregation from around the globe</p>
+                <p className="text-xs" style={{ color: 'var(--muted-foreground)' }}>Multi-perspective news aggregation from around the globe</p>
               </div>
             </div>
 
             {/* Header Actions */}
             <div className="flex items-center gap-3">
               {/* View Toggle */}
-              <div className="flex items-center gap-2 bg-muted rounded-lg p-1">
+              <div className="flex items-center gap-2 rounded-lg p-1" style={{ backgroundColor: 'var(--muted)' }}>
                 <Button
                   variant={currentView === "globe" ? "default" : "ghost"}
                   size="sm"
@@ -311,8 +423,8 @@ export default function NewsPage() {
       </header>
 
       {/* Category Navigation */}
-      <nav 
-        ref={navRef} 
+      <nav
+        ref={navRef}
         onMouseEnter={() => {
           // Only show on hover if near top or bottom of page
           const currentScrollY = window.scrollY
@@ -320,7 +432,7 @@ export default function NewsPage() {
           const windowHeight = window.innerHeight
           const isNearTop = currentScrollY <= 150
           const isNearBottom = currentScrollY >= documentHeight - windowHeight - 200
-          
+
           if (isNearTop || isNearBottom) {
             setHeaderHidden(false)
           }
@@ -331,15 +443,17 @@ export default function NewsPage() {
           const documentHeight = document.body.offsetHeight
           const windowHeight = window.innerHeight
           const isInMiddle = currentScrollY > 150 && currentScrollY < documentHeight - windowHeight - 200
-          
+
           if (isInMiddle) {
             setHeaderHidden(true)
           }
         }}
-        className="border-b border-border bg-background/95 backdrop-blur-sm fixed left-0 right-0 z-40 transform transition-all duration-300"
+        className="border-b fixed left-0 right-0 z-40 transform transition-all duration-300 shadow-md"
         style={{
-          top: headerHidden 
-            ? `${8}px` 
+          borderColor: 'var(--border)',
+          backgroundColor: 'var(--news-bg-secondary)',
+          top: headerHidden
+            ? `${8}px`
             : `${headerHeightRef.current || 73}px`,
           transform: headerHidden
             ? `translateY(${-(navHeightRef.current ? navHeightRef.current - 6 : 54)}px)`
@@ -348,14 +462,18 @@ export default function NewsPage() {
       >
         <div className="container mx-auto px-4">
           <Tabs value={activeCategory} onValueChange={(value) => setActiveCategory(value)}>
-            <TabsList className={`grid w-full grid-cols-${categories.length} bg-transparent h-auto p-0`}>
+            <TabsList className="flex w-full bg-transparent h-auto p-0">
               {categories.map((category) => {
                 const IconComponent = category.icon
                 return (
                   <TabsTrigger
                     key={category.id}
                     value={category.id}
-                    className="flex flex-col items-center gap-1 py-3 px-2 rounded-md border-b-2 border-transparent data-[state=active]:border-emerald-500 data-[state=active]:bg-emerald-600/20 data-[state=active]:text-emerald-400"
+                    className="group flex-1 flex flex-col items-center gap-1 py-3 px-2 rounded-md border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:text-primary hover:bg-accent hover:text-accent-foreground transition-all duration-300 ease-in-out"
+                    style={{
+                      backgroundColor: 'transparent',
+                      color: 'var(--muted-foreground)'
+                    }}
                   >
                     <IconComponent className="w-5 h-5" />
                     <span className="text-xs font-medium">{category.label}</span>
@@ -368,10 +486,10 @@ export default function NewsPage() {
       </nav>
 
       {/* Main Content */}
-      <main 
-        className="container mx-auto px-4 py-6 transition-all duration-300" 
-        style={{ 
-          paddingTop: headerHidden 
+      <main
+        className="container mx-auto px-4 sm:px-6 lg:px-8 py-8 transition-all duration-300"
+        style={{
+          paddingTop: headerHidden
             ? `${20}px` // minimal spacing when header is hidden
             : `${(headerHeightRef.current || 73) + (navHeightRef.current || 48) + 24}px`, // full headers + spacing
           paddingBottom: footerHidden ? '24px' : '120px' // Extra space when footer is visible
@@ -381,19 +499,19 @@ export default function NewsPage() {
         <div className="flex items-center justify-between gap-4 mb-6">
           <div className="flex items-center gap-3 min-w-0">
             <h2 className="text-2xl font-bold font-serif text-foreground whitespace-nowrap">News Grid</h2>
-            <span className="text-sm text-muted-foreground truncate hidden sm:inline-block">Browse news articles from around the world</span>
+            <span className="text-sm truncate hidden sm:inline-block" style={{ color: 'var(--muted-foreground)' }}>Browse news articles from around the world</span>
           </div>
 
           <div className="flex items-center gap-3">
             {/* compact badges */}
             <div className="flex items-center gap-2">
-              <span className="hidden sm:inline-flex text-sm text-muted-foreground bg-card/20 px-2 py-1 rounded-md">{articleCount} article{articleCount === 1 ? '' : 's'}</span>
+              <span className="hidden sm:inline-flex text-sm bg-card/20 px-2 py-1 rounded-md" style={{ backgroundColor: 'var(--card)', color: 'var(--muted-foreground)' }}>{articleCount} article{articleCount === 1 ? '' : 's'}</span>
             </div>
 
             {/* Live Stream Status - Always active */}
             <div className="flex items-center gap-2">
-              <div className="w-3 h-3 rounded bg-emerald-500" />
-              <span className="text-sm text-muted-foreground hidden md:inline">Live Stream Active</span>
+              <div className="w-3 h-3 rounded" style={{ backgroundColor: 'var(--primary)' }} />
+              <span className="text-sm hidden md:inline" style={{ color: 'var(--muted-foreground)' }}>Live Stream Active</span>
             </div>
           </div>
         </div>
@@ -424,8 +542,15 @@ export default function NewsPage() {
         </Tabs>
       </main>
 
-      {/* Footer */}
-      <Footer hidden={footerHidden} />
+      {/* Footer removed as per request */}
     </div>
   )
+}
+
+export default function Page() {
+  return (
+    <ErrorBoundary>
+      <NewsPage />
+    </ErrorBoundary>
+  );
 }

@@ -1,4 +1,4 @@
-from fastapi import FastAPI, HTTPException, BackgroundTasks, Request
+from fastapi import FastAPI, HTTPException, BackgroundTasks, Request, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
 import feedparser
@@ -85,6 +85,30 @@ class StreamManager:
 
 # Global stream manager
 stream_manager = StreamManager()
+
+# WebSocket Connection Manager
+class ConnectionManager:
+    def __init__(self):
+        self.active_connections: List[WebSocket] = []
+
+    async def connect(self, websocket: WebSocket):
+        await websocket.accept()
+        self.active_connections.append(websocket)
+
+    def disconnect(self, websocket: WebSocket):
+        if websocket in self.active_connections:
+            self.active_connections.remove(websocket)
+
+    async def broadcast(self, message: Dict[str, Any]):
+        for connection in self.active_connections:
+            try:
+                await connection.send_text(json.dumps(message))
+            except Exception:
+                # On failure, disconnect the client
+                self.disconnect(connection)
+
+manager = ConnectionManager()
+
 
 # Data models
 class NewsArticle(BaseModel):
@@ -871,6 +895,26 @@ def refresh_news_cache():
     news_cache.update_cache(all_articles, source_stats)
     logger.info(f"✅ Cache refresh completed: {len(all_articles)} total articles")
 
+    # Notify WebSocket clients of the update
+    async def notify_clients():
+        await manager.broadcast({
+            "type": "cache_updated",
+            "message": "News cache has been updated",
+            "timestamp": datetime.now().isoformat(),
+            "stats": {
+                "total_articles": len(all_articles),
+                "sources_processed": len(source_stats),
+            }
+        })
+    # Run the async broadcast function
+    try:
+        asyncio.run(notify_clients())
+    except RuntimeError:
+        # In case an event loop is already running in the thread, schedule it
+        loop = asyncio.get_event_loop()
+        loop.create_task(notify_clients())
+
+
     if len(all_articles) == 0:
         logger.warning(f"⚠️ Cache refresh resulted in 0 articles! Check RSS sources.")
         working_sources = [s for s in source_stats if s['status'] == 'success']
@@ -1040,7 +1084,7 @@ async def get_news_by_source(source_name: str):
     return source_articles
 
 @app.get("/news/category/{category_name}", response_model=NewsResponse)
-async def get_news_by_category(category_name: str, limit: int = 1000000):
+async def get_news_by_category(category_name: str):
     """Get news from a specific category from cached data"""
     # Get articles from cache and filter by category
     all_articles = news_cache.get_articles()
@@ -1049,7 +1093,6 @@ async def get_news_by_category(category_name: str, limit: int = 1000000):
     # Get unique sources for this category
     sources_included = list(set(article.source for article in category_articles))
     
-    # Limit results # Removed this limit
     limited_articles = category_articles
     
     return NewsResponse(
@@ -1291,7 +1334,7 @@ async def get_source_debug_data(source_name: str):
         }
 
 @app.get("/news/stream")
-async def stream_news(request: Request, use_cache: bool = True, immediate: bool = False):
+async def stream_news(request: Request, use_cache: bool = True, immediate: bool = False, category: Optional[str] = None):
     """
     Unified news endpoint supporting both streaming and static modes.
     
@@ -1432,10 +1475,14 @@ async def stream_news(request: Request, use_cache: bool = True, immediate: bool 
                 stream_logger.info(f"📋 Stream {stream_id} found {len(cached_articles)} cached articles (age: {cache_age:.1f}s)")
                 
                 if cached_articles:
+                    # Filter by category if provided
+                    if category:
+                        cached_articles = [a for a in cached_articles if a.category == category]
+
                     cache_data = {
                         "status": "cache_data",
                         "stream_id": stream_id,
-                        "articles": [a.dict() for a in cached_articles[:50]],  # Limit initial burst
+                        "articles": [a.dict() for a in cached_articles],  # No limit on initial burst
                         "source_stats": cached_stats,
                         "cache_age_seconds": cache_age,
                         "message": f"Loaded {len(cached_articles)} cached articles",
@@ -1467,6 +1514,12 @@ async def stream_news(request: Request, use_cache: bool = True, immediate: bool 
             
             # Process sources with rate limiting awareness
             sources_to_process = list(RSS_SOURCES.items())
+
+            # Filter sources by category if provided
+            if category:
+                sources_to_process = [(name, info) for name, info in sources_to_process if info.get('category') == category]
+                stream_logger.info(f"Applied category filter '{category}', processing {len(sources_to_process)} sources.")
+
             stream_logger.info(f"📊 Stream {stream_id} will process {len(sources_to_process)} sources")
             
             with concurrent.futures.ThreadPoolExecutor(max_workers=5) as executor:  # Reduced concurrency
@@ -1631,6 +1684,17 @@ async def get_stream_status():
             "source_throttling": dict(stream_manager.source_last_accessed)
         }
 
+@app.websocket("/ws/news")
+async def websocket_endpoint(websocket: WebSocket):
+    await manager.connect(websocket)
+    try:
+        while True:
+            # Keep the connection alive
+            await websocket.receive_text()
+    except WebSocketDisconnect:
+        manager.disconnect(websocket)
+
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run(app, host="0.0.0.0", port=8000)
+

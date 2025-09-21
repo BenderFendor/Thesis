@@ -38,6 +38,11 @@
   --sidebar-accent-foreground: oklch(0.95 0 0);
   --sidebar-border: oklch(0.15 0 0);
   --sidebar-ring: oklch(0.6 0.15 160);
+
+  /* Custom theme colors for news app */
+  --news-bg-primary: #0C0C0C;
+  --news-bg-secondary: #181818;
+  --news-card-bg: #181818;
 }
 
 .dark {

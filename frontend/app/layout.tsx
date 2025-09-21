@@ -5,8 +5,8 @@ import { Analytics } from '@vercel/analytics/next'
 import './globals.css'
 
 export const metadata: Metadata = {
-  title: 'Global News Reader',
-  description: 'A multi-perspective news aggregation platform'
+  title: 'Scoop - Multi-perspective News',
+  description: 'A multi-perspective news aggregation platform with global coverage'
 }
 
 export default function RootLayout({
@@ -15,9 +15,11 @@ export default function RootLayout({
   children: React.ReactNode
 }>) {
   return (
-    <html lang="en">
-      <body className={`font-sans ${GeistSans.variable} ${GeistMono.variable}`}>
-        {children}
+    <html lang="en" className="dark" suppressHydrationWarning>
+      <body className={`font-sans text-white ${GeistSans.variable} ${GeistMono.variable}`} style={{ backgroundColor: 'var(--news-bg-primary)' }}>
+        <div className="min-h-screen" style={{ background: 'linear-gradient(to bottom, var(--news-bg-primary), var(--news-bg-secondary))' }}>
+          {children}
+        </div>
         <Analytics />
       </body>
     </html>

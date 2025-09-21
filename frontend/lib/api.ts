@@ -93,8 +93,7 @@ export async function fetchNews(params?: {
     searchParams.append('use_cache', 'true'); // Use cache by default
     
     if (params?.limit) searchParams.append('limit', params.limit.toString());
-    // Note: category and search filtering will be done client-side for now
-    // The unified endpoint doesn't support these yet, but we can add them later
+    if (params?.category) searchParams.append('category', params.category);
 
     const url = `${API_BASE_URL}/news/stream${searchParams.toString() ? '?' + searchParams.toString() : ''}`;
     console.log(`🔄 Fetching news from unified endpoint: ${url}`);
@@ -188,60 +187,13 @@ function getBiasFromSource(source: string): "left" | "center" | "right" {
 }
 
 export async function fetchNewsFromSource(sourceId: string): Promise<NewsArticle[]> {
-  try {
-    const url = `${API_BASE_URL}/news/source/${sourceId}`;
-    console.log(`🔄 Fetching news from source: ${url}`);
-    const response = await fetch(url);
-    
-    if (!response.ok) {
-      throw new Error(`HTTP error! status: ${response.status}`);
-    }
-    
-    const data = await response.json();
-    console.log(`📡 Backend response for source ${sourceId}:`, data);
-    
-    const mapped = mapBackendArticles(Array.isArray(data) ? data : (data?.articles || []));
-    
-    if (!mapped || mapped.length === 0) {
-      console.log(`⚠️ No articles received from source ${sourceId}. Full response:`, JSON.stringify(data, null, 2));
-    } else {
-      console.log(`✅ Received ${mapped.length} articles from source ${sourceId}`);
-    }
-    
-    return mapped;
-  } catch (error) {
-    console.error(`❌ Failed to fetch news from source ${sourceId}:`, error);
-    return [];
-  }
+  // Refactored to use the main fetchNews function for consistency
+  const allArticles = await fetchNews();
+  return allArticles.filter(article => article.sourceId === sourceId);
 }
 
 export async function fetchNewsByCategory(category: string): Promise<NewsArticle[]> {
-  try {
-    const url = `${API_BASE_URL}/news/category/${category}`;
-    console.log(`🔄 Fetching news by category: ${url}`);
-    const response = await fetch(url);
-    
-    if (!response.ok) {
-      throw new Error(`HTTP error! status: ${response.status}`);
-    }
-    
-    const data = await response.json();
-    console.log(`📡 Backend response for category ${category}:`, data);
-    
-    const raw = Array.isArray(data) ? data : (data?.articles || []);
-    const mapped = mapBackendArticles(raw);
-    
-    if (!mapped || mapped.length === 0) {
-      console.log(`⚠️ No articles received for category ${category}. Full response:`, JSON.stringify(data, null, 2));
-    } else {
-      console.log(`✅ Received ${mapped.length} articles for category ${category}`);
-    }
-    
-    return mapped;
-  } catch (error) {
-    console.error(`❌ Failed to fetch news by category ${category}:`, error);
-    return [];
-  }
+  return fetchNews({ category });
 }
 
 export async function fetchSources(): Promise<NewsSource[]> {

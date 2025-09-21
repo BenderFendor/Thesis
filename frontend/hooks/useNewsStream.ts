@@ -18,6 +18,8 @@ export const useNewsStream = (options: UseNewsStreamOptions = {}) => {
   const [errors, setErrors] = useState<string[]>([])
   const [streamId, setStreamId] = useState<string>()
   const [apiUrl, setApiUrl] = useState<string | null>(null)
+  const [retryCount, setRetryCount] = useState(0)
+  const maxRetries = 3;
 
   const streamPromiseRef = useRef<Promise<any> | null>(null)
   const abortControllerRef = useRef<AbortController | null>(null)
@@ -58,14 +60,12 @@ export const useNewsStream = (options: UseNewsStreamOptions = {}) => {
         ...streamOptions,
         signal: abortControllerRef.current.signal,
         onProgress: (progress) => {
-          console.log('📊 Stream progress:', progress);
           if (!isMountedRef.current) return;
           setProgress(progress);
           setCurrentMessage(progress.message || `${progress.completed}/${progress.total} sources processed`);
           setStatus('loading');
         },
         onSourceComplete: (source, sourceArticles) => {
-          console.log(`✅ Source ${source} completed with ${sourceArticles.length} articles`);
           if (!isMountedRef.current) return;
           setArticles(prev => {
             const newArticles = [...prev, ...sourceArticles];
@@ -75,7 +75,6 @@ export const useNewsStream = (options: UseNewsStreamOptions = {}) => {
           setSources(prev => Array.from(new Set([...prev, source])));
         },
         onError: (error) => {
-          console.warn('⚠️ Stream error:', error);
           if (!isMountedRef.current) return;
           setErrors(prev => [...prev, error]);
           options.onError?.(error);
@@ -87,73 +86,53 @@ export const useNewsStream = (options: UseNewsStreamOptions = {}) => {
       
       const result = await streamData.promise;
       
-      console.log('🏁 Stream completed:', {
-        articlesCount: result.articles.length,
-        sourcesCount: result.sources.length,
-        errorsCount: result.errors.length,
-        streamId: result.streamId
-      });
-
       if (isMountedRef.current) {
         setArticles(result.articles);
         setSources(result.sources);
         setErrors(result.errors);
         setStreamId(result.streamId);
         setStatus('complete');
-        setCurrentMessage(`Completed! Loaded ${result.articles.length} articles from ${result.sources.length} sources`);
-        setProgress({ completed: result.sources.length, total: result.sources.length, percentage: 100 });
+        setCurrentMessage(`Loaded ${result.articles.length} articles from ${result.sources.length} sources`);
+        options.onComplete?.(result);
+        setRetryCount(0); // Reset on success
       }
-      
-      options.onComplete?.(result);
-      
-    } catch (error: any) {
-      console.error('💥 Stream failed:', error);
+    } catch (error) {
       if (isMountedRef.current) {
-        setStatus('error');
-        setCurrentMessage(`Stream failed: ${error.message}`);
-        setErrors(prev => [...prev, error.message]);
+        if (abortControllerRef.current?.signal.aborted) {
+          setStatus('cancelled');
+          setCurrentMessage('Stream was cancelled');
+        } else if (retryCount < maxRetries) {
+          const delay = 2000 * Math.pow(2, retryCount);
+          setStatus(`retrying-${retryCount + 1}`);
+          setCurrentMessage(`Connection lost, retrying... (${retryCount + 1}/${maxRetries})`);
+          
+          await new Promise(resolve => setTimeout(resolve, delay));
+          setRetryCount(prev => prev + 1);
+          return startStream(streamOptions);
+        } else {
+          setStatus('error');
+          setCurrentMessage('Failed to load news. Please try again later.');
+          options.onError?.(error instanceof Error ? error.message : String(error));
+        }
       }
-      options.onError?.(error.message);
     } finally {
-      startingRef.current = false;
       if (isMountedRef.current) {
+        startingRef.current = false;
         setIsStreaming(false);
       }
-      streamPromiseRef.current = null;
-      abortControllerRef.current = null;
     }
   }, [options]);
 
-  const stopStream = useCallback(() => {
-    console.log('🛑 Stopping stream');
-    
+  const abortStream = useCallback(() => {
     if (abortControllerRef.current) {
       abortControllerRef.current.abort();
-      abortControllerRef.current = null;
-    }
-    
-    if (streamPromiseRef.current) {
-      streamPromiseRef.current = null;
-    }
-    
-    if (isMountedRef.current) {
-      setIsStreaming(false);
-      setStatus('stopped');
-      setCurrentMessage('Stream stopped by user');
+      if (isMountedRef.current) {
+        setIsStreaming(false);
+        setStatus('cancelled');
+        setCurrentMessage('Stream was cancelled');
+      }
     }
   }, []);
-
-  const resetStream = useCallback(() => {
-    console.log('🔄 Resetting stream state');
-    stopStream();
-    setArticles([]);
-    setProgress({ completed: 0, total: 0, percentage: 0 });
-    setStatus('idle');
-    setCurrentMessage('');
-    setSources([]);
-    setErrors([]);
-    setStreamId(undefined);
-  }, [stopStream]);
 
   // Auto-start if requested
   useEffect(() => {
@@ -168,11 +147,9 @@ export const useNewsStream = (options: UseNewsStreamOptions = {}) => {
     isMountedRef.current = true;
     return () => {
       isMountedRef.current = false;
-      if (abortControllerRef.current) {
-        abortControllerRef.current.abort();
-      }
+      abortStream();
     };
-  }, []);
+  }, [abortStream]);
 
   return {
     // State
@@ -195,7 +172,8 @@ export const useNewsStream = (options: UseNewsStreamOptions = {}) => {
     
     // Actions
     startStream,
-    stopStream,
-    resetStream
+    abortStream,
+    retryCount,
+    maxRetries
   }
 }
