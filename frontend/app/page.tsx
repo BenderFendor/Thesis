@@ -83,47 +83,49 @@ function NewsPage() {
     getCategories();
   }, []);
 
+  const activeCategoryRef = useRef(activeCategory);
+  activeCategoryRef.current = activeCategory;
+
+  const onUpdate = useCallback((newArticles: NewsArticle[]) => {
+    setArticlesByCategory(prev => ({
+      ...prev,
+      [activeCategoryRef.current]: newArticles
+    }));
+    setLoading(false);
+  }, []);
+
+  const onComplete = useCallback((result: { articles: NewsArticle[] }) => {
+    setLoading(false);
+    setArticleCount(result.articles.length);
+  }, []);
+
+  const onError = useCallback((error: string) => {
+    console.error(`❌ Stream error for ${activeCategoryRef.current}:`, error);
+    setLoading(false);
+  }, []);
+
   const streamHook = useNewsStream({
-    onUpdate: (newArticles: NewsArticle[]) => {
-      setArticlesByCategory(prev => {
-        const updated = {
-          ...prev,
-          [activeCategory]: newArticles
-        };
-        return updated;
-      });
-      setLoading(false);
-    },
-    onComplete: (result) => {
-      setLoading(false);
-      setArticleCount(result.articles.length);
-    },
-    onError: (error) => {
-      console.error(`❌ Stream error for ${activeCategory}:`, error);
-      setLoading(false);
-    },
-    autoStart: false // We'll start it manually
+    onUpdate,
+    onComplete,
+    onError,
+    autoStart: false
   });
 
-  // Load articles when category changes
+
+
   useEffect(() => {
-    const loadArticles = async () => {
+    // Only run when activeCategory changes
+    const loadCategory = async () => {
       if (streamHook.isStreaming) {
-        streamHook.abortStream();
+        streamHook.abortStream(true);
       }
-      
+
       setLoading(true);
+      setArticlesByCategory(prev => ({ ...prev, [activeCategory]: [] }));
       
       try {
-        // Clear previous articles for this category
-        setArticlesByCategory(prev => ({
-          ...prev,
-          [activeCategory]: []
-        }));
-        
-        // Start the stream with the current category
-        await streamHook.startStream({ 
-          category: activeCategory === 'all' ? undefined : activeCategory 
+        await streamHook.startStream({
+          category: activeCategory === 'all' ? undefined : activeCategory
         });
       } catch (error) {
         console.error('Failed to load articles:', error);
@@ -132,15 +134,8 @@ function NewsPage() {
       }
     };
 
-    loadArticles();
-    
-    // Cleanup function
-    return () => {
-      if (streamHook.isStreaming) {
-        streamHook.abortStream();
-      }
-    };
-  }, [activeCategory]);
+    loadCategory();
+  }, [activeCategory]); // Only depend on activeCategory
 
   useEffect(() => {
     if (streamHook.apiUrl) {
@@ -151,7 +146,7 @@ function NewsPage() {
   useEffect(() => {
     const errorNotifications: Notification[] = streamHook.errors.map((error, index) => ({
       id: `error-${index}`,
-      title: 'Stream Error',
+      title: error === 'Stream was cancelled' ? 'Stream Status' : 'Stream Error',
       description: error,
       type: 'error',
     }));
@@ -167,6 +162,12 @@ function NewsPage() {
 
   const handleClearAllNotifications = () => {
     streamHook.clearErrors();
+  };
+
+  const handleRetryNotification = (error: string) => {
+    streamHook.clearErrors();
+    handleRetry();
+    setShowNotifications(false);
   };
 
   useEffect(() => {
@@ -263,8 +264,11 @@ function NewsPage() {
       ...prev,
       [activeCategory]: []
     }));
+    setLoading(true);
     streamHook.startStream({ 
       category: activeCategory === 'all' ? undefined : activeCategory 
+    }).finally(() => {
+      setLoading(false);
     });
   };
 
@@ -404,7 +408,7 @@ function NewsPage() {
                     <Badge className="absolute -top-1 -right-1 w-4 h-4 p-0 flex items-center justify-center text-xs bg-destructive">{notifications.length}</Badge>
                   )}
                 </Button>
-                {showNotifications && <NotificationsPopup notifications={notifications} onClear={handleClearNotification} onClearAll={handleClearAllNotifications} />}
+                {showNotifications && <NotificationsPopup notifications={notifications} onClear={handleClearNotification} onClearAll={handleClearAllNotifications} onRetry={handleRetryNotification} />}
                 <Link href="/settings">
                   <Button variant="ghost" size="sm">
                     <Settings className="w-4 h-4" />

@@ -127,16 +127,21 @@ export const useNewsStream = (options: UseNewsStreamOptions = {}) => {
     }
   }, [options]);
 
-  const abortStream = useCallback(() => {
-    if (abortControllerRef.current) {
+  const abortStream = useCallback((immediate = false) => {
+    if (abortControllerRef.current && !abortControllerRef.current.signal.aborted) {
       abortControllerRef.current.abort();
       if (isMountedRef.current) {
         setIsStreaming(false);
         setStatus('cancelled');
-        setCurrentMessage('Stream was cancelled');
+        const cancellationError = 'Stream cancelled. This is expected on initial load in development. Click to retry.';
+        setCurrentMessage(cancellationError);
+        if (immediate) { // Only add error for immediate cancellations (e.g., category change)
+          setErrors(prev => [...prev, cancellationError]);
+          options.onError?.(cancellationError);
+        }
       }
     }
-  }, []);
+  }, [options.onError]);
 
   // WebSocket listener for image updates
   useEffect(() => {
@@ -169,7 +174,13 @@ export const useNewsStream = (options: UseNewsStreamOptions = {}) => {
     isMountedRef.current = true;
     return () => {
       isMountedRef.current = false;
-      abortStream();
+      // Delay the abort on unmount to handle React 18 Strict Mode's double-invoke behavior
+      setTimeout(() => {
+        // If the component has not remounted and re-established the stream, abort it.
+        if (!isMountedRef.current) {
+          abortStream(false); // Don't show error for this auto-cleanup
+        }
+      }, 100); // A short delay is enough
     };
   }, [abortStream]);
 
