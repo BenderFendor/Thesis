@@ -28,6 +28,7 @@ import Footer from "@/components/footer"
 import { useNewsStream } from "@/hooks/useNewsStream"
 import { fetchCategories, NewsArticle } from "@/lib/api"
 import { ErrorBoundary } from '@/components/ErrorBoundary';
+import { NotificationsPopup } from '@/components/notification-popup';
 
 type ViewMode = "globe" | "grid" | "scroll"
 
@@ -58,6 +59,7 @@ function NewsPage() {
   const lastScrollY = useRef<number>(0)
   const scrollTimeoutRef = useRef<NodeJS.Timeout | null>(null)
   const ticking = useRef<boolean>(false)
+  const [showNotifications, setShowNotifications] = useState(false)
 
   // New: State for articles per category to avoid reloading on view switches
   const [articlesByCategory, setArticlesByCategory] = useState<Record<string, NewsArticle[]>>({})
@@ -406,16 +408,21 @@ function NewsPage() {
                     Sources
                   </Button>
                 </Link>
-                <Button variant="ghost" size="sm" className="relative">
+                <Button variant="ghost" size="sm" className="relative" onClick={() => setShowNotifications(!showNotifications)}>
                   <Bell className="w-4 h-4" />
                   <Badge className="absolute -top-1 -right-1 w-2 h-2 p-0 bg-destructive" />
                 </Button>
-                <Button variant="ghost" size="sm">
-                  <Settings className="w-4 h-4" />
-                </Button>
-                <Button variant="ghost" size="sm">
-                  <User className="w-4 h-4" />
-                </Button>
+                {showNotifications && <NotificationsPopup />}
+                <Link href="/settings">
+                  <Button variant="ghost" size="sm">
+                    <Settings className="w-4 h-4" />
+                  </Button>
+                </Link>
+                <Link href="/profile">
+                  <Button variant="ghost" size="sm">
+                    <User className="w-4 h-4" />
+                  </Button>
+                </Link>
               </div>
             </div>
           </div>
