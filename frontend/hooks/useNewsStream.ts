@@ -67,12 +67,16 @@ export const useNewsStream = (options: UseNewsStreamOptions = {}) => {
         },
         onSourceComplete: (source, sourceArticles) => {
           if (!isMountedRef.current) return;
+
+          // Add new articles to the state
           setArticles(prev => {
-            const newArticles = [...prev, ...sourceArticles];
-            options.onUpdate?.(newArticles);
-            return newArticles;
+            const updated = [...prev, ...sourceArticles];
+            // Call onUpdate immediately with the new articles
+            options.onUpdate?.(updated);
+            return updated;
           });
           setSources(prev => Array.from(new Set([...prev, source])));
+
         },
         onError: (error) => {
           if (!isMountedRef.current) return;
@@ -132,6 +136,24 @@ export const useNewsStream = (options: UseNewsStreamOptions = {}) => {
         setCurrentMessage('Stream was cancelled');
       }
     }
+  }, []);
+
+  // WebSocket listener for image updates
+  useEffect(() => {
+    const ws = new WebSocket('ws://localhost:8000/ws');
+
+    ws.onmessage = (event) => {
+      const data = JSON.parse(event.data);
+      if (data.type === 'image_update') {
+        setArticles(prev =>
+          prev.map(a => (a.url === data.article_url ? { ...a, image: data.image_url } : a))
+        );
+      }
+    };
+
+    return () => {
+      ws.close();
+    };
   }, []);
 
   // Auto-start if requested

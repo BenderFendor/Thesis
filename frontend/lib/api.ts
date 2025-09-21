@@ -89,7 +89,6 @@ export async function fetchNews(params?: {
 }): Promise<NewsArticle[]> {
   try {
     const searchParams = new URLSearchParams();
-    searchParams.append('immediate', 'true'); // Use immediate mode for static loading
     searchParams.append('use_cache', 'true'); // Use cache by default
     
     if (params?.limit) searchParams.append('limit', params.limit.toString());
@@ -314,6 +313,7 @@ export async function fetchCacheStatus(): Promise<CacheStatus | null> {
   }
 }
 
+
 export async function refreshCache(): Promise<boolean> {
   try {
     const response = await fetch(`${API_BASE_URL}/cache/refresh`, {
@@ -513,7 +513,6 @@ export function streamNews(options: StreamOptions = {}): {
   const baseUrl = (process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000').replace(/\/+$/, '');
   const params = new URLSearchParams({
     use_cache: String(useCache),
-    immediate: 'false'
   });
   if (category) {
     params.append('category', category);

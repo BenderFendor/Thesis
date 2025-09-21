@@ -1,4 +1,4 @@
-from fastapi import FastAPI, HTTPException, BackgroundTasks, Request, WebSocket, WebSocketDisconnect
+from fastapi import FastAPI, HTTPException, BackgroundTasks, Request, WebSocket, WebSocketDisconnect, Query
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
 import feedparser
@@ -17,6 +17,8 @@ from urllib.parse import urljoin, urlparse
 import json
 import requests
 import concurrent.futures
+from bs4 import BeautifulSoup
+import httpx
 
 # Enhanced logging configuration
 logging.basicConfig(
@@ -507,6 +509,9 @@ async def startup_event():
     # Start background refresh scheduler first
     start_cache_refresh_scheduler()
     
+    # Start image scraping scheduler
+    start_image_scraping_scheduler()
+    
     # Initial cache population in background thread
     import threading
     def init_cache():
@@ -930,6 +935,35 @@ def refresh_news_cache():
             category_counts[article.category] = category_counts.get(article.category, 0) + 1
         logger.info(f"📊 Articles by category: {category_counts}")
 
+async def _get_og_image_from_url(url: str) -> Optional[str]:
+    """Asynchronously scrape the article URL to find the Open Graph image tag."""
+    if not url:
+        return None
+    try:
+        headers = {
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
+        }
+        # Use an async HTTP client like httpx for non-blocking requests
+        async with httpx.AsyncClient() as client:
+            response = await client.get(url, headers=headers, timeout=10, follow_redirects=True)
+            response.raise_for_status()
+        
+        
+        soup = BeautifulSoup(response.content, 'html.parser')
+        og_image = soup.find('meta', property='og:image')
+        
+        if og_image and og_image.get('content'):
+            image_url = og_image['content']
+            logger.info(f"Scraped og:image: {image_url} from {url}")
+            return image_url
+            
+    except requests.exceptions.RequestException as e:
+        logger.warning(f"Could not fetch URL {url} for image scraping: {e}")
+    except Exception as e:
+        logger.error(f"Error scraping image from {url}: {e}")
+        
+    return None
+
 def parse_rss_feed_entries(entries, source_name: str, source_info: Dict) -> List[NewsArticle]:
     """Parse RSS feed entries into NewsArticle objects"""
     articles = []
@@ -1004,6 +1038,8 @@ def parse_rss_feed_entries(entries, source_name: str, source_info: Dict) -> List
             img_match = re.search(r'<img[^>]+src="([^"]+)"', entry.description)
             if img_match:
                 image_url = img_match.group(1)
+
+        # Note: Image scraping will be handled separately via WebSocket updates
         
         # Clean title and description
         title = entry.get('title', 'No title')
@@ -1042,6 +1078,25 @@ def parse_rss_feed_entries(entries, source_name: str, source_info: Dict) -> List
     
     return articles
 
+async def _scrape_and_update_image(article_url: str):
+    """Scrape an article for an image and send an update via WebSocket."""
+    logger.info(f"🖼️ Starting background image scrape for: {article_url}")
+    image_url = await _get_og_image_from_url(article_url)
+    if image_url:
+        logger.info(f"✅ Found image for {article_url}: {image_url}")
+        await _send_image_update(article_url, image_url)
+    else:
+        logger.info(f"🤷 No image found for {article_url}")
+
+async def _send_image_update(article_url: str, image_url: str):
+    """Send a WebSocket message to update an article's image on the frontend."""
+    message = {
+        "type": "image_update",
+        "article_url": article_url,
+        "image_url": image_url
+    }
+    await manager.broadcast(message)
+
 def start_cache_refresh_scheduler():
     """Start the background thread that refreshes the cache every 30 seconds"""
     def cache_scheduler():
@@ -1057,6 +1112,47 @@ def start_cache_refresh_scheduler():
     thread.start()
     logger.info("🚀 Cache refresh scheduler started (30-second intervals)")
 
+def start_image_scraping_scheduler():
+    """Start the background thread that scrapes images for articles without them"""
+    def image_scraper():
+        while True:
+            try:
+                asyncio.run(scrape_missing_images())
+                time.sleep(60)  # Wait 60 seconds before next scrape
+            except Exception as e:
+                logger.error(f"Error in image scraper: {e}")
+                time.sleep(60)  # Still wait 60 seconds even if there's an error
+    
+    thread = threading.Thread(target=image_scraper, daemon=True)
+    thread.start()
+    logger.info("🚀 Image scraping scheduler started (60-second intervals)")
+
+async def scrape_missing_images():
+    """Find articles without images and scrape them"""
+    articles = news_cache.get_articles()
+    articles_without_images = [
+        article for article in articles 
+        if not article.image or article.image.endswith('placeholder.svg')
+    ]
+    
+    if not articles_without_images:
+        return
+    
+    logger.info(f"🖼️ Found {len(articles_without_images)} articles without images, starting scrape...")
+    
+    # Limit to 5 articles per batch to avoid overwhelming the system
+    batch = articles_without_images[:5]
+    
+    for article in batch:
+        try:
+            await _scrape_and_update_image(article.link)
+        except Exception as e:
+            logger.error(f"Error scraping image for {article.link}: {e}")
+        
+        # Small delay between requests
+        await asyncio.sleep(1)
+
+
 @app.get("/", response_model=Dict[str, str])
 async def read_root():
     return {
@@ -1068,6 +1164,16 @@ async def read_root():
 @app.get("/health")
 async def health_check():
     return {"status": "healthy", "timestamp": datetime.now().isoformat()}
+
+@app.websocket("/ws")
+async def websocket_endpoint(websocket: WebSocket):
+    await manager.connect(websocket)
+    try:
+        while True:
+            # Keep connection alive
+            await websocket.receive_text()
+    except WebSocketDisconnect:
+        manager.disconnect(websocket)
 
 # DEPRECATED: /news endpoint removed - use /news/stream?immediate=true instead
 
@@ -1334,116 +1440,29 @@ async def get_source_debug_data(source_name: str):
         }
 
 @app.get("/news/stream")
-async def stream_news(request: Request, use_cache: bool = True, immediate: bool = False, category: Optional[str] = None):
+async def stream_news(request: Request, background_tasks: BackgroundTasks, use_cache: bool = True, category: Optional[str] = None):
     """
-    Unified news endpoint supporting both streaming and static modes.
-    
+    Streams news articles progressively. It uses a cache for initial data and then fetches fresh articles in the background.
+
     Parameters:
-    - use_cache: If True, use cached data when available. If False, fetch everything fresh.
-    - immediate: If True, return all data at once as JSON. If False, stream data progressively.
+    - use_cache: If True, uses cached data for an immediate response.
+    - category: Filters articles by a specific category.
     """
     
     # Generate unique stream ID for tracking
     stream_id = f"stream_{int(time.time())}_{random.randint(1000, 9999)}"
-    stream_logger.info(f"🎯 NEWS REQUEST: {stream_id}, use_cache={use_cache}, immediate={immediate}")
+    stream_logger.info(f"🎯 NEWS REQUEST: {stream_id}, use_cache={use_cache}")
     
-    # Check active stream limits (only for streaming mode)
-    if not immediate:
-        active_count = stream_manager.get_active_stream_count()
-        if active_count >= 3:  # Limit concurrent streams
-            stream_logger.warning(f"🚫 Stream {stream_id} rejected: too many active streams ({active_count})")
-            async def error_stream():
-                yield f"data: {json.dumps({'status': 'error', 'message': f'Too many active streams ({active_count}). Please try again later.'})}\n\n"
-            return StreamingResponse(error_stream(), media_type="text/event-stream")
+    active_count = stream_manager.get_active_stream_count()
+    if active_count >= 5:  # Limit concurrent streams
+        stream_logger.warning(f"🚫 Stream {stream_id} rejected: too many active streams ({active_count})")
+        async def error_stream():
+            yield f"data: {json.dumps({'status': 'error', 'message': f'Too many active streams ({active_count}). Please try again later.'})}\n\n"
+        return StreamingResponse(error_stream(), media_type="text/event-stream")
     
     # Register stream for tracking
     stream_info = stream_manager.register_stream(stream_id)
     
-    # For immediate mode, collect all data and return as JSON
-    if immediate:
-        stream_logger.info(f"⚡ {stream_id} using immediate mode - collecting all data")
-        
-        all_articles = []
-        all_source_stats = []
-        
-        # First, check cache if requested
-        if use_cache:
-            cached_articles = news_cache.get_articles()
-            cached_stats = news_cache.get_source_stats()
-            cache_age = (datetime.now() - news_cache.last_updated).total_seconds()
-            
-            if cached_articles and cache_age < 120:  # Cache is fresh
-                stream_logger.info(f"💾 {stream_id} using fresh cache: {len(cached_articles)} articles")
-                all_articles = cached_articles
-                all_source_stats = cached_stats
-            else:
-                stream_logger.info(f"⏰ {stream_id} cache stale ({cache_age:.1f}s), fetching fresh data")
-        
-        # If no cache or cache is stale, fetch fresh data
-        if not all_articles or len(all_articles) == 0:
-            stream_logger.info(f"🔄 {stream_id} fetching fresh data for immediate mode")
-            
-            loop = asyncio.get_event_loop()
-            sources_to_process = list(RSS_SOURCES.items())
-            
-            with concurrent.futures.ThreadPoolExecutor(max_workers=5) as executor:
-                future_to_source = {}
-                
-                for name, info in sources_to_process:
-                    # Check throttling
-                    should_throttle, wait_time = stream_manager.should_throttle_source(name)
-                    
-                    if should_throttle:
-                        stream_logger.info(f"⏳ {stream_id} throttling source {name} for {wait_time:.1f}s")
-                        async def delayed_process():
-                            await asyncio.sleep(wait_time)
-                            return await loop.run_in_executor(executor, _process_source_with_debug, name, info, stream_id)
-                        future = asyncio.create_task(delayed_process())
-                    else:
-                        future = loop.run_in_executor(executor, _process_source_with_debug, name, info, stream_id)
-                    
-                    future_to_source[future] = name
-                
-                # Process all futures
-                for future in asyncio.as_completed(list(future_to_source.keys())):
-                    try:
-                        articles, source_stat = await future
-                        source_name = source_stat.get('name', 'unknown')
-                        all_articles.extend(articles)
-                        all_source_stats.append(source_stat)
-                        stream_logger.info(f"✅ {stream_id} completed source {source_name}: {len(articles)} articles")
-                    except Exception as exc:
-                        source_name = future_to_source.get(future, "unknown")
-                        stream_logger.error(f"❌ {stream_id} error for {source_name}: {exc}")
-                        all_source_stats.append({
-                            'name': source_name,
-                            'status': 'error',
-                            'error': str(exc)
-                        })
-            
-            # Update cache with fresh data
-            if all_articles:
-                news_cache.update_cache(all_articles, all_source_stats)
-        
-        # Sort articles by published date
-        try:
-            all_articles.sort(key=lambda x: x.published, reverse=True)
-        except Exception as e:
-            stream_logger.warning(f"⚠️ {stream_id} couldn't sort articles: {e}")
-        
-        # Return as JSON response
-        stream_logger.info(f"🏁 {stream_id} immediate mode complete: {len(all_articles)} articles from {len(all_source_stats)} sources")
-        stream_manager.unregister_stream(stream_id)
-        
-        return {
-            "articles": [a.dict() for a in all_articles],
-            "total": len(all_articles),
-            "sources": list(set(a.source for a in all_articles)),
-            "source_stats": all_source_stats,
-            "stream_id": stream_id
-        }
-    
-    # Streaming mode (existing logic)
     stream_logger.info(f"🚀 {stream_id} using streaming mode")
     stream_manager.update_stream(stream_id, status="starting")
     

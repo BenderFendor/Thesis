@@ -43,7 +43,7 @@ const categoryIcons: { [key: string]: React.ElementType } = {
 };
 
 function NewsPage() {
-  const [currentView, setCurrentView] = useState<ViewMode>("globe")
+  const [currentView, setCurrentView] = useState<ViewMode>("grid")
   const [selectedCountry, setSelectedCountry] = useState<string | null>(null)
   const [categories, setCategories] = useState<{ id: string; label: string; icon: React.ElementType }[]>([]);
   const [activeCategory, setActiveCategory] = useState<string>("all")
@@ -247,7 +247,7 @@ function NewsPage() {
   return (
     <div className="min-h-screen text-white" style={{ backgroundColor: 'var(--news-bg-primary)' }}>
       {/* Enhanced Loading state */}
-      {(loading || streamHook.isStreaming) && (
+      {(loading || (streamHook.isStreaming && articlesByCategory[activeCategory]?.length === 0)) && (
         <div className="fixed inset-0 flex items-center justify-center z-50" style={{ backgroundColor: 'var(--news-bg-primary)' }}>
           <div className="relative
             before:absolute before:inset-0 before:bg-gradient-to-r before:from-emerald-500/20 before:to-transparent before:animate-[shimmer_2s_infinite] before:rounded-full
@@ -499,7 +499,7 @@ function NewsPage() {
         <div className="flex items-center justify-between gap-4 mb-6">
           <div className="flex items-center gap-3 min-w-0">
             <h2 className="text-2xl font-bold font-serif text-foreground whitespace-nowrap">News Grid</h2>
-            <span className="text-sm truncate hidden sm:inline-block" style={{ color: 'var(--muted-foreground)' }}>Browse news articles from around the world</span>
+            <span className="text-sm truncate hidden sm:inline-block" style={{ color: 'var(--muted-foreground)' }}></span>
           </div>
 
           <div className="flex items-center gap-3">
