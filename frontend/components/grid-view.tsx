@@ -301,36 +301,32 @@ export function GridView({ articles, loading, onCountChange, apiUrl }: GridViewP
                     }}
                     onClick={() => handleArticleClick(article)}
                   >
-                    <div className="relative overflow-hidden rounded-t-lg">
+                    <div className="relative overflow-hidden">
                       <img
                         src={article.image || "/placeholder.svg"}
                         alt={article.title}
                         className="w-full h-48 object-cover group-hover:scale-105 transition-transform duration-300"
                       />
-                      <div className="absolute top-3 left-3 flex gap-1">
+                      <div className="absolute top-3 left-3 flex gap-2">
                         <Badge
                           variant={getCredibilityColor(article.credibility)}
-                          className="text-xs"
+                          className="text-xs font-medium px-2 py-1 rounded-full backdrop-blur-sm bg-black/70 text-white border-0"
                         >
                           {article.credibility}
                         </Badge>
                         <span
-                          className="text-xs rounded px-1 border"
-                          style={{
-                            backgroundColor: 'var(--background)',
-                            borderColor: 'var(--border)'
-                          }}
+                          className="text-xs rounded-full px-2 py-1 backdrop-blur-sm bg-black/70 text-white border-0 font-medium"
                           title={`${article.bias} bias`}
                         >
                           {getBiasIndicator(article.bias)}
                         </span>
                       </div>
-                      <div className="absolute top-3 right-3 flex gap-1">
-                        <Badge variant="outline" className="text-xs">
+                      <div className="absolute top-3 right-3 flex gap-2">
+                        <Badge className="text-xs font-medium px-2 py-1 rounded-full backdrop-blur-sm bg-black/70 text-white border-0">
                           {article.category}
                         </Badge>
                         {article.translated && (
-                          <Badge variant="outline" className="text-xs">
+                          <Badge className="text-xs font-medium px-2 py-1 rounded-full backdrop-blur-sm bg-black/70 text-white border-0">
                             Translated
                           </Badge>
                         )}
@@ -338,19 +334,17 @@ export function GridView({ articles, loading, onCountChange, apiUrl }: GridViewP
                     </div>
 
                     <CardContent className="p-5 flex-1 flex flex-col">
-                      <div className="space-y-3">
-                        <div className="flex items-center gap-2 mt-3 flex-wrap">
-                          <MapPin className="w-3 h-3" />
-                          <span>{article.country}</span>
-                          <span>•</span>
-                          <Clock className="w-3 h-3" />
-                          <span>{article.publishedAt}</span>
-                        </div>
-                      </div>
-
-                      <h3 className="font-semibold text-sm line-clamp-2 group-hover:text-primary transition-colors mt-3">
+                      <h3 className="font-semibold text-base line-clamp-2 group-hover:text-primary transition-colors mb-3">
                         {article.title}
                       </h3>
+
+                      <div className="flex items-center gap-2 mb-3 text-xs text-muted-foreground">
+                        <MapPin className="w-3 h-3" />
+                        <span>{article.country}</span>
+                        <span>•</span>
+                        <Clock className="w-3 h-3" />
+                        <span>{new Date(article.publishedAt).toLocaleDateString()}</span>
+                      </div>
 
                       <p className="text-xs text-muted-foreground line-clamp-3 mt-2">{article.summary}</p>
 
