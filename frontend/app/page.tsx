@@ -23,7 +23,7 @@ import {
 import Link from "next/link"
 import { GlobeView } from "@/components/globe-view"
 import { GridView } from "@/components/grid-view"
-import { ScrollView } from "@/components/scroll-view"
+import { FeedView } from "@/components/feed-view"
 import Footer from "@/components/footer"
 import { useNewsStream } from "@/hooks/useNewsStream"
 import { fetchCategories, NewsArticle } from "@/lib/api"
@@ -487,12 +487,12 @@ function NewsPage() {
 
       {/* Main Content */}
       <main
-        className="container mx-auto px-4 sm:px-6 lg:px-8 py-8 transition-all duration-300"
-        style={{
+        className={currentView === 'scroll' ? "" : "container mx-auto px-4 sm:px-6 lg:px-8 py-8 transition-all duration-300"}
+        style={currentView === 'scroll' ? {} : {
           paddingTop: headerHidden
-            ? `${20}px` // minimal spacing when header is hidden
-            : `${(headerHeightRef.current || 73) + (navHeightRef.current || 48) + 24}px`, // full headers + spacing
-          paddingBottom: footerHidden ? '24px' : '120px' // Extra space when footer is visible
+            ? `${20}px`
+            : `${(headerHeightRef.current || 73) + (navHeightRef.current || 48) + 24}px`,
+          paddingBottom: footerHidden ? '24px' : '120px'
         }}
       >
         {/* Compact single-line header: title + subtitle + badges + hover-expand live controls */}
@@ -534,7 +534,7 @@ function NewsPage() {
                       apiUrl={apiUrl}
                     />
                   )}
-                  {currentView === "scroll" && <ScrollView key={`${category.id}-scroll`} articles={articlesByCategory[category.id]} loading={loading} />}
+                  {currentView === "scroll" && <FeedView key={`${category.id}-scroll`} articles={articlesByCategory[category.id]} loading={loading} />}
                 </>
               </TabsContent>
             )
