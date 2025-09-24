@@ -22,3 +22,17 @@ So it like turns the debug print logs off or on
 
 # RSS and Image Parsing
 I need a more robust image parsing and also some that can get the images and load them when they are http or https
+
+Also for the rss and image parsing I should make a debug menu or page that I can like just input an rss feed or input an article url and see how the backend parses it and it like gives me a breakdown of how the rss and even the page url and article are being parsed.
+
+# Sources that don't get their iamges parsed right at the moment.
+New york times and CNN
+
+# Fact Checking API
+Google as a fact checking api as well which we could maybe uses. as well as https://rapidapi.com/mbfcnews/api/media-bias-fact-check-ratings-api2 as it has a free tier
+
+# Add an article feature.
+So for this you can like click on an article and it like parses the article and gives you the full articles as well as like the background of say like the sources if it can find any and the reporter and their baises and background
+
+# Free LLM APIs 
+https://github.com/cheahjs/free-llm-api-resources?tab=readme-ov-file#free-providers
