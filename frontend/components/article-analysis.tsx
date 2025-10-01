@@ -12,11 +12,11 @@ interface ArticleAnalysisDisplayProps {
 
 export function ArticleAnalysisDisplay({ analysis }: ArticleAnalysisDisplayProps) {
   const [expandedSections, setExpandedSections] = useState<Record<string, boolean>>({
-    fullText: false,
-    sourceAnalysis: true,
-    reporterAnalysis: true,
-    biasAnalysis: true,
-    factCheck: true
+    fullText: true,
+    sourceAnalysis: false,
+    reporterAnalysis: false,
+    biasAnalysis: false,
+    factCheck: false
   })
 
   const toggleSection = (section: string) => {
