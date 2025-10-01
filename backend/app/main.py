@@ -19,6 +19,18 @@ import requests
 import concurrent.futures
 from bs4 import BeautifulSoup
 import httpx
+import os
+from dotenv import load_dotenv
+from google import genai
+from google.genai import types
+try:
+    from newspaper import Article
+except ImportError:
+    # newspaper4k uses the same import path
+    from newspaper import Article
+
+# Load environment variables
+load_dotenv()
 
 # Enhanced logging configuration
 logging.basicConfig(
@@ -26,6 +38,15 @@ logging.basicConfig(
     format='%(asctime)s - %(name)s - %(levelname)s - [%(funcName)s:%(lineno)d] - %(message)s'
 )
 logger = logging.getLogger(__name__)
+
+# Configure Gemini API
+GEMINI_API_KEY = os.getenv('GEMINI_API_KEY')
+gemini_client = None
+if GEMINI_API_KEY:
+    gemini_client = genai.Client(api_key=GEMINI_API_KEY)
+    logger.info("✅ Gemini API configured successfully")
+else:
+    logger.warning("⚠️ GEMINI_API_KEY not found in environment variables")
 
 # Add streaming-specific logger
 stream_logger = logging.getLogger("news_stream")
@@ -1712,6 +1733,237 @@ async def websocket_endpoint(websocket: WebSocket):
             await websocket.receive_text()
     except WebSocketDisconnect:
         manager.disconnect(websocket)
+
+# Article Analysis Models
+class ArticleAnalysisRequest(BaseModel):
+    url: str
+    source_name: Optional[str] = None
+
+class ArticleAnalysisResponse(BaseModel):
+    success: bool
+    article_url: str
+    full_text: Optional[str] = None
+    title: Optional[str] = None
+    authors: Optional[List[str]] = None
+    publish_date: Optional[str] = None
+    source_analysis: Optional[Dict[str, Any]] = None
+    reporter_analysis: Optional[Dict[str, Any]] = None
+    bias_analysis: Optional[Dict[str, Any]] = None
+    fact_check_suggestions: Optional[List[str]] = None
+    summary: Optional[str] = None
+    error: Optional[str] = None
+
+async def extract_article_content(url: str) -> Dict[str, Any]:
+    """Extract full article content using newspaper3k"""
+    try:
+        article = Article(url)
+        article.download()
+        article.parse()
+        
+        return {
+            "success": True,
+            "title": article.title,
+            "authors": article.authors,
+            "publish_date": str(article.publish_date) if article.publish_date else None,
+            "text": article.text,
+            "top_image": article.top_image,
+            "images": list(article.images),
+            "keywords": article.keywords if hasattr(article, 'keywords') else [],
+            "meta_description": article.meta_description if hasattr(article, 'meta_description') else None
+        }
+    except Exception as e:
+        logger.error(f"Error extracting article from {url}: {e}")
+        return {
+            "success": False,
+            "error": str(e)
+        }
+
+async def analyze_with_gemini(article_data: Dict[str, Any], source_name: Optional[str] = None) -> Dict[str, Any]:
+    """Use Gemini AI to analyze the article with Google Search grounding"""
+    if not gemini_client:
+        return {
+            "error": "Gemini API key not configured"
+        }
+    
+    try:
+        # Configure Google Search grounding tool
+        grounding_tool = types.Tool(
+            google_search=types.GoogleSearch()
+        )
+        
+        config = types.GenerateContentConfig(
+            tools=[grounding_tool],
+            response_modalities=["TEXT"]
+        )
+        
+        # Prepare the prompt for comprehensive analysis
+        prompt = f"""
+You are an expert media analyst. Analyze the following news article comprehensively and use Google Search to verify facts and gather additional context about the source and reporters:
+
+**Article Title:** {article_data.get('title', 'Unknown')}
+**Source:** {source_name or 'Unknown'}
+**Authors:** {', '.join(article_data.get('authors', [])) if article_data.get('authors') else 'Unknown'}
+**Published:** {article_data.get('publish_date', 'Unknown')}
+
+**Article Text:**
+{article_data.get('text', '')[:4000]}  
+
+Please provide a detailed analysis in the following JSON format:
+
+{{
+  "summary": "A concise 2-3 sentence summary of the article",
+  "source_analysis": {{
+    "credibility_assessment": "Assessment of source credibility (high/medium/low)",
+    "ownership": "Information about who owns this publication",
+    "funding_model": "How is this source funded",
+    "political_leaning": "Political bias assessment (left/center/right)",
+    "reputation": "General reputation and track record"
+  }},
+  "reporter_analysis": {{
+    "background": "Background information on the reporter(s) if available",
+    "expertise": "Reporter's area of expertise",
+    "known_biases": "Any known biases or perspectives",
+    "track_record": "Notable past work or controversies"
+  }},
+  "bias_analysis": {{
+    "tone_bias": "Analysis of emotional tone and word choice",
+    "framing_bias": "How the story is framed or presented",
+    "selection_bias": "What information is included or excluded",
+    "source_diversity": "Diversity of sources quoted in the article",
+    "overall_bias_score": "Overall bias rating (1-10, where 5 is neutral)"
+  }},
+  "fact_check_suggestions": [
+    "Key claim 1 that should be fact-checked",
+    "Key claim 2 that should be fact-checked",
+    "Key claim 3 that should be fact-checked"
+  ],
+  "context": "Important background context for understanding this story",
+  "missing_perspectives": "What perspectives or information might be missing"
+}}
+
+Provide only the JSON response, no additional text.
+"""
+        
+        # Generate content with grounding
+        response = gemini_client.models.generate_content(
+            model="gemini-2.0-flash-exp",
+            contents=prompt,
+            config=config
+        )
+        
+        # Extract grounding metadata if available
+        grounding_metadata = {}
+        if response.candidates and len(response.candidates) > 0:
+            candidate = response.candidates[0]
+            if hasattr(candidate, 'grounding_metadata') and candidate.grounding_metadata:
+                metadata = candidate.grounding_metadata
+                grounding_metadata = {
+                    "grounding_chunks": [],
+                    "grounding_supports": [],
+                    "web_search_queries": []
+                }
+                
+                # Extract grounding chunks (sources)
+                if hasattr(metadata, 'grounding_chunks') and metadata.grounding_chunks:
+                    for chunk in metadata.grounding_chunks:
+                        if hasattr(chunk, 'web') and chunk.web:
+                            grounding_metadata["grounding_chunks"].append({
+                                "uri": chunk.web.uri if hasattr(chunk.web, 'uri') else None,
+                                "title": chunk.web.title if hasattr(chunk.web, 'title') else None
+                            })
+                
+                # Extract web search queries
+                if hasattr(metadata, 'web_search_queries') and metadata.web_search_queries:
+                    grounding_metadata["web_search_queries"] = list(metadata.web_search_queries)
+                
+                logger.info(f"📚 Grounding metadata: {len(grounding_metadata.get('grounding_chunks', []))} sources found")
+        
+        # Parse the JSON response
+        try:
+            # Extract JSON from response
+            response_text = response.text.strip()
+            # Remove markdown code blocks if present
+            if response_text.startswith('```'):
+                response_text = response_text.split('```')[1]
+                if response_text.startswith('json'):
+                    response_text = response_text[4:]
+            
+            analysis = json.loads(response_text)
+            
+            # Add grounding metadata to the analysis
+            if grounding_metadata:
+                analysis["grounding_metadata"] = grounding_metadata
+            
+            return analysis
+        except json.JSONDecodeError:
+            # If JSON parsing fails, return raw response
+            return {
+                "raw_response": response.text,
+                "grounding_metadata": grounding_metadata,
+                "error": "Failed to parse AI response as JSON"
+            }
+            
+    except Exception as e:
+        logger.error(f"Error analyzing with Gemini: {e}")
+        return {
+            "error": str(e)
+        }
+
+@app.post("/api/article/analyze", response_model=ArticleAnalysisResponse)
+async def analyze_article(request: ArticleAnalysisRequest):
+    """
+    Analyze a news article using AI to extract full content, source information,
+    reporter background, and bias analysis.
+    """
+    logger.info(f"📰 Analyzing article: {request.url}")
+    
+    try:
+        # Step 1: Extract article content
+        article_data = await extract_article_content(request.url)
+        
+        if not article_data.get("success"):
+            return ArticleAnalysisResponse(
+                success=False,
+                article_url=request.url,
+                error=article_data.get("error", "Failed to extract article content")
+            )
+        
+        # Step 2: Analyze with Gemini AI
+        ai_analysis = await analyze_with_gemini(article_data, request.source_name)
+        
+        if "error" in ai_analysis and "raw_response" not in ai_analysis:
+            return ArticleAnalysisResponse(
+                success=False,
+                article_url=request.url,
+                full_text=article_data.get("text"),
+                title=article_data.get("title"),
+                authors=article_data.get("authors"),
+                publish_date=article_data.get("publish_date"),
+                error=ai_analysis.get("error")
+            )
+        
+        # Step 3: Combine results
+        return ArticleAnalysisResponse(
+            success=True,
+            article_url=request.url,
+            full_text=article_data.get("text"),
+            title=article_data.get("title"),
+            authors=article_data.get("authors"),
+            publish_date=article_data.get("publish_date"),
+            source_analysis=ai_analysis.get("source_analysis"),
+            reporter_analysis=ai_analysis.get("reporter_analysis"),
+            bias_analysis=ai_analysis.get("bias_analysis"),
+            fact_check_suggestions=ai_analysis.get("fact_check_suggestions"),
+            summary=ai_analysis.get("summary")
+        )
+        
+    except Exception as e:
+        logger.error(f"💥 Error analyzing article {request.url}: {e}")
+        return ArticleAnalysisResponse(
+            success=False,
+            article_url=request.url,
+            error=str(e)
+        )
 
 if __name__ == "__main__":
     import uvicorn

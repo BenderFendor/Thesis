@@ -12,6 +12,12 @@ A full-stack news aggregation platform that provides diverse global perspectives
 ## 🚀 Features
 
 - **Multi-source News Aggregation**: RSS feeds from BBC, CNN, Reuters, NPR, Fox News, and Associated Press
+- **AI-Powered Article Analysis**: Deep analysis using Google Gemini AI including:
+  - Full article text extraction
+  - Source credibility assessment
+  - Reporter background and bias detection
+  - Tone, framing, and selection bias analysis
+  - Fact-check suggestions for key claims
 - **Category Filtering**: Browse news by different categories (General, Politics, Technology, Sports, etc.)
 - **Real-time Search**: Search across all articles in real-time with instant results
 - **Source Transparency**: View source funding and bias ratings for informed reading
@@ -24,6 +30,8 @@ A full-stack news aggregation platform that provides diverse global perspectives
 
 ### Backend
 - **FastAPI** - High-performance Python web framework
+- **Google Gemini AI** - Advanced AI for article analysis and bias detection
+- **Newspaper3k** - Article content extraction and parsing
 - **ChromaDB** - Vector database for semantic search
 - **Feedparser** - RSS feed parsing and processing
 - **Pydantic** - Data validation and serialization
@@ -68,6 +76,7 @@ Thesis/
 - Docker & Docker Compose
 - Node.js (for local development)
 - Python 3.9+ (for local development)
+- **Google Gemini API Key** - Get one from [Google AI Studio](https://makersuite.google.com/app/apikey)
 
 ### Running with Docker (Recommended)
 
@@ -77,12 +86,19 @@ Thesis/
    cd Thesis
    ```
 
-2. **Start all services**
+2. **Configure environment variables**
+   ```bash
+   cd backend
+   cp .env.example .env
+   # Edit .env and add your GEMINI_API_KEY
+   ```
+
+3. **Start all services**
    ```bash
    docker compose up --build
    ```
 
-3. **Access the application**
+4. **Access the application**
    - Frontend: http://localhost:3000
    - Backend API: http://localhost:8001
    - API Documentation: http://localhost:8001/docs
@@ -95,6 +111,11 @@ cd backend
 python -m venv .venv
 source .venv/bin/activate  # Linux/Mac
 pip install -r requirements.txt
+
+# Configure environment variables
+cp .env.example .env
+# Edit .env and add your GEMINI_API_KEY
+
 uvicorn app.main:app --reload --port 8001
 ```
 
@@ -273,11 +294,12 @@ The project includes optimized Docker configurations:
 ### Core Endpoints
 - `GET /` - API status and information
 - `GET /health` - Health check endpoint
-- `GET /news` - Get all news articles with optional filtering
+- `GET /news/stream` - Stream news articles with real-time updates
 - `GET /news/source/{source_name}` - Get news from specific source
 - `GET /news/category/{category}` - Get news by category
 - `GET /sources` - Get all available sources with metadata
 - `GET /categories` - Get all available categories
+- `POST /api/article/analyze` - Analyze article with AI (requires Gemini API key)
 
 ### Query Parameters
 - `limit` - Number of articles to return (default: 50)
@@ -301,6 +323,50 @@ curl "http://localhost:8001/sources"
 
 # Health check
 curl "http://localhost:8001/health"
+
+# Analyze an article with AI
+curl -X POST "http://localhost:8001/api/article/analyze" \
+  -H "Content-Type: application/json" \
+  -d '{"url": "https://example.com/article", "source_name": "Example News"}'
+```
+
+## 🤖 AI Article Analysis Feature
+
+The platform includes an advanced AI-powered article analysis feature using Google's Gemini AI:
+
+### Features
+- **Full Article Extraction**: Automatically extracts complete article text from any URL
+- **Source Analysis**: Evaluates source credibility, ownership, funding model, and political leaning
+- **Reporter Background**: Provides information about the article's authors and their expertise
+- **Bias Detection**: Analyzes tone, framing, selection bias, and source diversity
+- **Fact-Check Suggestions**: Identifies key claims that should be fact-checked
+- **AI Summary**: Generates concise summaries of articles
+
+### How to Use
+1. Click on any article in the news feed
+2. In the article detail modal, click the **"AI Analysis"** button (purple sparkle icon)
+3. Wait 10-30 seconds for the AI to analyze the article
+4. View comprehensive analysis including:
+   - Article summary
+   - Source credibility assessment
+   - Reporter background and biases
+   - Bias analysis with scoring
+   - Fact-check suggestions
+
+### Setup Requirements
+1. Get a free Gemini API key from [Google AI Studio](https://makersuite.google.com/app/apikey)
+2. Add the key to your `.env` file in the backend directory:
+   ```
+   GEMINI_API_KEY=your_api_key_here
+   ```
+3. Restart the backend server
+
+### Technical Details
+- **Backend**: FastAPI endpoint at `/api/article/analyze`
+- **Article Extraction**: Uses `newspaper3k` library for content parsing
+- **AI Model**: Google Gemini Pro for analysis
+- **Response Time**: 10-30 seconds depending on article length
+- **Rate Limits**: Subject to Gemini API rate limits (check Google AI Studio)
 ```
 
 ## 🎯 Development Phases & Roadmap

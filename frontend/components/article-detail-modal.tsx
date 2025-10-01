@@ -1,10 +1,11 @@
 "use client"
 
 import { useState, useEffect } from "react"
-import { X, ExternalLink, Heart, MessageCircle, Share2, Bookmark, AlertTriangle, DollarSign, Bug, Link as LinkIcon, Rss } from "lucide-react"
+import { X, ExternalLink, Heart, MessageCircle, Share2, Bookmark, AlertTriangle, DollarSign, Bug, Link as LinkIcon, Rss, Sparkles } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
-import { type NewsArticle, getSourceById, type NewsSource, fetchSourceDebugData, type SourceDebugData } from "@/lib/api"
+import { type NewsArticle, getSourceById, type NewsSource, fetchSourceDebugData, type SourceDebugData, analyzeArticle, type ArticleAnalysis } from "@/lib/api"
+import { ArticleAnalysisDisplay } from "@/components/article-analysis"
 
 interface ArticleDetailModalProps {
   article: NewsArticle | null
@@ -22,6 +23,9 @@ export function ArticleDetailModal({ article, isOpen, onClose }: ArticleDetailMo
   const [debugLoading, setDebugLoading] = useState(false)
   const [debugData, setDebugData] = useState<SourceDebugData | null>(null)
   const [matchedEntryIndex, setMatchedEntryIndex] = useState<number | null>(null)
+  const [aiAnalysisOpen, setAiAnalysisOpen] = useState(false)
+  const [aiAnalysisLoading, setAiAnalysisLoading] = useState(false)
+  const [aiAnalysis, setAiAnalysis] = useState<ArticleAnalysis | null>(null)
 
   useEffect(() => {
     const loadSource = async () => {
@@ -49,6 +53,8 @@ export function ArticleDetailModal({ article, isOpen, onClose }: ArticleDetailMo
     setDebugOpen(false)
     setDebugData(null)
     setMatchedEntryIndex(null)
+    setAiAnalysisOpen(false)
+    setAiAnalysis(null)
   }, [article?.url, isOpen])
 
   const loadDebug = async () => {
@@ -75,6 +81,24 @@ export function ArticleDetailModal({ article, isOpen, onClose }: ArticleDetailMo
       setMatchedEntryIndex(null)
     } finally {
       setDebugLoading(false)
+    }
+  }
+
+  const loadAiAnalysis = async () => {
+    if (!article) return
+    try {
+      setAiAnalysisLoading(true)
+      const analysis = await analyzeArticle(article.url, article.source)
+      setAiAnalysis(analysis)
+    } catch (e) {
+      console.error('Failed to analyze article:', e)
+      setAiAnalysis({
+        success: false,
+        article_url: article.url,
+        error: e instanceof Error ? e.message : 'Failed to analyze article'
+      })
+    } finally {
+      setAiAnalysisLoading(false)
     }
   }
 
@@ -165,6 +189,14 @@ export function ArticleDetailModal({ article, isOpen, onClose }: ArticleDetailMo
                   Source Transparency
                 </h3>
                 <div className="flex items-center gap-2">
+                  <Button 
+                    variant="outline" 
+                    size="sm" 
+                    onClick={() => { setAiAnalysisOpen(true); loadAiAnalysis(); }}
+                    className="bg-gradient-to-r from-purple-500/20 to-blue-500/20 hover:from-purple-500/30 hover:to-blue-500/30 border-purple-500/30"
+                  >
+                    <Sparkles className="h-4 w-4 mr-1" /> AI Analysis
+                  </Button>
                   <Button variant="outline" size="sm" onClick={() => setShowSourceDetails(!showSourceDetails)}>
                     {showSourceDetails ? "Hide Details" : "Show Details"}
                   </Button>
@@ -235,6 +267,31 @@ export function ArticleDetailModal({ article, isOpen, onClose }: ArticleDetailMo
                 </div>
               )}
             </div>
+
+            {/* AI Analysis Panel */}
+            {aiAnalysisOpen && (
+              <div className="bg-gray-900/60 rounded-lg p-6 mb-6 border border-purple-500/30">
+                <div className="flex items-center justify-between mb-4">
+                  <h3 className="text-lg font-semibold text-white flex items-center gap-2">
+                    <Sparkles className="h-5 w-5 text-purple-400" /> AI-Powered Article Analysis
+                  </h3>
+                  <Button variant="ghost" size="sm" onClick={() => setAiAnalysisOpen(false)}>
+                    <X className="h-4 w-4" />
+                  </Button>
+                </div>
+                {aiAnalysisLoading ? (
+                  <div className="flex flex-col items-center justify-center p-12">
+                    <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-purple-400 mb-4"></div>
+                    <p className="text-gray-400">Analyzing article with AI...</p>
+                    <p className="text-sm text-gray-500 mt-2">This may take 10-30 seconds</p>
+                  </div>
+                ) : aiAnalysis ? (
+                  <ArticleAnalysisDisplay analysis={aiAnalysis} />
+                ) : (
+                  <div className="text-gray-400 text-center p-6">No analysis available.</div>
+                )}
+              </div>
+            )}
 
             {/* Debug Panel */}
             {debugOpen && (

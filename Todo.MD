@@ -31,8 +31,24 @@ New york times and CNN
 # Fact Checking API
 Google as a fact checking api as well which we could maybe uses. as well as https://rapidapi.com/mbfcnews/api/media-bias-fact-check-ratings-api2 as it has a free tier
 
-# Add an article feature.
+# Add an article feature. ✅ COMPLETED
 So for this you can like click on an article and it like parses the article and gives you the full articles as well as like the background of say like the sources if it can find any and the reporter and their baises and background
+
+## Implementation Details:
+- ✅ Backend endpoint: POST /api/article/analyze
+- ✅ Uses Google Gemini AI for analysis
+- ✅ Newspaper3k for article content extraction
+- ✅ Frontend component: ArticleAnalysisDisplay
+- ✅ Integrated into article-detail-modal with "AI Analysis" button
+- ✅ Provides:
+  - Full article text extraction
+  - Source credibility assessment
+  - Reporter background and expertise
+  - Bias analysis (tone, framing, selection, source diversity)
+  - Fact-check suggestions
+  - AI-generated summary
+- ✅ Environment variable configuration for GEMINI_API_KEY
+- ✅ Documentation updated in README.md
 
 # Free LLM APIs 
 https://github.com/cheahjs/free-llm-api-resources?tab=readme-ov-file#free-providers

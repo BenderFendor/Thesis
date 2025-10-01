@@ -829,3 +829,64 @@ export async function fetchStreamStatus(): Promise<any> {
     return null;
   }
 }
+
+// Article Analysis Types
+export interface ArticleAnalysis {
+  success: boolean;
+  article_url: string;
+  full_text?: string;
+  title?: string;
+  authors?: string[];
+  publish_date?: string;
+  source_analysis?: {
+    credibility_assessment: string;
+    ownership: string;
+    funding_model: string;
+    political_leaning: string;
+    reputation: string;
+  };
+  reporter_analysis?: {
+    background: string;
+    expertise: string;
+    known_biases: string;
+    track_record: string;
+  };
+  bias_analysis?: {
+    tone_bias: string;
+    framing_bias: string;
+    selection_bias: string;
+    source_diversity: string;
+    overall_bias_score: string;
+  };
+  fact_check_suggestions?: string[];
+  summary?: string;
+  error?: string;
+}
+
+// Analyze article with AI
+export async function analyzeArticle(url: string, sourceName?: string): Promise<ArticleAnalysis> {
+  try {
+    console.log(`🤖 Analyzing article: ${url}`);
+    const response = await fetch(`${API_BASE_URL}/api/article/analyze`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        url,
+        source_name: sourceName
+      })
+    });
+    
+    if (!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status}`);
+    }
+    
+    const data = await response.json();
+    console.log('✅ Article analysis complete:', data);
+    return data;
+  } catch (error) {
+    console.error('❌ Failed to analyze article:', error);
+    throw error;
+  }
+}
