@@ -1,5 +1,5 @@
 # Features to add
-I would like to add sql backend for this so that I don't have to load the articles each time I start up the website. It should also track the date of the article and make sure not to add dupicalates as well which should be easy.
+I would like to add sql backend for this so that I don't have to load the articles each time I st12art up the website. It should also track the date of the article and make sure not to add dupicalates as well which should be easy.
 
 # Add the feature so that when you like on one of the tabs like games or business it truly changes what new articles show up.
 
@@ -36,3 +36,25 @@ So for this you can like click on an article and it like parses the article and 
 
 # Free LLM APIs 
 https://github.com/cheahjs/free-llm-api-resources?tab=readme-ov-file#free-providers
+
+# Bias Detector
+## Tone Bias
+Say for tone bias it looks like the wording and highlights words or senetces have seem to have a tone bias.
+
+## Framing Bias
+Same with framing bias as well
+
+## Selection / Sourcing Bias
+Where do they get their infomation and where don't they.
+
+## Ownership Bias
+Who owns this source and what are their parents companies etc.
+
+## Common Enemy (Idealogy)
+Having some scapegoat as common figure to down talk.
+
+## Factual Sources
+How true is their infomation
+## Left and Right leaning
+
+https://dl.acm.org/doi/10.1145/3706598.3713716
