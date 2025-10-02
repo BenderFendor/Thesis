@@ -1,10 +1,10 @@
 "use client"
 
 import { useState, useEffect } from "react"
-import { X, ExternalLink, Heart, MessageCircle, Share2, Bookmark, AlertTriangle, DollarSign, Bug, Link as LinkIcon, Rss, Sparkles } from "lucide-react"
+import { X, ExternalLink, Heart, MessageCircle, Share2, Bookmark, AlertTriangle, DollarSign, Bug, Link as LinkIcon, Rss, Sparkles, Maximize2, Minimize2 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
-import { type NewsArticle, getSourceById, type NewsSource, fetchSourceDebugData, type SourceDebugData, analyzeArticle, type ArticleAnalysis } from "@/lib/api"
+import { type NewsArticle, getSourceById, type NewsSource, fetchSourceDebugData, type SourceDebugData, analyzeArticle, type ArticleAnalysis, API_BASE_URL } from "@/lib/api"
 import { ArticleAnalysisDisplay } from "@/components/article-analysis"
 
 interface ArticleDetailModalProps {
@@ -25,6 +25,9 @@ export function ArticleDetailModal({ article, isOpen, onClose }: ArticleDetailMo
   const [matchedEntryIndex, setMatchedEntryIndex] = useState<number | null>(null)
   const [aiAnalysisLoading, setAiAnalysisLoading] = useState(false)
   const [aiAnalysis, setAiAnalysis] = useState<ArticleAnalysis | null>(null)
+  const [isExpanded, setIsExpanded] = useState(false)
+  const [fullArticleText, setFullArticleText] = useState<string | null>(null)
+  const [articleLoading, setArticleLoading] = useState(false)
 
   useEffect(() => {
     const loadSource = async () => {
@@ -47,7 +50,34 @@ export function ArticleDetailModal({ article, isOpen, onClose }: ArticleDetailMo
     }
   }, [isOpen, article])
 
-  // Auto-load AI analysis when modal opens
+  // Load full article text immediately when modal opens
+  useEffect(() => {
+    const loadFullArticle = async () => {
+      if (!article) return
+      
+      setArticleLoading(true)
+      setFullArticleText(null)
+      
+      try {
+        // Use the newspaper library endpoint to get full article text
+        const response = await fetch(`${API_BASE_URL}/article/extract?url=${encodeURIComponent(article.url)}`)
+        if (response.ok) {
+          const data = await response.json()
+          setFullArticleText(data.text || data.full_text || null)
+        }
+      } catch (e) {
+        console.error('Failed to fetch full article:', e)
+      } finally {
+        setArticleLoading(false)
+      }
+    }
+    
+    if (isOpen && article) {
+      loadFullArticle()
+    }
+  }, [article?.url, isOpen])
+
+  // Auto-load AI analysis when modal opens (background)
   useEffect(() => {
     setDebugOpen(false)
     setDebugData(null)
@@ -133,20 +163,38 @@ export function ArticleDetailModal({ article, isOpen, onClose }: ArticleDetailMo
   }
 
   return (
-    <div className="fixed inset-0 bg-black/95 backdrop-blur-md z-50 overflow-y-auto">
-      <div className="min-h-screen pb-20">
-        {/* Close Button - Fixed */}
-        <Button 
-          variant="ghost" 
-          size="sm" 
-          onClick={onClose}
-          className="fixed top-6 right-6 z-50 bg-black/50 hover:bg-black/70 backdrop-blur-sm border border-gray-800"
-        >
-          <X className="h-5 w-5" />
-        </Button>
+    <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+      <div className={`bg-black border border-gray-800 rounded-lg transition-all duration-300 ${
+        isExpanded 
+          ? 'w-full h-full max-w-none max-h-none overflow-y-auto' 
+          : 'max-w-4xl w-full max-h-[90vh] overflow-hidden'
+      }`}>
+        {/* Header Controls */}
+        <div className="flex items-center justify-end gap-2 p-4 border-b border-gray-800 sticky top-0 bg-black z-10">
+          <Button 
+            variant="ghost" 
+            size="sm" 
+            onClick={() => setIsExpanded(!isExpanded)}
+            className="bg-black/50 hover:bg-black/70 backdrop-blur-sm border border-gray-800"
+          >
+            {isExpanded ? <Minimize2 className="h-4 w-4" /> : <Maximize2 className="h-4 w-4" />}
+          </Button>
+          <Button 
+            variant="ghost" 
+            size="sm" 
+            onClick={onClose}
+            className="bg-black/50 hover:bg-black/70 backdrop-blur-sm border border-gray-800"
+          >
+            <X className="h-5 w-5" />
+          </Button>
+        </div>
 
+        {/* Content Wrapper */}
+        <div className={isExpanded ? "" : "overflow-y-auto max-h-[calc(90vh-80px)]"}>        
         {/* Hero Image Section */}
-        <div className="relative h-[60vh] min-h-[400px] bg-gradient-to-b from-gray-900 to-black overflow-hidden">
+        <div className={`relative bg-gradient-to-b from-gray-900 to-black overflow-hidden ${
+          isExpanded ? 'h-[60vh] min-h-[400px]' : 'h-48'
+        }`}>
           <img 
             src={article.image || "/placeholder.svg"} 
             alt={article.title} 
@@ -166,7 +214,9 @@ export function ArticleDetailModal({ article, isOpen, onClose }: ArticleDetailMo
               </div>
               
               {/* Title */}
-              <h1 className="text-5xl md:text-6xl font-bold text-white mb-6 leading-tight font-serif">
+              <h1 className={`font-bold text-white mb-6 leading-tight font-serif ${
+                isExpanded ? 'text-5xl md:text-6xl' : 'text-2xl md:text-3xl'
+              }`}>
                 {article.title}
               </h1>
               
@@ -191,38 +241,62 @@ export function ArticleDetailModal({ article, isOpen, onClose }: ArticleDetailMo
         </div>
 
         {/* Main Content Area */}
-        <div className="max-w-5xl mx-auto px-8 py-12">
+        <div className={isExpanded ? "max-w-5xl mx-auto px-8 py-12" : "px-6 py-6"}>
           {/* Summary Quote */}
-          <div className="mb-12 border-l-4 border-emerald-500 pl-6 py-2">
-            <p className="text-2xl text-gray-200 leading-relaxed font-light italic">
+          <div className={isExpanded ? "mb-12 border-l-4 border-emerald-500 pl-6 py-2" : "mb-6 border-l-4 border-emerald-500 pl-4 py-2"}>
+            <p className={`text-gray-200 leading-relaxed font-light italic ${
+              isExpanded ? 'text-2xl' : 'text-lg'
+            }`}>
               "{article.summary}"
             </p>
           </div>
 
           {/* Two Column Layout */}
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-12">
+          <div className={`grid gap-8 ${
+            isExpanded ? 'grid-cols-1 lg:grid-cols-3 gap-12' : 'grid-cols-1'
+          }`}>
             {/* Main Article Content - 2/3 width */}
-            <div className="lg:col-span-2 space-y-8">
-              {/* Full Article Text from AI Analysis */}
-              {aiAnalysisLoading ? (
-                <div className="flex flex-col items-center justify-center p-12 bg-gradient-to-br from-purple-500/5 to-blue-500/5 rounded-lg border border-purple-500/20">
-                  <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-purple-400 mb-4"></div>
-                  <p className="text-gray-400">Loading full article text...</p>
-                  <p className="text-sm text-gray-500 mt-2">AI is analyzing the article</p>
-                </div>
-              ) : aiAnalysis?.full_text ? (
-                <div className="prose prose-invert prose-lg max-w-none">
-                  <h2 className="text-3xl font-bold text-white mb-6 font-serif">Full Article</h2>
-                  <div className="text-gray-300 leading-relaxed text-lg space-y-6 whitespace-pre-wrap">
-                    {aiAnalysis.full_text}
+            <div className={isExpanded ? "lg:col-span-2 space-y-8" : "space-y-6"}>
+              {/* Full Article Content - Show immediately */}
+              <div className={isExpanded ? "prose prose-invert prose-lg max-w-none" : "prose prose-invert max-w-none"}>
+                <h2 className={`font-bold text-white mb-6 font-serif ${
+                  isExpanded ? 'text-3xl' : 'text-xl'
+                }`}>Full Article</h2>
+                
+                {articleLoading ? (
+                  <div className="flex items-center gap-3 p-6 bg-gray-900/50 rounded-lg border border-gray-800">
+                    <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-emerald-400"></div>
+                    <p className="text-gray-400">Loading full article text...</p>
                   </div>
-                </div>
-              ) : (
-                <div className="prose prose-invert prose-lg max-w-none">
-                  <h2 className="text-3xl font-bold text-white mb-6 font-serif">Article Content</h2>
-                  <div className="text-gray-300 leading-relaxed text-lg space-y-6">
-                    {article.content}
+                ) : fullArticleText ? (
+                  <div className={`text-gray-300 leading-relaxed whitespace-pre-wrap ${
+                    isExpanded ? 'text-lg space-y-6' : 'text-base space-y-4'
+                  }`}>
+                    {fullArticleText}
                   </div>
+                ) : (
+                  <div className={`text-gray-300 leading-relaxed space-y-4 ${
+                    isExpanded ? 'text-lg space-y-6' : 'text-base'
+                  }`}>
+                    {article.content || article.summary}
+                  </div>
+                )}
+              </div>
+
+              {/* AI Analysis Note - Only show if AI provides additional insights */}
+              {aiAnalysis?.full_text && aiAnalysis.full_text !== fullArticleText && aiAnalysis.full_text !== article.content && (
+                <div className="bg-purple-500/5 border border-purple-500/30 rounded-lg p-4">
+                  <div className="flex items-center gap-2 mb-2">
+                    <Sparkles className="h-4 w-4 text-purple-400" />
+                    <h3 className="text-sm font-semibold text-white">AI Enhanced Version Available</h3>
+                  </div>
+                  <p className="text-sm text-gray-400 mb-3">AI has extracted an enhanced version of this article with better formatting.</p>
+                  <details className="text-sm">
+                    <summary className="cursor-pointer text-purple-400 hover:text-purple-300">Show AI Version</summary>
+                    <div className="mt-3 text-gray-300 leading-relaxed whitespace-pre-wrap">
+                      {aiAnalysis.full_text}
+                    </div>
+                  </details>
                 </div>
               )}
 
@@ -276,7 +350,8 @@ export function ArticleDetailModal({ article, isOpen, onClose }: ArticleDetailMo
               </div>
             </div>
 
-            {/* Sidebar - 1/3 width */}
+            {/* Sidebar - 1/3 width - Only show in expanded mode */}
+            {isExpanded && (
             <div className="lg:col-span-1 space-y-6">
               {/* AI Analysis - Integrated */}
               {aiAnalysis && aiAnalysis.success && (
@@ -332,6 +407,38 @@ export function ArticleDetailModal({ article, isOpen, onClose }: ArticleDetailMo
                           <span className="text-gray-400">Political Leaning:</span>
                           <p className="text-white mt-1">{aiAnalysis.source_analysis.political_leaning}</p>
                         </div>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Fact Check Results Preview */}
+                  {aiAnalysis.fact_check_results && aiAnalysis.fact_check_results.length > 0 && (
+                    <div className="bg-emerald-500/5 border border-emerald-500/30 rounded-lg p-6">
+                      <h3 className="text-lg font-semibold text-white mb-3 flex items-center gap-2">
+                        <Sparkles className="h-5 w-5 text-emerald-400" />
+                        Fact Check Results
+                      </h3>
+                      <div className="space-y-3">
+                        {aiAnalysis.fact_check_results.slice(0, 3).map((result, index) => (
+                          <div key={index} className="text-sm">
+                            <div className="flex items-center gap-2 mb-1">
+                              <Badge className={
+                                result.verification_status === 'verified' ? 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30' :
+                                result.verification_status === 'partially-verified' ? 'bg-yellow-500/20 text-yellow-400 border-yellow-500/30' :
+                                result.verification_status === 'false' ? 'bg-red-500/20 text-red-400 border-red-500/30' :
+                                'bg-gray-500/20 text-gray-400 border-gray-500/30'
+                              }>
+                                {result.verification_status.replace('-', ' ')}
+                              </Badge>
+                            </div>
+                            <p className="text-gray-300 text-xs line-clamp-2">"{result.claim}"</p>
+                          </div>
+                        ))}
+                        {aiAnalysis.fact_check_results.length > 3 && (
+                          <p className="text-xs text-gray-400 mt-2">
+                            +{aiAnalysis.fact_check_results.length - 3} more verified claims
+                          </p>
+                        )}
                       </div>
                     </div>
                   )}
@@ -426,7 +533,37 @@ export function ArticleDetailModal({ article, isOpen, onClose }: ArticleDetailMo
                 )}
               </div>
             </div>
+            )}
+
+            {/* Compact AI Loading Indicator */}
+            {!isExpanded && aiAnalysisLoading && (
+              <div className="flex items-center gap-3 p-4 bg-gradient-to-r from-purple-500/10 to-blue-500/10 border border-purple-500/30 rounded-lg">
+                <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-purple-400"></div>
+                <p className="text-sm text-gray-400">AI is analyzing article in background...</p>
+              </div>
+            )}
+
+            {/* Compact AI Summary - Show when not expanded */}
+            {!isExpanded && aiAnalysis?.summary && (
+              <div className="bg-gradient-to-br from-purple-500/10 to-blue-500/10 border border-purple-500/30 rounded-lg p-4">
+                <div className="flex items-center gap-2 mb-2">
+                  <Sparkles className="h-4 w-4 text-purple-400" />
+                  <h3 className="text-sm font-semibold text-white">AI Summary</h3>
+                </div>
+                <p className="text-gray-300 leading-relaxed text-sm">{aiAnalysis.summary}</p>
+                <Button 
+                  variant="outline" 
+                  size="sm" 
+                  onClick={() => setIsExpanded(true)}
+                  className="mt-3 w-full"
+                >
+                  <Maximize2 className="h-4 w-4 mr-2" />
+                  Expand for Full AI Analysis
+                </Button>
+              </div>
+            )}
           </div>
+        </div>
         </div>
       </div>
     </div>

@@ -1739,6 +1739,14 @@ class ArticleAnalysisRequest(BaseModel):
     url: str
     source_name: Optional[str] = None
 
+class FactCheckResult(BaseModel):
+    claim: str
+    verification_status: str  # verified/partially-verified/unverified/false
+    evidence: str
+    sources: List[str]
+    confidence: str  # high/medium/low
+    notes: Optional[str] = None
+
 class ArticleAnalysisResponse(BaseModel):
     success: bool
     article_url: str
@@ -1750,6 +1758,8 @@ class ArticleAnalysisResponse(BaseModel):
     reporter_analysis: Optional[Dict[str, Any]] = None
     bias_analysis: Optional[Dict[str, Any]] = None
     fact_check_suggestions: Optional[List[str]] = None
+    fact_check_results: Optional[List[Dict[str, Any]]] = None
+    grounding_metadata: Optional[Dict[str, Any]] = None
     summary: Optional[str] = None
     error: Optional[str] = None
 
@@ -1796,9 +1806,9 @@ async def analyze_with_gemini(article_data: Dict[str, Any], source_name: Optiona
             response_modalities=["TEXT"]
         )
         
-        # Prepare the prompt for comprehensive analysis
+        # Prepare the prompt for comprehensive analysis with fact-checking
         prompt = f"""
-You are an expert media analyst. Analyze the following news article comprehensively and use Google Search to verify facts and gather additional context about the source and reporters:
+You are an expert media analyst and fact-checker. Analyze the following news article comprehensively and use Google Search to verify ALL factual claims, numbers, quotes, and statements:
 
 **Article Title:** {article_data.get('title', 'Unknown')}
 **Source:** {source_name or 'Unknown'}
@@ -1807,6 +1817,8 @@ You are an expert media analyst. Analyze the following news article comprehensiv
 
 **Article Text:**
 {article_data.get('text', '')[:4000]}  
+
+IMPORTANT: Use Google Search to verify EVERY factual claim in the article. For each claim, search for corroborating or contradicting sources.
 
 Please provide a detailed analysis in the following JSON format:
 
@@ -1837,9 +1849,27 @@ Please provide a detailed analysis in the following JSON format:
     "Key claim 2 that should be fact-checked",
     "Key claim 3 that should be fact-checked"
   ],
+  "fact_check_results": [
+    {{
+      "claim": "Specific claim from the article (quote it exactly)",
+      "verification_status": "verified/partially-verified/unverified/false",
+      "evidence": "What evidence was found via Google Search",
+      "sources": ["URL 1", "URL 2"],
+      "confidence": "high/medium/low",
+      "notes": "Additional context or caveats"
+    }}
+  ],
   "context": "Important background context for understanding this story",
   "missing_perspectives": "What perspectives or information might be missing"
 }}
+
+CRITICAL: For fact_check_results, verify ALL specific details including:
+- Names of people, companies, organizations
+- Numbers, statistics, financial figures
+- Dates and timelines
+- Quotes and statements
+- Events and their descriptions
+- Any claims that can be objectively verified
 
 Provide only the JSON response, no additional text.
 """
@@ -1909,6 +1939,31 @@ Provide only the JSON response, no additional text.
             "error": str(e)
         }
 
+@app.get("/article/extract")
+async def extract_article_text(url: str):
+    """
+    Extract full article text without AI analysis - fast endpoint for immediate display
+    """
+    logger.info(f"📄 Extracting article text: {url}")
+    
+    try:
+        article_data = await extract_article_content(url)
+        
+        if not article_data.get("success"):
+            raise HTTPException(status_code=400, detail=article_data.get("error", "Failed to extract article"))
+        
+        return {
+            "success": True,
+            "url": url,
+            "text": article_data.get("text"),
+            "title": article_data.get("title"),
+            "authors": article_data.get("authors"),
+            "publish_date": article_data.get("publish_date")
+        }
+    except Exception as e:
+        logger.error(f"💥 Error extracting article {url}: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
 @app.post("/api/article/analyze", response_model=ArticleAnalysisResponse)
 async def analyze_article(request: ArticleAnalysisRequest):
     """
@@ -1954,6 +2009,8 @@ async def analyze_article(request: ArticleAnalysisRequest):
             reporter_analysis=ai_analysis.get("reporter_analysis"),
             bias_analysis=ai_analysis.get("bias_analysis"),
             fact_check_suggestions=ai_analysis.get("fact_check_suggestions"),
+            fact_check_results=ai_analysis.get("fact_check_results"),
+            grounding_metadata=ai_analysis.get("grounding_metadata"),
             summary=ai_analysis.get("summary")
         )
         
@@ -1962,6 +2019,103 @@ async def analyze_article(request: ArticleAnalysisRequest):
         return ArticleAnalysisResponse(
             success=False,
             article_url=request.url,
+            error=str(e)
+        )
+
+# News Research Agent Endpoint
+class NewsResearchRequest(BaseModel):
+    query: str
+    include_thinking: bool = True
+
+class ThinkingStep(BaseModel):
+    type: str
+    content: str
+    timestamp: str
+
+class NewsResearchResponse(BaseModel):
+    success: bool
+    query: str
+    answer: str
+    thinking_steps: List[ThinkingStep] = []
+    articles_searched: int = 0
+    error: Optional[str] = None
+
+@app.post("/api/news/research", response_model=NewsResearchResponse)
+async def news_research_endpoint(request: NewsResearchRequest):
+    """
+    Intelligent news research agent that searches through the platform's articles,
+    analyzes coverage, and provides insights with visible chain-of-thought reasoning.
+    
+    This agent is specifically designed for news analysis and article research.
+    """
+    logger.info(f"🔍 News research query: {request.query}")
+    
+    try:
+        # Import the news research agent
+        import sys
+        import os
+        backend_path = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+        if backend_path not in sys.path:
+            sys.path.insert(0, backend_path)
+        
+        from news_research_agent import research_news
+        
+        # Get articles from cache
+        articles = news_cache.get_articles()
+        
+        # Convert NewsArticle models to dicts
+        articles_dict = [
+            {
+                "title": article.title,
+                "source": article.source,
+                "category": article.category,
+                "description": article.description,
+                "published": article.published,
+                "link": article.link,
+                "image": article.image
+            }
+            for article in articles
+        ]
+        
+        logger.info(f"📰 Searching through {len(articles_dict)} cached articles")
+        
+        # Execute research with verbose mode for thinking steps
+        result = research_news(
+            query=request.query,
+            articles=articles_dict,
+            verbose=request.include_thinking
+        )
+        
+        logger.info(f"✅ News research completed: {result['success']}")
+        
+        # Convert thinking steps to Pydantic models
+        thinking_steps = [
+            ThinkingStep(**step) for step in result.get("thinking_steps", [])
+        ]
+        
+        return NewsResearchResponse(
+            success=result["success"],
+            query=result["query"],
+            answer=result.get("answer", ""),
+            thinking_steps=thinking_steps,
+            articles_searched=result.get("articles_searched", 0),
+            error=result.get("error")
+        )
+        
+    except ImportError as e:
+        logger.error(f"❌ Import error in news research: {e}")
+        return NewsResearchResponse(
+            success=False,
+            query=request.query,
+            answer="",
+            error=f"News research agent not configured properly: {str(e)}"
+        )
+    except Exception as e:
+        logger.error(f"💥 Error in news research for '{request.query}': {e}")
+        return NewsResearchResponse(
+            success=False,
+            query=request.query,
+            answer="",
             error=str(e)
         )
 

@@ -1,10 +1,10 @@
 "use client"
 
 import { useState } from "react"
-import { Sparkles, User, Building2, Scale, CheckCircle, AlertCircle, ChevronDown, ChevronUp } from "lucide-react"
+import { Sparkles, User, Building2, Scale, CheckCircle, AlertCircle, ChevronDown, ChevronUp, ExternalLink, Shield, XCircle, AlertTriangle as AlertTriangleIcon } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
-import { type ArticleAnalysis } from "@/lib/api"
+import { type ArticleAnalysis, type FactCheckResult } from "@/lib/api"
 
 interface ArticleAnalysisDisplayProps {
   analysis: ArticleAnalysis
@@ -16,7 +16,8 @@ export function ArticleAnalysisDisplay({ analysis }: ArticleAnalysisDisplayProps
     sourceAnalysis: false,
     reporterAnalysis: false,
     biasAnalysis: false,
-    factCheck: false
+    factCheck: false,
+    factCheckResults: true
   })
 
   const toggleSection = (section: string) => {
@@ -31,6 +32,36 @@ export function ArticleAnalysisDisplay({ analysis }: ArticleAnalysisDisplayProps
     if (numScore <= 3) return "text-blue-400"
     if (numScore >= 7) return "text-red-400"
     return "text-gray-400"
+  }
+
+  const getVerificationIcon = (status: string) => {
+    switch (status) {
+      case 'verified':
+        return <Shield className="h-5 w-5 text-emerald-400" />
+      case 'partially-verified':
+        return <AlertTriangleIcon className="h-5 w-5 text-yellow-400" />
+      case 'unverified':
+        return <AlertCircle className="h-5 w-5 text-gray-400" />
+      case 'false':
+        return <XCircle className="h-5 w-5 text-red-400" />
+      default:
+        return <AlertCircle className="h-5 w-5 text-gray-400" />
+    }
+  }
+
+  const getVerificationColor = (status: string) => {
+    switch (status) {
+      case 'verified':
+        return "bg-emerald-500/20 text-emerald-400 border-emerald-500/30"
+      case 'partially-verified':
+        return "bg-yellow-500/20 text-yellow-400 border-yellow-500/30"
+      case 'unverified':
+        return "bg-gray-500/20 text-gray-400 border-gray-500/30"
+      case 'false':
+        return "bg-red-500/20 text-red-400 border-red-500/30"
+      default:
+        return "bg-gray-500/20 text-gray-400 border-gray-500/30"
+    }
   }
 
   if (!analysis.success) {
@@ -217,6 +248,72 @@ export function ArticleAnalysisDisplay({ analysis }: ArticleAnalysisDisplayProps
                 <span className="text-sm text-gray-400">Source Diversity:</span>
                 <p className="text-white mt-1">{analysis.bias_analysis.source_diversity}</p>
               </div>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Fact Check Results - AI Verified */}
+      {analysis.fact_check_results && analysis.fact_check_results.length > 0 && (
+        <div className="border border-emerald-800 rounded-lg overflow-hidden">
+          <button
+            onClick={() => toggleSection('factCheckResults')}
+            className="w-full p-4 bg-emerald-900/20 hover:bg-emerald-900/30 transition-colors flex items-center justify-between"
+          >
+            <div className="flex items-center gap-2">
+              <Shield className="h-5 w-5 text-emerald-400" />
+              <h3 className="text-lg font-semibold text-white">AI Fact Check Results</h3>
+              <Badge variant="outline" className="text-xs bg-emerald-500/20 text-emerald-400 border-emerald-500/30">
+                {analysis.fact_check_results.length} claims verified
+              </Badge>
+            </div>
+            {expandedSections.factCheckResults ? (
+              <ChevronUp className="h-5 w-5 text-gray-400" />
+            ) : (
+              <ChevronDown className="h-5 w-5 text-gray-400" />
+            )}
+          </button>
+          {expandedSections.factCheckResults && (
+            <div className="p-4 bg-black/20 space-y-4">
+              {analysis.fact_check_results.map((result, index) => (
+                <div key={index} className="border border-gray-800 rounded-lg p-4 bg-gray-900/30">
+                  <div className="flex items-start gap-3 mb-3">
+                    {getVerificationIcon(result.verification_status)}
+                    <div className="flex-1">
+                      <div className="flex items-center gap-2 mb-2">
+                        <Badge className={getVerificationColor(result.verification_status)}>
+                          {result.verification_status.replace('-', ' ').toUpperCase()}
+                        </Badge>
+                        <Badge variant="outline" className="text-xs">
+                          {result.confidence} confidence
+                        </Badge>
+                      </div>
+                      <p className="text-white font-medium mb-2">"{result.claim}"</p>
+                      <p className="text-gray-300 text-sm mb-3">{result.evidence}</p>
+                      {result.notes && (
+                        <p className="text-gray-400 text-sm italic mb-3">{result.notes}</p>
+                      )}
+                      {result.sources && result.sources.length > 0 && (
+                        <div className="space-y-1">
+                          <p className="text-xs text-gray-400 font-medium">Sources:</p>
+                          {result.sources.map((source, idx) => (
+                            <a 
+                              key={idx}
+                              href={source}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="flex items-center gap-1 text-xs text-cyan-400 hover:text-cyan-300"
+                            >
+                              <ExternalLink className="h-3 w-3" />
+                              <span className="truncate">{source}</span>
+                            </a>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              ))}
             </div>
           )}
         </div>

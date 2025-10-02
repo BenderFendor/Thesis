@@ -1,7 +1,7 @@
 // API utility for communicating with FastAPI backend
 
 // Default to localhost backend when env var is not set (makes dev easier)
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'
+export const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'
 const DOCKER_API_BASE_URL = process.env.NEXT_PUBLIC_DOCKER_API_URL || API_BASE_URL
 // Use DOCKER_API_BASE_URL when running in Docker
 // This allows the frontend to reach the backend when both are in Docker containers
@@ -831,6 +831,15 @@ export async function fetchStreamStatus(): Promise<any> {
 }
 
 // Article Analysis Types
+export interface FactCheckResult {
+  claim: string;
+  verification_status: 'verified' | 'partially-verified' | 'unverified' | 'false';
+  evidence: string;
+  sources: string[];
+  confidence: 'high' | 'medium' | 'low';
+  notes?: string;
+}
+
 export interface ArticleAnalysis {
   success: boolean;
   article_url: string;
@@ -859,6 +868,12 @@ export interface ArticleAnalysis {
     overall_bias_score: string;
   };
   fact_check_suggestions?: string[];
+  fact_check_results?: FactCheckResult[];
+  grounding_metadata?: {
+    grounding_chunks?: Array<{uri?: string; title?: string}>;
+    grounding_supports?: any[];
+    web_search_queries?: string[];
+  };
   summary?: string;
   error?: string;
 }
@@ -887,6 +902,53 @@ export async function analyzeArticle(url: string, sourceName?: string): Promise<
     return data;
   } catch (error) {
     console.error('❌ Failed to analyze article:', error);
+    throw error;
+  }
+}
+
+// News Research Agent Types
+export interface ThinkingStep {
+  type: 'thought' | 'action' | 'tool_start' | 'observation' | 'answer';
+  content: string;
+  timestamp: string;
+}
+
+export interface NewsResearchResponse {
+  success: boolean;
+  query: string;
+  answer: string;
+  thinking_steps: ThinkingStep[];
+  articles_searched: number;
+  error?: string;
+}
+
+// Perform news research using the AI agent
+export async function performNewsResearch(
+  query: string, 
+  includeThinking: boolean = true
+): Promise<NewsResearchResponse> {
+  try {
+    console.log(`🔍 Performing news research: ${query}`);
+    const response = await fetch(`${API_BASE_URL}/api/news/research`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        query,
+        include_thinking: includeThinking
+      })
+    });
+    
+    if (!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status}`);
+    }
+    
+    const data = await response.json();
+    console.log('✅ News research complete:', data);
+    return data;
+  } catch (error) {
+    console.error('❌ Failed to perform news research:', error);
     throw error;
   }
 }

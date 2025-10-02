@@ -19,6 +19,8 @@ import {
   Trophy,
   Activity,
   Newspaper,
+  Sparkles,
+  Brain,
 } from "lucide-react"
 import Link from "next/link"
 import { GlobeView } from "@/components/globe-view"
@@ -396,6 +398,12 @@ function NewsPage() {
 
               {/* User Actions */}
               <div className="flex items-center gap-2">
+                <Link href="/search">
+                  <Button variant="ghost" size="sm" className="gap-2">
+                    <Brain className="w-4 h-4" />
+                    Research
+                  </Button>
+                </Link>
                 <Link href="/sources">
                   <Button variant="ghost" size="sm" className="gap-2">
                     <Activity className="w-4 h-4" />
