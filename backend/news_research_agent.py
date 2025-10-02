@@ -46,6 +46,7 @@ class StreamingThoughtHandler(BaseCallbackHandler):
     def on_agent_action(self, action, **kwargs):
         """Called when agent decides to use a tool"""
         self.current_tool = action.tool
+        # Simplified - just show the action
         self.steps.append(ThinkingStep(
             "action",
             f"Using tool: {action.tool}\nInput: {action.tool_input}"
@@ -61,16 +62,18 @@ class StreamingThoughtHandler(BaseCallbackHandler):
     
     def on_tool_end(self, output, **kwargs):
         """Called when tool execution completes"""
+        # Simplified - just show abbreviated results
         self.steps.append(ThinkingStep(
             "observation",
-            f"Tool result: {output[:200]}..." if len(str(output)) > 200 else f"Tool result: {output}"
+            f"Found results: {output[:150]}..." if len(str(output)) > 150 else f"Results: {output}"
         ))
     
     def on_agent_finish(self, finish, **kwargs):
         """Called when agent completes"""
+        # Simplified - just mark completion
         self.steps.append(ThinkingStep(
             "answer",
-            finish.return_values.get("output", "")
+            "Research complete"
         ))
 
 
@@ -129,7 +132,7 @@ def search_news_articles(query: str) -> str:
         reverse=True
     )[:10]
     
-    # Format results
+    # Format results with article URLs
     result_lines = [f"Found {len(relevant_articles)} articles about '{query}':\n"]
     
     for i, article in enumerate(relevant_articles, 1):
@@ -138,6 +141,9 @@ def search_news_articles(query: str) -> str:
         result_lines.append(f"   Category: {article.get('category', 'general')}")
         result_lines.append(f"   Published: {article.get('published', 'Unknown date')}")
         result_lines.append(f"   Summary: {article.get('description', 'No description')[:150]}...")
+        # Include article URL if available
+        if article.get('link'):
+            result_lines.append(f"   URL: {article.get('link')}")
         result_lines.append("")
     
     return "\n".join(result_lines)
@@ -250,11 +256,13 @@ def create_news_research_agent(verbose: bool = True):
     Returns:
         Tuple of (agent_executor, callback_handler)
     """
-    # Initialize Gemini LLM
+    # Initialize Gemini LLM with timeout
     llm = ChatGoogleGenerativeAI(
         model="gemini-2.0-flash",
         temperature=0.7,
-        google_api_key=os.getenv("GEMINI_API_KEY")
+        google_api_key=os.getenv("GEMINI_API_KEY"),
+        timeout=30,  # 30 second timeout for API calls
+        max_retries=1  # Reduce retries
     )
     
     # Define tools - order matters (prioritize article search)
@@ -275,9 +283,15 @@ Your primary role is to help users understand and analyze news articles in our d
 2. Use analyze_source_coverage to compare how different sources cover topics
 3. Only use web_search when information isn't in our articles or for background context
 4. Provide balanced, multi-perspective analysis
-5. Cite specific sources and articles when possible
-6. Highlight bias, funding, and credibility when relevant
-7. Be transparent about your reasoning process
+5. ALWAYS cite specific sources with their article URLs when referencing them
+6. When mentioning an article or source claim, include the article URL in your response
+7. Highlight bias, funding, and credibility when relevant
+8. Be transparent about your reasoning process
+
+**Citation Format:**
+When referencing articles, use this format:
+"According to [Source Name], [claim/information] ([article URL])"
+Example: "According to BBC News, scientists warn of climate impacts (https://example.com/article)"
 
 **Example workflow:**
 - User asks about "climate change" → search_news_articles("climate change")
@@ -297,13 +311,14 @@ Your goal is to help users navigate this information intelligently."""),
     # Create callback handler to capture thinking
     thought_handler = StreamingThoughtHandler()
     
-    # Create agent executor
+    # Create agent executor with optimized settings
     agent_executor = AgentExecutor(
         agent=agent,
         tools=tools,
         verbose=verbose,
         handle_parsing_errors=True,
-        max_iterations=5,
+        max_iterations=5,  # Reduced for faster responses
+        max_execution_time=30,  # 30 second max execution time
         callbacks=[thought_handler] if verbose else []
     )
     
@@ -320,7 +335,7 @@ def research_news(query: str, articles: List[Dict[str, Any]] = None, verbose: bo
         verbose: Show chain of thought
         
     Returns:
-        Dictionary with answer, thinking steps, and metadata
+        Dictionary with answer, thinking steps, metadata, and referenced articles
     """
     # Set articles in global cache
     if articles:
@@ -329,24 +344,64 @@ def research_news(query: str, articles: List[Dict[str, Any]] = None, verbose: bo
     # Create agent
     agent_executor, thought_handler = create_news_research_agent(verbose=verbose)
     
-    # Execute research
+    # Execute research with timeout handling
     try:
-        response = agent_executor.invoke({"input": query})
+        import signal
+        
+        def timeout_handler(signum, frame):
+            raise TimeoutError("Agent execution timed out after 45 seconds")
+        
+        # Set timeout for agent execution (45 seconds)
+        signal.signal(signal.SIGALRM, timeout_handler)
+        signal.alarm(45)
+        
+        try:
+            response = agent_executor.invoke({"input": query})
+            answer_text = response["output"]
+        finally:
+            signal.alarm(0)  # Cancel the alarm
+        
+        # Extract URLs from the answer and find matching articles
+        import re
+        url_pattern = r'https?://[^\s\)]+'
+        found_urls = re.findall(url_pattern, answer_text)
+        
+        # Find articles that match the URLs mentioned in the response
+        referenced_articles = []
+        for article in _news_articles_cache:
+            if article.get('link') in found_urls:
+                referenced_articles.append(article)
         
         return {
             "success": True,
             "query": query,
-            "answer": response["output"],
+            "answer": answer_text,
             "thinking_steps": [step.to_dict() for step in thought_handler.steps] if verbose else [],
+            "articles_searched": len(_news_articles_cache),
+            "referenced_articles": referenced_articles  # Include full article data
+        }
+    except TimeoutError as e:
+        return {
+            "success": False,
+            "query": query,
+            "answer": "",
+            "error": "The research took too long and timed out. Please try a simpler query.",
+            "thinking_steps": [step.to_dict() for step in thought_handler.steps] if verbose else [],
+            "referenced_articles": [],
             "articles_searched": len(_news_articles_cache)
         }
     except Exception as e:
+        import traceback
+        error_details = f"{str(e)}\n{traceback.format_exc()}"
+        print(f"❌ Error in research_news: {error_details}")
         return {
             "success": False,
             "query": query,
             "answer": "",
             "error": str(e),
-            "thinking_steps": [step.to_dict() for step in thought_handler.steps] if verbose else []
+            "thinking_steps": [step.to_dict() for step in thought_handler.steps] if verbose else [],
+            "referenced_articles": [],
+            "articles_searched": len(_news_articles_cache)
         }
 
 

@@ -2038,7 +2038,71 @@ class NewsResearchResponse(BaseModel):
     answer: str
     thinking_steps: List[ThinkingStep] = []
     articles_searched: int = 0
+    referenced_articles: List[dict] = []  # Add referenced articles
     error: Optional[str] = None
+
+@app.get("/api/news/research/stream")
+async def news_research_stream_endpoint(
+    query: str = Query(..., description="The research query"),
+    include_thinking: bool = Query(True, description="Include thinking steps")
+):
+    """
+    Streaming version of news research that sends progress updates in real-time.
+    Returns Server-Sent Events (SSE) stream.
+    """
+    async def generate():
+        try:
+            import sys
+            import os
+            import json
+            from datetime import datetime
+            
+            backend_path = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+            if backend_path not in sys.path:
+                sys.path.insert(0, backend_path)
+            
+            from news_research_agent import research_news
+            
+            # Send initial status
+            yield f"data: {json.dumps({'type': 'status', 'message': 'Starting research...', 'timestamp': datetime.now().isoformat()})}\n\n"
+            
+            # Get articles
+            articles = news_cache.get_articles()
+            articles_dict = [
+                {
+                    "title": article.title,
+                    "source": article.source,
+                    "category": article.category,
+                    "description": article.description,
+                    "published": article.published,
+                    "link": article.link,
+                    "image": article.image
+                }
+                for article in articles
+            ]
+            
+            yield f"data: {json.dumps({'type': 'status', 'message': f'Searching through {len(articles_dict)} articles...', 'timestamp': datetime.now().isoformat()})}\n\n"
+            
+            # Execute research
+            result = research_news(
+                query=query,
+                articles=articles_dict,
+                verbose=include_thinking
+            )
+            
+            # Send thinking steps as they come
+            if result.get("thinking_steps"):
+                for step in result["thinking_steps"]:
+                    yield f"data: {json.dumps({'type': 'thinking_step', 'step': step, 'timestamp': datetime.now().isoformat()})}\n\n"
+            
+            # Send final result
+            yield f"data: {json.dumps({'type': 'complete', 'result': result, 'timestamp': datetime.now().isoformat()})}\n\n"
+            
+        except Exception as e:
+            logger.error(f"Error in streaming research: {e}")
+            yield f"data: {json.dumps({'type': 'error', 'message': str(e), 'timestamp': datetime.now().isoformat()})}\n\n"
+    
+    return StreamingResponse(generate(), media_type="text/event-stream")
 
 @app.post("/api/news/research", response_model=NewsResearchResponse)
 async def news_research_endpoint(request: NewsResearchRequest):
@@ -2099,6 +2163,7 @@ async def news_research_endpoint(request: NewsResearchRequest):
             answer=result.get("answer", ""),
             thinking_steps=thinking_steps,
             articles_searched=result.get("articles_searched", 0),
+            referenced_articles=result.get("referenced_articles", []),
             error=result.get("error")
         )
         

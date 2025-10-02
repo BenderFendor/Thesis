@@ -28,8 +28,11 @@ interface Message {
   content: string
   thinking_steps?: ThinkingStep[]
   articles_searched?: number
+  referenced_articles?: NewsArticle[]
   timestamp: Date
   error?: boolean
+  isStreaming?: boolean
+  streamingStatus?: string
 }
 
 export default function NewsResearchPage() {
@@ -63,23 +66,123 @@ export default function NewsResearchPage() {
     }
 
     setMessages(prev => [...prev, userMessage])
+    const userQuery = query
     setQuery("")
     setIsSearching(true)
 
+    // Create a placeholder assistant message for streaming updates
+    const assistantId = (Date.now() + 1).toString()
+    const streamingMessage: Message = {
+      id: assistantId,
+      type: 'assistant',
+      content: '',
+      timestamp: new Date(),
+      isStreaming: true,
+      streamingStatus: 'Starting research...'
+    }
+    setMessages(prev => [...prev, streamingMessage])
+
     try {
-      const response = await performNewsResearch(userMessage.content, true)
-      
-      const assistantMessage: Message = {
-        id: (Date.now() + 1).toString(),
-        type: 'assistant',
-        content: response.answer,
-        thinking_steps: response.thinking_steps,
-        articles_searched: response.articles_searched,
-        timestamp: new Date(),
-        error: !response.success
+      // Use EventSource for SSE streaming
+      const baseUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'
+      const eventSource = new EventSource(
+        `${baseUrl}/api/news/research/stream?query=${encodeURIComponent(userQuery)}&include_thinking=true`
+      )
+
+      const thinkingSteps: ThinkingStep[] = []
+      let finalResult: any = null
+
+      eventSource.onmessage = (event) => {
+        const data = JSON.parse(event.data)
+        
+        if (data.type === 'status') {
+          // Update streaming status message
+          setMessages(prev => prev.map(msg => 
+            msg.id === assistantId 
+              ? { ...msg, streamingStatus: data.message }
+              : msg
+          ))
+        } else if (data.type === 'thinking_step') {
+          // Collect thinking steps
+          thinkingSteps.push(data.step)
+          setMessages(prev => prev.map(msg => 
+            msg.id === assistantId 
+              ? { ...msg, thinking_steps: [...thinkingSteps], streamingStatus: `Processing: ${data.step.type}...` }
+              : msg
+          ))
+        } else if (data.type === 'complete') {
+          // Final result received
+          finalResult = data.result
+          eventSource.close()
+          
+          // Convert backend articles to frontend format
+          const referencedArticles = finalResult.referenced_articles?.map((article: any) => ({
+            id: Date.now() + Math.random(),
+            title: article.title || 'No title',
+            source: article.source || 'Unknown',
+            sourceId: (article.source || 'unknown').toLowerCase().replace(/\s+/g, '-'),
+            country: 'United States',
+            credibility: 'medium' as const,
+            bias: 'center' as const,
+            summary: article.description || 'No description',
+            content: article.description || 'No description',
+            image: article.image || "/placeholder.svg",
+            publishedAt: article.published || new Date().toISOString(),
+            category: article.category || 'general',
+            url: article.link || '',
+            likes: 0,
+            comments: 0,
+            shares: 0,
+            tags: [article.category, article.source].filter(Boolean),
+            originalLanguage: "en",
+            translated: false
+          })) || []
+          
+          // Update with final content
+          setMessages(prev => prev.map(msg => 
+            msg.id === assistantId 
+              ? {
+                  ...msg,
+                  content: finalResult.answer,
+                  thinking_steps: thinkingSteps,
+                  articles_searched: finalResult.articles_searched,
+                  referenced_articles: referencedArticles,
+                  isStreaming: false,
+                  streamingStatus: undefined,
+                  error: !finalResult.success
+                }
+              : msg
+          ))
+          
+          setIsSearching(false)
+          inputRef.current?.focus()
+        } else if (data.type === 'error') {
+          eventSource.close()
+          setMessages(prev => prev.map(msg => 
+            msg.id === assistantId 
+              ? { ...msg, content: data.message, error: true, isStreaming: false, streamingStatus: undefined }
+              : msg
+          ))
+          setIsSearching(false)
+        }
       }
 
-      setMessages(prev => [...prev, assistantMessage])
+      eventSource.onerror = (error) => {
+        console.error('SSE error:', error)
+        eventSource.close()
+        setMessages(prev => prev.map(msg => 
+          msg.id === assistantId 
+            ? { 
+                ...msg, 
+                content: 'Connection error. Please try again.', 
+                error: true, 
+                isStreaming: false,
+                streamingStatus: undefined
+              }
+            : msg
+        ))
+        setIsSearching(false)
+      }
     } catch (error) {
       const errorMessage: Message = {
         id: (Date.now() + 1).toString(),
@@ -89,9 +192,7 @@ export default function NewsResearchPage() {
         error: true
       }
       setMessages(prev => [...prev, errorMessage])
-    } finally {
       setIsSearching(false)
-      inputRef.current?.focus()
     }
   }
 
@@ -113,10 +214,85 @@ export default function NewsResearchPage() {
   }
 
   const extractUrls = (text: string): string[] => {
-    const urlRegex = /https?:\/\/[\w.-]+(?:\/[\w\-./?%&=+#]*)?/gi
+    // Enhanced regex to capture URLs including those in parentheses and markdown links
+    const urlRegex = /https?:\/\/[^\s\)]+/gi
     const matches = text.match(urlRegex) || []
-    // de-duplicate
-    return Array.from(new Set(matches))
+    // de-duplicate and clean up
+    return Array.from(new Set(matches.map(url => url.replace(/[,\.]$/, ''))))
+  }
+
+  const renderContentWithEmbeds = (content: string, articles: NewsArticle[]) => {
+    if (!articles || articles.length === 0) {
+      return (
+        <div className="prose prose-invert max-w-none prose-headings:text-foreground prose-p:text-foreground prose-p:leading-relaxed prose-strong:font-semibold prose-strong:text-foreground prose-ul:text-foreground prose-ol:text-foreground prose-li:text-foreground prose-a:text-primary prose-code:text-primary prose-pre:bg-muted/50 prose-h1:text-xl prose-h2:text-lg prose-h3:text-base">
+          <ReactMarkdown 
+            remarkPlugins={[remarkGfm]}
+            components={{
+              strong: ({node, ...props}) => <span className="font-semibold" {...props} />,
+            }}
+          >
+            {content}
+          </ReactMarkdown>
+        </div>
+      )
+    }
+
+    // Split content by URLs and insert article embeds inline
+    const urlRegex = /(https?:\/\/[^\s\)]+)/gi
+    const parts = content.split(urlRegex)
+    
+    return (
+      <div className="space-y-3">
+        {parts.map((part, index) => {
+          // Check if this part is a URL
+          if (part.match(/^https?:\/\//)) {
+            // Find matching article
+            const article = articles.find(a => a.url === part.replace(/[,\.]$/, ''))
+            if (article) {
+              return (
+                <button
+                  key={index}
+                  onClick={() => { setSelectedArticle(article); setIsArticleModalOpen(true) }}
+                  className="w-full border rounded-lg p-3 flex gap-3 items-start text-left hover:border-primary hover:bg-primary/5 transition-all duration-200 group"
+                  style={{ backgroundColor: 'var(--news-bg-primary)', borderColor: 'var(--border)' }}
+                >
+                  <div className="h-16 w-24 flex-shrink-0 overflow-hidden rounded-md bg-black/40 border" style={{ borderColor: 'var(--border)' }}>
+                    <img src={article.image} alt="preview" className="w-full h-full object-cover opacity-80 group-hover:opacity-100 transition-opacity" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <div className="text-sm font-medium line-clamp-2 group-hover:text-primary transition-colors">{article.title}</div>
+                    <div className="text-xs mt-1" style={{ color: 'var(--muted-foreground)' }}>{article.source}</div>
+                  </div>
+                </button>
+              )
+            }
+            // URL without matching article - just show as link
+            return (
+              <a key={index} href={part} target="_blank" rel="noopener noreferrer" className="text-primary hover:underline text-sm">
+                {part}
+              </a>
+            )
+          }
+          
+          // Regular text content
+          if (part.trim()) {
+            return (
+              <div key={index} className="prose prose-invert max-w-none prose-headings:text-foreground prose-p:text-foreground prose-p:leading-relaxed prose-strong:font-semibold prose-strong:text-foreground prose-ul:text-foreground prose-ol:text-foreground prose-li:text-foreground prose-a:text-primary prose-code:text-primary prose-pre:bg-muted/50 prose-h1:text-xl prose-h2:text-lg prose-h3:text-base">
+                <ReactMarkdown 
+                  remarkPlugins={[remarkGfm]}
+                  components={{
+                    strong: ({node, ...props}) => <span className="font-semibold" {...props} />,
+                  }}
+                >
+                  {part}
+                </ReactMarkdown>
+              </div>
+            )
+          }
+          return null
+        })}
+      </div>
+    )
   }
 
   return (
@@ -168,13 +344,13 @@ export default function NewsResearchPage() {
                     <button
                       key={index}
                       onClick={() => handleSampleQuery(sample)}
-                      className="w-full text-left p-3 rounded-lg border hover:border-primary transition-all text-sm"
+                      className="w-full text-left p-3 rounded-lg border hover:border-primary hover:bg-primary/5 hover:scale-[1.01] transition-all duration-200 text-sm group"
                       style={{ 
                         backgroundColor: 'var(--news-bg-secondary)', 
                         borderColor: 'var(--border)',
                       }}
                     >
-                      {sample}
+                      <span className="group-hover:text-primary transition-colors">{sample}</span>
                     </button>
                   ))}
                 </div>
@@ -185,51 +361,35 @@ export default function NewsResearchPage() {
             {messages.map((message) => (
               <div key={message.id} className="mb-6">
                 {message.type === 'user' ? (
-                  <div className="flex justify-end">
-                    <div className="max-w-[80%] p-4 rounded-2xl" style={{ backgroundColor: 'var(--primary)', color: 'var(--primary-foreground)' }}>
+                  <div className="flex justify-end animate-in slide-in-from-right duration-300">
+                    <div className="max-w-[80%] p-4 rounded-2xl hover:shadow-lg transition-shadow" style={{ backgroundColor: 'var(--primary)', color: 'var(--primary-foreground)' }}>
                       <p className="text-sm leading-relaxed">{message.content}</p>
                     </div>
                   </div>
                 ) : (
-                  <div className="flex justify-start">
-                    <div className="max-w-[85%] space-y-3">
-                      {/* Assistant Message */}
-                      <div className="p-4 rounded-2xl border" style={{ backgroundColor: 'var(--news-bg-secondary)', borderColor: 'var(--border)' }}>
-                        {message.error ? (
+                  <div className="flex justify-start animate-in slide-in-from-left duration-300">
+                    <div className="max-w-[85%] space-y-3 w-full">
+                      {/* Assistant Message with inline embeds */}
+                      <div className="p-4 rounded-2xl border hover:shadow-lg transition-all duration-200" style={{ backgroundColor: 'var(--news-bg-secondary)', borderColor: 'var(--border)' }}>
+                        {message.isStreaming ? (
+                          <div className="flex items-start gap-3">
+                            <Loader2 className="w-5 h-5 text-primary animate-spin flex-shrink-0 mt-0.5" />
+                            <div className="flex-1">
+                              <p className="text-sm font-medium mb-1">Researching...</p>
+                              <p className="text-xs animate-pulse" style={{ color: 'var(--muted-foreground)' }}>
+                                {message.streamingStatus || 'Processing...'}
+                              </p>
+                            </div>
+                          </div>
+                        ) : message.error ? (
                           <div className="flex items-start gap-2">
                             <AlertCircle className="w-5 h-5 text-destructive flex-shrink-0 mt-0.5" />
                             <p className="text-sm" style={{ color: 'var(--muted-foreground)' }}>{message.content}</p>
                           </div>
                         ) : (
-                          <div className="prose prose-invert max-w-none prose-headings:text-foreground prose-p:text-foreground prose-p:leading-relaxed prose-strong:font-semibold prose-strong:text-foreground prose-ul:text-foreground prose-ol:text-foreground prose-li:text-foreground prose-a:text-primary prose-code:text-primary prose-pre:bg-muted/50 prose-h1:text-xl prose-h2:text-lg prose-h3:text-base">
-                            <ReactMarkdown 
-                              remarkPlugins={[remarkGfm]}
-                              components={{
-                                strong: ({node, ...props}) => <span className="font-semibold" {...props} />,
-                              }}
-                            >
-                              {message.content}
-                            </ReactMarkdown>
-                          </div>
+                          renderContentWithEmbeds(message.content, message.referenced_articles || [])
                         )}
                       </div>
-
-                      {/* Inline Article Embeds */}
-                      {(() => {
-                        const urls = extractUrls(message.content)
-                        if (urls.length === 0) return null
-                        return (
-                          <div className="space-y-2">
-                            {urls.map((u) => (
-                              <ArticleInlineEmbed
-                                key={u}
-                                url={u}
-                                onOpen={(article) => { setSelectedArticle(article); setIsArticleModalOpen(true) }}
-                              />
-                            ))}
-                          </div>
-                        )
-                      })()}
                       
                       {/* Metadata */}
                       {message.articles_searched !== undefined && (
@@ -258,16 +418,18 @@ export default function NewsResearchPage() {
                         </div>
                       )}
                       
-                      {/* Thinking Steps */}
-                      {message.thinking_steps && expandedThinking === message.id && (
-                        <div className="p-4 rounded-xl border space-y-2" style={{ backgroundColor: 'var(--muted)', borderColor: 'var(--border)' }}>
-                          <div className="flex items-center gap-2 mb-3">
+                      {/* Perplexity-style Thinking Steps */}
+                      {message.thinking_steps && message.thinking_steps.length > 0 && expandedThinking === message.id && (
+                        <div className="rounded-xl border overflow-hidden animate-in slide-in-from-top duration-300" style={{ backgroundColor: 'var(--news-bg-secondary)', borderColor: 'var(--border)' }}>
+                          <div className="p-3 border-b flex items-center gap-2" style={{ backgroundColor: 'var(--muted)', borderColor: 'var(--border)' }}>
                             <Brain className="w-4 h-4 text-primary" />
-                            <span className="text-xs font-medium">Agent's Reasoning Process</span>
+                            <span className="text-xs font-semibold">Reasoning Process</span>
                           </div>
+                          <div className="p-3 space-y-1">
                           {message.thinking_steps.map((step, index) => {
                             const getStepIcon = () => {
                               switch (step.type) {
+                                case 'thought': return <Brain className="h-3 w-3 text-purple-400" />
                                 case 'action': return <Sparkles className="h-3 w-3 text-blue-400" />
                                 case 'tool_start': return <Loader2 className="h-3 w-3 text-yellow-400" />
                                 case 'observation': return <CheckCircle className="h-3 w-3 text-green-400" />
@@ -278,6 +440,7 @@ export default function NewsResearchPage() {
 
                             const getStepLabel = (type: string) => {
                               switch (type) {
+                                case 'thought': return 'Thinking'
                                 case 'action': return 'Action'
                                 case 'tool_start': return 'Tool'
                                 case 'observation': return 'Result'
@@ -300,24 +463,25 @@ export default function NewsResearchPage() {
                             }
 
                             return (
-                              <div key={index} className="flex gap-2 p-2 rounded text-xs" style={{ backgroundColor: 'var(--news-bg-secondary)' }}>
+                              <div key={index} className="flex gap-2 p-2 rounded hover:bg-muted/50 transition-colors duration-150 group">
                                 <div className="flex-shrink-0 mt-0.5">
                                   {getStepIcon()}
                                 </div>
                                 <div className="flex-1 min-w-0">
                                   <div className="flex items-center gap-2 mb-1">
-                                    <span className="font-medium text-xs">{getStepLabel(step.type)}</span>
-                                    <span style={{ color: 'var(--muted-foreground)' }}>
+                                    <span className="font-semibold text-xs group-hover:text-primary transition-colors">{getStepLabel(step.type)}</span>
+                                    <span className="text-[10px]" style={{ color: 'var(--muted-foreground)' }}>
                                       {new Date(step.timestamp).toLocaleTimeString()}
                                     </span>
                                   </div>
-                                  <p className="text-xs whitespace-pre-wrap leading-relaxed" style={{ color: 'var(--muted-foreground)' }}>
+                                  <p className="text-xs leading-relaxed" style={{ color: 'var(--muted-foreground)' }}>
                                     {displayContent}
                                   </p>
                                 </div>
                               </div>
                             )
                           })}
+                          </div>
                         </div>
                       )}
                     </div>
@@ -326,17 +490,7 @@ export default function NewsResearchPage() {
               </div>
             ))}
 
-            {/* Loading State */}
-            {isSearching && (
-              <div className="flex justify-start mb-6">
-                <div className="max-w-[85%] p-4 rounded-2xl border" style={{ backgroundColor: 'var(--news-bg-secondary)', borderColor: 'var(--border)' }}>
-                  <div className="flex items-center gap-3">
-                    <Loader2 className="w-5 h-5 text-primary animate-spin" />
-                    <span className="text-sm" style={{ color: 'var(--muted-foreground)' }}>Researching...</span>
-                  </div>
-                </div>
-              </div>
-            )}
+            {/* Loading state is now shown inline in the streaming message */}
             
             <div ref={messagesEndRef} />
           </div>

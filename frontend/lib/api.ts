@@ -919,6 +919,7 @@ export interface NewsResearchResponse {
   answer: string;
   thinking_steps: ThinkingStep[];
   articles_searched: number;
+  referenced_articles?: any[];  // Full article objects from backend
   error?: string;
 }
 

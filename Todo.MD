@@ -74,3 +74,5 @@ How true is their infomation
 ## Left and Right leaning
 
 https://dl.acm.org/doi/10.1145/3706598.3713716
+
+# Remove fake likes shares and comments
