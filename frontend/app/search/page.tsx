@@ -91,8 +91,31 @@ export default function NewsResearchPage() {
 
       const thinkingSteps: ThinkingStep[] = []
       let finalResult: any = null
+      let lastMessageTime = Date.now()
+      
+      // Set up a timeout to detect stalled streams
+      const stallTimeout = setInterval(() => {
+        const timeSinceLastMessage = Date.now() - lastMessageTime
+        if (timeSinceLastMessage > 60000) { // 60 seconds without any message
+          clearInterval(stallTimeout)
+          eventSource.close()
+          setMessages(prev => prev.map(msg => 
+            msg.id === assistantId 
+              ? { 
+                  ...msg, 
+                  content: 'The request timed out. This may be due to API rate limits or server issues. Please try again in a moment.', 
+                  error: true, 
+                  isStreaming: false,
+                  streamingStatus: undefined
+                }
+              : msg
+          ))
+          setIsSearching(false)
+        }
+      }, 5000) // Check every 5 seconds
 
       eventSource.onmessage = (event) => {
+        lastMessageTime = Date.now() // Reset timeout on each message
         const data = JSON.parse(event.data)
         
         if (data.type === 'status') {
@@ -112,6 +135,7 @@ export default function NewsResearchPage() {
           ))
         } else if (data.type === 'complete') {
           // Final result received
+          clearInterval(stallTimeout)
           finalResult = data.result
           eventSource.close()
           
@@ -157,10 +181,20 @@ export default function NewsResearchPage() {
           setIsSearching(false)
           inputRef.current?.focus()
         } else if (data.type === 'error') {
+          clearInterval(stallTimeout)
           eventSource.close()
+          
+          // Check if it's an API rate limit error
+          let errorMessage = data.message
+          if (errorMessage.toLowerCase().includes('rate limit') || 
+              errorMessage.toLowerCase().includes('quota') ||
+              errorMessage.toLowerCase().includes('429')) {
+            errorMessage = '⚠️ API Rate Limit: The AI service has reached its rate limit. Please wait a moment and try again.'
+          }
+          
           setMessages(prev => prev.map(msg => 
             msg.id === assistantId 
-              ? { ...msg, content: data.message, error: true, isStreaming: false, streamingStatus: undefined }
+              ? { ...msg, content: errorMessage, error: true, isStreaming: false, streamingStatus: undefined }
               : msg
           ))
           setIsSearching(false)
@@ -169,12 +203,13 @@ export default function NewsResearchPage() {
 
       eventSource.onerror = (error) => {
         console.error('SSE error:', error)
+        clearInterval(stallTimeout)
         eventSource.close()
         setMessages(prev => prev.map(msg => 
           msg.id === assistantId 
             ? { 
                 ...msg, 
-                content: 'Connection error. Please try again.', 
+                content: '⚠️ Connection error. The server may be busy or experiencing rate limits. Please try again in a moment.', 
                 error: true, 
                 isStreaming: false,
                 streamingStatus: undefined
@@ -237,60 +272,40 @@ export default function NewsResearchPage() {
       )
     }
 
-    // Split content by URLs and insert article embeds inline
-    const urlRegex = /(https?:\/\/[^\s\)]+)/gi
-    const parts = content.split(urlRegex)
-    
+    // Replace URLs with article cards inline using a custom markdown component
     return (
-      <div className="space-y-3">
-        {parts.map((part, index) => {
-          // Check if this part is a URL
-          if (part.match(/^https?:\/\//)) {
-            // Find matching article
-            const article = articles.find(a => a.url === part.replace(/[,\.]$/, ''))
-            if (article) {
-              return (
-                <button
-                  key={index}
-                  onClick={() => { setSelectedArticle(article); setIsArticleModalOpen(true) }}
-                  className="w-full border rounded-lg p-3 flex gap-3 items-start text-left hover:border-primary hover:bg-primary/5 transition-all duration-200 group"
-                  style={{ backgroundColor: 'var(--news-bg-primary)', borderColor: 'var(--border)' }}
-                >
-                  <div className="h-16 w-24 flex-shrink-0 overflow-hidden rounded-md bg-black/40 border" style={{ borderColor: 'var(--border)' }}>
-                    <img src={article.image} alt="preview" className="w-full h-full object-cover opacity-80 group-hover:opacity-100 transition-opacity" />
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <div className="text-sm font-medium line-clamp-2 group-hover:text-primary transition-colors">{article.title}</div>
-                    <div className="text-xs mt-1" style={{ color: 'var(--muted-foreground)' }}>{article.source}</div>
-                  </div>
-                </button>
-              )
+      <div className="prose prose-invert max-w-none prose-headings:text-foreground prose-p:text-foreground prose-p:leading-relaxed prose-strong:font-semibold prose-strong:text-foreground prose-ul:text-foreground prose-ol:text-foreground prose-li:text-foreground prose-code:text-primary prose-pre:bg-muted/50 prose-h1:text-xl prose-h2:text-lg prose-h3:text-base">
+        <ReactMarkdown 
+          remarkPlugins={[remarkGfm]}
+          components={{
+            strong: ({node, ...props}) => <span className="font-semibold" {...props} />,
+            a: ({node, href, children, ...props}) => {
+              // Check if this link matches one of our articles
+              const article = articles.find(a => a.url === href)
+              if (article) {
+                return (
+                  <button
+                    onClick={() => { setSelectedArticle(article); setIsArticleModalOpen(true) }}
+                    className="not-prose my-3 w-full border rounded-lg p-3 flex gap-3 items-start text-left hover:border-primary hover:bg-primary/5 transition-all duration-200 group"
+                    style={{ backgroundColor: 'var(--news-bg-primary)', borderColor: 'var(--border)' }}
+                  >
+                    <div className="h-16 w-24 flex-shrink-0 overflow-hidden rounded-md bg-black/40 border" style={{ borderColor: 'var(--border)' }}>
+                      <img src={article.image} alt="preview" className="w-full h-full object-cover opacity-80 group-hover:opacity-100 transition-opacity" />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <div className="text-sm font-medium line-clamp-2 group-hover:text-primary transition-colors">{article.title}</div>
+                      <div className="text-xs mt-1" style={{ color: 'var(--muted-foreground)' }}>{article.source}</div>
+                    </div>
+                  </button>
+                )
+              }
+              // Regular link
+              return <a href={href} target="_blank" rel="noopener noreferrer" className="text-primary hover:underline" {...props}>{children}</a>
             }
-            // URL without matching article - just show as link
-            return (
-              <a key={index} href={part} target="_blank" rel="noopener noreferrer" className="text-primary hover:underline text-sm">
-                {part}
-              </a>
-            )
-          }
-          
-          // Regular text content
-          if (part.trim()) {
-            return (
-              <div key={index} className="prose prose-invert max-w-none prose-headings:text-foreground prose-p:text-foreground prose-p:leading-relaxed prose-strong:font-semibold prose-strong:text-foreground prose-ul:text-foreground prose-ol:text-foreground prose-li:text-foreground prose-a:text-primary prose-code:text-primary prose-pre:bg-muted/50 prose-h1:text-xl prose-h2:text-lg prose-h3:text-base">
-                <ReactMarkdown 
-                  remarkPlugins={[remarkGfm]}
-                  components={{
-                    strong: ({node, ...props}) => <span className="font-semibold" {...props} />,
-                  }}
-                >
-                  {part}
-                </ReactMarkdown>
-              </div>
-            )
-          }
-          return null
-        })}
+          }}
+        >
+          {content}
+        </ReactMarkdown>
       </div>
     )
   }

@@ -2100,7 +2100,15 @@ async def news_research_stream_endpoint(
             
         except Exception as e:
             logger.error(f"Error in streaming research: {e}")
-            yield f"data: {json.dumps({'type': 'error', 'message': str(e), 'timestamp': datetime.now().isoformat()})}\n\n"
+            error_msg = str(e)
+            
+            # Detect API rate limit errors
+            if any(keyword in error_msg.lower() for keyword in ['rate limit', 'quota', '429', 'too many requests']):
+                error_msg = "API Rate Limit: The AI service has reached its rate limit. Please wait a moment and try again."
+            elif 'timeout' in error_msg.lower():
+                error_msg = "Request Timeout: The research took too long. Try a simpler query."
+            
+            yield f"data: {json.dumps({'type': 'error', 'message': error_msg, 'timestamp': datetime.now().isoformat()})}\n\n"
     
     return StreamingResponse(generate(), media_type="text/event-stream")
 
