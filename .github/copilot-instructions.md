@@ -64,4 +64,14 @@ This project is a full-stack news aggregation platform with a **FastAPI** backen
 - See `backend/app/main.py` for FastAPI entrypoint and route structure
 
 ---
-For more, see `README.md` and `Project file.md` for architecture, workflows, and roadmap.
+
+## Documentation File Organization Rule
+
+All markdown files in the project (excluding `README.md` and `Todo.md`) must be organized into one of three files:
+- `Todo.md` for todos and actionable items
+- `README.md` for end-user documentation and usage instructions
+- `Log.md` for logging changes, updates, and development notes
+
+Any new or existing markdown content should be moved to the appropriate file based on its purpose.
+
+For more, see `README.md` and `Todo.md` for architecture, workflows, and roadmap.
