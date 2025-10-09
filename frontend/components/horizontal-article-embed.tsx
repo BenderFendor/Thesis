@@ -21,8 +21,6 @@ const HorizontalArticleEmbed: React.FC<HorizontalArticleEmbedProps> = ({
   const [loading, setLoading] = useState(!providedArticles);
 
   useEffect(() => {
-    console.log('HorizontalArticleEmbed received articles:', providedArticles);
-    
     // If articles are provided as props, use them directly
     if (providedArticles) {
       setArticles(providedArticles);
@@ -43,8 +41,6 @@ const HorizontalArticleEmbed: React.FC<HorizontalArticleEmbedProps> = ({
     };
     getArticles();
   }, [category, limit, providedArticles]);
-
-  console.log('HorizontalArticleEmbed rendering with articles:', articles, 'loading:', loading);
   
   if (loading) return <div className="py-4 text-center text-sm text-muted-foreground">Loading articles...</div>;
   if (!articles.length) return null;
