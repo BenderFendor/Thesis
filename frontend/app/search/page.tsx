@@ -9,6 +9,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Badge } from "@/components/ui/badge"
 import { ArticleDetailModal } from "@/components/article-detail-modal"
 import { ArticleInlineEmbed } from "@/components/article-inline-embed"
+import HorizontalArticleEmbed from "@/components/horizontal-article-embed"
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import Link from "next/link"
@@ -300,55 +301,38 @@ export default function NewsResearchPage() {
   }
 
   const renderContentWithEmbeds = (content: string, articles: NewsArticle[]) => {
-    if (!articles || articles.length === 0) {
-      return (
+    console.log('renderContentWithEmbeds called with articles:', articles);
+    
+    return (
+      <div className="space-y-3">
         <div className="prose prose-invert max-w-none prose-headings:text-foreground prose-p:text-foreground prose-p:leading-relaxed prose-strong:font-semibold prose-strong:text-foreground prose-ul:text-foreground prose-ol:text-foreground prose-li:text-foreground prose-a:text-primary prose-code:text-primary prose-pre:bg-muted/50 prose-h1:text-xl prose-h2:text-lg prose-h3:text-base">
           <ReactMarkdown 
             remarkPlugins={[remarkGfm]}
             components={{
               strong: ({node, ...props}) => <span className="font-semibold" {...props} />,
+              a: ({node, href, children, ...props}) => {
+                // Regular links open in new tab
+                return <a href={href} target="_blank" rel="noopener noreferrer" className="text-primary hover:underline" {...props}>{children}</a>
+              }
             }}
           >
             {content}
           </ReactMarkdown>
         </div>
-      )
-    }
-
-    // Replace URLs with article cards inline using a custom markdown component
-    return (
-      <div className="prose prose-invert max-w-none prose-headings:text-foreground prose-p:text-foreground prose-p:leading-relaxed prose-strong:font-semibold prose-strong:text-foreground prose-ul:text-foreground prose-ol:text-foreground prose-li:text-foreground prose-code:text-primary prose-pre:bg-muted/50 prose-h1:text-xl prose-h2:text-lg prose-h3:text-base">
-        <ReactMarkdown 
-          remarkPlugins={[remarkGfm]}
-          components={{
-            strong: ({node, ...props}) => <span className="font-semibold" {...props} />,
-            a: ({node, href, children, ...props}) => {
-              // Check if this link matches one of our articles
-              const article = articles.find(a => a.url === href)
-              if (article) {
-                return (
-                  <button
-                    onClick={() => { setSelectedArticle(article); setIsArticleModalOpen(true) }}
-                    className="not-prose my-3 w-full border rounded-lg p-3 flex gap-3 items-start text-left hover:border-primary hover:bg-primary/5 transition-all duration-200 group"
-                    style={{ backgroundColor: 'var(--news-bg-primary)', borderColor: 'var(--border)' }}
-                  >
-                    <div className="h-16 w-24 flex-shrink-0 overflow-hidden rounded-md bg-black/40 border" style={{ borderColor: 'var(--border)' }}>
-                      <img src={article.image} alt="preview" className="w-full h-full object-cover opacity-80 group-hover:opacity-100 transition-opacity" />
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <div className="text-sm font-medium line-clamp-2 group-hover:text-primary transition-colors">{article.title}</div>
-                      <div className="text-xs mt-1" style={{ color: 'var(--muted-foreground)' }}>{article.source}</div>
-                    </div>
-                  </button>
-                )
-              }
-              // Regular link
-              return <a href={href} target="_blank" rel="noopener noreferrer" className="text-primary hover:underline" {...props}>{children}</a>
-            }
-          }}
-        >
-          {content}
-        </ReactMarkdown>
+        
+        {/* Inline article cards within the chat bubble */}
+        {articles && articles.length > 0 && (
+          <>
+            <div className="text-xs text-muted-foreground mb-2">📰 {articles.length} referenced articles</div>
+            <HorizontalArticleEmbed 
+              articles={articles}
+              onArticleClick={(article) => {
+                setSelectedArticle(article);
+                setIsArticleModalOpen(true);
+              }}
+            />
+          </>
+        )}
       </div>
     )
   }
@@ -446,10 +430,41 @@ export default function NewsResearchPage() {
                           </div>
                         ) : (
                           <>
-                            {renderContentWithEmbeds(message.content, message.referenced_articles || [])}
+                            {(() => {
+                              // Try to get articles from referenced_articles first, then from structured_articles_json
+                              const articlesToEmbed = message.referenced_articles || 
+                                                       message.structured_articles_json?.articles?.map((article: any) => ({
+                                                         id: Date.now() + Math.random(),
+                                                         title: article.title || 'No title',
+                                                         source: article.source || 'Unknown',
+                                                         sourceId: (article.source || 'unknown').toLowerCase().replace(/\s+/g, '-'),
+                                                         country: 'United States',
+                                                         credibility: 'medium' as const,
+                                                         bias: 'center' as const,
+                                                         summary: article.description || 'No description',
+                                                         content: article.description || 'No description',
+                                                         image: article.image || "/placeholder.svg",
+                                                         publishedAt: article.published || new Date().toISOString(),
+                                                         category: article.category || 'general',
+                                                         url: article.link || '',
+                                                         tags: [article.category, article.source].filter(Boolean),
+                                                         originalLanguage: "en",
+                                                         translated: false
+                                                       })) || [];
+                              
+                              return renderContentWithEmbeds(message.content, articlesToEmbed);
+                            })()}
                             
-                            {/* Render structured articles grid if available */}
-                            {message.structured_articles_json?.articles && message.structured_articles_json.articles.length > 0 && (
+                            {/* Debug: Show what we have */}
+                            {process.env.NODE_ENV === 'development' && (
+                              <div className="mt-2 p-2 text-xs bg-yellow-900/20 rounded">
+                                <div>Referenced articles: {message.referenced_articles?.length || 0}</div>
+                                <div>Structured articles: {message.structured_articles_json?.articles?.length || 0}</div>
+                              </div>
+                            )}
+                            
+                            {/* Render structured articles grid if available - HIDDEN since we're now embedding inline */}
+                            {false && message.structured_articles_json?.articles && message.structured_articles_json.articles.length > 0 && (
                               <div className="mt-4 pt-4 border-t" style={{ borderColor: 'var(--border)' }}>
                                 <div className="flex items-center gap-2 mb-3">
                                   <Newspaper className="w-4 h-4 text-primary" />

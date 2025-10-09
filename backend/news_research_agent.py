@@ -79,12 +79,14 @@ class StreamingThoughtHandler(BaseCallbackHandler):
 
 # This will be set by the endpoint to access the news cache
 _news_articles_cache: List[Dict[str, Any]] = []
+_referenced_articles_tracker: List[Dict[str, Any]] = []  # Track articles that were accessed
 
 
 def set_news_articles(articles: List[Dict[str, Any]]):
     """Set the news articles that the agent can search through"""
-    global _news_articles_cache
+    global _news_articles_cache, _referenced_articles_tracker
     _news_articles_cache = articles
+    _referenced_articles_tracker = []  # Reset tracker
 
 
 @tool
@@ -103,6 +105,8 @@ def search_news_articles(query: str) -> str:
     Returns:
         A formatted list of relevant articles with titles, sources, and summaries
     """
+    global _referenced_articles_tracker
+    
     if not _news_articles_cache:
         return "No articles available in the database. The news cache may be empty."
     
@@ -131,6 +135,11 @@ def search_news_articles(query: str) -> str:
         key=lambda x: x.get('published', ''),
         reverse=True
     )[:10]
+    
+    # Track these articles for later reference
+    for article in relevant_articles:
+        if article not in _referenced_articles_tracker:
+            _referenced_articles_tracker.append(article)
     
     # Format results with article URLs
     result_lines = [f"Found {len(relevant_articles)} articles about '{query}':\n"]
@@ -163,6 +172,8 @@ def analyze_source_coverage(topic: str) -> str:
     Returns:
         Analysis of which sources covered the topic and their perspectives
     """
+    global _referenced_articles_tracker
+    
     if not _news_articles_cache:
         return "No articles available for analysis."
     
@@ -177,6 +188,11 @@ def analyze_source_coverage(topic: str) -> str:
     
     if not topic_articles:
         return f"No coverage found for topic '{topic}'."
+    
+    # Track these articles for later reference
+    for article in topic_articles[:10]:  # Limit to top 10 to avoid overwhelming
+        if article not in _referenced_articles_tracker:
+            _referenced_articles_tracker.append(article)
     
     # Group by source
     source_coverage = {}
@@ -361,16 +377,36 @@ def research_news(query: str, articles: List[Dict[str, Any]] = None, verbose: bo
         finally:
             signal.alarm(0)  # Cancel the alarm
         
-        # Extract URLs from the answer and find matching articles
-        import re
-        url_pattern = r'https?://[^\s\)]+'
-        found_urls = re.findall(url_pattern, answer_text)
+        # Use the tracked articles that were accessed during research
+        global _referenced_articles_tracker
+        referenced_articles = _referenced_articles_tracker.copy()
         
-        # Find articles that match the URLs mentioned in the response
-        referenced_articles = []
-        for article in _news_articles_cache:
-            if article.get('link') in found_urls:
-                referenced_articles.append(article)
+        print(f"🔍 Agent used search tool and accessed {len(referenced_articles)} articles during research")
+        
+        # If no articles were tracked (shouldn't happen if search was used), fall back to URL extraction
+        if not referenced_articles:
+            print("⚠️ No articles tracked, falling back to URL extraction")
+            import re
+            url_pattern = r'https?://[^\s\)]+'
+            found_urls = re.findall(url_pattern, answer_text)
+            
+            print(f"🔍 Found {len(found_urls)} URLs in the answer")
+            print(f"📚 Total articles in cache: {len(_news_articles_cache)}")
+            
+            # Find articles that match the URLs mentioned in the response
+            for article in _news_articles_cache:
+                article_link = article.get('link', '')
+                # Clean up the URL for comparison (remove trailing slashes, etc.)
+                article_link_clean = article_link.rstrip('/')
+                
+                for found_url in found_urls:
+                    found_url_clean = found_url.rstrip('/')
+                    if article_link_clean == found_url_clean or article_link == found_url:
+                        referenced_articles.append(article)
+                        print(f"✅ Matched article: {article.get('title', 'No title')[:50]}")
+                        break
+        
+        print(f"📰 Referenced articles to return: {len(referenced_articles)}")
         
         # Create structured JSON for frontend embedding
         # This will be marked with a special delimiter so frontend can parse it
