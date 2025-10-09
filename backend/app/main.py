@@ -2095,7 +2095,15 @@ async def news_research_stream_endpoint(
                 for step in result["thinking_steps"]:
                     yield f"data: {json.dumps({'type': 'thinking_step', 'step': step, 'timestamp': datetime.now().isoformat()})}\n\n"
             
-            # Send final result
+            # Send structured articles JSON separately (for grid/embed display)
+            if result.get("structured_articles"):
+                yield f"data: {json.dumps({'type': 'articles_json', 'data': result['structured_articles'], 'timestamp': datetime.now().isoformat()})}\n\n"
+            
+            # Send the referenced articles data for frontend conversion
+            if result.get("referenced_articles"):
+                yield f"data: {json.dumps({'type': 'referenced_articles', 'articles': result['referenced_articles'], 'timestamp': datetime.now().isoformat()})}\n\n"
+            
+            # Send final result (markdown analysis)
             yield f"data: {json.dumps({'type': 'complete', 'result': result, 'timestamp': datetime.now().isoformat()})}\n\n"
             
         except Exception as e:

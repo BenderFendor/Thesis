@@ -29,6 +29,7 @@ interface Message {
   thinking_steps?: ThinkingStep[]
   articles_searched?: number
   referenced_articles?: NewsArticle[]
+  structured_articles_json?: any  // New: Parsed JSON articles for grid display
   timestamp: Date
   error?: boolean
   isStreaming?: boolean
@@ -91,6 +92,7 @@ export default function NewsResearchPage() {
 
       const thinkingSteps: ThinkingStep[] = []
       let finalResult: any = null
+      let structuredArticles: any = null  // Store structured JSON articles
       let lastMessageTime = Date.now()
       
       // Set up a timeout to detect stalled streams
@@ -133,13 +135,56 @@ export default function NewsResearchPage() {
               ? { ...msg, thinking_steps: [...thinkingSteps], streamingStatus: `Processing: ${data.step.type}...` }
               : msg
           ))
+        } else if (data.type === 'articles_json') {
+          // Received structured articles JSON block
+          try {
+            // Parse the JSON block (it comes wrapped in ```json:articles)
+            const jsonMatch = data.data.match(/```json:articles\n([\s\S]*?)\n```/)
+            if (jsonMatch) {
+              structuredArticles = JSON.parse(jsonMatch[1])
+              setMessages(prev => prev.map(msg => 
+                msg.id === assistantId 
+                  ? { ...msg, structured_articles_json: structuredArticles, streamingStatus: 'Received article data...' }
+                  : msg
+              ))
+            }
+          } catch (e) {
+            console.error('Failed to parse structured articles:', e)
+          }
+        } else if (data.type === 'referenced_articles') {
+          // Received referenced articles (alternative/supplementary to articles_json)
+          // This provides the raw article data
+          const referencedArticles = data.articles?.map((article: any) => ({
+            id: Date.now() + Math.random(),
+            title: article.title || 'No title',
+            source: article.source || 'Unknown',
+            sourceId: (article.source || 'unknown').toLowerCase().replace(/\s+/g, '-'),
+            country: 'United States',
+            credibility: 'medium' as const,
+            bias: 'center' as const,
+            summary: article.description || 'No description',
+            content: article.description || 'No description',
+            image: article.image || "/placeholder.svg",
+            publishedAt: article.published || new Date().toISOString(),
+            category: article.category || 'general',
+            url: article.link || '',
+            tags: [article.category, article.source].filter(Boolean),
+            originalLanguage: "en",
+            translated: false
+          })) || []
+          
+          setMessages(prev => prev.map(msg => 
+            msg.id === assistantId 
+              ? { ...msg, referenced_articles: referencedArticles, streamingStatus: 'Processing articles...' }
+              : msg
+          ))
         } else if (data.type === 'complete') {
           // Final result received
           clearInterval(stallTimeout)
           finalResult = data.result
           eventSource.close()
           
-          // Convert backend articles to frontend format
+          // Convert backend articles to frontend format (if not already converted)
           const referencedArticles = finalResult.referenced_articles?.map((article: any) => ({
             id: Date.now() + Math.random(),
             title: article.title || 'No title',
@@ -159,7 +204,7 @@ export default function NewsResearchPage() {
             translated: false
           })) || []
           
-          // Update with final content
+          // Update with final content, including structured articles
           setMessages(prev => prev.map(msg => 
             msg.id === assistantId 
               ? {
@@ -168,6 +213,7 @@ export default function NewsResearchPage() {
                   thinking_steps: thinkingSteps,
                   articles_searched: finalResult.articles_searched,
                   referenced_articles: referencedArticles,
+                  structured_articles_json: structuredArticles,  // Include structured articles
                   isStreaming: false,
                   streamingStatus: undefined,
                   error: !finalResult.success
@@ -399,7 +445,80 @@ export default function NewsResearchPage() {
                             <p className="text-sm" style={{ color: 'var(--muted-foreground)' }}>{message.content}</p>
                           </div>
                         ) : (
-                          renderContentWithEmbeds(message.content, message.referenced_articles || [])
+                          <>
+                            {renderContentWithEmbeds(message.content, message.referenced_articles || [])}
+                            
+                            {/* Render structured articles grid if available */}
+                            {message.structured_articles_json?.articles && message.structured_articles_json.articles.length > 0 && (
+                              <div className="mt-4 pt-4 border-t" style={{ borderColor: 'var(--border)' }}>
+                                <div className="flex items-center gap-2 mb-3">
+                                  <Newspaper className="w-4 h-4 text-primary" />
+                                  <h4 className="text-sm font-semibold">Related Articles ({message.structured_articles_json.articles.length})</h4>
+                                </div>
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                                  {message.structured_articles_json.articles.map((article: any, idx: number) => {
+                                    // Convert to NewsArticle format for modal
+                                    const newsArticle: NewsArticle = {
+                                      id: Date.now() + idx,
+                                      title: article.title || 'No title',
+                                      source: article.source || 'Unknown',
+                                      sourceId: (article.source || 'unknown').toLowerCase().replace(/\s+/g, '-'),
+                                      country: 'United States',
+                                      credibility: 'medium' as const,
+                                      bias: 'center' as const,
+                                      summary: article.description || 'No description',
+                                      content: article.description || 'No description',
+                                      image: article.image || "/placeholder.svg",
+                                      publishedAt: article.published || new Date().toISOString(),
+                                      category: article.category || 'general',
+                                      url: article.link || '',
+                                      tags: [article.category, article.source].filter(Boolean),
+                                      originalLanguage: "en",
+                                      translated: false
+                                    }
+                                    
+                                    return (
+                                      <button
+                                        key={idx}
+                                        onClick={() => { setSelectedArticle(newsArticle); setIsArticleModalOpen(true) }}
+                                        className="text-left p-3 rounded-lg border hover:border-primary hover:scale-[1.02] transition-all duration-200 group"
+                                        style={{ 
+                                          backgroundColor: 'var(--news-bg-primary)', 
+                                          borderColor: 'var(--border)',
+                                        }}
+                                      >
+                                        <div className="flex gap-3">
+                                          <div className="h-20 w-28 flex-shrink-0 overflow-hidden rounded-md bg-black/40 border" style={{ borderColor: 'var(--border)' }}>
+                                            <img 
+                                              src={article.image || "/placeholder.svg"} 
+                                              alt={article.title} 
+                                              className="w-full h-full object-cover opacity-80 group-hover:opacity-100 transition-opacity" 
+                                            />
+                                          </div>
+                                          <div className="flex-1 min-w-0">
+                                            <h5 className="text-sm font-medium line-clamp-2 mb-1 group-hover:text-primary transition-colors">
+                                              {article.title}
+                                            </h5>
+                                            <div className="flex items-center gap-2 text-xs" style={{ color: 'var(--muted-foreground)' }}>
+                                              <span>{article.source}</span>
+                                              {article.category && (
+                                                <>
+                                                  <span>•</span>
+                                                  <Badge variant="outline" className="text-xs py-0 px-1.5">
+                                                    {article.category}
+                                                  </Badge>
+                                                </>
+                                              )}
+                                            </div>
+                                          </div>
+                                        </div>
+                                      </button>
+                                    )
+                                  })}
+                                </div>
+                              </div>
+                            )}
+                          </>
                         )}
                       </div>
                       

@@ -335,7 +335,7 @@ def research_news(query: str, articles: List[Dict[str, Any]] = None, verbose: bo
         verbose: Show chain of thought
         
     Returns:
-        Dictionary with answer, thinking steps, metadata, and referenced articles
+        Dictionary with answer, thinking steps, metadata, referenced articles, and structured article JSON
     """
     # Set articles in global cache
     if articles:
@@ -372,10 +372,22 @@ def research_news(query: str, articles: List[Dict[str, Any]] = None, verbose: bo
             if article.get('link') in found_urls:
                 referenced_articles.append(article)
         
+        # Create structured JSON for frontend embedding
+        # This will be marked with a special delimiter so frontend can parse it
+        articles_json = {
+            "articles": referenced_articles,
+            "total": len(referenced_articles),
+            "query": query
+        }
+        
+        # Format the structured data with markers for frontend parsing
+        structured_articles_block = f"\n```json:articles\n{json.dumps(articles_json, indent=2)}\n```\n"
+        
         return {
             "success": True,
             "query": query,
             "answer": answer_text,
+            "structured_articles": structured_articles_block,  # New field for JSON block
             "thinking_steps": [step.to_dict() for step in thought_handler.steps] if verbose else [],
             "articles_searched": len(_news_articles_cache),
             "referenced_articles": referenced_articles  # Include full article data
@@ -385,6 +397,7 @@ def research_news(query: str, articles: List[Dict[str, Any]] = None, verbose: bo
             "success": False,
             "query": query,
             "answer": "",
+            "structured_articles": "",
             "error": "The research took too long and timed out. Please try a simpler query.",
             "thinking_steps": [step.to_dict() for step in thought_handler.steps] if verbose else [],
             "referenced_articles": [],
@@ -398,6 +411,7 @@ def research_news(query: str, articles: List[Dict[str, Any]] = None, verbose: bo
             "success": False,
             "query": query,
             "answer": "",
+            "structured_articles": "",
             "error": str(e),
             "thinking_steps": [step.to_dict() for step in thought_handler.steps] if verbose else [],
             "referenced_articles": [],
