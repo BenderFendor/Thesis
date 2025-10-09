@@ -327,6 +327,12 @@ export default function NewsResearchPage() {
   }
 
   const renderContentWithEmbeds = (content: string, articles: NewsArticle[]) => {
+    // Remove parentheses around standalone URLs (not markdown links)
+    // Match patterns like " (https://...)" or "(https://...)" but not "[text](url)"
+    const cleanedContent = content.replace(/(?<!\])\(https?:\/\/[^\)]+\)/gi, (match) => {
+      return match.slice(1, -1); // Remove the surrounding parentheses
+    });
+
     if (!articles || articles.length === 0) {
       // No articles, just render text
       return (
@@ -340,7 +346,7 @@ export default function NewsResearchPage() {
               }
             }}
           >
-            {content}
+            {cleanedContent}
           </ReactMarkdown>
         </div>
       )
@@ -376,33 +382,25 @@ export default function NewsResearchPage() {
                     }}
                     className="not-prose block my-3 w-full"
                   >
-                    <Card className="overflow-hidden hover:border-primary hover:shadow-lg transition-all duration-200 group text-left">
-                      <div className="flex gap-3 p-3">
+                    <div className="mb-4 transition-all duration-500 ease-in-out hover:scale-[1.01] hover:shadow-xl bg-gradient-to-br from-black via-zinc-900 to-zinc-950 rounded-xl border border-zinc-800 p-4 flex flex-col gap-2">
+                      <div className="flex items-center gap-4">
                         {article.image && (
-                          <div className="w-32 h-24 flex-shrink-0 overflow-hidden rounded-md bg-black/40 border" style={{ borderColor: 'var(--border)' }}>
-                            <img
-                              src={article.image}
-                              alt={article.title}
-                              className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-200"
-                            />
-                          </div>
+                          <img src={article.image} alt={article.title} className="w-20 h-20 object-cover rounded-lg shadow-md transition-all duration-500" />
                         )}
-                        <div className="flex-1 min-w-0 flex flex-col">
-                          <div className="flex items-start justify-between gap-2 mb-1">
-                            <h3 className="font-semibold text-sm line-clamp-2 group-hover:text-primary transition-colors flex-1">
-                              {article.title}
-                            </h3>
-                            <Badge variant="secondary" className="text-xs flex-shrink-0">{article.source}</Badge>
-                          </div>
-                          <p className="text-xs text-muted-foreground line-clamp-2 mb-2">{article.summary}</p>
-                          {article.country && (
-                            <div className="flex items-center gap-1 mt-auto">
-                              <span className="text-xs text-muted-foreground">📍 {article.country}</span>
+                        <div className="flex-1 min-w-0">
+                          <div className="font-semibold text-base text-slate-50 mb-1 flex items-center gap-2 line-clamp-2">
+                            {article.title.length > 120 ? article.title.slice(0, 120) + '...' : article.title}
+                            {article.url && (
+                                <a href={article.url} target="_blank" rel="noopener noreferrer" className="ml-2 px-2 py-1 rounded bg-primary/20 text-primary text-xs font-medium transition hover:bg-primary/40 flex-shrink-0">Read</a>
+                              )}
                             </div>
-                          )}
+                            <div className="text-xs text-slate-400 mb-1">{article.source} • {new Date(article.publishedAt).toLocaleDateString()}</div>
+                            <p className="text-sm text-slate-300 leading-relaxed line-clamp-2">
+                              {article.summary && article.summary.length > 150 ? article.summary.slice(0, 150) + '...' : article.summary}
+                            </p>
                         </div>
                       </div>
-                    </Card>
+                    </div>
                   </button>
                 )
               }
@@ -412,7 +410,7 @@ export default function NewsResearchPage() {
             }
           }}
         >
-          {content}
+          {cleanedContent}
         </ReactMarkdown>
       </div>
     )

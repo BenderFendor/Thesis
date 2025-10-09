@@ -255,16 +255,16 @@ export function ArticleAnalysisDisplay({ analysis }: ArticleAnalysisDisplayProps
 
       {/* Fact Check Results - AI Verified */}
       {analysis.fact_check_results && analysis.fact_check_results.length > 0 && (
-        <div className="border border-emerald-800 rounded-lg overflow-hidden">
+        <div className="border border-emerald-900 rounded-xl overflow-hidden bg-gradient-to-br from-black via-zinc-900 to-zinc-950 shadow-lg">
           <button
             onClick={() => toggleSection('factCheckResults')}
-            className="w-full p-4 bg-emerald-900/20 hover:bg-emerald-900/30 transition-colors flex items-center justify-between"
+            className="w-full p-4 bg-emerald-950/40 hover:bg-emerald-950/60 transition-colors flex items-center justify-between"
           >
             <div className="flex items-center gap-2">
               <Shield className="h-5 w-5 text-emerald-400" />
-              <h3 className="text-lg font-semibold text-white">AI Fact Check Results</h3>
+              <h3 className="text-lg font-semibold text-emerald-100">Fact Check Results</h3>
               <Badge variant="outline" className="text-xs bg-emerald-500/20 text-emerald-400 border-emerald-500/30">
-                {analysis.fact_check_results.length} claims verified
+                {analysis.fact_check_results.length} verified
               </Badge>
             </div>
             {expandedSections.factCheckResults ? (
@@ -274,9 +274,9 @@ export function ArticleAnalysisDisplay({ analysis }: ArticleAnalysisDisplayProps
             )}
           </button>
           {expandedSections.factCheckResults && (
-            <div className="p-4 bg-black/20 space-y-4">
+            <div className="p-4 bg-zinc-950/60 space-y-4">
               {analysis.fact_check_results.map((result, index) => (
-                <div key={index} className="border border-gray-800 rounded-lg p-4 bg-gray-900/30">
+                <div key={index} className="border border-zinc-900 rounded-xl p-4 bg-black/60">
                   <div className="flex items-start gap-3 mb-3">
                     {getVerificationIcon(result.verification_status)}
                     <div className="flex-1">
@@ -288,26 +288,35 @@ export function ArticleAnalysisDisplay({ analysis }: ArticleAnalysisDisplayProps
                           {result.confidence} confidence
                         </Badge>
                       </div>
-                      <p className="text-white font-medium mb-2">"{result.claim}"</p>
-                      <p className="text-gray-300 text-sm mb-3">{result.evidence}</p>
+                      <p className="text-emerald-100 font-medium mb-2 line-clamp-2">
+                        {result.claim.length > 200 ? result.claim.slice(0, 200) + '...' : result.claim}
+                      </p>
+                      <p className="text-slate-300 text-sm mb-3 line-clamp-3">
+                        {result.evidence.length > 250 ? result.evidence.slice(0, 250) + '...' : result.evidence}
+                      </p>
                       {result.notes && (
-                        <p className="text-gray-400 text-sm italic mb-3">{result.notes}</p>
+                        <p className="text-slate-400 text-sm italic mb-3 line-clamp-2">
+                          {result.notes.length > 150 ? result.notes.slice(0, 150) + '...' : result.notes}
+                        </p>
                       )}
                       {result.sources && result.sources.length > 0 && (
                         <div className="space-y-1">
-                          <p className="text-xs text-gray-400 font-medium">Sources:</p>
-                          {result.sources.map((source, idx) => (
+                          <p className="text-xs text-slate-400 font-medium">Sources:</p>
+                          {result.sources.slice(0, 3).map((source, idx) => (
                             <a 
                               key={idx}
                               href={source}
                               target="_blank"
                               rel="noopener noreferrer"
-                              className="flex items-center gap-1 text-xs text-cyan-400 hover:text-cyan-300"
+                              className="flex items-center gap-1 text-xs text-cyan-400 hover:text-cyan-300 truncate"
                             >
-                              <ExternalLink className="h-3 w-3" />
+                              <ExternalLink className="h-3 w-3 flex-shrink-0" />
                               <span className="truncate">{source}</span>
                             </a>
                           ))}
+                          {result.sources.length > 3 && (
+                            <p className="text-xs text-slate-500 italic">+{result.sources.length - 3} more</p>
+                          )}
                         </div>
                       )}
                     </div>

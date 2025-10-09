@@ -693,9 +693,13 @@ def parse_rss_feed(url: str, source_name: str, source_info: Dict) -> List[NewsAr
                 except:
                     image_url = None
             
+            # Ensure every article has a valid link; fallback to feed/channel link if missing
+            article_link = entry.get('link', '')
+            if not article_link:
+                article_link = getattr(feed.feed, 'link', url)
             article = NewsArticle(
                 title=title,
-                link=entry.get('link', ''),
+                link=article_link,
                 description=description,
                 published=entry.get('published', str(datetime.now())),
                 source=source_name,
