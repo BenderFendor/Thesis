@@ -39,9 +39,6 @@ export interface NewsArticle {
   publishedAt: string
   category: string
   url: string
-  likes: number
-  comments: number
-  shares: number
   tags: string[]
   originalLanguage: string
   translated: boolean
@@ -787,9 +784,6 @@ function mapBackendArticles(backendArticles: any[]): NewsArticle[] {
       publishedAt: article.published || new Date().toISOString(),
       category: article.category || 'general',
       url: article.link || '',
-      likes: Math.floor(Math.random() * 100), // This should be removed
-      comments: Math.floor(Math.random() * 50),
-      shares: Math.floor(Math.random() * 25),
       tags: [article.category, article.source].filter(Boolean),
       originalLanguage: "en",
       translated: false

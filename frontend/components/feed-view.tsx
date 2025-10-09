@@ -4,7 +4,7 @@ import { useState, useEffect, useRef, useCallback } from "react";
 import { type NewsArticle } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Heart, MessageCircle, Share2, Bookmark, ExternalLink, ChevronUp, ChevronDown, Eye, Info } from "lucide-react";
+import { Heart, Bookmark, ExternalLink, ChevronUp, ChevronDown, Eye, Info } from "lucide-react";
 import { ArticleDetailModal } from "./article-detail-modal";
 
 interface FeedViewProps {
@@ -115,17 +115,8 @@ export function FeedView({ articles, loading }: FeedViewProps) {
                   </div>
                 </div>
                 <div className="flex flex-col items-center gap-3 ml-6">
-                  <Button variant="ghost" size="icon" className="h-10 w-10 flex-col gap-1" onClick={() => handleLike(article.id)}>
+                  <Button variant="ghost" size="icon" className="h-10 w-10" onClick={() => handleLike(article.id)}>
                     <Heart className={`w-5 h-5 ${likedArticles.has(article.id) ? "fill-red-500 text-red-500" : ""}`} />
-                    <span className="text-xs">{article.likes + (likedArticles.has(article.id) ? 1 : 0)}</span>
-                  </Button>
-                  <Button variant="ghost" size="icon" className="h-10 w-10 flex-col gap-1">
-                    <MessageCircle className="w-5 h-5" />
-                    <span className="text-xs">{article.comments}</span>
-                  </Button>
-                  <Button variant="ghost" size="icon" className="h-10 w-10 flex-col gap-1">
-                    <Share2 className="w-5 h-5" />
-                    <span className="text-xs">{article.shares}</span>
                   </Button>
                   <Button variant="ghost" size="icon" className="h-10 w-10" onClick={() => handleBookmark(article.id)}>
                     <Bookmark className={`w-5 h-5 ${bookmarkedArticles.has(article.id) ? "fill-yellow-400 text-yellow-400" : ""}`} />

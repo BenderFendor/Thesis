@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, useEffect } from "react"
-import { X, ExternalLink, Heart, MessageCircle, Share2, Bookmark, AlertTriangle, DollarSign, Bug, Link as LinkIcon, Rss, Sparkles } from "lucide-react"
+import { X, ExternalLink, Heart, Bookmark, AlertTriangle, DollarSign, Bug, Link as LinkIcon, Rss, Sparkles } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { type NewsArticle, getSourceById, type NewsSource, fetchSourceDebugData, type SourceDebugData, analyzeArticle, type ArticleAnalysis } from "@/lib/api"
@@ -387,15 +387,7 @@ export function ArticleDetailModal({ article, isOpen, onClose }: ArticleDetailMo
                   className={isLiked ? "text-red-400" : "text-gray-400"}
                 >
                   <Heart className={`h-4 w-4 mr-2 ${isLiked ? "fill-current" : ""}`} />
-                  {article.likes + (isLiked ? 1 : 0)}
-                </Button>
-                <Button variant="ghost" size="sm" className="text-gray-400">
-                  <MessageCircle className="h-4 w-4 mr-2" />
-                  {article.comments}
-                </Button>
-                <Button variant="ghost" size="sm" className="text-gray-400">
-                  <Share2 className="h-4 w-4 mr-2" />
-                  {article.shares}
+                  Like
                 </Button>
                 <Button
                   variant="ghost"
@@ -404,6 +396,7 @@ export function ArticleDetailModal({ article, isOpen, onClose }: ArticleDetailMo
                   className={isBookmarked ? "text-yellow-400" : "text-gray-400"}
                 >
                   <Bookmark className={`h-4 w-4 ${isBookmarked ? "fill-current" : ""}`} />
+                  Bookmark
                 </Button>
               </div>
               <Button variant="outline" size="sm" asChild>

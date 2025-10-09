@@ -7,8 +7,6 @@ import { Button } from "@/components/ui/button"
 import { Progress } from "@/components/ui/progress"
 import {
   Heart,
-  MessageCircle,
-  Share2,
   ExternalLink,
   MapPin,
   Clock,
@@ -404,19 +402,7 @@ export function ScrollView({ articles, loading }: { articles: NewsArticle[], loa
                     className={`gap-2 ${likedArticles.has(currentArticle.id) ? "text-red-500" : ""}`}
                   >
                     <Heart className={`w-4 h-4 ${likedArticles.has(currentArticle.id) ? "fill-current" : ""}`} />
-                    <span className="text-sm">
-                      {currentArticle.likes + (likedArticles.has(currentArticle.id) ? 1 : 0)}
-                    </span>
-                  </Button>
-
-                  <Button variant="ghost" size="sm" className="gap-2">
-                    <MessageCircle className="w-4 h-4" />
-                    <span className="text-sm">{currentArticle.comments}</span>
-                  </Button>
-
-                  <Button variant="ghost" size="sm" className="gap-2">
-                    <Share2 className="w-4 h-4" />
-                    <span className="text-sm">{currentArticle.shares}</span>
+                    <span className="text-sm">Like</span>
                   </Button>
                 </div>
 

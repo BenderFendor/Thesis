@@ -154,9 +154,6 @@ export default function NewsResearchPage() {
             publishedAt: article.published || new Date().toISOString(),
             category: article.category || 'general',
             url: article.link || '',
-            likes: 0,
-            comments: 0,
-            shares: 0,
             tags: [article.category, article.source].filter(Boolean),
             originalLanguage: "en",
             translated: false
