@@ -1,7 +1,25 @@
 "use client"
 
 import { useState, useRef, useEffect } from "react"
-import { Search, Sparkles, Loader2, Brain, Database, Globe, CheckCircle, AlertCircle, Newspaper, Settings, Bell, User, Activity, Home, ArrowLeft, ChevronDown, ChevronUp } from "lucide-react"
+import {
+  Search,
+  Loader2,
+  Brain,
+  Database,
+  Globe,
+  CheckCircle,
+  AlertCircle,
+  Newspaper,
+  Settings,
+  Bell,
+  User,
+  Activity,
+  Home,
+  ArrowLeft,
+  ChevronDown,
+  ChevronUp,
+  Sparkles
+} from "lucide-react"
 import { performNewsResearch, ThinkingStep, type NewsArticle } from "@/lib/api"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -85,10 +103,18 @@ export default function NewsResearchPage() {
     setMessages(prev => [...prev, streamingMessage])
 
     try {
-      // Use EventSource for SSE streaming
+      // Prepare chat history for context (last 3 user/assistant exchanges = 6 messages)
+      const filteredHistory = messages.filter(
+        msg => msg.type === 'user' || msg.type === 'assistant'
+      );
+      const chatHistory = filteredHistory.slice(-6).map(msg => ({
+        type: msg.type,
+        content: msg.content
+      }));
       const baseUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'
+      const historyParam = encodeURIComponent(JSON.stringify(chatHistory));
       const eventSource = new EventSource(
-        `${baseUrl}/api/news/research/stream?query=${encodeURIComponent(userQuery)}&include_thinking=true`
+        `${baseUrl}/api/news/research/stream?query=${encodeURIComponent(userQuery)}&include_thinking=true&history=${historyParam}`
       )
 
       const thinkingSteps: ThinkingStep[] = []

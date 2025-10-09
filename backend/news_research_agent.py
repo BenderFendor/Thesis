@@ -341,7 +341,12 @@ Your goal is to help users navigate this information intelligently."""),
     return agent_executor, thought_handler
 
 
-def research_news(query: str, articles: List[Dict[str, Any]] = None, verbose: bool = True) -> Dict[str, Any]:
+def research_news(
+    query: str, 
+    articles: List[Dict[str, Any]] = None, 
+    verbose: bool = True,
+    chat_history: List[Dict[str, str]] = None
+) -> Dict[str, Any]:
     """
     Research news articles using the AI agent.
     
@@ -349,6 +354,7 @@ def research_news(query: str, articles: List[Dict[str, Any]] = None, verbose: bo
         query: User's research question
         articles: List of news articles to search through
         verbose: Show chain of thought
+        chat_history: Previous conversation messages for context
         
     Returns:
         Dictionary with answer, thinking steps, metadata, referenced articles, and structured article JSON
@@ -359,6 +365,16 @@ def research_news(query: str, articles: List[Dict[str, Any]] = None, verbose: bo
     
     # Create agent
     agent_executor, thought_handler = create_news_research_agent(verbose=verbose)
+    
+    # Format chat history for langchain
+    from langchain_core.messages import HumanMessage, AIMessage
+    formatted_history = []
+    if chat_history:
+        for msg in chat_history[-6:]:  # Only use last 6 messages (3 exchanges) for context
+            if msg.get('type') == 'user':
+                formatted_history.append(HumanMessage(content=msg.get('content', '')))
+            elif msg.get('type') == 'assistant':
+                formatted_history.append(AIMessage(content=msg.get('content', '')))
     
     # Execute research with timeout handling
     try:
@@ -372,7 +388,10 @@ def research_news(query: str, articles: List[Dict[str, Any]] = None, verbose: bo
         signal.alarm(45)
         
         try:
-            response = agent_executor.invoke({"input": query})
+            response = agent_executor.invoke({
+                "input": query,
+                "chat_history": formatted_history
+            })
             answer_text = response["output"]
         finally:
             signal.alarm(0)  # Cancel the alarm

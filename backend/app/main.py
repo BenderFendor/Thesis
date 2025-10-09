@@ -2044,7 +2044,8 @@ class NewsResearchResponse(BaseModel):
 @app.get("/api/news/research/stream")
 async def news_research_stream_endpoint(
     query: str = Query(..., description="The research query"),
-    include_thinking: bool = Query(True, description="Include thinking steps")
+    include_thinking: bool = Query(True, description="Include thinking steps"),
+    history: str = Query(None, description="JSON-encoded chat history for context")
 ):
     """
     Streaming version of news research that sends progress updates in real-time.
@@ -2083,11 +2084,20 @@ async def news_research_stream_endpoint(
             
             yield f"data: {json.dumps({'type': 'status', 'message': f'Searching through {len(articles_dict)} articles...', 'timestamp': datetime.now().isoformat()})}\n\n"
             
+            # Parse history if provided
+            chat_history = []
+            if history:
+                try:
+                    chat_history = json.loads(history)
+                except:
+                    pass
+            
             # Execute research
             result = research_news(
                 query=query,
                 articles=articles_dict,
-                verbose=include_thinking
+                verbose=include_thinking,
+                chat_history=chat_history
             )
             
             # Send thinking steps as they come
