@@ -44,6 +44,25 @@ export interface NewsArticle {
   translated: boolean
 }
 
+export interface BookmarkEntry {
+  bookmarkId: number
+  articleId: number
+  article: NewsArticle
+  createdAt?: string
+}
+
+export interface SemanticSearchResult {
+  article: NewsArticle
+  similarityScore?: number | null
+  distance?: number | null
+}
+
+export interface SemanticSearchResponse {
+  query: string
+  results: SemanticSearchResult[]
+  total: number
+}
+
 // Add streaming interfaces
 export interface StreamOptions {
   useCache?: boolean;
@@ -325,6 +344,150 @@ export async function refreshCache(): Promise<boolean> {
   } catch (error) {
     console.error('Failed to refresh cache:', error);
     return false;
+  }
+}
+
+export async function semanticSearch(
+  query: string,
+  options?: { limit?: number; category?: string }
+): Promise<SemanticSearchResponse> {
+  const params = new URLSearchParams({ query })
+  if (options?.limit) params.append('limit', options.limit.toString())
+  if (options?.category) params.append('category', options.category)
+
+  const url = `${API_BASE_URL}/api/search/semantic?${params.toString()}`
+
+  const response = await fetch(url)
+  if (response.status === 503) {
+    throw new Error('Semantic search is currently unavailable.')
+  }
+  if (!response.ok) {
+    throw new Error(`Semantic search failed with status ${response.status}`)
+  }
+
+  const data = await response.json()
+  const rawResults = Array.isArray(data?.results) ? data.results : []
+  const mappedArticles = mapBackendArticles(rawResults)
+
+  const results: SemanticSearchResult[] = mappedArticles.map((article, index) => ({
+    article,
+    similarityScore: rawResults[index]?.similarity_score ?? null,
+    distance: rawResults[index]?.distance ?? null
+  }))
+
+  return {
+    query: data?.query || query,
+    results,
+    total: typeof data?.total === 'number' ? data.total : results.length
+  }
+}
+
+export async function fetchBookmarks(): Promise<BookmarkEntry[]> {
+  try {
+    const response = await fetch(`${API_BASE_URL}/api/bookmarks`)
+    if (!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status}`)
+    }
+
+    const data = await response.json()
+    const bookmarks = Array.isArray(data?.bookmarks) ? data.bookmarks : []
+    const mappedArticles = mapBackendArticles(bookmarks)
+
+    return mappedArticles.map((article, index) => ({
+      bookmarkId: bookmarks[index].bookmark_id,
+      articleId: bookmarks[index].article_id,
+      createdAt: bookmarks[index].created_at,
+      article
+    }))
+  } catch (error) {
+    console.error('Failed to fetch bookmarks:', error)
+    return []
+  }
+}
+
+export async function fetchBookmark(articleId: number): Promise<BookmarkEntry | null> {
+  try {
+    const response = await fetch(`${API_BASE_URL}/api/bookmarks/${articleId}`)
+    if (response.status === 404) {
+      return null
+    }
+    if (!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status}`)
+    }
+
+    const data = await response.json()
+    const [article] = mapBackendArticles([data])
+    return {
+      bookmarkId: data.bookmark_id,
+      articleId: data.article_id,
+      createdAt: data.created_at,
+      article
+    }
+  } catch (error) {
+    console.error('Failed to fetch bookmark:', error)
+    return null
+  }
+}
+
+export async function createBookmark(articleId: number): Promise<BookmarkEntry | null> {
+  try {
+    const response = await fetch(`${API_BASE_URL}/api/bookmarks`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({ article_id: articleId })
+    })
+
+    if (!response.ok) {
+      throw new Error(`Failed to create bookmark. Status: ${response.status}`)
+    }
+
+    // Fetch the complete bookmark details (article metadata + bookmark info)
+    return await fetchBookmark(articleId)
+  } catch (error) {
+    console.error('Failed to create bookmark:', error)
+    throw error
+  }
+}
+
+export async function updateBookmark(articleId: number): Promise<BookmarkEntry | null> {
+  try {
+    const response = await fetch(`${API_BASE_URL}/api/bookmarks/${articleId}`, {
+      method: 'PUT'
+    })
+
+    if (response.status === 404) {
+      return null
+    }
+    if (!response.ok) {
+      throw new Error(`Failed to update bookmark. Status: ${response.status}`)
+    }
+
+    return await fetchBookmark(articleId)
+  } catch (error) {
+    console.error('Failed to update bookmark:', error)
+    return null
+  }
+}
+
+export async function deleteBookmark(articleId: number): Promise<boolean> {
+  try {
+    const response = await fetch(`${API_BASE_URL}/api/bookmarks/${articleId}`, {
+      method: 'DELETE'
+    })
+
+    if (response.status === 404) {
+      return false
+    }
+    if (!response.ok) {
+      throw new Error(`Failed to delete bookmark. Status: ${response.status}`)
+    }
+
+    return true
+  } catch (error) {
+    console.error('Failed to delete bookmark:', error)
+    throw error
   }
 }
 
@@ -769,26 +932,52 @@ const apiCache = new Map<string, { data: any; timestamp: number }>();
 function mapBackendArticles(backendArticles: any[]): NewsArticle[] {
   console.log(`[mapBackendArticles] Mapping ${backendArticles.length} articles from backend format to frontend format.`);
   return backendArticles.map((article: any, index: number) => {
-    // console.log(`[mapBackendArticles] Processing article at index ${index}:`, article);
+    const sourceName = article.source || article.source_name || 'Unknown';
+
+    const resolvedId = typeof article.id === 'number'
+      ? article.id
+      : typeof article.article_id === 'number'
+        ? article.article_id
+        : Date.now() + index;
+
+    const summary = article.summary || article.description || '';
+    const content = article.content || summary;
+    const image = article.image || article.image_url || "/placeholder.svg";
+    const published = article.published_at || article.publishedAt || article.published || new Date().toISOString();
+    const category = article.category || 'general';
+    const url = article.url || article.link || '';
+
+    const country = article.country || getCountryFromSource(sourceName);
+    const credibilityValue = typeof article.credibility === 'string' ? article.credibility.toLowerCase() : undefined;
+    const biasValue = typeof article.bias === 'string' ? article.bias.toLowerCase() : undefined;
+
+    const credibility = credibilityValue && ['high', 'medium', 'low'].includes(credibilityValue)
+      ? (credibilityValue as 'high' | 'medium' | 'low')
+      : getCredibilityFromSource(sourceName);
+
+    const bias = biasValue && ['left', 'center', 'right'].includes(biasValue)
+      ? (biasValue as 'left' | 'center' | 'right')
+      : getBiasFromSource(sourceName);
+
     const mappedArticle: NewsArticle = {
-      id: Date.now() + index + Math.random(), // More unique ID
+      id: resolvedId,
       title: article.title || 'No title',
-      source: article.source || 'Unknown',
-      sourceId: (article.source || 'unknown').toLowerCase().replace(/\s+/g, '-'),
-      country: getCountryFromSource(article.source),
-      credibility: getCredibilityFromSource(article.source),
-      bias: getBiasFromSource(article.source),
-      summary: article.description || 'No description',
-      content: article.description || 'No description',
-      image: article.image || "/placeholder.svg",
-      publishedAt: article.published || new Date().toISOString(),
-      category: article.category || 'general',
-      url: article.link || '',
-      tags: [article.category, article.source].filter(Boolean),
-      originalLanguage: "en",
-      translated: false
+      source: sourceName,
+      sourceId: sourceName.toLowerCase().replace(/\s+/g, '-'),
+      country,
+      credibility,
+      bias,
+      summary: summary || 'No description',
+      content,
+      image,
+      publishedAt: published,
+      category,
+      url,
+      tags: [category, sourceName].filter(Boolean),
+      originalLanguage: article.original_language || 'en',
+      translated: article.translated ?? false
     };
-    //console.log(`[mapBackendArticles] Mapped article at index ${index}:`, mappedArticle);
+
     return mappedArticle;
   });
 }

@@ -20,7 +20,7 @@ import {
   ChevronUp,
   Sparkles
 } from "lucide-react"
-import { performNewsResearch, ThinkingStep, type NewsArticle } from "@/lib/api"
+import { performNewsResearch, ThinkingStep, type NewsArticle, semanticSearch, type SemanticSearchResult } from "@/lib/api"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
@@ -59,6 +59,9 @@ export default function NewsResearchPage() {
   const [query, setQuery] = useState("")
   const [isSearching, setIsSearching] = useState(false)
   const [messages, setMessages] = useState<Message[]>([])
+  const [semanticResults, setSemanticResults] = useState<SemanticSearchResult[]>([])
+  const [semanticLoading, setSemanticLoading] = useState(false)
+  const [semanticError, setSemanticError] = useState<string | null>(null)
   const [expandedThinking, setExpandedThinking] = useState<string | null>(null)
   const [selectedArticle, setSelectedArticle] = useState<NewsArticle | null>(null)
   const [isArticleModalOpen, setIsArticleModalOpen] = useState(false)
@@ -89,6 +92,17 @@ export default function NewsResearchPage() {
     const userQuery = query
     setQuery("")
     setIsSearching(true)
+
+    setSemanticResults([])
+    setSemanticError(null)
+    setSemanticLoading(true)
+    semanticSearch(userQuery, { limit: 6 })
+      .then(response => setSemanticResults(response.results))
+      .catch(error => {
+        console.error('Semantic search failed:', error)
+        setSemanticError(error instanceof Error ? error.message : 'Semantic search failed')
+      })
+      .finally(() => setSemanticLoading(false))
 
     // Create a placeholder assistant message for streaming updates
     const assistantId = (Date.now() + 1).toString()
@@ -472,6 +486,62 @@ export default function NewsResearchPage() {
                       }}
                     >
                       <span className="group-hover:text-primary transition-colors">{sample}</span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {(semanticLoading || semanticResults.length > 0 || semanticError) && (
+              <div className="mb-10 space-y-4">
+                <div className="flex items-center gap-2">
+                  <Sparkles className="w-4 h-4 text-primary" />
+                  <span className="text-xs font-semibold uppercase tracking-wide text-primary">Semantic matches</span>
+                  {semanticLoading && <Loader2 className="w-4 h-4 animate-spin text-primary" />}
+                </div>
+                {semanticError && (
+                  <p className="text-xs text-destructive">{semanticError}</p>
+                )}
+                <div className="grid gap-3">
+                  {semanticResults.map(({ article, similarityScore }) => (
+                    <button
+                      key={`semantic-${article.id}`}
+                      onClick={() => {
+                        setSelectedArticle(article)
+                        setIsArticleModalOpen(true)
+                      }}
+                      className="text-left w-full group"
+                    >
+                      <div
+                        className="p-4 rounded-lg border transition-all duration-200 hover:border-primary hover:bg-primary/10 flex gap-4"
+                        style={{ borderColor: 'var(--border)' }}
+                      >
+                        {article.image && (
+                          <div className="w-24 h-20 rounded-md overflow-hidden flex-shrink-0 bg-black/40">
+                            <img
+                              src={article.image}
+                              alt={article.title}
+                              className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-200"
+                            />
+                          </div>
+                        )}
+                        <div className="flex-1 min-w-0 space-y-2">
+                          <div className="flex items-center gap-2 text-xs font-medium text-primary/80">
+                            <span className="uppercase tracking-wide">{article.source}</span>
+                            {typeof similarityScore === 'number' && (
+                              <span className="px-2 py-0.5 rounded-full bg-primary/20 text-primary">
+                                {(similarityScore * 100).toFixed(1)}% match
+                              </span>
+                            )}
+                          </div>
+                          <h3 className="text-sm font-semibold leading-snug line-clamp-2 group-hover:text-primary transition-colors">
+                            {article.title}
+                          </h3>
+                          <p className="text-xs text-muted-foreground line-clamp-2">
+                            {article.summary}
+                          </p>
+                        </div>
+                      </div>
                     </button>
                   ))}
                 </div>

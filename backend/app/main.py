@@ -1,11 +1,11 @@
-from fastapi import FastAPI, HTTPException, BackgroundTasks, Request, WebSocket, WebSocketDisconnect, Query
+from fastapi import FastAPI, HTTPException, BackgroundTasks, Request, WebSocket, WebSocketDisconnect, Query, Depends
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
 import feedparser
 from typing import List, Dict, Any, Optional, Tuple
 from pydantic import BaseModel
 import asyncio
-from datetime import datetime
+from datetime import datetime, timezone
 import logging
 import threading
 import time
@@ -29,6 +29,19 @@ except ImportError:
     # newspaper4k uses the same import path
     from newspaper import Article
 
+from email.utils import parsedate_to_datetime
+from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from app.database import (
+    AsyncSessionLocal,
+    Article as ArticleRecord,
+    Bookmark as BookmarkRecord,
+    SearchHistory,
+    get_db,
+    init_db,
+)
+from app.vector_store import vector_store
 # Load environment variables
 load_dotenv()
 
@@ -135,6 +148,7 @@ manager = ConnectionManager()
 
 # Data models
 class NewsArticle(BaseModel):
+    id: Optional[int] = None
     title: str
     link: str
     description: str
@@ -142,6 +156,143 @@ class NewsArticle(BaseModel):
     source: str
     category: str = "general"
     image: Optional[str] = None
+
+class BookmarkCreateRequest(BaseModel):
+    article_id: int
+
+
+def parse_published_datetime(published: Optional[str]) -> datetime:
+    if isinstance(published, datetime):
+        dt = published
+    elif published:
+        try:
+            dt = parsedate_to_datetime(published)
+        except Exception:
+            try:
+                normalized = published.replace('Z', '+00:00')
+                dt = datetime.fromisoformat(normalized)
+            except Exception:
+                dt = datetime.utcnow().replace(tzinfo=timezone.utc)
+    else:
+        dt = datetime.utcnow().replace(tzinfo=timezone.utc)
+
+    if dt.tzinfo is None:
+        dt = dt.replace(tzinfo=timezone.utc)
+    else:
+        dt = dt.astimezone(timezone.utc)
+    return dt
+
+
+async def _upsert_article(session: AsyncSession, article: NewsArticle, source_info: Dict[str, Any]) -> int:
+    published_dt = parse_published_datetime(article.published)
+    published_value = published_dt.astimezone(timezone.utc).replace(tzinfo=None)
+
+    tags = []
+    if article.category:
+        tags.append(article.category)
+    if article.source:
+        tags.append(article.source)
+    tags = list(dict.fromkeys([tag for tag in tags if tag]))
+
+    existing_result = await session.execute(
+        select(ArticleRecord).where(ArticleRecord.url == article.link)
+    )
+    article_record = existing_result.scalar_one_or_none()
+
+    if article_record:
+        article_record.title = article.title
+        article_record.summary = article.description
+        article_record.content = article.description
+        article_record.image_url = article.image
+        article_record.published_at = published_value
+        article_record.category = article.category
+        article_record.source = article.source
+        if source_info.get("country"):
+            article_record.country = source_info.get("country")
+        if source_info.get("bias_rating"):
+            article_record.bias = source_info.get("bias_rating")
+        if source_info.get("credibility"):
+            article_record.credibility = source_info.get("credibility")
+        if tags:
+            article_record.tags = tags
+        article_record.updated_at = datetime.utcnow()
+    else:
+        article_record = ArticleRecord(
+            title=article.title,
+            source=article.source,
+            source_id=source_info.get("source_id"),
+            country=source_info.get("country"),
+            credibility=source_info.get("credibility"),
+            bias=source_info.get("bias_rating"),
+            summary=article.description,
+            content=article.description,
+            image_url=article.image,
+            published_at=published_value,
+            category=article.category,
+            url=article.link,
+            tags=tags if tags else None,
+        )
+        session.add(article_record)
+        await session.flush()
+
+    article_id = article_record.id
+
+    if vector_store:
+        chroma_id = f"article_{article_id}"
+        try:
+            if article_record.chroma_id and article_record.chroma_id != chroma_id:
+                vector_store.delete_article(article_record.chroma_id)
+            success = vector_store.add_article(
+                article_id=chroma_id,
+                title=article_record.title,
+                summary=article_record.summary or "",
+                content=(article_record.content or article_record.summary or ""),
+                metadata={
+                    "source": article_record.source,
+                    "category": article_record.category or source_info.get("category", "general"),
+                    "published": article_record.published_at.isoformat() if article_record.published_at else None,
+                    "country": article_record.country or source_info.get("country", "Unknown"),
+                    "url": article_record.url,
+                },
+            )
+            if success:
+                article_record.chroma_id = chroma_id
+                article_record.embedding_generated = True
+        except Exception as chroma_error:
+            logger.error(f"Vector store write failed for article {article_id}: {chroma_error}")
+
+    article.id = article_id
+    return article_id
+
+
+async def _persist_articles_async(articles: List[NewsArticle], source_info: Dict[str, Any]) -> None:
+    if not articles:
+        return
+    async with AsyncSessionLocal() as session:
+        try:
+            for article in articles:
+                await _upsert_article(session, article, source_info)
+            await session.commit()
+        except Exception as exc:
+            await session.rollback()
+            logger.error(
+                f"Database persistence failed for source {source_info.get('name') or source_info.get('source') or 'unknown'}: {exc}",
+                exc_info=True
+            )
+
+
+def persist_articles_dual_write(articles: List[NewsArticle], source_info: Dict[str, Any]) -> None:
+    if not articles:
+        return
+    try:
+        loop = asyncio.get_running_loop()
+    except RuntimeError:
+        try:
+            asyncio.run(_persist_articles_async(articles, source_info))
+        except Exception as exc:
+            logger.error(f"Dual-write execution failed: {exc}", exc_info=True)
+    else:
+        loop.create_task(_persist_articles_async(articles, source_info))
 
 # Global cache system
 class NewsCache:
@@ -180,6 +331,27 @@ class NewsCache:
 
 # Global cache instance
 news_cache = NewsCache()
+
+
+async def migrate_cached_articles_on_startup(delay_seconds: int = 5) -> None:
+    """Persist cached articles into PostgreSQL and ChromaDB after startup."""
+    await asyncio.sleep(delay_seconds)
+    cached_articles = news_cache.get_articles()
+    if not cached_articles:
+        logger.info("No cached articles to migrate to databases")
+        return
+
+    grouped_articles: Dict[str, List[NewsArticle]] = defaultdict(list)
+    for cached_article in cached_articles:
+        grouped_articles[cached_article.source].append(cached_article)
+
+    migrated_count = 0
+    for source_name, articles in grouped_articles.items():
+        source_info = RSS_SOURCES.get(source_name, {"category": "general", "country": "US"})
+        await _persist_articles_async(articles, source_info)
+        migrated_count += len(articles)
+
+    logger.info(f"🗄️ Migrated {migrated_count} cached articles to databases on startup")
 
 class NewsResponse(BaseModel):
     articles: List[NewsArticle]
@@ -526,6 +698,9 @@ app.add_middleware(
 async def startup_event():
     """Initialize cache and start background refresh scheduler on startup"""
     logger.info("🚀 Starting Global News Aggregation API...")
+
+    await init_db()
+    logger.info("🗄️ Database initialization complete")
     
     # Start background refresh scheduler first
     start_cache_refresh_scheduler()
@@ -541,6 +716,8 @@ async def startup_event():
     
     thread = threading.Thread(target=init_cache, daemon=True)
     thread.start()
+
+    asyncio.create_task(migrate_cached_articles_on_startup())
     
     logger.info("✅ API startup complete!")
 
@@ -811,6 +988,9 @@ def _process_source(source_name: str, source_info: Dict) -> Tuple[List[NewsArtic
                 parsed_articles = parse_rss_feed_entries(feed.entries, source_name, source_info)
                 articles.extend(parsed_articles)
                 logger.info(f"✅ Parsed {len(parsed_articles)} articles from {source_name} ({url})")
+
+        if articles:
+            persist_articles_dual_write(articles, {**source_info, "name": source_name, "source": source_name})
 
         source_stat = {
             "name": source_name,
@@ -1314,6 +1494,212 @@ async def get_cache_status():
         "category_breakdown": dict(category_counts),
         "cache_age_seconds": (datetime.now() - news_cache.last_updated).total_seconds()
     }
+
+
+@app.get("/api/search/semantic")
+async def semantic_search(
+    query: str = Query(..., min_length=3),
+    limit: int = Query(10, le=50),
+    category: Optional[str] = None,
+    db: AsyncSession = Depends(get_db)
+):
+    """Semantic search powered by ChromaDB with PostgreSQL enrichment."""
+    if vector_store is None:
+        raise HTTPException(status_code=503, detail="Vector store is not available")
+
+    filter_metadata = {}
+    if category and category.lower() != "all":
+        filter_metadata["category"] = category.lower()
+
+    chroma_results = vector_store.search_similar(
+        query=query,
+        limit=limit,
+        filter_metadata=filter_metadata if filter_metadata else None
+    )
+
+    if not chroma_results:
+        return {"query": query, "results": [], "total": 0}
+
+    article_ids = [result.get("article_id") for result in chroma_results if result.get("article_id")]
+    if not article_ids:
+        return {"query": query, "results": [], "total": 0}
+
+    articles_stmt = select(ArticleRecord).where(ArticleRecord.id.in_(article_ids))
+    articles_result = await db.execute(articles_stmt)
+    articles = articles_result.scalars().all()
+    article_map = {article.id: article for article in articles}
+
+    results = []
+    for chroma_result in chroma_results:
+        article_id = chroma_result.get("article_id")
+        article = article_map.get(article_id)
+        if not article:
+            continue
+
+        results.append({
+            "id": article.id,
+            "title": article.title,
+            "source": article.source,
+            "summary": article.summary,
+            "image": article.image_url,
+            "published": article.published_at.isoformat() if article.published_at else None,
+            "category": article.category,
+            "url": article.url,
+            "similarity_score": chroma_result.get("similarity_score"),
+            "distance": chroma_result.get("distance"),
+        })
+
+    search_record = SearchHistory(
+        query=query,
+        search_type="semantic",
+        results_count=len(results)
+    )
+    db.add(search_record)
+
+    return {
+        "query": query,
+        "results": results,
+        "total": len(results)
+    }
+
+
+@app.get("/api/bookmarks")
+async def list_bookmarks(db: AsyncSession = Depends(get_db)):
+    """List all bookmarked articles with their metadata."""
+    bookmarks_stmt = (
+        select(
+            BookmarkRecord.id.label("bookmark_id"),
+            BookmarkRecord.article_id,
+            BookmarkRecord.created_at,
+            ArticleRecord.title,
+            ArticleRecord.source,
+            ArticleRecord.summary,
+            ArticleRecord.image_url,
+            ArticleRecord.published_at,
+            ArticleRecord.category,
+            ArticleRecord.url
+        )
+        .join(ArticleRecord, ArticleRecord.id == BookmarkRecord.article_id)
+        .order_by(BookmarkRecord.created_at.desc())
+    )
+
+    result = await db.execute(bookmarks_stmt)
+    rows = result.all()
+
+    bookmarks = []
+    for row in rows:
+        bookmarks.append({
+            "bookmark_id": row.bookmark_id,
+            "article_id": row.article_id,
+            "title": row.title,
+            "source": row.source,
+            "summary": row.summary,
+            "image": row.image_url,
+            "published": row.published_at.isoformat() if row.published_at else None,
+            "category": row.category,
+            "url": row.url,
+            "created_at": row.created_at.isoformat() if row.created_at else None,
+        })
+
+    return {"bookmarks": bookmarks, "total": len(bookmarks)}
+
+
+@app.get("/api/bookmarks/{article_id}")
+async def get_bookmark(article_id: int, db: AsyncSession = Depends(get_db)):
+    """Retrieve a single bookmark by article id."""
+    bookmark_stmt = (
+        select(BookmarkRecord, ArticleRecord)
+        .join(ArticleRecord, ArticleRecord.id == BookmarkRecord.article_id)
+        .where(BookmarkRecord.article_id == article_id)
+    )
+
+    result = await db.execute(bookmark_stmt)
+    row = result.one_or_none()
+    if not row:
+        raise HTTPException(status_code=404, detail="Bookmark not found")
+
+    bookmark, article = row
+    return {
+        "bookmark_id": bookmark.id,
+        "article_id": article.id,
+        "title": article.title,
+        "source": article.source,
+        "summary": article.summary,
+        "image": article.image_url,
+        "published": article.published_at.isoformat() if article.published_at else None,
+        "category": article.category,
+        "url": article.url,
+        "created_at": bookmark.created_at.isoformat() if bookmark.created_at else None,
+    }
+
+
+@app.post("/api/bookmarks", status_code=201)
+async def create_bookmark(payload: BookmarkCreateRequest, db: AsyncSession = Depends(get_db)):
+    """Create a new bookmark for a given article."""
+    article_stmt = select(ArticleRecord).where(ArticleRecord.id == payload.article_id)
+    article_result = await db.execute(article_stmt)
+    article = article_result.scalar_one_or_none()
+    if not article:
+        raise HTTPException(status_code=404, detail="Article not found")
+
+    existing_stmt = select(BookmarkRecord).where(BookmarkRecord.article_id == payload.article_id)
+    existing_result = await db.execute(existing_stmt)
+    existing = existing_result.scalar_one_or_none()
+
+    if existing:
+        return {
+            "created": False,
+            "bookmark_id": existing.id,
+            "article_id": existing.article_id,
+            "created_at": existing.created_at.isoformat() if existing.created_at else None,
+        }
+
+    bookmark = BookmarkRecord(article_id=article.id)
+    db.add(bookmark)
+    await db.flush()
+    await db.refresh(bookmark)
+
+    return {
+        "created": True,
+        "bookmark_id": bookmark.id,
+        "article_id": bookmark.article_id,
+        "created_at": bookmark.created_at.isoformat() if bookmark.created_at else None,
+    }
+
+
+@app.put("/api/bookmarks/{article_id}")
+async def update_bookmark(article_id: int, db: AsyncSession = Depends(get_db)):
+    """Update a bookmark timestamp to reprioritize it."""
+    bookmark_stmt = select(BookmarkRecord).where(BookmarkRecord.article_id == article_id)
+    result = await db.execute(bookmark_stmt)
+    bookmark = result.scalar_one_or_none()
+    if not bookmark:
+        raise HTTPException(status_code=404, detail="Bookmark not found")
+
+    bookmark.created_at = datetime.utcnow()
+    await db.flush()
+
+    return {
+        "bookmark_id": bookmark.id,
+        "article_id": bookmark.article_id,
+        "created_at": bookmark.created_at.isoformat() if bookmark.created_at else None,
+        "updated": True,
+    }
+
+
+@app.delete("/api/bookmarks/{article_id}")
+async def delete_bookmark(article_id: int, db: AsyncSession = Depends(get_db)):
+    """Delete a bookmark by article id."""
+    bookmark_stmt = select(BookmarkRecord).where(BookmarkRecord.article_id == article_id)
+    result = await db.execute(bookmark_stmt)
+    bookmark = result.scalar_one_or_none()
+    if not bookmark:
+        raise HTTPException(status_code=404, detail="Bookmark not found")
+
+    await db.delete(bookmark)
+    await db.flush()
+
+    return {"deleted": True, "article_id": article_id}
 
 @app.get("/debug/source/{source_name}")
 async def get_source_debug_data(source_name: str):

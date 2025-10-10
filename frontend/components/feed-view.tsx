@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, useEffect, useRef, useCallback } from "react";
-import { type NewsArticle } from "@/lib/api";
+import { type NewsArticle, fetchBookmarks, createBookmark, deleteBookmark } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Heart, Bookmark, ExternalLink, ChevronUp, ChevronDown, Eye, Info } from "lucide-react";
@@ -16,6 +16,19 @@ export function FeedView({ articles, loading }: FeedViewProps) {
   const [currentIndex, setCurrentIndex] = useState(0);
   const [likedArticles, setLikedArticles] = useState<Set<number>>(new Set());
   const [bookmarkedArticles, setBookmarkedArticles] = useState<Set<number>>(new Set());
+  useEffect(() => {
+    const loadBookmarks = async () => {
+      try {
+        const entries = await fetchBookmarks();
+        setBookmarkedArticles(new Set(entries.map(entry => entry.articleId)));
+      } catch (error) {
+        console.error('Failed to load bookmarks:', error);
+      }
+    };
+
+    loadBookmarks();
+  }, []);
+
   const [selectedArticle, setSelectedArticle] = useState<NewsArticle | null>(null);
   const [isArticleModalOpen, setIsArticleModalOpen] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -65,15 +78,42 @@ export function FeedView({ articles, loading }: FeedViewProps) {
     });
   };
 
-  const handleBookmark = (articleId: number) => {
+  const handleBookmark = async (articleId: number) => {
+    if (!articleId) return;
+
+    const isBookmarked = bookmarkedArticles.has(articleId);
+    const previousSet = new Set(bookmarkedArticles);
+    const updatedSet = new Set(bookmarkedArticles);
+
+    if (isBookmarked) {
+      updatedSet.delete(articleId);
+    } else {
+      updatedSet.add(articleId);
+    }
+
+    setBookmarkedArticles(updatedSet);
+
+    try {
+      if (isBookmarked) {
+        await deleteBookmark(articleId);
+      } else {
+        await createBookmark(articleId);
+      }
+    } catch (error) {
+      console.error('Failed to toggle bookmark:', error);
+      setBookmarkedArticles(previousSet);
+    }
+  };
+
+  const handleModalBookmarkChange = (articleId: number, isBookmarked: boolean) => {
     setBookmarkedArticles(prev => {
-        const newSet = new Set(prev);
-        if (newSet.has(articleId)) {
-            newSet.delete(articleId);
-        } else {
-            newSet.add(articleId);
-        }
-        return newSet;
+      const next = new Set(prev);
+      if (isBookmarked) {
+        next.add(articleId);
+      } else {
+        next.delete(articleId);
+      }
+      return next;
     });
   };
 
@@ -118,7 +158,7 @@ export function FeedView({ articles, loading }: FeedViewProps) {
                   <Button variant="ghost" size="icon" className="h-10 w-10" onClick={() => handleLike(article.id)}>
                     <Heart className={`w-5 h-5 ${likedArticles.has(article.id) ? "fill-red-500 text-red-500" : ""}`} />
                   </Button>
-                  <Button variant="ghost" size="icon" className="h-10 w-10" onClick={() => handleBookmark(article.id)}>
+                  <Button variant="ghost" size="icon" className="h-10 w-10" onClick={() => void handleBookmark(article.id)}>
                     <Bookmark className={`w-5 h-5 ${bookmarkedArticles.has(article.id) ? "fill-yellow-400 text-yellow-400" : ""}`} />
                   </Button>
                 </div>
@@ -127,7 +167,13 @@ export function FeedView({ articles, loading }: FeedViewProps) {
           </div>
         ))}
       </div>
-      <ArticleDetailModal article={selectedArticle} isOpen={isArticleModalOpen} onClose={() => setIsArticleModalOpen(false)} />
+      <ArticleDetailModal
+        article={selectedArticle}
+        isOpen={isArticleModalOpen}
+        onClose={() => setIsArticleModalOpen(false)}
+        initialIsBookmarked={selectedArticle ? bookmarkedArticles.has(selectedArticle.id) : false}
+        onBookmarkChange={handleModalBookmarkChange}
+      />
     </>
   );
 }

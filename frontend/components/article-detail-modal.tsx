@@ -4,18 +4,20 @@ import { useState, useEffect } from "react"
 import { X, ExternalLink, Heart, Bookmark, AlertTriangle, DollarSign, Bug, Link as LinkIcon, Rss, Sparkles, Maximize2, Minimize2 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
-import { type NewsArticle, getSourceById, type NewsSource, fetchSourceDebugData, type SourceDebugData, analyzeArticle, type ArticleAnalysis, API_BASE_URL } from "@/lib/api"
+import { type NewsArticle, getSourceById, type NewsSource, fetchSourceDebugData, type SourceDebugData, analyzeArticle, type ArticleAnalysis, API_BASE_URL, createBookmark, deleteBookmark } from "@/lib/api"
 import { ArticleAnalysisDisplay } from "@/components/article-analysis"
 
 interface ArticleDetailModalProps {
   article: NewsArticle | null
   isOpen: boolean
   onClose: () => void
+  initialIsBookmarked?: boolean
+  onBookmarkChange?: (articleId: number, isBookmarked: boolean) => void
 }
 
-export function ArticleDetailModal({ article, isOpen, onClose }: ArticleDetailModalProps) {
+export function ArticleDetailModal({ article, isOpen, onClose, initialIsBookmarked = false, onBookmarkChange }: ArticleDetailModalProps) {
   const [isLiked, setIsLiked] = useState(false)
-  const [isBookmarked, setIsBookmarked] = useState(false)
+  const [isBookmarked, setIsBookmarked] = useState(initialIsBookmarked)
   const [showSourceDetails, setShowSourceDetails] = useState(false)
   const [source, setSource] = useState<NewsSource | null>(null)
   const [sourceLoading, setSourceLoading] = useState(false)
@@ -28,6 +30,7 @@ export function ArticleDetailModal({ article, isOpen, onClose }: ArticleDetailMo
   const [isExpanded, setIsExpanded] = useState(false)
   const [fullArticleText, setFullArticleText] = useState<string | null>(null)
   const [articleLoading, setArticleLoading] = useState(false)
+  const [bookmarkLoading, setBookmarkLoading] = useState(false)
 
   useEffect(() => {
     const loadSource = async () => {
@@ -49,6 +52,12 @@ export function ArticleDetailModal({ article, isOpen, onClose }: ArticleDetailMo
       loadSource()
     }
   }, [isOpen, article])
+
+  useEffect(() => {
+    if (article) {
+      setIsBookmarked(initialIsBookmarked)
+    }
+  }, [initialIsBookmarked, article?.id])
 
   // Load full article text immediately when modal opens
   useEffect(() => {
@@ -131,6 +140,27 @@ export function ArticleDetailModal({ article, isOpen, onClose }: ArticleDetailMo
       })
     } finally {
       setAiAnalysisLoading(false)
+    }
+  }
+
+  const handleBookmarkToggle = async () => {
+    if (!article?.id) return
+
+    setBookmarkLoading(true)
+    try {
+      if (isBookmarked) {
+        await deleteBookmark(article.id)
+        setIsBookmarked(false)
+        onBookmarkChange?.(article.id, false)
+      } else {
+        await createBookmark(article.id)
+        setIsBookmarked(true)
+        onBookmarkChange?.(article.id, true)
+      }
+    } catch (error) {
+      console.error('Failed to toggle bookmark:', error)
+    } finally {
+      setBookmarkLoading(false)
     }
   }
 
@@ -327,8 +357,9 @@ export function ArticleDetailModal({ article, isOpen, onClose }: ArticleDetailMo
                   <Button
                     variant="ghost"
                     size="sm"
-                    onClick={() => setIsBookmarked(!isBookmarked)}
+                    onClick={handleBookmarkToggle}
                     className={isBookmarked ? "text-yellow-400" : "text-gray-400"}
+                    disabled={bookmarkLoading}
                   >
                     <Bookmark className={`h-4 w-4 ${isBookmarked ? "fill-current" : ""}`} />
                     Bookmark
