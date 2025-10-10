@@ -65,6 +65,9 @@ else:
 stream_logger = logging.getLogger("news_stream")
 stream_logger.setLevel(logging.DEBUG)
 
+main_event_loop: Optional[asyncio.AbstractEventLoop] = None
+article_persistence_queue: "asyncio.Queue[Tuple[List['NewsArticle'], Dict[str, Any]]]" = asyncio.Queue()
+
 # Global tracking for active streams and rate limiting
 class StreamManager:
     def __init__(self):
@@ -287,12 +290,41 @@ def persist_articles_dual_write(articles: List[NewsArticle], source_info: Dict[s
     try:
         loop = asyncio.get_running_loop()
     except RuntimeError:
-        try:
-            asyncio.run(_persist_articles_async(articles, source_info))
-        except Exception as exc:
-            logger.error(f"Dual-write execution failed: {exc}", exc_info=True)
+        target_loop = main_event_loop
+        if target_loop and target_loop.is_running():
+            future = asyncio.run_coroutine_threadsafe(
+                article_persistence_queue.put((articles, source_info)),
+                target_loop
+            )
+
+            def _log_future_result(fut: asyncio.Future) -> None:
+                try:
+                    fut.result()
+                except Exception as exc:  # pragma: no cover - best effort logging
+                    logger.error(f"Dual-write enqueue failed: {exc}", exc_info=True)
+
+            future.add_done_callback(_log_future_result)
+        else:
+            try:
+                asyncio.run(_persist_articles_async(articles, source_info))
+            except Exception as exc:
+                logger.error(f"Dual-write execution failed: {exc}", exc_info=True)
     else:
-        loop.create_task(_persist_articles_async(articles, source_info))
+        loop.create_task(article_persistence_queue.put((articles, source_info)))
+
+
+async def _article_persistence_worker() -> None:
+    while True:
+        articles, source_info = await article_persistence_queue.get()
+        try:
+            await _persist_articles_async(articles, source_info)
+        except Exception as exc:  # pragma: no cover - defensive logging
+            logger.error(
+                f"Queued database persistence failed for source {source_info.get('name') or source_info.get('source') or 'unknown'}: {exc}",
+                exc_info=True
+            )
+        finally:
+            article_persistence_queue.task_done()
 
 # Global cache system
 class NewsCache:
@@ -699,6 +731,9 @@ async def startup_event():
     """Initialize cache and start background refresh scheduler on startup"""
     logger.info("🚀 Starting Global News Aggregation API...")
 
+    global main_event_loop
+    main_event_loop = asyncio.get_running_loop()
+
     await init_db()
     logger.info("🗄️ Database initialization complete")
     
@@ -718,6 +753,7 @@ async def startup_event():
     thread.start()
 
     asyncio.create_task(migrate_cached_articles_on_startup())
+    asyncio.create_task(_article_persistence_worker())
     
     logger.info("✅ API startup complete!")
 
