@@ -40,6 +40,9 @@ from app.database import (
     SearchHistory,
     get_db,
     init_db,
+    fetch_recent_articles,
+    search_articles_by_keyword,
+    fetch_articles_by_ids,
 )
 from app.vector_store import vector_store
 # Load environment variables
@@ -2413,6 +2416,140 @@ async def analyze_article(request: ArticleAnalysisRequest):
         )
 
 # News Research Agent Endpoint
+async def load_articles_for_research(
+    query: str,
+    semantic_limit: int = 20,
+    keyword_limit: int = 50,
+    recent_limit: int = 40,
+    max_total: int = 150,
+) -> Dict[str, Any]:
+    """Gather articles for the research agent using PostgreSQL and ChromaDB."""
+
+    async with AsyncSessionLocal() as session:
+        keyword_articles_raw = await search_articles_by_keyword(
+            session,
+            query=query,
+            limit=keyword_limit,
+        ) if query else []
+        keyword_articles = [
+            {**article, "retrieval_method": "keyword_postgres"}
+            for article in keyword_articles_raw
+        ]
+
+        semantic_articles: List[Dict[str, Any]] = []
+        semantic_count = 0
+        if vector_store and query:
+            try:
+                semantic_results = vector_store.search_similar(query, limit=semantic_limit)
+            except Exception as semantic_error:
+                logger.error(f"Semantic vector search failed: {semantic_error}")
+                semantic_results = []
+            else:
+                article_ids = [
+                    result.get("article_id")
+                    for result in semantic_results
+                    if isinstance(result.get("article_id"), int)
+                ]
+                fetched_articles = await fetch_articles_by_ids(session, article_ids) if article_ids else []
+                fetched_lookup = {article["id"]: article for article in fetched_articles}
+
+                for result in semantic_results:
+                    article_id = result.get("article_id")
+                    if isinstance(article_id, int) and article_id in fetched_lookup:
+                        article_data = {**fetched_lookup[article_id]}
+                    else:
+                        metadata = result.get("metadata", {})
+                        article_data = {
+                            "id": article_id,
+                            "title": metadata.get("title") or metadata.get("url") or "Semantic match",
+                            "source": metadata.get("source", "Unknown"),
+                            "category": metadata.get("category", "general"),
+                            "description": metadata.get("summary"),
+                            "summary": metadata.get("summary"),
+                            "link": metadata.get("url"),
+                            "url": metadata.get("url"),
+                            "published": metadata.get("published"),
+                            "image": metadata.get("image"),
+                            "country": metadata.get("country"),
+                            "bias": metadata.get("bias"),
+                            "credibility": metadata.get("credibility"),
+                            "chroma_id": result.get("chroma_id"),
+                        }
+                    article_data["retrieval_method"] = "semantic_vector_store"
+                    article_data["semantic_score"] = result.get("similarity_score")
+                    article_data["semantic_distance"] = result.get("distance")
+                    article_data["chroma_id"] = result.get("chroma_id") or article_data.get("chroma_id")
+                    article_data["preview"] = result.get("preview")
+                    semantic_articles.append(article_data)
+
+                semantic_count = len(semantic_articles)
+        else:
+            semantic_count = 0
+
+        need_recent = len(keyword_articles) < max(10, keyword_limit // 2)
+        recent_articles_raw = await fetch_recent_articles(
+            session,
+            limit=recent_limit,
+        ) if need_recent else []
+        recent_articles = [
+            {**article, "retrieval_method": "recent_postgres"}
+            for article in recent_articles_raw
+        ]
+
+    combined: List[Dict[str, Any]] = []
+    seen_ids: set[str] = set()
+    seen_urls: set[str] = set()
+
+    def _normalize_url(url: Optional[str]) -> Optional[str]:
+        if not url or not isinstance(url, str):
+            return None
+        return url.rstrip("/")
+
+    def _add_articles(bucket: List[Dict[str, Any]]):
+        for article in bucket:
+            if not article:
+                continue
+            article = {**article}
+            article.setdefault("title", "Untitled article")
+            article.setdefault("description", article.get("summary"))
+            article.setdefault("category", "general")
+
+            article_id = article.get("id") or article.get("article_id")
+            url_key = _normalize_url(article.get("url") or article.get("link"))
+
+            id_key = str(article_id) if article_id is not None else None
+            if id_key and id_key in seen_ids:
+                continue
+            if url_key and url_key in seen_urls:
+                continue
+
+            combined.append(article)
+
+            if id_key:
+                seen_ids.add(id_key)
+            if url_key:
+                seen_urls.add(url_key)
+
+            if len(combined) >= max_total:
+                return
+
+    _add_articles(semantic_articles)
+    if len(combined) < max_total:
+        _add_articles(keyword_articles)
+    if len(combined) < max_total:
+        _add_articles(recent_articles)
+
+    summary = {
+        "keyword_count": len(keyword_articles),
+        "semantic_count": semantic_count,
+        "recent_count": len(recent_articles),
+        "total": len(combined),
+        "vector_enabled": bool(vector_store),
+    }
+
+    return {"articles": combined, "summary": summary}
+
+
 class NewsResearchRequest(BaseModel):
     query: str
     include_thinking: bool = True
@@ -2457,22 +2594,25 @@ async def news_research_stream_endpoint(
             # Send initial status
             yield f"data: {json.dumps({'type': 'status', 'message': 'Starting research...', 'timestamp': datetime.now().isoformat()})}\n\n"
             
-            # Get articles
-            articles = news_cache.get_articles()
-            articles_dict = [
-                {
-                    "title": article.title,
-                    "source": article.source,
-                    "category": article.category,
-                    "description": article.description,
-                    "published": article.published,
-                    "link": article.link,
-                    "image": article.image
-                }
-                for article in articles
-            ]
-            
-            yield f"data: {json.dumps({'type': 'status', 'message': f'Searching through {len(articles_dict)} articles...', 'timestamp': datetime.now().isoformat()})}\n\n"
+            articles_payload = await load_articles_for_research(query)
+            articles_dict = articles_payload.get("articles", [])
+            retrieval_summary = articles_payload.get("summary", {})
+
+            total_articles = retrieval_summary.get("total", len(articles_dict))
+
+            status_message = {
+                "type": "status",
+                "message": (
+                    f"Searching {total_articles} articles "
+                    f"(semantic: {retrieval_summary.get('semantic_count', 0)}, "
+                    f"keyword: {retrieval_summary.get('keyword_count', 0)}, "
+                    f"recent: {retrieval_summary.get('recent_count', 0)})"
+                ),
+                "vector_enabled": retrieval_summary.get("vector_enabled", False),
+                "timestamp": datetime.now().isoformat(),
+            }
+
+            yield f"data: {json.dumps(status_message)}\n\n"
             
             # Parse history if provided
             chat_history = []
@@ -2540,24 +2680,17 @@ async def news_research_endpoint(request: NewsResearchRequest):
         
         from news_research_agent import research_news
         
-        # Get articles from cache
-        articles = news_cache.get_articles()
-        
-        # Convert NewsArticle models to dicts
-        articles_dict = [
-            {
-                "title": article.title,
-                "source": article.source,
-                "category": article.category,
-                "description": article.description,
-                "published": article.published,
-                "link": article.link,
-                "image": article.image
-            }
-            for article in articles
-        ]
-        
-        logger.info(f"📰 Searching through {len(articles_dict)} cached articles")
+        articles_payload = await load_articles_for_research(request.query)
+        articles_dict = articles_payload.get("articles", [])
+        retrieval_summary = articles_payload.get("summary", {})
+
+        logger.info(
+            "📰 Research article pool – total: %s (semantic: %s, keyword: %s, recent: %s)",
+            retrieval_summary.get("total", len(articles_dict)),
+            retrieval_summary.get("semantic_count", 0),
+            retrieval_summary.get("keyword_count", 0),
+            retrieval_summary.get("recent_count", 0),
+        )
         
         # Execute research with verbose mode for thinking steps
         result = research_news(
