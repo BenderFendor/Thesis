@@ -1,9 +1,10 @@
-from sqlalchemy import create_engine, Column, Integer, String, Text, DateTime, Boolean, ARRAY
+from sqlalchemy import create_engine, Column, Integer, String, Text, DateTime, Boolean, ARRAY, select, or_
 from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession, async_sessionmaker
 from sqlalchemy.ext.declarative import declarative_base
 from datetime import datetime
 import os
 import logging
+from typing import Any, Dict, List, Optional
 
 logger = logging.getLogger(__name__)
 
@@ -106,3 +107,107 @@ async def init_db():
     except Exception as e:
         logger.error(f"❌ Failed to initialize database: {e}")
         raise
+
+
+def article_record_to_dict(record: Article) -> Dict[str, Any]:
+    """Convert an Article ORM instance to a serializable dictionary."""
+    if record is None:
+        return {}
+
+    published = record.published_at.isoformat() if record.published_at else None
+
+    return {
+        "id": record.id,
+        "title": record.title or "Untitled article",
+        "source": record.source or "Unknown",
+        "source_id": record.source_id,
+        "country": record.country,
+        "credibility": record.credibility,
+        "bias": record.bias,
+        "summary": record.summary,
+        "content": record.content,
+        "description": record.summary or record.content,
+        "image": record.image_url,
+        "image_url": record.image_url,
+        "published": published,
+        "published_at": published,
+        "category": record.category or "general",
+        "url": record.url,
+        "link": record.url,
+        "tags": record.tags or [],
+        "original_language": record.original_language,
+        "translated": record.translated,
+        "chroma_id": record.chroma_id,
+        "embedding_generated": record.embedding_generated,
+        "created_at": record.created_at.isoformat() if record.created_at else None,
+        "updated_at": record.updated_at.isoformat() if record.updated_at else None,
+    }
+
+
+async def fetch_recent_articles(
+    session: AsyncSession,
+    limit: int = 50,
+    min_published: Optional[datetime] = None,
+) -> List[Dict[str, Any]]:
+    """Fetch the most recent articles, optionally after a minimum published timestamp."""
+    stmt = (
+        select(Article)
+        .order_by(Article.published_at.desc(), Article.id.desc())
+        .limit(limit)
+    )
+
+    if min_published:
+        stmt = stmt.where(Article.published_at >= min_published)
+
+    result = await session.execute(stmt)
+    return [article_record_to_dict(record) for record in result.scalars().all()]
+
+
+async def search_articles_by_keyword(
+    session: AsyncSession,
+    query: str,
+    limit: int = 50,
+) -> List[Dict[str, Any]]:
+    """Perform a simple keyword search against article title, summary, and content."""
+    if not query:
+        return []
+
+    pattern = f"%{query}%"
+    stmt = (
+        select(Article)
+        .where(
+            or_(
+                Article.title.ilike(pattern),
+                Article.summary.ilike(pattern),
+                Article.content.ilike(pattern),
+                Article.source.ilike(pattern),
+                Article.category.ilike(pattern),
+            )
+        )
+        .order_by(Article.published_at.desc(), Article.id.desc())
+        .limit(limit)
+    )
+
+    result = await session.execute(stmt)
+    return [article_record_to_dict(record) for record in result.scalars().all()]
+
+
+async def fetch_articles_by_ids(
+    session: AsyncSession,
+    article_ids: List[int],
+) -> List[Dict[str, Any]]:
+    """Fetch specific articles by their integer IDs, preserving the order provided."""
+    if not article_ids:
+        return []
+
+    stmt = select(Article).where(Article.id.in_(article_ids))
+    result = await session.execute(stmt)
+    articles = {record.id: article_record_to_dict(record) for record in result.scalars().all()}
+
+    ordered: List[Dict[str, Any]] = []
+    for article_id in article_ids:
+        article = articles.get(article_id)
+        if article:
+            ordered.append(article)
+
+    return ordered

@@ -17,6 +17,7 @@ from langchain_google_genai import ChatGoogleGenerativeAI
 from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
 from langchain_core.callbacks import BaseCallbackHandler
 from datetime import datetime
+from app.vector_store import vector_store
 
 load_dotenv()
 
@@ -80,13 +81,55 @@ class StreamingThoughtHandler(BaseCallbackHandler):
 # This will be set by the endpoint to access the news cache
 _news_articles_cache: List[Dict[str, Any]] = []
 _referenced_articles_tracker: List[Dict[str, Any]] = []  # Track articles that were accessed
+_articles_by_id: Dict[str, Dict[str, Any]] = {}
+
+
+def _register_article_lookup(article: Dict[str, Any]):
+    """Store article references for quick lookup by ID, chroma ID, or URL."""
+    if not article:
+        return
+
+    def _store(key: Optional[str]):
+        if key:
+            _articles_by_id[key] = article
+
+    article_id = article.get("id") or article.get("article_id")
+    chroma_id = article.get("chroma_id")
+    url = article.get("url") or article.get("link")
+
+    if article_id is not None:
+        _store(str(article_id))
+    if chroma_id:
+        _store(str(chroma_id))
+    if url and isinstance(url, str):
+        _store(url.rstrip("/"))
+
+
+def _ensure_article_registered(article: Dict[str, Any]):
+    """Ensure article is present in lookup registry and return stored instance."""
+    _register_article_lookup(article)
+    article_id = article.get("id") or article.get("article_id")
+    if article_id is not None:
+        return _articles_by_id.get(str(article_id), article)
+    chroma_id = article.get("chroma_id")
+    if chroma_id:
+        return _articles_by_id.get(str(chroma_id), article)
+    url = article.get("url") or article.get("link")
+    if url:
+        return _articles_by_id.get(url.rstrip("/"), article)
+    return article
 
 
 def set_news_articles(articles: List[Dict[str, Any]]):
     """Set the news articles that the agent can search through"""
-    global _news_articles_cache, _referenced_articles_tracker
+    global _news_articles_cache, _referenced_articles_tracker, _articles_by_id
     _news_articles_cache = articles
     _referenced_articles_tracker = []  # Reset tracker
+    _articles_by_id = {}
+
+    for article in _news_articles_cache:
+        if article:
+            _register_article_lookup(article)
 
 
 @tool
@@ -156,6 +199,94 @@ def search_news_articles(query: str) -> str:
         result_lines.append("")
     
     return "\n".join(result_lines)
+
+
+@tool
+def semantic_search_articles(query: str) -> str:
+    """Use the ChromaDB vector store for semantic article search."""
+    global _referenced_articles_tracker
+
+    if not vector_store:
+        return "Semantic search is unavailable because the vector store is offline."
+
+    if not query:
+        return "Please provide a topic or question to run a semantic search."
+
+    try:
+        results = vector_store.search_similar(query, limit=8)
+    except Exception as error:
+        return f"Semantic search failed: {error}"
+
+    if not results:
+        return f"No semantic matches found for '{query}'. Try a different phrasing."
+
+    lines = [f"Semantic matches for '{query}':\n"]
+
+    for idx, result in enumerate(results, 1):
+        article_id = result.get("article_id")
+        chroma_id = result.get("chroma_id")
+        metadata = result.get("metadata", {})
+
+        lookup_keys = [
+            str(article_id) if article_id is not None else None,
+            str(chroma_id) if chroma_id else None,
+            metadata.get("url")
+        ]
+
+        article = None
+        for key in lookup_keys:
+            if not key:
+                continue
+            lookup_key = key.rstrip("/") if isinstance(key, str) else key
+            if isinstance(lookup_key, str) and lookup_key in _articles_by_id:
+                article = _articles_by_id[lookup_key]
+                break
+
+        if not article:
+            article = {
+                "id": article_id,
+                "title": metadata.get("title") or metadata.get("url") or "Semantic match",
+                "source": metadata.get("source", "Unknown"),
+                "category": metadata.get("category", "general"),
+                "description": metadata.get("summary"),
+                "summary": metadata.get("summary"),
+                "link": metadata.get("url"),
+                "url": metadata.get("url"),
+                "published": metadata.get("published"),
+                "retrieval_method": "semantic_vector_store",
+            }
+
+        article.setdefault("retrieval_method", "semantic_vector_store")
+        article["semantic_score"] = result.get("similarity_score")
+        article["semantic_distance"] = result.get("distance")
+        article["chroma_id"] = chroma_id or article.get("chroma_id")
+        article["preview"] = result.get("preview")
+
+        registered_article = _ensure_article_registered(article)
+        if registered_article not in _referenced_articles_tracker:
+            _referenced_articles_tracker.append(registered_article)
+
+        title = registered_article.get("title", "Untitled article")
+        source = registered_article.get("source", "Unknown")
+        category = registered_article.get("category", "general")
+        published = registered_article.get("published") or registered_article.get("published_at")
+        url = registered_article.get("link") or registered_article.get("url")
+        summary = registered_article.get("description") or registered_article.get("summary")
+
+        score = result.get("similarity_score")
+        score_text = f"score: {score:.3f}" if isinstance(score, (int, float)) else "score: n/a"
+
+        lines.append(f"{idx}. **{title}** ({score_text})")
+        lines.append(f"   Source: {source} | Category: {category}")
+        if published:
+            lines.append(f"   Published: {published}")
+        if summary:
+            lines.append(f"   Summary: {summary[:160]}...")
+        if url:
+            lines.append(f"   URL: {url}")
+        lines.append("")
+
+    return "\n".join(lines)
 
 
 @tool
@@ -284,6 +415,7 @@ def create_news_research_agent(verbose: bool = True):
     # Define tools - order matters (prioritize article search)
     tools = [
         search_news_articles,
+        semantic_search_articles,
         analyze_source_coverage,
         get_web_search_results,  # Use this as fallback
     ]
@@ -296,13 +428,14 @@ Your primary role is to help users understand and analyze news articles in our d
 
 **Guidelines:**
 1. ALWAYS search the news articles database FIRST using search_news_articles
-2. Use analyze_source_coverage to compare how different sources cover topics
-3. Only use web_search when information isn't in our articles or for background context
-4. Provide balanced, multi-perspective analysis
-5. ALWAYS cite specific sources with their article URLs when referencing them
-6. When mentioning an article or source claim, include the article URL in your response
-7. Highlight bias, funding, and credibility when relevant
-8. Be transparent about your reasoning process
+2. Use semantic_search_articles when keyword search misses context or you need conceptual parallels
+3. Use analyze_source_coverage to compare how different sources cover topics
+4. Only use web_search when information isn't in our articles or for background context
+5. Provide balanced, multi-perspective analysis
+6. ALWAYS cite specific sources with their article URLs when referencing them
+7. When mentioning an article or source claim, include the article URL in your response
+8. Highlight bias, funding, and credibility when relevant
+9. Be transparent about your reasoning process
 
 **Citation Format:**
 When referencing articles, use this format:
