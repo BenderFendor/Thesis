@@ -16,3 +16,12 @@ pillow>=10.0.0
 langchain>=0.1.0
 langchain-google-genai>=1.0.0
 langchain-core>=0.1.0
+
+# Database dependencies
+asyncpg>=0.29.0
+sqlalchemy>=2.0.35
+psycopg2-binary>=2.9.9
+
+# Vector database dependencies
+chromadb>=0.4.24
+sentence-transformers>=2.7.0
