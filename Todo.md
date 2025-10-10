@@ -90,3 +90,7 @@ https://dl.acm.org/doi/10.1145/3706598.3713716
 - ✅ Kept like and bookmark buttons for user interaction (client-side state only)
 - ✅ Removed comments and shares buttons since there's no real data
 - ✅ Cleaned up unused imports (MessageCircle, Share2)
+
+
+# Speeding up the database loading
+The backend loads up really slowly so if I could speed that up that would be great.
