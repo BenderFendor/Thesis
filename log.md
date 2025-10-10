@@ -22,7 +22,7 @@ services:
       POSTGRES_PASSWORD: newspass
       POSTGRES_DB: newsdb
     ports:
-      - "5432:5432"
+      - "6543:6543"
     volumes:
       - postgres_data:/var/lib/postgresql/data
       - ./backend/init.sql:/docker-entrypoint-initdb.d/init.sql
@@ -48,7 +48,7 @@ services:
     ports:
       - "8000:8000"
     environment:
-      - DATABASE_URL=postgresql+asyncpg://newsuser:newspass@postgres:5432/newsdb
+      - DATABASE_URL=postgresql+asyncpg://newsuser:newspass@postgres:6543/newsdb
       - GEMINI_API_KEY=${GEMINI_API_KEY}
       - CHROMA_HOST=chromadb
       - CHROMA_PORT=8000
@@ -66,10 +66,10 @@ volumes:
 
 ```python
 # For async operations (recommended for FastAPI)
-DATABASE_URL = "postgresql+asyncpg://newsuser:newspass@postgres:5432/newsdb"
+DATABASE_URL = "postgresql+asyncpg://newsuser:newspass@postgres:6543/newsdb"
 
 # For sync operations (if needed)
-DATABASE_URL = "postgresql+psycopg2://newsuser:newspass@postgres:5432/newsdb"
+DATABASE_URL = "postgresql+psycopg2://newsuser:newspass@postgres:6543/newsdb"
 ```
 
 ### Backend Integration (backend/app/database.py)
@@ -83,7 +83,7 @@ from datetime import datetime
 import os
 
 # Use async engine for better performance
-DATABASE_URL = os.getenv("DATABASE_URL", "postgresql+asyncpg://newsuser:newspass@localhost:5432/newsdb")
+DATABASE_URL = os.getenv("DATABASE_URL", "postgresql+asyncpg://newsuser:newspass@localhost:6543/newsdb")
 
 # Async engine configuration
 engine = create_async_engine(
@@ -679,7 +679,7 @@ docker compose up --build
 # Access points:
 # - Frontend: http://localhost:3000
 # - Backend API: http://localhost:8000/docs
-# - PostgreSQL: localhost:5432
+# - PostgreSQL: localhost:6543
 # - ChromaDB: http://localhost:8001
 ```
 

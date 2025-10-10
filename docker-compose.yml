@@ -8,7 +8,7 @@ services:
       POSTGRES_PASSWORD: newspass
       POSTGRES_DB: newsdb
     ports:
-      - "5432:5432"
+      - "6543:6543"
     volumes:
       - postgres_data:/var/lib/postgresql/data
       - ./backend/init.sql:/docker-entrypoint-initdb.d/init.sql
@@ -58,7 +58,7 @@ services:
     environment:
       - PYTHONPATH=/app
       - PYTHONUNBUFFERED=1
-      - DATABASE_URL=postgresql+asyncpg://newsuser:newspass@postgres:5432/newsdb
+      - DATABASE_URL=postgresql+asyncpg://newsuser:newspass@postgres:6543/newsdb
       - CHROMA_HOST=chromadb
       - CHROMA_PORT=8000
     volumes:

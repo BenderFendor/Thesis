@@ -1,7 +1,13 @@
 
 # Copilot Instructions for Thesis Project
 
-This is a full-stack news aggregation platform with AI-powered research, analysis, and fact-checking. Built for rapid experimentation with **FastAPI backend**, **Next.js 14 frontend**, and **Google Gemini AI integration**.
+This is a full-stack news aggregation platform with AI-powered research, analysis, and fact-checking. Built for rapid experimentation with **FastAPI backend**, **Next.js 14 frontend**, and **Google Gemini AI integration** **ChromaDB** and PostgreSQL.
+
+## Reply Style
+- Don't use emojis
+- Use concise, clear language
+- Provide step-by-step instructions for tasks
+- Reference specific files and line numbers when relevant
 
 ## Architecture & Data Flow
 
@@ -179,44 +185,23 @@ NEXT_PUBLIC_DOCKER_API_URL=http://localhost:8000  # Fallback for Docker
 
 ## Documentation Organization Rule (CRITICAL)
 
-**NEVER create new markdown files.** All documentation must go into ONE of these existing files:
+**NEVER create new markdown files. after you are done** All documentation must go into ONE of these existing files:
 - **`README.md`** - User-facing docs, setup instructions, feature overview
 - **`Todo.md`** - Actionable tasks, bugs, feature requests  
 - **`Log.md`** - Development notes, technical guides, integration docs, decisions, change log
 - **`Project file.md`** - Vision, tech decisions, phase planning
 - **`.github/copilot-instructions.md`** - This file (AI agent guidance)
 
+## Markdown File Usage
+- Have it be concise and well-organized
+- Use clear section headers
+- Don't use emojis or informal language
+- When adding user-facing docs (setup, usage, features): **APPEND to README.md
+- When adding tasks, bugs, feature requests: **APPEND to Todo.md** with priority
+- When adding development notes, technical decisions, or change logs: **APPEND to Log.md** with date
+
 When creating technical guides, integration docs, or reference material: **APPEND to Log.md** with clear section headers.
-Do NOT create files like `DATABASE_INTEGRATION_GUIDE.md`, `MIGRATION_GUIDE.md`, etc.
-
-## Roadmap Context (from `Project file.md` and `Todo.md`)
-
-### Current Phase: MVP Complete
-- ✅ RSS ingestion from 6 major sources
-- ✅ AI article analysis with Gemini
-- ✅ News research agent with chain-of-thought
-- ✅ Streaming SSE for real-time updates
-- ✅ Responsive UI with dark theme
-
-### Next Phase: Database & Features (See Log.md - Database Integration Guide)
-- **PostgreSQL** for persistent article storage (replace in-memory cache)
-  - Use `postgresql+asyncpg://` for async operations with FastAPI
-  - Docker image: `postgres:17-alpine` with performance tuning
-  - Healthcheck required before backend starts
-- **ChromaDB** for semantic similarity search
-  - HTTP client connecting to dedicated container (port 8001)
-  - `sentence-transformers` with `all-MiniLM-L6-v2` model (384 dims)
-  - Dual-write pattern: PostgreSQL for metadata, ChromaDB for embeddings
-- **Migration Strategy**: Dual-write → data migration → cache removal (3-week plan in Log.md)
-- User bookmarking (no auth needed - self-hosted for few users)
-- Category filtering (currently all articles show regardless of selected category)
-- Debug mode toggle for logging
-
-### Future: Global Expansion
-- Three.js interactive globe visualization
-- International sources (multi-language)
-- Translation service integration
-- Enhanced fact-checking with external APIs
+Do NOT create files like `DATABASE_INTEGRATION_GUIDE.md`, `MIGRATION_GUIDE.md`, etc.)
 
 ## Common Tasks
 
