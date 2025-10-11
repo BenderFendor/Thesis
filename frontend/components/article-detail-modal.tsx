@@ -1,11 +1,30 @@
 "use client"
 
-import { useState, useEffect } from "react"
-import { X, ExternalLink, Heart, Bookmark, AlertTriangle, DollarSign, Bug, Link as LinkIcon, Rss, Sparkles, Maximize2, Minimize2 } from "lucide-react"
+import { useState, useEffect, useMemo } from "react"
+import { X, ExternalLink, Heart, Bookmark, AlertTriangle, DollarSign, Bug, Link as LinkIcon, Rss, Sparkles, Maximize2, Minimize2, Loader2, Search, RefreshCw, CheckCircle2, XCircle, Copy } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
-import { type NewsArticle, getSourceById, type NewsSource, fetchSourceDebugData, type SourceDebugData, analyzeArticle, type ArticleAnalysis, API_BASE_URL, createBookmark, deleteBookmark } from "@/lib/api"
-import { ArticleAnalysisDisplay } from "@/components/article-analysis"
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
+import { type NewsArticle, getSourceById, type NewsSource, fetchSourceDebugData, type SourceDebugData, analyzeArticle, type ArticleAnalysis, API_BASE_URL, createBookmark, deleteBookmark, performAgenticSearch, type FactCheckResult } from "@/lib/api"
+
+type FactCheckStatus = FactCheckResult["verification_status"]
+type FactCheckStatusFilter = FactCheckStatus | "all"
+
+const VERIFICATION_STYLE_MAP: Record<FactCheckStatus, string> = {
+  verified: "bg-emerald-500/15 text-emerald-200 border border-emerald-500/40",
+  "partially-verified": "bg-amber-500/15 text-amber-200 border border-amber-500/40",
+  unverified: "bg-slate-600/20 text-slate-200 border border-slate-500/40",
+  false: "bg-rose-500/15 text-rose-200 border border-rose-500/40"
+}
+
+const VERIFICATION_LABEL_MAP: Record<FactCheckStatus, string> = {
+  verified: "verified",
+  "partially-verified": "partially verified",
+  unverified: "unverified",
+  false: "false"
+}
+
+const STATUS_FILTERS: FactCheckStatusFilter[] = ["all", "verified", "partially-verified", "unverified", "false"]
 
 interface ArticleDetailModalProps {
   article: NewsArticle | null
@@ -31,6 +50,13 @@ export function ArticleDetailModal({ article, isOpen, onClose, initialIsBookmark
   const [fullArticleText, setFullArticleText] = useState<string | null>(null)
   const [articleLoading, setArticleLoading] = useState(false)
   const [bookmarkLoading, setBookmarkLoading] = useState(false)
+  const [claimsOpen, setClaimsOpen] = useState(false)
+  const [activeStatusFilter, setActiveStatusFilter] = useState<FactCheckStatusFilter>("all")
+  const [selectedClaim, setSelectedClaim] = useState<FactCheckResult | null>(null)
+  const [agenticLoading, setAgenticLoading] = useState(false)
+  const [agenticAnswer, setAgenticAnswer] = useState<string | null>(null)
+  const [agenticError, setAgenticError] = useState<string | null>(null)
+  const [agenticHistory, setAgenticHistory] = useState<Array<{ claim: string; answer: string; timestamp: number }>>([])
 
   useEffect(() => {
     const loadSource = async () => {
@@ -92,11 +118,31 @@ export function ArticleDetailModal({ article, isOpen, onClose, initialIsBookmark
     setDebugData(null)
     setMatchedEntryIndex(null)
     setAiAnalysis(null)
+    setClaimsOpen(false)
+    setSelectedClaim(null)
+    setAgenticAnswer(null)
+    setAgenticError(null)
+    setAgenticHistory([])
+    setActiveStatusFilter("all")
     
     if (isOpen && article) {
       loadAiAnalysis()
     }
   }, [article?.url, isOpen])
+
+  useEffect(() => {
+    if (!claimsOpen) {
+      setSelectedClaim(null)
+      setAgenticAnswer(null)
+      setAgenticError(null)
+      setActiveStatusFilter("all")
+      return
+    }
+
+    if (!selectedClaim && aiAnalysis?.fact_check_results?.length) {
+      setSelectedClaim(aiAnalysis.fact_check_results[0])
+    }
+  }, [claimsOpen, aiAnalysis?.fact_check_results, selectedClaim])
 
   const loadDebug = async () => {
     if (!article) return
@@ -140,6 +186,39 @@ export function ArticleDetailModal({ article, isOpen, onClose, initialIsBookmark
       })
     } finally {
       setAiAnalysisLoading(false)
+    }
+  }
+
+  const runAgenticSearch = async (claim: FactCheckResult | null) => {
+    if (!claim) return
+
+    setAgenticLoading(true)
+    setAgenticAnswer(null)
+    setAgenticError(null)
+
+    try {
+      const enrichedQuery = [
+        `Fact-check this claim: ${claim.claim}`,
+        article?.title ? `Article title: ${article.title}` : null,
+        article?.source ? `Publisher: ${article.source}` : null,
+        claim.evidence ? `Existing evidence summary: ${claim.evidence}` : null,
+        "Respond with a concise verification summary and cite authoritative sources."
+      ]
+        .filter(Boolean)
+        .join(" \n")
+
+      const response = await performAgenticSearch(enrichedQuery, 10)
+
+      if (response.success && response.answer) {
+        setAgenticAnswer(response.answer)
+        setAgenticHistory((prev) => [{ claim: claim.claim, answer: response.answer, timestamp: Date.now() }, ...prev].slice(0, 5))
+      } else {
+        setAgenticError("Agentic search returned no direct answer. Try again or open the research workspace for a deeper dive.")
+      }
+    } catch (error) {
+      setAgenticError(error instanceof Error ? error.message : "Agentic search failed.")
+    } finally {
+      setAgenticLoading(false)
     }
   }
 
@@ -189,6 +268,41 @@ export function ArticleDetailModal({ article, isOpen, onClose, initialIsBookmark
         return "bg-red-500/20 text-red-400 border-red-500/30"
       default:
         return "bg-gray-500/20 text-gray-400 border-gray-500/30"
+    }
+  }
+
+  const factCheckResults = aiAnalysis?.fact_check_results ?? []
+
+  const statusCounts = useMemo(() => {
+    return factCheckResults.reduce(
+      (acc, result) => {
+        acc[result.verification_status] = (acc[result.verification_status] ?? 0) + 1
+        return acc
+      },
+      {
+        verified: 0,
+        "partially-verified": 0,
+        unverified: 0,
+        false: 0
+      } as Record<FactCheckStatus, number>
+    )
+  }, [factCheckResults])
+
+  const filteredClaims = useMemo(() => {
+    if (activeStatusFilter === "all") return factCheckResults
+    return factCheckResults.filter((claim) => claim.verification_status === activeStatusFilter)
+  }, [factCheckResults, activeStatusFilter])
+
+  const getConfidenceColor = (confidence: FactCheckResult["confidence"]) => {
+    switch (confidence) {
+      case "high":
+        return "bg-emerald-500/15 text-emerald-200 border border-emerald-500/40"
+      case "medium":
+        return "bg-amber-500/15 text-amber-200 border border-amber-500/40"
+      case "low":
+        return "bg-rose-500/15 text-rose-200 border border-rose-500/40"
+      default:
+        return "bg-slate-600/20 text-slate-200 border border-slate-500/40"
     }
   }
 
@@ -436,35 +550,267 @@ export function ArticleDetailModal({ article, isOpen, onClose, initialIsBookmark
                   )}
 
                   {/* Fact Check Results Preview */}
-                  {aiAnalysis.fact_check_results && aiAnalysis.fact_check_results.length > 0 && (
-                    <div className="bg-emerald-500/5 border border-emerald-500/30 rounded-lg p-6">
-                      <h3 className="text-lg font-semibold text-white mb-3 flex items-center gap-2">
-                        <Sparkles className="h-5 w-5 text-emerald-400" />
-                        Fact Check Results
-                      </h3>
-                      <div className="space-y-3">
-                        {aiAnalysis.fact_check_results.slice(0, 3).map((result, index) => (
-                          <div key={index} className="text-sm">
-                            <div className="flex items-center gap-2 mb-1">
-                              <Badge className={
-                                result.verification_status === 'verified' ? 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30' :
-                                result.verification_status === 'partially-verified' ? 'bg-yellow-500/20 text-yellow-400 border-yellow-500/30' :
-                                result.verification_status === 'false' ? 'bg-red-500/20 text-red-400 border-red-500/30' :
-                                'bg-gray-500/20 text-gray-400 border-gray-500/30'
-                              }>
-                                {result.verification_status.replace('-', ' ')}
-                              </Badge>
+                  {factCheckResults.length > 0 && (
+                    <Dialog open={claimsOpen} onOpenChange={setClaimsOpen}>
+                      <DialogTrigger asChild>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            if (!selectedClaim && factCheckResults.length) {
+                              setSelectedClaim(factCheckResults[0])
+                            }
+                          }}
+                          className="group relative w-full overflow-hidden rounded-xl border border-emerald-500/30 bg-gradient-to-br from-emerald-500/15 via-emerald-500/10 to-emerald-500/0 p-6 text-left transition-all duration-300 hover:-translate-y-1 hover:border-emerald-400/60 hover:shadow-[0_0_30px_rgba(16,185,129,0.25)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-400"
+                          aria-label="Open verified claims report"
+                        >
+                          <div className="pointer-events-none absolute -right-20 -top-20 h-40 w-40 rounded-full bg-emerald-400/10 blur-3xl transition-opacity duration-500 group-hover:opacity-60" />
+                          <div className="mb-4 flex items-center justify-between">
+                            <div className="flex items-center gap-2">
+                              <Sparkles className="h-5 w-5 text-emerald-300 transition-transform duration-300 group-hover:rotate-3" />
+                              <h3 className="text-lg font-semibold text-emerald-100">Fact Check Results</h3>
                             </div>
-                            <p className="text-gray-300 text-xs line-clamp-2">"{result.claim}"</p>
+                            <span className="rounded-full border border-emerald-400/40 bg-emerald-500/15 px-3 py-1 text-xs font-semibold uppercase tracking-wide text-emerald-100/90">
+                              {factCheckResults.length} claims
+                            </span>
                           </div>
-                        ))}
-                        {aiAnalysis.fact_check_results.length > 3 && (
-                          <p className="text-xs text-gray-400 mt-2">
-                            +{aiAnalysis.fact_check_results.length - 3} more verified claims
+                          <div className="space-y-3">
+                            {factCheckResults.slice(0, 3).map((result, index) => (
+                              <div
+                                key={`${result.claim}-${index}`}
+                                className="flex items-start gap-3 rounded-lg border border-transparent bg-emerald-500/10 p-3 transition-all duration-300 group-hover:border-emerald-400/40"
+                              >
+                                <Badge className={`${VERIFICATION_STYLE_MAP[result.verification_status]} text-[0.65rem] uppercase tracking-wide`}>
+                                  {VERIFICATION_LABEL_MAP[result.verification_status]}
+                                </Badge>
+                                <p className="text-sm text-emerald-50/85 line-clamp-2">"{result.claim}"</p>
+                              </div>
+                            ))}
+                          </div>
+                          <div className="mt-5 flex items-center justify-between text-xs text-emerald-100/70">
+                            <span>Click to review the full verification report</span>
+                            <div className="flex items-center gap-2 font-semibold">
+                              <span>Open</span>
+                              <ExternalLink className="h-3.5 w-3.5" />
+                            </div>
+                          </div>
+                        </button>
+                      </DialogTrigger>
+
+                      <DialogContent className="sm:max-w-2xl border border-emerald-500/30 bg-slate-950/95 text-slate-100 shadow-2xl shadow-emerald-500/10">
+                        <DialogHeader className="space-y-1">
+                          <DialogTitle className="flex items-center gap-2 text-emerald-100">
+                            <Sparkles className="h-5 w-5 text-emerald-300" />
+                            Verified Claims
+                          </DialogTitle>
+                          <p className="text-xs text-emerald-200/70">
+                            Cross-check statements, filter by confidence, and trigger live agentic research for additional corroboration.
                           </p>
-                        )}
-                      </div>
-                    </div>
+                        </DialogHeader>
+
+                        <div className="grid gap-6 md:grid-cols-[minmax(0,15rem)_1fr]">
+                          <div className="space-y-4">
+                            <div className="flex flex-wrap gap-2">
+                              {STATUS_FILTERS.map((status) => {
+                                const isAll = status === "all"
+                                const count = isAll ? factCheckResults.length : statusCounts[status as FactCheckStatus]
+                                const isDisabled = !isAll && count === 0
+                                const isActive = activeStatusFilter === status
+
+                                return (
+                                  <button
+                                    key={status}
+                                    type="button"
+                                    className={`rounded-full border px-3 py-1 text-xs font-semibold uppercase tracking-wide transition-all ${isActive ? "border-emerald-400 bg-emerald-500/15 text-emerald-100 shadow-[0_0_18px_rgba(16,185,129,0.25)]" : "border-emerald-500/20 text-emerald-200/75 hover:border-emerald-400/40 hover:text-emerald-100"} ${isDisabled ? "cursor-not-allowed opacity-40 hover:border-emerald-500/20 hover:text-emerald-200/75" : "cursor-pointer"}`}
+                                    onClick={() => {
+                                      if (isDisabled) return
+                                      setActiveStatusFilter(status)
+                                    }}
+                                  >
+                                    {status === "all" ? "All" : VERIFICATION_LABEL_MAP[status as FactCheckStatus]}
+                                    <span className="ml-2 rounded-full bg-emerald-500/15 px-2 py-0.5 text-[10px] font-bold text-emerald-100/80">
+                                      {count}
+                                    </span>
+                                  </button>
+                                )
+                              })}
+                            </div>
+
+                            <div>
+                              <h4 className="mb-2 text-xs font-semibold uppercase tracking-wide text-emerald-200/70">Claims</h4>
+                              <div className="max-h-72 space-y-2 overflow-y-auto pr-1">
+                                {filteredClaims.map((claim, index) => {
+                                  const isActive = selectedClaim?.claim === claim.claim
+                                  return (
+                                    <button
+                                      key={`${claim.claim}-${index}`}
+                                      type="button"
+                                      className={`w-full rounded-lg border bg-slate-900/70 p-3 text-left transition-all duration-200 hover:-translate-y-0.5 hover:border-emerald-400/60 hover:shadow-lg hover:shadow-emerald-500/10 ${isActive ? "border-emerald-400/60 shadow-lg shadow-emerald-500/20" : "border-slate-800/80"}`}
+                                      onClick={() => {
+                                        setSelectedClaim(claim)
+                                        setAgenticAnswer(null)
+                                        setAgenticError(null)
+                                      }}
+                                    >
+                                      <div className="flex items-center gap-2">
+                                        <Badge className={`${VERIFICATION_STYLE_MAP[claim.verification_status]} text-[0.6rem] uppercase tracking-wide`}>
+                                          {VERIFICATION_LABEL_MAP[claim.verification_status]}
+                                        </Badge>
+                                        <span className="text-xs text-emerald-100/80 line-clamp-2">{claim.claim}</span>
+                                      </div>
+                                    </button>
+                                  )
+                                })}
+
+                                {filteredClaims.length === 0 && (
+                                  <div className="rounded-lg border border-slate-800/80 bg-slate-900/70 p-4 text-xs text-slate-300/70">
+                                    No claims in this category yet. Try another filter.
+                                  </div>
+                                )}
+                              </div>
+                            </div>
+                          </div>
+
+                          <div className="space-y-4">
+                            {selectedClaim ? (
+                              <div className="space-y-4">
+                                <div className="rounded-xl border border-slate-800/80 bg-slate-900/70 p-5 shadow-inner shadow-emerald-500/10">
+                                  <div className="mb-4 flex items-start justify-between gap-3">
+                                    <Badge className={`${VERIFICATION_STYLE_MAP[selectedClaim.verification_status]} text-[0.65rem] uppercase tracking-wide`}>
+                                      {VERIFICATION_LABEL_MAP[selectedClaim.verification_status]}
+                                    </Badge>
+                                    <Badge className={`${getConfidenceColor(selectedClaim.confidence)} text-[0.65rem] uppercase tracking-wide`}>
+                                      confidence: {selectedClaim.confidence}
+                                    </Badge>
+                                  </div>
+                                  <p className="text-sm text-emerald-50/90">"{selectedClaim.claim}"</p>
+                                  {selectedClaim.notes && (
+                                    <p className="mt-3 text-xs text-slate-300/80">{selectedClaim.notes}</p>
+                                  )}
+                                  <div className="mt-4 space-y-2">
+                                    <h5 className="text-xs font-semibold uppercase tracking-wide text-emerald-200/60">Evidence</h5>
+                                    <div className="rounded-lg border border-slate-800 bg-slate-950/70 p-3 text-xs text-slate-200/80">
+                                      {selectedClaim.evidence || "Evidence details not provided."}
+                                    </div>
+                                    <div className="flex flex-wrap gap-2 text-[11px] text-slate-300/70">
+                                      {selectedClaim.sources?.slice(0, 4).map((source, idx) => (
+                                        <a
+                                          key={`${source}-${idx}`}
+                                          href={source}
+                                          target="_blank"
+                                          rel="noopener noreferrer"
+                                          className="group/link inline-flex items-center gap-1 rounded-full border border-slate-700 bg-slate-800/60 px-3 py-1 transition hover:border-emerald-400/60 hover:text-emerald-100"
+                                        >
+                                          <LinkIcon className="h-3 w-3" />
+                                          <span className="max-w-[12rem] truncate">{source}</span>
+                                          <ExternalLink className="h-3 w-3 transition group-hover/link:translate-x-0.5" />
+                                        </a>
+                                      ))}
+                                      {(!selectedClaim.sources || selectedClaim.sources.length === 0) && (
+                                        <span className="rounded-full border border-slate-700 px-3 py-1">No sources provided</span>
+                                      )}
+                                    </div>
+                                  </div>
+                                  <div className="mt-4 flex flex-wrap gap-2 text-xs text-slate-400">
+                                    <button
+                                      type="button"
+                                      className="inline-flex items-center gap-1 rounded-full border border-slate-700 px-3 py-1 transition hover:border-emerald-400/60 hover:text-emerald-100"
+                                      onClick={() => {
+                                        if (typeof navigator !== "undefined") {
+                                          navigator.clipboard.writeText(`${selectedClaim.claim}\n\nEvidence: ${selectedClaim.evidence ?? "N/A"}`).catch(() => null)
+                                        }
+                                      }}
+                                    >
+                                      <Copy className="h-3.5 w-3.5" />
+                                      Copy claim
+                                    </button>
+                                    <Button variant="outline" size="sm" asChild>
+                                      <a
+                                        href={`/search?query=${encodeURIComponent(selectedClaim.claim)}`}
+                                        target="_blank"
+                                        rel="noopener noreferrer"
+                                      >
+                                        <Search className="mr-1 h-3.5 w-3.5" />
+                                        Open research workspace
+                                      </a>
+                                    </Button>
+                                  </div>
+                                </div>
+
+                                <div className="rounded-xl border border-emerald-500/25 bg-emerald-500/10 p-5">
+                                  <div className="mb-3 flex items-start justify-between gap-3">
+                                    <div>
+                                      <h4 className="flex items-center gap-2 text-sm font-semibold text-emerald-100">
+                                        <Search className="h-4 w-4" /> Live Agentic Research
+                                      </h4>
+                                      <p className="text-xs text-emerald-200/70">
+                                        Run the LangChain agent with enriched context to surface the latest corroborating evidence.
+                                      </p>
+                                    </div>
+                                    {agenticHistory.length > 0 && (
+                                      <div className="rounded-lg border border-emerald-400/30 bg-emerald-500/10 px-3 py-1 text-[10px] uppercase tracking-wide text-emerald-200/80">
+                                        Last run {new Date(agenticHistory[0].timestamp).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
+                                      </div>
+                                    )}
+                                  </div>
+                                  <div className="flex flex-wrap items-center gap-2">
+                                    <Button
+                                      onClick={() => runAgenticSearch(selectedClaim)}
+                                      disabled={agenticLoading}
+                                      className="inline-flex items-center gap-2"
+                                    >
+                                      {agenticLoading ? (
+                                        <>
+                                          <Loader2 className="h-4 w-4 animate-spin" />
+                                          Researching
+                                        </>
+                                      ) : (
+                                        <>
+                                          <Sparkles className="h-4 w-4" />
+                                          Agentic Research
+                                        </>
+                                      )}
+                                    </Button>
+                                    <Button
+                                      type="button"
+                                      variant="ghost"
+                                      size="sm"
+                                      className="inline-flex items-center gap-2 text-emerald-200/80 hover:text-emerald-100"
+                                      onClick={() => runAgenticSearch(selectedClaim)}
+                                      disabled={agenticLoading}
+                                    >
+                                      <RefreshCw className="h-3.5 w-3.5" />
+                                      Retry
+                                    </Button>
+                                  </div>
+
+                                  {agenticError && (
+                                    <div className="mt-3 flex items-start gap-2 rounded-lg border border-rose-500/40 bg-rose-500/10 p-3 text-xs text-rose-200">
+                                      <XCircle className="mt-0.5 h-4 w-4" />
+                                      <span>{agenticError}</span>
+                                    </div>
+                                  )}
+
+                                  {agenticAnswer && (
+                                    <div className="mt-4 space-y-2 rounded-lg border border-emerald-400/40 bg-emerald-500/10 p-4 text-sm text-emerald-50">
+                                      <div className="flex items-start gap-2 text-xs uppercase tracking-wide text-emerald-200/70">
+                                        <CheckCircle2 className="mt-0.5 h-4 w-4" />
+                                        Agent response
+                                      </div>
+                                      <p className="whitespace-pre-line text-sm leading-relaxed text-emerald-50/90">{agenticAnswer}</p>
+                                    </div>
+                                  )}
+                                </div>
+                              </div>
+                            ) : (
+                              <div className="flex h-full flex-col items-center justify-center gap-3 rounded-xl border border-slate-800/80 bg-slate-900/70 p-6 text-center text-sm text-slate-300/70">
+                                <Sparkles className="h-6 w-6 text-emerald-300" />
+                                <p>Select a claim from the list to view its evidence and run deeper research.</p>
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      </DialogContent>
+                    </Dialog>
                   )}
 
                   {/* Fact Check Suggestions */}

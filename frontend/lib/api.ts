@@ -1136,3 +1136,36 @@ export async function performNewsResearch(
     throw error;
   }
 }
+
+// Agentic search (LangChain backend agent)
+export interface AgenticSearchRequest {
+  query: string
+  max_steps?: number
+}
+
+export interface AgenticSearchResponse {
+  success: boolean
+  answer: string
+  reasoning?: any[]
+  citations?: any[]
+}
+
+export async function performAgenticSearch(query: string, maxSteps: number = 8): Promise<AgenticSearchResponse> {
+  try {
+    const response = await fetch(`${API_BASE_URL}/api/search/agentic`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ query, max_steps: maxSteps })
+    })
+
+    if (!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status}`)
+    }
+
+    const data = await response.json()
+    return data as AgenticSearchResponse
+  } catch (error) {
+    console.error('❌ Agentic search failed:', error)
+    throw error
+  }
+}

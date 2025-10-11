@@ -20,11 +20,10 @@ import {
   ChevronUp,
   Sparkles
 } from "lucide-react"
-import { performNewsResearch, ThinkingStep, type NewsArticle, semanticSearch, type SemanticSearchResult } from "@/lib/api"
+import { API_BASE_URL, ThinkingStep, type NewsArticle, semanticSearch, type SemanticSearchResult } from "@/lib/api"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { Badge } from "@/components/ui/badge"
 import { ArticleDetailModal } from "@/components/article-detail-modal"
 import { ArticleInlineEmbed } from "@/components/article-inline-embed"
 import HorizontalArticleEmbed from "@/components/horizontal-article-embed"
@@ -38,6 +37,8 @@ interface ResearchResult {
   answer: string
   thinking_steps: ThinkingStep[]
   articles_searched: number
+  referenced_articles?: any[]
+  structured_articles?: any
   error?: string
 }
 
@@ -53,15 +54,14 @@ interface Message {
   error?: boolean
   isStreaming?: boolean
   streamingStatus?: string
+  toolType?: 'semantic_search'
+  semanticResults?: SemanticSearchResult[]
 }
 
 export default function NewsResearchPage() {
   const [query, setQuery] = useState("")
   const [isSearching, setIsSearching] = useState(false)
   const [messages, setMessages] = useState<Message[]>([])
-  const [semanticResults, setSemanticResults] = useState<SemanticSearchResult[]>([])
-  const [semanticLoading, setSemanticLoading] = useState(false)
-  const [semanticError, setSemanticError] = useState<string | null>(null)
   const [expandedThinking, setExpandedThinking] = useState<string | null>(null)
   const [selectedArticle, setSelectedArticle] = useState<NewsArticle | null>(null)
   const [isArticleModalOpen, setIsArticleModalOpen] = useState(false)
@@ -78,223 +78,231 @@ export default function NewsResearchPage() {
 
   const handleSearch = async (e: React.FormEvent) => {
     e.preventDefault()
-    
-    if (!query.trim()) return
+
+    const trimmedQuery = query.trim()
+    if (!trimmedQuery) return
+
+    const timestamp = Date.now()
+    const assistantId = `assistant-${timestamp}`
+    const semanticToolId = `semantic-${timestamp}`
 
     const userMessage: Message = {
-      id: Date.now().toString(),
+      id: `user-${timestamp}`,
       type: 'user',
-      content: query,
+      content: trimmedQuery,
       timestamp: new Date()
     }
 
+    const thinkingSteps: ThinkingStep[] = []
+    let structuredArticles: any = null
+    let finalResult: ResearchResult | null = null
+
     setMessages(prev => [...prev, userMessage])
-    const userQuery = query
     setQuery("")
     setIsSearching(true)
 
-    setSemanticResults([])
-    setSemanticError(null)
-    setSemanticLoading(true)
-    semanticSearch(userQuery, { limit: 6 })
-      .then(response => setSemanticResults(response.results))
-      .catch(error => {
-        console.error('Semantic search failed:', error)
-        setSemanticError(error instanceof Error ? error.message : 'Semantic search failed')
-      })
-      .finally(() => setSemanticLoading(false))
-
-    // Create a placeholder assistant message for streaming updates
-    const assistantId = (Date.now() + 1).toString()
-    const streamingMessage: Message = {
+    const streamingPlaceholder: Message = {
       id: assistantId,
       type: 'assistant',
-      content: '',
+      content: "",
       timestamp: new Date(),
       isStreaming: true,
-      streamingStatus: 'Starting research...'
+      streamingStatus: "Starting research..."
     }
-    setMessages(prev => [...prev, streamingMessage])
+
+    setMessages(prev => [...prev, streamingPlaceholder])
+
+    semanticSearch(trimmedQuery, { limit: 6 })
+      .then((response) => {
+        const relevant = response.results
+          .filter((result: SemanticSearchResult) => {
+            const { article, similarityScore } = result
+            if (!article?.summary) return false
+            if (typeof similarityScore === 'number') {
+              return similarityScore >= 0.55
+            }
+            return true
+          })
+          .slice(0, 5)
+
+        if (relevant.length === 0) {
+          return
+        }
+
+        const toolMessage: Message = {
+          id: semanticToolId,
+          type: 'assistant',
+          content: 'Semantic search surfaced related coverage.',
+          timestamp: new Date(),
+          toolType: 'semantic_search',
+          semanticResults: relevant
+        }
+
+        setMessages(prev => {
+          const withoutExisting = prev.filter(msg => msg.id !== semanticToolId)
+          const insertAt = withoutExisting.findIndex(msg => msg.id === assistantId)
+
+          if (insertAt === -1) {
+            return [...withoutExisting, toolMessage]
+          }
+
+          const next = [...withoutExisting]
+          next.splice(insertAt, 0, toolMessage)
+          return next
+        })
+      })
+      .catch((error) => {
+        console.warn('Semantic search unavailable:', error)
+      })
 
     try {
-      // Prepare chat history for context (last 3 user/assistant exchanges = 6 messages)
-      const filteredHistory = messages.filter(
-        msg => msg.type === 'user' || msg.type === 'assistant'
-      );
-      const chatHistory = filteredHistory.slice(-6).map(msg => ({
-        type: msg.type,
-        content: msg.content
-      }));
-      const baseUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'
-      const historyParam = encodeURIComponent(JSON.stringify(chatHistory));
-      const eventSource = new EventSource(
-        `${baseUrl}/api/news/research/stream?query=${encodeURIComponent(userQuery)}&include_thinking=true&history=${historyParam}`
-      )
+      const streamUrl = new URL(`${API_BASE_URL}/api/news/research/stream`)
+      streamUrl.searchParams.set('query', trimmedQuery)
+      streamUrl.searchParams.set('include_thinking', 'true')
 
-      const thinkingSteps: ThinkingStep[] = []
-      let finalResult: any = null
-      let structuredArticles: any = null  // Store structured JSON articles
-      let lastMessageTime = Date.now()
-      
-      // Set up a timeout to detect stalled streams
-      const stallTimeout = setInterval(() => {
-        const timeSinceLastMessage = Date.now() - lastMessageTime
-        if (timeSinceLastMessage > 60000) { // 60 seconds without any message
-          clearInterval(stallTimeout)
-          eventSource.close()
-          setMessages(prev => prev.map(msg => 
-            msg.id === assistantId 
-              ? { 
-                  ...msg, 
-                  content: 'The request timed out. This may be due to API rate limits or server issues. Please try again in a moment.', 
-                  error: true, 
-                  isStreaming: false,
-                  streamingStatus: undefined
-                }
-              : msg
-          ))
-          setIsSearching(false)
-        }
-      }, 5000) // Check every 5 seconds
+      const eventSource = new EventSource(streamUrl.toString())
+      const stallTimeout = window.setTimeout(() => {
+        setMessages(prev => prev.map(msg =>
+          msg.id === assistantId
+            ? { ...msg, streamingStatus: 'Still working — gathering more coverage...' }
+            : msg
+        ))
+      }, 30000)
 
       eventSource.onmessage = (event) => {
-        lastMessageTime = Date.now() // Reset timeout on each message
-        const data = JSON.parse(event.data)
-        
-        if (data.type === 'status') {
-          // Update streaming status message
-          setMessages(prev => prev.map(msg => 
-            msg.id === assistantId 
-              ? { ...msg, streamingStatus: data.message }
-              : msg
-          ))
-        } else if (data.type === 'thinking_step') {
-          // Collect thinking steps
-          thinkingSteps.push(data.step)
-          setMessages(prev => prev.map(msg => 
-            msg.id === assistantId 
-              ? { ...msg, thinking_steps: [...thinkingSteps], streamingStatus: `Processing: ${data.step.type}...` }
-              : msg
-          ))
-        } else if (data.type === 'articles_json') {
-          // Received structured articles JSON block
-          try {
-            // Parse the JSON block (it comes wrapped in ```json:articles)
-            const jsonMatch = data.data.match(/```json:articles\n([\s\S]*?)\n```/)
-            if (jsonMatch) {
-              structuredArticles = JSON.parse(jsonMatch[1])
-              setMessages(prev => prev.map(msg => 
-                msg.id === assistantId 
-                  ? { ...msg, structured_articles_json: structuredArticles, streamingStatus: 'Received article data...' }
-                  : msg
-              ))
+        try {
+          const data = JSON.parse(event.data)
+
+          if (data.type === 'status') {
+            setMessages(prev => prev.map(msg =>
+              msg.id === assistantId
+                ? { ...msg, streamingStatus: data.message }
+                : msg
+            ))
+          } else if (data.type === 'thinking_step') {
+            thinkingSteps.push(data.step)
+            setMessages(prev => prev.map(msg =>
+              msg.id === assistantId
+                ? {
+                    ...msg,
+                    thinking_steps: [...thinkingSteps],
+                    streamingStatus: `Processing: ${data.step.type}...`
+                  }
+                : msg
+            ))
+          } else if (data.type === 'articles_json') {
+            try {
+              const jsonMatch = data.data.match(/```json:articles\n([\s\S]*?)\n```/)
+              if (jsonMatch) {
+                structuredArticles = JSON.parse(jsonMatch[1])
+                setMessages(prev => prev.map(msg =>
+                  msg.id === assistantId
+                    ? { ...msg, structured_articles_json: structuredArticles, streamingStatus: 'Received article data...' }
+                    : msg
+                ))
+              }
+            } catch (jsonError) {
+              console.error('Failed to parse structured articles:', jsonError)
             }
-          } catch (e) {
-            console.error('Failed to parse structured articles:', e)
+          } else if (data.type === 'referenced_articles') {
+            const referencedArticles: NewsArticle[] = data.articles?.map((article: any) => ({
+              id: Date.now() + Math.random(),
+              title: article.title || 'No title',
+              source: article.source || 'Unknown',
+              sourceId: (article.source || 'unknown').toLowerCase().replace(/\s+/g, '-'),
+              country: 'United States',
+              credibility: 'medium' as const,
+              bias: 'center' as const,
+              summary: article.description || 'No description',
+              content: article.description || 'No description',
+              image: article.image || "/placeholder.svg",
+              publishedAt: article.published || new Date().toISOString(),
+              category: article.category || 'general',
+              url: article.link || '',
+              tags: [article.category, article.source].filter(Boolean),
+              originalLanguage: 'en',
+              translated: false
+            })) || []
+
+            setMessages(prev => prev.map(msg =>
+              msg.id === assistantId
+                ? { ...msg, referenced_articles: referencedArticles, streamingStatus: 'Processing articles...' }
+                : msg
+            ))
+          } else if (data.type === 'complete') {
+            window.clearTimeout(stallTimeout)
+            finalResult = data.result as ResearchResult
+            eventSource.close()
+
+            const referencedArticles: NewsArticle[] = finalResult.referenced_articles?.map((article: any) => ({
+              id: Date.now() + Math.random(),
+              title: article.title || 'No title',
+              source: article.source || 'Unknown',
+              sourceId: (article.source || 'unknown').toLowerCase().replace(/\s+/g, '-'),
+              country: 'United States',
+              credibility: 'medium' as const,
+              bias: 'center' as const,
+              summary: article.description || 'No description',
+              content: article.description || 'No description',
+              image: article.image || "/placeholder.svg",
+              publishedAt: article.published || new Date().toISOString(),
+              category: article.category || 'general',
+              url: article.link || '',
+              tags: [article.category, article.source].filter(Boolean),
+              originalLanguage: 'en',
+              translated: false
+            })) || []
+
+            setMessages(prev => prev.map(msg =>
+              msg.id === assistantId
+                ? {
+                    ...msg,
+                    content: finalResult?.answer || 'No answer returned.',
+                    thinking_steps: [...thinkingSteps],
+                    articles_searched: finalResult?.articles_searched,
+                    referenced_articles: referencedArticles,
+                    structured_articles_json: structuredArticles,
+                    isStreaming: false,
+                    streamingStatus: undefined,
+                    error: !finalResult?.success
+                  }
+                : msg
+            ))
+
+            setIsSearching(false)
+            inputRef.current?.focus()
+          } else if (data.type === 'error') {
+            window.clearTimeout(stallTimeout)
+            eventSource.close()
+
+            let errorMessage: string = data.message || 'The research agent encountered an error.'
+            const lowered = errorMessage.toLowerCase()
+            if (lowered.includes('rate limit') || lowered.includes('quota') || lowered.includes('429')) {
+              errorMessage = '⚠️ API Rate Limit: The AI service has reached its rate limit. Please wait a moment and try again.'
+            }
+
+            setMessages(prev => prev.map(msg =>
+              msg.id === assistantId
+                ? { ...msg, content: errorMessage, error: true, isStreaming: false, streamingStatus: undefined }
+                : msg
+            ))
+            setIsSearching(false)
           }
-        } else if (data.type === 'referenced_articles') {
-          // Received referenced articles (alternative/supplementary to articles_json)
-          // This provides the raw article data
-          const referencedArticles = data.articles?.map((article: any) => ({
-            id: Date.now() + Math.random(),
-            title: article.title || 'No title',
-            source: article.source || 'Unknown',
-            sourceId: (article.source || 'unknown').toLowerCase().replace(/\s+/g, '-'),
-            country: 'United States',
-            credibility: 'medium' as const,
-            bias: 'center' as const,
-            summary: article.description || 'No description',
-            content: article.description || 'No description',
-            image: article.image || "/placeholder.svg",
-            publishedAt: article.published || new Date().toISOString(),
-            category: article.category || 'general',
-            url: article.link || '',
-            tags: [article.category, article.source].filter(Boolean),
-            originalLanguage: "en",
-            translated: false
-          })) || []
-          
-          setMessages(prev => prev.map(msg => 
-            msg.id === assistantId 
-              ? { ...msg, referenced_articles: referencedArticles, streamingStatus: 'Processing articles...' }
-              : msg
-          ))
-        } else if (data.type === 'complete') {
-          // Final result received
-          clearInterval(stallTimeout)
-          finalResult = data.result
-          eventSource.close()
-          
-          // Convert backend articles to frontend format (if not already converted)
-          const referencedArticles = finalResult.referenced_articles?.map((article: any) => ({
-            id: Date.now() + Math.random(),
-            title: article.title || 'No title',
-            source: article.source || 'Unknown',
-            sourceId: (article.source || 'unknown').toLowerCase().replace(/\s+/g, '-'),
-            country: 'United States',
-            credibility: 'medium' as const,
-            bias: 'center' as const,
-            summary: article.description || 'No description',
-            content: article.description || 'No description',
-            image: article.image || "/placeholder.svg",
-            publishedAt: article.published || new Date().toISOString(),
-            category: article.category || 'general',
-            url: article.link || '',
-            tags: [article.category, article.source].filter(Boolean),
-            originalLanguage: "en",
-            translated: false
-          })) || []
-          
-          // Update with final content, including structured articles
-          setMessages(prev => prev.map(msg => 
-            msg.id === assistantId 
-              ? {
-                  ...msg,
-                  content: finalResult.answer,
-                  thinking_steps: thinkingSteps,
-                  articles_searched: finalResult.articles_searched,
-                  referenced_articles: referencedArticles,
-                  structured_articles_json: structuredArticles,  // Include structured articles
-                  isStreaming: false,
-                  streamingStatus: undefined,
-                  error: !finalResult.success
-                }
-              : msg
-          ))
-          
-          setIsSearching(false)
-          inputRef.current?.focus()
-        } else if (data.type === 'error') {
-          clearInterval(stallTimeout)
-          eventSource.close()
-          
-          // Check if it's an API rate limit error
-          let errorMessage = data.message
-          if (errorMessage.toLowerCase().includes('rate limit') || 
-              errorMessage.toLowerCase().includes('quota') ||
-              errorMessage.toLowerCase().includes('429')) {
-            errorMessage = '⚠️ API Rate Limit: The AI service has reached its rate limit. Please wait a moment and try again.'
-          }
-          
-          setMessages(prev => prev.map(msg => 
-            msg.id === assistantId 
-              ? { ...msg, content: errorMessage, error: true, isStreaming: false, streamingStatus: undefined }
-              : msg
-          ))
-          setIsSearching(false)
+        } catch (parseError) {
+          console.error('Failed to parse research stream message:', parseError)
         }
       }
 
       eventSource.onerror = (error) => {
         console.error('SSE error:', error)
-        clearInterval(stallTimeout)
+        window.clearTimeout(stallTimeout)
         eventSource.close()
-        setMessages(prev => prev.map(msg => 
-          msg.id === assistantId 
-            ? { 
-                ...msg, 
-                content: '⚠️ Connection error. The server may be busy or experiencing rate limits. Please try again in a moment.', 
-                error: true, 
+        setMessages(prev => prev.map(msg =>
+          msg.id === assistantId
+            ? {
+                ...msg,
+                content: '⚠️ Connection error. The server may be busy or experiencing rate limits. Please try again in a moment.',
+                error: true,
                 isStreaming: false,
                 streamingStatus: undefined
               }
@@ -303,14 +311,18 @@ export default function NewsResearchPage() {
         setIsSearching(false)
       }
     } catch (error) {
-      const errorMessage: Message = {
-        id: (Date.now() + 1).toString(),
-        type: 'assistant',
-        content: error instanceof Error ? error.message : "An error occurred while processing your request.",
-        timestamp: new Date(),
-        error: true
-      }
-      setMessages(prev => [...prev, errorMessage])
+      console.error('Failed to start research stream:', error)
+      setMessages(prev => prev.map(msg =>
+        msg.id === assistantId
+          ? {
+              ...msg,
+              content: error instanceof Error ? error.message : 'An error occurred while starting the research stream.',
+              error: true,
+              isStreaming: false,
+              streamingStatus: undefined
+            }
+          : msg
+      ))
       setIsSearching(false)
     }
   }
@@ -491,63 +503,6 @@ export default function NewsResearchPage() {
                 </div>
               </div>
             )}
-
-            {(semanticLoading || semanticResults.length > 0 || semanticError) && (
-              <div className="mb-10 space-y-4">
-                <div className="flex items-center gap-2">
-                  <Sparkles className="w-4 h-4 text-primary" />
-                  <span className="text-xs font-semibold uppercase tracking-wide text-primary">Semantic matches</span>
-                  {semanticLoading && <Loader2 className="w-4 h-4 animate-spin text-primary" />}
-                </div>
-                {semanticError && (
-                  <p className="text-xs text-destructive">{semanticError}</p>
-                )}
-                <div className="grid gap-3">
-                  {semanticResults.map(({ article, similarityScore }) => (
-                    <button
-                      key={`semantic-${article.id}`}
-                      onClick={() => {
-                        setSelectedArticle(article)
-                        setIsArticleModalOpen(true)
-                      }}
-                      className="text-left w-full group"
-                    >
-                      <div
-                        className="p-4 rounded-lg border transition-all duration-200 hover:border-primary hover:bg-primary/10 flex gap-4"
-                        style={{ borderColor: 'var(--border)' }}
-                      >
-                        {article.image && (
-                          <div className="w-24 h-20 rounded-md overflow-hidden flex-shrink-0 bg-black/40">
-                            <img
-                              src={article.image}
-                              alt={article.title}
-                              className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-200"
-                            />
-                          </div>
-                        )}
-                        <div className="flex-1 min-w-0 space-y-2">
-                          <div className="flex items-center gap-2 text-xs font-medium text-primary/80">
-                            <span className="uppercase tracking-wide">{article.source}</span>
-                            {typeof similarityScore === 'number' && (
-                              <span className="px-2 py-0.5 rounded-full bg-primary/20 text-primary">
-                                {(similarityScore * 100).toFixed(1)}% match
-                              </span>
-                            )}
-                          </div>
-                          <h3 className="text-sm font-semibold leading-snug line-clamp-2 group-hover:text-primary transition-colors">
-                            {article.title}
-                          </h3>
-                          <p className="text-xs text-muted-foreground line-clamp-2">
-                            {article.summary}
-                          </p>
-                        </div>
-                      </div>
-                    </button>
-                  ))}
-                </div>
-              </div>
-            )}
-
             {/* Messages */}
             {messages.map((message) => (
               <div key={message.id} className="mb-6">
@@ -560,26 +515,77 @@ export default function NewsResearchPage() {
                 ) : (
                   <div className="flex justify-start animate-in slide-in-from-left duration-300">
                     <div className="max-w-[85%] space-y-3 w-full">
-                      {/* Assistant Message with inline embeds */}
-                      <div className="p-4 rounded-2xl border hover:shadow-lg transition-all duration-200" style={{ backgroundColor: 'var(--news-bg-secondary)', borderColor: 'var(--border)' }}>
-                        {message.isStreaming ? (
-                          <div className="flex items-start gap-3">
-                            <Loader2 className="w-5 h-5 text-primary animate-spin flex-shrink-0 mt-0.5" />
-                            <div className="flex-1">
-                              <p className="text-sm font-medium mb-1">Researching...</p>
-                              <p className="text-xs animate-pulse" style={{ color: 'var(--muted-foreground)' }}>
-                                {message.streamingStatus || 'Processing...'}
-                              </p>
+                      {message.toolType === 'semantic_search' && message.semanticResults ? (
+                        <div className="p-4 rounded-2xl border hover:shadow-lg transition-all duration-200" style={{ backgroundColor: 'var(--news-bg-secondary)', borderColor: 'var(--border)' }}>
+                          <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-emerald-400 mb-3">
+                            <Sparkles className="w-4 h-4" />
+                            Semantic matches
+                          </div>
+                          <div className="space-y-3">
+                            {message.semanticResults.map(({ article, similarityScore }) => (
+                              <button
+                                key={`semantic-${article.url || article.id}`}
+                                onClick={() => {
+                                  setSelectedArticle(article)
+                                  setIsArticleModalOpen(true)
+                                }}
+                                className="w-full text-left group"
+                              >
+                                <div
+                                  className="p-3 rounded-xl border transition-all duration-200 hover:border-primary hover:bg-primary/10 flex gap-3"
+                                  style={{ borderColor: 'var(--border)' }}
+                                >
+                                  {article.image && (
+                                    <div className="w-20 h-16 rounded-md overflow-hidden flex-shrink-0 bg-black/40">
+                                      <img
+                                        src={article.image}
+                                        alt={article.title}
+                                        className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-200"
+                                      />
+                                    </div>
+                                  )}
+                                  <div className="flex-1 min-w-0 space-y-1">
+                                    <div className="flex items-center gap-2 text-xs font-medium text-primary/80 uppercase">
+                                      <span>{article.source}</span>
+                                      {typeof similarityScore === 'number' && (
+                                        <span className="px-2 py-0.5 rounded-full bg-primary/20 text-primary">
+                                          {(similarityScore * 100).toFixed(1)}% match
+                                        </span>
+                                      )}
+                                    </div>
+                                    <h3 className="text-sm font-semibold leading-snug line-clamp-2 group-hover:text-primary transition-colors">
+                                      {article.title}
+                                    </h3>
+                                    <p className="text-xs text-muted-foreground line-clamp-2">
+                                      {article.summary}
+                                    </p>
+                                  </div>
+                                </div>
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+                      ) : (
+                        <div className="p-4 rounded-2xl border hover:shadow-lg transition-all duration-200" style={{ backgroundColor: 'var(--news-bg-secondary)', borderColor: 'var(--border)' }}>
+                          {/* Assistant Message with inline embeds */}
+                          {message.isStreaming ? (
+                            <div className="flex items-start gap-3">
+                              <Loader2 className="w-5 h-5 text-primary animate-spin flex-shrink-0 mt-0.5" />
+                              <div className="flex-1">
+                                <p className="text-sm font-medium mb-1">Researching...</p>
+                                <p className="text-xs animate-pulse" style={{ color: 'var(--muted-foreground)' }}>
+                                  {message.streamingStatus || 'Processing...'}
+                                </p>
+                              </div>
                             </div>
-                          </div>
-                        ) : message.error ? (
-                          <div className="flex items-start gap-2">
-                            <AlertCircle className="w-5 h-5 text-destructive flex-shrink-0 mt-0.5" />
-                            <p className="text-sm" style={{ color: 'var(--muted-foreground)' }}>{message.content}</p>
-                          </div>
-                        ) : (
-                          <>
-                            {(() => {
+                          ) : message.error ? (
+                            <div className="flex items-start gap-2">
+                              <AlertCircle className="w-5 h-5 text-destructive flex-shrink-0 mt-0.5" />
+                              <p className="text-sm" style={{ color: 'var(--muted-foreground)' }}>{message.content}</p>
+                            </div>
+                          ) : (
+                            <>
+                              {(() => {
                               // Try to get articles from referenced_articles first, then from structured_articles_json
                               const articlesToEmbed = message.referenced_articles || 
                                                        message.structured_articles_json?.articles?.map((article: any) => ({
@@ -604,80 +610,12 @@ export default function NewsResearchPage() {
                               return renderContentWithEmbeds(message.content, articlesToEmbed);
                             })()}
                             
-                            {/* Render structured articles grid if available - HIDDEN since we're now embedding inline */}
-                            {false && message.structured_articles_json?.articles && message.structured_articles_json.articles.length > 0 && (
-                              <div className="mt-4 pt-4 border-t" style={{ borderColor: 'var(--border)' }}>
-                                <div className="flex items-center gap-2 mb-3">
-                                  <Newspaper className="w-4 h-4 text-primary" />
-                                  <h4 className="text-sm font-semibold">Related Articles ({message.structured_articles_json.articles.length})</h4>
-                                </div>
-                                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                                  {message.structured_articles_json.articles.map((article: any, idx: number) => {
-                                    // Convert to NewsArticle format for modal
-                                    const newsArticle: NewsArticle = {
-                                      id: Date.now() + idx,
-                                      title: article.title || 'No title',
-                                      source: article.source || 'Unknown',
-                                      sourceId: (article.source || 'unknown').toLowerCase().replace(/\s+/g, '-'),
-                                      country: 'United States',
-                                      credibility: 'medium' as const,
-                                      bias: 'center' as const,
-                                      summary: article.description || 'No description',
-                                      content: article.description || 'No description',
-                                      image: article.image || "/placeholder.svg",
-                                      publishedAt: article.published || new Date().toISOString(),
-                                      category: article.category || 'general',
-                                      url: article.link || '',
-                                      tags: [article.category, article.source].filter(Boolean),
-                                      originalLanguage: "en",
-                                      translated: false
-                                    }
-                                    
-                                    return (
-                                      <button
-                                        key={idx}
-                                        onClick={() => { setSelectedArticle(newsArticle); setIsArticleModalOpen(true) }}
-                                        className="text-left p-3 rounded-lg border hover:border-primary hover:scale-[1.02] transition-all duration-200 group"
-                                        style={{ 
-                                          backgroundColor: 'var(--news-bg-primary)', 
-                                          borderColor: 'var(--border)',
-                                        }}
-                                      >
-                                        <div className="flex gap-3">
-                                          <div className="h-20 w-28 flex-shrink-0 overflow-hidden rounded-md bg-black/40 border" style={{ borderColor: 'var(--border)' }}>
-                                            <img 
-                                              src={article.image || "/placeholder.svg"} 
-                                              alt={article.title} 
-                                              className="w-full h-full object-cover opacity-80 group-hover:opacity-100 transition-opacity" 
-                                            />
-                                          </div>
-                                          <div className="flex-1 min-w-0">
-                                            <h5 className="text-sm font-medium line-clamp-2 mb-1 group-hover:text-primary transition-colors">
-                                              {article.title}
-                                            </h5>
-                                            <div className="flex items-center gap-2 text-xs" style={{ color: 'var(--muted-foreground)' }}>
-                                              <span>{article.source}</span>
-                                              {article.category && (
-                                                <>
-                                                  <span>•</span>
-                                                  <Badge variant="outline" className="text-xs py-0 px-1.5">
-                                                    {article.category}
-                                                  </Badge>
-                                                </>
-                                              )}
-                                            </div>
-                                          </div>
-                                        </div>
-                                      </button>
-                                    )
-                                  })}
-                                </div>
-                              </div>
-                            )}
+                            {/* Render structured articles grid if available - hidden since embeds cover this use case */}
                           </>
                         )}
-                      </div>
-                      
+                        </div>
+                      )}
+
                       {/* Metadata */}
                       {message.articles_searched !== undefined && (
                         <div className="flex items-center gap-3 text-xs px-2" style={{ color: 'var(--muted-foreground)' }}>
