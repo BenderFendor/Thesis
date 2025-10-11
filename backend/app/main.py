@@ -189,7 +189,13 @@ def parse_published_datetime(published: Optional[str]) -> datetime:
     return dt
 
 
-async def _upsert_article(session: AsyncSession, article: NewsArticle, source_info: Dict[str, Any]) -> int:
+async def _upsert_article(
+    session: AsyncSession,
+    article: NewsArticle,
+    source_info: Dict[str, Any],
+    vector_batch: Optional[List[Dict[str, Any]]] = None,
+    vector_deletes: Optional[List[str]] = None,
+) -> int:
     published_dt = parse_published_datetime(article.published)
     published_value = published_dt.astimezone(timezone.utc).replace(tzinfo=None)
 
@@ -245,27 +251,43 @@ async def _upsert_article(session: AsyncSession, article: NewsArticle, source_in
 
     if vector_store:
         chroma_id = f"article_{article_id}"
-        try:
-            if article_record.chroma_id and article_record.chroma_id != chroma_id:
-                vector_store.delete_article(article_record.chroma_id)
-            success = vector_store.add_article(
-                article_id=chroma_id,
-                title=article_record.title,
-                summary=article_record.summary or "",
-                content=(article_record.content or article_record.summary or ""),
-                metadata={
-                    "source": article_record.source,
-                    "category": article_record.category or source_info.get("category", "general"),
-                    "published": article_record.published_at.isoformat() if article_record.published_at else None,
-                    "country": article_record.country or source_info.get("country", "Unknown"),
-                    "url": article_record.url,
-                },
-            )
-            if success:
-                article_record.chroma_id = chroma_id
-                article_record.embedding_generated = True
-        except Exception as chroma_error:
-            logger.error(f"Vector store write failed for article {article_id}: {chroma_error}")
+        metadata_payload = {
+            "source": article_record.source,
+            "category": article_record.category or source_info.get("category", "general"),
+            "published": article_record.published_at.isoformat() if article_record.published_at else None,
+            "country": article_record.country or source_info.get("country", "Unknown"),
+            "url": article_record.url,
+        }
+
+        if vector_batch is not None:
+            if article_record.chroma_id and article_record.chroma_id != chroma_id and vector_deletes is not None:
+                vector_deletes.append(article_record.chroma_id)
+
+            vector_batch.append({
+                "chroma_id": chroma_id,
+                "title": article_record.title,
+                "summary": article_record.summary or "",
+                "content": (article_record.content or article_record.summary or ""),
+                "metadata": metadata_payload,
+                "record": article_record,
+            })
+            article_record.embedding_generated = False
+        else:
+            try:
+                if article_record.chroma_id and article_record.chroma_id != chroma_id:
+                    vector_store.delete_article(article_record.chroma_id)
+                success = vector_store.add_article(
+                    article_id=chroma_id,
+                    title=article_record.title,
+                    summary=article_record.summary or "",
+                    content=(article_record.content or article_record.summary or ""),
+                    metadata=metadata_payload,
+                )
+                if success:
+                    article_record.chroma_id = chroma_id
+                    article_record.embedding_generated = True
+            except Exception as chroma_error:
+                logger.error(f"Vector store write failed for article {article_id}: {chroma_error}")
 
     article.id = article_id
     return article_id
@@ -276,8 +298,44 @@ async def _persist_articles_async(articles: List[NewsArticle], source_info: Dict
         return
     async with AsyncSessionLocal() as session:
         try:
+            vector_batch: List[Dict[str, Any]] = []
+            vector_deletes: List[str] = []
             for article in articles:
-                await _upsert_article(session, article, source_info)
+                await _upsert_article(
+                    session,
+                    article,
+                    source_info,
+                    vector_batch=vector_batch if vector_store else None,
+                    vector_deletes=vector_deletes if vector_store else None,
+                )
+
+            if vector_store and vector_batch:
+                delete_targets = [chroma_id for chroma_id in vector_deletes if chroma_id]
+                for chroma_id in delete_targets:
+                    try:
+                        vector_store.delete_article(chroma_id)
+                    except Exception as chroma_error:
+                        logger.error(f"Vector store delete failed for {chroma_id}: {chroma_error}")
+
+                payloads = []
+                for item in vector_batch:
+                    payloads.append({
+                        "chroma_id": item["chroma_id"],
+                        "title": item["title"],
+                        "summary": item["summary"],
+                        "content": item["content"],
+                        "metadata": item["metadata"],
+                    })
+
+                added_count = vector_store.batch_add_articles(payloads)
+
+                if added_count:
+                    for item in vector_batch:
+                        record = item.get("record")
+                        if record:
+                            record.chroma_id = item["chroma_id"]
+                            record.embedding_generated = True
+
             await session.commit()
         except Exception as exc:
             await session.rollback()

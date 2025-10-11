@@ -56,7 +56,10 @@ class VectorStore:
                 text += f"\n\n{content[:500]}"  # Limit content length
             
             # Generate embedding
-            embedding = self.embedding_model.encode(text).tolist()
+            embedding = self.embedding_model.encode(
+                text,
+                show_progress_bar=False,
+            ).tolist()
             
             # Store in ChromaDB with metadata
             self.collection.add(
@@ -122,20 +125,34 @@ class VectorStore:
     def batch_add_articles(self, articles: List[Dict]) -> int:
         """Batch insert articles for better performance"""
         try:
-            ids = []
-            embeddings = []
-            documents = []
-            metadatas = []
-            
+            ids: List[str] = []
+            documents: List[str] = []
+            metadatas: List[Dict] = []
+
             for article in articles:
-                text = f"{article['title']}\n\n{article['summary']}"
-                embedding = self.embedding_model.encode(text).tolist()
-                
+                text_parts = [article.get('title', '') or '', "\n\n", article.get('summary', '') or '']
+                content = article.get('content')
+                if content and content.strip() and content.strip() != (article.get('summary') or '').strip():
+                    text_parts.extend(["\n\n", content[:500]])
+                text = "".join(text_parts)
+
                 ids.append(article['chroma_id'])
-                embeddings.append(embedding)
                 documents.append(text)
-                metadatas.append(article['metadata'])
-            
+                metadatas.append({
+                    **article.get('metadata', {}),
+                    'title': article.get('title'),
+                    'summary': (article.get('summary') or '')[:200],
+                })
+
+            embeddings_array = self.embedding_model.encode(
+                documents,
+                batch_size=min(32, max(1, len(documents))),
+                convert_to_numpy=True,
+                show_progress_bar=False,
+            )
+
+            embeddings = [embedding.tolist() for embedding in embeddings_array]
+
             self.collection.add(
                 ids=ids,
                 embeddings=embeddings,

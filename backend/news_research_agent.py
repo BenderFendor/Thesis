@@ -8,6 +8,8 @@ insights with visible chain-of-thought reasoning.
 
 import os
 import json
+import logging
+import re
 import requests
 from typing import List, Dict, Any, Optional
 from dotenv import load_dotenv
@@ -16,8 +18,10 @@ from langchain.tools import tool
 from langchain_google_genai import ChatGoogleGenerativeAI
 from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
 from langchain_core.callbacks import BaseCallbackHandler
-from datetime import datetime
+from datetime import datetime, timedelta
 from app.vector_store import vector_store
+
+logger = logging.getLogger(__name__)
 
 load_dotenv()
 
@@ -83,6 +87,53 @@ _news_articles_cache: List[Dict[str, Any]] = []
 _referenced_articles_tracker: List[Dict[str, Any]] = []  # Track articles that were accessed
 _articles_by_id: Dict[str, Dict[str, Any]] = {}
 
+_STOPWORDS = {
+    "the", "a", "an", "and", "or", "of", "in", "on", "for", "from",
+    "to", "with", "by", "about", "latest", "new", "news", "update",
+    "updates", "recent", "current", "today", "this", "that", "those",
+    "these", "summary", "summarize", "give", "show", "tell", "me",
+    "are", "what", "whats", "which", "who", "where", "when", "why", "how"
+}
+
+_KEYWORD_SYNONYMS = {
+    "political": {"politics", "government", "election", "governance"},
+    "politics": {"political", "government", "policy"},
+    "government": {"politics", "political", "policy"},
+    "election": {"elections", "vote", "political"},
+    "economy": {"economic", "financial", "market"},
+    "health": {"healthcare", "medical", "medicine"},
+    "technology": {"tech", "innovation", "ai", "artificial"},
+    "climate": {"environment", "climatechange", "weather"},
+    "conflict": {"war", "violence", "military", "crisis"},
+    "energy": {"power", "oil", "gas", "renewable"},
+}
+
+SEARX_INSTANCES = [
+    "https://search.rhscz.eu",
+    "https://searx.rhscz.eu",
+    "https://searx.stream",
+    "https://search.hbubli.cc",
+    "https://searx.oloke.xyz",
+]
+
+
+
+def _extract_query_terms(query: str) -> List[str]:
+    tokens = re.findall(r"[\w-]+", query.lower())
+    filtered = [token for token in tokens if token not in _STOPWORDS and len(token) > 2]
+
+    if not filtered:
+        return [query.lower().strip()] if query else []
+
+    expanded: set[str] = set()
+    for token in filtered:
+        expanded.add(token)
+        synonyms = _KEYWORD_SYNONYMS.get(token)
+        if synonyms:
+            expanded.update(synonyms)
+
+    return list(expanded)
+
 
 def _register_article_lookup(article: Dict[str, Any]):
     """Store article references for quick lookup by ID, chroma ID, or URL."""
@@ -132,6 +183,22 @@ def set_news_articles(articles: List[Dict[str, Any]]):
             _register_article_lookup(article)
 
 
+def _parse_published_timestamp(value: Optional[str]) -> Optional[datetime]:
+    if not value:
+        return None
+    try:
+        if isinstance(value, datetime):
+            return value
+        value_str = str(value).strip()
+        if not value_str:
+            return None
+        if value_str.endswith("Z"):
+            value_str = value_str[:-1] + "+00:00"
+        return datetime.fromisoformat(value_str)
+    except Exception:
+        return None
+
+
 @tool
 def search_news_articles(query: str) -> str:
     """
@@ -153,23 +220,37 @@ def search_news_articles(query: str) -> str:
     if not _news_articles_cache:
         return "No articles available in the database. The news cache may be empty."
     
+    query_terms = _extract_query_terms(query)
     query_lower = query.lower()
     
     # Search through articles
     relevant_articles = []
     for article in _news_articles_cache:
-        # Check if query matches title, description, source, or category
-        matches = (
-            query_lower in article.get('title', '').lower() or
-            query_lower in article.get('description', '').lower() or
-            query_lower in article.get('source', '').lower() or
-            query_lower in article.get('category', '').lower()
+        search_blob = " ".join(filter(None, [
+            article.get('title', ''),
+            article.get('description', ''),
+            article.get('summary', ''),
+            article.get('source', ''),
+            article.get('category', ''),
+        ])).lower()
+
+        matches_direct = (
+            query_lower in search_blob if query_lower.strip() else False
         )
-        
-        if matches:
+
+        token_matches = any(term in search_blob for term in query_terms)
+
+        if matches_direct or token_matches:
             relevant_articles.append(article)
     
     if not relevant_articles:
+        if query_terms and query_terms != [query_lower.strip()] and query_terms[0]:
+            terms_display = ", ".join(sorted(set(query_terms)))
+            return (
+                f"No articles found matching '{query}'. "
+                f"Tried related terms: {terms_display}. "
+                "Try different keywords or check spelling."
+            )
         return f"No articles found matching '{query}'. Try different keywords or broader terms."
     
     # Limit to top 10 most recent
@@ -351,7 +432,7 @@ def analyze_source_coverage(topic: str) -> str:
 @tool
 def get_web_search_results(query: str) -> str:
     """
-    Search the web for real-time information using DuckDuckGo.
+    Search the web for real-time information using SearxNG instances.
     
     Use this tool ONLY when information is not available in the news articles database,
     or when you need external context, background information, or fact-checking.
@@ -362,35 +443,138 @@ def get_web_search_results(query: str) -> str:
     Returns:
         Concise summary of web search results
     """
+    if not query:
+        return "Please provide a search topic."
+
+    headers = {
+        "User-Agent": "ThesisNewsBot/1.0 (+https://example.com)"
+    }
+
+    params = {
+        "q": query,
+        "format": "json",
+        "language": "en",
+        "safesearch": 1,
+    }
+
+    for base_url in SEARX_INSTANCES:
+        try:  # pragma: no cover - network call
+            response = requests.get(
+                f"{base_url.rstrip('/')}/search",
+                params=params,
+                timeout=12,
+                headers=headers,
+            )
+            response.raise_for_status()
+            data = response.json()
+
+            results = data.get("results", [])
+            if not results:
+                continue
+
+            lines = [f"SearxNG ({base_url}) results for '{query}':", ""]
+            for idx, result in enumerate(results[:6], 1):
+                title = result.get("title") or "Untitled"
+                url = result.get("url")
+                snippet = result.get("content") or result.get("snippet")
+
+                lines.append(f"{idx}. {title}")
+                if url:
+                    lines.append(f"   URL: {url}")
+                if snippet:
+                    lines.append(f"   Snippet: {snippet[:200]}...")
+                lines.append("")
+
+            return "\n".join(lines)
+        except Exception as searx_error:  # pragma: no cover
+            logger.warning("Searx instance %s failed: %s", base_url, searx_error)
+            continue
+
+    return (
+        "Web search is currently unavailable. All configured providers failed. "
+        "Please try again later or adjust the query."
+    )
+
+
+@tool
+def get_recent_news_overview(query: str = "", hours: int = 24, limit: int = 8) -> str:
+    """Summarize the most recent articles in the cache, optionally filtered by topic."""
+
+    if not _news_articles_cache:
+        return "No articles available to summarize."
+
     try:
-        url = f"https://api.duckduckgo.com/?q={query}&format=json"
-        response = requests.get(url, timeout=10)
-        response.raise_for_status()
-        
-        data = response.json()
-        results = []
-        
-        if data.get("Abstract"):
-            results.append(f"Summary: {data['Abstract']}")
-        
-        if data.get("Answer"):
-            results.append(f"Answer: {data['Answer']}")
-        
-        if data.get("RelatedTopics"):
-            topics = []
-            for topic in data["RelatedTopics"][:3]:
-                if isinstance(topic, dict) and topic.get("Text"):
-                    topics.append(topic["Text"])
-            if topics:
-                results.append(f"Related: {'; '.join(topics)}")
-        
-        if results:
-            return "\n".join(results)
-        else:
-            return f"Web search performed for '{query}', but no detailed results found."
-            
-    except Exception as e:
-        return f"Error performing web search: {str(e)}"
+        timeframe = timedelta(hours=max(1, min(hours, 168)))
+    except Exception:
+        timeframe = timedelta(hours=24)
+
+    cutoff = datetime.utcnow() - timeframe
+    topic_terms = _extract_query_terms(query) if query else []
+
+    matched: List[Dict[str, Any]] = []
+    for article in _news_articles_cache:
+        published_raw = (
+            article.get("published")
+            or article.get("published_at")
+            or article.get("date")
+        )
+        published_dt = _parse_published_timestamp(published_raw)
+        if published_dt and published_dt < cutoff:
+            continue
+
+        blob = " ".join(filter(None, [
+            article.get("title", ""),
+            article.get("description", ""),
+            article.get("summary", ""),
+            article.get("category", ""),
+            article.get("source", ""),
+        ])).lower()
+
+        if topic_terms:
+            if not any(term in blob for term in topic_terms):
+                continue
+
+        matched.append(article)
+
+    if not matched:
+        return (
+            f"No recent articles in the last {int(timeframe.total_seconds() // 3600)} hours"
+            + (f" matching '{query}'." if query else ".")
+        )
+
+    matched.sort(key=lambda item: item.get("published", ""), reverse=True)
+
+    limited = matched[: max(1, min(limit, 20))]
+    lines = [
+        f"Recent coverage{' for ' + query if query else ''} (last {int(timeframe.total_seconds() // 3600)}h):",
+        f"Found {len(matched)} article(s); showing top {len(limited)}",
+        "",
+    ]
+
+    for idx, article in enumerate(limited, 1):
+        title = article.get("title", "Untitled")
+        source = article.get("source", "Unknown")
+        category = article.get("category", "general")
+        published = article.get("published") or article.get("published_at")
+        url = article.get("link") or article.get("url")
+        summary = article.get("description") or article.get("summary")
+
+        lines.append(f"{idx}. {title}")
+        lines.append(f"   Source: {source} | Category: {category}")
+        if published:
+            lines.append(f"   Published: {published}")
+        if summary:
+            lines.append(f"   Summary: {summary[:160]}...")
+        if url:
+            lines.append(f"   URL: {url}")
+        lines.append("")
+
+    global _referenced_articles_tracker
+    for article in limited:
+        if article not in _referenced_articles_tracker:
+            _referenced_articles_tracker.append(article)
+
+    return "\n".join(lines)
 
 
 def create_news_research_agent(verbose: bool = True):
@@ -417,6 +601,7 @@ def create_news_research_agent(verbose: bool = True):
         search_news_articles,
         semantic_search_articles,
         analyze_source_coverage,
+        get_recent_news_overview,
         get_web_search_results,  # Use this as fallback
     ]
     
@@ -429,13 +614,15 @@ Your primary role is to help users understand and analyze news articles in our d
 **Guidelines:**
 1. ALWAYS search the news articles database FIRST using search_news_articles
 2. Use semantic_search_articles when keyword search misses context or you need conceptual parallels
-3. Use analyze_source_coverage to compare how different sources cover topics
-4. Only use web_search when information isn't in our articles or for background context
-5. Provide balanced, multi-perspective analysis
-6. ALWAYS cite specific sources with their article URLs when referencing them
-7. When mentioning an article or source claim, include the article URL in your response
-8. Highlight bias, funding, and credibility when relevant
-9. Be transparent about your reasoning process
+3. Use get_recent_news_overview to summarize fresh coverage in the last 24 hours (adjust window as needed)
+4. Use analyze_source_coverage to compare how different sources cover topics
+5. Only use web_search when information isn't in our articles or for background context
+6. Provide balanced, multi-perspective analysis
+7. ALWAYS cite specific sources with their article URLs when referencing them
+8. When mentioning an article or source claim, include the article URL in your response
+9. Highlight bias, funding, and credibility when relevant
+10. Be transparent about your reasoning process
+11. When a user shares a broad topic (e.g., "latest political developments"), run search_news_articles with the user wording, optionally pair it with get_recent_news_overview, and summarize what the database contains instead of asking for clarification unless the request is incoherent.
 
 **Citation Format:**
 When referencing articles, use this format:
