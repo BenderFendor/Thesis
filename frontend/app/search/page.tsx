@@ -19,6 +19,7 @@ import {
   ChevronDown,
   ChevronUp,
   Sparkles
+  ,ChevronLeft, ChevronRight
 } from "lucide-react"
 import { API_BASE_URL, ThinkingStep, type NewsArticle, semanticSearch, type SemanticSearchResult } from "@/lib/api"
 import { Button } from "@/components/ui/button"
@@ -27,9 +28,42 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { ArticleDetailModal } from "@/components/article-detail-modal"
 import { ArticleInlineEmbed } from "@/components/article-inline-embed"
 import HorizontalArticleEmbed from "@/components/horizontal-article-embed"
+import ChatSidebar, { ChatSummary } from '@/components/chat-sidebar'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import Link from "next/link"
+
+interface ReferencedArticlePayload {
+  title?: string
+  source?: string
+  description?: string
+  image?: string
+  published?: string
+  category?: string
+  link?: string
+  tags?: string[]
+  [key: string]: unknown
+}
+
+interface StructuredArticleSummary {
+  title?: string
+  summary?: string
+  url?: string
+  source?: string
+  image?: string
+  published?: string
+  author?: string
+  category?: string
+  description?: string
+  link?: string
+  [key: string]: unknown
+}
+
+interface StructuredArticlesPayload {
+  articles?: StructuredArticleSummary[]
+  clusters?: Array<Record<string, unknown>>
+  [key: string]: unknown
+}
 
 interface ResearchResult {
   success: boolean
@@ -37,8 +71,8 @@ interface ResearchResult {
   answer: string
   thinking_steps: ThinkingStep[]
   articles_searched: number
-  referenced_articles?: any[]
-  structured_articles?: any
+  referenced_articles?: ReferencedArticlePayload[]
+  structured_articles?: StructuredArticlesPayload
   error?: string
 }
 
@@ -49,13 +83,47 @@ interface Message {
   thinking_steps?: ThinkingStep[]
   articles_searched?: number
   referenced_articles?: NewsArticle[]
-  structured_articles_json?: any  // New: Parsed JSON articles for grid display
+  structured_articles_json?: StructuredArticlesPayload  // New: Parsed JSON articles for grid display
   timestamp: Date
   error?: boolean
   isStreaming?: boolean
   streamingStatus?: string
   toolType?: 'semantic_search'
   semanticResults?: SemanticSearchResult[]
+}
+
+type StatusMessage = { type: 'status'; message: string }
+type ThinkingStepMessage = { type: 'thinking_step'; step: ThinkingStep }
+type ArticlesJsonMessage = { type: 'articles_json'; data: string }
+type ReferencedArticlesMessage = { type: 'referenced_articles'; articles?: ReferencedArticlePayload[] }
+type CompleteMessage = { type: 'complete'; result: ResearchResult }
+type ErrorMessage = { type: 'error'; message?: string }
+type UnknownMessage = { type: string; [key: string]: unknown }
+
+type ResearchStreamMessage =
+  | StatusMessage
+  | ThinkingStepMessage
+  | ArticlesJsonMessage
+  | ReferencedArticlesMessage
+  | CompleteMessage
+  | ErrorMessage
+  | UnknownMessage
+
+const isStatusMessage = (message: ResearchStreamMessage): message is StatusMessage => message.type === 'status'
+const isThinkingStepMessage = (message: ResearchStreamMessage): message is ThinkingStepMessage => message.type === 'thinking_step'
+const isArticlesJsonMessage = (message: ResearchStreamMessage): message is ArticlesJsonMessage => message.type === 'articles_json'
+const isReferencedArticlesMessage = (message: ResearchStreamMessage): message is ReferencedArticlesMessage => message.type === 'referenced_articles'
+const isCompleteMessage = (message: ResearchStreamMessage): message is CompleteMessage => message.type === 'complete'
+const isErrorMessage = (message: ResearchStreamMessage): message is ErrorMessage => message.type === 'error'
+
+const CHAT_STORAGE_KEY = 'news-research.chat-state'
+const CHAT_STORAGE_VERSION = 1
+
+interface StoredChatState {
+  version: number
+  activeChatId?: string | null
+  chats: ChatSummary[]
+  messages: Record<string, (Omit<Message, 'timestamp'> & { timestamp: string })[]>
 }
 
 export default function NewsResearchPage() {
@@ -65,12 +133,134 @@ export default function NewsResearchPage() {
   const [expandedThinking, setExpandedThinking] = useState<string | null>(null)
   const [selectedArticle, setSelectedArticle] = useState<NewsArticle | null>(null)
   const [isArticleModalOpen, setIsArticleModalOpen] = useState(false)
+  const [chats, setChats] = useState<ChatSummary[]>([])
+  const [chatMessagesMap, setChatMessagesMap] = useState<Record<string, Message[]>>({})
+  const [activeChatId, setActiveChatId] = useState<string | null>(null)
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLInputElement>(null)
+  const isHydratingRef = useRef(true)
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" })
   }
+
+  const handleNewChat = () => {
+    const id = `chat-${Date.now()}-${Math.random().toString(36).slice(2,8)}`
+    const newChat: ChatSummary = { id, title: 'Untitled research', lastMessage: '', updatedAt: new Date().toISOString() }
+    setChats(prev => [newChat, ...prev])
+    setChatMessagesMap(prev => ({ ...prev, [id]: [] }))
+    setActiveChatId(id)
+    setMessages([])
+  }
+
+  const toggleSidebar = () => setSidebarCollapsed(prev => !prev)
+
+  const handleSelectChat = (id: string) => {
+    setActiveChatId(id)
+    setMessages(chatMessagesMap[id] || [])
+  }
+
+  const handleRenameChat = (id: string, title: string) => {
+    setChats(prev => prev.map(chat => chat.id === id ? { ...chat, title } : chat))
+  }
+
+  const handleDeleteChat = (id: string) => {
+    const remainingChats = chats.filter(chat => chat.id !== id)
+    const nextChatId = activeChatId === id ? (remainingChats[0]?.id ?? null) : activeChatId
+    const { [id]: _removed, ...restMessages } = chatMessagesMap
+
+    setChats(remainingChats)
+    setChatMessagesMap(restMessages)
+
+    if (activeChatId === id) {
+      setActiveChatId(nextChatId || null)
+      setMessages(nextChatId ? (restMessages[nextChatId] || []) : [])
+    }
+  }
+
+  // Hydrate chats from localStorage on first load
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+
+    try {
+      const stored = window.localStorage.getItem(CHAT_STORAGE_KEY)
+      if (!stored) {
+        return
+      }
+
+      const parsed = JSON.parse(stored) as StoredChatState
+      if (!parsed || typeof parsed !== 'object') {
+        return
+      }
+
+      if (parsed.version !== CHAT_STORAGE_VERSION) {
+        // Future migration logic can go here; for now, ignore incompatible versions
+        return
+      }
+
+      const revivedMessages: Record<string, Message[]> = {}
+      Object.entries(parsed.messages || {}).forEach(([chatId, items]) => {
+        revivedMessages[chatId] = items.map((item) => ({
+          ...item,
+          timestamp: item.timestamp ? new Date(item.timestamp) : new Date(),
+          isStreaming: false,
+        }))
+      })
+
+      setChats(parsed.chats || [])
+      setChatMessagesMap(revivedMessages)
+
+      const targetChatId = parsed.activeChatId && revivedMessages[parsed.activeChatId]
+        ? parsed.activeChatId
+        : (parsed.chats && parsed.chats.length > 0 ? parsed.chats[0].id : null)
+
+      if (targetChatId) {
+        setActiveChatId(targetChatId)
+        setMessages(revivedMessages[targetChatId] || [])
+      }
+    } catch (error) {
+      console.warn('Failed to hydrate chat history', error)
+    } finally {
+      // Allow dependent effects to run on the next tick to avoid treating hydration updates as user edits
+      window.setTimeout(() => {
+        isHydratingRef.current = false
+      }, 0)
+    }
+  }, [])
+
+  // Persist current messages into the active chat and update chat summary
+  useEffect(() => {
+    if (!activeChatId || isHydratingRef.current) return
+    setChatMessagesMap(prev => ({ ...prev, [activeChatId]: messages }))
+    setChats(prev => prev.map(c => c.id === activeChatId ? { ...c, lastMessage: messages.length ? (messages[messages.length - 1].content.slice(0, 200)) : '', updatedAt: new Date().toISOString() } : c))
+  }, [messages, activeChatId])
+
+  // Persist chats & messages to localStorage whenever they change (post-hydration)
+  useEffect(() => {
+    if (typeof window === 'undefined' || isHydratingRef.current) return
+
+    try {
+      const serializableMessages: StoredChatState['messages'] = {}
+      Object.entries(chatMessagesMap).forEach(([chatId, items]) => {
+        serializableMessages[chatId] = items.map((item) => ({
+          ...item,
+          timestamp: item.timestamp instanceof Date ? item.timestamp.toISOString() : new Date(item.timestamp).toISOString(),
+        }))
+      })
+
+      const payload: StoredChatState = {
+        version: CHAT_STORAGE_VERSION,
+        activeChatId,
+        chats,
+        messages: serializableMessages,
+      }
+
+      window.localStorage.setItem(CHAT_STORAGE_KEY, JSON.stringify(payload))
+    } catch (error) {
+      console.warn('Failed to persist chat history', error)
+    }
+  }, [chats, chatMessagesMap, activeChatId])
 
   useEffect(() => {
     scrollToBottom()
@@ -82,8 +272,25 @@ export default function NewsResearchPage() {
     const trimmedQuery = query.trim()
     if (!trimmedQuery) return
 
+  // If there's no active chat, create one automatically and name it from the prompt.
+  let newChatTitle: string | undefined = undefined
+  if (!activeChatId) {
+      // Prefer first sentence; fallback to first 4 words
+      const firstSentence = (trimmedQuery.split(/[\.\n]/)[0] || '').trim()
+      const firstFour = trimmedQuery.split(/\s+/).slice(0, 4).join(' ')
+      const titleBase = firstSentence || firstFour || 'New Chat'
+      const title = titleBase.slice(0, 60)
+      const id = `chat-${Date.now()}-${Math.random().toString(36).slice(2,8)}`
+      const newChat = { id, title, lastMessage: trimmedQuery.slice(0, 120), updatedAt: new Date().toISOString() }
+  // add the chat; seed an empty array — messages state (below) will be persisted into the chat via useEffect
+  setChats(prev => [newChat, ...prev])
+  setChatMessagesMap(prev => ({ ...prev, [id]: [] }))
+      setActiveChatId(id)
+      newChatTitle = title
+    }
+
     const timestamp = Date.now()
-    const assistantId = `assistant-${timestamp}`
+  const assistantId = `assistant-${timestamp}`
     const semanticToolId = `semantic-${timestamp}`
 
     const userMessage: Message = {
@@ -94,17 +301,20 @@ export default function NewsResearchPage() {
     }
 
     const thinkingSteps: ThinkingStep[] = []
-    let structuredArticles: any = null
-    let finalResult: ResearchResult | null = null
+    let structuredArticles: StructuredArticlesPayload | undefined
+  let finalResult: ResearchResult | undefined
 
     setMessages(prev => [...prev, userMessage])
     setQuery("")
     setIsSearching(true)
 
+
+  // Include chat title in the initial assistant placeholder to give context (saves tokens vs re-requesting)
+  const currentChatTitle = newChatTitle || chats.find(c => c.id === activeChatId)?.title || undefined
     const streamingPlaceholder: Message = {
       id: assistantId,
       type: 'assistant',
-      content: "",
+      content: currentChatTitle ? `Topic: ${currentChatTitle}` : "",
       timestamp: new Date(),
       isStreaming: true,
       streamingStatus: "Starting research..."
@@ -171,121 +381,165 @@ export default function NewsResearchPage() {
 
       eventSource.onmessage = (event) => {
         try {
-          const data = JSON.parse(event.data)
+          const data = JSON.parse(event.data) as ResearchStreamMessage
 
-          if (data.type === 'status') {
-            setMessages(prev => prev.map(msg =>
-              msg.id === assistantId
-                ? { ...msg, streamingStatus: data.message }
-                : msg
-            ))
-          } else if (data.type === 'thinking_step') {
+          if (isStatusMessage(data)) {
+            setMessages(prev =>
+              prev.map((msg) => {
+                if (msg.id !== assistantId) {
+                  return msg
+                }
+                return {
+                  ...msg,
+                  streamingStatus: data.message
+                }
+              })
+            )
+          } else if (isThinkingStepMessage(data)) {
             thinkingSteps.push(data.step)
-            setMessages(prev => prev.map(msg =>
-              msg.id === assistantId
-                ? {
-                    ...msg,
-                    thinking_steps: [...thinkingSteps],
-                    streamingStatus: `Processing: ${data.step.type}...`
-                  }
-                : msg
-            ))
-          } else if (data.type === 'articles_json') {
+            setMessages(prev =>
+              prev.map((msg) => {
+                if (msg.id !== assistantId) {
+                  return msg
+                }
+                return {
+                  ...msg,
+                  thinking_steps: [...thinkingSteps],
+                  streamingStatus: `Processing: ${data.step.type}...`
+                }
+              })
+            )
+          } else if (isArticlesJsonMessage(data)) {
             try {
               const jsonMatch = data.data.match(/```json:articles\n([\s\S]*?)\n```/)
               if (jsonMatch) {
-                structuredArticles = JSON.parse(jsonMatch[1])
-                setMessages(prev => prev.map(msg =>
-                  msg.id === assistantId
-                    ? { ...msg, structured_articles_json: structuredArticles, streamingStatus: 'Received article data...' }
-                    : msg
-                ))
+                structuredArticles = JSON.parse(jsonMatch[1]) as StructuredArticlesPayload
+                setMessages(prev =>
+                  prev.map((msg) => {
+                    if (msg.id !== assistantId) {
+                      return msg
+                    }
+                    return {
+                      ...msg,
+                      structured_articles_json: structuredArticles,
+                      streamingStatus: 'Received article data...'
+                    }
+                  })
+                )
               }
             } catch (jsonError) {
               console.error('Failed to parse structured articles:', jsonError)
             }
-          } else if (data.type === 'referenced_articles') {
-            const referencedArticles: NewsArticle[] = data.articles?.map((article: any) => ({
-              id: Date.now() + Math.random(),
-              title: article.title || 'No title',
-              source: article.source || 'Unknown',
-              sourceId: (article.source || 'unknown').toLowerCase().replace(/\s+/g, '-'),
-              country: 'United States',
-              credibility: 'medium' as const,
-              bias: 'center' as const,
-              summary: article.description || 'No description',
-              content: article.description || 'No description',
-              image: article.image || "/placeholder.svg",
-              publishedAt: article.published || new Date().toISOString(),
-              category: article.category || 'general',
-              url: article.link || '',
-              tags: [article.category, article.source].filter(Boolean),
-              originalLanguage: 'en',
-              translated: false
-            })) || []
+          } else if (isReferencedArticlesMessage(data)) {
+            const referencedArticlesPayload: ReferencedArticlePayload[] = Array.isArray(data.articles) ? data.articles : []
+            const referencedArticles: NewsArticle[] = referencedArticlesPayload.map((article) => {
+              const tags = [article.category, article.source].filter((value): value is string => Boolean(value))
 
-            setMessages(prev => prev.map(msg =>
-              msg.id === assistantId
-                ? { ...msg, referenced_articles: referencedArticles, streamingStatus: 'Processing articles...' }
-                : msg
-            ))
-          } else if (data.type === 'complete') {
+              return {
+                id: Date.now() + Math.random(),
+                title: article.title || 'No title',
+                source: article.source || 'Unknown',
+                sourceId: (article.source || 'unknown').toLowerCase().replace(/\s+/g, '-'),
+                country: 'United States',
+                credibility: 'medium' as const,
+                bias: 'center' as const,
+                summary: article.description || 'No description',
+                content: article.description || 'No description',
+                image: article.image || "/placeholder.svg",
+                publishedAt: article.published || new Date().toISOString(),
+                category: article.category || 'general',
+                url: article.link || '',
+                tags,
+                originalLanguage: 'en',
+                translated: false
+              }
+            })
+
+            setMessages(prev =>
+              prev.map((msg) => {
+                if (msg.id !== assistantId) {
+                  return msg
+                }
+                return {
+                  ...msg,
+                  referenced_articles: referencedArticles,
+                  streamingStatus: 'Processing articles...'
+                }
+              })
+            )
+          } else if (isCompleteMessage(data)) {
             window.clearTimeout(stallTimeout)
-            finalResult = data.result as ResearchResult
+            finalResult = data.result
             eventSource.close()
 
-            const referencedArticles: NewsArticle[] = finalResult.referenced_articles?.map((article: any) => ({
-              id: Date.now() + Math.random(),
-              title: article.title || 'No title',
-              source: article.source || 'Unknown',
-              sourceId: (article.source || 'unknown').toLowerCase().replace(/\s+/g, '-'),
-              country: 'United States',
-              credibility: 'medium' as const,
-              bias: 'center' as const,
-              summary: article.description || 'No description',
-              content: article.description || 'No description',
-              image: article.image || "/placeholder.svg",
-              publishedAt: article.published || new Date().toISOString(),
-              category: article.category || 'general',
-              url: article.link || '',
-              tags: [article.category, article.source].filter(Boolean),
-              originalLanguage: 'en',
-              translated: false
-            })) || []
+            const referencedArticles: NewsArticle[] = (finalResult.referenced_articles ?? []).map((article) => {
+              const tags = [article.category, article.source].filter((value): value is string => Boolean(value))
 
-            setMessages(prev => prev.map(msg =>
-              msg.id === assistantId
-                ? {
-                    ...msg,
-                    content: finalResult?.answer || 'No answer returned.',
-                    thinking_steps: [...thinkingSteps],
-                    articles_searched: finalResult?.articles_searched,
-                    referenced_articles: referencedArticles,
-                    structured_articles_json: structuredArticles,
-                    isStreaming: false,
-                    streamingStatus: undefined,
-                    error: !finalResult?.success
-                  }
-                : msg
-            ))
+              return {
+                id: Date.now() + Math.random(),
+                title: article.title || 'No title',
+                source: article.source || 'Unknown',
+                sourceId: (article.source || 'unknown').toLowerCase().replace(/\s+/g, '-'),
+                country: 'United States',
+                credibility: 'medium' as const,
+                bias: 'center' as const,
+                summary: article.description || 'No description',
+                content: article.description || 'No description',
+                image: article.image || "/placeholder.svg",
+                publishedAt: article.published || new Date().toISOString(),
+                category: article.category || 'general',
+                url: article.link || '',
+                tags,
+                originalLanguage: 'en',
+                translated: false
+              }
+            })
+
+            setMessages(prev =>
+              prev.map((msg) => {
+                if (msg.id !== assistantId) {
+                  return msg
+                }
+                return {
+                  ...msg,
+                  content: finalResult?.answer || 'No answer returned.',
+                  thinking_steps: [...thinkingSteps],
+                  articles_searched: finalResult?.articles_searched,
+                  referenced_articles: referencedArticles,
+                  structured_articles_json: structuredArticles ?? msg.structured_articles_json,
+                  isStreaming: false,
+                  streamingStatus: undefined,
+                  error: !finalResult?.success
+                }
+              })
+            )
 
             setIsSearching(false)
             inputRef.current?.focus()
-          } else if (data.type === 'error') {
+          } else if (isErrorMessage(data)) {
             window.clearTimeout(stallTimeout)
             eventSource.close()
 
-            let errorMessage: string = data.message || 'The research agent encountered an error.'
+            let errorMessage = data.message || 'The research agent encountered an error.'
             const lowered = errorMessage.toLowerCase()
             if (lowered.includes('rate limit') || lowered.includes('quota') || lowered.includes('429')) {
               errorMessage = '⚠️ API Rate Limit: The AI service has reached its rate limit. Please wait a moment and try again.'
             }
 
-            setMessages(prev => prev.map(msg =>
-              msg.id === assistantId
-                ? { ...msg, content: errorMessage, error: true, isStreaming: false, streamingStatus: undefined }
-                : msg
-            ))
+            setMessages(prev =>
+              prev.map((msg) => {
+                if (msg.id !== assistantId) {
+                  return msg
+                }
+                return {
+                  ...msg,
+                  content: errorMessage,
+                  error: true,
+                  isStreaming: false,
+                  streamingStatus: undefined
+                }
+              })
+            )
             setIsSearching(false)
           }
         } catch (parseError) {
@@ -447,31 +701,77 @@ export default function NewsResearchPage() {
       {/* Header - Minimal */}
       <header className="border-b fixed top-0 left-0 right-0 z-50 backdrop-blur-lg" style={{ borderColor: 'var(--border)', backgroundColor: 'var(--news-bg-secondary)' + 'E6' }}>
         <div className="container mx-auto px-4 py-3">
-          <div className="flex items-center justify-between">
-            <Link href="/" className="flex items-center gap-2 hover:opacity-80 transition-opacity">
-              <ArrowLeft className="w-4 h-4" style={{ color: 'var(--muted-foreground)' }} />
-              <span className="text-sm" style={{ color: 'var(--muted-foreground)' }}>Back</span>
-            </Link>
-            
+          {/* Small screens: simple flex header */}
+          <div className="flex items-center justify-between md:hidden">
+            <div className="flex items-center gap-2">
+              <button onClick={toggleSidebar} className="p-2 rounded-md hover:bg-neutral-800/30">
+                {sidebarCollapsed ? <ChevronRight className="w-4 h-4 text-neutral-300" /> : <ChevronLeft className="w-4 h-4 text-neutral-300" />}
+              </button>
+              <Link href="/" className="flex items-center gap-2 hover:opacity-80 transition-opacity">
+                <ArrowLeft className="w-4 h-4" style={{ color: 'var(--muted-foreground)' }} />
+                <span className="text-sm" style={{ color: 'var(--muted-foreground)' }}>Back</span>
+              </Link>
+            </div>
             <div className="flex items-center gap-2">
               <Brain className="w-5 h-5 text-primary" />
               <h1 className="text-lg font-semibold">News Research</h1>
             </div>
-
             <div className="flex items-center gap-2">
               <Button variant="ghost" size="sm">
                 <Settings className="w-4 h-4" />
               </Button>
             </div>
           </div>
+
+          {/* md+ screens: grid header aligned with sidebar width */}
+          <div className="hidden md:block">
+            <div className="grid" style={{ gridTemplateColumns: sidebarCollapsed ? '64px 1fr 64px' : '18rem 1fr 64px', alignItems: 'center' }}>
+              <div className="flex items-center">
+                <Link href="/" className="flex items-center gap-2 hover:opacity-80 transition-opacity">
+                  <ArrowLeft className="w-4 h-4" style={{ color: 'var(--muted-foreground)' }} />
+                  <span className="text-sm" style={{ color: 'var(--muted-foreground)' }}>Back</span>
+                </Link>
+              </div>
+
+              <div className="flex items-center justify-center">
+                <div className="flex items-center gap-2">
+                  <Brain className="w-5 h-5 text-primary" />
+                  <h1 className="text-lg font-semibold">News Research</h1>
+                </div>
+              </div>
+
+              <div className="flex items-center justify-end gap-2">
+                <Button variant="ghost" size="sm">
+                  <Settings className="w-4 h-4" />
+                </Button>
+              </div>
+            </div>
+          </div>
         </div>
       </header>
 
       {/* Main Content */}
-      <main className="flex-1 flex flex-col pt-16">
-        {/* Messages Area */}
-        <div className="flex-1 overflow-y-auto">
-          <div className="container mx-auto px-4 py-8 max-w-4xl">
+      <main className="flex flex-1 pt-16 overflow-hidden">
+        <div className="flex flex-1 overflow-hidden">
+          {/* Sidebar - hidden on very small screens */}
+          <div className="hidden md:flex flex-shrink-0 h-full">
+            <ChatSidebar
+              chats={chats}
+              onSelect={handleSelectChat}
+              onNewChat={handleNewChat}
+              onRename={handleRenameChat}
+              onDelete={handleDeleteChat}
+              activeId={activeChatId}
+              collapsed={sidebarCollapsed}
+              onToggle={toggleSidebar}
+            />
+          </div>
+
+          {/* Right/Main column */}
+          <div className="flex flex-1 flex-col overflow-hidden" style={{ backgroundColor: 'var(--news-bg-primary)' }}>
+            {/* Messages Area */}
+            <div className="flex-1 overflow-y-auto">
+              <div className="container mx-auto px-4 py-8 max-w-4xl">
 
             {/* Welcome State */}
             {messages.length === 0 && (
@@ -586,29 +886,41 @@ export default function NewsResearchPage() {
                           ) : (
                             <>
                               {(() => {
-                              // Try to get articles from referenced_articles first, then from structured_articles_json
-                              const articlesToEmbed = message.referenced_articles || 
-                                                       message.structured_articles_json?.articles?.map((article: any) => ({
-                                                         id: Date.now() + Math.random(),
-                                                         title: article.title || 'No title',
-                                                         source: article.source || 'Unknown',
-                                                         sourceId: (article.source || 'unknown').toLowerCase().replace(/\s+/g, '-'),
-                                                         country: 'United States',
-                                                         credibility: 'medium' as const,
-                                                         bias: 'center' as const,
-                                                         summary: article.description || 'No description',
-                                                         content: article.description || 'No description',
-                                                         image: article.image || "/placeholder.svg",
-                                                         publishedAt: article.published || new Date().toISOString(),
-                                                         category: article.category || 'general',
-                                                         url: article.link || '',
-                                                         tags: [article.category, article.source].filter(Boolean),
-                                                         originalLanguage: "en",
-                                                         translated: false
-                                                       })) || [];
-                              
-                              return renderContentWithEmbeds(message.content, articlesToEmbed);
-                            })()}
+                                const structuredFallback: NewsArticle[] = (message.structured_articles_json?.articles ?? []).map((article) => {
+                                  const tags = [article.category, article.source].filter((value): value is string => Boolean(value))
+                                  const link = typeof article.link === 'string' && article.link
+                                    ? article.link
+                                    : typeof article.url === 'string'
+                                      ? article.url
+                                      : ''
+                                  const description = article.summary || article.description || 'No description'
+
+                                  return {
+                                    id: Date.now() + Math.random(),
+                                    title: article.title || 'No title',
+                                    source: article.source || 'Unknown',
+                                    sourceId: (article.source || 'unknown').toLowerCase().replace(/\s+/g, '-'),
+                                    country: 'United States',
+                                    credibility: 'medium' as const,
+                                    bias: 'center' as const,
+                                    summary: description,
+                                    content: description,
+                                    image: article.image || "/placeholder.svg",
+                                    publishedAt: article.published || new Date().toISOString(),
+                                    category: article.category || 'general',
+                                    url: link,
+                                    tags,
+                                    originalLanguage: 'en',
+                                    translated: false
+                                  }
+                                })
+
+                                const articlesToEmbed: NewsArticle[] = (message.referenced_articles && message.referenced_articles.length > 0)
+                                  ? message.referenced_articles
+                                  : structuredFallback
+
+                                return renderContentWithEmbeds(message.content, articlesToEmbed)
+                              })()}
                             
                             {/* Render structured articles grid if available - hidden since embeds cover this use case */}
                           </>
@@ -717,45 +1029,46 @@ export default function NewsResearchPage() {
 
             {/* Loading state is now shown inline in the streaming message */}
             
-            <div ref={messagesEndRef} />
-          </div>
-        </div>
-
-        {/* Input Area - Fixed at bottom */}
-        <div className="border-t backdrop-blur-lg" style={{ borderColor: 'var(--border)', backgroundColor: 'var(--news-bg-secondary)' + 'E6' }}>
-          <div className="container mx-auto px-4 py-4 max-w-4xl">
-            <form onSubmit={handleSearch}>
-              <div className="flex gap-2">
-                <Input
-                  ref={inputRef}
-                  type="text"
-                  placeholder="Ask me anything about the news..."
-                  value={query}
-                  onChange={(e) => setQuery(e.target.value)}
-                  className="flex-1 h-12 text-sm rounded-xl border-2 focus:border-primary transition-colors"
-                  style={{ 
-                    backgroundColor: 'var(--news-bg-primary)', 
-                    borderColor: 'var(--border)',
-                  }}
-                  disabled={isSearching}
-                />
-                <Button 
-                  type="submit" 
-                  size="lg"
-                  disabled={isSearching || !query.trim()}
-                  className="px-6 h-12 rounded-xl"
-                >
-                  {isSearching ? (
-                    <Loader2 className="h-5 w-5 animate-spin" />
-                  ) : (
-                    <Sparkles className="h-5 w-5" />
-                  )}
-                </Button>
+                <div ref={messagesEndRef} />
               </div>
-            </form>
+            </div>
+
+            {/* Input Area - Fixed at bottom */}
+            <div className="border-t backdrop-blur-lg" style={{ borderColor: 'var(--border)', backgroundColor: 'var(--news-bg-secondary)' + 'E6' }}>
+              <div className="container mx-auto px-4 py-4 max-w-4xl">
+                <form onSubmit={handleSearch}>
+                  <div className="flex gap-2">
+                    <Input
+                      ref={inputRef}
+                      type="text"
+                      placeholder="Ask me anything about the news..."
+                      value={query}
+                      onChange={(e) => setQuery(e.target.value)}
+                      className="flex-1 h-12 text-sm rounded-xl border-2 focus:border-primary transition-colors"
+                      style={{
+                        backgroundColor: 'var(--news-bg-primary)',
+                        borderColor: 'var(--border)',
+                      }}
+                      disabled={isSearching}
+                    />
+                    <Button
+                      type="submit"
+                      size="lg"
+                      disabled={isSearching || !query.trim()}
+                      className="px-6 h-12 rounded-xl"
+                    >
+                      {isSearching ? (
+                        <Loader2 className="h-5 w-5 animate-spin" />
+                      ) : (
+                        <Sparkles className="h-5 w-5" />
+                      )}
+                    </Button>
+                  </div>
+                </form>
+              </div>
+            </div>
           </div>
         </div>
-
       </main>
 
       {/* Article Detail Modal */}

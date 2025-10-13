@@ -283,7 +283,6 @@ dist
 
 # Gatsby files
 .cache/
-public
 
 # Storybook build outputs
 .out
@@ -351,4 +350,3 @@ htmlcov/
 # Docker volumes and data
 docker-compose.override.yml
 volumes/
-data/
