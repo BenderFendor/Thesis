@@ -17,6 +17,7 @@ class Settings:
         "http://localhost:3000",
         "http://localhost:3001",
     )
+    enable_live_ingestion: bool = os.getenv("ENABLE_LIVE_INGESTION", "false").lower() == "true"
 
 
 settings = Settings()

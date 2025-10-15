@@ -95,6 +95,7 @@ export interface StreamEvent {
   successful_sources?: number;
   failed_sources?: number;
   timestamp?: string;
+  is_sample_data?: boolean;
 }
 
 // API functions
@@ -662,6 +663,7 @@ export function streamNews(options: StreamOptions = {}): {
     sources: string[];
     streamId?: string;
     errors: string[];
+    isSampleData: boolean;
   }>;
   url: string;
 } {
@@ -684,6 +686,7 @@ export function streamNews(options: StreamOptions = {}): {
     sources: string[];
     streamId?: string;
     errors: string[];
+    isSampleData: boolean;
   }>((resolve, reject) => {
     const articles: NewsArticle[] = [];
     const sources = new Set<string>();
@@ -691,6 +694,7 @@ export function streamNews(options: StreamOptions = {}): {
     let streamId: string | undefined;
     let hasReceivedData = false;
     let settled = false;
+    let isSampleData = false;
     
     console.log(`🔗 Connecting to unified stream endpoint: ${sseUrl}`);
     
@@ -707,10 +711,11 @@ export function streamNews(options: StreamOptions = {}): {
           reject(new Error('Stream timeout - no data received'));
         } else {
           resolve({
-            articles,
+            articles: removeDuplicateArticles(articles),
             sources: Array.from(sources),
             streamId,
-            errors: [...errors, 'Stream timeout']
+            errors: [...errors, 'Stream timeout'],
+            isSampleData
           });
         }
       }, 120000); // 2 minutes timeout
@@ -729,7 +734,8 @@ export function streamNews(options: StreamOptions = {}): {
         articles: removeDuplicateArticles(articles),
         sources: Array.from(sources),
         streamId,
-        errors: [...errors, 'aborted']
+        errors: [...errors, 'aborted'],
+        isSampleData
       });
     };
     if (signal) {
@@ -787,6 +793,10 @@ export function streamNews(options: StreamOptions = {}): {
             
           case 'cache_data':
             hasReceivedData = true;
+            if (data.is_sample_data) {
+              isSampleData = true;
+              console.log(`🧪 Stream ${streamId} received sample dataset marker.`);
+            }
             if (data.articles && Array.isArray(data.articles)) {
               const mappedArticles = mapBackendArticles(data.articles);
               articles.push(...mappedArticles);
@@ -804,7 +814,7 @@ export function streamNews(options: StreamOptions = {}): {
                 completed: sources.size, // Or some other logic for progress
                 total: sources.size, // Unsure of total at this point
                 percentage: 0, // Or calculate based on expected sources
-                message: `Loaded ${mappedArticles.length} cached articles`
+                message: data.message || `Loaded ${mappedArticles.length} cached articles`
               });
             } else {
                 console.warn(`[streamNews] 'cache_data' event received but 'articles' is not an array or is missing.`, data);
@@ -840,6 +850,9 @@ export function streamNews(options: StreamOptions = {}): {
             break;
             
           case 'complete':
+            if (data.is_sample_data) {
+              isSampleData = true;
+            }
             console.log(`🏁 Stream ${streamId} complete:`, {
               totalArticles: data.total_articles,
               successfulSources: data.successful_sources,
@@ -856,7 +869,8 @@ export function streamNews(options: StreamOptions = {}): {
                 articles: removeDuplicateArticles(articles),
                 sources: Array.from(sources),
                 streamId,
-                errors
+                errors,
+                isSampleData
               });
             }
             break;
@@ -874,7 +888,8 @@ export function streamNews(options: StreamOptions = {}): {
                   articles: removeDuplicateArticles(articles),
                   sources: Array.from(sources),
                   streamId,
-                  errors: [...errors, data.error || 'Stream error']
+                  errors: [...errors, data.error || 'Stream error'],
+                  isSampleData
                 });
               }
             } else {
@@ -910,7 +925,8 @@ export function streamNews(options: StreamOptions = {}): {
             articles: removeDuplicateArticles(articles),
             sources: Array.from(sources),
             streamId,
-            errors: [...errors, errorMsg]
+            errors: [...errors, errorMsg],
+            isSampleData
           });
         }
       } else {

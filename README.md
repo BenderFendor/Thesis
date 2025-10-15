@@ -38,8 +38,12 @@ npm run dev
 Create `backend/.env` (copy from `.env.example`) and set:
 ```env
 GEMINI_API_KEY=your_api_key_here
+# Optional: re-enable live RSS polling (defaults to sample dataset in dev)
+# ENABLE_LIVE_INGESTION=true
 ```
 The backend uses this for Gemini-powered analysis, agentic search, and fact-checking. Restart the backend after updating keys.
+
+> ℹ️ **Offline-friendly default**: When `ENABLE_LIVE_INGESTION` is not set, the backend skips external RSS calls and streams a curated sample news dataset instantly. Set the flag to `true` when you want full live ingestion.
 
 ### Quick AI Smoke Test
 1. Start backend and frontend.
