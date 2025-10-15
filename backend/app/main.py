@@ -10,7 +10,9 @@ from fastapi.middleware.cors import CORSMiddleware
 from app.api.routes import router as api_router
 from app.core.config import settings
 from app.core.logging import configure_logging, get_logger
-from app.database import init_db
+from app.database import init_db, AsyncSessionLocal, fetch_all_articles
+from app.models.news import NewsArticle
+from app.services.cache import news_cache
 from app.services.image_scraper import start_image_scraping_scheduler
 from app.services.persistence import (
     article_persistence_worker,
@@ -74,9 +76,34 @@ def _start_schedulers_once() -> None:
         logger.info("Background schedulers initialised")
 
 
-def _initial_cache_load() -> None:
+async def _load_cache_from_db_fast() -> None:
+    """Fast path: Load cached articles from DB on startup (~2-5 seconds for 1100+ articles)."""
+    logger.info("📦 Attempting to load articles from database...")
     try:
-        refresh_news_cache()
+        async with AsyncSessionLocal() as session:
+            # Fetch a reasonable limit of recent articles from DB
+            articles_dicts = await fetch_all_articles(session, limit=2000)
+            if articles_dicts:
+                # Convert dictionaries back to NewsArticle Pydantic models
+                articles = [NewsArticle(**article_dict) for article_dict in articles_dicts]
+                stats = {"loaded_from_db": len(articles), "sources": {}}
+                news_cache.update_cache(articles, stats)
+                logger.info("✅ Loaded %d articles from database into cache.", len(articles))
+                return
+            else:
+                logger.warning("⚠️ No articles in DB, falling back to full RSS fetch.")
+    except Exception as e:
+        logger.error("❌ Failed to load from DB: %s. Falling back to RSS.", e)
+    
+    # Fallback: do full RSS fetch if DB load fails or returns no articles
+    refresh_news_cache()
+
+
+def _initial_cache_load() -> None:
+    """Initialize cache on startup using fast DB load path."""
+    try:
+        logger.info("🚀 Starting initial cache load...")
+        asyncio.run(_load_cache_from_db_fast())
         logger.info("Initial cache population complete")
     except Exception as exc:  # pragma: no cover - defensive logging
         logger.error("Initial cache population failed: %s", exc, exc_info=True)

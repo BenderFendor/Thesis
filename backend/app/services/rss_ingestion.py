@@ -318,27 +318,15 @@ def refresh_news_cache() -> None:
     news_cache.update_in_progress = True
     all_articles: List[NewsArticle] = []
     source_stats: List[Dict[str, Any]] = []
-    source_last_processed: Dict[str, float] = {}
 
     rss_sources = get_rss_sources()
 
     def partial_update_callback(new_articles: List[NewsArticle], new_source_stat: Dict[str, Any]) -> None:
         logger.info("[Partial] Loaded %s articles from %s", len(new_articles), new_source_stat["name"])
 
-    throttle_interval = 20
-
-    def throttled_process_source(name: str, info: Dict[str, Any]) -> Tuple[List[NewsArticle], Dict[str, Any]]:
-        now = time.time()
-        elapsed = now - source_last_processed.get(name, 0)
-        if elapsed < throttle_interval:
-            sleep_time = throttle_interval - elapsed
-            logger.info("Throttling %s: Sleeping %.1fs", name, sleep_time)
-            time.sleep(sleep_time)
-        source_last_processed[name] = time.time()
-        return _process_source(name, info)
-
+    # Parallel fetch without per-source throttling (concurrent execution is the throttle)
     with concurrent.futures.ThreadPoolExecutor(max_workers=5) as executor:
-        futures = {executor.submit(throttled_process_source, name, info): name for name, info in rss_sources.items()}
+        futures = {executor.submit(_process_source, name, info): name for name, info in rss_sources.items()}
         for future in concurrent.futures.as_completed(futures):
             source_name = futures[future]
             try:

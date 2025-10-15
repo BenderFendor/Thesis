@@ -144,6 +144,21 @@ def article_record_to_dict(record: Article) -> Dict[str, Any]:
     }
 
 
+async def fetch_all_articles(
+    session: AsyncSession,
+    limit: int = 2000,
+) -> List[Dict[str, Any]]:
+    """Fetch all articles from database (used for cache initialization on startup)."""
+    stmt = (
+        select(Article)
+        .order_by(Article.published_at.desc(), Article.id.desc())
+        .limit(limit)
+    )
+
+    result = await session.execute(stmt)
+    return [article_record_to_dict(record) for record in result.scalars().all()]
+
+
 async def fetch_recent_articles(
     session: AsyncSession,
     limit: int = 50,

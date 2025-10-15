@@ -99,4 +99,5 @@ The backend loads up really slowly so if I could speed that up that would be gre
  Instrument Serif and maybe Libre Bodoni
 
  # Add Static code anylsis as well
- 
+
+ # Add feature to news from only some sources like a selection thing.

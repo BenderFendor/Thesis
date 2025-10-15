@@ -288,7 +288,7 @@ export interface SourceStats {
 
 export async function fetchSourceStats(): Promise<SourceStats[]> {
   try {
-    const response = await fetch(`${API_BASE_URL}/sources/stats`);
+    const response = await fetch(`${API_BASE_URL}/news/sources/stats`);
     
     if (!response.ok) {
       throw new Error(`HTTP error! status: ${response.status}`);
@@ -900,7 +900,16 @@ export function streamNews(options: StreamOptions = {}): {
       clearTimeout(timeoutId);
       eventSource.close();
       
-      const errorMsg = 'Stream connection error';
+      // Provide detailed error information
+      let errorMsg = 'Stream connection error';
+      
+      if (eventSource.readyState === EventSource.CLOSED) {
+        errorMsg = `Stream connection closed: Server ended connection prematurely. Check backend logs for details.`;
+      } else if (eventSource.readyState === EventSource.CONNECTING) {
+        errorMsg = `Stream connection failed: Could not establish connection to backend at ${sseUrl}. Is the backend running?`;
+      }
+      
+      console.error(`📊 Detailed error - ReadyState: ${eventSource.readyState}, StreamId: ${streamId}, URL: ${sseUrl}`);
       
       if (hasReceivedData) {
         // Return partial data if we got some

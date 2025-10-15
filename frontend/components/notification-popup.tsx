@@ -42,7 +42,7 @@ export function NotificationsPopup({ notifications, onClear, onClearAll, onRetry
                     </div>
                     <div className="flex-1">
                       <div className="font-semibold text-sm">{notification.title}</div>
-                      <p className="text-xs" style={{ color: 'var(--muted-foreground)' }}>{notification.description}</p>
+                      <p className="text-xs whitespace-pre-wrap break-words max-h-24 overflow-y-auto" style={{ color: 'var(--muted-foreground)' }}>{notification.description}</p>
                     </div>
                   </div>
                 </button>

@@ -57,5 +57,30 @@ async def get_categories() -> Dict[str, List[str]]:
 
 @router.get("/sources/stats")
 async def get_source_stats() -> Dict[str, object]:
+    """Return stats for all configured sources."""
+    configured_sources = get_rss_sources()
     source_stats = news_cache.get_source_stats()
-    return {"sources": source_stats, "total_sources": len(source_stats)}
+    
+    # Create a map of existing stats by name
+    stats_map = {stat['name']: stat for stat in source_stats}
+    
+    # Ensure all configured sources are in the response
+    all_stats = []
+    for source_name, source_info in configured_sources.items():
+        if source_name in stats_map:
+            all_stats.append(stats_map[source_name])
+        else:
+            all_stats.append({
+                "name": source_name,
+                "url": source_info.get("url", ""),
+                "category": source_info.get("category", "general"),
+                "country": source_info.get("country", ""),
+                "funding_type": source_info.get("funding_type"),
+                "bias_rating": source_info.get("bias_rating"),
+                "article_count": 0,
+                "status": "pending",
+                "error_message": None,
+                "last_checked": None,
+            })
+    
+    return {"sources": all_stats, "total_sources": len(all_stats)}
