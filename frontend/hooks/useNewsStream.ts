@@ -3,7 +3,7 @@ import { streamNews, type NewsArticle, type StreamOptions, type StreamProgress }
 
 interface UseNewsStreamOptions extends Omit<StreamOptions, 'onProgress' | 'onSourceComplete' | 'onError'> {
   onUpdate?: (articles: NewsArticle[]) => void
-  onComplete?: (result: { articles: NewsArticle[]; sources: string[]; errors: string[]; isSampleData: boolean }) => void
+  onComplete?: (result: { articles: NewsArticle[]; sources: string[]; errors: string[] }) => void
   onError?: (error: string) => void
   autoStart?: boolean
 }
@@ -19,7 +19,6 @@ export const useNewsStream = (options: UseNewsStreamOptions = {}) => {
   const [streamId, setStreamId] = useState<string>()
   const [apiUrl, setApiUrl] = useState<string | null>(null)
   const [retryCount, setRetryCount] = useState(0)
-  const [isSampleData, setIsSampleData] = useState(false)
   const maxRetries = 3;
 
   const streamPromiseRef = useRef<Promise<any> | null>(null)
@@ -53,7 +52,6 @@ export const useNewsStream = (options: UseNewsStreamOptions = {}) => {
     setErrors([])
     setStreamId(undefined)
     setApiUrl(null)
-  setIsSampleData(false)
 
     try {
       const streamData = streamNews({
@@ -97,14 +95,8 @@ export const useNewsStream = (options: UseNewsStreamOptions = {}) => {
         setSources(result.sources);
         setErrors(result.errors);
         setStreamId(result.streamId);
-        setIsSampleData(result.isSampleData);
-        const statusLabel = result.isSampleData ? 'complete-sample' : 'complete';
-        setStatus(statusLabel);
-        setCurrentMessage(
-          result.isSampleData
-            ? `Showing ${result.articles.length} sample articles (offline mode)`
-            : `Loaded ${result.articles.length} articles from ${result.sources.length} sources`
-        );
+        setStatus('complete');
+        setCurrentMessage(`Loaded ${result.articles.length} articles from ${result.sources.length} sources`);
         options.onComplete?.(result);
         setRetryCount(0); // Reset on success
       }
@@ -143,7 +135,6 @@ export const useNewsStream = (options: UseNewsStreamOptions = {}) => {
         setStatus('cancelled');
         const cancellationError = 'Stream cancelled. This is expected on initial load in development. Click to retry.';
         setCurrentMessage(cancellationError);
-        setIsSampleData(false);
         if (immediate) { // Only add error for immediate cancellations (e.g., category change)
           setErrors(prev => [...prev, cancellationError]);
           options.onError?.(cancellationError);
@@ -216,13 +207,12 @@ export const useNewsStream = (options: UseNewsStreamOptions = {}) => {
     errors,
     streamId,
     apiUrl,
-  isSampleData,
     
     // Computed values
     completedSources: progress.completed,
     totalSources: progress.total,
     hasErrors: errors.length > 0,
-  isComplete: status === 'complete' || status === 'complete-sample',
+    isComplete: status === 'complete',
     isError: status === 'error',
     
     // Actions

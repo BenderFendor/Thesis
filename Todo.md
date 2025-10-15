@@ -94,3 +94,9 @@ https://dl.acm.org/doi/10.1145/3706598.3713716
 
 # Speeding up the database loading
 The backend loads up really slowly so if I could speed that up that would be great.
+
+# Fonts to switch to
+ Instrument Serif and maybe Libre Bodoni
+
+ # Add Static code anylsis as well
+ 

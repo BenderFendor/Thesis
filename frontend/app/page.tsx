@@ -96,12 +96,9 @@ function NewsPage() {
     setLoading(false);
   }, []);
 
-  const onComplete = useCallback((result: { articles: NewsArticle[]; isSampleData: boolean }) => {
+  const onComplete = useCallback((result: { articles: NewsArticle[] }) => {
     setLoading(false);
     setArticleCount(result.articles.length);
-    if (result.isSampleData) {
-      console.info('🧪 News stream delivered sample dataset (offline mode).');
-    }
   }, []);
 
   const onError = useCallback((error: string) => {

@@ -14,7 +14,6 @@ from urllib.parse import urljoin, urlparse
 import feedparser  # type: ignore[import-unresolved]
 import requests
 
-from app.core.config import settings
 from app.core.logging import get_logger
 from app.data.rss_sources import get_rss_sources
 from app.models.news import NewsArticle
@@ -24,110 +23,6 @@ from app.services.websocket_manager import manager
 
 logger = get_logger("rss_ingestion")
 stream_logger = get_logger("news_stream")
-
-
-_SAMPLE_ARTICLES_SEED: List[Dict[str, Any]] = [
-    {
-        "title": "Global Markets Rally on Technological Breakthrough",
-        "link": "https://example.com/markets-tech-breakthrough",
-        "description": "Major indices surged worldwide after a breakthrough in quantum battery technology promised faster charging for electric vehicles.",
-        "source": "Tech Horizons Daily",
-        "category": "technology",
-        "image": "https://images.example.com/tech-battery.jpg",
-        "country": "US",
-        "bias_rating": "center",
-    },
-    {
-        "title": "Climate Accord Reached at Emergency Summit",
-        "link": "https://example.com/climate-accord",
-        "description": "Leaders from 40 nations agreed to accelerate carbon reduction commitments, introducing a global clean-energy financing framework.",
-        "source": "World Policy Ledger",
-        "category": "environment",
-        "image": "https://images.example.com/climate-accord.jpg",
-        "country": "UK",
-        "bias_rating": "left",
-    },
-    {
-        "title": "Rural Healthcare Initiative Expands Telemedicine",
-        "link": "https://example.com/telemedicine-expansion",
-        "description": "A public-private partnership will deploy telemedicine hubs across underserved rural regions, aiming to cut critical response times by 35%.",
-        "source": "Health Access Now",
-        "category": "health",
-        "image": "https://images.example.com/telemedicine.jpg",
-        "country": "CA",
-        "bias_rating": "center",
-    },
-    {
-        "title": "Breakthrough Agricultural Drones Boost Crop Yields",
-        "link": "https://example.com/agri-drones",
-        "description": "Autonomous drones equipped with adaptive AI analytics have increased rice crop yields by 18% in early trials.",
-        "source": "AgriTech Insight",
-        "category": "economy",
-        "image": "https://images.example.com/agri-drones.jpg",
-        "country": "IN",
-        "bias_rating": "right",
-    },
-    {
-        "title": "Education Reform Pilot Shows Promising Results",
-        "link": "https://example.com/education-reform",
-        "description": "Students in a competency-based learning program outperformed peers by two grade levels in literacy and STEM assessments.",
-        "source": "Scholars' Chronicle",
-        "category": "education",
-        "image": "https://images.example.com/education-reform.jpg",
-        "country": "AU",
-        "bias_rating": "center",
-    },
-]
-
-
-def get_sample_articles() -> Tuple[List[NewsArticle], List[Dict[str, Any]]]:
-    sample_articles: List[NewsArticle] = []
-    stats_by_source: Dict[str, Dict[str, Any]] = defaultdict(lambda: {
-        "article_count": 0,
-        "category": "general",
-        "country": "US",
-        "bias_rating": None,
-    })
-
-    for seed in _SAMPLE_ARTICLES_SEED:
-        article = NewsArticle(
-            title=seed["title"],
-            link=seed["link"],
-            description=seed["description"],
-            published=seed.get("published", datetime.now().isoformat()),
-            source=seed["source"],
-            category=seed.get("category", "general"),
-            image=seed.get("image"),
-        )
-        sample_articles.append(article)
-
-        stat = stats_by_source[article.source]
-        stat["article_count"] += 1
-        stat["category"] = article.category
-        stat["country"] = seed.get("country", stat["country"])
-        stat["bias_rating"] = seed.get("bias_rating", stat["bias_rating"])
-        stat["name"] = article.source
-        stat["url"] = seed.get("link")
-
-    sample_stats: List[Dict[str, Any]] = []
-    now_iso = datetime.now().isoformat()
-    for source, stat in stats_by_source.items():
-        sample_stats.append(
-            {
-                "name": source,
-                "url": stat.get("url"),
-                "category": stat.get("category", "general"),
-                "country": stat.get("country", "US"),
-                "funding_type": None,
-                "bias_rating": stat.get("bias_rating"),
-                "article_count": stat.get("article_count", 0),
-                "status": "sample",
-                "error_message": "Loaded from local sample dataset",
-                "last_checked": now_iso,
-            }
-        )
-
-    return sample_articles, sample_stats
 
 
 def _iter_source_urls(url_field: Any) -> Iterable[str]:
@@ -442,45 +337,32 @@ def refresh_news_cache() -> None:
         source_last_processed[name] = time.time()
         return _process_source(name, info)
 
-    if settings.enable_live_ingestion:
-        with concurrent.futures.ThreadPoolExecutor(max_workers=5) as executor:
-            futures = {executor.submit(throttled_process_source, name, info): name for name, info in rss_sources.items()}
-            for future in concurrent.futures.as_completed(futures):
-                source_name = futures[future]
-                try:
-                    articles, source_stat = future.result()
-                    all_articles.extend(articles)
-                    source_stats.append(source_stat)
-                    partial_update_callback(articles, source_stat)
-                except Exception as exc:  # pragma: no cover
-                    logger.error("💥 Exception for %s: %s", source_name, exc)
-                    info = rss_sources[source_name]
-                    source_stats.append(
-                        {
-                            "name": source_name,
-                            "url": info.get("url"),
-                            "category": info.get("category", "general"),
-                            "country": info.get("country", "US"),
-                            "funding_type": info.get("funding_type"),
-                            "bias_rating": info.get("bias_rating"),
-                            "article_count": 0,
-                            "status": "error",
-                            "error_message": str(exc),
-                            "last_checked": datetime.now().isoformat(),
-                        }
-                    )
-    else:
-        logger.info("🌐 Live RSS ingestion disabled (ENABLE_LIVE_INGESTION is false). Using sample dataset only.")
-
-    if not all_articles:
-        logger.warning("⚠️ Live RSS ingestion returned 0 articles; loading local sample dataset instead")
-        sample_articles, sample_stats = get_sample_articles()
-        if sample_articles:
-            all_articles = sample_articles
-            source_stats = sample_stats
-            logger.info("🧪 Loaded %s sample articles from fallback dataset", len(sample_articles))
-        else:
-            logger.error("❌ Sample dataset unavailable; cache will remain empty")
+    with concurrent.futures.ThreadPoolExecutor(max_workers=5) as executor:
+        futures = {executor.submit(throttled_process_source, name, info): name for name, info in rss_sources.items()}
+        for future in concurrent.futures.as_completed(futures):
+            source_name = futures[future]
+            try:
+                articles, source_stat = future.result()
+                all_articles.extend(articles)
+                source_stats.append(source_stat)
+                partial_update_callback(articles, source_stat)
+            except Exception as exc:  # pragma: no cover
+                logger.error("💥 Exception for %s: %s", source_name, exc)
+                info = rss_sources[source_name]
+                source_stats.append(
+                    {
+                        "name": source_name,
+                        "url": info.get("url"),
+                        "category": info.get("category", "general"),
+                        "country": info.get("country", "US"),
+                        "funding_type": info.get("funding_type"),
+                        "bias_rating": info.get("bias_rating"),
+                        "article_count": 0,
+                        "status": "error",
+                        "error_message": str(exc),
+                        "last_checked": datetime.now().isoformat(),
+                    }
+                )
 
     try:
         all_articles.sort(key=lambda article: article.published, reverse=True)
@@ -510,7 +392,7 @@ def refresh_news_cache() -> None:
         loop.create_task(notify_clients())
 
     if not all_articles:
-        logger.warning("⚠️ Cache refresh resulted in 0 articles even after fallback! Check RSS sources and sample dataset.")
+        logger.warning("⚠️ Cache refresh resulted in 0 articles! Check RSS sources.")
         working_sources = [s for s in source_stats if s.get("status") == "success"]
         error_sources = [s for s in source_stats if s.get("status") == "error"]
         logger.info("📊 Source status: %s working, %s with errors", len(working_sources), len(error_sources))

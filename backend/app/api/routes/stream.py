@@ -15,7 +15,7 @@ from app.core.logging import get_logger
 from app.data.rss_sources import get_rss_sources
 from app.models.news import NewsArticle
 from app.services.cache import news_cache
-from app.services.rss_ingestion import _process_source_with_debug, get_sample_articles  # noqa: PLC2701
+from app.services.rss_ingestion import _process_source_with_debug  # noqa: PLC2701
 from app.services.stream_manager import stream_manager
 
 router = APIRouter(prefix="/news", tags=["news-stream"])
@@ -59,7 +59,6 @@ async def stream_news(
             cached_articles: List[NewsArticle] = []
             cached_stats: List[Dict[str, object]] = []
             cache_age = None
-            using_sample_data = False
             if use_cache:
                 stream_logger.info("💾 Stream %s using cache-first approach", stream_id)
                 cached_articles = news_cache.get_articles()
@@ -70,15 +69,6 @@ async def stream_news(
                 if category:
                     cached_articles = [article for article in cached_articles if article.category == category]
 
-                if not cached_articles:
-                    sample_articles, sample_stats = get_sample_articles()
-                    if sample_articles:
-                        stream_logger.info("🧪 Stream %s falling back to local sample dataset", stream_id)
-                        cached_articles = sample_articles
-                        cached_stats = sample_stats
-                        cache_age = 0
-                        using_sample_data = True
-
                 if cached_articles:
                     cache_data = {
                         "status": "cache_data",
@@ -86,38 +76,12 @@ async def stream_news(
                         "articles": [article.dict() for article in cached_articles],
                         "source_stats": cached_stats,
                         "cache_age_seconds": cache_age,
-                        "message": (
-                            f"Loaded {len(cached_articles)} cached articles"
-                            if not using_sample_data
-                            else f"Loaded {len(cached_articles)} sample articles (offline mode)"
-                        ),
-                        "is_sample_data": using_sample_data,
+                        "message": f"Loaded {len(cached_articles)} cached articles",
                         "timestamp": datetime.now().isoformat(),
                     }
                     yield f"data: {json.dumps(cache_data)}\n\n"
 
-                if using_sample_data and cached_articles:
-                    stream_logger.info("🎯 Stream %s served sample dataset; skipping live fetch", stream_id)
-                    sample_sources = sorted({article.source for article in cached_articles})
-                    final_data = {
-                        "status": "complete",
-                        "stream_id": stream_id,
-                        "message": "Served local sample dataset",
-                        "total_articles": len(cached_articles),
-                        "successful_sources": len(sample_sources),
-                        "failed_sources": 0,
-                        "progress": {
-                            "completed": len(sample_sources),
-                            "total": len(sample_sources),
-                            "percentage": 100,
-                        },
-                        "timestamp": datetime.now().isoformat(),
-                        "is_sample_data": True,
-                    }
-                    yield f"data: {json.dumps(final_data)}\n\n"
-                    return
-
-                if cache_age is not None and cache_age < 120 and cached_articles and not using_sample_data:
+                if cache_age is not None and cache_age < 120 and cached_articles:
                     stream_logger.info("✅ Stream %s cache is fresh enough (%.1fs), ending stream", stream_id, cache_age)
                     final_data = {
                         "status": "complete",
