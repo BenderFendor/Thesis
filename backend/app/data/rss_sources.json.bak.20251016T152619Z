@@ -406,6 +406,13 @@
     "funding_type": "",
     "bias_rating": ""
   },
+  "BBC Sport - Cricket": {
+    "url": "http://feeds.bbci.co.uk/sport/cricket/rss.xml",
+    "category": "BBC Sport - Cricket",
+    "country": "",
+    "funding_type": "",
+    "bias_rating": ""
+  },
   "BBC Sport - Sport": {
     "url": "http://feeds.bbci.co.uk/sport/rss.xml",
     "category": "BBC Sport - Sport",
@@ -1071,6 +1078,13 @@
     "funding_type": "Independent",
     "bias_rating": "Left"
   },
+  "England & Wales Cricket Board": {
+    "url": "https://www.youtube.com/feeds/videos.xml?user=ecbcricket",
+    "category": "BBC Sport - Cricket",
+    "country": "",
+    "funding_type": "",
+    "bias_rating": ""
+  },
   "English (US)": {
     "url": "https://blog.twitter.com/engineering/en_us/blog.rss",
     "category": "Better Programming - Medium",
@@ -1575,6 +1589,13 @@
     "funding_type": "",
     "bias_rating": ""
   },
+  "Home | Mail Online": {
+    "url": "https://www.dailymail.co.uk/home/index.rss",
+    "category": "BBC News - Home",
+    "country": "United Kingdom",
+    "funding_type": "",
+    "bias_rating": ""
+  },
   "Hong Kong Free Press HKFP": {
     "url": "https://www.hongkongfp.com/feed/",
     "category": "Hong Kong Free Press HKFP",
@@ -1602,6 +1623,13 @@
     "country": "US",
     "funding_type": "Non-profit",
     "bias_rating": "Left-Center"
+  },
+  "I Can Has Cheezburger?": {
+    "url": "http://feeds.feedburner.com/icanhascheezburger",
+    "category": "AwkwardFamilyPhotos.com",
+    "country": "",
+    "funding_type": "",
+    "bias_rating": ""
   },
   "I Will Teach You To Be Rich": {
     "url": "https://www.iwillteachyoutoberich.com/feed/",
@@ -2254,6 +2282,20 @@
     "funding_type": "",
     "bias_rating": ""
   },
+  "MacRumors": {
+    "url": "https://www.youtube.com/feeds/videos.xml?user=macrumors",
+    "category": "9to5Mac",
+    "country": "",
+    "funding_type": "",
+    "bias_rating": ""
+  },
+  "MacRumors: Mac News and Rumors - Mac Blog": {
+    "url": "http://feeds.macrumors.com/MacRumors-Mac",
+    "category": "9to5Mac",
+    "country": "",
+    "funding_type": "",
+    "bias_rating": ""
+  },
   "MacStories": {
     "url": "https://www.macstories.net/feed",
     "category": "9to5Mac",
@@ -2523,6 +2565,13 @@
   "NDTV News - World-news": {
     "url": "http://feeds.feedburner.com/ndtvnews-world-news",
     "category": "BBC News - World",
+    "country": "",
+    "funding_type": "",
+    "bias_rating": ""
+  },
+  "NDTV Sports - Cricket": {
+    "url": "http://feeds.feedburner.com/ndtvsports-cricket",
+    "category": "BBC Sport - Cricket",
     "country": "",
     "funding_type": "",
     "bias_rating": ""
@@ -2800,9 +2849,30 @@
     "funding_type": "",
     "bias_rating": ""
   },
+  "POPSUGAR Beauty": {
+    "url": "https://www.popsugar.com/beauty/feed",
+    "category": "Beauty - ELLE",
+    "country": "",
+    "funding_type": "",
+    "bias_rating": ""
+  },
+  "POPSUGAR Fashion": {
+    "url": "https://www.popsugar.com/fashion/feed",
+    "category": "Fashion - ELLE",
+    "country": "",
+    "funding_type": "",
+    "bias_rating": ""
+  },
   "Page Array – NewInBooks": {
     "url": "https://www.newinbooks.com/feed/",
     "category": "A year of reading the world",
+    "country": "",
+    "funding_type": "",
+    "bias_rating": ""
+  },
+  "Pakistan Cricket": {
+    "url": "https://www.youtube.com/feeds/videos.xml?channel_id=UCiWrjBhlICf_L_RK5y6Vrxw",
+    "category": "BBC Sport - Cricket",
     "country": "",
     "funding_type": "",
     "bias_rating": ""
@@ -3311,6 +3381,13 @@
     "funding_type": "",
     "bias_rating": ""
   },
+  "Sky Sports Cricket Podcast": {
+    "url": "https://www.spreaker.com/show/3387348/episodes/feed",
+    "category": "BBC Sport - Cricket",
+    "country": "",
+    "funding_type": "",
+    "bias_rating": ""
+  },
   "Slack Engineering": {
     "url": "https://slack.engineering/feed",
     "category": "Better Programming - Medium",
@@ -3444,6 +3521,13 @@
     "funding_type": "",
     "bias_rating": ""
   },
+  "Sri Lanka Cricket": {
+    "url": "https://www.youtube.com/feeds/videos.xml?user=TheOfficialSLC",
+    "category": "BBC Sport - Cricket",
+    "country": "",
+    "funding_type": "",
+    "bias_rating": ""
+  },
   "Stack Abuse": {
     "url": "https://stackabuse.com/rss/",
     "category": "Better Programming - Medium",
@@ -3500,6 +3584,13 @@
     "funding_type": "",
     "bias_rating": ""
   },
+  "Stumped": {
+    "url": "https://podcasts.files.bbci.co.uk/p02gsrmh.rss",
+    "category": "BBC Sport - Cricket",
+    "country": "",
+    "funding_type": "",
+    "bias_rating": ""
+  },
   "Styling Android": {
     "url": "http://feeds.feedburner.com/StylingAndroid",
     "category": "Android - Buffer Resources",
@@ -3531,6 +3622,13 @@
   "SwiftRocks": {
     "url": "https://swiftrocks.com/rss.xml",
     "category": "ALL SHOWS - Devchat.tv",
+    "country": "",
+    "funding_type": "",
+    "bias_rating": ""
+  },
+  "Switch Hit Podcast": {
+    "url": "https://feeds.megaphone.fm/ESP9247246951",
+    "category": "BBC Sport - Cricket",
     "country": "",
     "funding_type": "",
     "bias_rating": ""
@@ -3580,6 +3678,13 @@
   "TVLine": {
     "url": "https://tvline.com/feed/",
     "category": "TV",
+    "country": "",
+    "funding_type": "",
+    "bias_rating": ""
+  },
+  "Tailenders": {
+    "url": "https://podcasts.files.bbci.co.uk/p02pcb4w.rss",
+    "category": "BBC Sport - Cricket",
     "country": "",
     "funding_type": "",
     "bias_rating": ""
@@ -3636,6 +3741,13 @@
   "Tennis - ATP World Tour": {
     "url": "https://www.atptour.com/en/media/rss-feed/xml-feed",
     "category": "BBC Sport - Tennis",
+    "country": "",
+    "funding_type": "",
+    "bias_rating": ""
+  },
+  "Test Match Special": {
+    "url": "https://podcasts.files.bbci.co.uk/p02nrsl2.rss",
+    "category": "BBC Sport - Cricket",
     "country": "",
     "funding_type": "",
     "bias_rating": ""
@@ -3797,6 +3909,13 @@
   "The GitHub Blog": {
     "url": "https://github.blog/feed/",
     "category": "Better Programming - Medium",
+    "country": "",
+    "funding_type": "",
+    "bias_rating": ""
+  },
+  "The Grade Cricketer": {
+    "url": "https://rss.whooshkaa.com/rss/podcast/id/1308",
+    "category": "BBC Sport - Cricket",
     "country": "",
     "funding_type": "",
     "bias_rating": ""
@@ -4375,6 +4494,20 @@
     "funding_type": "",
     "bias_rating": ""
   },
+  "Wisden": {
+    "url": "https://www.wisden.com/feed",
+    "category": "BBC Sport - Cricket",
+    "country": "",
+    "funding_type": "",
+    "bias_rating": ""
+  },
+  "Wisden Cricket Weekly": {
+    "url": "http://feeds.soundcloud.com/users/soundcloud:users:341034518/sounds.rss",
+    "category": "BBC Sport - Cricket",
+    "country": "",
+    "funding_type": "",
+    "bias_rating": ""
+  },
   "Wise Bread": {
     "url": "http://feeds.killeraces.com/wisebread",
     "category": "Afford Anything",
@@ -4448,6 +4581,13 @@
   "Yahoo News - Latest News & Headlines": {
     "url": "https://www.yahoo.com/news/rss",
     "category": "BBC News - World",
+    "country": "",
+    "funding_type": "",
+    "bias_rating": ""
+  },
+  "Yahoo! Sports - News, Scores, Standings, Rumors, Fantasy Games": {
+    "url": "https://sports.yahoo.com/rss/",
+    "category": "BBC Sport - Sport",
     "country": "",
     "funding_type": "",
     "bias_rating": ""
@@ -4532,6 +4672,13 @@
   "chRyNaN Codes": {
     "url": "https://chrynan.codes/rss/",
     "category": "Android - Buffer Resources",
+    "country": "",
+    "funding_type": "",
+    "bias_rating": ""
+  },
+  "cricket.com.au": {
+    "url": "https://www.youtube.com/feeds/videos.xml?user=cricketaustraliatv",
+    "category": "BBC Sport - Cricket",
     "country": "",
     "funding_type": "",
     "bias_rating": ""

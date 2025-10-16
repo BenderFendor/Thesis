@@ -1,0 +1,646 @@
+{
+  "/Film": {
+    "url": "https://feeds2.feedburner.com/slashfilm",
+    "category": "/Film",
+    "country": "",
+    "funding_type": "",
+    "bias_rating": ""
+  },
+  "Aestas Book Blog": {
+    "url": "https://aestasbookblog.com/feed/",
+    "category": "A year of reading the world",
+    "country": "",
+    "funding_type": "",
+    "bias_rating": ""
+  },
+  "Ain't It Cool News Feed": {
+    "url": "https://www.aintitcool.com/node/feed/",
+    "category": "/Film",
+    "country": "",
+    "funding_type": "",
+    "bias_rating": ""
+  },
+  "Alberto De Bortoli": {
+    "url": "https://albertodebortoli.com/rss/",
+    "category": "ALL SHOWS - Devchat.tv",
+    "country": "",
+    "funding_type": "",
+    "bias_rating": ""
+  },
+  "Android Developers Blog": {
+    "url": "http://feeds.feedburner.com/blogspot/hsDu",
+    "category": "Android - Buffer Resources",
+    "country": "",
+    "funding_type": "",
+    "bias_rating": ""
+  },
+  "Augmented Code": {
+    "url": "https://augmentedcode.io/feed/",
+    "category": "ALL SHOWS - Devchat.tv",
+    "country": "",
+    "funding_type": "",
+    "bias_rating": ""
+  },
+  "Autoblog": {
+    "url": "https://www.autoblog.com/rss.xml",
+    "category": "Autoblog",
+    "country": "",
+    "funding_type": "",
+    "bias_rating": ""
+  },
+  "BMW BLOG": {
+    "url": "https://feeds.feedburner.com/BmwBlog",
+    "category": "Autoblog",
+    "country": "",
+    "funding_type": "",
+    "bias_rating": ""
+  },
+  "Beauty - ELLE": {
+    "url": "https://www.elle.com/rss/beauty.xml/",
+    "category": "Beauty - ELLE",
+    "country": "",
+    "funding_type": "",
+    "bias_rating": ""
+  },
+  "Beauty - Fashionista": {
+    "url": "https://fashionista.com/.rss/excerpt/beauty",
+    "category": "Beauty - ELLE",
+    "country": "",
+    "funding_type": "",
+    "bias_rating": ""
+  },
+  "Benoit Pasquier - Swift, Data and more": {
+    "url": "https://benoitpasquier.com/index.xml",
+    "category": "ALL SHOWS - Devchat.tv",
+    "country": "",
+    "funding_type": "",
+    "bias_rating": ""
+  },
+  "Blog Feed": {
+    "url": "https://americanhistory.si.edu/blog/feed",
+    "category": "30 For 30 Podcasts",
+    "country": "",
+    "funding_type": "",
+    "bias_rating": ""
+  },
+  "Blog – Hackaday": {
+    "url": "https://hackaday.com/blog/feed/",
+    "category": "A Beautiful Mess",
+    "country": "",
+    "funding_type": "",
+    "bias_rating": ""
+  },
+  "Blog – Student Loan Hero": {
+    "url": "https://studentloanhero.com/blog/feed",
+    "category": "Afford Anything",
+    "country": "",
+    "funding_type": "",
+    "bias_rating": ""
+  },
+  "Blog – The Beauty Brains": {
+    "url": "https://thebeautybrains.com/blog/feed/",
+    "category": "Beauty - ELLE",
+    "country": "",
+    "funding_type": "",
+    "bias_rating": ""
+  },
+  "ComingSoon.net": {
+    "url": "https://www.comingsoon.net/feed",
+    "category": "/Film",
+    "country": "",
+    "funding_type": "",
+    "bias_rating": ""
+  },
+  "DORÉ": {
+    "url": "https://www.wearedore.com/feed",
+    "category": "Beauty - ELLE",
+    "country": "",
+    "funding_type": "",
+    "bias_rating": ""
+  },
+  "Dan Abramov's Overreacted Blog RSS Feed": {
+    "url": "https://overreacted.io/rss.xml",
+    "category": "Better Programming - Medium",
+    "country": "",
+    "funding_type": "",
+    "bias_rating": ""
+  },
+  "David Walsh Blog": {
+    "url": "https://davidwalsh.name/feed",
+    "category": "A List Apart: The Full Feed",
+    "country": "",
+    "funding_type": "",
+    "bias_rating": ""
+  },
+  "Deadline": {
+    "url": "https://deadline.com/feed/",
+    "category": "/Film",
+    "country": "",
+    "funding_type": "",
+    "bias_rating": ""
+  },
+  "Entrepreneur": {
+    "url": "http://feeds.feedburner.com/entrepreneur/latest",
+    "category": "AVC",
+    "country": "",
+    "funding_type": "",
+    "bias_rating": ""
+  },
+  "FAIL Blog": {
+    "url": "http://feeds.feedburner.com/failblog",
+    "category": "AwkwardFamilyPhotos.com",
+    "country": "",
+    "funding_type": "",
+    "bias_rating": ""
+  },
+  "Fabisevi.ch": {
+    "url": "https://www.fabisevi.ch/feed.xml",
+    "category": "ALL SHOWS - Devchat.tv",
+    "country": "",
+    "funding_type": "",
+    "bias_rating": ""
+  },
+  "Fashion - ELLE": {
+    "url": "https://www.elle.com/rss/fashion.xml/",
+    "category": "Fashion - ELLE",
+    "country": "",
+    "funding_type": "",
+    "bias_rating": ""
+  },
+  "Fashion | The Guardian": {
+    "url": "https://www.theguardian.com/fashion/rss",
+    "category": "Fashion - ELLE",
+    "country": "",
+    "funding_type": "",
+    "bias_rating": ""
+  },
+  "Fashion – Indian Fashion Blog": {
+    "url": "https://www.fashionlady.in/category/fashion/feed",
+    "category": "Fashion - ELLE",
+    "country": "",
+    "funding_type": "",
+    "bias_rating": ""
+  },
+  "FashionBeans Men's Fashion and Style Feed": {
+    "url": "https://www.fashionbeans.com/rss-feed/?category=fashion",
+    "category": "Fashion - ELLE",
+    "country": "",
+    "funding_type": "",
+    "bias_rating": ""
+  },
+  "Fashionista": {
+    "url": "https://fashionista.com/.rss/excerpt/",
+    "category": "Fashion - ELLE",
+    "country": "",
+    "funding_type": "",
+    "bias_rating": ""
+  },
+  "Film School Rejects": {
+    "url": "https://filmschoolrejects.com/feed/",
+    "category": "/Film",
+    "country": "",
+    "funding_type": "",
+    "bias_rating": ""
+  },
+  "FirstShowing.net": {
+    "url": "https://www.firstshowing.net/feed/",
+    "category": "/Film",
+    "country": "",
+    "funding_type": "",
+    "bias_rating": ""
+  },
+  "Forbes - Entrepreneurs": {
+    "url": "https://www.forbes.com/entrepreneurs/feed/",
+    "category": "AVC",
+    "country": "",
+    "funding_type": "",
+    "bias_rating": ""
+  },
+  "From Head To Toe": {
+    "url": "http://feeds.feedburner.com/frmheadtotoe",
+    "category": "Beauty - ELLE",
+    "country": "",
+    "funding_type": "",
+    "bias_rating": ""
+  },
+  "Google Developers Blog": {
+    "url": "http://feeds.feedburner.com/GDBcode",
+    "category": "Better Programming - Medium",
+    "country": "",
+    "funding_type": "",
+    "bias_rating": ""
+  },
+  "IndieWire": {
+    "url": "https://www.indiewire.com/feed",
+    "category": "/Film",
+    "country": "",
+    "funding_type": "",
+    "bias_rating": ""
+  },
+  "Into The Gloss - Beauty Tips, Trends, And Product Reviews": {
+    "url": "https://feeds.feedburner.com/intothegloss/oqoU",
+    "category": "Beauty - ELLE",
+    "country": "",
+    "funding_type": "",
+    "bias_rating": ""
+  },
+  "Jalopnik": {
+    "url": "https://jalopnik.com/rss",
+    "category": "Autoblog",
+    "country": "",
+    "funding_type": "",
+    "bias_rating": ""
+  },
+  "JetBrains Blog": {
+    "url": "https://blog.jetbrains.com/feed",
+    "category": "Better Programming - Medium",
+    "country": "",
+    "funding_type": "",
+    "bias_rating": ""
+  },
+  "JetBrains News | JetBrains Blog": {
+    "url": "https://blog.jetbrains.com/blog/feed",
+    "category": "Android - Buffer Resources",
+    "country": "",
+    "funding_type": "",
+    "bias_rating": ""
+  },
+  "Latest Content - Car and Driver": {
+    "url": "https://www.caranddriver.com/rss/all.xml/",
+    "category": "Autoblog",
+    "country": "",
+    "funding_type": "",
+    "bias_rating": ""
+  },
+  "Liz Marie Blog": {
+    "url": "https://www.lizmarieblog.com/feed/",
+    "category": "Apartment Therapy| Saving the world, one room at a time",
+    "country": "",
+    "funding_type": "",
+    "bias_rating": ""
+  },
+  "Makeup and Beauty Blog | Makeup Reviews, Swatches and How-To Makeup": {
+    "url": "https://www.makeupandbeautyblog.com/feed/",
+    "category": "Escapist Magazine",
+    "country": "",
+    "funding_type": "",
+    "bias_rating": ""
+  },
+  "MintLife Blog": {
+    "url": "https://blog.mint.com/feed/",
+    "category": "Afford Anything",
+    "country": "",
+    "funding_type": "",
+    "bias_rating": ""
+  },
+  "Mobile A11y": {
+    "url": "https://mobilea11y.com/index.xml",
+    "category": "ALL SHOWS - Devchat.tv",
+    "country": "",
+    "funding_type": "",
+    "bias_rating": ""
+  },
+  "More Than Just Code podcast - iOS and Swift development, news and advice": {
+    "url": "https://feeds.fireside.fm/mtjc/rss",
+    "category": "ALL SHOWS - Devchat.tv",
+    "country": "",
+    "funding_type": "",
+    "bias_rating": ""
+  },
+  "Movies": {
+    "url": "https://www.bleedingcool.com/movies/feed/",
+    "category": "/Film",
+    "country": "",
+    "funding_type": "",
+    "bias_rating": ""
+  },
+  "Mozilla Hacks – the Web developer blog": {
+    "url": "https://hacks.mozilla.org/feed/",
+    "category": "A List Apart: The Full Feed",
+    "country": "",
+    "funding_type": "",
+    "bias_rating": ""
+  },
+  "Netflix TechBlog - Medium": {
+    "url": "https://netflixtechblog.com/feed",
+    "category": "Better Programming - Medium",
+    "country": "",
+    "funding_type": "",
+    "bias_rating": ""
+  },
+  "News - Apple Developer": {
+    "url": "https://developer.apple.com/news/rss/news.rss",
+    "category": "ALL SHOWS - Devchat.tv",
+    "country": "",
+    "funding_type": "",
+    "bias_rating": ""
+  },
+  "News Blog": {
+    "url": "https://newsnblogs.com/feed/",
+    "category": "The Express Tribune",
+    "country": "Pakistan",
+    "funding_type": "",
+    "bias_rating": ""
+  },
+  "Ole Begemann": {
+    "url": "https://oleb.net/blog/atom.xml",
+    "category": "ALL SHOWS - Devchat.tv",
+    "country": "",
+    "funding_type": "",
+    "bias_rating": ""
+  },
+  "Pavel Zak’s dev blog": {
+    "url": "https://nerdyak.tech/feed.xml",
+    "category": "ALL SHOWS - Devchat.tv",
+    "country": "",
+    "funding_type": "",
+    "bias_rating": ""
+  },
+  "Petrolicious": {
+    "url": "https://petrolicious.com/feed",
+    "category": "Autoblog",
+    "country": "",
+    "funding_type": "",
+    "bias_rating": ""
+  },
+  "PlayStation.Blog": {
+    "url": "http://feeds.feedburner.com/psblog",
+    "category": "Escapist Magazine",
+    "country": "",
+    "funding_type": "",
+    "bias_rating": ""
+  },
+  "Refinery29": {
+    "url": "https://www.refinery29.com/fashion/rss.xml",
+    "category": "Fashion - ELLE",
+    "country": "",
+    "funding_type": "",
+    "bias_rating": ""
+  },
+  "Robert Heaton | Blog": {
+    "url": "https://robertheaton.com/feed.xml",
+    "category": "Better Programming - Medium",
+    "country": "",
+    "funding_type": "",
+    "bias_rating": ""
+  },
+  "SavingAdvice.com Blog": {
+    "url": "https://www.savingadvice.com/feed/",
+    "category": "Afford Anything",
+    "country": "",
+    "funding_type": "",
+    "bias_rating": ""
+  },
+  "Scott Hanselman's Blog": {
+    "url": "http://feeds.hanselman.com/ScottHanselman",
+    "category": "Better Programming - Medium",
+    "country": "",
+    "funding_type": "",
+    "bias_rating": ""
+  },
+  "Section Page News - Automotive News": {
+    "url": "http://feeds.feedburner.com/autonews/EditorsPicks",
+    "category": "Autoblog",
+    "country": "",
+    "funding_type": "",
+    "bias_rating": ""
+  },
+  "SoundCloud Backstage Blog": {
+    "url": "https://developers.soundcloud.com/blog/blog.rss",
+    "category": "Better Programming - Medium",
+    "country": "",
+    "funding_type": "",
+    "bias_rating": ""
+  },
+  "Speedhunters": {
+    "url": "http://feeds.feedburner.com/speedhunters",
+    "category": "Autoblog",
+    "country": "",
+    "funding_type": "",
+    "bias_rating": ""
+  },
+  "Stack Overflow Blog": {
+    "url": "https://stackoverflow.blog/feed/",
+    "category": "Better Programming - Medium",
+    "country": "",
+    "funding_type": "",
+    "bias_rating": ""
+  },
+  "Startup Stories - Mixergy": {
+    "url": "https://feeds.feedburner.com/Mixergy-main-podcast",
+    "category": "All News",
+    "country": "",
+    "funding_type": "",
+    "bias_rating": ""
+  },
+  "Swift by Sundell": {
+    "url": "https://swiftbysundell.com/feed.rss",
+    "category": "ALL SHOWS - Devchat.tv",
+    "country": "",
+    "funding_type": "",
+    "bias_rating": ""
+  },
+  "SwiftRocks": {
+    "url": "https://swiftrocks.com/rss.xml",
+    "category": "ALL SHOWS - Devchat.tv",
+    "country": "",
+    "funding_type": "",
+    "bias_rating": ""
+  },
+  "THE YESSTYLIST – Asian Fashion Blog – brought to you by YesStyle.com": {
+    "url": "https://www.yesstyle.com/blog/category/trend-and-style/feed/",
+    "category": "Fashion - ELLE",
+    "country": "",
+    "funding_type": "",
+    "bias_rating": ""
+  },
+  "TV": {
+    "url": "https://www.bleedingcool.com/tv/feed/",
+    "category": "TV",
+    "country": "",
+    "funding_type": "",
+    "bias_rating": ""
+  },
+  "TV Fanatic": {
+    "url": "https://www.tvfanatic.com/rss.xml",
+    "category": "TV",
+    "country": "",
+    "funding_type": "",
+    "bias_rating": ""
+  },
+  "TVLine": {
+    "url": "https://tvline.com/feed/",
+    "category": "TV",
+    "country": "",
+    "funding_type": "",
+    "bias_rating": ""
+  },
+  "TechPinas : Philippines' Technology News, Tips and Reviews Blog": {
+    "url": "http://feeds.feedburner.com/Techpinas",
+    "category": "INQUIRER.net",
+    "country": "Philippines",
+    "funding_type": "",
+    "bias_rating": ""
+  },
+  "The A.V. Club": {
+    "url": "https://tv.avclub.com/rss",
+    "category": "TV",
+    "country": "",
+    "funding_type": "",
+    "bias_rating": ""
+  },
+  "The Airbnb Tech Blog - Medium": {
+    "url": "https://medium.com/feed/airbnb-engineering",
+    "category": "Better Programming - Medium",
+    "country": "",
+    "funding_type": "",
+    "bias_rating": ""
+  },
+  "The Atomic Birdhouse": {
+    "url": "https://atomicbird.com/index.xml",
+    "category": "ALL SHOWS - Devchat.tv",
+    "country": "",
+    "funding_type": "",
+    "bias_rating": ""
+  },
+  "The Beauty Look Book": {
+    "url": "https://thebeautylookbook.com/feed",
+    "category": "Beauty - ELLE",
+    "country": "",
+    "funding_type": "",
+    "bias_rating": ""
+  },
+  "The Blog of Author Tim Ferriss": {
+    "url": "https://tim.blog/feed/",
+    "category": "All News",
+    "country": "",
+    "funding_type": "",
+    "bias_rating": ""
+  },
+  "The Bloggess": {
+    "url": "https://thebloggess.com/feed/",
+    "category": "AwkwardFamilyPhotos.com",
+    "country": "",
+    "funding_type": "",
+    "bias_rating": ""
+  },
+  "The Design Files | Australia's most popular design blog.The Design Files | Australia's most popular design blog.": {
+    "url": "https://thedesignfiles.net/feed/",
+    "category": "Apartment Therapy| Saving the world, one room at a time",
+    "country": "",
+    "funding_type": "",
+    "bias_rating": ""
+  },
+  "The GitHub Blog": {
+    "url": "https://github.blog/feed/",
+    "category": "Better Programming - Medium",
+    "country": "",
+    "funding_type": "",
+    "bias_rating": ""
+  },
+  "The Startup Junkies Podcast": {
+    "url": "https://startupjunkie.libsyn.com/rss",
+    "category": "AVC",
+    "country": "",
+    "funding_type": "",
+    "bias_rating": ""
+  },
+  "The Truth About Cars": {
+    "url": "https://www.thetruthaboutcars.com/feed/",
+    "category": "Autoblog",
+    "country": "",
+    "funding_type": "",
+    "bias_rating": ""
+  },
+  "The best vintage and classic cars for sale online | Bring a Trailer": {
+    "url": "https://bringatrailer.com/feed/",
+    "category": "Autoblog",
+    "country": "",
+    "funding_type": "",
+    "bias_rating": ""
+  },
+  "This Week in Startups - Video": {
+    "url": "http://feeds.feedburner.com/twistvid",
+    "category": "AVC",
+    "country": "",
+    "funding_type": "",
+    "bias_rating": ""
+  },
+  "UX Blog – UX Studio": {
+    "url": "https://uxstudioteam.com/ux-blog/feed/",
+    "category": "Articles on Smashing Magazine — For Web Designers And Developers",
+    "country": "",
+    "funding_type": "",
+    "bias_rating": ""
+  },
+  "Under the Radar": {
+    "url": "https://www.relay.fm/radar/feed",
+    "category": "ALL SHOWS - Devchat.tv",
+    "country": "",
+    "funding_type": "",
+    "bias_rating": ""
+  },
+  "Use Your Loaf - iOS Development News & Tips": {
+    "url": "https://useyourloaf.com/blog/rss.xml",
+    "category": "ALL SHOWS - Devchat.tv",
+    "country": "",
+    "funding_type": "",
+    "bias_rating": ""
+  },
+  "Variety": {
+    "url": "https://variety.com/feed/",
+    "category": "/Film",
+    "country": "",
+    "funding_type": "",
+    "bias_rating": ""
+  },
+  "Who What Wear": {
+    "url": "https://www.whowhatwear.com/rss",
+    "category": "Fashion - ELLE",
+    "country": "",
+    "funding_type": "",
+    "bias_rating": ""
+  },
+  "Yahoo Finance": {
+    "url": "https://finance.yahoo.com/news/rssindex",
+    "category": "All News",
+    "country": "",
+    "funding_type": "",
+    "bias_rating": ""
+  },
+  "blog – Feld Thoughts": {
+    "url": "https://feld.com/archives/tag/blog/feed",
+    "category": "AVC",
+    "country": "",
+    "funding_type": "",
+    "bias_rating": ""
+  },
+  "iMore - The #1 iPhone, iPad, and iPod touch blog": {
+    "url": "http://feeds.feedburner.com/TheiPhoneBlog",
+    "category": "9to5Mac",
+    "country": "",
+    "funding_type": "",
+    "bias_rating": ""
+  },
+  "inessential.com": {
+    "url": "https://inessential.com/xml/rss.xml",
+    "category": "ALL SHOWS - Devchat.tv",
+    "country": "",
+    "funding_type": "",
+    "bias_rating": ""
+  },
+  "the TV addict": {
+    "url": "http://feeds.feedburner.com/thetvaddict/AXob",
+    "category": "TV",
+    "country": "",
+    "funding_type": "",
+    "bias_rating": ""
+  },
+  "tyler.io": {
+    "url": "https://tyler.io/feed/",
+    "category": "ALL SHOWS - Devchat.tv",
+    "country": "",
+    "funding_type": "",
+    "bias_rating": ""
+  }
+}
