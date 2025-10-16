@@ -5,7 +5,12 @@ import sys
 from typing import Any, Dict, List, Optional
 
 from app.core.logging import get_logger
-from app.database import AsyncSessionLocal, fetch_articles_by_ids, fetch_recent_articles, search_articles_by_keyword
+from app.database import (
+    AsyncSessionLocal,
+    fetch_articles_by_ids,
+    fetch_recent_articles,
+    search_articles_by_keyword,
+)
 from app.vector_store import vector_store
 
 logger = get_logger("news_research")
@@ -33,7 +38,9 @@ async def load_articles_for_research(
         semantic_count = 0
         if vector_store and query:
             try:
-                semantic_results = vector_store.search_similar(query, limit=semantic_limit)
+                semantic_results = vector_store.search_similar(
+                    query, limit=semantic_limit
+                )
             except Exception as semantic_error:  # pragma: no cover - defensive logging
                 logger.error("Semantic vector search failed: %s", semantic_error)
                 semantic_results = []
@@ -43,8 +50,14 @@ async def load_articles_for_research(
                     for result in semantic_results
                     if isinstance(result.get("article_id"), int)
                 ]
-                fetched_articles = await fetch_articles_by_ids(session, article_ids) if article_ids else []
-                fetched_lookup = {article["id"]: article for article in fetched_articles}
+                fetched_articles = (
+                    await fetch_articles_by_ids(session, article_ids)
+                    if article_ids
+                    else []
+                )
+                fetched_lookup = {
+                    article["id"]: article for article in fetched_articles
+                }
 
                 for result in semantic_results:
                     article_id = result.get("article_id")
@@ -54,7 +67,9 @@ async def load_articles_for_research(
                         metadata = result.get("metadata", {})
                         article_data = {
                             "id": article_id,
-                            "title": metadata.get("title") or metadata.get("url") or "Semantic match",
+                            "title": metadata.get("title")
+                            or metadata.get("url")
+                            or "Semantic match",
                             "source": metadata.get("source", "Unknown"),
                             "category": metadata.get("category", "general"),
                             "description": metadata.get("summary"),
@@ -71,7 +86,9 @@ async def load_articles_for_research(
                     article_data["retrieval_method"] = "semantic_vector_store"
                     article_data["semantic_score"] = result.get("similarity_score")
                     article_data["semantic_distance"] = result.get("distance")
-                    article_data["chroma_id"] = result.get("chroma_id") or article_data.get("chroma_id")
+                    article_data["chroma_id"] = result.get(
+                        "chroma_id"
+                    ) or article_data.get("chroma_id")
                     article_data["preview"] = result.get("preview")
                     semantic_articles.append(article_data)
 
@@ -144,11 +161,18 @@ async def load_articles_for_research(
     return {"articles": combined, "summary": summary}
 
 
-def run_research_agent(query: str, articles: List[Dict[str, Any]], verbose: bool = True, chat_history: Optional[List[Dict[str, Any]]] = None) -> Dict[str, Any]:
+def run_research_agent(
+    query: str,
+    articles: List[Dict[str, Any]],
+    verbose: bool = True,
+    chat_history: Optional[List[Dict[str, Any]]] = None,
+) -> Dict[str, Any]:
     backend_path = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
     if backend_path not in sys.path:
         sys.path.insert(0, backend_path)
 
     from news_research_agent import research_news  # type: ignore[import-not-found]
 
-    return research_news(query=query, articles=articles, verbose=verbose, chat_history=chat_history)
+    return research_news(
+        query=query, articles=articles, verbose=verbose, chat_history=chat_history
+    )

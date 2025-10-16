@@ -36,13 +36,17 @@ async def extract_article_content(url: str) -> Dict[str, Any]:
         return {"success": False, "error": str(exc)}
 
 
-async def analyze_with_gemini(article_data: Dict[str, Any], source_name: Optional[str] = None) -> Dict[str, Any]:
+async def analyze_with_gemini(
+    article_data: Dict[str, Any], source_name: Optional[str] = None
+) -> Dict[str, Any]:
     if not gemini_client:
         return {"error": "Gemini API key not configured"}
 
     try:
         grounding_tool = types.Tool(google_search=types.GoogleSearch())
-        config = types.GenerateContentConfig(tools=[grounding_tool], response_modalities=["TEXT"])
+        config = types.GenerateContentConfig(
+            tools=[grounding_tool], response_modalities=["TEXT"]
+        )
 
         prompt = _build_analysis_prompt(article_data, source_name)
 
@@ -76,9 +80,15 @@ async def analyze_with_gemini(article_data: Dict[str, Any], source_name: Optiona
         return {"error": str(exc)}
 
 
-def _build_analysis_prompt(article_data: Dict[str, Any], source_name: Optional[str]) -> str:
+def _build_analysis_prompt(
+    article_data: Dict[str, Any], source_name: Optional[str]
+) -> str:
     title = article_data.get("title", "Unknown")
-    authors = ", ".join(article_data.get("authors", [])) if article_data.get("authors") else "Unknown"
+    authors = (
+        ", ".join(article_data.get("authors", []))
+        if article_data.get("authors")
+        else "Unknown"
+    )
     publish_date = article_data.get("publish_date", "Unknown")
     text = (article_data.get("text") or "")[:4000]
 
@@ -86,7 +96,7 @@ def _build_analysis_prompt(article_data: Dict[str, Any], source_name: Optional[s
 You are an expert media analyst and fact-checker. Analyze the following news article comprehensively and use Google Search to verify ALL factual claims, numbers, quotes, and statements:
 
 **Article Title:** {title}
-**Source:** {source_name or 'Unknown'}
+**Source:** {source_name or "Unknown"}
 **Authors:** {authors}
 **Published:** {publish_date}
 
@@ -151,7 +161,11 @@ Provide only the JSON response, no additional text.
 
 
 def _extract_grounding_metadata(response: Any) -> Dict[str, Any]:
-    grounding_metadata: Dict[str, Any] = {"grounding_chunks": [], "grounding_supports": [], "web_search_queries": []}
+    grounding_metadata: Dict[str, Any] = {
+        "grounding_chunks": [],
+        "grounding_supports": [],
+        "web_search_queries": [],
+    }
 
     if not getattr(response, "candidates", None):
         return grounding_metadata

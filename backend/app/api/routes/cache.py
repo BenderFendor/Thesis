@@ -31,9 +31,13 @@ async def get_cache_status() -> Dict[str, object]:
     source_stats = news_cache.get_source_stats()
 
     total_articles = len(articles)
-    sources_with_articles = len([s for s in source_stats if s.get("article_count", 0) > 0])
+    sources_with_articles = len(
+        [s for s in source_stats if s.get("article_count", 0) > 0]
+    )
     sources_with_errors = len([s for s in source_stats if s.get("status") == "error"])
-    sources_with_warnings = len([s for s in source_stats if s.get("status") == "warning"])
+    sources_with_warnings = len(
+        [s for s in source_stats if s.get("status") == "warning"]
+    )
 
     category_counts = defaultdict(int)
     for article in articles:

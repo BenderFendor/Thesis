@@ -17,7 +17,9 @@ router = APIRouter(prefix="/api/news", tags=["news-research"])
 async def news_research_stream_endpoint(
     query: str = Query(..., description="The research query"),
     include_thinking: bool = Query(True, description="Include thinking steps"),
-    history: str | None = Query(None, description="JSON-encoded chat history for context"),
+    history: str | None = Query(
+        None, description="JSON-encoded chat history for context"
+    ),
 ):
     async def generate():
         try:
@@ -68,10 +70,15 @@ async def news_research_stream_endpoint(
         except Exception as exc:  # pragma: no cover - defensive logging
             message = str(exc)
             lower_msg = message.lower()
-            if any(keyword in lower_msg for keyword in ["rate limit", "quota", "429", "too many requests"]):
+            if any(
+                keyword in lower_msg
+                for keyword in ["rate limit", "quota", "429", "too many requests"]
+            ):
                 message = "API Rate Limit: The AI service has reached its rate limit. Please wait a moment and try again."
             elif "timeout" in lower_msg:
-                message = "Request Timeout: The research took too long. Try a simpler query."
+                message = (
+                    "Request Timeout: The research took too long. Try a simpler query."
+                )
 
             yield f"data: {json.dumps({'type': 'error', 'message': message, 'timestamp': datetime.now().isoformat()})}\n\n"
 

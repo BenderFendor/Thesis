@@ -27,7 +27,11 @@ class StreamManager:
             }
             self.active_streams[stream_id] = stream_info
             self.stream_counter += 1
-            logger.info("🆕 Stream %s registered. Active streams: %s", stream_id, len(self.active_streams))
+            logger.info(
+                "🆕 Stream %s registered. Active streams: %s",
+                stream_id,
+                len(self.active_streams),
+            )
             return stream_info
 
     def update_stream(self, stream_id: str, **updates) -> None:
@@ -41,13 +45,20 @@ class StreamManager:
             if stream_id in self.active_streams:
                 stream_info = self.active_streams.pop(stream_id)
                 duration = (datetime.now() - stream_info["start_time"]).total_seconds()
-                logger.info("🏁 Stream %s completed in %.2fs. Active streams: %s", stream_id, duration, len(self.active_streams))
+                logger.info(
+                    "🏁 Stream %s completed in %.2fs. Active streams: %s",
+                    stream_id,
+                    duration,
+                    len(self.active_streams),
+                )
 
     def get_active_stream_count(self) -> int:
         with self.lock:
             return len(self.active_streams)
 
-    def should_throttle_source(self, source_name: str, min_interval: int = 10) -> Tuple[bool, float]:
+    def should_throttle_source(
+        self, source_name: str, min_interval: int = 10
+    ) -> Tuple[bool, float]:
         with self.lock:
             now = time.time()
             last_access = self.source_last_accessed.get(source_name, 0)

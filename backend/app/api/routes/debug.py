@@ -21,18 +21,35 @@ async def get_source_debug_data(source_name: str) -> Dict[str, object]:
         raise HTTPException(status_code=404, detail=f"Source '{source_name}' not found")
 
     source_info = rss_sources[source_name]
-    rss_url = source_info["url"][0] if isinstance(source_info["url"], list) else source_info["url"]
+    rss_url = (
+        source_info["url"][0]
+        if isinstance(source_info["url"], list)
+        else source_info["url"]
+    )
 
     feed = feedparser.parse(rss_url, agent="NewsAggregator/1.0")
 
-    cached_articles = [article.dict() for article in news_cache.get_articles() if article.source == source_name]
-    source_stat = next((stats for stats in news_cache.get_source_stats() if stats["name"] == source_name), None)
+    cached_articles = [
+        article.dict()
+        for article in news_cache.get_articles()
+        if article.source == source_name
+    ]
+    source_stat = next(
+        (
+            stats
+            for stats in news_cache.get_source_stats()
+            if stats["name"] == source_name
+        ),
+        None,
+    )
 
     debug_data = {
         "source_name": source_name,
         "source_config": source_info,
         "rss_url": rss_url,
-        "all_urls": source_info["url"] if isinstance(source_info["url"], list) else [source_info["url"]],
+        "all_urls": source_info["url"]
+        if isinstance(source_info["url"], list)
+        else [source_info["url"]],
         "feed_metadata": {
             "title": getattr(feed.feed, "title", "N/A"),
             "description": getattr(feed.feed, "description", "N/A"),
@@ -63,20 +80,30 @@ async def get_source_debug_data(source_name: str) -> Dict[str, object]:
             image_sources = []
 
             if getattr(entry, "media_thumbnail", None):
-                image_sources.append({"type": "media_thumbnail", "url": entry.media_thumbnail})
+                image_sources.append(
+                    {"type": "media_thumbnail", "url": entry.media_thumbnail}
+                )
             if getattr(entry, "media_content", None):
-                image_sources.append({"type": "media_content", "data": entry.media_content})
+                image_sources.append(
+                    {"type": "media_content", "data": entry.media_content}
+                )
             if getattr(entry, "enclosures", None):
                 image_sources.append({"type": "enclosures", "data": entry.enclosures})
 
             content_images = []
             if getattr(entry, "content", None):
-                content_text = entry.content[0].value if isinstance(entry.content, list) else str(entry.content)
+                content_text = (
+                    entry.content[0].value
+                    if isinstance(entry.content, list)
+                    else str(entry.content)
+                )
                 content_images = re.findall(r"<img[^>]+src=\"([^\"]+)\"", content_text)
 
             desc_images = []
             if entry.get("description"):
-                desc_images = re.findall(r"<img[^>]+src=\"([^\"]+)\"", entry.description)
+                desc_images = re.findall(
+                    r"<img[^>]+src=\"([^\"]+)\"", entry.description
+                )
 
             has_images = bool(image_sources or content_images or desc_images)
             if has_images:
@@ -86,7 +113,9 @@ async def get_source_debug_data(source_name: str) -> Dict[str, object]:
                 "index": i,
                 "title": entry.get("title", "No title"),
                 "link": entry.get("link", ""),
-                "description": (entry.get("description", "")[:200] + "...") if entry.get("description") and len(entry.get("description", "")) > 200 else entry.get("description", "No description"),
+                "description": (entry.get("description", "")[:200] + "...")
+                if entry.get("description") and len(entry.get("description", "")) > 200
+                else entry.get("description", "No description"),
                 "published": entry.get("published", "No date"),
                 "author": entry.get("author", "No author"),
                 "tags": entry.get("tags", []),
@@ -120,7 +149,9 @@ async def get_stream_status() -> Dict[str, object]:
                     "status": info["status"],
                     "sources_completed": info["sources_completed"],
                     "total_sources": info["total_sources"],
-                    "duration_seconds": (datetime.now() - info["start_time"]).total_seconds(),
+                    "duration_seconds": (
+                        datetime.now() - info["start_time"]
+                    ).total_seconds(),
                     "client_connected": info["client_connected"],
                 }
                 for stream_id, info in stream_manager.active_streams.items()

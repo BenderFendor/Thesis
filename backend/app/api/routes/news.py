@@ -24,10 +24,16 @@ async def get_news_by_source(source_name: str) -> List[NewsArticle]:
 @router.get("/category/{category_name}", response_model=NewsResponse)
 async def get_news_by_category(category_name: str) -> NewsResponse:
     all_articles = news_cache.get_articles()
-    category_articles = [article for article in all_articles if article.category == category_name]
+    category_articles = [
+        article for article in all_articles if article.category == category_name
+    ]
     sources_included = list({article.source for article in category_articles})
 
-    return NewsResponse(articles=category_articles, total=len(category_articles), sources=sources_included)
+    return NewsResponse(
+        articles=category_articles,
+        total=len(category_articles),
+        sources=sources_included,
+    )
 
 
 @router.get("/sources", response_model=List[SourceInfo])
@@ -51,7 +57,9 @@ async def get_sources() -> List[SourceInfo]:
 
 @router.get("/categories")
 async def get_categories() -> Dict[str, List[str]]:
-    categories = {info.get("category", "general") for info in get_rss_sources().values()}
+    categories = {
+        info.get("category", "general") for info in get_rss_sources().values()
+    }
     return {"categories": list(categories)}
 
 
@@ -60,27 +68,29 @@ async def get_source_stats() -> Dict[str, object]:
     """Return stats for all configured sources."""
     configured_sources = get_rss_sources()
     source_stats = news_cache.get_source_stats()
-    
+
     # Create a map of existing stats by name
-    stats_map = {stat['name']: stat for stat in source_stats}
-    
+    stats_map = {stat["name"]: stat for stat in source_stats}
+
     # Ensure all configured sources are in the response
     all_stats = []
     for source_name, source_info in configured_sources.items():
         if source_name in stats_map:
             all_stats.append(stats_map[source_name])
         else:
-            all_stats.append({
-                "name": source_name,
-                "url": source_info.get("url", ""),
-                "category": source_info.get("category", "general"),
-                "country": source_info.get("country", ""),
-                "funding_type": source_info.get("funding_type"),
-                "bias_rating": source_info.get("bias_rating"),
-                "article_count": 0,
-                "status": "pending",
-                "error_message": None,
-                "last_checked": None,
-            })
-    
+            all_stats.append(
+                {
+                    "name": source_name,
+                    "url": source_info.get("url", ""),
+                    "category": source_info.get("category", "general"),
+                    "country": source_info.get("country", ""),
+                    "funding_type": source_info.get("funding_type"),
+                    "bias_rating": source_info.get("bias_rating"),
+                    "article_count": 0,
+                    "status": "pending",
+                    "error_message": None,
+                    "last_checked": None,
+                }
+            )
+
     return {"sources": all_stats, "total_sources": len(all_stats)}

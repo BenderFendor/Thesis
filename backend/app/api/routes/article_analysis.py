@@ -12,7 +12,9 @@ router = APIRouter(tags=["article-analysis"])
 async def extract_article_text(url: str):
     data = await extract_article_content(url)
     if not data.get("success"):
-        raise HTTPException(status_code=400, detail=data.get("error", "Failed to extract article"))
+        raise HTTPException(
+            status_code=400, detail=data.get("error", "Failed to extract article")
+        )
 
     return {
         "success": True,

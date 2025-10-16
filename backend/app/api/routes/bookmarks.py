@@ -55,7 +55,9 @@ async def list_bookmarks(db: AsyncSession = Depends(get_db)) -> Dict[str, object
 
 
 @router.get("/{article_id}")
-async def get_bookmark(article_id: int, db: AsyncSession = Depends(get_db)) -> Dict[str, object]:
+async def get_bookmark(
+    article_id: int, db: AsyncSession = Depends(get_db)
+) -> Dict[str, object]:
     bookmark_stmt = (
         select(BookmarkRecord, ArticleRecord)
         .join(ArticleRecord, ArticleRecord.id == BookmarkRecord.article_id)
@@ -83,14 +85,18 @@ async def get_bookmark(article_id: int, db: AsyncSession = Depends(get_db)) -> D
 
 
 @router.post("", status_code=201)
-async def create_bookmark(payload: BookmarkCreateRequest, db: AsyncSession = Depends(get_db)) -> Dict[str, object]:
+async def create_bookmark(
+    payload: BookmarkCreateRequest, db: AsyncSession = Depends(get_db)
+) -> Dict[str, object]:
     article_stmt = select(ArticleRecord).where(ArticleRecord.id == payload.article_id)
     article_result = await db.execute(article_stmt)
     article = article_result.scalar_one_or_none()
     if not article:
         raise HTTPException(status_code=404, detail="Article not found")
 
-    existing_stmt = select(BookmarkRecord).where(BookmarkRecord.article_id == payload.article_id)
+    existing_stmt = select(BookmarkRecord).where(
+        BookmarkRecord.article_id == payload.article_id
+    )
     existing_result = await db.execute(existing_stmt)
     existing = existing_result.scalar_one_or_none()
 
@@ -99,7 +105,9 @@ async def create_bookmark(payload: BookmarkCreateRequest, db: AsyncSession = Dep
             "created": False,
             "bookmark_id": existing.id,
             "article_id": existing.article_id,
-            "created_at": existing.created_at.isoformat() if existing.created_at else None,
+            "created_at": existing.created_at.isoformat()
+            if existing.created_at
+            else None,
         }
 
     bookmark = BookmarkRecord(article_id=article.id)
@@ -116,8 +124,12 @@ async def create_bookmark(payload: BookmarkCreateRequest, db: AsyncSession = Dep
 
 
 @router.put("/{article_id}")
-async def update_bookmark(article_id: int, db: AsyncSession = Depends(get_db)) -> Dict[str, object]:
-    bookmark_stmt = select(BookmarkRecord).where(BookmarkRecord.article_id == article_id)
+async def update_bookmark(
+    article_id: int, db: AsyncSession = Depends(get_db)
+) -> Dict[str, object]:
+    bookmark_stmt = select(BookmarkRecord).where(
+        BookmarkRecord.article_id == article_id
+    )
     result = await db.execute(bookmark_stmt)
     bookmark = result.scalar_one_or_none()
     if not bookmark:
@@ -135,8 +147,12 @@ async def update_bookmark(article_id: int, db: AsyncSession = Depends(get_db)) -
 
 
 @router.delete("/{article_id}")
-async def delete_bookmark(article_id: int, db: AsyncSession = Depends(get_db)) -> Dict[str, object]:
-    bookmark_stmt = select(BookmarkRecord).where(BookmarkRecord.article_id == article_id)
+async def delete_bookmark(
+    article_id: int, db: AsyncSession = Depends(get_db)
+) -> Dict[str, object]:
+    bookmark_stmt = select(BookmarkRecord).where(
+        BookmarkRecord.article_id == article_id
+    )
     result = await db.execute(bookmark_stmt)
     bookmark = result.scalar_one_or_none()
     if not bookmark:

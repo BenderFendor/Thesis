@@ -2,7 +2,17 @@ from __future__ import annotations
 
 from fastapi import APIRouter
 
-from . import article_analysis, bookmarks, cache, debug, general, news, research, search, stream
+from . import (
+    article_analysis,
+    bookmarks,
+    cache,
+    debug,
+    general,
+    news,
+    research,
+    search,
+    stream,
+)
 
 router = APIRouter()
 router.include_router(general.router)

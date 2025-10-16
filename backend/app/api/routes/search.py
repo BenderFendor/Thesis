@@ -37,7 +37,11 @@ async def semantic_search(
     if not chroma_results:
         return {"query": query, "results": [], "total": 0}
 
-    article_ids = [result.get("article_id") for result in chroma_results if result.get("article_id")]
+    article_ids = [
+        result.get("article_id")
+        for result in chroma_results
+        if result.get("article_id")
+    ]
     if not article_ids:
         return {"query": query, "results": [], "total": 0}
 
@@ -60,7 +64,9 @@ async def semantic_search(
                 "source": article.source,
                 "summary": article.summary,
                 "image": article.image_url,
-                "published": article.published_at.isoformat() if article.published_at else None,
+                "published": article.published_at.isoformat()
+                if article.published_at
+                else None,
                 "category": article.category,
                 "url": article.url,
                 "similarity_score": chroma_result.get("similarity_score"),
@@ -68,7 +74,9 @@ async def semantic_search(
             }
         )
 
-    search_record = SearchHistory(query=query, search_type="semantic", results_count=len(results))
+    search_record = SearchHistory(
+        query=query, search_type="semantic", results_count=len(results)
+    )
     db.add(search_record)
 
     return {"query": query, "results": results, "total": len(results)}

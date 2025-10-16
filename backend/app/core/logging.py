@@ -1,7 +1,9 @@
 import logging
 from typing import Optional
 
-_LOG_FORMAT = "%(asctime)s - %(name)s - %(levelname)s - [%(funcName)s:%(lineno)d] - %(message)s"
+_LOG_FORMAT = (
+    "%(asctime)s - %(name)s - %(levelname)s - [%(funcName)s:%(lineno)d] - %(message)s"
+)
 
 
 def configure_logging(level: int = logging.INFO) -> logging.Logger:

@@ -29,7 +29,9 @@ class NewsCache:
             logger.debug("📊 Source stats accessed: %s sources", len(self.source_stats))
             return self.source_stats.copy()
 
-    def update_cache(self, articles: List[NewsArticle], source_stats: List[Dict[str, object]]) -> None:
+    def update_cache(
+        self, articles: List[NewsArticle], source_stats: List[Dict[str, object]]
+    ) -> None:
         with self.lock:
             old_count = len(self.articles)
             self.articles = articles
@@ -48,7 +50,11 @@ class NewsCache:
 
             working_sources = [s for s in source_stats if s.get("status") == "success"]
             error_sources = [s for s in source_stats if s.get("status") == "error"]
-            logger.info("📊 Cache health: %s working, %s error sources", len(working_sources), len(error_sources))
+            logger.info(
+                "📊 Cache health: %s working, %s error sources",
+                len(working_sources),
+                len(error_sources),
+            )
 
 
 news_cache = NewsCache()

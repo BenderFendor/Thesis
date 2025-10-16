@@ -19,7 +19,9 @@ from app.vector_store import vector_store
 
 logger = get_logger("persistence")
 
-article_persistence_queue: asyncio.Queue[Tuple[List[NewsArticle], Dict[str, Any]]] = asyncio.Queue()
+article_persistence_queue: asyncio.Queue[Tuple[List[NewsArticle], Dict[str, Any]]] = (
+    asyncio.Queue()
+)
 _main_event_loop: Optional[asyncio.AbstractEventLoop] = None
 
 
@@ -120,14 +122,21 @@ async def _upsert_article(
         chroma_id = f"article_{article_id}"
         metadata_payload = {
             "source": article_record.source,
-            "category": article_record.category or source_info.get("category", "general"),
-            "published": article_record.published_at.isoformat() if article_record.published_at else None,
+            "category": article_record.category
+            or source_info.get("category", "general"),
+            "published": article_record.published_at.isoformat()
+            if article_record.published_at
+            else None,
             "country": article_record.country or source_info.get("country", "Unknown"),
             "url": article_record.url,
         }
 
         if vector_batch is not None:
-            if article_record.chroma_id and article_record.chroma_id != chroma_id and vector_deletes is not None:
+            if (
+                article_record.chroma_id
+                and article_record.chroma_id != chroma_id
+                and vector_deletes is not None
+            ):
                 vector_deletes.append(article_record.chroma_id)
 
             vector_batch.append(
@@ -156,13 +165,19 @@ async def _upsert_article(
                     article_record.chroma_id = chroma_id
                     article_record.embedding_generated = True
             except Exception as chroma_error:  # pragma: no cover - best effort logging
-                logger.error("Vector store write failed for article %s: %s", article_id, chroma_error)
+                logger.error(
+                    "Vector store write failed for article %s: %s",
+                    article_id,
+                    chroma_error,
+                )
 
     article.id = article_id
     return article_id
 
 
-async def _persist_articles_async(articles: List[NewsArticle], source_info: Dict[str, Any]) -> None:
+async def _persist_articles_async(
+    articles: List[NewsArticle], source_info: Dict[str, Any]
+) -> None:
     if not articles:
         return
     async with AsyncSessionLocal() as session:
@@ -179,12 +194,18 @@ async def _persist_articles_async(articles: List[NewsArticle], source_info: Dict
                 )
 
             if vector_store and vector_batch:
-                delete_targets = [chroma_id for chroma_id in vector_deletes if chroma_id]
+                delete_targets = [
+                    chroma_id for chroma_id in vector_deletes if chroma_id
+                ]
                 for chroma_id in delete_targets:
                     try:
                         vector_store.delete_article(chroma_id)
                     except Exception as chroma_error:
-                        logger.error("Vector store delete failed for %s: %s", chroma_id, chroma_error)
+                        logger.error(
+                            "Vector store delete failed for %s: %s",
+                            chroma_id,
+                            chroma_error,
+                        )
 
                 payloads = []
                 for item in vector_batch:
@@ -218,7 +239,9 @@ async def _persist_articles_async(articles: List[NewsArticle], source_info: Dict
             )
 
 
-def persist_articles_dual_write(articles: List[NewsArticle], source_info: Dict[str, Any]) -> None:
+def persist_articles_dual_write(
+    articles: List[NewsArticle], source_info: Dict[str, Any]
+) -> None:
     if not articles:
         return
     try:
@@ -279,7 +302,9 @@ async def migrate_cached_articles_on_startup(delay_seconds: int = 5) -> None:
     rss_sources = get_rss_sources()
     migrated_count = 0
     for source_name, articles in grouped_articles.items():
-        source_info = rss_sources.get(source_name, {"category": "general", "country": "US"})
+        source_info = rss_sources.get(
+            source_name, {"category": "general", "country": "US"}
+        )
         await _persist_articles_async(articles, source_info)
         migrated_count += len(articles)
 

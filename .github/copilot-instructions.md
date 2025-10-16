@@ -49,6 +49,27 @@ npm run dev
 - When persisting data, reuse `AsyncSessionLocal` and helpers in `app/database.py` to avoid duplicate engine creation.
 - Follow env var contract in `docker-compose.yml` (`NEXT_PUBLIC_API_URL`, `DATABASE_URL`, `CHROMA_HOST`); mirror defaults in `frontend/lib/api.ts` where the base URLs are derived.
 
+# Formatting Guide
+Use ruff for python linting and prettier for typescript/javascript linting. Below are some key points to follow:
+- Use 4 spaces for indentation in Python and 2 spaces in JavaScript/TypeScript
+- Limit lines to 88 characters in Python and 80 characters in JavaScript/TypeScript
+- Use single quotes for strings in Python and double quotes in JavaScript/TypeScript
+- Place imports in separate lines and group them by standard library, third-party libraries, and local modules
+- Use type hints in Python for function signatures and variable declarations
+- Use semicolons at the end of statements in JavaScript/TypeScript
+- Use trailing commas in multi-line collections in both Python and JavaScript/TypeScript
+- Use f-strings for string formatting in Python and template literals in JavaScript/TypeScript
+- Use docstrings for module, class, and function documentation in Python and JSDoc comments
+- Use descriptive names for variables, functions, and classes in both Python and JavaScript/TypeScript
+- Avoid using `any` type in TypeScript and prefer specific types or interfaces
+- Use `const` and `let` instead of `var` in JavaScript/TypeScript
+- Use arrow functions for anonymous functions in JavaScript/TypeScript
+- Use `async` and `await` for asynchronous operations in both Python and JavaScript/TypeScript
+- Use list comprehensions in Python for creating lists from iterables
+- Use array methods like `map`, `filter`, and `reduce` in JavaScript/
+
+  use uvx ruff check and format to lint and format python code
+
 ## MCP TOOLS
 Use Model Context Protocol (MCP) tools to assist with development. These tools are discoverable by the AI and automatically invoked based on context.
 

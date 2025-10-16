@@ -6,7 +6,6 @@ import json
 import random
 import threading
 import time
-from collections import defaultdict
 from datetime import datetime
 from typing import Any, Dict, Iterable, List, Tuple
 from urllib.parse import urljoin, urlparse
@@ -34,13 +33,19 @@ def _iter_source_urls(url_field: Any) -> Iterable[str]:
                 yield url
 
 
-def parse_rss_feed(url: str, source_name: str, source_info: Dict[str, Any]) -> List[NewsArticle]:
+def parse_rss_feed(
+    url: str, source_name: str, source_info: Dict[str, Any]
+) -> List[NewsArticle]:
     try:
         feed = feedparser.parse(url, agent="NewsAggregator/1.0")
         articles: List[NewsArticle] = []
 
         if getattr(feed, "bozo", False):
-            logger.warning("Feed parsing warning for %s: %s", source_name, getattr(feed, "bozo_exception", "Unknown error"))
+            logger.warning(
+                "Feed parsing warning for %s: %s",
+                source_name,
+                getattr(feed, "bozo_exception", "Unknown error"),
+            )
 
         if hasattr(feed, "status") and feed.status >= 400:
             logger.error("HTTP error %s for %s: %s", feed.status, source_name, url)
@@ -87,7 +92,9 @@ def parse_rss_feed(url: str, source_name: str, source_info: Dict[str, Any]) -> L
             )
             articles.append(article)
 
-        logger.info("Successfully parsed %s articles from %s", len(articles), source_name)
+        logger.info(
+            "Successfully parsed %s articles from %s", len(articles), source_name
+        )
         return articles
     except Exception as exc:  # pragma: no cover - defensive logging
         logger.error("Error parsing %s: %s", source_name, exc)
@@ -110,7 +117,11 @@ def _extract_image_from_entry(entry: Any) -> str | None:
     image_url = None
 
     if hasattr(entry, "content") and entry.content:
-        content_text = entry.content[0].value if isinstance(entry.content, list) else str(entry.content)
+        content_text = (
+            entry.content[0].value
+            if isinstance(entry.content, list)
+            else str(entry.content)
+        )
         match = re.search(r"<img[^>]+src=\"([^\"]+)\"", content_text)
         if match:
             image_url = match.group(1)
@@ -224,9 +235,15 @@ def get_rss_as_json(url: str, source_name: str) -> Tuple[Dict[str, Any], Any]:
 
             return feed_json, feed
         except (requests.exceptions.RequestException, OSError) as exc:
-            logger.warning("Attempt %s/%s failed for %s: %s", attempt + 1, max_retries, source_name, exc)
+            logger.warning(
+                "Attempt %s/%s failed for %s: %s",
+                attempt + 1,
+                max_retries,
+                source_name,
+                exc,
+            )
             if attempt < max_retries - 1:
-                delay = base_delay * (2 ** attempt) + random.uniform(0, 1)
+                delay = base_delay * (2**attempt) + random.uniform(0, 1)
                 logger.info("Retrying %s in %.2fs...", source_name, delay)
                 time.sleep(delay)
             else:
@@ -235,7 +252,9 @@ def get_rss_as_json(url: str, source_name: str) -> Tuple[Dict[str, Any], Any]:
                 return {"error": str(exc), "fallback": True}, feed
 
 
-def _process_source(source_name: str, source_info: Dict[str, Any]) -> Tuple[List[NewsArticle], Dict[str, Any]]:
+def _process_source(
+    source_name: str, source_info: Dict[str, Any]
+) -> Tuple[List[NewsArticle], Dict[str, Any]]:
     articles: List[NewsArticle] = []
     feed_status = "success"
     error_message: str | None = None
@@ -244,7 +263,9 @@ def _process_source(source_name: str, source_info: Dict[str, Any]) -> Tuple[List
         feed_json, feed = get_rss_as_json(url, source_name)
 
         if source_name in {"Novara Media", "CNN Politics"}:
-            logger.info("📄 RSS JSON for %s: %s", source_name, json.dumps(feed_json, indent=2))
+            logger.info(
+                "📄 RSS JSON for %s: %s", source_name, json.dumps(feed_json, indent=2)
+            )
 
         if hasattr(feed, "status") and feed.status >= 400:
             feed_status = "error"
@@ -255,21 +276,37 @@ def _process_source(source_name: str, source_info: Dict[str, Any]) -> Tuple[List
             feed_status = "warning"
             bozo_error = str(getattr(feed, "bozo_exception", "Unknown error"))
             error_message = f"Parse warning: {bozo_error}"
-            parsed_articles = parse_rss_feed_entries(feed.entries, source_name, source_info)
+            parsed_articles = parse_rss_feed_entries(
+                feed.entries, source_name, source_info
+            )
             articles.extend(parsed_articles)
-            logger.warning("⚠️ XML parsing issue for %s: %s (got %s articles)", source_name, bozo_error, len(parsed_articles))
+            logger.warning(
+                "⚠️ XML parsing issue for %s: %s (got %s articles)",
+                source_name,
+                bozo_error,
+                len(parsed_articles),
+            )
         elif not getattr(feed, "entries", None):
             feed_status = "warning"
             error_message = "No articles found in feed"
             logger.warning("⚠️ No entries found for %s: %s", source_name, url)
             continue
         else:
-            parsed_articles = parse_rss_feed_entries(feed.entries, source_name, source_info)
+            parsed_articles = parse_rss_feed_entries(
+                feed.entries, source_name, source_info
+            )
             articles.extend(parsed_articles)
-            logger.info("✅ Parsed %s articles from %s (%s)", len(parsed_articles), source_name, url)
+            logger.info(
+                "✅ Parsed %s articles from %s (%s)",
+                len(parsed_articles),
+                source_name,
+                url,
+            )
 
     if articles:
-        persist_articles_dual_write(articles, {**source_info, "name": source_name, "source": source_name})
+        persist_articles_dual_write(
+            articles, {**source_info, "name": source_name, "source": source_name}
+        )
 
     source_stat = {
         "name": source_name,
@@ -286,7 +323,9 @@ def _process_source(source_name: str, source_info: Dict[str, Any]) -> Tuple[List
     return articles, source_stat
 
 
-def _process_source_with_debug(source_name: str, source_info: Dict[str, Any], stream_id: str) -> Tuple[List[NewsArticle], Dict[str, Any]]:
+def _process_source_with_debug(
+    source_name: str, source_info: Dict[str, Any], stream_id: str
+) -> Tuple[List[NewsArticle], Dict[str, Any]]:
     stream_logger.debug("🔍 Stream %s processing source: %s", stream_id, source_name)
     start_time = time.time()
     articles, source_stat = _process_source(source_name, source_info)
@@ -321,12 +360,21 @@ def refresh_news_cache() -> None:
 
     rss_sources = get_rss_sources()
 
-    def partial_update_callback(new_articles: List[NewsArticle], new_source_stat: Dict[str, Any]) -> None:
-        logger.info("[Partial] Loaded %s articles from %s", len(new_articles), new_source_stat["name"])
+    def partial_update_callback(
+        new_articles: List[NewsArticle], new_source_stat: Dict[str, Any]
+    ) -> None:
+        logger.info(
+            "[Partial] Loaded %s articles from %s",
+            len(new_articles),
+            new_source_stat["name"],
+        )
 
     # Parallel fetch without per-source throttling (concurrent execution is the throttle)
     with concurrent.futures.ThreadPoolExecutor(max_workers=5) as executor:
-        futures = {executor.submit(_process_source, name, info): name for name, info in rss_sources.items()}
+        futures = {
+            executor.submit(_process_source, name, info): name
+            for name, info in rss_sources.items()
+        }
         for future in concurrent.futures.as_completed(futures):
             source_name = futures[future]
             try:
@@ -383,17 +431,25 @@ def refresh_news_cache() -> None:
         logger.warning("⚠️ Cache refresh resulted in 0 articles! Check RSS sources.")
         working_sources = [s for s in source_stats if s.get("status") == "success"]
         error_sources = [s for s in source_stats if s.get("status") == "error"]
-        logger.info("📊 Source status: %s working, %s with errors", len(working_sources), len(error_sources))
+        logger.info(
+            "📊 Source status: %s working, %s with errors",
+            len(working_sources),
+            len(error_sources),
+        )
     else:
         category_counts: Dict[str, int] = {}
         for article in all_articles:
-            category_counts[article.category] = category_counts.get(article.category, 0) + 1
+            category_counts[article.category] = (
+                category_counts.get(article.category, 0) + 1
+            )
         logger.info("📊 Articles by category: %s", category_counts)
 
     news_cache.update_in_progress = False
 
 
-def parse_rss_feed_entries(entries: Iterable[Any], source_name: str, source_info: Dict[str, Any]) -> List[NewsArticle]:
+def parse_rss_feed_entries(
+    entries: Iterable[Any], source_name: str, source_info: Dict[str, Any]
+) -> List[NewsArticle]:
     articles: List[NewsArticle] = []
     for entry in entries:
         image_url = _extract_image_from_entry(entry)
@@ -404,7 +460,11 @@ def parse_rss_feed_entries(entries: Iterable[Any], source_name: str, source_info
         if image_url and not image_url.startswith(("http://", "https://")):
             try:
                 parsed_url = urlparse(source_info.get("url", ""))
-                base_url = f"{parsed_url.scheme}://{parsed_url.netloc}" if parsed_url.scheme and parsed_url.netloc else ""
+                base_url = (
+                    f"{parsed_url.scheme}://{parsed_url.netloc}"
+                    if parsed_url.scheme and parsed_url.netloc
+                    else ""
+                )
                 image_url = urljoin(base_url, image_url) if base_url else None
             except Exception:
                 image_url = None
@@ -435,4 +495,6 @@ def start_cache_refresh_scheduler(interval_seconds: int = 30) -> None:
 
     thread = threading.Thread(target=cache_scheduler, daemon=True)
     thread.start()
-    logger.info("🚀 Cache refresh scheduler started (%s-second intervals)", interval_seconds)
+    logger.info(
+        "🚀 Cache refresh scheduler started (%s-second intervals)", interval_seconds
+    )

@@ -33,7 +33,11 @@ async def stream_news(
 
     active_count = stream_manager.get_active_stream_count()
     if active_count >= 5:
-        stream_logger.warning("🚫 Stream %s rejected: too many active streams (%s)", stream_id, active_count)
+        stream_logger.warning(
+            "🚫 Stream %s rejected: too many active streams (%s)",
+            stream_id,
+            active_count,
+        )
 
         async def error_stream():
             yield f"data: {json.dumps({'status': 'error', 'message': f'Too many active streams ({active_count}). Please try again later.'})}\n\n"
@@ -64,10 +68,19 @@ async def stream_news(
                 cached_articles = news_cache.get_articles()
                 cached_stats = news_cache.get_source_stats()
                 cache_age = (datetime.now() - news_cache.last_updated).total_seconds()
-                stream_logger.info("📋 Stream %s found %s cached articles (age: %.1fs)", stream_id, len(cached_articles), cache_age)
+                stream_logger.info(
+                    "📋 Stream %s found %s cached articles (age: %.1fs)",
+                    stream_id,
+                    len(cached_articles),
+                    cache_age,
+                )
 
                 if category:
-                    cached_articles = [article for article in cached_articles if article.category == category]
+                    cached_articles = [
+                        article
+                        for article in cached_articles
+                        if article.category == category
+                    ]
 
                 if cached_articles:
                     cache_data = {
@@ -82,7 +95,11 @@ async def stream_news(
                     yield f"data: {json.dumps(cache_data)}\n\n"
 
                 if cache_age is not None and cache_age < 120 and cached_articles:
-                    stream_logger.info("✅ Stream %s cache is fresh enough (%.1fs), ending stream", stream_id, cache_age)
+                    stream_logger.info(
+                        "✅ Stream %s cache is fresh enough (%.1fs), ending stream",
+                        stream_id,
+                        cache_age,
+                    )
                     final_data = {
                         "status": "complete",
                         "stream_id": stream_id,
@@ -93,38 +110,75 @@ async def stream_news(
                     yield f"data: {json.dumps(final_data)}\n\n"
                     return
                 else:
-                    stream_logger.info("⏰ Stream %s cache is stale, fetching fresh data", stream_id)
+                    stream_logger.info(
+                        "⏰ Stream %s cache is stale, fetching fresh data", stream_id
+                    )
 
             stream_logger.info("🔄 Stream %s starting fresh data fetch", stream_id)
             stream_manager.update_stream(stream_id, status="fetching_fresh")
             loop = asyncio.get_event_loop()
             rss_sources = get_rss_sources()
 
-            sources_to_process: List[Tuple[str, Dict[str, object]]] = list(rss_sources.items())
+            sources_to_process: List[Tuple[str, Dict[str, object]]] = list(
+                rss_sources.items()
+            )
             if category:
                 sources_to_process = [
-                    (name, info) for name, info in sources_to_process if info.get("category") == category
+                    (name, info)
+                    for name, info in sources_to_process
+                    if info.get("category") == category
                 ]
-                stream_logger.info("Applied category filter '%s', processing %s sources.", category, len(sources_to_process))
+                stream_logger.info(
+                    "Applied category filter '%s', processing %s sources.",
+                    category,
+                    len(sources_to_process),
+                )
 
-            stream_manager.update_stream(stream_id, total_sources=len(sources_to_process))
-            stream_logger.info("📊 Stream %s will process %s sources", stream_id, len(sources_to_process))
+            stream_manager.update_stream(
+                stream_id, total_sources=len(sources_to_process)
+            )
+            stream_logger.info(
+                "📊 Stream %s will process %s sources",
+                stream_id,
+                len(sources_to_process),
+            )
 
             with concurrent.futures.ThreadPoolExecutor(max_workers=5) as executor:
                 future_to_source = {}
                 for name, info in sources_to_process:
-                    should_throttle, wait_time = stream_manager.should_throttle_source(name)
+                    should_throttle, wait_time = stream_manager.should_throttle_source(
+                        name
+                    )
 
                     if should_throttle:
-                        stream_logger.info("⏳ Stream %s throttling source %s for %.1fs", stream_id, name, wait_time)
+                        stream_logger.info(
+                            "⏳ Stream %s throttling source %s for %.1fs",
+                            stream_id,
+                            name,
+                            wait_time,
+                        )
 
-                        async def delayed_process(source_name: str, source_info: Dict[str, object], delay: float):
+                        async def delayed_process(
+                            source_name: str,
+                            source_info: Dict[str, object],
+                            delay: float,
+                        ):
                             await asyncio.sleep(delay)
-                            return await loop.run_in_executor(executor, _process_source_with_debug, source_name, source_info, stream_id)
+                            return await loop.run_in_executor(
+                                executor,
+                                _process_source_with_debug,
+                                source_name,
+                                source_info,
+                                stream_id,
+                            )
 
-                        future = asyncio.create_task(delayed_process(name, info, wait_time))
+                        future = asyncio.create_task(
+                            delayed_process(name, info, wait_time)
+                        )
                     else:
-                        future = loop.run_in_executor(executor, _process_source_with_debug, name, info, stream_id)
+                        future = loop.run_in_executor(
+                            executor, _process_source_with_debug, name, info, stream_id
+                        )
 
                     future_to_source[future] = name
 
@@ -133,36 +187,62 @@ async def stream_news(
                 all_articles: List[NewsArticle] = []
                 all_source_stats: List[Dict[str, object]] = []
 
-                stream_logger.info("⚡ Stream %s processing %s sources with %s futures", stream_id, total_sources, len(future_to_source))
+                stream_logger.info(
+                    "⚡ Stream %s processing %s sources with %s futures",
+                    stream_id,
+                    total_sources,
+                    len(future_to_source),
+                )
 
                 for future in asyncio.as_completed(list(future_to_source.keys())):
                     if await request.is_disconnected():
-                        stream_logger.warning("🔌 Stream %s client disconnected", stream_id)
+                        stream_logger.warning(
+                            "🔌 Stream %s client disconnected", stream_id
+                        )
                         stream_manager.update_stream(stream_id, client_connected=False)
                         break
 
                     try:
                         articles, source_stat = await future
-                        source_name = source_stat.get("name", "unknown") if isinstance(source_stat, dict) else "unknown"
+                        source_name = (
+                            source_stat.get("name", "unknown")
+                            if isinstance(source_stat, dict)
+                            else "unknown"
+                        )
                         completed_sources += 1
 
                         all_articles.extend(articles)
                         all_source_stats.append(source_stat)
 
-                        stream_manager.update_stream(stream_id, sources_completed=completed_sources, status="processing")
+                        stream_manager.update_stream(
+                            stream_id,
+                            sources_completed=completed_sources,
+                            status="processing",
+                        )
 
-                        stream_logger.info("✅ Stream %s completed source %s: %s articles", stream_id, source_name, len(articles))
+                        stream_logger.info(
+                            "✅ Stream %s completed source %s: %s articles",
+                            stream_id,
+                            source_name,
+                            len(articles),
+                        )
 
                         progress_data = {
                             "status": "source_complete",
                             "stream_id": stream_id,
                             "source": source_name,
-                            "articles": [a.dict() for a in articles] if len(articles) <= 20 else [a.dict() for a in articles[:20]],
+                            "articles": [a.dict() for a in articles]
+                            if len(articles) <= 20
+                            else [a.dict() for a in articles[:20]],
                             "source_stat": source_stat,
                             "progress": {
                                 "completed": completed_sources,
                                 "total": total_sources,
-                                "percentage": round((completed_sources / total_sources) * 100, 1) if total_sources else 100,
+                                "percentage": round(
+                                    (completed_sources / total_sources) * 100, 1
+                                )
+                                if total_sources
+                                else 100,
                             },
                             "timestamp": datetime.now().isoformat(),
                         }
@@ -170,7 +250,9 @@ async def stream_news(
                     except Exception as exc:  # pragma: no cover - defensive logging
                         completed_sources += 1
                         source_name = future_to_source.get(future, "unknown")
-                        stream_logger.error("❌ Stream %s error for %s: %s", stream_id, source_name, exc)
+                        stream_logger.error(
+                            "❌ Stream %s error for %s: %s", stream_id, source_name, exc
+                        )
 
                         error_data = {
                             "status": "source_error",
@@ -180,7 +262,11 @@ async def stream_news(
                             "progress": {
                                 "completed": completed_sources,
                                 "total": total_sources,
-                                "percentage": round((completed_sources / total_sources) * 100, 1) if total_sources else 100,
+                                "percentage": round(
+                                    (completed_sources / total_sources) * 100, 1
+                                )
+                                if total_sources
+                                else 100,
                             },
                             "timestamp": datetime.now().isoformat(),
                         }
@@ -194,17 +280,25 @@ async def stream_news(
                 )
 
                 try:
-                    all_articles.sort(key=lambda article: article.published, reverse=True)
+                    all_articles.sort(
+                        key=lambda article: article.published, reverse=True
+                    )
                 except Exception as exc:  # pragma: no cover - defensive logging
-                    stream_logger.warning("⚠️ Stream %s couldn't sort articles: %s", stream_id, exc)
+                    stream_logger.warning(
+                        "⚠️ Stream %s couldn't sort articles: %s", stream_id, exc
+                    )
 
                 final_data = {
                     "status": "complete",
                     "stream_id": stream_id,
                     "message": f"Successfully loaded {len(all_articles)} articles from {len(all_source_stats)} sources",
                     "total_articles": len(all_articles),
-                    "successful_sources": len([s for s in all_source_stats if s.get("status") == "success"]),
-                    "failed_sources": len([s for s in all_source_stats if s.get("status") == "error"]),
+                    "successful_sources": len(
+                        [s for s in all_source_stats if s.get("status") == "success"]
+                    ),
+                    "failed_sources": len(
+                        [s for s in all_source_stats if s.get("status") == "error"]
+                    ),
                     "progress": {
                         "completed": total_sources,
                         "total": total_sources,

@@ -25,7 +25,9 @@ async def _get_og_image_from_url(url: str) -> Optional[str]:
             "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36"
         }
         async with httpx.AsyncClient() as client:
-            response = await client.get(url, headers=headers, timeout=10, follow_redirects=True)
+            response = await client.get(
+                url, headers=headers, timeout=10, follow_redirects=True
+            )
             response.raise_for_status()
 
         soup = BeautifulSoup(response.content, "html.parser")
@@ -44,7 +46,9 @@ async def _get_og_image_from_url(url: str) -> Optional[str]:
 
 
 async def _send_image_update(article_url: str, image_url: str) -> None:
-    await manager.broadcast({"type": "image_update", "article_url": article_url, "image_url": image_url})
+    await manager.broadcast(
+        {"type": "image_update", "article_url": article_url, "image_url": image_url}
+    )
 
 
 async def _scrape_and_update_image(article_url: str) -> None:
@@ -64,7 +68,10 @@ async def scrape_missing_images(batch_size: int = 5) -> None:
     if not articles_without_images:
         return
 
-    logger.info("🖼️ Found %s articles without images, starting scrape...", len(articles_without_images))
+    logger.info(
+        "🖼️ Found %s articles without images, starting scrape...",
+        len(articles_without_images),
+    )
 
     for article in articles_without_images[:batch_size]:
         try:
@@ -90,4 +97,6 @@ def start_image_scraping_scheduler(interval_seconds: int = 60) -> None:
 
     thread = threading.Thread(target=image_scraper, daemon=True)
     thread.start()
-    logger.info("🚀 Image scraping scheduler started (%s-second intervals)", interval_seconds)
+    logger.info(
+        "🚀 Image scraping scheduler started (%s-second intervals)", interval_seconds
+    )

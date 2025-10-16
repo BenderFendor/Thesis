@@ -1,4 +1,14 @@
-from sqlalchemy import create_engine, Column, Integer, String, Text, DateTime, Boolean, ARRAY, select, or_
+from sqlalchemy import (
+    Column,
+    Integer,
+    String,
+    Text,
+    DateTime,
+    Boolean,
+    ARRAY,
+    select,
+    or_,
+)
 from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession, async_sessionmaker
 from sqlalchemy.ext.declarative import declarative_base
 from datetime import datetime
@@ -9,7 +19,9 @@ from typing import Any, Dict, List, Optional
 logger = logging.getLogger(__name__)
 
 # Database URL from environment
-DATABASE_URL = os.getenv("DATABASE_URL", "postgresql+asyncpg://newsuser:newspass@localhost:6543/newsdb")
+DATABASE_URL = os.getenv(
+    "DATABASE_URL", "postgresql+asyncpg://newsuser:newspass@localhost:6543/newsdb"
+)
 
 # Async engine configuration
 engine = create_async_engine(
@@ -17,14 +29,12 @@ engine = create_async_engine(
     echo=False,  # Set to True for SQL debugging
     future=True,
     pool_size=20,  # Adjust based on concurrent users
-    max_overflow=0
+    max_overflow=0,
 )
 
 # Session factory
 AsyncSessionLocal = async_sessionmaker(
-    engine,
-    class_=AsyncSession,
-    expire_on_commit=False
+    engine, class_=AsyncSession, expire_on_commit=False
 )
 
 Base = declarative_base()
@@ -33,7 +43,7 @@ Base = declarative_base()
 # Database Models
 class Article(Base):
     __tablename__ = "articles"
-    
+
     id = Column(Integer, primary_key=True, index=True)
     title = Column(Text, nullable=False)
     source = Column(String, nullable=False, index=True)
@@ -48,7 +58,7 @@ class Article(Base):
     category = Column(String, index=True)
     url = Column(String, unique=True, nullable=False, index=True)
     tags = Column(ARRAY(String))
-    original_language = Column(String, default='en')
+    original_language = Column(String, default="en")
     translated = Column(Boolean, default=False)
     chroma_id = Column(String, unique=True)
     embedding_generated = Column(Boolean, default=False)
@@ -58,7 +68,7 @@ class Article(Base):
 
 class Bookmark(Base):
     __tablename__ = "bookmarks"
-    
+
     id = Column(Integer, primary_key=True, index=True)
     article_id = Column(Integer, nullable=False, unique=True)
     created_at = Column(DateTime, default=datetime.utcnow)
@@ -66,7 +76,7 @@ class Bookmark(Base):
 
 class Preference(Base):
     __tablename__ = "preferences"
-    
+
     id = Column(Integer, primary_key=True, index=True)
     key = Column(String, unique=True, nullable=False)
     value = Column(Text, nullable=False)  # Store as JSON string
@@ -75,7 +85,7 @@ class Preference(Base):
 
 class SearchHistory(Base):
     __tablename__ = "search_history"
-    
+
     id = Column(Integer, primary_key=True, index=True)
     query = Column(Text, nullable=False)
     search_type = Column(String)  # 'semantic', 'keyword', 'agentic'
@@ -217,7 +227,9 @@ async def fetch_articles_by_ids(
 
     stmt = select(Article).where(Article.id.in_(article_ids))
     result = await session.execute(stmt)
-    articles = {record.id: article_record_to_dict(record) for record in result.scalars().all()}
+    articles = {
+        record.id: article_record_to_dict(record) for record in result.scalars().all()
+    }
 
     ordered: List[Dict[str, Any]] = []
     for article_id in article_ids:

@@ -60,7 +60,12 @@ def _register_background_task(task: asyncio.Task[Any]) -> None:
 
         exception = future.exception()
         if exception:
-            logger.error("Background task %s failed: %s", task.get_name(), exception, exc_info=True)
+            logger.error(
+                "Background task %s failed: %s",
+                task.get_name(),
+                exception,
+                exc_info=True,
+            )
 
     task.add_done_callback(_cleanup)
 
@@ -85,17 +90,21 @@ async def _load_cache_from_db_fast() -> None:
             articles_dicts = await fetch_all_articles(session, limit=10000)
             if articles_dicts:
                 # Convert dictionaries back to NewsArticle Pydantic models
-                articles = [NewsArticle(**article_dict) for article_dict in articles_dicts]
+                articles = [
+                    NewsArticle(**article_dict) for article_dict in articles_dicts
+                ]
                 # Create minimal stats - will be updated by background RSS refresh
                 stats = {"loaded_from_db": len(articles), "sources": {}}
                 news_cache.update_cache(articles, stats)
-                logger.info("✅ Loaded %d articles from database into cache.", len(articles))
+                logger.info(
+                    "✅ Loaded %d articles from database into cache.", len(articles)
+                )
                 return
             else:
                 logger.warning("⚠️ No articles in DB, falling back to full RSS fetch.")
     except Exception as e:
         logger.error("❌ Failed to load from DB: %s. Falling back to RSS.", e)
-    
+
     # Fallback: do full RSS fetch if DB load fails or returns no articles
     refresh_news_cache()
 
@@ -123,11 +132,14 @@ async def on_startup() -> None:
     _start_schedulers_once()
 
     # 🚀 Load DB cache immediately (fast, non-blocking)
-    threading.Thread(target=_initial_cache_load, name="initial-cache-load", daemon=True).start()
+    threading.Thread(
+        target=_initial_cache_load, name="initial-cache-load", daemon=True
+    ).start()
 
     # 🔄 Start background RSS refresh without blocking startup
     def start_background_rss_refresh() -> None:
         import time
+
         time.sleep(2)  # Give DB load a head start
         logger.info("🔄 Starting background RSS refresh...")
         try:
@@ -135,15 +147,24 @@ async def on_startup() -> None:
         except Exception as exc:  # pragma: no cover
             logger.error("Background RSS refresh failed: %s", exc, exc_info=True)
 
-    threading.Thread(target=start_background_rss_refresh, name="background-rss-refresh", daemon=True).start()
+    threading.Thread(
+        target=start_background_rss_refresh, name="background-rss-refresh", daemon=True
+    ).start()
 
-    persistence_task = asyncio.create_task(article_persistence_worker(), name="article_persistence_worker")
+    persistence_task = asyncio.create_task(
+        article_persistence_worker(), name="article_persistence_worker"
+    )
     _register_background_task(persistence_task)
 
-    migration_task = asyncio.create_task(migrate_cached_articles_on_startup(), name="migrate_cached_articles")
+    migration_task = asyncio.create_task(
+        migrate_cached_articles_on_startup(), name="migrate_cached_articles"
+    )
     _register_background_task(migration_task)
 
-    logger.info("API startup complete - cache ready with %d articles", len(news_cache.get_articles()))
+    logger.info(
+        "API startup complete - cache ready with %d articles",
+        len(news_cache.get_articles()),
+    )
 
 
 @app.on_event("shutdown")
