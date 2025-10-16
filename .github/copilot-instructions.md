@@ -48,3 +48,69 @@ npm run dev
 - Extend RSS metadata via `app/data/rss_sources.json` + helper functions; keep categories/country/bias fields in sync with frontend filters.
 - When persisting data, reuse `AsyncSessionLocal` and helpers in `app/database.py` to avoid duplicate engine creation.
 - Follow env var contract in `docker-compose.yml` (`NEXT_PUBLIC_API_URL`, `DATABASE_URL`, `CHROMA_HOST`); mirror defaults in `frontend/lib/api.ts` where the base URLs are derived.
+
+## MCP TOOLS
+Use Model Context Protocol (MCP) tools to assist with development. These tools are discoverable by the AI and automatically invoked based on context.
+
+### exa-code
+**Purpose**: Real-time code search and documentation retrieval for APIs, libraries, and SDKs.
+
+**Key Capabilities**:
+- Search for code examples, patterns, and best practices across the web
+- Retrieve fresh, up-to-date documentation for libraries and frameworks
+- Find usage examples and implementation patterns for unfamiliar APIs
+- Answer programming questions with concrete code snippets
+
+**When to Use**:
+- Learning an unfamiliar library or API
+- Finding code patterns or implementation examples
+- Validating architectural decisions with real-world examples
+- Understanding framework-specific conventions
+
+**Example Queries**:
+- "React hooks custom hook patterns"
+- "FastAPI async middleware implementation"
+- "Next.js server components with streaming data"
+
+### context7
+**Purpose**: Fetch comprehensive, up-to-date documentation for any library or package.
+
+**Key Capabilities**:
+- Retrieve official documentation for libraries and SDKs
+- Get documentation focused on specific topics or features
+- Access version-specific documentation when available
+- Integrate seamlessly with code search for complete learning
+
+**When to Use**:
+- Need official API documentation for a library
+- Want focused information on specific features
+- Require version-specific documentation details
+- Combining knowledge from both code examples and official docs
+
+**Example Queries**:
+- "Next.js routing patterns" (fetches official Next.js routing docs)
+- "MongoDB connection pooling" (fetches MongoDB driver documentation)
+- "Supabase authentication hooks" (fetches Supabase docs on auth)
+
+### git
+**Purpose**: Version control operations for managing repository changes.
+
+**Available Commands**:
+```bash
+git status                              # Check repository status
+git add <file>                          # Stage changes for commit
+git commit -m "Your commit message"     # Commit staged changes
+git push                                # Push commits to remote
+git pull                                # Fetch and merge remote changes
+git branch <branch-name>                # Create or switch branches
+git log --oneline -n 10                 # View recent commit history
+```
+
+**Workflow Tips**:
+- Always check `git status` before committing to verify staged changes
+- Use descriptive commit messages following project conventions
+- Pull before pushing to avoid conflicts
+- Create feature branches for significant changes
+
+
+
