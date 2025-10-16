@@ -77,15 +77,16 @@ def _start_schedulers_once() -> None:
 
 
 async def _load_cache_from_db_fast() -> None:
-    """Fast path: Load cached articles from DB on startup (~2-5 seconds for 1100+ articles)."""
+    """Fast path: Load cached articles from DB on startup (~2-5 seconds for 10k+ articles)."""
     logger.info("📦 Attempting to load articles from database...")
     try:
         async with AsyncSessionLocal() as session:
-            # Fetch a reasonable limit of recent articles from DB
-            articles_dicts = await fetch_all_articles(session, limit=2000)
+            # Load up to 10,000 recent articles from DB for instant load
+            articles_dicts = await fetch_all_articles(session, limit=10000)
             if articles_dicts:
                 # Convert dictionaries back to NewsArticle Pydantic models
                 articles = [NewsArticle(**article_dict) for article_dict in articles_dicts]
+                # Create minimal stats - will be updated by background RSS refresh
                 stats = {"loaded_from_db": len(articles), "sources": {}}
                 news_cache.update_cache(articles, stats)
                 logger.info("✅ Loaded %d articles from database into cache.", len(articles))
@@ -121,7 +122,20 @@ async def on_startup() -> None:
 
     _start_schedulers_once()
 
+    # 🚀 Load DB cache immediately (fast, non-blocking)
     threading.Thread(target=_initial_cache_load, name="initial-cache-load", daemon=True).start()
+
+    # 🔄 Start background RSS refresh without blocking startup
+    def start_background_rss_refresh() -> None:
+        import time
+        time.sleep(2)  # Give DB load a head start
+        logger.info("🔄 Starting background RSS refresh...")
+        try:
+            refresh_news_cache()
+        except Exception as exc:  # pragma: no cover
+            logger.error("Background RSS refresh failed: %s", exc, exc_info=True)
+
+    threading.Thread(target=start_background_rss_refresh, name="background-rss-refresh", daemon=True).start()
 
     persistence_task = asyncio.create_task(article_persistence_worker(), name="article_persistence_worker")
     _register_background_task(persistence_task)
@@ -129,7 +143,7 @@ async def on_startup() -> None:
     migration_task = asyncio.create_task(migrate_cached_articles_on_startup(), name="migrate_cached_articles")
     _register_background_task(migration_task)
 
-    logger.info("API startup complete")
+    logger.info("API startup complete - cache ready with %d articles", len(news_cache.get_articles()))
 
 
 @app.on_event("shutdown")

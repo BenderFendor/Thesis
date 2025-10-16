@@ -795,9 +795,66 @@ docker run --rm -v thesis_chromadb_data:/data -v $(pwd):/backup alpine tar czf /
         *   Initializes background tasks for database persistence, cache loading, and schedulers.
         *   Provides the primary WebSocket endpoint.
 
-3.  **Key Improvements:**
+3.  3.  **Key Improvements:**
     *   **Separation of Concerns:** Logic is now cleanly separated into distinct modules.
     *   **Maintainability:** Smaller, focused files are easier to understand and modify.
     *   **Scalability:** The modular router design allows for easy expansion.
     *   **Testability:** Services and components can be unit-tested in isolation.
     *   **Configuration Management:** Settings and secrets are centralized in `core/config.py`.
+
+## 2025-10-15
+
+### Feature: Instant Load with Background Cache Refresh
+
+**Objective:** Provide users with instant content on app startup while keeping articles fresh in the background.
+
+**Implementation:**
+
+1.  **Backend Changes (`app/main.py`):**
+    *   **Increased DB load limit:** Changed from 2,000 to 10,000 articles on startup for richer initial cache.
+    *   **Non-blocking startup:** DB cache load runs on a daemon thread to not block API readiness.
+    *   **Delayed RSS refresh:** Background RSS parser starts after 2-second delay, allowing DB load to complete first.
+    *   **Timeline:**
+        - T=0s: API starts
+        - T=1s: DB query begins (loads 10k articles)
+        - T=3-5s: Cache populated, API ready, user sees articles
+        - T=5s+: RSS refresh begins silently in background
+        - T=30s+: Cache updated with fresh data
+
+2.  **Frontend Changes (`hooks/useNewsStream.ts`):**
+    *   Updated initial status message: "Loading cached articles from database..." provides better UX clarity.
+    *   Existing `cache_data` event from SSE endpoint already sends articles immediately to user.
+
+3.  **Database Optimization:**
+    *   `published_at` column is indexed for fast sorting in `fetch_all_articles()`.
+    *   Query sorts by `published_at DESC` then `id DESC` for consistent ordering.
+
+4.  **Architecture Flow:**
+    ```
+    User opens app
+    ↓
+    [Startup] API initializes DB connection
+    ↓
+    [Thread 1] Load 10k cached articles from DB (2-5 seconds)
+    ↓
+    [Main] Cache populated with articles
+    ↓
+    [Thread 2] Background RSS refresh starts (does not block)
+    ↓
+    User sees articles immediately while fresh data loads
+    ```
+
+5.  **Key Features:**
+    *   Articles served from cache first (no loading delay).
+    *   RSS refresh happens silently in background, updates cache without user interruption.
+    *   If cache is fresh (<2 min old), stream returns cached data immediately.
+    *   If cache is stale, stream fetches fresh RSS data while showing cached results.
+    *   Fallback: If DB is empty, RSS refresh happens immediately.
+
+6.  **Benefits:**
+    *   **Instant UX:** Users see 10k articles immediately on load.
+    *   **Fresh Data:** Background refresh ensures content is updated.
+    *   **Non-blocking:** No startup delays for the API.
+    *   **Graceful Degradation:** Works with or without database/RSS sources.
+
+````

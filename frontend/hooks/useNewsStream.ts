@@ -47,7 +47,7 @@ export const useNewsStream = (options: UseNewsStreamOptions = {}) => {
     setArticles([])
     setProgress({ completed: 0, total: 0, percentage: 0 })
     setStatus('starting')
-    setCurrentMessage('Initializing stream...')
+    setCurrentMessage('Loading cached articles from database...')
     setSources([])
     setErrors([])
     setStreamId(undefined)
