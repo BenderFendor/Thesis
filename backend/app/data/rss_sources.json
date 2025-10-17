@@ -62,13 +62,6 @@
     "funding_type": "",
     "bias_rating": ""
   },
-  "All About Android (Audio)": {
-    "url": "https://feeds.twit.tv/aaa.xml",
-    "category": "All About Android (Audio)",
-    "country": "",
-    "funding_type": "",
-    "bias_rating": ""
-  },
   "All Content": {
     "url": "http://saharareporters.com/feeds/latest/feed",
     "category": "All Content",
@@ -100,13 +93,6 @@
   "Android - Buffer Resources": {
     "url": "https://buffer.com/resources/android/rss/",
     "category": "Android - Buffer Resources",
-    "country": "",
-    "funding_type": "",
-    "bias_rating": ""
-  },
-  "Android Central - Android Forums, News, Reviews, Help and Android Wallpapers": {
-    "url": "http://feeds.androidcentral.com/androidcentral",
-    "category": "All About Android (Audio)",
     "country": "",
     "funding_type": "",
     "bias_rating": ""
@@ -448,13 +434,6 @@
     "funding_type": "Non-profit",
     "bias_rating": "Center"
   },
-  "Droid Life": {
-    "url": "https://www.droid-life.com/feed",
-    "category": "All About Android (Audio)",
-    "country": "",
-    "funding_type": "",
-    "bias_rating": ""
-  },
   "Duct Tape Marketing": {
     "url": "https://ducttape.libsyn.com/rss",
     "category": "All News",
@@ -599,13 +578,6 @@
     "url": "https://data.gmanews.tv/gno/rss/news/feed.xml",
     "category": "INQUIRER.net",
     "country": "Philippines",
-    "funding_type": "",
-    "bias_rating": ""
-  },
-  "GSMArena.com - Latest articles": {
-    "url": "https://www.gsmarena.com/rss-news-reviews.php3",
-    "category": "All About Android (Audio)",
-    "country": "",
     "funding_type": "",
     "bias_rating": ""
   },
@@ -1190,13 +1162,6 @@
     "funding_type": "",
     "bias_rating": ""
   },
-  "Phandroid": {
-    "url": "http://feeds2.feedburner.com/AndroidPhoneFans",
-    "category": "All About Android (Audio)",
-    "country": "",
-    "funding_type": "",
-    "bias_rating": ""
-  },
   "PhilNews.XYZ": {
     "url": "https://www.philnews.xyz/feeds/posts/default?alt=rss",
     "category": "INQUIRER.net",
@@ -1474,13 +1439,6 @@
     "url": "http://tass.com/rss/v2.xml",
     "category": "Lenta.ru : Новости",
     "country": "Russia",
-    "funding_type": "",
-    "bias_rating": ""
-  },
-  "TalkAndroid": {
-    "url": "http://feeds.feedburner.com/AndroidNewsGoogleAndroidForums",
-    "category": "All About Android (Audio)",
-    "country": "",
     "funding_type": "",
     "bias_rating": ""
   },
@@ -1899,7 +1857,7 @@
   },
   "xda-developers": {
     "url": "https://data.xda-developers.com/portal-feed",
-    "category": "All About Android (Audio)",
+    "category": "All About Android",
     "country": "",
     "funding_type": "",
     "bias_rating": ""
