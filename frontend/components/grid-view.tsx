@@ -10,6 +10,7 @@ import { Progress } from "@/components/ui/progress"
 import { ExternalLink, Search, Filter, Clock, MapPin, Info, Play, Square, RefreshCw, Newspaper } from "lucide-react"
 import { SourceInfoModal } from "./source-info-modal"
 import { ArticleDetailModal } from "./article-detail-modal"
+import { CollapsibleFilters } from "./collapsible-filters"
 import { fetchNews, getSourceById, type NewsArticle } from "@/lib/api"
 
 const categories = [
@@ -177,90 +178,15 @@ export function GridView({ articles, loading, onCountChange, apiUrl }: GridViewP
 
   return (
     <div className="space-y-6 max-w-[2000px] mx-auto" style={{ padding: '0 1rem' }}>
-      {/* Filters */}
-      <div className="space-y-4">
-        <div className="flex items-center justify-between">
-          <div />
-          <div className="flex items-center gap-4">
-            <Badge variant="secondary" className="text-sm">
-              {filteredNews.length} articles
-            </Badge>
-          </div>
-        </div>
-
-        <div className="flex flex-wrap gap-4 items-center">
-          <div className="flex items-center gap-2">
-            <Search className="w-4 h-4" style={{ color: 'var(--muted-foreground)' }} />
-            <Input
-              placeholder="Search articles..."
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              className="h-10 w-full sm:max-w-sm"
-              style={{
-                backgroundColor: 'var(--input)',
-                borderColor: 'var(--border)',
-                color: 'var(--foreground)'
-              }}
-            />
-          </div>
-
-          <div className="flex gap-2">
-            <Select value={selectedCategory} onValueChange={setSelectedCategory}>
-              <SelectTrigger className="h-10 w-full sm:w-[180px]" style={{
-                backgroundColor: 'var(--input)',
-                borderColor: 'var(--border)',
-                color: 'var(--foreground)'
-              }}>
-                <Filter className="w-4 h-4 mr-2" />
-                <SelectValue className="text-white" placeholder="Filter by category" />
-              </SelectTrigger>
-              <SelectContent>
-                {categories.map((category) => (
-                  <SelectItem key={category} value={category}>
-                    {category}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-
-            <Select value={selectedCountry} onValueChange={setSelectedCountry}>
-              <SelectTrigger className="h-10 w-full sm:w-[180px]" style={{
-                backgroundColor: 'var(--input)',
-                borderColor: 'var(--border)',
-                color: 'var(--foreground)'
-              }}>
-                <MapPin className="w-4 h-4 mr-2" />
-                <SelectValue placeholder="Country" />
-              </SelectTrigger>
-              <SelectContent>
-                {countries.map((country) => (
-                  <SelectItem key={country} value={country}>
-                    {country}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-
-            <Select value={selectedCredibility} onValueChange={setSelectedCredibility}>
-              <SelectTrigger className="h-10 w-full sm:w-[180px]" style={{
-                backgroundColor: 'var(--input)',
-                borderColor: 'var(--border)',
-                color: 'var(--foreground)'
-              }}>
-                <Filter className="w-4 h-4 mr-2" />
-                <SelectValue placeholder="Credibility" />
-              </SelectTrigger>
-              <SelectContent>
-                {credibilityLevels.map((level) => (
-                  <SelectItem key={level} value={level}>
-                    {level}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-        </div>
-      </div>
+      {/* Collapsible Filters */}
+      <CollapsibleFilters
+        searchTerm={searchTerm}
+        onSearchChange={setSearchTerm}
+        selectedCountry={selectedCountry}
+        onCountryChange={setSelectedCountry}
+        selectedCredibility={selectedCredibility}
+        onCredibilityChange={setSelectedCredibility}
+      />
 
       {/* News Grid Container */}
       <div 
@@ -334,7 +260,7 @@ export function GridView({ articles, loading, onCountChange, apiUrl }: GridViewP
                     </div>
 
                     <CardContent className="p-5 flex-1 flex flex-col">
-                      <h3 className="font-semibold text-base line-clamp-2 group-hover:text-primary transition-colors mb-3">
+                      <h3 className="font-serif font-semibold text-base line-clamp-2 group-hover:text-primary transition-colors mb-3">
                         {article.title}
                       </h3>
 

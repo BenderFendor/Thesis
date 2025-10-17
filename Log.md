@@ -777,7 +777,6 @@ docker run --rm -v thesis_chromadb_data:/data -v $(pwd):/backup alpine tar czf /
         *   `cache.py`: In-memory `NewsCache`.
         *   `persistence.py`: Handles database writes with an async queue.
         *   `rss_ingestion.py`: Manages RSS fetching, parsing, and cache refresh scheduling.
-        *   `image_scraper.py`: Background service to find and update missing article images.
         *   `stream_manager.py`: Tracks active SSE streams and handles throttling.
         *   `websocket_manager.py`: Manages WebSocket connections for real-time updates.
         *   `article_analysis.py`: Integrates with `newspaper4k` and Gemini for content analysis.

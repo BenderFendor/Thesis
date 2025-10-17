@@ -26,6 +26,8 @@ import Link from "next/link"
 import { GlobeView } from "@/components/globe-view"
 import { GridView } from "@/components/grid-view"
 import { FeedView } from "@/components/feed-view"
+import { AutoHideHeader } from "@/components/auto-hide-header"
+import { CategoryNav } from "@/components/category-nav"
 import Footer from "@/components/footer"
 import { useNewsStream } from "@/hooks/useNewsStream"
 import { fetchCategories, NewsArticle } from "@/lib/api"
@@ -315,214 +317,90 @@ function NewsPage() {
       )}
 
 
-      {/* Header */}
-      <header
-        ref={headerRef}
-        onMouseEnter={() => {
-          // Only show on hover if near top or bottom of page
-          const currentScrollY = window.scrollY
-          const documentHeight = document.body.offsetHeight
-          const windowHeight = window.innerHeight
-          const isNearTop = currentScrollY <= 150
-          const isNearBottom = currentScrollY >= documentHeight - windowHeight - 200
+      {/* Auto-hiding header with scroll detection */}
+      <AutoHideHeader />
 
-          if (isNearTop || isNearBottom) {
-            setHeaderHidden(false)
-          }
-        }}
-        onMouseLeave={() => {
-          // Re-hide if in middle section
-          const currentScrollY = window.scrollY
-          const documentHeight = document.body.offsetHeight
-          const windowHeight = window.innerHeight
-          const isInMiddle = currentScrollY > 150 && currentScrollY < documentHeight - windowHeight - 200
-
-          if (isInMiddle) {
-            setHeaderHidden(true)
-          }
-        }}
-        className="border-b fixed top-0 left-0 right-0 z-50 transform transition-all duration-300 shadow-lg"
-        style={{
-          borderColor: 'var(--border)',
-          backgroundColor: 'var(--news-bg-secondary)',
-          transform: headerHidden
-            ? `translateY(${-(headerHeightRef.current ? headerHeightRef.current - 8 : 65)}px)`
-            : "translateY(0)"
-        }}
-      >
-        <div className="container mx-auto px-4 py-4">
-          {/* measure header height on mount */}
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <div className="w-8 h-8 bg-primary rounded-lg flex items-center justify-center">
-                <Globe className="w-5 h-5 text-primary-foreground" />
-              </div>
-              <div>
-                <h1 className="text-2xl font-bold font-serif text-foreground">Scoop</h1>
-                <p className="text-xs" style={{ color: 'var(--muted-foreground)' }}>Multi-perspective news aggregation from around the globe</p>
-              </div>
-            </div>
-
-            {/* Header Actions */}
-            <div className="flex items-center gap-3">
-              {/* View Toggle */}
-              <div className="flex items-center gap-2 rounded-lg p-1" style={{ backgroundColor: 'var(--muted)' }}>
-                <Button
-                  variant={currentView === "globe" ? "default" : "ghost"}
-                  size="sm"
-                  onClick={() => setCurrentView("globe")}
-                  className="gap-2"
-                >
-                  <Globe className="w-4 h-4" />
-                  Globe
-                </Button>
-                <Button
-                  variant={currentView === "grid" ? "default" : "ghost"}
-                  size="sm"
-                  onClick={() => setCurrentView("grid")}
-                  className="gap-2"
-                >
-                  <Grid3X3 className="w-4 h-4" />
-                  Grid
-                </Button>
-                <Button
-                  variant={currentView === "scroll" ? "default" : "ghost"}
-                  size="sm"
-                  onClick={() => setCurrentView("scroll")}
-                  className="gap-2"
-                >
-                  <Scroll className="w-4 h-4" />
-                  Feed
-                </Button>
-              </div>
-
-              {/* User Actions */}
-              <div className="flex items-center gap-2">
-                <Link href="/search">
-                  <Button variant="ghost" size="sm" className="gap-2">
-                    <Brain className="w-4 h-4" />
-                    Research
-                  </Button>
-                </Link>
-                <Link href="/sources">
-                  <Button variant="ghost" size="sm" className="gap-2">
-                    <Activity className="w-4 h-4" />
-                    Sources
-                  </Button>
-                </Link>
-                <Button variant="ghost" size="sm" className="relative" onClick={() => setShowNotifications(!showNotifications)}>
-                  <Bell className="w-4 h-4" />
-                  {notifications.length > 0 && (
-                    <Badge className="absolute -top-1 -right-1 w-4 h-4 p-0 flex items-center justify-center text-xs bg-destructive">{notifications.length}</Badge>
-                  )}
-                </Button>
-                {showNotifications && <NotificationsPopup notifications={notifications} onClear={handleClearNotification} onClearAll={handleClearAllNotifications} onRetry={handleRetryNotification} />}
-                <Link href="/settings">
-                  <Button variant="ghost" size="sm">
-                    <Settings className="w-4 h-4" />
-                  </Button>
-                </Link>
-                <Link href="/profile">
-                  <Button variant="ghost" size="sm">
-                    <User className="w-4 h-4" />
-                  </Button>
-                </Link>
-              </div>
-            </div>
-          </div>
-        </div>
-      </header>
-
-      {/* Category Navigation */}
-      <nav
-        ref={navRef}
-        onMouseEnter={() => {
-          // Only show on hover if near top or bottom of page
-          const currentScrollY = window.scrollY
-          const documentHeight = document.body.offsetHeight
-          const windowHeight = window.innerHeight
-          const isNearTop = currentScrollY <= 150
-          const isNearBottom = currentScrollY >= documentHeight - windowHeight - 200
-
-          if (isNearTop || isNearBottom) {
-            setHeaderHidden(false)
-          }
-        }}
-        onMouseLeave={() => {
-          // Re-hide if in middle section
-          const currentScrollY = window.scrollY
-          const documentHeight = document.body.offsetHeight
-          const windowHeight = window.innerHeight
-          const isInMiddle = currentScrollY > 150 && currentScrollY < documentHeight - windowHeight - 200
-
-          if (isInMiddle) {
-            setHeaderHidden(true)
-          }
-        }}
-        className="border-b fixed left-0 right-0 z-40 transform transition-all duration-300 shadow-md"
-        style={{
-          borderColor: 'var(--border)',
-          backgroundColor: 'var(--news-bg-secondary)',
-          top: headerHidden
-            ? `${8}px`
-            : `${headerHeightRef.current || 73}px`,
-          transform: headerHidden
-            ? `translateY(${-(navHeightRef.current ? navHeightRef.current - 6 : 54)}px)`
-            : "translateY(0)"
-        }}
-      >
-        <div className="container mx-auto px-4">
-          <Tabs value={activeCategory} onValueChange={(value) => setActiveCategory(value)}>
-            <TabsList className="flex w-full bg-transparent h-auto p-0">
-              {categories.map((category) => {
-                const IconComponent = category.icon
-                return (
-                  <TabsTrigger
-                    key={category.id}
-                    value={category.id}
-                    className="group flex-1 flex flex-col items-center gap-1 py-3 px-2 rounded-md border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:text-primary hover:bg-accent hover:text-accent-foreground transition-all duration-300 ease-in-out"
-                    style={{
-                      backgroundColor: 'transparent',
-                      color: 'var(--muted-foreground)'
-                    }}
-                  >
-                    <IconComponent className="w-5 h-5" />
-                    <span className="text-xs font-medium">{category.label}</span>
-                  </TabsTrigger>
-                )
-              })}
-            </TabsList>
-          </Tabs>
-        </div>
-      </nav>
+      {/* Category navigation with sticky tabs */}
+      <CategoryNav selectedCategory={activeCategory} onCategoryChange={setActiveCategory} />
 
       {/* Main Content */}
-      <main
-        className={currentView === 'scroll' ? "" : "container mx-auto px-4 sm:px-6 lg:px-8 py-8 transition-all duration-300"}
-        style={currentView === 'scroll' ? {} : {
-          paddingTop: headerHidden
-            ? `${20}px`
-            : `${(headerHeightRef.current || 73) + (navHeightRef.current || 48) + 24}px`,
-          paddingBottom: footerHidden ? '24px' : '120px'
-        }}
-      >
-        {/* Compact single-line header: title + subtitle + badges + hover-expand live controls */}
+      <main className="container mx-auto px-4 sm:px-6 lg:px-8 py-4">
+        {/* Compact header with article count and view toggle */}
         <div className="flex items-center justify-between gap-4 mb-6">
           <div className="flex items-center gap-3 min-w-0">
-            <h2 className="text-2xl font-bold font-serif text-foreground whitespace-nowrap">News Grid</h2>
-            <span className="text-sm truncate hidden sm:inline-block" style={{ color: 'var(--muted-foreground)' }}></span>
+            <h2 className="text-2xl font-bold font-serif text-foreground">News Grid</h2>
           </div>
 
           <div className="flex items-center gap-3">
-            {/* compact badges */}
+            {/* Article count */}
             <div className="flex items-center gap-2">
-              <span className="hidden sm:inline-flex text-sm bg-card/20 px-2 py-1 rounded-md" style={{ backgroundColor: 'var(--card)', color: 'var(--muted-foreground)' }}>{articleCount} article{articleCount === 1 ? '' : 's'}</span>
+              <span className="hidden sm:inline-flex text-sm px-2 py-1 rounded-md" style={{ backgroundColor: 'var(--card)', color: 'var(--muted-foreground)' }}>
+                {articleCount} article{articleCount === 1 ? '' : 's'}
+              </span>
             </div>
 
-            {/* Live Stream Status - Always active */}
+            {/* View Toggle */}
+            <div className="flex items-center gap-2 rounded-lg p-1" style={{ backgroundColor: 'var(--muted)' }}>
+              <Button
+                variant={currentView === "globe" ? "default" : "ghost"}
+                size="sm"
+                onClick={() => setCurrentView("globe")}
+                className="gap-2"
+              >
+                <Globe className="w-4 h-4" />
+                Globe
+              </Button>
+              <Button
+                variant={currentView === "grid" ? "default" : "ghost"}
+                size="sm"
+                onClick={() => setCurrentView("grid")}
+                className="gap-2"
+              >
+                <Grid3X3 className="w-4 h-4" />
+                Grid
+              </Button>
+              <Button
+                variant={currentView === "scroll" ? "default" : "ghost"}
+                size="sm"
+                onClick={() => setCurrentView("scroll")}
+                className="gap-2"
+              >
+                <Scroll className="w-4 h-4" />
+                Feed
+              </Button>
+            </div>
+
+            {/* User Actions */}
             <div className="flex items-center gap-2">
-              <div className="w-3 h-3 rounded" style={{ backgroundColor: 'var(--primary)' }} />
-              <span className="text-sm hidden md:inline" style={{ color: 'var(--muted-foreground)' }}>Live Stream Active</span>
+              <Link href="/search">
+                <Button variant="ghost" size="sm" className="gap-2">
+                  <Brain className="w-4 h-4" />
+                  Research
+                </Button>
+              </Link>
+              <Link href="/sources">
+                <Button variant="ghost" size="sm" className="gap-2">
+                  <Activity className="w-4 h-4" />
+                  Sources
+                </Button>
+              </Link>
+              <Button variant="ghost" size="sm" className="relative" onClick={() => setShowNotifications(!showNotifications)}>
+                <Bell className="w-4 h-4" />
+                {notifications.length > 0 && (
+                  <Badge className="absolute -top-1 -right-1 w-4 h-4 p-0 flex items-center justify-center text-xs bg-destructive">{notifications.length}</Badge>
+                )}
+              </Button>
+              {showNotifications && <NotificationsPopup notifications={notifications} onClear={handleClearNotification} onClearAll={handleClearAllNotifications} onRetry={handleRetryNotification} />}
+              <Link href="/settings">
+                <Button variant="ghost" size="sm">
+                  <Settings className="w-4 h-4" />
+                </Button>
+              </Link>
+              <Link href="/profile">
+                <Button variant="ghost" size="sm">
+                  <User className="w-4 h-4" />
+                </Button>
+              </Link>
             </div>
           </div>
         </div>

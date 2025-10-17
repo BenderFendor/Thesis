@@ -1,8 +1,8 @@
 # Features to add
+
 I would like to add sql backend for this so that I don't have to load the articles each time I st12art up the website. It should also track the date of the article and make sure not to add dupicalates as well which should be easy.
 
 # Add the feature so that when you like on one of the tabs like games or business it truly changes what new articles show up.
-
 
 # Source debugging
 Also update the source page to work with the new backend and add a like toggle for debugging mode and user mode and have it so that you can debug mode has all the console.log prints and all those debugging like meals then those are removed when your in user mode so the end user doesn't have hella things on the screen
@@ -95,9 +95,29 @@ https://dl.acm.org/doi/10.1145/3706598.3713716
 # Speeding up the database loading
 The backend loads up really slowly so if I could speed that up that would be great.
 
-# Fonts to switch to
+# Features to add
+
+## Fonts to switch to
  Instrument Serif and maybe Libre Bodoni
 
- # Add Static code anylsis as well
+## Add Static code anylsis as well
 
- # Add feature to news from only some sources like a selection thing.
+
+## Add a feature where you can open articles up as like tabs
+So like it is like a temp reading list then a permainlty reading list
+
+as right now my workflow is just openning all the articles in like 30 tabs so there has to be a way to streamline that.
+
+So like it should go like you add an article that that goes to the up of the read queue you can have a daily read queue and a like permanlty read queue so it has the daily one and any ones that go past that are put in the perm read queue as a backlog and it just adds the new article to the top of this queue.
+
+## For sources like AP news
+I don't like the whole assciotos press 1 - 2 - 3 thing it should just take all the xml concated them as one mega xml then like show the sources as like a sub net or sub brach of the main source but it should act like one source
+
+## Add a feature for like your favorite / most important new sources
+so you have like your favorites at the top of your feed and the other at the bottom past those favorites.
+
+## Have a sidebar that shows all the sources you have current as well so you can like select just those sources and see jus tthose sources
+It is like this feature of having news from only some sources like a selection thing.
+
+## Also with new sources and articles
+Show aritcles for the past week first then older articles from like the last month or years back last. also I would like it if like has the sources that are most current first so like if a source only has 2023 show that at the end of the feed not the top.

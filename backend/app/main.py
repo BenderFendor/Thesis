@@ -13,7 +13,6 @@ from app.core.logging import configure_logging, get_logger
 from app.database import init_db, AsyncSessionLocal, fetch_all_articles
 from app.models.news import NewsArticle
 from app.services.cache import news_cache
-from app.services.image_scraper import start_image_scraping_scheduler
 from app.services.persistence import (
     article_persistence_worker,
     migrate_cached_articles_on_startup,
@@ -76,7 +75,6 @@ def _start_schedulers_once() -> None:
         if _schedulers_started:
             return
         start_cache_refresh_scheduler()
-        start_image_scraping_scheduler()
         _schedulers_started = True
         logger.info("Background schedulers initialised")
 
