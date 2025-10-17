@@ -121,3 +121,6 @@ It is like this feature of having news from only some sources like a selection t
 
 ## Also with new sources and articles
 Show aritcles for the past week first then older articles from like the last month or years back last. also I would like it if like has the sources that are most current first so like if a source only has 2023 show that at the end of the feed not the top.
+
+## Sources and handling them
+You also don't need if we have 12000 articles to add those 12000 articles all the the frontend display as current I think it does this slows the frontend a lot so it sohuld have infintie scroll and show maybe 100 articles at one time to save on performance
