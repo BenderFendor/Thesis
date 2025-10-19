@@ -6,10 +6,17 @@ WORKDIR /app
 COPY --from=ghcr.io/astral-sh/uv:latest /uv /usr/local/bin/uv
 
 # Copy requirements and install dependencies with uv
-COPY requirements.txt .
+COPY backend/requirements.txt .
 RUN uv pip install --system --no-cache -r requirements.txt
 
-COPY . .
+# Copy only the app directory which is required
+COPY backend/app/ ./app/
+
+# Copy backend root files (all .py files)
+COPY backend/*.py ./
+
+# Copy SQL files if present
+COPY backend/*.sql ./ 2>/dev/null || true
 
 EXPOSE 8001
 

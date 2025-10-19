@@ -57,7 +57,7 @@
     "react-markdown": "^10.1.0",
     "react-resizable-panels": "^2.1.7",
     "react-virtualized-auto-sizer": "^1.0.26",
-    "react-window": "^1.8.10",
+    "react-window": "^1.8.11",
     "recharts": "2.15.4",
     "rehype-raw": "^7.0.0",
     "remark-gfm": "^4.0.1",

@@ -1,4 +1,47 @@
 # Log
+
+## 2025-10-19: Docker Build Optimization
+
+### Changes Made
+- ✅ Created root-level `.dockerignore` to exclude build context bloat (node_modules, .git, caches)
+- ✅ Restructured `backend/Dockerfile` for better layer caching (deps → code separation)
+- ✅ Updated `docker-compose.yml` backend context from `./backend` to `.` (repo root)
+- ✅ Enhanced `frontend/.dockerignore` with additional exclusions
+- ✅ Updated backend COPY paths to use `backend/` prefix (matching new context)
+
+### Expected Performance Improvements
+- Build context size: ~500MB → ~50MB (90% reduction)
+- Clean build time: ~1436s → 200-300s (78-86% faster)
+- Incremental builds: ~608s → 10-30s (95-98% faster)
+- Layer cache hits on code-only changes
+
+### Build Commands
+```bash
+# Enable BuildKit (add to ~/.zshrc for persistence)
+export DOCKER_BUILDKIT=1
+export COMPOSE_DOCKER_CLI_BUILD=1
+
+# Parallel build with cache
+docker compose build --parallel
+
+# Clean build test
+docker compose down -v
+docker system prune -af
+time docker compose build --parallel
+```
+
+### Validation
+```bash
+# Check build context size
+docker build --no-cache -f backend/Dockerfile . 2>&1 | grep "Sending build context"
+
+# Test incremental build
+echo "# test" >> backend/app/main.py
+time docker compose build backend
+```
+
+---
+
 # Database Integration Guide - PostgreSQL + ChromaDB
 
 This guide provides updated best practices for integrating PostgreSQL and ChromaDB into the Thesis news platform based on 2025 documentation and patterns.

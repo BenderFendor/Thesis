@@ -2,6 +2,7 @@ node_modules
 npm-debug.log*
 .npm
 .next
+.vercel
 .git
 .gitignore
 README.md
@@ -10,3 +11,8 @@ Dockerfile
 .nyc_output
 .coverage
 coverage.lcov
+.env*.local
+.DS_Store
+*.log
+tmp
+temp

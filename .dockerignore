@@ -1,0 +1,56 @@
+# Dependencies
+node_modules
+frontend/node_modules
+backend/.venv
+**/__pycache__
+**/*.pyc
+**/*.pyo
+**/*.pyd
+
+# Build outputs
+frontend/.next
+frontend/.vercel
+frontend/out
+backend/dist
+backend/build
+
+# Caches
+.ruff_cache
+.pytest_cache
+.mypy_cache
+**/.cache
+
+# IDE & OS
+.vscode
+.idea
+.windsurf
+.cursor
+.DS_Store
+Thumbs.db
+
+# Git
+.git
+.gitignore
+.gitattributes
+
+# Logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Environment
+.env
+.env.local
+.env.*.local
+
+# Testing
+coverage
+.nyc_output
+
+# Misc
+*.md
+!README.md
+tmp
+temp
+.cache
