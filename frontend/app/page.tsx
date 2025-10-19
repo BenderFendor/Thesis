@@ -323,15 +323,16 @@ function NewsPage() {
       {/* Category navigation with sticky tabs */}
       <CategoryNav selectedCategory={activeCategory} onCategoryChange={setActiveCategory} />
 
-      {/* Main Content */}
-      <main className="container mx-auto px-4 sm:px-6 lg:px-8 py-4">
+      {/* Main Content - Full Height for Virtual Scrolling */}
+      <main className="flex flex-col flex-1 h-[calc(100vh-200px)] overflow-hidden">
         {/* Compact header with article count and view toggle */}
-        <div className="flex items-center justify-between gap-4 mb-6">
-          <div className="flex items-center gap-3 min-w-0">
-            <h2 className="text-2xl font-bold font-serif text-foreground">News Grid</h2>
-          </div>
+        <div className="px-4 sm:px-6 lg:px-8 py-4 border-b border-border/50">
+          <div className="flex items-center justify-between gap-4 mb-0">
+            <div className="flex items-center gap-3 min-w-0">
+              <h2 className="text-2xl font-bold font-serif text-foreground">News Grid</h2>
+            </div>
 
-          <div className="flex items-center gap-3">
+            <div className="flex items-center gap-3">
             {/* Article count */}
             <div className="flex items-center gap-2">
               <span className="hidden sm:inline-flex text-sm px-2 py-1 rounded-md" style={{ backgroundColor: 'var(--card)', color: 'var(--muted-foreground)' }}>
@@ -404,12 +405,13 @@ function NewsPage() {
             </div>
           </div>
         </div>
+        </div>
 
-        <Tabs value={activeCategory} onValueChange={(value) => setActiveCategory(value)}>
+        <Tabs value={activeCategory} onValueChange={(value) => setActiveCategory(value)} className="flex-1 flex flex-col overflow-hidden">
           {categories.map((category) => {
             const IconComponent = category.icon
             return (
-              <TabsContent key={category.id} value={category.id} className="mt-0">
+              <TabsContent key={category.id} value={category.id} className="mt-0 flex-1 overflow-hidden">
                 {/* Content Views - Pass articles as props */}
                 <>
                   {currentView === "globe" && (

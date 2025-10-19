@@ -1,17 +1,19 @@
 "use client"
 
-import { useState, useEffect, useRef, useCallback } from "react"
+import { useState, useEffect, useCallback, useMemo } from "react"
 import { Card, CardContent } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Progress } from "@/components/ui/progress"
-import { ExternalLink, Search, Filter, Clock, MapPin, Info, Play, Square, RefreshCw, Newspaper } from "lucide-react"
+import { Clock, MapPin, Info, RefreshCw, Newspaper, ExternalLink } from "lucide-react"
+import { FixedSizeList as List } from "react-window"
+import AutoSizer from "react-virtualized-auto-sizer"
 import { SourceInfoModal } from "./source-info-modal"
 import { ArticleDetailModal } from "./article-detail-modal"
 import { CollapsibleFilters } from "./collapsible-filters"
-import { fetchNews, getSourceById, type NewsArticle } from "@/lib/api"
+import type { NewsArticle } from "@/lib/api"
+import { get_logger } from "@/lib/utils"
+
+const logger = get_logger("GridView")
 
 const categories = [
   "All",
@@ -27,6 +29,12 @@ const categories = [
 const countries = ["All", "United States", "United Kingdom", "Germany", "France", "Canada", "Australia", "India", "China", "Japan", "Russia", "Spain"]
 const credibilityLevels = ["All", "High", "Medium", "Low"]
 
+// Virtual grid constants for optimization
+const COLUMN_COUNT = 4
+const COLUMN_WIDTH = 300
+const ROW_HEIGHT = 420
+const GAP = 16
+
 interface GridViewProps {
   articles: NewsArticle[]
   loading: boolean
@@ -41,97 +49,52 @@ export function GridView({ articles, loading, onCountChange, apiUrl }: GridViewP
   const [selectedCredibility, setSelectedCredibility] = useState("All")
   const [selectedArticle, setSelectedArticle] = useState<NewsArticle | null>(null)
   const [isArticleModalOpen, setIsArticleModalOpen] = useState(false)
-  const gridRef = useRef<HTMLDivElement>(null)
 
-  const filteredNews = articles.filter((article: NewsArticle) => {
-    const matchesSearch =
-      article.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      article.summary.toLowerCase().includes(searchTerm.toLowerCase())
-    const matchesCategory = selectedCategory === "All" || article.category === selectedCategory
-    const matchesCountry = selectedCountry === "All" || article.country === selectedCountry
-    const matchesCredibility =
-      selectedCredibility === "All" || article.credibility === selectedCredibility.toLowerCase()
+  // Filter articles based on user selections
+  const filteredNews = useMemo(() => {
+    return articles.filter((article: NewsArticle) => {
+      const matchesSearch =
+        article.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        article.summary.toLowerCase().includes(searchTerm.toLowerCase())
+      const matchesCategory = selectedCategory === "All" || article.category === selectedCategory
+      const matchesCountry = selectedCountry === "All" || article.country === selectedCountry
+      const matchesCredibility =
+        selectedCredibility === "All" || article.credibility === selectedCredibility.toLowerCase()
 
-    return matchesSearch && matchesCategory && matchesCountry && matchesCredibility
-  })
+      return matchesSearch && matchesCategory && matchesCountry && matchesCredibility
+    })
+  }, [articles, searchTerm, selectedCategory, selectedCountry, selectedCredibility])
 
-  // Notify parent about current filtered count when it changes
+  // Notify parent about filtered count
   useEffect(() => {
     try {
       onCountChange?.(filteredNews.length)
     } catch (e) {
-      // ignore
+      logger.error("Failed to notify parent of count change", e)
     }
   }, [filteredNews.length, onCountChange])
 
-  // Debug filtering results
+  // Debug logging (controlled by logger feature)
   useEffect(() => {
-    const requestInfo = {
-      sentUrl: apiUrl || `API call is handled by parent component`,
-      filtersApplied: {
+    logger.debug("Filter state changed", {
+      totalArticles: articles.length,
+      filteredCount: filteredNews.length,
+      filters: {
         searchTerm,
         selectedCategory,
         selectedCountry,
         selectedCredibility,
       },
-    }
-
-    const responseInfo = {
-      totalArticlesReceived: articles.length,
-      filteredArticlesCount: filteredNews.length,
-      sampleArticles: articles.slice(0, 3).map(a => ({ 
-        title: a.title, 
-        category: a.category, 
-        country: a.country, 
-        credibility: a.credibility 
-      })),
-    }
-
-    console.log(`🔍 Grid View Filter Debug:`, {
-      requestInfo,
-      responseInfo,
     })
+  }, [
+    articles.length,
+    filteredNews.length,
+    searchTerm,
+    selectedCategory,
+    selectedCountry,
+    selectedCredibility,
+  ])
 
-    if (articles.length > 0 && filteredNews.length === 0) {
-      console.log(
-        `⚠️ Grid View: Filters eliminated all articles.`,
-        { 
-          filters: requestInfo.filtersApplied, 
-          articlesPreview: responseInfo.sampleArticles 
-        }
-      )
-    }
-  }, [articles, filteredNews.length, searchTerm, selectedCategory, selectedCountry, selectedCredibility, apiUrl])
-
-  useEffect(() => {
-    const handleKeyDown = (event: KeyboardEvent) => {
-      if (!gridRef.current) return
-
-      const grid = gridRef.current
-      const cards = grid.querySelectorAll("[data-card]")
-      const gridComputedStyle = window.getComputedStyle(grid)
-      const columns = gridComputedStyle.getPropertyValue("grid-template-columns").split(" ").length
-
-      if (event.key === "ArrowDown") {
-        event.preventDefault()
-        const cardHeight = cards[0]?.getBoundingClientRect().height || 0
-        const gap = 24 // 1.5rem gap
-        const scrollAmount = cardHeight + gap
-        grid.scrollBy({ top: scrollAmount, behavior: "smooth" })
-      } else if (event.key === "ArrowUp") {
-        event.preventDefault()
-        const cardHeight = cards[0]?.getBoundingClientRect().height || 0
-        const gap = 24 // 1.5rem gap
-        const scrollAmount = cardHeight + gap
-        grid.scrollBy({ top: -scrollAmount, behavior: "smooth" })
-      }
-    }
-
-    window.addEventListener("keydown", handleKeyDown)
-    return () => window.removeEventListener("keydown", handleKeyDown)
-  }, [filteredNews])
-
-  
   const getCredibilityColor = (credibility: string) => {
     switch (credibility) {
       case "high":
@@ -158,10 +121,120 @@ export function GridView({ articles, loading, onCountChange, apiUrl }: GridViewP
     }
   }
 
-  const handleArticleClick = (article: NewsArticle) => {
+  const handleArticleClick = useCallback((article: NewsArticle) => {
     setSelectedArticle(article)
     setIsArticleModalOpen(true)
-  }
+  }, [])
+
+  // Calculate row count for virtual grid
+  const rowCount = Math.ceil(filteredNews.length / COLUMN_COUNT)
+
+  // Virtual grid row renderer - each row contains up to COLUMN_COUNT articles
+  const Row = useCallback(
+    ({ index, style }: { index: number; style: React.CSSProperties }) => {
+      const startIdx = index * COLUMN_COUNT
+      const rowArticles = filteredNews.slice(startIdx, startIdx + COLUMN_COUNT)
+
+      return (
+        <div
+          style={{
+            ...style,
+            display: "grid",
+            gridTemplateColumns: `repeat(${COLUMN_COUNT}, 1fr)`,
+            gap: `${GAP}px`,
+            padding: `${GAP / 2}px`,
+          }}
+        >
+          {rowArticles.map((article) => (
+            <Card
+              key={article.id}
+              className="h-full cursor-pointer transition-all duration-300 hover:shadow-lg hover:scale-[1.02] group border-border bg-card"
+              onClick={() => handleArticleClick(article)}
+            >
+              <div className="relative overflow-hidden h-48">
+                <img
+                  src={article.image || "/placeholder.svg"}
+                  alt={article.title}
+                  className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                />
+                <div className="absolute top-3 left-3 flex gap-2">
+                  <Badge
+                    variant={getCredibilityColor(article.credibility)}
+                    className="text-xs font-medium px-2 py-1 rounded-full backdrop-blur-sm bg-black/70 text-white border-0"
+                  >
+                    {article.credibility}
+                  </Badge>
+                  <span
+                    className="text-xs rounded-full px-2 py-1 backdrop-blur-sm bg-black/70 text-white border-0 font-medium"
+                    title={`${article.bias} bias`}
+                  >
+                    {getBiasIndicator(article.bias)}
+                  </span>
+                </div>
+                <div className="absolute top-3 right-3 flex gap-2">
+                  <Badge className="text-xs font-medium px-2 py-1 rounded-full backdrop-blur-sm bg-black/70 text-white border-0">
+                    {article.category}
+                  </Badge>
+                  {article.translated && (
+                    <Badge className="text-xs font-medium px-2 py-1 rounded-full backdrop-blur-sm bg-black/70 text-white border-0">
+                      Translated
+                    </Badge>
+                  )}
+                </div>
+              </div>
+
+              <CardContent className="p-4 flex-1 flex flex-col h-auto">
+                <h3 className="font-serif font-semibold text-base line-clamp-2 group-hover:text-primary transition-colors mb-3">
+                  {article.title}
+                </h3>
+
+                <div className="flex items-center gap-2 mb-3 text-xs text-muted-foreground">
+                  <MapPin className="w-3 h-3" />
+                  <span>{article.country}</span>
+                  <span>•</span>
+                  <Clock className="w-3 h-3" />
+                  <span>
+                    {new Date(article.publishedAt).toLocaleDateString()}
+                  </span>
+                </div>
+
+                <p className="text-xs text-muted-foreground line-clamp-3 mt-2">
+                  {article.summary}
+                </p>
+
+                <div className="flex items-center justify-between mt-auto pt-4 opacity-80 group-hover:opacity-100 transition-opacity duration-300">
+                  <SourceInfoModal sourceId={article.sourceId}>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="text-xs font-medium text-primary p-0 h-auto"
+                      onClick={(e) => e.stopPropagation()}
+                    >
+                      <Info className="w-3 h-3 mr-1" />
+                      {article.source}
+                    </Button>
+                  </SourceInfoModal>
+
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="h-8 w-8 p-0 opacity-0 group-hover:opacity-100 transition-opacity"
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      window.open(article.url, "_blank")
+                    }}
+                  >
+                    <ExternalLink className="w-3 h-3" />
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+      )
+    },
+    [filteredNews, handleArticleClick],
+  )
 
   if (loading) {
     return (
@@ -177,166 +250,69 @@ export function GridView({ articles, loading, onCountChange, apiUrl }: GridViewP
   }
 
   return (
-    <div className="space-y-6 max-w-[2000px] mx-auto" style={{ padding: '0 1rem' }}>
+    <div className="space-y-6 h-full flex flex-col">
       {/* Collapsible Filters */}
-      <CollapsibleFilters
-        searchTerm={searchTerm}
-        onSearchChange={setSearchTerm}
-        selectedCountry={selectedCountry}
-        onCountryChange={setSelectedCountry}
-        selectedCredibility={selectedCredibility}
-        onCredibilityChange={setSelectedCredibility}
-      />
-
-      {/* News Grid Container */}
-      <div 
-        ref={gridRef}
-        className="overflow-y-auto h-[calc(100vh-200px)] snap-y snap-mandatory [&::-webkit-scrollbar]:hidden"
-        style={{
-          msOverflowStyle: 'none',
-          scrollbarWidth: 'none',
-          scrollBehavior: 'smooth',
-          overscrollBehavior: 'contain',
-          scrollSnapType: 'y mandatory'
-        }}
-      >
-        <div className="space-y-6 w-full">
-          {Array.from({ length: Math.ceil(filteredNews.length / 4) }).map((_, rowIndex) => {
-            const startIdx = rowIndex * 4;
-            const rowArticles = filteredNews.slice(startIdx, startIdx + 4);
-            
-            return (
-              <div 
-                key={rowIndex} 
-                className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6 w-full"
-                style={{
-                  scrollSnapAlign: 'start',
-                  scrollMargin: '1rem',
-                  minHeight: 'min-content',
-                  padding: '1rem 0'
-                }}
-              >
-                {rowArticles.map((article) => (
-                  <Card
-                    key={article.id}
-                    data-card
-                    className="group h-full flex flex-col overflow-hidden border rounded-lg transition-all duration-300 transform hover:-translate-y-1 hover:shadow-lg hover:shadow-primary/20"
-                    style={{
-                      backgroundColor: 'var(--news-card-bg)',
-                      borderColor: 'var(--border)'
-                    }}
-                    onClick={() => handleArticleClick(article)}
-                  >
-                    <div className="relative overflow-hidden">
-                      <img
-                        src={article.image || "/placeholder.svg"}
-                        alt={article.title}
-                        className="w-full h-48 object-cover group-hover:scale-105 transition-transform duration-300"
-                      />
-                      <div className="absolute top-3 left-3 flex gap-2">
-                        <Badge
-                          variant={getCredibilityColor(article.credibility)}
-                          className="text-xs font-medium px-2 py-1 rounded-full backdrop-blur-sm bg-black/70 text-white border-0"
-                        >
-                          {article.credibility}
-                        </Badge>
-                        <span
-                          className="text-xs rounded-full px-2 py-1 backdrop-blur-sm bg-black/70 text-white border-0 font-medium"
-                          title={`${article.bias} bias`}
-                        >
-                          {getBiasIndicator(article.bias)}
-                        </span>
-                      </div>
-                      <div className="absolute top-3 right-3 flex gap-2">
-                        <Badge className="text-xs font-medium px-2 py-1 rounded-full backdrop-blur-sm bg-black/70 text-white border-0">
-                          {article.category}
-                        </Badge>
-                        {article.translated && (
-                          <Badge className="text-xs font-medium px-2 py-1 rounded-full backdrop-blur-sm bg-black/70 text-white border-0">
-                            Translated
-                          </Badge>
-                        )}
-                      </div>
-                    </div>
-
-                    <CardContent className="p-5 flex-1 flex flex-col">
-                      <h3 className="font-serif font-semibold text-base line-clamp-2 group-hover:text-primary transition-colors mb-3">
-                        {article.title}
-                      </h3>
-
-                      <div className="flex items-center gap-2 mb-3 text-xs text-muted-foreground">
-                        <MapPin className="w-3 h-3" />
-                        <span>{article.country}</span>
-                        <span>•</span>
-                        <Clock className="w-3 h-3" />
-                        <span>{new Date(article.publishedAt).toLocaleDateString()}</span>
-                      </div>
-
-                      <p className="text-xs text-muted-foreground line-clamp-3 mt-2">{article.summary}</p>
-
-                      <div className="flex items-center justify-between mt-auto pt-4 opacity-80 group-hover:opacity-100 transition-opacity duration-300">
-                        <SourceInfoModal sourceId={article.sourceId}>
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            className="text-xs font-medium text-primary p-0 h-auto"
-                            onClick={(e) => e.stopPropagation()}
-                          >
-                            <Info className="w-3 h-3 mr-1" />
-                            {article.source}
-                          </Button>
-                        </SourceInfoModal>
-
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          className="h-8 w-8 p-0 opacity-0 group-hover:opacity-100 transition-opacity"
-                          onClick={(e) => {
-                            e.stopPropagation()
-                            window.open(article.url, "_blank")
-                          }}
-                        >
-                          <ExternalLink className="w-3 h-3" />
-                        </Button>
-                      </div>
-                    </CardContent>
-                  </Card>
-                ))}
-              </div>
-            )
-          })}
-        </div>
+      <div className="px-4 sm:px-6 md:px-8 lg:px-12 xl:px-16">
+        <CollapsibleFilters
+          searchTerm={searchTerm}
+          onSearchChange={setSearchTerm}
+          selectedCountry={selectedCountry}
+          onCountryChange={setSelectedCountry}
+          selectedCredibility={selectedCredibility}
+          onCredibilityChange={setSelectedCredibility}
+        />
       </div>
 
-      <div className="mt-4 pt-4 border-t text-xs flex items-center justify-between" style={{ borderColor: 'var(--border)', color: 'var(--muted-foreground)' }}>
-        <span>Use ↑↓ arrow keys to scroll by rows</span>
-        <span>Grid adapts to your screen resolution</span>
-      </div>
-
-      {/* No Results */}
-      {filteredNews.length === 0 && !loading && (
-        <div className="text-center py-16">
-          <div className="mx-auto w-16 h-16 rounded-full flex items-center justify-center mb-4" style={{ backgroundColor: 'var(--card)' }}>
-            <Newspaper className="w-8 h-8" style={{ color: 'var(--muted-foreground)' }} />
+      {/* Virtualized Grid */}
+      {filteredNews.length === 0 && !loading ? (
+        <div className="text-center py-16 flex-1 flex items-center justify-center">
+          <div className="mx-auto">
+            <div className="mx-auto w-16 h-16 rounded-full flex items-center justify-center mb-4" style={{ backgroundColor: 'var(--card)' }}>
+              <Newspaper className="w-8 h-8" style={{ color: 'var(--muted-foreground)' }} />
+            </div>
+            <h3 className="text-lg font-medium" style={{ color: 'var(--foreground)' }}>No articles found</h3>
+            <p className="mt-1 max-w-md mx-auto" style={{ color: 'var(--muted-foreground)' }}>Try adjusting your search or filters to find what you're looking for.</p>
+            <Button
+              variant="outline"
+              className="mt-4"
+              style={{ borderColor: 'var(--border)', color: 'var(--foreground)' }}
+              onClick={() => {
+                setSearchTerm('')
+                setSelectedCategory('All')
+                setSelectedCountry('All')
+                setSelectedCredibility('All')
+              }}
+            >
+              <RefreshCw className="w-4 h-4 mr-2" />
+              Reset filters
+            </Button>
           </div>
-          <h3 className="text-lg font-medium" style={{ color: 'var(--foreground)' }}>No articles found</h3>
-          <p className="mt-1 max-w-md mx-auto" style={{ color: 'var(--muted-foreground)' }}>Try adjusting your search or filters to find what you're looking for.</p>
-          <Button
-            variant="outline"
-            className="mt-4"
-            style={{ borderColor: 'var(--border)', color: 'var(--foreground)' }}
-            onClick={() => {
-              setSearchTerm('');
-              setSelectedCategory('All');
-              setSelectedCountry('All');
-              setSelectedCredibility('All');
-            }}
-          >
-            <RefreshCw className="w-4 h-4 mr-2" />
-            Reset filters
-          </Button>
+        </div>
+      ) : (
+        <div className="flex-1 px-4 sm:px-6 md:px-8 lg:px-12 xl:px-16">
+          <AutoSizer>
+            {({ height, width }: { height: number; width: number }) => (
+              <List
+                itemCount={rowCount}
+                itemSize={ROW_HEIGHT}
+                width={width}
+                height={height - 100}
+                overscanCount={2}
+              >
+                {Row}
+              </List>
+            )}
+          </AutoSizer>
         </div>
       )}
+
+      {/* Footer Stats */}
+      <div className="px-4 sm:px-6 md:px-8 lg:px-12 xl:px-16 py-4 border-t border-border">
+        <div className="flex items-center justify-between text-xs text-muted-foreground">
+          <span>Showing {filteredNews.length} of {articles.length} articles</span>
+          <span>Optimized with virtual scrolling</span>
+        </div>
+      </div>
 
       {/* Article Detail Modal */}
       <ArticleDetailModal
