@@ -39,12 +39,12 @@ const categories = [
 ]
 
 // Virtual grid constants for optimization
-const COLUMN_COUNT = 5
-const COLUMN_WIDTH = 260
-const ROW_HEIGHT = 380  // Increased to prevent card content overlap
+const COLUMN_COUNT = 4
+const COLUMN_WIDTH = 320
+const ROW_HEIGHT = 420  // Increased to prevent card content overlap
 const GAP = 12
 const ROW_GAP = 16  // Vertical gap between rows
-
+const NUM_OF_ARTICLES = 12
 interface GridViewProps {
   articles: NewsArticle[]
   loading: boolean
@@ -170,11 +170,18 @@ export function GridView({
     [isArticleInQueue, removeArticleFromQueue, addArticleToQueue],
   )
 
-  // Group articles by source
+  // Group articles by source with deduplication
   const sourceGroups = useMemo(() => {
     const groups = new Map<string, SourceGroup>()
+    const seenUrls = new Set<string>() // Track article URLs to prevent duplicates
 
     filteredNews.forEach((article) => {
+      // Skip if we've already seen this article URL
+      if (seenUrls.has(article.url)) {
+        return
+      }
+      seenUrls.add(article.url)
+
       const sourceKey = article.sourceId || article.source
       if (!groups.has(sourceKey)) {
         groups.set(sourceKey, {
@@ -210,35 +217,35 @@ export function GridView({
   return (
     <div className="w-full h-full flex flex-col overflow-hidden bg-background">
       {/* Category Filter Header - Now below nav/top bar */}
-      <div className="flex-shrink-0 border-b border-border/30 bg-background/40 backdrop-blur-sm px-3 sm:px-4 lg:px-6 py-2">
-        <div className="flex items-center gap-1 overflow-x-auto pb-1">
+      <div className="flex-shrink-0 border-b border-border/30 bg-background/40 backdrop-blur-sm px-4 sm:px-6 lg:px-8 py-3">
+        <div className="flex items-center gap-2 overflow-x-auto pb-2">
           {categories.map((category) => (
             <Button
               key={category}
               onClick={() => setSelectedCategory(category)}
               variant={selectedCategory === category ? 'default' : 'outline'}
-              className="text-xs font-medium whitespace-nowrap px-2 py-1 h-auto"
+              className="text-sm font-medium whitespace-nowrap px-3 py-2 h-auto"
             >
               {category}
             </Button>
           ))}
         </div>
-        <div className="text-xs text-muted-foreground mt-1">
+        <div className="text-sm text-muted-foreground mt-2">
           Showing {filteredNews.length} articles from {sourceGroups.length}{" "}
           sources
         </div>
       </div>
 
       {/* Search Bar */}
-      <div className="flex-shrink-0 px-3 sm:px-4 lg:px-6 py-2 border-b border-border/30 bg-background/40 backdrop-blur-sm">
+      <div className="flex-shrink-0 px-4 sm:px-6 lg:px-8 py-3 border-b border-border/30 bg-background/40 backdrop-blur-sm">
         <div className="relative">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-muted-foreground" />
           <input
             type="text"
             placeholder="Search articles..."
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
-            className="w-full pl-10 pr-4 py-2 text-sm rounded-lg bg-background/80 border border-border/50 text-foreground placeholder-muted-foreground focus:outline-none focus:ring-1 focus:ring-primary"
+            className="w-full pl-12 pr-4 py-3 text-base rounded-lg bg-background/80 border border-border/50 text-foreground placeholder-muted-foreground focus:outline-none focus:ring-1 focus:ring-primary"
           />
         </div>
       </div>
@@ -287,7 +294,7 @@ export function GridView({
                   <div className="flex items-center gap-3">
                     <Newspaper className="w-5 h-5 text-primary" />
                     <div className="flex items-center gap-2">
-                      <h3 className="font-semibold text-sm">
+                      <h3 className="font-bold text-md">
                         {group.sourceName}
                       </h3>
                       <Button
@@ -329,10 +336,10 @@ export function GridView({
                     <span>
                       {expandedSourceId === group.sourceId
                         ? group.articles.length
-                        : Math.min(18, group.articles.length)}{" "}
+                        : Math.min(NUM_OF_ARTICLES, group.articles.length)}{" "}
                       of {group.articles.length} articles
                     </span>
-                    {group.articles.length > 18 && (
+                    {group.articles.length > NUM_OF_ARTICLES && (
                       <Button
                         variant="ghost"
                         size="sm"
@@ -362,13 +369,13 @@ export function GridView({
 
                 {/* Articles Grid */}
                 <div className="p-3">
-                  <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6 gap-3">
+                  <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
                     {group.articles
                       .slice(
                         0,
                         expandedSourceId === group.sourceId
                           ? group.articles.length
-                          : 18
+                          : NUM_OF_ARTICLES
                       )
                       .map((article) => (
                       <button
@@ -436,13 +443,13 @@ export function GridView({
                           {/* Content */}
                           <CardContent className="flex-1 flex flex-col p-2">
                             {/* Title */}
-                            <h3 className="text-xs font-semibold text-foreground leading-snug line-clamp-3 mb-1 font-serif">
+                            <h3 className="text-md font-semibold text-foreground leading-snug line-clamp-4 mb-1 font-serif">
                               {article.title}
                             </h3>
 
                             {/* Meta Info */}
-                            <div className="flex items-center gap-1 text-[9px] text-muted-foreground mt-auto pt-1">
-                              <Clock className="w-2.5 h-2.5" />
+                            <div className="flex items-center gap-1 text-xs text-muted-foreground mt-auto pt-1">
+                              <Clock className="w-3 h-3" />
                               <span>
                                 {new Date(
                                   article.publishedAt

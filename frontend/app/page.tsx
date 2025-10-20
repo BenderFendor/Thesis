@@ -350,21 +350,20 @@ function NewsPage() {
       {/* Main Content - Full Height for Virtual Scrolling */}
       <main className="flex flex-col flex-1 h-[calc(100vh)] overflow-hidden">
         {/* Consolidated header with Scoop branding and controls */}
-        <div className="px-3 sm:px-4 lg:px-6 py-3 border-b border-border/50">
+        <div className="px-4 sm:px-6 lg:px-8 py-4 border-b border-border/50">
           <div className="flex items-center justify-between gap-4">
             {/* Left side: Scoop branding + News Grid title */}
             <div className="flex items-center gap-4">
-              <Link href="/" className="flex items-center gap-2">
-                <Globe className="w-6 h-6 text-primary" />
+              <Link href="/" className="flex items-center gap-3">
+                <Globe className="w-8 h-8 text-primary" />
                 <div className="flex flex-col">
-                  <h1 className="font-serif text-xl font-semibold">Scoop</h1>
-                  <p className="text-[10px] text-muted-foreground hidden sm:block">
+                  <h1 className="font-serif text-2xl font-semibold">Scoop</h1>
+                  <p className="text-xs text-muted-foreground hidden sm:block">
                     Multi-perspective news
                   </p>
                 </div>
               </Link>
-              <div className="h-6 w-px bg-border hidden md:block" />
-              <h2 className="text-lg font-bold font-serif text-foreground hidden md:block">News Grid</h2>
+              <div className="h-8 w-px bg-border hidden md:block" />
             </div>
 
             {/* Right side: Article count, sources filter, view toggle, and nav buttons */}
