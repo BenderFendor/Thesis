@@ -1,10 +1,45 @@
 {
-    "BBC": {
+      "BBC": {
         "url": "https://feeds.bbci.co.uk/news/rss.xml",
         "category": "general",
         "country": "UK",
         "funding_type": "Public",
         "bias_rating": "Center"
+    },
+    "BBC News - Home": {
+        "url": "http://feeds.bbci.co.uk/news/rss.xml",
+        "category": "BBC News - Home",
+        "country": "United Kingdom",
+        "funding_type": "",
+        "bias_rating": ""
+    },
+    "BBC News - India": {
+        "url": "http://feeds.bbci.co.uk/news/world/asia/india/rss.xml",
+        "category": "BBC News - India",
+        "country": "India",
+        "funding_type": "",
+        "bias_rating": ""
+    },
+    "BBC News - Science & Environment": {
+        "url": "http://feeds.bbci.co.uk/news/science_and_environment/rss.xml",
+        "category": "60-Second Science",
+        "country": "",
+        "funding_type": "",
+        "bias_rating": ""
+    },
+    "BBC News - World": {
+        "url": "http://feeds.bbci.co.uk/news/world/rss.xml",
+        "category": "BBC News - World",
+        "country": "",
+        "funding_type": "",
+        "bias_rating": ""
+    },
+    "BBC Sport - Sport": {
+        "url": "http://feeds.bbci.co.uk/sport/rss.xml",
+        "category": "BBC Sport - Sport",
+        "country": "",
+        "funding_type": "",
+        "bias_rating": ""
     },
     "CNN": {
         "url": "http://rss.cnn.com/rss/cnn_topstories.rss",
@@ -26,6 +61,13 @@
         "country": "US",
         "funding_type": "Public",
         "bias_rating": "Left-Center"
+    },
+    "National Post": {
+        "url": "https://nationalpost.com/feed/",
+        "category": "CBC | Top Stories News",
+        "country": "Canada",
+        "funding_type": "",
+        "bias_rating": ""
     },
     "Fox News": {
         "url": "https://feeds.foxnews.com/foxnews/latest",
@@ -195,6 +237,13 @@
         "country": "JP",
         "funding_type": "Commercial",
         "bias_rating": "Center"
+    },
+    "Japan Times latest articles": {
+        "url": "https://www.japantimes.co.jp/feed/topstories/",
+        "category": "Japan Times latest articles",
+        "country": "Japan",
+        "funding_type": "",
+        "bias_rating": ""
     },
     "Axios": {
         "url": "https://www.axios.com/feed",

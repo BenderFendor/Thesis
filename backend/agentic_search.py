@@ -16,7 +16,8 @@ import os
 import json
 import requests
 from dotenv import load_dotenv
-from langchain.agents import AgentExecutor, create_tool_calling_agent
+from langchain.agents import create_tool_calling_agent
+from langchain.agents.agent import AgentExecutor
 from langchain.tools import tool
 from langchain_google_genai import ChatGoogleGenerativeAI
 from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder

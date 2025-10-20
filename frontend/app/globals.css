@@ -133,3 +133,46 @@
     color-scheme: dark;
   }
 }
+
+/* Scroll Snap Styles for Modern Grid View */
+@layer components {
+  .scroll-snap-container {
+    @apply scroll-smooth;
+    scroll-snap-type: y mandatory;
+    scroll-behavior: smooth;
+  }
+
+  .scroll-snap-row {
+    @apply transition-all duration-300;
+    scroll-snap-align: start;
+    scroll-snap-stop: always;
+  }
+
+  .scroll-snap-item {
+    scroll-snap-align: start;
+    scroll-snap-stop: auto;
+  }
+
+  /* Smooth scroll behavior with enhanced animations */
+  .scroll-smooth {
+    scroll-behavior: smooth;
+  }
+
+  /* Enhanced scrollbar styling for modern look */
+  .scroll-snap-container::-webkit-scrollbar {
+    @apply w-2;
+  }
+
+  .scroll-snap-container::-webkit-scrollbar-track {
+    @apply bg-background;
+  }
+
+  .scroll-snap-container::-webkit-scrollbar-thumb {
+    @apply bg-primary/50 rounded-full hover:bg-primary;
+    transition: background-color 0.2s ease;
+  }
+
+  .scroll-snap-container::-webkit-scrollbar-thumb:hover {
+    @apply bg-primary;
+  }
+}
