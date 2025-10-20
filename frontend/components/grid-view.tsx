@@ -363,24 +363,7 @@ export function GridView({
         </div>
       )}
 
-      {/* Category Filter Header - Below Grid */}
-      <div className="flex-shrink-0 border-t border-border/30 bg-background/40 backdrop-blur-sm px-4 sm:px-6 lg:px-8 py-4">
-        <div className="flex items-center gap-2 overflow-x-auto pb-2">
-          {categories.map((category) => (
-            <Button
-              key={category}
-              onClick={() => setSelectedCategory(category)}
-              variant={selectedCategory === category ? "default" : "outline"}
-              className="text-sm font-medium whitespace-nowrap"
-            >
-              {category}
-            </Button>
-          ))}
-        </div>
-        <div className="text-xs text-muted-foreground mt-2">
-          Showing {filteredNews.length} of {articles.length} articles
-        </div>
-      </div>
+      {/* Category Filter Header removed as requested */}
 
       {/* Article Detail Modal */}
       <ArticleDetailModal
