@@ -349,7 +349,9 @@ def _process_source_with_debug(
     return articles, source_stat
 
 
-def refresh_news_cache() -> None:
+def refresh_news_cache(
+    source_progress_callback: callable | None = None,
+) -> None:
     if news_cache.update_in_progress:
         logger.info("Cache update already in progress, skipping...")
         return
@@ -368,6 +370,12 @@ def refresh_news_cache() -> None:
             len(new_articles),
             new_source_stat["name"],
         )
+        # Call external callback if provided for streaming
+        if source_progress_callback:
+            try:
+                source_progress_callback(new_articles, new_source_stat)
+            except Exception as exc:
+                logger.error("Error in progress callback: %s", exc)
 
     # Parallel fetch without per-source throttling (concurrent execution is the throttle)
     with concurrent.futures.ThreadPoolExecutor(max_workers=5) as executor:
@@ -399,6 +407,12 @@ def refresh_news_cache() -> None:
                         "last_checked": datetime.now().isoformat(),
                     }
                 )
+                # Also call callback for error stats
+                if source_progress_callback:
+                    try:
+                        source_progress_callback([], source_stats[-1])
+                    except Exception as callback_exc:
+                        logger.error("Error in progress callback: %s", callback_exc)
 
     try:
         all_articles.sort(key=lambda article: article.published, reverse=True)

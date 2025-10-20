@@ -330,19 +330,81 @@ export async function fetchCacheStatus(): Promise<CacheStatus | null> {
 }
 
 
-export async function refreshCache(): Promise<boolean> {
+export async function refreshCache(
+  onProgress?: (event: {
+    source?: string;
+    articlesFromSource?: number;
+    totalSourcesProcessed?: number;
+    failedSources?: number;
+    totalArticles?: number;
+    successfulSources?: number;
+    message?: string;
+  }) => void
+): Promise<boolean> {
   try {
-    const response = await fetch(`${API_BASE_URL}/cache/refresh`, {
-      method: 'POST'
+    const response = await fetch(`${API_BASE_URL}/cache/refresh/stream`, {
+      method: "POST",
     });
-    
+
     if (!response.ok) {
       throw new Error(`HTTP error! status: ${response.status}`);
     }
-    
+
+    if (!response.body) {
+      throw new Error("No response body for streaming");
+    }
+
+    const reader = response.body.getReader();
+    const decoder = new TextDecoder();
+
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+
+      const chunk = decoder.decode(value, { stream: true });
+      const lines = chunk.split("\n");
+
+      for (const line of lines) {
+        if (line.startsWith("data: ")) {
+          const jsonStr = line.slice(6);
+          if (jsonStr.trim()) {
+            try {
+              const event = JSON.parse(jsonStr);
+
+              if (event.status === "complete") {
+                if (onProgress) {
+                  onProgress({
+                    message: event.message,
+                    totalArticles: event.total_articles,
+                    successfulSources: event.successful_sources,
+                    failedSources: event.failed_sources,
+                  });
+                }
+                return true;
+              } else if (event.status === "source_complete") {
+                if (onProgress) {
+                  onProgress({
+                    source: event.source,
+                    articlesFromSource: event.articles_from_source,
+                    totalSourcesProcessed: event.total_sources_processed,
+                    failedSources: event.failed_sources,
+                  });
+                }
+              } else if (event.status === "error") {
+                console.error("Refresh error:", event.message);
+                return false;
+              }
+            } catch (parseError) {
+              console.error("Failed to parse SSE event:", jsonStr, parseError);
+            }
+          }
+        }
+      }
+    }
+
     return true;
   } catch (error) {
-    console.error('Failed to refresh cache:', error);
+    console.error("Failed to refresh cache:", error);
     return false;
   }
 }

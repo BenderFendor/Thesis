@@ -1,5 +1,55 @@
 # Log
 
+## 2025-10-19: Fix RSS Ingestion Timeout with Streaming Progress
+
+### Problem
+Fetching latest news was stalling/timing out because the backend was waiting for the entire cache refresh to complete before returning a response. With 12,000+ articles, this took too long and exceeded timeout limits.
+
+### Root Cause
+- `/cache/refresh` endpoint was **synchronous** - it awaited the entire `refresh_news_cache()` function
+- Processing 12,000+ articles in parallel (5 sources at a time) still takes minutes
+- Frontend had **no visibility** into progress, just waiting indefinitely
+
+### Solution: Implement Streaming Progress
+1. **Backend changes (`app/services/rss_ingestion.py`)**:
+   - Added optional `source_progress_callback` parameter to `refresh_news_cache()`
+   - Callback invoked for each source as it completes
+   - Callback also called on errors for visibility into failures
+
+2. **Backend changes (`app/api/routes/cache.py`)**:
+   - Created new `/cache/refresh/stream` POST endpoint
+   - Replaced blocking architecture with SSE (Server-Sent Events) streaming
+   - Uses `queue.Queue` for thread-safe communication between refresh thread and event generator
+   - Emits events for each source completion with metadata (articles count, status, etc.)
+   - Final completion event includes summary stats
+
+3. **Frontend changes (`frontend/lib/api.ts`)**:
+   - Updated `refreshCache()` to consume SSE stream instead of waiting for response
+   - Added `onProgress` callback parameter for progress updates
+   - Properly parses SSE `data:` format events
+   - Returns only when complete event received
+
+4. **Frontend changes (`frontend/app/sources/page.tsx`)**:
+   - Added `refreshProgress` state to track streaming updates
+   - Updated UI to show real-time progress:
+     - Displays number of sources processed
+     - Shows articles from last source
+     - Displays final summary when complete
+   - Progress visible while refresh is in progress (no more hanging)
+
+### Expected Behavior
+- User clicks "Refresh Cache"
+- Progress immediately starts showing ("Processing: 1 source completed, 45 articles...")
+- As each source completes, progress updates (2 sources, 3 sources, etc.)
+- When complete, shows final summary (total articles, successful/failed sources)
+- Frontend no longer times out waiting for completion
+
+### Files Modified
+- `backend/app/services/rss_ingestion.py` - Added callback support
+- `backend/app/api/routes/cache.py` - New `/cache/refresh/stream` endpoint  
+- `frontend/lib/api.ts` - Updated `refreshCache()` for streaming
+- `frontend/app/sources/page.tsx` - UI progress display
+
 ## 2025-10-19: Docker Build Optimization
 
 ### Changes Made

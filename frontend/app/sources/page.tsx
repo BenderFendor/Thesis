@@ -36,11 +36,22 @@ import {
 } from "lucide-react"
 import Link from "next/link"
 
+interface RefreshProgress {
+  source?: string;
+  articlesFromSource?: number;
+  totalSourcesProcessed?: number;
+  failedSources?: number;
+  totalArticles?: number;
+  successfulSources?: number;
+  message?: string;
+}
+
 export default function SourcesPage() {
   const [sources, setSources] = useState<SourceStats[]>([])
   const [cacheStatus, setCacheStatus] = useState<CacheStatus | null>(null)
   const [loading, setLoading] = useState(true)
   const [refreshing, setRefreshing] = useState(false)
+  const [refreshProgress, setRefreshProgress] = useState<RefreshProgress | null>(null)
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null)
   const [filter, setFilter] = useState<"all" | "success" | "warning" | "error">("all")
   const [searchQuery, setSearchQuery] = useState("")
@@ -65,12 +76,17 @@ export default function SourcesPage() {
 
   const handleRefreshCache = async () => {
     setRefreshing(true)
+    setRefreshProgress(null)
     try {
-      const success = await refreshCache()
+      const success = await refreshCache((progress) => {
+        setRefreshProgress(progress)
+        console.log("Refresh progress:", progress)
+      })
       if (success) {
         // Wait a moment then reload data
         setTimeout(() => {
           loadSourceStats()
+          setRefreshProgress(null)
         }, 2000)
       }
     } catch (error) {
@@ -200,21 +216,36 @@ export default function SourcesPage() {
           <Card className="mb-6">
             <CardContent className="p-6">
               <div className="flex items-center justify-between">
-                <div className="flex items-center gap-4">
+                <div className="flex items-center gap-4 flex-1">
                   <div className="flex items-center gap-2">
                     <div className={`w-3 h-3 rounded-full ${
-                      cacheStatus.update_in_progress ? 'bg-yellow-500 animate-pulse' : 
+                      cacheStatus.update_in_progress || refreshing ? 'bg-yellow-500 animate-pulse' : 
                       cacheStatus.cache_age_seconds < 60 ? 'bg-green-500' : 
                       cacheStatus.cache_age_seconds < 300 ? 'bg-yellow-500' : 'bg-red-500'
                     }`} />
                     <div>
                       <p className="font-medium">
-                        Cache Status: {cacheStatus.update_in_progress ? 'Updating...' : 'Active'}
+                        Cache Status: {cacheStatus.update_in_progress || refreshing ? 'Updating...' : 'Active'}
                       </p>
                       <p className="text-sm text-muted-foreground">
-                        Last updated: {new Date(cacheStatus.last_updated).toLocaleTimeString()} 
-                        ({Math.round(cacheStatus.cache_age_seconds)}s ago)
+                        {refreshing && refreshProgress ? (
+                          refreshProgress.totalSourcesProcessed ? (
+                            `Processing: ${refreshProgress.totalSourcesProcessed} sources completed, ${refreshProgress.articlesFromSource || 0} articles from last source`
+                          ) : (
+                            "Starting refresh..."
+                          )
+                        ) : (
+                          <>
+                            Last updated: {new Date(cacheStatus.last_updated).toLocaleTimeString()} 
+                            ({Math.round(cacheStatus.cache_age_seconds)}s ago)
+                          </>
+                        )}
                       </p>
+                      {refreshProgress?.message && (
+                        <p className="text-sm text-green-600 mt-1">
+                          ✅ {refreshProgress.message}
+                        </p>
+                      )}
                     </div>
                   </div>
                 </div>
