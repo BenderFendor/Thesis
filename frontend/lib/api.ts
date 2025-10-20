@@ -82,7 +82,7 @@ export interface StreamProgress {
 }
 
 export interface StreamEvent {
-  status: 'starting' | 'cache_data' | 'source_complete' | 'source_error' | 'complete' | 'error';
+  status: 'starting' | 'initial' | 'cache_data' | 'source_complete' | 'source_error' | 'complete' | 'error';
   stream_id?: string;
   message?: string;
   source?: string;
@@ -925,6 +925,66 @@ export function streamNews(options: StreamOptions = {}): {
                 }
 
                 switch (data.status) {
+                  case "initial":
+                    // INSTANT response with cached data
+                    hasReceivedData = true;
+                    if (data.articles && Array.isArray(data.articles)) {
+                      const mappedArticles = mapBackendArticles(data.articles);
+                      const BATCH_SIZE = 500;
+                      const cacheAge = data.cache_age_seconds || 999;
+
+                      console.log(
+                        `⚡ Stream ${streamId} INITIAL data: ${mappedArticles.length} articles (cache age: ${cacheAge}s)`
+                      );
+
+                      // Process articles in batches to avoid UI freeze
+                      (async () => {
+                        for (
+                          let i = 0;
+                          i < mappedArticles.length;
+                          i += BATCH_SIZE
+                        ) {
+                          const batch = mappedArticles.slice(
+                            i,
+                            i + BATCH_SIZE
+                          );
+                          articles.push(...batch);
+                          batch.forEach((article) =>
+                            sources.add(article.source)
+                          );
+
+                          // Notify about this batch immediately
+                          if (onSourceComplete) {
+                            onSourceComplete(
+                              `initial-batch-${Math.floor(i / BATCH_SIZE)}`,
+                              batch
+                            );
+                          }
+
+                          // Yield to the event loop to prevent blocking
+                          if (i + BATCH_SIZE < mappedArticles.length) {
+                            await new Promise((resolve) =>
+                              setTimeout(resolve, 0)
+                            );
+                          }
+                        }
+
+                        // Final progress update after all batches loaded
+                        onProgress?.({
+                          completed: 0,
+                          total: 0,
+                          percentage: 0,
+                          message: `Instantly loaded ${mappedArticles.length} articles from cache`,
+                        });
+                      })();
+                    } else {
+                      console.warn(
+                        "[streamNews] 'initial' event received but 'articles' is not an array or is missing.",
+                        data
+                      );
+                    }
+                    break;
+
                   case "starting":
                     console.log(`🚀 Stream ${streamId} starting: ${data.message}`);
                     onProgress?.({

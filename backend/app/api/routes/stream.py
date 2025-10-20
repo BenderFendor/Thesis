@@ -51,6 +51,60 @@ async def stream_news(
     async def event_generator():
         try:
             stream_logger.info("🚀 Stream %s starting event generation", stream_id)
+            
+            # IMMEDIATELY emit cached data as "initial" event before anything else
+            cached_articles: List[NewsArticle] = []
+            cached_stats: List[Dict[str, object]] = []
+            cache_age = None
+            
+            try:
+                cached_articles = news_cache.get_articles()
+                cached_stats = news_cache.get_source_stats()
+                cache_age = (datetime.now() - news_cache.last_updated).total_seconds()
+                stream_logger.info(
+                    "💾 Stream %s found %s cached articles (age: %.1fs)",
+                    stream_id,
+                    len(cached_articles),
+                    cache_age,
+                )
+
+                # Apply category filter if specified
+                if category:
+                    cached_articles = [
+                        article
+                        for article in cached_articles
+                        if article.category == category
+                    ]
+                    stream_logger.info(
+                        "🏷️ Stream %s filtered to category '%s': %s articles",
+                        stream_id,
+                        category,
+                        len(cached_articles),
+                    )
+
+                # Emit immediate "initial" event with cached data
+                if cached_articles:
+                    initial_data = {
+                        "status": "initial",
+                        "stream_id": stream_id,
+                        "articles": [article.dict() for article in cached_articles],
+                        "source_stats": cached_stats,
+                        "cache_age_seconds": cache_age,
+                        "message": f"Loaded {len(cached_articles)} cached articles instantly",
+                        "timestamp": datetime.now().isoformat(),
+                    }
+                    yield f"data: {json.dumps(initial_data)}\n\n"
+                    stream_logger.info(
+                        "⚡ Stream %s emitted initial cached data (%s articles)",
+                        stream_id,
+                        len(cached_articles),
+                    )
+            except Exception as cache_err:
+                stream_logger.warning(
+                    "⚠️ Stream %s couldn't load cache: %s", stream_id, cache_err
+                )
+            
+            # Then emit starting status
             initial_status = {
                 "status": "starting",
                 "stream_id": stream_id,
@@ -60,40 +114,9 @@ async def stream_news(
             }
             yield f"data: {json.dumps(initial_status)}\n\n"
 
-            cached_articles: List[NewsArticle] = []
-            cached_stats: List[Dict[str, object]] = []
-            cache_age = None
+            # Now continue with existing cache logic
             if use_cache:
-                stream_logger.info("💾 Stream %s using cache-first approach", stream_id)
-                cached_articles = news_cache.get_articles()
-                cached_stats = news_cache.get_source_stats()
-                cache_age = (datetime.now() - news_cache.last_updated).total_seconds()
-                stream_logger.info(
-                    "📋 Stream %s found %s cached articles (age: %.1fs)",
-                    stream_id,
-                    len(cached_articles),
-                    cache_age,
-                )
-
-                if category:
-                    cached_articles = [
-                        article
-                        for article in cached_articles
-                        if article.category == category
-                    ]
-
-                if cached_articles:
-                    cache_data = {
-                        "status": "cache_data",
-                        "stream_id": stream_id,
-                        "articles": [article.dict() for article in cached_articles],
-                        "source_stats": cached_stats,
-                        "cache_age_seconds": cache_age,
-                        "message": f"Loaded {len(cached_articles)} cached articles",
-                        "timestamp": datetime.now().isoformat(),
-                    }
-                    yield f"data: {json.dumps(cache_data)}\n\n"
-
+                # Cache already loaded above, just check if it's fresh enough
                 if cache_age is not None and cache_age < 120 and cached_articles:
                     stream_logger.info(
                         "✅ Stream %s cache is fresh enough (%.1fs), ending stream",
@@ -111,7 +134,9 @@ async def stream_news(
                     return
                 else:
                     stream_logger.info(
-                        "⏰ Stream %s cache is stale, fetching fresh data", stream_id
+                        "⏰ Stream %s cache exists but may be stale (%.1fs), will fetch fresh data",
+                        stream_id,
+                        cache_age if cache_age is not None else 0,
                     )
 
             stream_logger.info("🔄 Stream %s starting fresh data fetch", stream_id)
