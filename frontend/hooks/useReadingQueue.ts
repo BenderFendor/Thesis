@@ -137,11 +137,63 @@ export function useReadingQueue() {
     [queuedArticles]
   );
 
+  const getCurrentArticle = useCallback(
+    (index: number) => {
+      return queuedArticles[index] || null;
+    },
+    [queuedArticles]
+  );
+
+  const goNext = useCallback(
+    (currentIndex: number) => {
+      const nextIndex = currentIndex + 1;
+      if (nextIndex >= queuedArticles.length) {
+        return null; // No next article
+      }
+      return queuedArticles[nextIndex];
+    },
+    [queuedArticles]
+  );
+
+  const goPrev = useCallback(
+    (currentIndex: number) => {
+      const prevIndex = currentIndex - 1;
+      if (prevIndex < 0) {
+        return null; // No previous article
+      }
+      return queuedArticles[prevIndex];
+    },
+    [queuedArticles]
+  );
+
+  const getArticleIndex = useCallback(
+    (articleUrl: string) => {
+      return queuedArticles.findIndex((a) => a.url === articleUrl);
+    },
+    [queuedArticles]
+  );
+
+  const markAsRead = useCallback(
+    (articleUrl: string) => {
+      setQueuedArticles((prev) =>
+        prev.map((a) =>
+          a.url === articleUrl ? { ...a, read_status: "completed" } : a
+        )
+      );
+    },
+    []
+  );
+
   return {
     queuedArticles,
     addArticleToQueue,
     removeArticleFromQueue,
     isArticleInQueue,
     isLoaded,
+    getCurrentArticle,
+    goNext,
+    goPrev,
+    getArticleIndex,
+    markAsRead,
   };
 }

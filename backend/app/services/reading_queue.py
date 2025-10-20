@@ -13,6 +13,30 @@ logger = get_logger("reading_queue_service")
 # Default TTL for daily queue items (7 days)
 DAILY_QUEUE_TTL_DAYS = 7
 
+# Average adult reading speed (words per minute)
+AVERAGE_READING_SPEED = 230
+
+
+def calculate_read_time(text: Optional[str]) -> Optional[int]:
+    """
+    Calculate estimated read time in minutes based on word count.
+    Formula: minutes = ceil(word_count / 230)
+    """
+    if not text:
+        return None
+    word_count = len(text.split())
+    if word_count == 0:
+        return None
+    import math
+    return math.ceil(word_count / AVERAGE_READING_SPEED)
+
+
+def get_word_count(text: Optional[str]) -> Optional[int]:
+    """Calculate word count from text."""
+    if not text:
+        return None
+    return len(text.split())
+
 
 async def add_to_queue(
     session: AsyncSession, request: AddToQueueRequest, user_id: int = 1
@@ -213,3 +237,39 @@ async def remove_by_url(session: AsyncSession, article_url: str) -> bool:
 
     logger.info("Removed item from queue by URL: %s", article_url)
     return True
+
+
+async def get_queue_overview(
+    session: AsyncSession, user_id: int = 1
+) -> dict:
+    """Get queue statistics and overview."""
+    from app.api.routes.reading_queue import QueueOverviewResponse
+
+    result = await session.execute(
+        select(ReadingQueueItem).where(ReadingQueueItem.user_id == user_id)
+    )
+    items = result.scalars().all()
+
+    total_items = len(items)
+    daily_items = sum(1 for item in items if item.queue_type == "daily")
+    permanent_items = sum(1 for item in items if item.queue_type == "permanent")
+    unread_count = sum(1 for item in items if item.read_status == "unread")
+    reading_count = sum(1 for item in items if item.read_status == "reading")
+    completed_count = sum(1 for item in items if item.read_status == "completed")
+
+    # Calculate total estimated read time from items that have it
+    total_read_time = sum(
+        (item.estimated_read_time_minutes or 0)
+        for item in items
+        if item.read_status == "unread"
+    )
+
+    return QueueOverviewResponse(
+        total_items=total_items,
+        daily_items=daily_items,
+        permanent_items=permanent_items,
+        unread_count=unread_count,
+        reading_count=reading_count,
+        completed_count=completed_count,
+        estimated_total_read_time_minutes=total_read_time,
+    )

@@ -1,5 +1,121 @@
 # Log
 
+## 2025-10-20: Reading Queue Enhancements - Phase 1
+
+### Overview
+Implemented comprehensive reading queue improvements to support distraction-free reading, keyboard navigation, highlights, and queue management.
+
+### Features Added
+
+#### 1. **Extended Data Model**
+- Added `word_count`, `estimated_read_time_minutes`, and `full_text` columns to `ReadingQueueItem` in both Pydantic model and database
+- Added new `Highlight` model for storing user annotations
+- Formula for read time: $\text{minutes} = \lceil \frac{\text{word\_count}}{230} \rceil$ (avg adult reading speed)
+
+#### 2. **Navigation Enhancements**
+- Extended `useReadingQueue` hook with new methods:
+  - `goNext(index)` - Navigate to next unread article
+  - `goPrev(index)` - Navigate to previous article  
+  - `getCurrentArticle(index)` - Get article at index
+  - `getArticleIndex(url)` - Find article index by URL
+  - `markAsRead(url)` - Mark article as completed
+
+#### 3. **Distraction-Free Reader Mode**
+- Created `frontend/app/reader/page.tsx` with full-screen reading interface
+- **Keyboard Shortcuts**:
+  - `ArrowRight` - Next article
+  - `ArrowLeft` - Previous article
+- **Features**:
+  - Clean, typography-optimized layout
+  - Article metadata (source, publish date)
+  - Full article content rendering
+  - Navigation footer with progress indicator
+
+#### 4. **Highlight System**
+- Added highlight creation, storage, and management
+- **Highlight Colors**: Yellow, Blue, Red
+- **Storage**: LocalStorage for client-side persistence + optional database sync
+- **Highlight Toolbar**: 
+  - Appears on text selection
+  - Color picker
+  - Optional notes for each highlight
+  - Delete functionality
+- **Highlights List**: Shows all highlights for current article with source links
+
+#### 5. **Queue Overview & Statistics**
+- New `GET /api/queue/overview` endpoint returning:
+  - Total items count
+  - Daily vs permanent split
+  - Unread/reading/completed breakdown
+  - Estimated total read time for unread articles
+- Created `QueueOverviewCard` component for sidebar integration
+- Real-time stats with 30-second refresh interval
+
+#### 6. **Backend Highlights API** (`/api/queue/highlights/*`)
+- `POST /highlights` - Create highlight
+- `GET /highlights` - Get all highlights
+- `GET /highlights/article/{url}` - Get highlights for article
+- `PATCH /highlights/{id}` - Update highlight (color, note)
+- `DELETE /highlights/{id}` - Remove highlight
+
+#### 7. **Frontend API Layer** (`frontend/lib/api.ts`)
+Added functions:
+- `getQueueOverview()` - Fetch queue statistics
+- `createHighlight()` - Save highlight to backend
+- `getHighlightsForArticle()` - Fetch article-specific highlights
+- `getAllHighlights()` - Fetch user's all highlights  
+- `updateHighlight()` - Modify highlight
+- `deleteHighlight()` - Remove highlight
+
+#### 8. **UI Components**
+- `components/queue-overview-card.tsx` - Dashboard widget showing queue stats
+- `components/highlights-view.tsx` - Dedicated highlights management interface
+  - Search and filter by color
+  - Link back to source articles
+  - Delete functionality
+
+### Files Created
+- `frontend/app/reader/page.tsx` - Reader mode with navigation & highlights
+- `frontend/components/queue-overview-card.tsx` - Queue statistics widget
+- `frontend/components/highlights-view.tsx` - Highlights manager
+- `backend/app/services/highlights.py` - Highlights CRUD service
+
+### Files Modified
+- `backend/app/models/reading_queue.py` - Added Highlight model & updated ReadingQueueItem
+- `backend/app/database.py` - Added Highlight table, extended ReadingQueueItem schema
+- `backend/app/services/reading_queue.py` - Added helpers for word count, read time, queue overview
+- `backend/app/api/routes/reading_queue.py` - Added overview & highlights endpoints
+- `frontend/hooks/useReadingQueue.ts` - Extended with navigation methods
+- `frontend/lib/api.ts` - Added 8 new API functions for queue/highlights
+
+### Database Migrations Required
+```sql
+ALTER TABLE reading_queue
+ADD COLUMN word_count INTEGER,
+ADD COLUMN estimated_read_time_minutes INTEGER,
+ADD COLUMN full_text TEXT;
+
+CREATE TABLE highlights (
+  id SERIAL PRIMARY KEY,
+  user_id INTEGER,
+  article_url VARCHAR NOT NULL,
+  highlighted_text TEXT NOT NULL,
+  color VARCHAR DEFAULT 'yellow',
+  note TEXT,
+  character_start INTEGER NOT NULL,
+  character_end INTEGER NOT NULL,
+  created_at TIMESTAMP DEFAULT NOW(),
+  updated_at TIMESTAMP DEFAULT NOW()
+);
+```
+
+### Next Steps (Future)
+- Inline definitions (double-tap term → LLM explanation)
+- Daily digest synthesis
+- Keyboard shortcut for fullscreen toggle  
+- Highlight export/sharing
+- Story clustering & novelty scoring (deferred)
+
 ## 2025-10-19: Fix RSS Ingestion Timeout with Streaming Progress
 
 ### Problem

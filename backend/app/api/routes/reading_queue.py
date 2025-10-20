@@ -1,5 +1,6 @@
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
+from pydantic import BaseModel
 
 from app.database import get_db
 from app.models.reading_queue import (
@@ -7,13 +8,28 @@ from app.models.reading_queue import (
     AddToQueueRequest,
     UpdateQueueItemRequest,
     QueueResponse,
+    Highlight,
+    CreateHighlightRequest,
+    UpdateHighlightRequest,
 )
 from app.services import reading_queue as queue_service
+from app.services import highlights as highlights_service
 from app.core.logging import get_logger
 
 logger = get_logger("reading_queue_routes")
 
 router = APIRouter(prefix="/api/queue", tags=["reading_queue"])
+
+
+class QueueOverviewResponse(BaseModel):
+    """Queue overview statistics."""
+    total_items: int
+    daily_items: int
+    permanent_items: int
+    unread_count: int
+    reading_count: int
+    completed_count: int
+    estimated_total_read_time_minutes: int
 
 
 @router.post("/add", response_model=ReadingQueueItem)
@@ -97,6 +113,90 @@ async def move_expired_items(session: AsyncSession = Depends(get_db)):
     except Exception as e:
         logger.error("Error moving expired items: %s", e)
         raise HTTPException(status_code=500, detail="Failed to move expired items")
+
+
+@router.get("/overview", response_model=QueueOverviewResponse)
+async def get_queue_overview(session: AsyncSession = Depends(get_db)):
+    """Get queue statistics and overview."""
+    try:
+        overview = await queue_service.get_queue_overview(session)
+        return overview
+    except Exception as e:
+        logger.error("Error fetching queue overview: %s", e)
+        raise HTTPException(status_code=500, detail="Failed to fetch queue overview")
+
+
+# Highlights endpoints
+@router.post("/highlights", response_model=Highlight)
+async def create_highlight(
+    request: CreateHighlightRequest, session: AsyncSession = Depends(get_db)
+):
+    """Create a new highlight."""
+    try:
+        highlight = await highlights_service.create_highlight(session, request)
+        return highlight
+    except Exception as e:
+        logger.error("Error creating highlight: %s", e)
+        raise HTTPException(status_code=500, detail="Failed to create highlight")
+
+
+@router.get("/highlights/article/{article_url}", response_model=list[Highlight])
+async def get_article_highlights(
+    article_url: str, session: AsyncSession = Depends(get_db)
+):
+    """Get all highlights for a specific article."""
+    try:
+        highlights = await highlights_service.get_highlights_for_article(
+            session, article_url
+        )
+        return highlights
+    except Exception as e:
+        logger.error("Error fetching highlights: %s", e)
+        raise HTTPException(status_code=500, detail="Failed to fetch highlights")
+
+
+@router.get("/highlights", response_model=list[Highlight])
+async def get_all_highlights(session: AsyncSession = Depends(get_db)):
+    """Get all highlights for the user."""
+    try:
+        highlights = await highlights_service.get_all_highlights(session)
+        return highlights
+    except Exception as e:
+        logger.error("Error fetching all highlights: %s", e)
+        raise HTTPException(status_code=500, detail="Failed to fetch highlights")
+
+
+@router.patch("/highlights/{highlight_id}", response_model=Highlight)
+async def update_highlight(
+    highlight_id: int,
+    request: UpdateHighlightRequest,
+    session: AsyncSession = Depends(get_db),
+):
+    """Update a highlight."""
+    try:
+        highlight = await highlights_service.update_highlight(
+            session, highlight_id, request
+        )
+        if not highlight:
+            raise HTTPException(status_code=404, detail="Highlight not found")
+        return highlight
+    except Exception as e:
+        logger.error("Error updating highlight: %s", e)
+        raise HTTPException(status_code=500, detail="Failed to update highlight")
+
+
+@router.delete("/highlights/{highlight_id}", status_code=204)
+async def delete_highlight(
+    highlight_id: int, session: AsyncSession = Depends(get_db)
+):
+    """Delete a highlight."""
+    try:
+        success = await highlights_service.delete_highlight(session, highlight_id)
+        if not success:
+            raise HTTPException(status_code=404, detail="Highlight not found")
+    except Exception as e:
+        logger.error("Error deleting highlight: %s", e)
+        raise HTTPException(status_code=500, detail="Failed to delete highlight")
 
 
 @router.post("/maintenance/archive", status_code=200)

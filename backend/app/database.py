@@ -112,6 +112,24 @@ class ReadingQueueItem(Base):
     archived_at = Column(DateTime, nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    word_count = Column(Integer, nullable=True)
+    estimated_read_time_minutes = Column(Integer, nullable=True)
+    full_text = Column(Text, nullable=True)
+
+
+class Highlight(Base):
+    __tablename__ = "highlights"
+
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, index=True)  # For future multi-user support
+    article_url = Column(String, nullable=False, index=True)
+    highlighted_text = Column(Text, nullable=False)
+    color = Column(String, default="yellow")  # 'yellow', 'blue', 'red'
+    note = Column(Text, nullable=True)
+    character_start = Column(Integer, nullable=False)
+    character_end = Column(Integer, nullable=False)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
 
 # Dependency for FastAPI

@@ -18,6 +18,9 @@ class ReadingQueueItem(BaseModel):
     archived_at: Optional[datetime] = None
     created_at: Optional[datetime] = None
     updated_at: Optional[datetime] = None
+    word_count: Optional[int] = None
+    estimated_read_time_minutes: Optional[int] = None
+    full_text: Optional[str] = None
 
     class Config:
         from_attributes = True
@@ -44,3 +47,33 @@ class QueueResponse(BaseModel):
     daily_count: int
     permanent_count: int
     total_count: int
+
+
+class Highlight(BaseModel):
+    id: Optional[int] = None
+    user_id: Optional[int] = None
+    article_url: str
+    highlighted_text: str
+    color: str = "yellow"  # 'yellow', 'blue', 'red'
+    note: Optional[str] = None
+    character_start: int
+    character_end: int
+    created_at: Optional[datetime] = None
+    updated_at: Optional[datetime] = None
+
+    class Config:
+        from_attributes = True
+
+
+class CreateHighlightRequest(BaseModel):
+    article_url: str
+    highlighted_text: str
+    color: str = "yellow"
+    note: Optional[str] = None
+    character_start: int
+    character_end: int
+
+
+class UpdateHighlightRequest(BaseModel):
+    color: Optional[str] = None
+    note: Optional[str] = None

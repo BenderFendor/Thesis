@@ -1607,3 +1607,153 @@ export async function updateReadingQueueItem(
     throw error
   }
 }
+
+export interface QueueOverview {
+  total_items: number
+  daily_items: number
+  permanent_items: number
+  unread_count: number
+  reading_count: number
+  completed_count: number
+  estimated_total_read_time_minutes: number
+}
+
+export async function getQueueOverview(): Promise<QueueOverview> {
+  try {
+    const response = await fetch(`${API_BASE_URL}/api/queue/overview`, {
+      method: 'GET',
+      headers: { 'Content-Type': 'application/json' },
+    })
+
+    if (!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status}`)
+    }
+
+    const data = await response.json()
+    console.log('✅ Queue overview retrieved:', data)
+    return data
+  } catch (error) {
+    console.error('❌ Failed to fetch queue overview:', error)
+    throw error
+  }
+}
+
+// Highlights API
+export interface Highlight {
+  id?: number
+  user_id?: number
+  article_url: string
+  highlighted_text: string
+  color: 'yellow' | 'blue' | 'red'
+  note?: string
+  character_start: number
+  character_end: number
+  created_at?: string
+  updated_at?: string
+}
+
+export async function createHighlight(highlight: Highlight): Promise<Highlight> {
+  try {
+    const response = await fetch(`${API_BASE_URL}/api/queue/highlights`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(highlight),
+    })
+
+    if (!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status}`)
+    }
+
+    const data = await response.json()
+    console.log('✅ Highlight created:', data)
+    return data
+  } catch (error) {
+    console.error('❌ Failed to create highlight:', error)
+    throw error
+  }
+}
+
+export async function getHighlightsForArticle(
+  articleUrl: string
+): Promise<Highlight[]> {
+  try {
+    const encodedUrl = encodeURIComponent(articleUrl)
+    const response = await fetch(
+      `${API_BASE_URL}/api/queue/highlights/article/${encodedUrl}`,
+      { method: 'GET', headers: { 'Content-Type': 'application/json' } }
+    )
+
+    if (!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status}`)
+    }
+
+    const data = await response.json()
+    console.log('✅ Highlights retrieved:', data)
+    return data
+  } catch (error) {
+    console.error('❌ Failed to fetch highlights:', error)
+    throw error
+  }
+}
+
+export async function getAllHighlights(): Promise<Highlight[]> {
+  try {
+    const response = await fetch(`${API_BASE_URL}/api/queue/highlights`, {
+      method: 'GET',
+      headers: { 'Content-Type': 'application/json' },
+    })
+
+    if (!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status}`)
+    }
+
+    const data = await response.json()
+    console.log('✅ All highlights retrieved:', data)
+    return data
+  } catch (error) {
+    console.error('❌ Failed to fetch highlights:', error)
+    throw error
+  }
+}
+
+export async function updateHighlight(
+  highlightId: number,
+  updates: Partial<Highlight>
+): Promise<Highlight> {
+  try {
+    const response = await fetch(`${API_BASE_URL}/api/queue/highlights/${highlightId}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(updates),
+    })
+
+    if (!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status}`)
+    }
+
+    const data = await response.json()
+    console.log('✅ Highlight updated:', data)
+    return data
+  } catch (error) {
+    console.error('❌ Failed to update highlight:', error)
+    throw error
+  }
+}
+
+export async function deleteHighlight(highlightId: number): Promise<void> {
+  try {
+    const response = await fetch(`${API_BASE_URL}/api/queue/highlights/${highlightId}`, {
+      method: 'DELETE',
+    })
+
+    if (!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status}`)
+    }
+
+    console.log('✅ Highlight deleted')
+  } catch (error) {
+    console.error('❌ Failed to delete highlight:', error)
+    throw error
+  }
+}
+
