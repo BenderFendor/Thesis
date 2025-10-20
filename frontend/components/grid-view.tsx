@@ -38,7 +38,7 @@ const categories = [
 // Virtual grid constants for optimization
 const COLUMN_COUNT = 5
 const COLUMN_WIDTH = 260
-const ROW_HEIGHT = 296  // 280 + 16 (ROW_GAP)
+const ROW_HEIGHT = 380  // Increased to prevent card content overlap
 const GAP = 12
 const ROW_GAP = 16  // Vertical gap between rows
 
@@ -158,6 +158,7 @@ export function GridView({
             gridTemplateColumns: `repeat(${COLUMN_COUNT}, 1fr)`,
             gap: `${GAP}px`,
             padding: `${ROW_GAP / 2}px ${GAP / 2}px`,
+            height: `${ROW_HEIGHT - 100}px`,
           }}
         >
           {rowArticles.map((article) => (
