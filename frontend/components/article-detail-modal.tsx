@@ -1,11 +1,12 @@
 "use client"
 
 import { useState, useEffect, useMemo } from "react"
-import { X, ExternalLink, Heart, Bookmark, AlertTriangle, DollarSign, Bug, Link as LinkIcon, Rss, Sparkles, Maximize2, Minimize2, Loader2, Search, RefreshCw, CheckCircle2, XCircle, Copy } from "lucide-react"
+import { X, ExternalLink, Heart, Bookmark, AlertTriangle, DollarSign, Bug, Link as LinkIcon, Rss, Sparkles, Maximize2, Minimize2, Loader2, Search, RefreshCw, CheckCircle2, XCircle, Copy, PlusCircle, MinusCircle } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
 import { type NewsArticle, getSourceById, type NewsSource, fetchSourceDebugData, type SourceDebugData, analyzeArticle, type ArticleAnalysis, API_BASE_URL, createBookmark, deleteBookmark, performAgenticSearch, type FactCheckResult } from "@/lib/api"
+import { useReadingQueue } from "@/hooks/useReadingQueue"
 
 type FactCheckStatus = FactCheckResult["verification_status"]
 type FactCheckStatusFilter = FactCheckStatus | "all"
@@ -37,6 +38,7 @@ interface ArticleDetailModalProps {
 export function ArticleDetailModal({ article, isOpen, onClose, initialIsBookmarked = false, onBookmarkChange }: ArticleDetailModalProps) {
   const [isLiked, setIsLiked] = useState(false)
   const [isBookmarked, setIsBookmarked] = useState(initialIsBookmarked)
+  const { addArticleToQueue, removeArticleFromQueue, isArticleInQueue } = useReadingQueue()
   const [showSourceDetails, setShowSourceDetails] = useState(false)
   const [source, setSource] = useState<NewsSource | null>(null)
   const [sourceLoading, setSourceLoading] = useState(false)
@@ -243,35 +245,7 @@ export function ArticleDetailModal({ article, isOpen, onClose, initialIsBookmark
     }
   }
 
-  if (!isOpen || !article) return null
-
-  const getCredibilityColor = (credibility: string) => {
-    switch (credibility) {
-      case "high":
-        return "bg-emerald-500/20 text-emerald-400 border-emerald-500/30"
-      case "medium":
-        return "bg-yellow-500/20 text-yellow-400 border-yellow-500/30"
-      case "low":
-        return "bg-red-500/20 text-red-400 border-red-500/30"
-      default:
-        return "bg-gray-500/20 text-gray-400 border-gray-500/30"
-    }
-  }
-
-  const getBiasColor = (bias: string) => {
-    switch (bias) {
-      case "left":
-        return "bg-blue-500/20 text-blue-400 border-blue-500/30"
-      case "center":
-        return "bg-gray-500/20 text-gray-400 border-gray-500/30"
-      case "right":
-        return "bg-red-500/20 text-red-400 border-red-500/30"
-      default:
-        return "bg-gray-500/20 text-gray-400 border-gray-500/30"
-    }
-  }
-
-  const factCheckResults = aiAnalysis?.fact_check_results ?? []
+  const factCheckResults = !isOpen || !article ? [] : (aiAnalysis?.fact_check_results ?? [])
 
   const statusCounts = useMemo(() => {
     return factCheckResults.reduce(
@@ -305,6 +279,34 @@ export function ArticleDetailModal({ article, isOpen, onClose, initialIsBookmark
         return "bg-slate-600/20 text-slate-200 border border-slate-500/40"
     }
   }
+
+  const getCredibilityColor = (credibility: string) => {
+    switch (credibility) {
+      case "high":
+        return "bg-emerald-500/20 text-emerald-400 border-emerald-500/30"
+      case "medium":
+        return "bg-yellow-500/20 text-yellow-400 border-yellow-500/30"
+      case "low":
+        return "bg-red-500/20 text-red-400 border-red-500/30"
+      default:
+        return "bg-gray-500/20 text-gray-400 border-gray-500/30"
+    }
+  }
+
+  const getBiasColor = (bias: string) => {
+    switch (bias) {
+      case "left":
+        return "bg-blue-500/20 text-blue-400 border-blue-500/30"
+      case "center":
+        return "bg-gray-500/20 text-gray-400 border-gray-500/30"
+      case "right":
+        return "bg-red-500/20 text-red-400 border-red-500/30"
+      default:
+        return "bg-gray-500/20 text-gray-400 border-gray-500/30"
+    }
+  }
+
+  if (!isOpen || !article) return null
 
   return (
     <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
@@ -477,6 +479,25 @@ export function ArticleDetailModal({ article, isOpen, onClose, initialIsBookmark
                   >
                     <Bookmark className={`h-4 w-4 ${isBookmarked ? "fill-current" : ""}`} />
                     Bookmark
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => {
+                      if (article && isArticleInQueue(article.url)) {
+                        removeArticleFromQueue(article.url)
+                      } else if (article) {
+                        addArticleToQueue(article)
+                      }
+                    }}
+                    className={article && isArticleInQueue(article.url) ? "text-blue-400" : "text-gray-400"}
+                  >
+                    {article && isArticleInQueue(article.url) ? (
+                      <MinusCircle className="h-4 w-4 mr-2" />
+                    ) : (
+                      <PlusCircle className="h-4 w-4 mr-2" />
+                    )}
+                    {article && isArticleInQueue(article.url) ? "Remove from Queue" : "Add to Queue"}
                   </Button>
                 </div>
                 <Button variant="outline" size="sm" asChild>

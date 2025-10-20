@@ -13,6 +13,8 @@ import {
   ExternalLink,
   Heart,
   Search,
+  PlusCircle,
+  MinusCircle,
 } from "lucide-react"
 import { FixedSizeList as List } from "react-window"
 import AutoSizer from "react-virtualized-auto-sizer"
@@ -20,6 +22,7 @@ import { SourceInfoModal } from "./source-info-modal"
 import { ArticleDetailModal } from "./article-detail-modal"
 import type { NewsArticle } from "@/lib/api"
 import { get_logger } from "@/lib/utils"
+import { useReadingQueue } from "@/hooks/useReadingQueue"
 
 const logger = get_logger("GridView")
 
@@ -62,6 +65,8 @@ export function GridView({
   )
   const [isArticleModalOpen, setIsArticleModalOpen] = useState(false)
   const [likedArticles, setLikedArticles] = useState<Set<number>>(new Set())
+  const { addArticleToQueue, removeArticleFromQueue, isArticleInQueue } =
+    useReadingQueue()
 
   // Filter articles based on user selections
   const filteredNews = useMemo(() => {
@@ -141,6 +146,17 @@ export function GridView({
     })
   }, [])
 
+  const handleQueueToggle = useCallback(
+    (article: NewsArticle) => {
+      if (isArticleInQueue(article.url)) {
+        removeArticleFromQueue(article.url)
+      } else {
+        addArticleToQueue(article)
+      }
+    },
+    [isArticleInQueue, removeArticleFromQueue, addArticleToQueue],
+  )
+
   // Calculate row count for virtual grid
   const rowCount = Math.ceil(filteredNews.length / COLUMN_COUNT)
 
@@ -194,8 +210,28 @@ export function GridView({
                     </span>
                   </div>
 
-                  {/* Like Button */}
-                  <div className="absolute top-2 right-2">
+                  {/* Action Buttons */}
+                  <div className="absolute top-2 right-2 flex gap-1">
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        handleQueueToggle(article)
+                      }}
+                      className="h-8 w-8 p-0 bg-black/50 hover:bg-black/70"
+                      title={
+                        isArticleInQueue(article.url)
+                          ? "Remove from queue"
+                          : "Add to queue"
+                      }
+                    >
+                      {isArticleInQueue(article.url) ? (
+                        <MinusCircle className="w-4 h-4 text-blue-400" />
+                      ) : (
+                        <PlusCircle className="w-4 h-4 text-white" />
+                      )}
+                    </Button>
                     <Button
                       variant="ghost"
                       size="sm"
@@ -284,7 +320,7 @@ export function GridView({
         </div>
       )
     },
-    [filteredNews, handleArticleClick, handleLike, likedArticles],
+    [filteredNews, handleArticleClick, handleLike, handleQueueToggle, isArticleInQueue, likedArticles],
   )
 
   if (loading) {

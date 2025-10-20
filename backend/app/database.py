@@ -93,6 +93,27 @@ class SearchHistory(Base):
     created_at = Column(DateTime, default=datetime.utcnow)
 
 
+class ReadingQueueItem(Base):
+    __tablename__ = "reading_queue"
+
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, index=True)  # For future multi-user support
+    article_id = Column(Integer, nullable=False, index=True)
+    article_title = Column(Text, nullable=False)
+    article_url = Column(String, nullable=False, unique=True)
+    article_source = Column(String, nullable=False)
+    article_image = Column(String)
+    queue_type = Column(String, default="daily", index=True)  # 'daily' or 'permanent'
+    position = Column(Integer, default=0, index=True)  # Sort order, lower = top
+    read_status = Column(
+        String, default="unread", index=True
+    )  # 'unread', 'reading', 'completed'
+    added_at = Column(DateTime, default=datetime.utcnow, index=True)
+    archived_at = Column(DateTime, nullable=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+
 # Dependency for FastAPI
 async def get_db():
     """Database session dependency for FastAPI endpoints"""

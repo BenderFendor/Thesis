@@ -60,6 +60,34 @@ CREATE TABLE IF NOT EXISTS search_history (
 CREATE INDEX IF NOT EXISTS idx_search_history_query ON search_history(query);
 CREATE INDEX IF NOT EXISTS idx_search_history_created ON search_history(created_at DESC);
 
+-- Reading Queue for user's daily and permanent reading lists
+CREATE TABLE IF NOT EXISTS reading_queue (
+  id SERIAL PRIMARY KEY,
+  user_id INTEGER DEFAULT 1,
+  article_id INTEGER NOT NULL,
+  article_title TEXT NOT NULL,
+  article_url TEXT NOT NULL UNIQUE,
+  article_source TEXT NOT NULL,
+  article_image TEXT,
+  queue_type TEXT DEFAULT 'daily' CHECK (queue_type IN ('daily', 'permanent')),
+  position INTEGER DEFAULT 0,
+  read_status TEXT DEFAULT 'unread' CHECK (read_status IN ('unread', 'reading', 'completed')),
+  added_at TIMESTAMPTZ DEFAULT NOW(),
+  archived_at TIMESTAMPTZ,
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- Indexes for reading queue queries
+CREATE INDEX IF NOT EXISTS idx_reading_queue_user_id ON reading_queue(user_id);
+CREATE INDEX IF NOT EXISTS idx_reading_queue_queue_type ON reading_queue(queue_type);
+CREATE INDEX IF NOT EXISTS idx_reading_queue_read_status ON reading_queue(read_status);
+CREATE INDEX IF NOT EXISTS idx_reading_queue_position ON reading_queue(position);
+CREATE INDEX IF NOT EXISTS idx_reading_queue_added_at ON reading_queue(added_at DESC);
+
+CREATE TRIGGER update_reading_queue_updated_at BEFORE UPDATE ON reading_queue
+FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+
 -- Auto-update timestamps
 CREATE OR REPLACE FUNCTION update_updated_at_column()
 RETURNS TRIGGER AS $$

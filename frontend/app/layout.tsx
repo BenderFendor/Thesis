@@ -4,6 +4,7 @@ import { GeistMono } from 'geist/font/mono'
 import { Instrument_Serif, Inter } from 'next/font/google'
 import { Analytics } from '@vercel/analytics/next'
 import './globals.css'
+import { Providers } from './providers'
 
 const instrumentSerif = Instrument_Serif({
   weight: '400',
@@ -35,9 +36,11 @@ export default function RootLayout({
         <link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Inter:wght@100..900&display=swap" rel="stylesheet" />
       </head>
       <body className={`font-sans text-white ${GeistSans.variable} ${GeistMono.variable} ${inter.variable} ${instrumentSerif.variable}`} style={{ backgroundColor: 'var(--news-bg-primary)' }}>
-        <div className="min-h-screen" style={{ background: 'linear-gradient(to bottom, var(--news-bg-primary), var(--news-bg-secondary))' }}>
-          {children}
-        </div>
+        <Providers>
+          <div className="min-h-screen" style={{ background: 'linear-gradient(to bottom, var(--news-bg-primary), var(--news-bg-secondary))' }}>
+            {children}
+          </div>
+        </Providers>
         <Analytics />
       </body>
     </html>

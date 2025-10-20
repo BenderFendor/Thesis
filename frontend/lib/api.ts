@@ -1402,3 +1402,148 @@ export async function performAgenticSearch(query: string, maxSteps: number = 8):
     throw error
   }
 }
+
+// Reading Queue API functions
+export interface ReadingQueueItem {
+  id?: number
+  user_id?: number
+  article_id: number
+  article_title: string
+  article_url: string
+  article_source: string
+  article_image?: string
+  queue_type: 'daily' | 'permanent'
+  position: number
+  read_status: 'unread' | 'reading' | 'completed'
+  added_at: string
+  archived_at?: string
+  created_at?: string
+  updated_at?: string
+}
+
+export interface QueueResponse {
+  items: ReadingQueueItem[]
+  daily_count: number
+  permanent_count: number
+  total_count: number
+}
+
+export async function addToReadingQueue(
+  article: NewsArticle,
+  queueType: 'daily' | 'permanent' = 'daily'
+): Promise<ReadingQueueItem> {
+  try {
+    const response = await fetch(`${API_BASE_URL}/api/queue/add`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        article_id: article.id,
+        article_title: article.title,
+        article_url: article.url,
+        article_source: article.source,
+        article_image: article.image,
+        queue_type: queueType,
+      }),
+    })
+
+    if (!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status}`)
+    }
+
+    const data = await response.json()
+    console.log('✅ Article added to reading queue:', data)
+    return data
+  } catch (error) {
+    console.error('❌ Failed to add article to reading queue:', error)
+    throw error
+  }
+}
+
+export async function removeFromReadingQueue(queueItemId: number): Promise<void> {
+  try {
+    const response = await fetch(`${API_BASE_URL}/api/queue/${queueItemId}`, {
+      method: 'DELETE',
+    })
+
+    if (!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status}`)
+    }
+
+    console.log('✅ Article removed from reading queue')
+  } catch (error) {
+    console.error('❌ Failed to remove article from reading queue:', error)
+    throw error
+  }
+}
+
+export async function removeFromReadingQueueByUrl(
+  articleUrl: string
+): Promise<void> {
+  try {
+    const encodedUrl = encodeURIComponent(articleUrl)
+    const response = await fetch(
+      `${API_BASE_URL}/api/queue/url/${encodedUrl}`,
+      { method: 'DELETE' }
+    )
+
+    if (!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status}`)
+    }
+
+    console.log('✅ Article removed from reading queue by URL')
+  } catch (error) {
+    console.error('❌ Failed to remove article from reading queue:', error)
+    throw error
+  }
+}
+
+export async function getReadingQueue(): Promise<QueueResponse> {
+  try {
+    const response = await fetch(`${API_BASE_URL}/api/queue`, {
+      method: 'GET',
+      headers: { 'Content-Type': 'application/json' },
+    })
+
+    if (!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status}`)
+    }
+
+    const data = await response.json()
+    console.log('✅ Reading queue retrieved:', data)
+    return data
+  } catch (error) {
+    console.error('❌ Failed to fetch reading queue:', error)
+    throw error
+  }
+}
+
+export interface UpdateQueueItemRequest {
+  read_status?: 'unread' | 'reading' | 'completed'
+  queue_type?: 'daily' | 'permanent'
+  position?: number
+  archived_at?: string
+}
+
+export async function updateReadingQueueItem(
+  queueItemId: number,
+  updates: UpdateQueueItemRequest
+): Promise<ReadingQueueItem> {
+  try {
+    const response = await fetch(`${API_BASE_URL}/api/queue/${queueItemId}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(updates),
+    })
+
+    if (!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status}`)
+    }
+
+    const data = await response.json()
+    console.log('✅ Queue item updated:', data)
+    return data
+  } catch (error) {
+    console.error('❌ Failed to update queue item:', error)
+    throw error
+  }
+}

@@ -13,31 +13,10 @@
     "funding_type": "Independent",
     "bias_rating": "Left"
   },
-  "9to5Mac": {
-    "url": "https://9to5mac.com/feed",
-    "category": "9to5Mac",
-    "country": "",
-    "funding_type": "",
-    "bias_rating": ""
-  },
-  "A List Apart: The Full Feed": {
-    "url": "https://alistapart.com/main/feed/",
-    "category": "A List Apart: The Full Feed",
-    "country": "",
-    "funding_type": "",
-    "bias_rating": ""
-  },
-  "ABC News": {
+  "ABC News Australia": {
     "url": "https://www.abc.net.au/news/feed/1948/rss.xml",
     "category": "Latest News and News Headlines | Daily Telegraph",
     "country": "Australia",
-    "funding_type": "",
-    "bias_rating": ""
-  },
-  "Abante Tonite": {
-    "url": "https://tonite.abante.com.ph/feed/",
-    "category": "INQUIRER.net",
-    "country": "Philippines",
     "funding_type": "",
     "bias_rating": ""
   },
@@ -213,13 +192,6 @@
   "BBC Sport - Sport": {
     "url": "http://feeds.bbci.co.uk/sport/rss.xml",
     "category": "BBC Sport - Sport",
-    "country": "",
-    "funding_type": "",
-    "bias_rating": ""
-  },
-  "BBC Sport - Tennis": {
-    "url": "http://feeds.bbci.co.uk/sport/tennis/rss.xml",
-    "category": "BBC Sport - Tennis",
     "country": "",
     "funding_type": "",
     "bias_rating": ""
@@ -616,13 +588,6 @@
     "funding_type": "Independent",
     "bias_rating": "Center"
   },
-  "Hacker News Frontpage": {
-    "url": "https://hnrss.org/frontpage",
-    "category": "technology",
-    "country": "US",
-    "funding_type": "Independent",
-    "bias_rating": "Center"
-  },
   "Hacker News: Front Page": {
     "url": "https://hnrss.org/frontpage",
     "category": "AVC",
@@ -634,13 +599,6 @@
     "url": "https://www.business-standard.com/rss/home_page_top_stories.rss",
     "category": "All News",
     "country": "",
-    "funding_type": "",
-    "bias_rating": ""
-  },
-  "Home | Mail Online": {
-    "url": "https://www.dailymail.co.uk/home/index.rss",
-    "category": "BBC News - Home",
-    "country": "United Kingdom",
     "funding_type": "",
     "bias_rating": ""
   },

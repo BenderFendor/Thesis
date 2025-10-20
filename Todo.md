@@ -103,12 +103,29 @@ The backend loads up really slowly so if I could speed that up that would be gre
 ## Add Static code anylsis as well
 
 
-## Add a feature where you can open articles up as like tabs
+## Add a feature where you can open articles up as like tabs ✅ COMPLETED
 So like it is like a temp reading list then a permainlty reading list
 
 as right now my workflow is just openning all the articles in like 30 tabs so there has to be a way to streamline that.
 
 So like it should go like you add an article that that goes to the up of the read queue you can have a daily read queue and a like permanlty read queue so it has the daily one and any ones that go past that are put in the perm read queue as a backlog and it just adds the new article to the top of this queue.
+
+## Implementation Details (Reading Queue):
+- ✅ Phase 1: LocalStorage-based queue (immediate)
+  - Add to queue button on article cards and modals
+  - Floating sidebar showing queued articles
+  - Toast notifications for add/remove actions
+  - Persistent across sessions
+  
+- ✅ Phase 2: Database storage (optional)
+  - PostgreSQL `reading_queue` table with full schema
+  - Daily queue with 7-day TTL → auto-move to permanent
+  - Permanent queue as unlimited backlog
+  - Auto-archival of completed items after 30 days
+  - Backend API endpoints for CRUD operations
+  - Optional database sync via `NEXT_PUBLIC_USE_DB_QUEUE` flag
+  
+- 📄 Full documentation: See READING_QUEUE_IMPLEMENTATION.md
 
 ## For sources like AP news
 I don't like the whole assciotos press 1 - 2 - 3 thing it should just take all the xml concated them as one mega xml then like show the sources as like a sub net or sub brach of the main source but it should act like one source
@@ -122,57 +139,3 @@ It is like this feature of having news from only some sources like a selection t
 ## Also with new sources and articles
 Show aritcles for the past week first then older articles from like the last month or years back last. also I would like it if like has the sources that are most current first so like if a source only has 2023 show that at the end of the feed not the top.
 
-## Sources and handling them
-You also don't need if we have 12000 articles to add those 12000 articles all the the frontend display as current I think it does this slows the frontend a lot so it sohuld have infintie scroll and show maybe 100 articles at one time to save on performance
-
-### Implementation: Virtual Scrolling ✅ COMPLETED
-
-## Implementation Details:
-- ✅ Installed `react-window` (v1.8.10) and `react-virtualized-auto-sizer` 
-- ✅ Updated `frontend/components/grid-view.tsx` with FixedSizeList virtual scrolling
-  - Only renders visible grid rows (~100 articles in DOM at any time)
-  - Smooth horizontal grid layout with 4 columns
-  - Supports filtering and dynamic article display
-- ✅ Updated `frontend/components/feed-view.tsx` with FixedSizeList virtual scrolling
-  - Full-screen article view with vertical scrolling
-  - Article cards now rendered on-demand
-  - Bookmark and like functionality preserved
-- ✅ Updated `frontend/app/page.tsx` layout
-  - Full viewport height container for views
-  - Flex-based layout for proper overflow handling
-  - Ensures virtual scrolling works efficiently
-- ✅ Added logger utility (`get_logger()`) to `frontend/lib/utils.ts`
-  - Debug mode toggle via localStorage
-  - Conditional logging based on debug state
-  - Can be toggled with: `localStorage.setItem('debug_mode', 'true/false')`
-
-### Performance Improvements:
-- **DOM Optimization**: 12,000+ articles reduced from thousands of DOM nodes to ~100-200 visible nodes
-- **Memory Usage**: Reduced from ~600MB to ~80MB for large article lists
-- **Scrolling Performance**: 55-60 FPS on scroll (up from 10-20 FPS)
-- **Initial Render**: Reduced from 8-12 seconds to 200-500ms
-- **User Experience**: Smooth infinite scroll, no lag or janky animations
-
-### Features:
-- Works with all three view modes: Grid, Feed, and Scroll
-- Compatible with existing filtering system (search, category, country, credibility)
-- Preserves article click handlers and modal functionality
-- Maintains bookmark and like interactions
-- Debug logging controlled by logger feature
-- Overscan rendering (2 extra rows above/below viewport for seamless scrolling)
-
-### Usage:
-- No API changes required - works with existing SSE stream
-- All articles are still loaded into memory but only visible ones are rendered
-- Can be extended with backend pagination for even greater optimization if needed
-
-### Testing Checklist:
-- [ ] Run `docker compose up --build` to start the full stack
-- [ ] Load news articles via SSE stream (wait for 12,000+ articles)
-- [ ] Test smooth scrolling in Grid view
-- [ ] Test smooth scrolling in Feed view  
-- [ ] Verify filtering still works (search, category, country, credibility)
-- [ ] Test article click and modal opening
-- [ ] Check Chrome DevTools for DOM node count (should be <300 nodes)
-- [ ] Monitor performance in DevTools Performance tab (should maintain 60fps)
-- [ ] Enable debug mode: `localStorage.setItem('debug_mode', 'true')` and verify console logs appear
