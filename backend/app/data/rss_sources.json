@@ -672,24 +672,10 @@
     "funding_type": "",
     "bias_rating": ""
   },
-  "InfoQ": {
-    "url": "https://feed.infoq.com",
-    "category": "Better Programming - Medium",
-    "country": "",
-    "funding_type": "",
-    "bias_rating": ""
-  },
   "Information Nigeria": {
     "url": "https://www.informationng.com/feed",
     "category": "All Content",
     "country": "Nigeria",
-    "funding_type": "",
-    "bias_rating": ""
-  },
-  "Instagram Engineering - Medium": {
-    "url": "https://instagram-engineering.com/feed/",
-    "category": "Better Programming - Medium",
-    "country": "",
     "funding_type": "",
     "bias_rating": ""
   },
@@ -700,7 +686,7 @@
     "funding_type": "",
     "bias_rating": ""
   },
-  "International: Top News And Analysis": {
+  "Cnbc International: Top News And Analysis": {
     "url": "https://www.cnbc.com/id/100727362/device/rss/rss.html",
     "category": "BBC News - World",
     "country": "",
@@ -735,13 +721,6 @@
     "funding_type": "",
     "bias_rating": ""
   },
-  "Jake Wharton": {
-    "url": "https://jakewharton.com/atom.xml",
-    "category": "Android - Buffer Resources",
-    "country": "",
-    "funding_type": "",
-    "bias_rating": ""
-  },
   "Japan Times latest articles": {
     "url": "https://www.japantimes.co.jp/feed/topstories/",
     "category": "Japan Times latest articles",
@@ -755,34 +734,6 @@
     "country": "JP",
     "funding_type": "Commercial",
     "bias_rating": "Center"
-  },
-  "Java, SQL and jOOQ.": {
-    "url": "https://blog.jooq.org/feed",
-    "category": "Better Programming - Medium",
-    "country": "",
-    "funding_type": "",
-    "bias_rating": ""
-  },
-  "JetBrains Blog": {
-    "url": "https://blog.jetbrains.com/feed",
-    "category": "Better Programming - Medium",
-    "country": "",
-    "funding_type": "",
-    "bias_rating": ""
-  },
-  "JetBrains News | JetBrains Blog": {
-    "url": "https://blog.jetbrains.com/blog/feed",
-    "category": "Android - Buffer Resources",
-    "country": "",
-    "funding_type": "",
-    "bias_rating": ""
-  },
-  "Joel on Software": {
-    "url": "https://www.joelonsoftware.com/feed/",
-    "category": "Better Programming - Medium",
-    "country": "",
-    "funding_type": "",
-    "bias_rating": ""
   },
   "KUSA - News": {
     "url": "http://rssfeeds.9news.com/kusa/home&x=1",
@@ -893,20 +844,6 @@
     "url": "https://www.diplomatie.gouv.fr/spip.php?page=backend-fd&lang=en",
     "category": "france24.com",
     "country": "France",
-    "funding_type": "",
-    "bias_rating": ""
-  },
-  "Moneycontrol Latest News": {
-    "url": "http://www.moneycontrol.com/rss/latestnews.xml",
-    "category": "BBC News - India",
-    "country": "India",
-    "funding_type": "",
-    "bias_rating": ""
-  },
-  "Moneyweb": {
-    "url": "https://www.moneyweb.co.za/feed/",
-    "category": "SowetanLIVE",
-    "country": "South Africa",
     "funding_type": "",
     "bias_rating": ""
   },
@@ -1172,20 +1109,6 @@
   "Probably Science": {
     "url": "https://probablyscience.libsyn.com/rss",
     "category": "60-Second Science",
-    "country": "",
-    "funding_type": "",
-    "bias_rating": ""
-  },
-  "Programming Throwdown": {
-    "url": "http://feeds.feedburner.com/ProgrammingThrowdown",
-    "category": "Better Programming - Medium",
-    "country": "",
-    "funding_type": "",
-    "bias_rating": ""
-  },
-  "Programming – The Crazy Programmer": {
-    "url": "https://www.thecrazyprogrammer.com/category/programming/feed",
-    "category": "Better Programming - Medium",
     "country": "",
     "funding_type": "",
     "bias_rating": ""

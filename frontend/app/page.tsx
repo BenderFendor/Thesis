@@ -27,7 +27,6 @@ import Link from "next/link"
 import { GlobeView } from "@/components/globe-view"
 import { GridView } from "@/components/grid-view"
 import { FeedView } from "@/components/feed-view"
-import { AutoHideHeader } from "@/components/auto-hide-header"
 
 import { useNewsStream } from "@/hooks/useNewsStream"
 import { useFavorites } from "@/hooks/useFavorites"
@@ -307,7 +306,7 @@ function NewsPage() {
   };
 
   return (
-    <div className="min-h-screen text-white" style={{ backgroundColor: 'var(--news-bg-primary)' }}>
+    <div className="min-h-screen flex flex-col" style={{ backgroundColor: 'var(--news-bg-primary)' }}>
       {/* Enhanced Loading state */}
       {(loading || (streamHook.isStreaming && articlesByCategory[activeCategory]?.length === 0)) && (
         <div className="fixed inset-0 flex items-center justify-center z-50" style={{ backgroundColor: 'var(--news-bg-primary)' }}>
@@ -347,105 +346,110 @@ function NewsPage() {
       )}
 
 
-      {/* Auto-hiding header with scroll detection */}
-      <AutoHideHeader />
-
-  {/* Category navigation removed per request */}
-
       {/* Main Content - Full Height for Virtual Scrolling */}
       <main className="flex flex-col flex-1 h-[calc(100vh)] overflow-hidden">
-        {/* Compact header with article count and view toggle */}
-        <div className="px-3 sm:px-4 lg:px-6 py-2 border-b border-border/50">
-          <div className="flex items-center justify-between gap-4 mb-0">
-            <div className="flex items-center gap-3 min-w-0">
-              <h2 className="text-2xl font-bold font-serif text-foreground">News Grid</h2>
+        {/* Consolidated header with Scoop branding and controls */}
+        <div className="px-3 sm:px-4 lg:px-6 py-3 border-b border-border/50">
+          <div className="flex items-center justify-between gap-4">
+            {/* Left side: Scoop branding + News Grid title */}
+            <div className="flex items-center gap-4">
+              <Link href="/" className="flex items-center gap-2">
+                <Globe className="w-6 h-6 text-primary" />
+                <div className="flex flex-col">
+                  <h1 className="font-serif text-xl font-semibold">Scoop</h1>
+                  <p className="text-[10px] text-muted-foreground hidden sm:block">
+                    Multi-perspective news
+                  </p>
+                </div>
+              </Link>
+              <div className="h-6 w-px bg-border hidden md:block" />
+              <h2 className="text-lg font-bold font-serif text-foreground hidden md:block">News Grid</h2>
             </div>
 
+            {/* Right side: Article count, sources filter, view toggle, and nav buttons */}
             <div className="flex items-center gap-3">
-            {/* Article count */}
-            <div className="flex items-center gap-2">
+              {/* Article count */}
               <span className="hidden sm:inline-flex text-sm px-2 py-1 rounded-md" style={{ backgroundColor: 'var(--card)', color: 'var(--muted-foreground)' }}>
                 {articleCount} article{articleCount === 1 ? '' : 's'}
               </span>
-            </div>
 
-            {/* Sources Sidebar Toggle */}
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => setSidebarOpen(true)}
-              className="gap-2"
-              title="Filter by sources"
-            >
-              <Filter className="w-4 h-4" />
-              <span className="hidden sm:inline">Sources</span>
-            </Button>
+              {/* Sources Sidebar Toggle */}
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => setSidebarOpen(true)}
+                className="gap-2"
+                title="Filter by sources"
+              >
+                <Filter className="w-4 h-4" />
+                <span className="hidden sm:inline">Sources</span>
+              </Button>
 
-            {/* View Toggle */}
-            <div className="flex items-center gap-2 rounded-lg p-1" style={{ backgroundColor: 'var(--muted)' }}>
-              <Button
-                variant={currentView === "globe" ? "default" : "ghost"}
-                size="sm"
-                onClick={() => setCurrentView("globe")}
-                className="gap-2"
-              >
-                <Globe className="w-4 h-4" />
-                Globe
-              </Button>
-              <Button
-                variant={currentView === "grid" ? "default" : "ghost"}
-                size="sm"
-                onClick={() => setCurrentView("grid")}
-                className="gap-2"
-              >
-                <Grid3X3 className="w-4 h-4" />
-                Grid
-              </Button>
-              <Button
-                variant={currentView === "scroll" ? "default" : "ghost"}
-                size="sm"
-                onClick={() => setCurrentView("scroll")}
-                className="gap-2"
-              >
-                <Scroll className="w-4 h-4" />
-                Feed
-              </Button>
-            </div>
+              {/* View Toggle */}
+              <div className="flex items-center gap-2 rounded-lg p-1" style={{ backgroundColor: 'var(--muted)' }}>
+                <Button
+                  variant={currentView === "globe" ? "default" : "ghost"}
+                  size="sm"
+                  onClick={() => setCurrentView("globe")}
+                  className="gap-2"
+                >
+                  <Globe className="w-4 h-4" />
+                  <span className="hidden sm:inline">Globe</span>
+                </Button>
+                <Button
+                  variant={currentView === "grid" ? "default" : "ghost"}
+                  size="sm"
+                  onClick={() => setCurrentView("grid")}
+                  className="gap-2"
+                >
+                  <Grid3X3 className="w-4 h-4" />
+                  <span className="hidden sm:inline">Grid</span>
+                </Button>
+                <Button
+                  variant={currentView === "scroll" ? "default" : "ghost"}
+                  size="sm"
+                  onClick={() => setCurrentView("scroll")}
+                  className="gap-2"
+                >
+                  <Scroll className="w-4 h-4" />
+                  <span className="hidden sm:inline">Feed</span>
+                </Button>
+              </div>
 
-            {/* User Actions */}
-            <div className="flex items-center gap-2">
-              <Link href="/search">
-                <Button variant="ghost" size="sm" className="gap-2">
-                  <Brain className="w-4 h-4" />
-                  Research
+              {/* User Actions */}
+              <div className="flex items-center gap-2">
+                <Link href="/search">
+                  <Button variant="ghost" size="sm" className="gap-2">
+                    <Brain className="w-4 h-4" />
+                    <span className="hidden md:inline">Research</span>
+                  </Button>
+                </Link>
+                <Link href="/sources">
+                  <Button variant="ghost" size="sm" className="gap-2">
+                    <Activity className="w-4 h-4" />
+                    <span className="hidden md:inline">Sources</span>
+                  </Button>
+                </Link>
+                <Button variant="ghost" size="sm" className="relative" onClick={() => setShowNotifications(!showNotifications)}>
+                  <Bell className="w-4 h-4" />
+                  {notifications.length > 0 && (
+                    <Badge className="absolute -top-1 -right-1 w-4 h-4 p-0 flex items-center justify-center text-xs bg-destructive">{notifications.length}</Badge>
+                  )}
                 </Button>
-              </Link>
-              <Link href="/sources">
-                <Button variant="ghost" size="sm" className="gap-2">
-                  <Activity className="w-4 h-4" />
-                  Sources
-                </Button>
-              </Link>
-              <Button variant="ghost" size="sm" className="relative" onClick={() => setShowNotifications(!showNotifications)}>
-                <Bell className="w-4 h-4" />
-                {notifications.length > 0 && (
-                  <Badge className="absolute -top-1 -right-1 w-4 h-4 p-0 flex items-center justify-center text-xs bg-destructive">{notifications.length}</Badge>
-                )}
-              </Button>
-              {showNotifications && <NotificationsPopup notifications={notifications} onClear={handleClearNotification} onClearAll={handleClearAllNotifications} onRetry={handleRetryNotification} />}
-              <Link href="/settings">
-                <Button variant="ghost" size="sm">
-                  <Settings className="w-4 h-4" />
-                </Button>
-              </Link>
-              <Link href="/profile">
-                <Button variant="ghost" size="sm">
-                  <User className="w-4 h-4" />
-                </Button>
-              </Link>
+                {showNotifications && <NotificationsPopup notifications={notifications} onClear={handleClearNotification} onClearAll={handleClearAllNotifications} onRetry={handleRetryNotification} />}
+                <Link href="/settings">
+                  <Button variant="ghost" size="sm">
+                    <Settings className="w-4 h-4" />
+                  </Button>
+                </Link>
+                <Link href="/profile">
+                  <Button variant="ghost" size="sm">
+                    <User className="w-4 h-4" />
+                  </Button>
+                </Link>
+              </div>
             </div>
           </div>
-        </div>
         </div>
 
         <Tabs value={activeCategory} onValueChange={(value) => setActiveCategory(value)} className="flex-1 flex flex-col overflow-hidden">

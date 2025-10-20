@@ -496,8 +496,8 @@ def parse_rss_feed_entries(
 
     return articles
 
-
-def start_cache_refresh_scheduler(interval_seconds: int = 30) -> None:
+# This should refresh everyh 10 minutes (600 seconds)
+def start_cache_refresh_scheduler(interval_seconds: int = 600) -> None:
     def cache_scheduler() -> None:
         while True:
             try:
