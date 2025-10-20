@@ -6,19 +6,16 @@ import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import {
   Clock,
-  MapPin,
-  Info,
-  RefreshCw,
   Newspaper,
-  ExternalLink,
   Heart,
   Search,
   PlusCircle,
   MinusCircle,
   Star,
+  RefreshCw,
+  ExternalLink,
+  Info,
 } from "lucide-react"
-import { FixedSizeList as List } from "react-window"
-import AutoSizer from "react-virtualized-auto-sizer"
 import { SourceInfoModal } from "./source-info-modal"
 import { ArticleDetailModal } from "./article-detail-modal"
 import type { NewsArticle } from "@/lib/api"
@@ -73,16 +70,18 @@ export function GridView({
 
   // Filter articles based on user selections
   const filteredNews = useMemo(() => {
-    return articles.filter((article: NewsArticle) => {
+    const result = articles.filter((article: NewsArticle) => {
       const matchesSearch =
         !searchTerm ||
         article.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
         article.summary?.toLowerCase().includes(searchTerm.toLowerCase())
       const matchesCategory =
-        selectedCategory === "All" || article.category === selectedCategory
+        selectedCategory === "All" || article.category?.toLowerCase() === selectedCategory.toLowerCase()
 
       return matchesSearch && matchesCategory
     })
+    console.log(`🔍 GridView filter: ${articles.length} articles → ${result.length} after filtering (searchTerm="${searchTerm}", selectedCategory="${selectedCategory}")`)
+    return result
   }, [articles, searchTerm, selectedCategory])
 
   // Notify parent about filtered count
@@ -104,7 +103,8 @@ export function GridView({
         selectedCategory,
       },
     })
-  }, [articles.length, filteredNews.length, searchTerm, selectedCategory])
+    console.log(`🎬 GridView render check: articles=${articles.length}, filteredNews=${filteredNews.length}, loading=${loading}`)
+  }, [articles.length, filteredNews.length, searchTerm, selectedCategory, loading])
 
   const getCredibilityColor = (credibility: string) => {
     switch (credibility?.toLowerCase()) {
@@ -428,20 +428,146 @@ export function GridView({
           </div>
         </div>
       ) : (
-        <div className="flex-1 px-4 sm:px-6 md:px-8 lg:px-12 xl:px-16">
-          <AutoSizer>
-            {({ height, width }: { height: number; width: number }) => (
-              <List
-                itemCount={rowCount}
-                itemSize={ROW_HEIGHT}
-                width={width}
-                height={height}
-                overscanCount={2}
+        <div className="flex-1 overflow-auto px-4 sm:px-6 md:px-8 lg:px-12 xl:px-16">
+          <div className="grid grid-cols-5 gap-4 py-4">
+            {filteredNews.map((article) => (
+              <button
+                key={article.id}
+                onClick={() => handleArticleClick(article)}
+                className="group h-full text-left transition-all duration-200"
               >
-                {Row}
-              </List>
-            )}
-          </AutoSizer>
+                <Card className="h-full overflow-hidden flex flex-col hover:border-primary hover:shadow-lg transition-all duration-200 bg-card/70 hover:bg-card border-border/60 cursor-pointer">
+                  {/* Image Container */}
+                  <div className="relative h-32 overflow-hidden bg-muted/40 flex-shrink-0">
+                    <img
+                      src={article.image || "/placeholder.svg"}
+                      alt={article.title}
+                      className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-300"
+                    />
+                    <div className="absolute inset-0 bg-gradient-to-t from-black/40 via-transparent to-transparent" />
+
+                    {/* Top Badges */}
+                    <div className="absolute top-2 left-2 flex gap-1.5 flex-wrap">
+                      <Badge
+                        className={`text-[10px] font-semibold px-2 py-0.5 ${getCredibilityColor(
+                          article.credibility
+                        )}`}
+                      >
+                        {article.credibility}
+                      </Badge>
+                      <span
+                        className="text-xs bg-black/70 text-white px-2 py-0.5 rounded font-medium"
+                        title={`${article.bias} bias`}
+                      >
+                        {getBiasIndicator(article.bias)}
+                      </span>
+                    </div>
+
+                    {/* Action Buttons */}
+                    <div className="absolute top-2 right-2 flex gap-1">
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          handleQueueToggle(article)
+                        }}
+                        className="h-8 w-8 p-0 bg-black/50 hover:bg-black/70"
+                        title={
+                          isArticleInQueue(article.url)
+                            ? "Remove from queue"
+                            : "Add to queue"
+                        }
+                      >
+                        {isArticleInQueue(article.url) ? (
+                          <MinusCircle className="w-4 h-4 text-blue-400" />
+                        ) : (
+                          <PlusCircle className="w-4 h-4 text-white" />
+                        )}
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          toggleFavorite(article.sourceId)
+                        }}
+                        className="h-8 w-8 p-0 bg-black/50 hover:bg-black/70"
+                        title={
+                          isFavorite(article.sourceId)
+                            ? "Remove from favorites"
+                            : "Add to favorites"
+                        }
+                      >
+                        <Star
+                          className={`w-4 h-4 transition-colors ${
+                            isFavorite(article.sourceId)
+                              ? "fill-yellow-500 text-yellow-500"
+                              : "text-white"
+                          }`}
+                        />
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          handleLike(article.id as number)
+                        }}
+                        className="h-8 w-8 p-0 bg-black/50 hover:bg-black/70"
+                      >
+                        <Heart
+                          className={`w-4 h-4 ${
+                            likedArticles.has(article.id as number)
+                              ? "fill-red-500 text-red-500"
+                              : "text-white"
+                          }`}
+                        />
+                      </Button>
+                    </div>
+                  </div>
+
+                  {/* Content */}
+                  <CardContent className="flex-1 flex flex-col p-2.5">
+                    {/* Category Badge */}
+                    <Badge
+                      variant="outline"
+                      className="w-fit text-[9px] font-semibold mb-1.5 px-1.5 py-0.5 bg-background/80 text-muted-foreground border-border/50"
+                    >
+                      {article.category}
+                    </Badge>
+
+                    {/* Title */}
+                    <h3 className="text-sm font-semibold text-foreground leading-snug line-clamp-2 mb-1.5 font-serif">
+                      {article.title}
+                    </h3>
+
+                    {/* Summary */}
+                    <p className="text-xs text-muted-foreground line-clamp-2 mb-auto leading-relaxed">
+                      {article.summary}
+                    </p>
+
+                    {/* Meta Info */}
+                    <div className="flex items-center justify-between gap-2 text-[10px] text-muted-foreground mt-auto pt-2 border-t border-border/20">
+                      <div className="flex items-center gap-1">
+                        <Newspaper className="w-3 h-3" />
+                        <span className="line-clamp-1">{article.source}</span>
+                      </div>
+                      <div className="flex items-center gap-1 flex-shrink-0">
+                        <Clock className="w-3 h-3" />
+                        <span>
+                          {new Date(article.publishedAt).toLocaleDateString('en-US', {
+                            month: 'short',
+                            day: 'numeric',
+                          })}
+                        </span>
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+              </button>
+            ))}
+          </div>
         </div>
       )}
 

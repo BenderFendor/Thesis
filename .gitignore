@@ -352,3 +352,5 @@ docker-compose.override.yml
 volumes/
 
 .playwright-mcp
+
+/__pycache__/

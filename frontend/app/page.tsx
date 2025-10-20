@@ -97,6 +97,7 @@ function NewsPage() {
   activeCategoryRef.current = activeCategory;
 
   const onUpdate = useCallback((newArticles: NewsArticle[]) => {
+    console.log(`📊 onUpdate called with ${newArticles.length} articles for category: ${activeCategoryRef.current}`);
     setArticlesByCategory(prev => ({
       ...prev,
       [activeCategoryRef.current]: newArticles
