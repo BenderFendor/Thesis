@@ -312,7 +312,7 @@ function NewsPage() {
   {/* Category navigation removed per request */}
 
       {/* Main Content - Full Height for Virtual Scrolling */}
-      <main className="flex flex-col flex-1 h-[calc(100vh-200px)] overflow-hidden">
+      <main className="flex flex-col flex-1 h-[calc(100vh)] overflow-hidden">
         {/* Compact header with article count and view toggle */}
         <div className="px-3 sm:px-4 lg:px-6 py-2 border-b border-border/50">
           <div className="flex items-center justify-between gap-4 mb-0">

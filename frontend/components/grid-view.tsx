@@ -38,8 +38,9 @@ const categories = [
 // Virtual grid constants for optimization
 const COLUMN_COUNT = 5
 const COLUMN_WIDTH = 260
-const ROW_HEIGHT = 380
+const ROW_HEIGHT = 296  // 280 + 16 (ROW_GAP)
 const GAP = 12
+const ROW_GAP = 16  // Vertical gap between rows
 
 interface GridViewProps {
   articles: NewsArticle[]
@@ -156,7 +157,7 @@ export function GridView({
             display: "grid",
             gridTemplateColumns: `repeat(${COLUMN_COUNT}, 1fr)`,
             gap: `${GAP}px`,
-            padding: `${GAP / 2}px`,
+            padding: `${ROW_GAP / 2}px ${GAP / 2}px`,
           }}
         >
           {rowArticles.map((article) => (
@@ -167,7 +168,7 @@ export function GridView({
             >
               <Card className="h-full overflow-hidden flex flex-col hover:border-primary hover:shadow-lg transition-all duration-200 bg-card/70 hover:bg-card border-border/60 cursor-pointer">
                 {/* Image Container */}
-                <div className="relative h-40 overflow-hidden bg-muted/40 flex-shrink-0">
+                <div className="relative h-32 overflow-hidden bg-muted/40 flex-shrink-0">
                   <img
                     src={article.image || "/placeholder.svg"}
                     alt={article.title}
@@ -215,27 +216,27 @@ export function GridView({
                 </div>
 
                 {/* Content */}
-                <CardContent className="flex-1 flex flex-col p-3">
+                <CardContent className="flex-1 flex flex-col p-2.5">
                   {/* Category Badge */}
                   <Badge
                     variant="outline"
-                    className="w-fit text-[10px] font-semibold mb-2 px-2 py-1 bg-background/80 text-muted-foreground border-border/50"
+                    className="w-fit text-[9px] font-semibold mb-1.5 px-1.5 py-0.5 bg-background/80 text-muted-foreground border-border/50"
                   >
                     {article.category}
                   </Badge>
 
                   {/* Title */}
-                  <h3 className="text-base font-semibold text-foreground leading-tight line-clamp-3 mb-2 font-serif">
+                  <h3 className="text-sm font-semibold text-foreground leading-snug line-clamp-2 mb-1.5 font-serif">
                     {article.title}
                   </h3>
 
                   {/* Summary */}
-                  <p className="text-sm text-muted-foreground line-clamp-3 mb-auto leading-relaxed">
+                  <p className="text-xs text-muted-foreground line-clamp-2 mb-auto leading-relaxed">
                     {article.summary}
                   </p>
 
                   {/* Meta Info */}
-                  <div className="space-y-2 pt-3 border-t border-border/30 mt-3">
+                  <div className="space-y-1.5 pt-2 border-t border-border/30 mt-2">
                     <div className="flex items-center justify-between text-xs text-muted-foreground">
                       <div className="flex items-center gap-1.5">
                         <Clock className="w-3 h-3 flex-shrink-0" />

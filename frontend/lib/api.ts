@@ -666,285 +666,433 @@ export function streamNews(options: StreamOptions = {}): {
   url: string;
 } {
   const { useCache = true, category, onProgress, onSourceComplete, onError, signal } = options;
-  
+
   console.log(`🎯 Starting news stream with useCache=${useCache} and category=${category}`);
-  
+
   // Build SSE URL with parameters
-  const baseUrl = (process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000').replace(/\/+$/, '');
+  const baseUrl = (
+    process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000"
+  ).replace(/\/+$/, "");
   const params = new URLSearchParams({
     use_cache: String(useCache),
   });
   if (category) {
-    params.append('category', category);
+    params.append("category", category);
   }
   const sseUrl = `${baseUrl}/news/stream?${params.toString()}`;
-  
+
   const promise = new Promise<{
     articles: NewsArticle[];
     sources: string[];
     streamId?: string;
     errors: string[];
-  }>((resolve, reject) => {
+  }>(async (resolve, reject) => {
     const articles: NewsArticle[] = [];
     const sources = new Set<string>();
     const errors: string[] = [];
     let streamId: string | undefined;
     let hasReceivedData = false;
     let settled = false;
-    
-    console.log(`🔗 Connecting to unified stream endpoint: ${sseUrl}`);
-    
-    const eventSource = new EventSource(sseUrl);
-    let timeoutId: NodeJS.Timeout;
-    
-    // Set timeout to prevent hanging
-    const startTimeout = () => {
-      if (timeoutId) clearTimeout(timeoutId);
-      timeoutId = setTimeout(() => {
-        console.error('🚨 Stream timeout - closing connection');
-        eventSource.close();
-        if (!hasReceivedData) {
-          reject(new Error('Stream timeout - no data received'));
-        } else {
-          resolve({
-            articles: removeDuplicateArticles(articles),
-            sources: Array.from(sources),
-            streamId,
-            errors: [...errors, 'Stream timeout']
-          });
-        }
-      }, 120000); // 2 minutes timeout
-    };
-    
-    startTimeout();
-    
-    // Allow external abort to close SSE and resolve with partial data
-    const handleAbort = () => {
-      if (settled) return;
-      console.warn('🧹 Streaming aborted by signal. Closing SSE.');
-      try { clearTimeout(timeoutId); } catch {}
-      try { eventSource.close(); } catch {}
-      settled = true;
-      resolve({
-        articles: removeDuplicateArticles(articles),
-        sources: Array.from(sources),
-        streamId,
-        errors: [...errors, 'aborted']
-      });
-    };
-    if (signal) {
-      if (signal.aborted) {
-        handleAbort();
-        return;
-      }
-      signal.addEventListener('abort', handleAbort, { once: true });
-    }
-    
-    eventSource.onopen = () => {
-      console.log('✅ SSE connection opened');
-    };
-    
-    eventSource.onmessage = (event: MessageEvent) => {
-      try {
-        console.log(`[streamNews] Raw SSE event data:`, event.data);
-        
-        let data: StreamEvent;
-        try {
-          // First attempt to parse, assuming it's a clean JSON object string
-          data = JSON.parse(event.data);
-        } catch (e) {
-          // If it fails, it might be a string-encoded JSON (e.g. '"{\\"status\\":...}"')
-          console.warn(`[streamNews] First JSON.parse failed, attempting to re-parse as string-encoded JSON.`);
-          data = JSON.parse(JSON.parse(`"${event.data}"`));
-        }
+    let abortController: AbortController | null = null;
 
-        console.log(`📬 Stream event [${data.status}]:`, {
-          streamId: data.stream_id,
-          source: data.source,
-          articlesCount: data.articles?.length,
-          progress: data.progress,
-          message: data.message
-        });
-        
-        // Update stream ID
-        if (data.stream_id && !streamId) {
-          streamId = data.stream_id;
+    console.log(`🔗 Connecting to unified stream endpoint: ${sseUrl}`);
+
+    try {
+      // Create abort controller for fetch
+      abortController = new AbortController();
+
+      // Handle external signal abort
+      const handleAbort = () => {
+        if (abortController && !abortController.signal.aborted) {
+          console.warn("🧹 Streaming aborted by external signal");
+          abortController.abort();
         }
-        
-        // Reset timeout on each message
-        startTimeout();
-        
-        switch (data.status) {
-          case 'starting':
-            console.log(`🚀 Stream ${streamId} starting: ${data.message}`);
-            onProgress?.({
-              completed: 0,
-              total: 0,
-              percentage: 0,
-              message: data.message
+      };
+
+      if (signal) {
+        if (signal.aborted) {
+          handleAbort();
+          if (!settled) {
+            settled = true;
+            resolve({
+              articles: removeDuplicateArticles(articles),
+              sources: Array.from(sources),
+              streamId,
+              errors: ["Aborted before connection"],
             });
-            break;
-            
-          case 'cache_data':
-            hasReceivedData = true;
-            if (data.articles && Array.isArray(data.articles)) {
-              const mappedArticles = mapBackendArticles(data.articles);
-              const BATCH_SIZE = 500;
-              
-              console.log(`💾 Stream ${streamId} cache data: ${mappedArticles.length} articles (cache age: ${data.cache_age_seconds}s). Batching into ${Math.ceil(mappedArticles.length / BATCH_SIZE)} batches...`);
-              
-              // Process articles in batches to avoid UI freeze
-              (async () => {
-                for (let i = 0; i < mappedArticles.length; i += BATCH_SIZE) {
-                  const batch = mappedArticles.slice(i, i + BATCH_SIZE);
-                  articles.push(...batch);
-                  batch.forEach(article => sources.add(article.source));
-                  
-                  // Notify about this batch immediately
-                  if (onSourceComplete) {
-                    onSourceComplete(`cache-batch-${Math.floor(i / BATCH_SIZE)}`, batch);
-                  }
-                  
-                  // Yield to the event loop to prevent blocking
-                  // For all but the last batch, use a small delay to let React render
-                  if (i + BATCH_SIZE < mappedArticles.length) {
-                    await new Promise(resolve => setTimeout(resolve, 0));
-                  }
-                }
-                
-                // Final progress update after all batches loaded
-                onProgress?.({
-                  completed: sources.size,
-                  total: sources.size,
-                  percentage: 0,
-                  message: `Loaded ${mappedArticles.length} cached articles in ${Math.ceil(mappedArticles.length / BATCH_SIZE)} batches`
+          }
+          return;
+        }
+        signal.addEventListener("abort", handleAbort, { once: true });
+      }
+
+      // Use fetch with manual SSE handling instead of EventSource
+      // This gives us better control over connection lifecycle
+      const response = await fetch(sseUrl, {
+        method: "GET",
+        signal: abortController.signal,
+        headers: {
+          Accept: "text/event-stream",
+        },
+      });
+
+      if (!response.ok) {
+        throw new Error(
+          `Stream request failed with status ${response.status}: ${response.statusText}`
+        );
+      }
+
+      if (!response.body) {
+        throw new Error("No response body received from stream");
+      }
+
+      console.log("✅ Stream connection opened, reading body...");
+
+      const reader = response.body.getReader();
+      const decoder = new TextDecoder();
+      let buffer = "";
+      let lastMessageTime = Date.now();
+      const messageTimeout = 120000; // 2 minutes
+      const cacheLoadTimeout = 15000; // 15 seconds - if cache loads but no complete event, auto-resolve
+
+      // Start timeout monitor
+      const timeoutInterval = setInterval(() => {
+        const timeSinceLastMessage = Date.now() - lastMessageTime;
+        if (timeSinceLastMessage > messageTimeout) {
+          console.error("🚨 Stream timeout - no data received in 2 minutes");
+          if (abortController) {
+            abortController.abort();
+          }
+        }
+      }, 5000);
+
+      // Stall detector - if we've received cache but nothing for 10s, auto-complete
+      const stallInterval = setInterval(() => {
+        if (
+          hasReceivedData &&
+          !settled &&
+          Date.now() - lastMessageTime > cacheLoadTimeout
+        ) {
+          console.warn(
+            `⚠️ Stream ${streamId} stalled after cache load - auto-completing`
+          );
+          clearInterval(timeoutInterval);
+          clearInterval(stallInterval);
+          if (!settled) {
+            settled = true;
+            resolve({
+              articles: removeDuplicateArticles(articles),
+              sources: Array.from(sources),
+              streamId,
+              errors: [
+                ...errors,
+                "Stream auto-completed due to inactivity after cache load",
+              ],
+            });
+          }
+        }
+      }, 3000);
+
+      while (true) {
+        try {
+          const { done, value } = await reader.read();
+
+          if (done) {
+            console.log("📪 Stream reader completed");
+            clearInterval(timeoutInterval);
+            clearInterval(stallInterval);
+            if (!settled) {
+              settled = true;
+              if (!hasReceivedData) {
+                reject(new Error("Stream ended without receiving data"));
+              } else {
+                resolve({
+                  articles: removeDuplicateArticles(articles),
+                  sources: Array.from(sources),
+                  streamId,
+                  errors,
                 });
-              })();
-            } else {
-                console.warn(`[streamNews] 'cache_data' event received but 'articles' is not an array or is missing.`, data);
-            }
-            break;
-            
-          case 'source_complete':
-            hasReceivedData = true;
-            if (data.articles && data.source) {
-              const mappedArticles = mapBackendArticles(data.articles);
-              articles.push(...mappedArticles);
-              sources.add(data.source);
-              
-              console.log(`✅ Stream ${streamId} source complete: ${data.source} (${mappedArticles.length} articles)`);
-              
-              onSourceComplete?.(data.source, mappedArticles);
-              
-              if (data.progress) {
-                onProgress?.(data.progress);
               }
             }
             break;
-            
-          case 'source_error':
-            const errorMsg = `Error loading ${data.source}: ${data.error}`;
-            console.warn(`❌ Stream ${streamId} source error:`, errorMsg);
-            errors.push(errorMsg);
-            onError?.(errorMsg);
-            
-            if (data.progress) {
-              onProgress?.(data.progress);
+          }
+
+          // Decode chunk and add to buffer
+          const chunk = decoder.decode(value, { stream: true });
+          buffer += chunk;
+          lastMessageTime = Date.now(); // Reset timeout on receiving data
+
+          // Process complete SSE messages from buffer
+          const lines = buffer.split("\n");
+          buffer = lines[lines.length - 1]; // Keep incomplete line in buffer
+
+          for (let i = 0; i < lines.length - 1; i++) {
+            const line = lines[i];
+
+            // Skip empty lines and comments
+            if (!line || line.startsWith(":")) {
+              continue;
             }
-            break;
-            
-          case 'complete':
-            console.log(`🏁 Stream ${streamId} complete:`, {
-              totalArticles: data.total_articles,
-              successfulSources: data.successful_sources,
-              failedSources: data.failed_sources,
-              message: data.message
-            });
-            
-            clearTimeout(timeoutId);
-            eventSource.close();
-            
+
+            // Process SSE data line
+            if (line.startsWith("data: ")) {
+              const eventData = line.substring(6);
+
+              try {
+                let data: StreamEvent;
+                try {
+                  data = JSON.parse(eventData);
+                } catch (e) {
+                  console.warn(
+                    "[streamNews] First JSON.parse failed, attempting to re-parse"
+                  );
+                  data = JSON.parse(JSON.parse(`"${eventData}"`));
+                }
+
+                console.log(`📬 Stream event [${data.status}]:`, {
+                  streamId: data.stream_id,
+                  source: data.source,
+                  articlesCount: data.articles?.length,
+                  progress: data.progress,
+                  message: data.message,
+                });
+
+                // Update stream ID
+                if (data.stream_id && !streamId) {
+                  streamId = data.stream_id;
+                }
+
+                switch (data.status) {
+                  case "starting":
+                    console.log(`🚀 Stream ${streamId} starting: ${data.message}`);
+                    onProgress?.({
+                      completed: 0,
+                      total: 0,
+                      percentage: 0,
+                      message: data.message,
+                    });
+                    break;
+
+                  case "cache_data":
+                    hasReceivedData = true;
+                    if (data.articles && Array.isArray(data.articles)) {
+                      const mappedArticles = mapBackendArticles(data.articles);
+                      const BATCH_SIZE = 500;
+                      const cacheAge = data.cache_age_seconds || 999;
+
+                      console.log(
+                        `💾 Stream ${streamId} cache data: ${mappedArticles.length} articles (cache age: ${cacheAge}s, fresh: ${cacheAge < 120})`
+                      );
+
+                      // Process articles in batches to avoid UI freeze
+                      (async () => {
+                        for (
+                          let i = 0;
+                          i < mappedArticles.length;
+                          i += BATCH_SIZE
+                        ) {
+                          const batch = mappedArticles.slice(
+                            i,
+                            i + BATCH_SIZE
+                          );
+                          articles.push(...batch);
+                          batch.forEach((article) =>
+                            sources.add(article.source)
+                          );
+
+                          // Notify about this batch immediately
+                          if (onSourceComplete) {
+                            onSourceComplete(
+                              `cache-batch-${Math.floor(i / BATCH_SIZE)}`,
+                              batch
+                            );
+                          }
+
+                          // Yield to the event loop to prevent blocking
+                          if (i + BATCH_SIZE < mappedArticles.length) {
+                            await new Promise((resolve) =>
+                              setTimeout(resolve, 0)
+                            );
+                          }
+                        }
+
+                        // Final progress update after all batches loaded
+                        onProgress?.({
+                          completed: sources.size,
+                          total: sources.size,
+                          percentage: 0,
+                          message: `Loaded ${mappedArticles.length} cached articles`,
+                        });
+
+                        // If cache is fresh (<120s), set a short timeout to auto-complete if server doesn't send complete event
+                        if (cacheAge < 120) {
+                          console.log(
+                            `⏰ Cache is fresh (${cacheAge}s), waiting for completion or timeout after 5s...`
+                          );
+                          setTimeout(() => {
+                            if (!settled && hasReceivedData) {
+                              console.log(
+                                `⏱️ Auto-completing stream after fresh cache timeout`
+                              );
+                              if (abortController) {
+                                abortController.abort();
+                              }
+                            }
+                          }, 5000);
+                        }
+                      })();
+                    } else {
+                      console.warn(
+                        "[streamNews] 'cache_data' event received but 'articles' is not an array or is missing.",
+                        data
+                      );
+                    }
+                    break;
+
+                  case "source_complete":
+                    hasReceivedData = true;
+                    if (data.articles && data.source) {
+                      const mappedArticles = mapBackendArticles(data.articles);
+                      articles.push(...mappedArticles);
+                      sources.add(data.source);
+
+                      console.log(
+                        `✅ Stream ${streamId} source complete: ${data.source} (${mappedArticles.length} articles)`
+                      );
+
+                      onSourceComplete?.(data.source, mappedArticles);
+
+                      if (data.progress) {
+                        onProgress?.(data.progress);
+                      }
+                    }
+                    break;
+
+                  case "source_error":
+                    const errorMsg = `Error loading ${data.source}: ${data.error}`;
+                    console.warn(`❌ Stream ${streamId} source error:`, errorMsg);
+                    errors.push(errorMsg);
+                    onError?.(errorMsg);
+
+                    if (data.progress) {
+                      onProgress?.(data.progress);
+                    }
+                    break;
+
+                  case "complete":
+                    console.log(`🏁 Stream ${streamId} complete:`, {
+                      totalArticles: data.total_articles,
+                      successfulSources: data.successful_sources,
+                      failedSources: data.failed_sources,
+                      message: data.message,
+                    });
+
+                    clearInterval(timeoutInterval);
+                    clearInterval(stallInterval);
+
+                    if (!settled) {
+                      settled = true;
+                      resolve({
+                        articles: removeDuplicateArticles(articles),
+                        sources: Array.from(sources),
+                        streamId,
+                        errors,
+                      });
+                    }
+                    break;
+
+                  case "error":
+                    console.error(`💥 Stream ${streamId} error:`, data.error);
+                    clearInterval(timeoutInterval);
+                    clearInterval(stallInterval);
+
+                    if (hasReceivedData) {
+                      if (!settled) {
+                        settled = true;
+                        resolve({
+                          articles: removeDuplicateArticles(articles),
+                          sources: Array.from(sources),
+                          streamId,
+                          errors: [...errors, data.error || "Stream error"],
+                        });
+                      }
+                    } else {
+                      if (!settled) {
+                        settled = true;
+                        reject(new Error(data.error || "Stream error"));
+                      }
+                    }
+                    break;
+
+                  default:
+                    console.log(
+                      `❓ Stream ${streamId} unknown status: ${data.status}`
+                    );
+                }
+              } catch (parseError) {
+                console.error(
+                  "🚨 Error parsing stream event:",
+                  parseError,
+                  "Raw data:",
+                  eventData
+                );
+                onError?.(
+                  `Parse error: ${parseError instanceof Error ? parseError.message : String(parseError)}`
+                );
+              }
+            }
+          }
+        } catch (readError: unknown) {
+          clearInterval(timeoutInterval);
+          clearInterval(stallInterval);
+
+          if (
+            readError instanceof Error &&
+            readError.name === "AbortError"
+          ) {
+            console.warn("🧹 Stream reader aborted");
             if (!settled) {
               settled = true;
               resolve({
                 articles: removeDuplicateArticles(articles),
                 sources: Array.from(sources),
                 streamId,
-                errors
+                errors: [...errors, "Stream aborted"],
               });
             }
-            break;
-            
-          case 'error':
-            console.error(`💥 Stream ${streamId} error:`, data.error);
-            clearTimeout(timeoutId);
-            eventSource.close();
-            
-            if (hasReceivedData) {
-              // Return partial data if we got some
-              if (!settled) {
-                settled = true;
-                resolve({
-                  articles: removeDuplicateArticles(articles),
-                  sources: Array.from(sources),
-                  streamId,
-                  errors: [...errors, data.error || 'Stream error']
-                });
-              }
-            } else {
-              if (!settled) {
-                settled = true;
-                reject(new Error(data.error || 'Stream error'));
-              }
+          } else {
+            console.error("� Stream reader error:", readError);
+            if (!settled) {
+              settled = true;
+              reject(readError);
             }
-            break;
-            
-          default:
-            console.log(`❓ Stream ${streamId} unknown status: ${data.status}`);
+          }
+          break;
         }
-        
-      } catch (error) {
-        console.error('🚨 Error parsing stream event:', error, 'Raw data:', event.data);
-        onError?.(`Parse error: ${error instanceof Error ? error.message : String(error)}`);
       }
-    };
-    
-    eventSource.onerror = (error: Event) => {
-      console.error('🚨 SSE connection error:', error);
-      clearTimeout(timeoutId);
-      eventSource.close();
-      
-      // Provide detailed error information
-      let errorMsg = 'Stream connection error';
-      
-      if (eventSource.readyState === EventSource.CLOSED) {
-        errorMsg = `Stream connection closed: Server ended connection prematurely. Check backend logs for details.`;
-      } else if (eventSource.readyState === EventSource.CONNECTING) {
-        errorMsg = `Stream connection failed: Could not establish connection to backend at ${sseUrl}. Is the backend running?`;
-      }
-      
-      console.error(`📊 Detailed error - ReadyState: ${eventSource.readyState}, StreamId: ${streamId}, URL: ${sseUrl}`);
-      
-      if (hasReceivedData) {
-        // Return partial data if we got some
-        if (!settled) {
-          settled = true;
+    } catch (error) {
+      console.error("🚨 Stream fetch error:", error);
+      clearInterval(undefined as any); // This will be caught, it's ok
+
+      if (!settled) {
+        settled = true;
+        if (
+          error instanceof Error &&
+          error.name === "AbortError"
+        ) {
           resolve({
             articles: removeDuplicateArticles(articles),
             sources: Array.from(sources),
             streamId,
-            errors: [...errors, errorMsg]
+            errors: [...errors, "Aborted"],
           });
-        }
-      } else {
-        if (!settled) {
-          settled = true;
-          reject(new Error(errorMsg));
+        } else {
+          reject(error);
         }
       }
-    };
+    }
   });
-    
+
   return { promise, url: sseUrl };
 }
 

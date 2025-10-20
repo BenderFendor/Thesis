@@ -173,16 +173,15 @@ export const useNewsStream = (options: UseNewsStreamOptions = {}) => {
   useEffect(() => {
     isMountedRef.current = true;
     return () => {
+      // On unmount, immediately abort the stream if it's still going
+      if (isStreaming && abortControllerRef.current) {
+        console.log('🧹 Component unmounting, aborting stream');
+        abortControllerRef.current.abort();
+      }
       isMountedRef.current = false;
-      // Delay the abort on unmount to handle React 18 Strict Mode's double-invoke behavior
-      setTimeout(() => {
-        // If the component has not remounted and re-established the stream, abort it.
-        if (!isMountedRef.current) {
-          abortStream(false); // Don't show error for this auto-cleanup
-        }
-      }, 100); // A short delay is enough
     };
-  }, [abortStream]);
+  }, [isStreaming]);
+
 
   const clearErrors = useCallback(() => {
     if (isMountedRef.current) {
