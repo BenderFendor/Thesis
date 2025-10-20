@@ -288,7 +288,7 @@ export function GridView({
                   </Badge>
 
                   {/* Title */}
-                  <h3 className="text-sm font-semibold text-foreground leading-snug line-clamp-2 mb-1.5 font-serif">
+                  <h3 className="text-2xl font-semibold text-foreground leading-snug line-clamp-2 mb-1.5 font-serif">
                     {article.title}
                   </h3>
 

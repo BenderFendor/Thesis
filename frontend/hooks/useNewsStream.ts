@@ -25,6 +25,7 @@ export const useNewsStream = (options: UseNewsStreamOptions = {}) => {
   const abortControllerRef = useRef<AbortController | null>(null)
   const isMountedRef = useRef<boolean>(true)
   const startingRef = useRef<boolean>(false)
+  const seenArticleIdsRef = useRef<Set<number>>(new Set())
 
   const startStream = useCallback(async (streamOptions?: Partial<StreamOptions>) => {
     if (startingRef.current || isStreaming) {
@@ -42,7 +43,8 @@ export const useNewsStream = (options: UseNewsStreamOptions = {}) => {
     abortControllerRef.current = new AbortController();
     startingRef.current = true;
     
-    // Reset state
+    // Reset state and clear seen articles
+    seenArticleIdsRef.current.clear();
     setIsStreaming(true)
     setArticles([])
     setProgress({ completed: 0, total: 0, percentage: 0 })
@@ -68,10 +70,19 @@ export const useNewsStream = (options: UseNewsStreamOptions = {}) => {
         onSourceComplete: (source, sourceArticles) => {
           if (!isMountedRef.current) return;
 
+          // Filter out duplicates using a Set of article IDs
+          const newArticles = sourceArticles.filter(article => {
+            if (seenArticleIdsRef.current.has(article.id)) {
+              return false; // Skip duplicate
+            }
+            seenArticleIdsRef.current.add(article.id);
+            return true; // Include new article
+          });
+
           // Add new articles to the state
           setArticles(prev => {
-            const updated = [...prev, ...sourceArticles];
-            // Call onUpdate immediately with the new articles
+            const updated = [...prev, ...newArticles];
+            // Call onUpdate immediately with the deduplicated articles
             options.onUpdate?.(updated);
             return updated;
           });
