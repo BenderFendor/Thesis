@@ -15,6 +15,7 @@ import {
   RefreshCw,
   ExternalLink,
   Info,
+  ChevronRight,
 } from "lucide-react"
 import { SourceInfoModal } from "./source-info-modal"
 import { ArticleDetailModal } from "./article-detail-modal"
@@ -51,6 +52,14 @@ interface GridViewProps {
   apiUrl?: string | null
 }
 
+interface SourceGroup {
+  sourceId: string
+  sourceName: string
+  articles: NewsArticle[]
+  credibility?: string
+  bias?: string
+}
+
 export function GridView({
   articles,
   loading,
@@ -64,6 +73,7 @@ export function GridView({
   )
   const [isArticleModalOpen, setIsArticleModalOpen] = useState(false)
   const [likedArticles, setLikedArticles] = useState<Set<number>>(new Set())
+  const [expandedSourceId, setExpandedSourceId] = useState<string | null>(null)
   const { addArticleToQueue, removeArticleFromQueue, isArticleInQueue } =
     useReadingQueue()
   const { isFavorite, toggleFavorite } = useFavorites()
@@ -160,11 +170,27 @@ export function GridView({
     [isArticleInQueue, removeArticleFromQueue, addArticleToQueue],
   )
 
-  // Calculate rows for snapping
-  const rows = useMemo(() => {
-    const rowCount = Math.ceil(filteredNews.length / COLUMN_COUNT)
-    return Array.from({ length: rowCount }, (_, i) =>
-      filteredNews.slice(i * COLUMN_COUNT, i * COLUMN_COUNT + COLUMN_COUNT)
+  // Group articles by source
+  const sourceGroups = useMemo(() => {
+    const groups = new Map<string, SourceGroup>()
+
+    filteredNews.forEach((article) => {
+      const sourceKey = article.sourceId || article.source
+      if (!groups.has(sourceKey)) {
+        groups.set(sourceKey, {
+          sourceId: sourceKey,
+          sourceName: article.source,
+          articles: [],
+          credibility: article.credibility,
+          bias: article.bias,
+        })
+      }
+      groups.get(sourceKey)!.articles.push(article)
+    })
+
+    // Convert to array and sort by number of articles
+    return Array.from(groups.values()).sort(
+      (a, b) => b.articles.length - a.articles.length
     )
   }, [filteredNews])
 
@@ -198,7 +224,8 @@ export function GridView({
           ))}
         </div>
         <div className="text-xs text-muted-foreground mt-1">
-          Showing {filteredNews.length} of {articles.length} articles
+          Showing {filteredNews.length} articles from {sourceGroups.length}{" "}
+          sources
         </div>
       </div>
 
@@ -216,7 +243,7 @@ export function GridView({
         </div>
       </div>
 
-      {/* Virtualized Grid */}
+      {/* Source-Grouped Grid */}
       {filteredNews.length === 0 && !loading ? (
         <div className="text-center py-16 flex-1 flex items-center justify-center">
           <div className="mx-auto">
@@ -248,152 +275,192 @@ export function GridView({
           </div>
         </div>
       ) : (
-        <div className="flex-1 overflow-y-scroll scroll-smooth px-4 sm:px-6 md:px-8 lg:px-12 xl:px-16" style={{ scrollSnapType: "y mandatory", scrollBehavior: "smooth" }}>
-          {rows.map((rowArticles, rowIndex) => (
-            <div
-              key={rowIndex}
-              className="grid grid-cols-5 gap-4 py-2"
-              style={{ scrollSnapAlign: "start", scrollSnapStop: "always" }}
-            >
-              {rowArticles.map((article) => (
-                <button
-                  key={article.id}
-                  onClick={() => handleArticleClick(article)}
-                  className="group h-full text-left transition-all duration-200"
-                >
-                  <Card className="h-full overflow-hidden flex flex-col hover:border-primary hover:shadow-lg transition-all duration-200 bg-card/70 hover:bg-card border-border/60 cursor-pointer">
-                    {/* Image Container */}
-                    <div className="relative h-32 overflow-hidden bg-muted/40 flex-shrink-0">
-                      <img
-                        src={article.image || "/placeholder.svg"}
-                        alt={article.title}
-                        className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-300"
-                      />
-                      <div className="absolute inset-0 bg-gradient-to-t from-black/40 via-transparent to-transparent" />
-
-                      {/* Top Badges */}
-                      <div className="absolute top-2 left-2 flex gap-1.5 flex-wrap">
-                        <Badge
-                          className={`text-[10px] font-semibold px-2 py-0.5 ${getCredibilityColor(
-                            article.credibility
-                          )}`}
-                        >
-                          {article.credibility}
-                        </Badge>
-                        <span
-                          className="text-xs bg-black/70 text-white px-2 py-0.5 rounded font-medium"
-                          title={`${article.bias} bias`}
-                        >
-                          {getBiasIndicator(article.bias)}
-                        </span>
-                      </div>
-
-                      {/* Action Buttons */}
-                      <div className="absolute top-2 right-2 flex gap-1">
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={(e) => {
-                            e.stopPropagation()
-                            handleQueueToggle(article)
-                          }}
-                          className="h-8 w-8 p-0 bg-black/50 hover:bg-black/70"
-                          title={
-                            isArticleInQueue(article.url)
-                              ? "Remove from queue"
-                              : "Add to queue"
-                          }
-                        >
-                          {isArticleInQueue(article.url) ? (
-                            <MinusCircle className="w-4 h-4 text-blue-400" />
-                          ) : (
-                            <PlusCircle className="w-4 h-4 text-white" />
-                          )}
-                        </Button>
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={(e) => {
-                            e.stopPropagation()
-                            toggleFavorite(article.sourceId)
-                          }}
-                          className="h-8 w-8 p-0 bg-black/50 hover:bg-black/70"
-                          title={
-                            isFavorite(article.sourceId)
-                              ? "Remove from favorites"
-                              : "Add to favorites"
-                          }
-                        >
-                          <Star
-                            className={`w-4 h-4 transition-colors ${
-                              isFavorite(article.sourceId)
-                                ? "fill-yellow-500 text-yellow-500"
-                                : "text-white"
-                            }`}
-                          />
-                        </Button>
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={(e) => {
-                            e.stopPropagation()
-                            handleLike(article.id as number)
-                          }}
-                          className="h-8 w-8 p-0 bg-black/50 hover:bg-black/70"
-                        >
-                          <Heart
-                            className={`w-4 h-4 ${
-                              likedArticles.has(article.id as number)
-                                ? "fill-red-500 text-red-500"
-                                : "text-white"
-                            }`}
-                          />
-                        </Button>
-                      </div>
-                    </div>
-
-                    {/* Content */}
-                    <CardContent className="flex-1 flex flex-col p-2.5">
-                      {/* Category Badge */}
-                      <Badge
-                        variant="outline"
-                        className="w-fit text-[9px] font-semibold mb-1.5 px-1.5 py-0.5 bg-background/80 text-muted-foreground border-border/50"
-                      >
-                        {article.category}
-                      </Badge>
-
-                      {/* Title */}
-                      <h3 className="text-sm font-semibold text-foreground leading-snug line-clamp-2 mb-1.5 font-serif">
-                        {article.title}
+        <div className="flex-1 overflow-y-auto px-3 sm:px-4 lg:px-6 py-4">
+          <div className="space-y-6">
+            {sourceGroups.map((group) => (
+              <div
+                key={group.sourceId}
+                className="bg-card/40 rounded-lg border border-border/50 overflow-hidden"
+              >
+                {/* Source Header */}
+                <div className="bg-card/60 px-4 py-3 border-b border-border/50 flex items-center justify-between">
+                  <div className="flex items-center gap-3">
+                    <Newspaper className="w-5 h-5 text-primary" />
+                    <div className="flex items-center gap-2">
+                      <h3 className="font-semibold text-sm">
+                        {group.sourceName}
                       </h3>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => toggleFavorite(group.sourceId)}
+                        className="h-6 w-6 p-0"
+                        title={
+                          isFavorite(group.sourceId)
+                            ? "Remove from favorites"
+                            : "Add to favorites"
+                        }
+                      >
+                        <Star
+                          className={`w-3.5 h-3.5 transition-colors ${
+                            isFavorite(group.sourceId)
+                              ? "fill-yellow-500 text-yellow-500"
+                              : "text-muted-foreground"
+                          }`}
+                        />
+                      </Button>
+                    </div>
+                    {group.credibility && (
+                      <Badge
+                        className={`text-[10px] font-semibold px-2 py-0.5 ${getCredibilityColor(
+                          group.credibility
+                        )}`}
+                      >
+                        {group.credibility}
+                      </Badge>
+                    )}
+                    {group.bias && (
+                      <span className="text-xs" title={`${group.bias} bias`}>
+                        {getBiasIndicator(group.bias)}
+                      </span>
+                    )}
+                  </div>
+                  <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                    <span>
+                      {expandedSourceId === group.sourceId
+                        ? group.articles.length
+                        : Math.min(18, group.articles.length)}{" "}
+                      of {group.articles.length} articles
+                    </span>
+                    {group.articles.length > 18 && (
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="h-6 px-2 text-xs hover:text-primary"
+                        onClick={() =>
+                          setExpandedSourceId(
+                            expandedSourceId === group.sourceId
+                              ? null
+                              : group.sourceId
+                          )
+                        }
+                      >
+                        {expandedSourceId === group.sourceId
+                          ? "Show less"
+                          : "View all"}
+                        <ChevronRight
+                          className={`w-3 h-3 ml-1 transition-transform ${
+                            expandedSourceId === group.sourceId
+                              ? "rotate-90"
+                              : ""
+                          }`}
+                        />
+                      </Button>
+                    )}
+                  </div>
+                </div>
 
-                      {/* Summary */}
-                      <p className="text-xs text-muted-foreground line-clamp-2 mb-auto leading-relaxed">
-                        {article.summary}
-                      </p>
+                {/* Articles Grid */}
+                <div className="p-3">
+                  <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6 gap-3">
+                    {group.articles
+                      .slice(
+                        0,
+                        expandedSourceId === group.sourceId
+                          ? group.articles.length
+                          : 18
+                      )
+                      .map((article) => (
+                      <button
+                        key={article.id}
+                        onClick={() => handleArticleClick(article)}
+                        className="group text-left transition-all duration-200"
+                      >
+                        <Card className="h-full overflow-hidden flex flex-col hover:border-primary hover:shadow-lg transition-all duration-200 bg-card/70 hover:bg-card border-border/60 cursor-pointer">
+                          {/* Compact Image */}
+                          <div className="relative h-24 overflow-hidden bg-muted/40 flex-shrink-0">
+                            <img
+                              src={article.image || "/placeholder.svg"}
+                              alt={article.title}
+                              className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-300"
+                            />
+                            <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent" />
 
-                      {/* Meta Info */}
-                      <div className="flex items-center justify-between gap-2 text-[10px] text-muted-foreground mt-auto pt-2 border-t border-border/20">
-                        <div className="flex items-center gap-1">
-                          <Newspaper className="w-3 h-3" />
-                          <span className="line-clamp-1">{article.source}</span>
-                        </div>
-                        <div className="flex items-center gap-1 flex-shrink-0">
-                          <Clock className="w-3 h-3" />
-                          <span>
-                            {new Date(article.publishedAt).toLocaleDateString('en-US', {
-                              month: 'short',
-                              day: 'numeric',
-                            })}
-                          </span>
-                        </div>
-                      </div>
-                    </CardContent>
-                  </Card>
-                </button>
-              ))}
-            </div>
-          ))}
+                            {/* Action Buttons */}
+                            <div className="absolute top-1 right-1 flex gap-1">
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={(e) => {
+                                  e.stopPropagation()
+                                  handleQueueToggle(article)
+                                }}
+                                className="h-6 w-6 p-0 bg-black/50 hover:bg-black/70"
+                              >
+                                {isArticleInQueue(article.url) ? (
+                                  <MinusCircle className="w-3 h-3 text-blue-400" />
+                                ) : (
+                                  <PlusCircle className="w-3 h-3 text-white" />
+                                )}
+                              </Button>
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={(e) => {
+                                  e.stopPropagation()
+                                  handleLike(article.id as number)
+                                }}
+                                className="h-6 w-6 p-0 bg-black/50 hover:bg-black/70"
+                              >
+                                <Heart
+                                  className={`w-3 h-3 ${
+                                    likedArticles.has(article.id as number)
+                                      ? "fill-red-500 text-red-500"
+                                      : "text-white"
+                                  }`}
+                                />
+                              </Button>
+                            </div>
+
+                            {/* Category Badge */}
+                            <div className="absolute bottom-1 left-1">
+                              <Badge
+                                variant="outline"
+                                className="text-[8px] font-semibold px-1.5 py-0 bg-black/70 text-white border-white/20"
+                              >
+                                {article.category}
+                              </Badge>
+                            </div>
+                          </div>
+
+                          {/* Content */}
+                          <CardContent className="flex-1 flex flex-col p-2">
+                            {/* Title */}
+                            <h3 className="text-xs font-semibold text-foreground leading-snug line-clamp-3 mb-1 font-serif">
+                              {article.title}
+                            </h3>
+
+                            {/* Meta Info */}
+                            <div className="flex items-center gap-1 text-[9px] text-muted-foreground mt-auto pt-1">
+                              <Clock className="w-2.5 h-2.5" />
+                              <span>
+                                {new Date(
+                                  article.publishedAt
+                                ).toLocaleDateString("en-US", {
+                                  month: "short",
+                                  day: "numeric",
+                                })}
+                              </span>
+                            </div>
+                          </CardContent>
+                        </Card>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
         </div>
       )}
 
