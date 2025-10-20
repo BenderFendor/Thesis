@@ -789,23 +789,37 @@ export function streamNews(options: StreamOptions = {}): {
             hasReceivedData = true;
             if (data.articles && Array.isArray(data.articles)) {
               const mappedArticles = mapBackendArticles(data.articles);
-              articles.push(...mappedArticles);
-              mappedArticles.forEach(article => sources.add(article.source));
+              const BATCH_SIZE = 500;
               
-              console.log(`💾 Stream ${streamId} cache data: ${mappedArticles.length} articles (cache age: ${data.cache_age_seconds}s)`);
+              console.log(`💾 Stream ${streamId} cache data: ${mappedArticles.length} articles (cache age: ${data.cache_age_seconds}s). Batching into ${Math.ceil(mappedArticles.length / BATCH_SIZE)} batches...`);
               
-              // Immediately notify about the cached articles
-              if (onSourceComplete) {
-                // We can use a special source name for cached data
-                onSourceComplete('cache', mappedArticles);
-              }
-
-              onProgress?.({
-                completed: sources.size, // Or some other logic for progress
-                total: sources.size, // Unsure of total at this point
-                percentage: 0, // Or calculate based on expected sources
-                message: data.message || `Loaded ${mappedArticles.length} cached articles`
-              });
+              // Process articles in batches to avoid UI freeze
+              (async () => {
+                for (let i = 0; i < mappedArticles.length; i += BATCH_SIZE) {
+                  const batch = mappedArticles.slice(i, i + BATCH_SIZE);
+                  articles.push(...batch);
+                  batch.forEach(article => sources.add(article.source));
+                  
+                  // Notify about this batch immediately
+                  if (onSourceComplete) {
+                    onSourceComplete(`cache-batch-${Math.floor(i / BATCH_SIZE)}`, batch);
+                  }
+                  
+                  // Yield to the event loop to prevent blocking
+                  // For all but the last batch, use a small delay to let React render
+                  if (i + BATCH_SIZE < mappedArticles.length) {
+                    await new Promise(resolve => setTimeout(resolve, 0));
+                  }
+                }
+                
+                // Final progress update after all batches loaded
+                onProgress?.({
+                  completed: sources.size,
+                  total: sources.size,
+                  percentage: 0,
+                  message: `Loaded ${mappedArticles.length} cached articles in ${Math.ceil(mappedArticles.length / BATCH_SIZE)} batches`
+                });
+              })();
             } else {
                 console.warn(`[streamNews] 'cache_data' event received but 'articles' is not an array or is missing.`, data);
             }

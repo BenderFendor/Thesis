@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 import json
 from datetime import datetime
 from typing import Dict, List, Optional
@@ -7,8 +8,11 @@ from typing import Dict, List, Optional
 from fastapi import APIRouter, Query
 from fastapi.responses import StreamingResponse
 
+from app.core.logging import get_logger
 from app.models.research import NewsResearchRequest, NewsResearchResponse, ThinkingStep
 from app.services.news_research import load_articles_for_research, run_research_agent
+
+logger = get_logger(__name__)
 
 router = APIRouter(prefix="/api/news", tags=["news-research"])
 
@@ -50,11 +54,13 @@ async def news_research_stream_endpoint(
                 except json.JSONDecodeError:
                     chat_history = None
 
-            result = run_research_agent(
-                query=query,
-                articles=articles_dict,
-                verbose=include_thinking,
-                chat_history=chat_history,
+            # Run blocking research agent in thread pool to avoid blocking event loop
+            result = await asyncio.to_thread(
+                run_research_agent,
+                query,
+                articles_dict,
+                include_thinking,
+                chat_history,
             )
 
             for step in result.get("thinking_steps", []):
@@ -89,13 +95,14 @@ async def news_research_stream_endpoint(
 async def news_research_endpoint(request: NewsResearchRequest) -> NewsResearchResponse:
     articles_payload = await load_articles_for_research(request.query)
     articles_dict = articles_payload.get("articles", [])
-    retrieval_summary = articles_payload.get("summary", {})
 
-    result = run_research_agent(
-        query=request.query,
-        articles=articles_dict,
-        verbose=request.include_thinking,
-        chat_history=None,
+    # Run blocking research agent in thread pool to avoid blocking event loop
+    result = await asyncio.to_thread(
+        run_research_agent,
+        request.query,
+        articles_dict,
+        request.include_thinking,
+        None,
     )
 
     thinking_steps = [ThinkingStep(**step) for step in result.get("thinking_steps", [])]
