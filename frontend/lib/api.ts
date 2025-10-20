@@ -223,7 +223,7 @@ export async function fetchSources(): Promise<NewsSource[]> {
     
     // Convert backend source format to frontend format
     return sources.map((source: any) => ({
-      id: source.name.toLowerCase(),
+      id: source.name.toLowerCase().replace(/\s+/g, '-'),
       name: source.name,
       country: source.country,
       url: source.url,

@@ -12,6 +12,7 @@ from . import (
     reading_queue,
     research,
     search,
+    sources,
     stream,
 )
 
@@ -26,3 +27,4 @@ router.include_router(bookmarks.router)
 router.include_router(reading_queue.router)
 router.include_router(research.router)
 router.include_router(search.router)
+router.include_router(sources.router)

@@ -9,6 +9,19 @@ import { toast } from "sonner";
 const READING_QUEUE_STORAGE_KEY = "readingQueue";
 const USE_DATABASE = process.env.NEXT_PUBLIC_USE_DB_QUEUE === "true";
 
+// Event emitter for cross-component updates
+type QueueListener = (articles: NewsArticle[]) => void;
+const queueListeners = new Set<QueueListener>();
+
+function notifyQueueListeners(articles: NewsArticle[]) {
+  queueListeners.forEach((listener) => listener(articles));
+}
+
+function subscribeToQueueChanges(listener: QueueListener) {
+  queueListeners.add(listener);
+  return () => queueListeners.delete(listener);
+}
+
 export function useReadingQueue() {
   const [queuedArticles, setQueuedArticles] = useState<NewsArticle[]>([]);
   const [isLoaded, setIsLoaded] = useState(false);
@@ -21,7 +34,10 @@ export function useReadingQueue() {
           READING_QUEUE_STORAGE_KEY
         );
         if (storedItems) {
-          setQueuedArticles(JSON.parse(storedItems));
+          const parsed = JSON.parse(storedItems);
+          setQueuedArticles(parsed);
+          // Notify listeners of initial load
+          notifyQueueListeners(parsed);
         }
       } catch (error) {
         console.error("Error reading from localStorage:", error);
@@ -29,6 +45,30 @@ export function useReadingQueue() {
       } finally {
         setIsLoaded(true);
       }
+
+      // Listen for storage changes from other tabs/windows
+      const handleStorageChange = (e: StorageEvent) => {
+        if (e.key === READING_QUEUE_STORAGE_KEY && e.newValue) {
+          try {
+            const updated = JSON.parse(e.newValue);
+            setQueuedArticles(updated);
+            notifyQueueListeners(updated);
+          } catch (error) {
+            console.error("Error parsing storage change:", error);
+          }
+        }
+      };
+
+      // Subscribe to our own event emitter for same-tab updates
+      const unsubscribe = subscribeToQueueChanges((articles) => {
+        setQueuedArticles(articles);
+      });
+
+      window.addEventListener("storage", handleStorageChange);
+      return () => {
+        window.removeEventListener("storage", handleStorageChange);
+        unsubscribe();
+      };
     }
   }, []);
 
@@ -39,6 +79,8 @@ export function useReadingQueue() {
           READING_QUEUE_STORAGE_KEY,
           JSON.stringify(queuedArticles)
         );
+        // Notify all listeners of the change
+        notifyQueueListeners(queuedArticles);
       } catch (error) {
         console.error("Error writing to localStorage:", error);
         toast.error("Could not save an item to your reading queue.");

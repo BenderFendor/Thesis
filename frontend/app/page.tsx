@@ -425,10 +425,10 @@ function NewsPage() {
                     <span className="hidden md:inline">Research</span>
                   </Button>
                 </Link>
-                <Link href="/sources">
+                <Link href="/sources/debug">
                   <Button variant="ghost" size="sm" className="gap-2">
                     <Activity className="w-4 h-4" />
-                    <span className="hidden md:inline">Sources</span>
+                    <span className="hidden md:inline">Debug Sources</span>
                   </Button>
                 </Link>
                 <Button variant="ghost" size="sm" className="relative" onClick={() => setShowNotifications(!showNotifications)}>

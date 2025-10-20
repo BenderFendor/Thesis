@@ -8,6 +8,20 @@ import { getFromStorage, saveToStorage, STORAGE_KEYS } from "@/lib/storage";
  * Persists to localStorage and survives page reloads
  * Empty selection = show all sources
  */
+
+// Event emitter for cross-component updates
+type SourceFilterListener = (selectedSources: Set<string>) => void;
+const sourceFilterListeners = new Set<SourceFilterListener>();
+
+function notifySourceFilterListeners(selectedSources: Set<string>) {
+  sourceFilterListeners.forEach((listener) => listener(selectedSources));
+}
+
+function subscribeToSourceFilterChanges(listener: SourceFilterListener) {
+  sourceFilterListeners.add(listener);
+  return () => sourceFilterListeners.delete(listener);
+}
+
 export function useSourceFilter() {
   const [selectedSources, setSelectedSources] = useState<Set<string>>(
     new Set()
@@ -17,8 +31,35 @@ export function useSourceFilter() {
   // Load selected sources from localStorage on mount
   useEffect(() => {
     const stored = getFromStorage<string[]>(STORAGE_KEYS.SELECTED_SOURCES, []);
-    setSelectedSources(new Set(stored));
+    const initialSources = new Set<string>(stored);
+    setSelectedSources(initialSources);
     setIsLoaded(true);
+    // Notify listeners of initial load
+    notifySourceFilterListeners(initialSources);
+
+    // Listen for storage changes from other tabs/windows
+    const handleStorageChange = (e: StorageEvent) => {
+      if (e.key === STORAGE_KEYS.SELECTED_SOURCES && e.newValue) {
+        try {
+          const updated = new Set<string>(JSON.parse(e.newValue));
+          setSelectedSources(updated);
+          notifySourceFilterListeners(updated);
+        } catch (error) {
+          console.error("Error parsing storage change:", error);
+        }
+      }
+    };
+
+    // Subscribe to our own event emitter for same-tab updates
+    const unsubscribe = subscribeToSourceFilterChanges((sources) => {
+      setSelectedSources(sources);
+    });
+
+    window.addEventListener("storage", handleStorageChange);
+    return () => {
+      window.removeEventListener("storage", handleStorageChange);
+      unsubscribe();
+    };
   }, []);
 
   // Persist selected sources to localStorage whenever they change
@@ -28,6 +69,8 @@ export function useSourceFilter() {
         STORAGE_KEYS.SELECTED_SOURCES,
         Array.from(selectedSources)
       );
+      // Notify all listeners of the change
+      notifySourceFilterListeners(selectedSources);
     }
   }, [selectedSources, isLoaded]);
 
