@@ -350,3 +350,5 @@ htmlcov/
 # Docker volumes and data
 docker-compose.override.yml
 volumes/
+
+.playwright-mcp

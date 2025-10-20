@@ -37,9 +37,9 @@ export function AutoHideHeader() {
         isHidden ? "-translate-y-full" : "translate-y-0"
       )}
     >
-      <div className="container mx-auto px-4 flex items-center justify-between h-full">
+      <div className="container mx-auto px-3 flex items-center justify-between h-full">
         {/* Logo and branding */}
-        <div className="flex items-center gap-3 py-3">
+        <div className="flex items-center gap-2 py-2">
           <Globe
             className={cn(
               "text-primary transition-all",

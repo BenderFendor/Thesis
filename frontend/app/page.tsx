@@ -27,7 +27,7 @@ import { GlobeView } from "@/components/globe-view"
 import { GridView } from "@/components/grid-view"
 import { FeedView } from "@/components/feed-view"
 import { AutoHideHeader } from "@/components/auto-hide-header"
-import Footer from "@/components/footer"
+
 import { useNewsStream } from "@/hooks/useNewsStream"
 import { fetchCategories, NewsArticle } from "@/lib/api"
 import { ErrorBoundary } from '@/components/ErrorBoundary';
@@ -53,7 +53,6 @@ function NewsPage() {
   const [activeCategory, setActiveCategory] = useState<string>("all")
   const [articleCount, setArticleCount] = useState<number>(0)
   const [headerHidden, setHeaderHidden] = useState<boolean>(false)
-  const [footerHidden, setFooterHidden] = useState<boolean>(true)
   const [isScrollingDown, setIsScrollingDown] = useState<boolean>(false)
   const headerRef = useRef<HTMLElement | null>(null)
   const navRef = useRef<HTMLElement | null>(null)
@@ -191,7 +190,6 @@ function NewsPage() {
       const hideThreshold = Math.max(headerHeightRef.current + navHeightRef.current + 50, 150)
       const documentHeight = document.body.offsetHeight
       const windowHeight = window.innerHeight
-      const footerShowThreshold = 200 // Show footer when within 200px of bottom
 
       // Clear existing timeout
       if (scrollTimeoutRef.current) {
@@ -210,26 +208,18 @@ function NewsPage() {
         setHeaderHidden(false)
       }
       // Hide when scrolling in the middle content area
-      else if (currentScrollY > hideThreshold && currentScrollY < documentHeight - windowHeight - footerShowThreshold) {
+      else if (currentScrollY > hideThreshold) {
         setHeaderHidden(true)
       }
-      // Show when near bottom (approaching footer)
-      else if (currentScrollY >= documentHeight - windowHeight - footerShowThreshold) {
+      // Show when near bottom
+      else if (currentScrollY >= documentHeight - windowHeight - 200) {
         setHeaderHidden(false)
       }
-
-      // Footer visibility logic
-      // Show footer only when very close to bottom or at bottom
-      const distanceFromBottom = documentHeight - (currentScrollY + windowHeight)
-      const isNearBottom = distanceFromBottom <= footerShowThreshold
-      setFooterHidden(!isNearBottom)
 
       // Auto-show header temporarily when scroll stops (for navigation)
       scrollTimeoutRef.current = setTimeout(() => {
         // Only auto-show if user stopped scrolling in middle area and not actively scrolling down
-        if (currentScrollY > hideThreshold && 
-            currentScrollY < documentHeight - windowHeight - footerShowThreshold && 
-            !isScrollingDown) {
+        if (currentScrollY > hideThreshold && !isScrollingDown) {
           // Don't auto-show - keep it clean while reading articles
         }
       }, 2000)
@@ -324,7 +314,7 @@ function NewsPage() {
       {/* Main Content - Full Height for Virtual Scrolling */}
       <main className="flex flex-col flex-1 h-[calc(100vh-200px)] overflow-hidden">
         {/* Compact header with article count and view toggle */}
-        <div className="px-4 sm:px-6 lg:px-8 py-4 border-b border-border/50">
+        <div className="px-3 sm:px-4 lg:px-6 py-2 border-b border-border/50">
           <div className="flex items-center justify-between gap-4 mb-0">
             <div className="flex items-center gap-3 min-w-0">
               <h2 className="text-2xl font-bold font-serif text-foreground">News Grid</h2>

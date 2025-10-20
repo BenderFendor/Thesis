@@ -36,10 +36,10 @@ const categories = [
 ]
 
 // Virtual grid constants for optimization
-const COLUMN_COUNT = 4
-const COLUMN_WIDTH = 300
-const ROW_HEIGHT = 420
-const GAP = 16
+const COLUMN_COUNT = 5
+const COLUMN_WIDTH = 260
+const ROW_HEIGHT = 380
+const GAP = 12
 
 interface GridViewProps {
   articles: NewsArticle[]
@@ -215,7 +215,7 @@ export function GridView({
                 </div>
 
                 {/* Content */}
-                <CardContent className="flex-1 flex flex-col p-4">
+                <CardContent className="flex-1 flex flex-col p-3">
                   {/* Category Badge */}
                   <Badge
                     variant="outline"
@@ -301,26 +301,26 @@ export function GridView({
   return (
     <div className="w-full h-full flex flex-col overflow-hidden bg-background">
       {/* Category Filter Header - Now below nav/top bar */}
-      <div className="flex-shrink-0 border-b border-border/30 bg-background/40 backdrop-blur-sm px-4 sm:px-6 lg:px-8 py-4">
-        <div className="flex items-center gap-2 overflow-x-auto pb-2">
+      <div className="flex-shrink-0 border-b border-border/30 bg-background/40 backdrop-blur-sm px-3 sm:px-4 lg:px-6 py-2">
+        <div className="flex items-center gap-1 overflow-x-auto pb-1">
           {categories.map((category) => (
             <Button
               key={category}
               onClick={() => setSelectedCategory(category)}
               variant={selectedCategory === category ? 'default' : 'outline'}
-              className="text-sm font-medium whitespace-nowrap"
+              className="text-xs font-medium whitespace-nowrap px-2 py-1 h-auto"
             >
               {category}
             </Button>
           ))}
         </div>
-        <div className="text-xs text-muted-foreground mt-2">
+        <div className="text-xs text-muted-foreground mt-1">
           Showing {filteredNews.length} of {articles.length} articles
         </div>
       </div>
 
       {/* Search Bar */}
-      <div className="flex-shrink-0 px-4 sm:px-6 lg:px-8 py-4 border-b border-border/30 bg-background/40 backdrop-blur-sm">
+      <div className="flex-shrink-0 px-3 sm:px-4 lg:px-6 py-2 border-b border-border/30 bg-background/40 backdrop-blur-sm">
         <div className="relative">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
           <input
