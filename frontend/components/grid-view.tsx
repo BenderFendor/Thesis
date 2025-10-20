@@ -385,7 +385,7 @@ export function GridView({
                       >
                         <Card className="h-full overflow-hidden flex flex-col hover:border-primary hover:shadow-lg transition-all duration-200 bg-card/70 hover:bg-card border-border/60 cursor-pointer">
                           {/* Compact Image */}
-                          <div className="relative h-24 overflow-hidden bg-muted/40 flex-shrink-0">
+                          <div className="relative h-40 overflow-hidden bg-muted/40 flex-shrink-0">
                             <img
                               src={article.image || "/placeholder.svg"}
                               alt={article.title}
