@@ -300,6 +300,25 @@ export function GridView({
 
   return (
     <div className="w-full h-full flex flex-col overflow-hidden bg-background">
+      {/* Category Filter Header - Now below nav/top bar */}
+      <div className="flex-shrink-0 border-b border-border/30 bg-background/40 backdrop-blur-sm px-4 sm:px-6 lg:px-8 py-4">
+        <div className="flex items-center gap-2 overflow-x-auto pb-2">
+          {categories.map((category) => (
+            <Button
+              key={category}
+              onClick={() => setSelectedCategory(category)}
+              variant={selectedCategory === category ? 'default' : 'outline'}
+              className="text-sm font-medium whitespace-nowrap"
+            >
+              {category}
+            </Button>
+          ))}
+        </div>
+        <div className="text-xs text-muted-foreground mt-2">
+          Showing {filteredNews.length} of {articles.length} articles
+        </div>
+      </div>
+
       {/* Search Bar */}
       <div className="flex-shrink-0 px-4 sm:px-6 lg:px-8 py-4 border-b border-border/30 bg-background/40 backdrop-blur-sm">
         <div className="relative">

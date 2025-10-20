@@ -27,7 +27,6 @@ import { GlobeView } from "@/components/globe-view"
 import { GridView } from "@/components/grid-view"
 import { FeedView } from "@/components/feed-view"
 import { AutoHideHeader } from "@/components/auto-hide-header"
-import { CategoryNav } from "@/components/category-nav"
 import Footer from "@/components/footer"
 import { useNewsStream } from "@/hooks/useNewsStream"
 import { fetchCategories, NewsArticle } from "@/lib/api"
@@ -320,8 +319,7 @@ function NewsPage() {
       {/* Auto-hiding header with scroll detection */}
       <AutoHideHeader />
 
-      {/* Category navigation with sticky tabs */}
-      <CategoryNav selectedCategory={activeCategory} onCategoryChange={setActiveCategory} />
+  {/* Category navigation removed per request */}
 
       {/* Main Content - Full Height for Virtual Scrolling */}
       <main className="flex flex-col flex-1 h-[calc(100vh-200px)] overflow-hidden">
