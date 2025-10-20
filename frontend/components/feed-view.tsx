@@ -4,11 +4,12 @@ import { useState, useEffect, useCallback, useMemo } from "react";
 import { type NewsArticle, fetchBookmarks, createBookmark, deleteBookmark } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Heart, Bookmark, ExternalLink, Eye } from "lucide-react";
+import { Heart, Bookmark, ExternalLink, Eye, Star } from "lucide-react";
 import { FixedSizeList as List } from "react-window";
 import AutoSizer from "react-virtualized-auto-sizer";
 import { ArticleDetailModal } from "./article-detail-modal";
 import { get_logger } from "@/lib/utils";
+import { useFavorites } from "@/hooks/useFavorites";
 
 const logger = get_logger("FeedView")
 
@@ -24,6 +25,7 @@ export function FeedView({ articles, loading }: FeedViewProps) {
   const [bookmarkedArticles, setBookmarkedArticles] = useState<Set<number>>(new Set());
   const [selectedArticle, setSelectedArticle] = useState<NewsArticle | null>(null);
   const [isArticleModalOpen, setIsArticleModalOpen] = useState(false);
+  const { isFavorite, toggleFavorite } = useFavorites();
 
   // Load bookmarks on mount
   useEffect(() => {
@@ -126,6 +128,9 @@ export function FeedView({ articles, loading }: FeedViewProps) {
                 <Button variant="ghost" size="icon" className="h-10 w-10" onClick={() => handleLike(article.id)}>
                   <Heart className={`w-5 h-5 ${likedArticles.has(article.id) ? "fill-red-500 text-red-500" : ""}`} />
                 </Button>
+                <Button variant="ghost" size="icon" className="h-10 w-10" onClick={() => toggleFavorite(article.sourceId)} title={isFavorite(article.sourceId) ? "Remove from favorites" : "Add to favorites"}>
+                  <Star className={`w-5 h-5 transition-colors ${isFavorite(article.sourceId) ? "fill-yellow-500 text-yellow-500" : ""}`} />
+                </Button>
                 <Button variant="ghost" size="icon" className="h-10 w-10" onClick={() => void handleBookmark(article.id)}>
                   <Bookmark className={`w-5 h-5 ${bookmarkedArticles.has(article.id) ? "fill-yellow-400 text-yellow-400" : ""}`} />
                 </Button>
@@ -135,7 +140,7 @@ export function FeedView({ articles, loading }: FeedViewProps) {
         </div>
       )
     },
-    [likedArticles, bookmarkedArticles],
+    [likedArticles, bookmarkedArticles, isFavorite, toggleFavorite],
   )
 
   if (loading) {

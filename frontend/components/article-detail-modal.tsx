@@ -1,12 +1,13 @@
 "use client"
 
 import { useState, useEffect, useMemo } from "react"
-import { X, ExternalLink, Heart, Bookmark, AlertTriangle, DollarSign, Bug, Link as LinkIcon, Rss, Sparkles, Maximize2, Minimize2, Loader2, Search, RefreshCw, CheckCircle2, XCircle, Copy, PlusCircle, MinusCircle } from "lucide-react"
+import { X, ExternalLink, Heart, Bookmark, AlertTriangle, DollarSign, Bug, Link as LinkIcon, Rss, Sparkles, Maximize2, Minimize2, Loader2, Search, RefreshCw, CheckCircle2, XCircle, Copy, PlusCircle, MinusCircle, Star } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
 import { type NewsArticle, getSourceById, type NewsSource, fetchSourceDebugData, type SourceDebugData, analyzeArticle, type ArticleAnalysis, API_BASE_URL, createBookmark, deleteBookmark, performAgenticSearch, type FactCheckResult } from "@/lib/api"
 import { useReadingQueue } from "@/hooks/useReadingQueue"
+import { useFavorites } from "@/hooks/useFavorites"
 
 type FactCheckStatus = FactCheckResult["verification_status"]
 type FactCheckStatusFilter = FactCheckStatus | "all"
@@ -39,6 +40,7 @@ export function ArticleDetailModal({ article, isOpen, onClose, initialIsBookmark
   const [isLiked, setIsLiked] = useState(false)
   const [isBookmarked, setIsBookmarked] = useState(initialIsBookmarked)
   const { addArticleToQueue, removeArticleFromQueue, isArticleInQueue } = useReadingQueue()
+  const { isFavorite, toggleFavorite } = useFavorites()
   const [showSourceDetails, setShowSourceDetails] = useState(false)
   const [source, setSource] = useState<NewsSource | null>(null)
   const [sourceLoading, setSourceLoading] = useState(false)
@@ -469,6 +471,16 @@ export function ArticleDetailModal({ article, isOpen, onClose, initialIsBookmark
                   >
                     <Heart className={`h-4 w-4 mr-2 ${isLiked ? "fill-current" : ""}`} />
                     Like
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => article && toggleFavorite(article.sourceId)}
+                    className={article && isFavorite(article.sourceId) ? "text-yellow-400" : "text-gray-400"}
+                    title={article && isFavorite(article.sourceId) ? "Remove from favorites" : "Add to favorites"}
+                  >
+                    <Star className={`h-4 w-4 mr-2 ${article && isFavorite(article.sourceId) ? "fill-current" : ""}`} />
+                    Favorite
                   </Button>
                   <Button
                     variant="ghost"

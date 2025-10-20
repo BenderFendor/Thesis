@@ -15,6 +15,7 @@ import {
   Search,
   PlusCircle,
   MinusCircle,
+  Star,
 } from "lucide-react"
 import { FixedSizeList as List } from "react-window"
 import AutoSizer from "react-virtualized-auto-sizer"
@@ -23,6 +24,7 @@ import { ArticleDetailModal } from "./article-detail-modal"
 import type { NewsArticle } from "@/lib/api"
 import { get_logger } from "@/lib/utils"
 import { useReadingQueue } from "@/hooks/useReadingQueue"
+import { useFavorites } from "@/hooks/useFavorites"
 
 const logger = get_logger("GridView")
 
@@ -67,6 +69,7 @@ export function GridView({
   const [likedArticles, setLikedArticles] = useState<Set<number>>(new Set())
   const { addArticleToQueue, removeArticleFromQueue, isArticleInQueue } =
     useReadingQueue()
+  const { isFavorite, toggleFavorite } = useFavorites()
 
   // Filter articles based on user selections
   const filteredNews = useMemo(() => {
@@ -231,6 +234,28 @@ export function GridView({
                       ) : (
                         <PlusCircle className="w-4 h-4 text-white" />
                       )}
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        toggleFavorite(article.sourceId)
+                      }}
+                      className="h-8 w-8 p-0 bg-black/50 hover:bg-black/70"
+                      title={
+                        isFavorite(article.sourceId)
+                          ? "Remove from favorites"
+                          : "Add to favorites"
+                      }
+                    >
+                      <Star
+                        className={`w-4 h-4 transition-colors ${
+                          isFavorite(article.sourceId)
+                            ? "fill-yellow-500 text-yellow-500"
+                            : "text-white"
+                        }`}
+                      />
                     </Button>
                     <Button
                       variant="ghost"

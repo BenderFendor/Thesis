@@ -21,6 +21,7 @@ import {
   Newspaper,
   Sparkles,
   Brain,
+  Filter,
 } from "lucide-react"
 import Link from "next/link"
 import { GlobeView } from "@/components/globe-view"
@@ -29,9 +30,12 @@ import { FeedView } from "@/components/feed-view"
 import { AutoHideHeader } from "@/components/auto-hide-header"
 
 import { useNewsStream } from "@/hooks/useNewsStream"
+import { useFavorites } from "@/hooks/useFavorites"
+import { useSourceFilter } from "@/hooks/useSourceFilter"
 import { fetchCategories, NewsArticle } from "@/lib/api"
 import { ErrorBoundary } from '@/components/ErrorBoundary';
 import { NotificationsPopup, Notification } from '@/components/notification-popup';
+import { SourceSidebar } from "@/components/source-sidebar";
 
 type ViewMode = "globe" | "grid" | "scroll"
 
@@ -63,11 +67,16 @@ function NewsPage() {
   const ticking = useRef<boolean>(false)
   const [showNotifications, setShowNotifications] = useState(false);
   const [notifications, setNotifications] = useState<Notification[]>([]);
+  const [sidebarOpen, setSidebarOpen] = useState(false);
 
   // New: State for articles per category to avoid reloading on view switches
   const [articlesByCategory, setArticlesByCategory] = useState<Record<string, NewsArticle[]>>({})
   const [loading, setLoading] = useState(false)
   const [apiUrl, setApiUrl] = useState<string | null>(null)
+
+  // Source filtering and favorites
+  const { favorites, isFavorite } = useFavorites()
+  const { selectedSources, isFilterActive, isSelected } = useSourceFilter()
 
   useEffect(() => {
     const getCategories = async () => {
@@ -105,6 +114,38 @@ function NewsPage() {
     console.error(`❌ Stream error for ${activeCategoryRef.current}:`, error);
     setLoading(false);
   }, []);
+
+  /**
+   * Filter and sort articles by favorites and source selection
+   */
+  const filterAndSortArticles = useCallback(
+    (articles: NewsArticle[]): NewsArticle[] => {
+      // Apply source filter if active
+      let filtered = articles;
+      if (isFilterActive()) {
+        filtered = articles.filter((article) =>
+          isSelected(article.sourceId)
+        );
+      }
+
+      // Sort: favorites first, then by date (newest first)
+      filtered.sort((a, b) => {
+        const aIsFav = isFavorite(a.sourceId) ? 0 : 1;
+        const bIsFav = isFavorite(b.sourceId) ? 0 : 1;
+
+        if (aIsFav !== bIsFav) return aIsFav - bIsFav;
+
+        // Secondary sort: by published date (newest first)
+        return (
+          new Date(b.publishedAt).getTime() -
+          new Date(a.publishedAt).getTime()
+        );
+      });
+
+      return filtered;
+    },
+    [isFilterActive, isSelected, isFavorite]
+  );
 
   const streamHook = useNewsStream({
     onUpdate,
@@ -328,6 +369,18 @@ function NewsPage() {
               </span>
             </div>
 
+            {/* Sources Sidebar Toggle */}
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => setSidebarOpen(true)}
+              className="gap-2"
+              title="Filter by sources"
+            >
+              <Filter className="w-4 h-4" />
+              <span className="hidden sm:inline">Sources</span>
+            </Button>
+
             {/* View Toggle */}
             <div className="flex items-center gap-2 rounded-lg p-1" style={{ backgroundColor: 'var(--muted)' }}>
               <Button
@@ -403,23 +456,26 @@ function NewsPage() {
                 {/* Content Views - Pass articles as props */}
                 <>
                   {currentView === "globe" && (
-                    <GlobeView key={`${category.id}-globe`} articles={articlesByCategory[category.id]} loading={loading} />
+                    <GlobeView key={`${category.id}-globe`} articles={filterAndSortArticles(articlesByCategory[category.id] || [])} loading={loading} />
                   )}
                   {currentView === "grid" && (
                     <GridView
-                      articles={articlesByCategory[activeCategory] || []}
+                      articles={filterAndSortArticles(articlesByCategory[activeCategory] || [])}
                       loading={loading}
                       onCountChange={setArticleCount}
                       apiUrl={apiUrl}
                     />
                   )}
-                  {currentView === "scroll" && <FeedView key={`${category.id}-scroll`} articles={articlesByCategory[category.id]} loading={loading} />}
+                  {currentView === "scroll" && <FeedView key={`${category.id}-scroll`} articles={filterAndSortArticles(articlesByCategory[category.id] || [])} loading={loading} />}
                 </>
               </TabsContent>
             )
           })}
         </Tabs>
       </main>
+
+      {/* Source Sidebar */}
+      <SourceSidebar isOpen={sidebarOpen} onClose={() => setSidebarOpen(false)} />
 
       {/* Footer removed as per request */}
     </div>
