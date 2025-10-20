@@ -402,7 +402,7 @@ export function GridView({
           <div className="mx-auto">
             <div
               className="mx-auto w-16 h-16 rounded-full flex items-center justify-center mb-4"
-              style={{ backgroundColor: "var(--card)" }}
+              style={{ backgroundColor: "var(--background)" }}
             >
               <Newspaper
                 className="w-8 h-8"
