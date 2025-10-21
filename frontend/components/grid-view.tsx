@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect, useCallback, useMemo } from "react"
+import { useState, useEffect, useCallback, useMemo, useRef } from "react"
 import { Card, CardContent } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -77,6 +77,144 @@ export function GridView({
   const { addArticleToQueue, removeArticleFromQueue, isArticleInQueue } =
     useReadingQueue()
   const { isFavorite, toggleFavorite } = useFavorites()
+
+  // Snap-scrolling support: focusable container and current source index
+  const containerRef = useRef<HTMLDivElement | null>(null)
+  const [currentGroupIndex, setCurrentGroupIndex] = useState<number>(0)
+
+  const scrollToGroup = useCallback((index: number) => {
+    const container = containerRef.current
+    if (!container) return
+    const groups = Array.from(
+      container.querySelectorAll<HTMLElement>(".grid-source-group")
+    )
+    const safeIndex = Math.max(0, Math.min(index, groups.length - 1))
+    const target = groups[safeIndex]
+    if (target) {
+      target.scrollIntoView({ behavior: "smooth", block: "start" })
+      setCurrentGroupIndex(safeIndex)
+    }
+  }, [])
+
+  const goNextGroup = useCallback(() => {
+    const container = containerRef.current
+    if (!container) return
+    const groups = container.querySelectorAll<HTMLElement>(".grid-source-group")
+    if (groups.length === 0) return
+    const next = Math.min(currentGroupIndex + 1, groups.length - 1)
+    if (next !== currentGroupIndex) scrollToGroup(next)
+  }, [currentGroupIndex, scrollToGroup])
+
+  const goPrevGroup = useCallback(() => {
+    const container = containerRef.current
+    if (!container) return
+    const groups = container.querySelectorAll<HTMLElement>(".grid-source-group")
+    if (groups.length === 0) return
+    const prev = Math.max(currentGroupIndex - 1, 0)
+    if (prev !== currentGroupIndex) scrollToGroup(prev)
+  }, [currentGroupIndex, scrollToGroup])
+
+  useEffect(() => {
+    const container = containerRef.current
+    if (!container) return
+
+    const onKey = (e: KeyboardEvent) => {
+      const activeEl = document.activeElement as HTMLElement | null
+      if (activeEl && /INPUT|TEXTAREA|SELECT/.test(activeEl.tagName)) return
+      switch (e.key) {
+        case 'ArrowDown':
+        case 'PageDown':
+          e.preventDefault()
+          goNextGroup()
+          break
+        case 'ArrowUp':
+        case 'PageUp':
+          e.preventDefault()
+          goPrevGroup()
+          break
+        case 'Home':
+          e.preventDefault()
+          scrollToGroup(0)
+          break
+        case 'End':
+          e.preventDefault()
+          {
+            const groups = container.querySelectorAll<HTMLElement>('.grid-source-group')
+            scrollToGroup(groups.length - 1)
+          }
+          break
+        default:
+          break
+      }
+    }
+
+    let wheelTimeout: ReturnType<typeof setTimeout> | null = null
+    let accumulatedDelta = 0
+    const onWheel = (ev: WheelEvent) => {
+      if (Math.abs(ev.deltaY) < Math.abs(ev.deltaX)) return
+      ev.preventDefault()
+      accumulatedDelta += ev.deltaY
+      if (wheelTimeout) clearTimeout(wheelTimeout)
+      wheelTimeout = setTimeout(() => {
+        if (Math.abs(accumulatedDelta) > 20) {
+          if (accumulatedDelta > 0) goNextGroup()
+          else goPrevGroup()
+        }
+        accumulatedDelta = 0
+      }, 120)
+    }
+
+    let startY = 0
+    const onTouchStart = (ev: TouchEvent) => {
+      startY = ev.touches[0].clientY
+    }
+    const onTouchEnd = (ev: TouchEvent) => {
+      const endY = ev.changedTouches[0].clientY
+      const delta = startY - endY
+      if (Math.abs(delta) > 50) {
+        if (delta > 0) goNextGroup()
+        else goPrevGroup()
+      }
+    }
+
+    container.addEventListener('keydown', onKey)
+    container.addEventListener('wheel', onWheel, { passive: false })
+    container.addEventListener('touchstart', onTouchStart, { passive: true })
+    container.addEventListener('touchend', onTouchEnd, { passive: true })
+
+    return () => {
+      container.removeEventListener('keydown', onKey)
+      container.removeEventListener('wheel', onWheel)
+      container.removeEventListener('touchstart', onTouchStart)
+      container.removeEventListener('touchend', onTouchEnd)
+      if (wheelTimeout) clearTimeout(wheelTimeout)
+    }
+  }, [goNextGroup, goPrevGroup, scrollToGroup])
+
+  // Observe groups to update currentGroupIndex on manual scroll/snap
+  useEffect(() => {
+    const container = containerRef.current
+    if (!container) return
+    let observer: IntersectionObserver | null = null
+    const groups = Array.from(container.querySelectorAll<HTMLElement>('.grid-source-group'))
+    if (groups.length > 0 && 'IntersectionObserver' in window) {
+      observer = new IntersectionObserver(
+        (entries) => {
+          entries.forEach((entry) => {
+            if (entry.isIntersecting) {
+              const index = groups.indexOf(entry.target as HTMLElement)
+              if (index >= 0) setCurrentGroupIndex(index)
+            }
+          })
+        },
+        { root: container, threshold: 0.6 }
+      )
+      groups.forEach((g) => observer!.observe(g))
+    }
+    return () => {
+      if (observer) observer.disconnect()
+    }
+  }, [articles])
 
   // Filter articles based on user selections
   const filteredNews = useMemo(() => {
@@ -282,12 +420,19 @@ export function GridView({
           </div>
         </div>
       ) : (
-        <div className="flex-1 overflow-y-auto px-3 sm:px-4 lg:px-6 py-4">
+        <div
+          ref={containerRef}
+          tabIndex={0}
+          role="region"
+          aria-label="Sources scroller"
+          className="flex-1 overflow-y-auto px-3 sm:px-4 lg:px-6 py-4"
+          style={{ outline: 'none' }}
+        >
           <div className="space-y-6">
             {sourceGroups.map((group) => (
               <div
                 key={group.sourceId}
-                className="bg-card/40 rounded-lg border border-border/50 overflow-hidden"
+                className="grid-source-group bg-card/40 rounded-lg border border-border/50 overflow-hidden scroll-mt-4"
               >
                 {/* Source Header */}
                 <div className="bg-card/60 px-4 py-3 border-b border-border/50 flex items-center justify-between">
