@@ -9,6 +9,7 @@ from fastapi import APIRouter, HTTPException
 
 from app.data.rss_sources import get_rss_sources
 from app.services.cache import news_cache
+from app.services.metrics import get_metrics
 from app.services.stream_manager import stream_manager
 
 router = APIRouter(prefix="/debug", tags=["debug"])
@@ -158,3 +159,13 @@ async def get_stream_status() -> Dict[str, object]:
             },
             "source_throttling": dict(stream_manager.source_last_accessed),
         }
+
+
+@router.get("/metrics/pipeline")
+async def get_pipeline_metrics() -> Dict[str, object]:
+    """Get current RSS pipeline metrics."""
+    metrics = get_metrics()
+    return {
+        "success": True,
+        "metrics": metrics.to_dict(),
+    }
