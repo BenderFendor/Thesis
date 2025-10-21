@@ -39,6 +39,7 @@ import {
 } from "@/lib/api";
 
 export function ReadingQueueSidebar() {
+  const READ_SPEED_WPM = 230; // Average adult reading speed
   const { queuedArticles, removeArticleFromQueue, isLoaded } =
     useReadingQueue();
   const { isFavorite, toggleFavorite } = useFavorites();
@@ -58,9 +59,46 @@ export function ReadingQueueSidebar() {
   const [debugData, setDebugData] = useState<SourceDebugData | null>(null);
   const [fullArticleText, setFullArticleText] = useState<string | null>(null);
   const [articleLoading, setArticleLoading] = useState(false);
+  const [readArticles, setReadArticles] = useState<Set<string>>(new Set());
+  const [estimatedReadTimes, setEstimatedReadTimes] = useState<
+    Record<string, number>
+  >({});
+
+  const calculateReadTime = (text: string): number => {
+    if (!text) return 0;
+    const wordCount = text.trim().split(/\s+/).length;
+    return Math.ceil(wordCount / READ_SPEED_WPM);
+  };
 
   const handleRemove = (articleUrl: string) => {
     removeArticleFromQueue(articleUrl);
+  };
+
+  const handleMarkAsRead = (articleUrl: string) => {
+    setReadArticles((prev) => {
+      const next = new Set(prev);
+      next.add(articleUrl);
+      return next;
+    });
+  };
+
+  const handleNavigateArticle = (direction: "next" | "previous") => {
+    if (!selectedArticle || !queuedArticles) return;
+
+    const currentIndex = queuedArticles.findIndex(
+      (a) => a.url === selectedArticleUrl
+    );
+    let newIndex = currentIndex;
+
+    if (direction === "next") {
+      newIndex = Math.min(currentIndex + 1, queuedArticles.length - 1);
+    } else {
+      newIndex = Math.max(currentIndex - 1, 0);
+    }
+
+    if (newIndex !== currentIndex) {
+      setSelectedArticleUrl(queuedArticles[newIndex].url);
+    }
   };
 
   const loadAiAnalysis = async (article: NewsArticle) => {
@@ -115,7 +153,17 @@ export function ReadingQueueSidebar() {
       );
       if (response.ok) {
         const data = await response.json();
-        setFullArticleText(data.text || data.full_text || null);
+        const text = data.text || data.full_text || null;
+        setFullArticleText(text);
+        
+        // Calculate and store read time
+        if (text) {
+          const readTime = calculateReadTime(text);
+          setEstimatedReadTimes((prev) => ({
+            ...prev,
+            [article.url]: readTime,
+          }));
+        }
       }
     } catch (e) {
       console.error("Failed to fetch full article:", e);
@@ -135,20 +183,53 @@ export function ReadingQueueSidebar() {
   // Load AI analysis and source when article is selected
   useEffect(() => {
     if (selectedArticle) {
+      // Reset all state for the new article
       setIsLiked(false);
       setIsBookmarked(false);
-      setAiAnalysis(null);
-      setSource(null);
       setShowSourceDetails(false);
       setDebugOpen(false);
+      
+      // Immediately clear old content
+      setAiAnalysisLoading(true);
+      setSourceLoading(true);
+      setArticleLoading(true);
+      setAiAnalysis(null);
+      setSource(null);
       setDebugData(null);
       setFullArticleText(null);
 
+      // Load article content first (priority)
+      loadFullArticle(selectedArticle);
+      
+      // Load AI analysis and source in parallel
       loadAiAnalysis(selectedArticle);
       loadSource(selectedArticle);
-      loadFullArticle(selectedArticle);
     }
-  }, [selectedArticleUrl, selectedArticle]);
+  }, [selectedArticleUrl]);
+
+  // Handle keyboard navigation
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (!selectedArticle) return;
+
+      if (e.key === "ArrowRight") {
+        e.preventDefault();
+        handleNavigateArticle("next");
+      } else if (e.key === "ArrowLeft") {
+        e.preventDefault();
+        handleNavigateArticle("previous");
+      } else if (e.key === "m") {
+        e.preventDefault();
+        handleMarkAsRead(selectedArticle.url);
+      } else if (e.key === "Escape") {
+        e.preventDefault();
+        setSelectedArticleUrl(null);
+      }
+    };
+
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [selectedArticle, selectedArticleUrl, queuedArticles]);
 
   return (
     <>
@@ -197,22 +278,62 @@ export function ReadingQueueSidebar() {
                   >
                     {selectedArticle.source}
                   </p>
+                  <div className="flex items-center gap-3 mt-2">
+                    <p
+                      className="text-xs"
+                      style={{ color: "var(--muted-foreground)" }}
+                    >
+                      Article {selectedArticleIndex + 1} of {queuedArticles.length}
+                    </p>
+                    {estimatedReadTimes[selectedArticle.url] && (
+                      <span
+                        className="text-xs px-2 py-1 rounded-full"
+                        style={{
+                          backgroundColor: "rgba(168, 85, 247, 0.2)",
+                          color: "rgb(168, 85, 247)",
+                          border: "1px solid rgba(168, 85, 247, 0.3)",
+                        }}
+                      >
+                        {estimatedReadTimes[selectedArticle.url]} min read
+                      </span>
+                    )}
+                  </div>
                 </div>
-                <Button
-                  size="sm"
-                  variant="ghost"
-                  onClick={() => setSelectedArticleUrl(null)}
-                  className="flex-shrink-0"
-                >
-                  <X className="h-5 w-5" />
-                </Button>
+                <div className="flex items-center gap-2 flex-shrink-0">
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => handleNavigateArticle("previous")}
+                    disabled={selectedArticleIndex === 0}
+                    title="Previous article (← Arrow)"
+                  >
+                    ← Prev
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => handleNavigateArticle("next")}
+                    disabled={selectedArticleIndex === queuedArticles.length - 1}
+                    title="Next article (→ Arrow)"
+                  >
+                    Next →
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    onClick={() => setSelectedArticleUrl(null)}
+                    className="flex-shrink-0"
+                  >
+                    <X className="h-5 w-5" />
+                  </Button>
+                </div>
               </div>
 
               {/* Detail Content - Two Column Layout */}
               <div className="flex-1 overflow-y-auto">
                 <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 p-6">
                   {/* Main Content - 2/3 width */}
-                  <div className="lg:col-span-2 space-y-6">
+                  <div className="lg:col-span-2 space-y-6" key={`article-${selectedArticle.url}`}>
                     {/* Featured Image */}
                     {selectedArticle.image && (
                       <div className="rounded-lg overflow-hidden">
@@ -251,12 +372,13 @@ export function ReadingQueueSidebar() {
                       className="space-y-4 text-base leading-relaxed"
                       style={{ color: "var(--foreground)" }}
                     >
-                      {selectedArticle.summary && (
-                        <div>
-                          <h3 className="font-bold text-lg mb-2">Summary</h3>
-                          <p>{selectedArticle.summary}</p>
-                        </div>
-                      )}
+                      {selectedArticle.summary &&
+                        selectedArticle.summary !== selectedArticle.content && (
+                          <div>
+                            <h3 className="font-bold text-lg mb-2">Summary</h3>
+                            <p>{selectedArticle.summary}</p>
+                          </div>
+                        )}
 
                       {/* Full Article Text */}
                       <div>
@@ -364,11 +486,61 @@ export function ReadingQueueSidebar() {
                         />
                         Bookmark
                       </Button>
+                      <Button
+                        size="sm"
+                        variant={
+                          readArticles.has(selectedArticle.url)
+                            ? "default"
+                            : "outline"
+                        }
+                        onClick={() =>
+                          handleMarkAsRead(selectedArticle.url)
+                        }
+                        className={
+                          readArticles.has(selectedArticle.url)
+                            ? "text-green-400"
+                            : "text-gray-400"
+                        }
+                        title="Mark as read (M)"
+                      >
+                        ✓ Read
+                      </Button>
                     </div>
                   </div>
 
                   {/* AI Analysis Sidebar - 1/3 width */}
-                  <div className="lg:col-span-1 space-y-4">
+                  <div className="lg:col-span-1 space-y-4" key={`sidebar-${selectedArticle.url}`}>
+                    {/* Keyboard Shortcuts */}
+                    <div
+                      className="rounded-lg p-4 border text-xs"
+                      style={{
+                        backgroundColor: "var(--card)",
+                        borderColor: "var(--border)",
+                      }}
+                    >
+                      <h3 className="font-semibold text-sm text-white mb-2">
+                        Keyboard Shortcuts
+                      </h3>
+                      <div className="space-y-1" style={{ color: "var(--muted-foreground)" }}>
+                        <div>
+                          <kbd className="px-2 py-1 bg-gray-700 rounded text-xs mr-2">→</kbd>
+                          Next article
+                        </div>
+                        <div>
+                          <kbd className="px-2 py-1 bg-gray-700 rounded text-xs mr-2">←</kbd>
+                          Previous article
+                        </div>
+                        <div>
+                          <kbd className="px-2 py-1 bg-gray-700 rounded text-xs mr-2">M</kbd>
+                          Mark as read
+                        </div>
+                        <div>
+                          <kbd className="px-2 py-1 bg-gray-700 rounded text-xs mr-2">Esc</kbd>
+                          Close article
+                        </div>
+                      </div>
+                    </div>
+
                     {/* AI Summary */}
                     {aiAnalysisLoading ? (
                       <div
@@ -612,6 +784,20 @@ export function ReadingQueueSidebar() {
                 <Button
                   variant="ghost"
                   onClick={() => {
+                    handleMarkAsRead(selectedArticle.url);
+                  }}
+                  className={
+                    readArticles.has(selectedArticle.url)
+                      ? "text-green-400"
+                      : "text-gray-400 hover:text-green-400"
+                  }
+                  title="Mark as read (M)"
+                >
+                  ✓
+                </Button>
+                <Button
+                  variant="ghost"
+                  onClick={() => {
                     handleRemove(selectedArticle.url);
                     setSelectedArticleUrl(null);
                   }}
@@ -735,14 +921,27 @@ export function ReadingQueueSidebar() {
                             >
                               {article.title}
                             </h3>
-                            <p
-                              className="text-xs mt-1"
-                              style={{
-                                color: "var(--muted-foreground)",
-                              }}
-                            >
-                              {article.source}
-                            </p>
+                            <div className="flex items-center gap-2 mt-1">
+                              <p
+                                className="text-xs"
+                                style={{
+                                  color: "var(--muted-foreground)",
+                                }}
+                              >
+                                {article.source}
+                              </p>
+                              {estimatedReadTimes[article.url] && (
+                                <span
+                                  className="text-xs px-1.5 py-0.5 rounded"
+                                  style={{
+                                    backgroundColor: "rgba(168, 85, 247, 0.15)",
+                                    color: "rgb(168, 85, 247)",
+                                  }}
+                                >
+                                  {estimatedReadTimes[article.url]}m
+                                </span>
+                              )}
+                            </div>
                           </div>
 
                           {/* Image Thumbnail - Right Side */}
@@ -792,9 +991,17 @@ export function ReadingQueueSidebar() {
                                 color: "var(--foreground)",
                               }}
                             >
-                              {article.summary ||
-                                article.content ||
-                                "No description available"}
+                              {(() => {
+                                const text =
+                                  article.summary ||
+                                  article.content ||
+                                  "No description available";
+                                const words = text.split(/\s+/);
+                                if (words.length > 150) {
+                                  return words.slice(0, 150).join(" ") + " ...";
+                                }
+                                return text;
+                              })()}
                             </p>
                             <div className="flex gap-2 pt-2">
                               <Button

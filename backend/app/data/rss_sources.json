@@ -530,6 +530,83 @@
         "funding_type": "Commercial",
         "bias_rating": "Center"
     },
+    "Newsmax": {
+        "url": "https://www.newsmax.com/rss/",
+        "category": "general",
+        "country": "US",
+        "funding_type": "Commercial",
+        "bias_rating": "Right"
+    },
+    "Washington Times": {
+        "url": "https://www.washingtontimes.com/rss/headlines/news/",
+        "category": "general",
+        "country": "US",
+        "funding_type": "Commercial",
+        "bias_rating": "Right"
+    },
+    "National Review": {
+        "url": "http://www.nationalreview.com/feed",
+        "category": "politics",
+        "country": "US",
+        "funding_type": "Commercial",
+        "bias_rating": "Right"
+    },
+    "Washington Examiner": {
+        "url": "https://www.washingtonexaminer.com/section/news/feed",
+        "category": "general",
+        "country": "US",
+        "funding_type": "Commercial",
+        "bias_rating": "Right"
+    },
+    "American Spectator": {
+        "url": "http://spectator.org/feed",
+        "category": "politics",
+        "country": "US",
+        "funding_type": "Commercial",
+        "bias_rating": "Right"
+    },
+    "The Dispatch": {
+        "url": "https://thedispatch.com/feed/",
+        "category": "politics",
+        "country": "US",
+        "funding_type": "Commercial",
+        "bias_rating": "Center-Right"
+    },
+    "Reason": {
+        "url": "https://reason.com/feed",
+        "category": "politics",
+        "country": "US",
+        "funding_type": "Commercial",
+        "bias_rating": "Libertarian"
+    },
+    "NewsNation": {
+        "url": "http://www.newsnationnow.com/feed",
+        "category": "general",
+        "country": "US",
+        "funding_type": "Commercial",
+        "bias_rating": "Center"
+    },
+    "Mother Jones": {
+        "url": "https://www.motherjones.com/feed",
+        "category": "politics",
+        "country": "US",
+        "funding_type": "Non-profit",
+        "bias_rating": "Left"
+    },
+    "The Federalist": {
+        "url": "https://thefederalist.com/feed/",
+        "category": "politics",
+        "country": "US",
+        "funding_type": "Commercial",
+        "bias_rating": "Right"
+    },
+    "Deutsche Welle": {
+        "url": "https://rss.dw.com/rdf/rss-en-all",
+        "category": "general",
+        "country": "DE",
+        "funding_type": "Public",
+        "bias_rating": "Center"
+    },
     "NBC10 Philadelphia": {
         "url": "https://news.google.com/rss/search?q=site:nbcphiladelphia.com",
         "category": "general",
