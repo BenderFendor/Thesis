@@ -14,6 +14,7 @@ from app.models.reading_queue import (
 )
 from app.services import reading_queue as queue_service
 from app.services import highlights as highlights_service
+from app.services.queue_digest import generate_queue_digest
 from app.core.logging import get_logger
 
 logger = get_logger("reading_queue_routes")
@@ -246,3 +247,29 @@ async def get_daily_digest(session: AsyncSession = Depends(get_db)):
     except Exception as e:
         logger.error("Error generating daily digest: %s", e)
         raise HTTPException(status_code=500, detail="Failed to generate digest")
+
+
+class QueueDigestRequest(BaseModel):
+    """Request for generating AI digest."""
+
+    articles: list[dict]
+    grouped: dict[str, list[dict]]
+
+
+class QueueDigestResponse(BaseModel):
+    """Response containing generated digest."""
+
+    digest: str
+
+
+@router.post("/digest", response_model=QueueDigestResponse)
+async def generate_ai_digest(request: QueueDigestRequest):
+    """Generate an AI-powered reading digest from queued articles."""
+    try:
+        digest = await generate_queue_digest(request.articles, request.grouped)
+        return {"digest": digest}
+    except Exception as e:
+        logger.error("Error generating AI digest: %s", e)
+        raise HTTPException(
+            status_code=500, detail="Failed to generate digest"
+        )

@@ -26,6 +26,7 @@ import {
   Bug,
 } from "lucide-react";
 import { useState, useEffect } from "react";
+import ReactMarkdown from "react-markdown";
 import { cn } from "@/lib/utils";
 import {
   type NewsArticle,
@@ -63,6 +64,79 @@ export function ReadingQueueSidebar() {
   const [estimatedReadTimes, setEstimatedReadTimes] = useState<
     Record<string, number>
   >({});
+  const [queueDigest, setQueueDigest] = useState<string | null>(null);
+  const [digestLoading, setDigestLoading] = useState(false);
+  const [showQueueOverview, setShowQueueOverview] = useState(false);
+
+  const generateQueueDigest = async () => {
+    if (!queuedArticles || queuedArticles.length === 0) return;
+
+    try {
+      setDigestLoading(true);
+      
+      // Get summaries and content for all articles
+      const articleSummaries = await Promise.all(
+        queuedArticles.map(async (article) => {
+          try {
+            const analysis = await analyzeArticle(article.url, article.source);
+            return {
+              title: article.title,
+              source: article.source,
+              url: article.url,
+              summary: analysis?.summary || article.summary || "",
+              category: article.category || "Uncategorized",
+            };
+          } catch (e) {
+            console.error(`Failed to analyze ${article.title}:`, e);
+            return {
+              title: article.title,
+              source: article.source,
+              url: article.url,
+              summary: article.summary || "",
+              category: article.category || "Uncategorized",
+            };
+          }
+        })
+      );
+
+      // Group by category
+      const grouped = articleSummaries.reduce(
+        (acc, article) => {
+          const cat = article.category;
+          if (!acc[cat]) acc[cat] = [];
+          acc[cat].push(article);
+          return acc;
+        },
+        {} as Record<string, typeof articleSummaries>
+      );
+
+      // Generate digest via API
+      const response = await fetch(
+        `${API_BASE_URL}/api/queue/digest`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            articles: articleSummaries,
+            grouped,
+          }),
+        }
+      );
+
+      if (response.ok) {
+        const data = await response.json();
+        setQueueDigest(data.digest || data.content);
+      } else {
+        console.error("Failed to generate digest");
+        setQueueDigest(null);
+      }
+    } catch (e) {
+      console.error("Error generating digest:", e);
+      setQueueDigest(null);
+    } finally {
+      setDigestLoading(false);
+    }
+  };
 
   const calculateReadTime = (text: string): number => {
     if (!text) return 0;
@@ -807,6 +881,151 @@ export function ReadingQueueSidebar() {
                 </Button>
               </div>
             </div>
+          ) : showQueueOverview ? (
+            /* Queue Digest View */
+            <>
+              <SheetHeader
+                className="px-6 pt-6 pb-4 border-b"
+                style={{ borderColor: "var(--border)" }}
+              >
+                <div className="flex items-center justify-between">
+                  <SheetTitle className="text-4xl font-bold font-serif">
+                    Reading Digest
+                  </SheetTitle>
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    onClick={() => setShowQueueOverview(false)}
+                  >
+                    <X className="h-5 w-5" />
+                  </Button>
+                </div>
+              </SheetHeader>
+
+              <div className="flex-1 overflow-y-auto">
+                {digestLoading ? (
+                  <div className="flex items-center justify-center h-full">
+                    <div className="flex flex-col items-center gap-3">
+                      <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-purple-400"></div>
+                      <p style={{ color: "var(--muted-foreground)" }}>
+                        Generating your digest...
+                      </p>
+                    </div>
+                  </div>
+                ) : queueDigest ? (
+                  <div
+                    className="p-6 prose prose-invert max-w-none"
+                    style={{ color: "var(--foreground)" }}
+                  >
+                    <ReactMarkdown
+                      components={{
+                        h1: ({ node, ...props }) => (
+                          <h1
+                            className="font-bold text-2xl mt-6 mb-3"
+                            style={{ color: "var(--foreground)" }}
+                            {...props}
+                          />
+                        ),
+                        h2: ({ node, ...props }) => (
+                          <h2
+                            className="font-bold text-xl mt-5 mb-2"
+                            style={{ color: "var(--foreground)" }}
+                            {...props}
+                          />
+                        ),
+                        h3: ({ node, ...props }) => (
+                          <h3
+                            className="font-semibold text-lg mt-4 mb-2"
+                            style={{ color: "var(--foreground)" }}
+                            {...props}
+                          />
+                        ),
+                        p: ({ node, ...props }) => (
+                          <p
+                            className="mb-3 leading-relaxed"
+                            style={{ color: "var(--foreground)" }}
+                            {...props}
+                          />
+                        ),
+                        ul: ({ node, ...props }) => (
+                          <ul
+                            className="list-disc list-inside mb-3 space-y-1"
+                            style={{ color: "var(--foreground)" }}
+                            {...props}
+                          />
+                        ),
+                        ol: ({ node, ...props }) => (
+                          <ol
+                            className="list-decimal list-inside mb-3 space-y-1"
+                            style={{ color: "var(--foreground)" }}
+                            {...props}
+                          />
+                        ),
+                        li: ({ node, ...props }) => (
+                          <li
+                            className="ml-2"
+                            style={{ color: "var(--foreground)" }}
+                            {...props}
+                          />
+                        ),
+                        blockquote: ({ node, ...props }) => (
+                          <blockquote
+                            className="border-l-4 pl-4 italic my-3"
+                            style={{
+                              borderColor: "rgba(168, 85, 247, 0.3)",
+                              color: "var(--muted-foreground)",
+                            }}
+                            {...props}
+                          />
+                        ),
+                        code: ({ node, ...props }) => (
+                          <code
+                            className="px-2 py-1 rounded text-sm"
+                            style={{
+                              backgroundColor: "rgba(0, 0, 0, 0.3)",
+                              color: "rgb(168, 85, 247)",
+                            }}
+                            {...props}
+                          />
+                        ),
+                        pre: ({ node, ...props }) => (
+                          <pre
+                            className="p-4 rounded mb-3 overflow-x-auto text-sm"
+                            style={{
+                              backgroundColor: "rgba(0, 0, 0, 0.4)",
+                              color: "var(--foreground)",
+                            }}
+                            {...props}
+                          />
+                        ),
+                        strong: ({ node, ...props }) => (
+                          <strong
+                            className="font-semibold"
+                            style={{ color: "rgb(168, 85, 247)" }}
+                            {...props}
+                          />
+                        ),
+                        em: ({ node, ...props }) => (
+                          <em
+                            className="italic"
+                            style={{ color: "var(--foreground)" }}
+                            {...props}
+                          />
+                        ),
+                      }}
+                    >
+                      {queueDigest}
+                    </ReactMarkdown>
+                  </div>
+                ) : (
+                  <div className="flex items-center justify-center h-full">
+                    <p style={{ color: "var(--muted-foreground)" }}>
+                      Failed to generate digest
+                    </p>
+                  </div>
+                )}
+              </div>
+            </>
           ) : (
             /* List View */
             <>
@@ -818,15 +1037,30 @@ export function ReadingQueueSidebar() {
                   <SheetTitle className="text-4xl font-bold font-serif">
                     Articles to Read
                   </SheetTitle>
-                  <span
-                    className="text-sm font-medium px-3 py-1 rounded-full"
-                    style={{
-                      backgroundColor: "var(--primary)",
-                      color: "var(--primary-foreground)",
-                    }}
-                  >
-                    {queuedArticles.length}
-                  </span>
+                  <div className="flex items-center gap-2">
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => {
+                        setShowQueueOverview(true);
+                        generateQueueDigest();
+                      }}
+                      disabled={queuedArticles.length === 0}
+                      title="Generate AI digest of all articles"
+                    >
+                      <Sparkles className="h-4 w-4 mr-1" />
+                      Digest
+                    </Button>
+                    <span
+                      className="text-sm font-medium px-3 py-1 rounded-full"
+                      style={{
+                        backgroundColor: "var(--primary)",
+                        color: "var(--primary-foreground)",
+                      }}
+                    >
+                      {queuedArticles.length}
+                    </span>
+                  </div>
                 </div>
               </SheetHeader>
 
