@@ -14,6 +14,8 @@ Also there is no hover animation or color for any of the button on this page and
 # Image source debugging
 For this Im thinking we have to add like errors for parsing but what type of error. Like image found but not parsedable by frontend. No images in the json/source at all. Images founded and we can use them but it still doesn't any us to display them idk why?
 
+https://forum.kustom.rocks/t/help-me-get-images-from-google-news-rss-feed/7173 may help here
+
 # The stream vs static source.
 I don't really understand why that exist it really show be the same thing and just two parts of it right now it is coded like two different features instead of one fused backend feature for getting sources.
 
@@ -219,3 +221,4 @@ These features help the user quickly assess the 20-article queue and decide wher
 # reading digest
 
 When an article is add to the read it should have its ai anyslsis reading time and full text article added as well so that it doesn't have to load when you click the article since we can make the good guess that the reader wants to read that later and have it preloaded for them
+

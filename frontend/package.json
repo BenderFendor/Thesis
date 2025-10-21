@@ -60,6 +60,7 @@
     "react-resizable-panels": "^2.1.7",
     "react-virtualized-auto-sizer": "^1.0.26",
     "react-window": "^1.8.11",
+    "react18-json-view": "^0.2.9",
     "recharts": "2.15.4",
     "rehype-raw": "^7.0.0",
     "remark-gfm": "^4.0.1",

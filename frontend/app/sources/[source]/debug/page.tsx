@@ -8,7 +8,8 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Input } from "@/components/ui/input"
 import Link from "next/link"
-import ReactJson from 'react-json-view'
+import JsonView from 'react18-json-view'
+import 'react18-json-view/dist/style.css'
 
 export default function SourceDebugPage({ params }: { params: { source: string } }) {
   const sourceName = decodeURIComponent(params.source)
@@ -75,7 +76,7 @@ export default function SourceDebugPage({ params }: { params: { source: string }
     const lowercasedQuery = searchQuery.toLowerCase()
     const filtered = JSON.parse(JSON.stringify(debugData))
 
-    const filterObject = (obj: any) => {
+  const filterObject = (obj: any): any => {
       if (Array.isArray(obj)) {
         return obj.filter(item => filterObject(item) !== null)
       }
@@ -331,12 +332,11 @@ export default function SourceDebugPage({ params }: { params: { source: string }
                 className="pl-10"
               />
             </div>
-            <ReactJson 
+            <JsonView 
               src={filteredDebugData() || {}} 
-              theme="ocean" 
-              iconStyle="circle"
-              displayDataTypes={false}
-              name={false}
+              collapsed={2}
+              enableClipboard={true}
+              theme="vscode"
             />
           </CardContent>
         </details>

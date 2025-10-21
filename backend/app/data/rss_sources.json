@@ -42,7 +42,7 @@
         "bias_rating": ""
     },
     "CNN": {
-        "url": "http://rss.cnn.com/rss/cnn_topstories.rss",
+        "url": "https://news.google.com/rss/search?q=site:cnn.com&hl=en-US&gl=US&ceid=US:en",
         "category": "general", 
         "country": "US",
         "funding_type": "Commercial",
@@ -254,7 +254,7 @@
         "bias_rating": ""
     },
     "Axios": {
-        "url": "https://www.axios.com/feed",
+        "url": "https://www.axios.com/feeds/feed.rss",
         "category": "general",
         "country": "US",
         "funding_type": "Commercial",
@@ -273,20 +273,6 @@
         "country": "US",
         "funding_type": "Independent",
         "bias_rating": "Center"
-    },
-    "CNN Technology": {
-        "url": "http://rss.cnn.com/rss/edition_technology.rss",
-        "category": "technology",
-        "country": "US",
-        "funding_type": "Commercial",
-        "bias_rating": "Left-Center"
-    },
-    "CNN Politics": {
-        "url": "http://rss.cnn.com/rss/edition_politics.rss",
-        "category": "politics",
-        "country": "US",
-        "funding_type": "Commercial",
-        "bias_rating": "Left-Center"
     },
     "IGN": {
         "url": "https://feeds.ign.com/ign/all",
@@ -428,7 +414,7 @@
         "bias_rating": "Center"
     },
     "ABC News": {
-        "url": "http://feeds.abcnews.com/abcnews/usheadline",
+        "url": "https://abcnews.go.com/abcnews/topstories",
         "category": "general",
         "country": "US",
         "funding_type": "Commercial",
