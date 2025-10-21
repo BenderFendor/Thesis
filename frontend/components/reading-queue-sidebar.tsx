@@ -222,6 +222,14 @@ export function ReadingQueueSidebar() {
     try {
       setArticleLoading(true);
       setFullArticleText(null);
+
+      // Check if article already has preloaded full text
+      if (article._queueData?.fullText) {
+        setFullArticleText(article._queueData.fullText);
+        setArticleLoading(false);
+        return;
+      }
+
       const response = await fetch(
         `${API_BASE_URL}/article/extract?url=${encodeURIComponent(article.url)}`
       );
@@ -1174,6 +1182,18 @@ export function ReadingQueueSidebar() {
                                 >
                                   {estimatedReadTimes[article.url]}m
                                 </span>
+                              )}
+                              {!article._queueData?.preloadedAt && (
+                                <Badge
+                                  className="text-xs flex items-center gap-1 animate-pulse"
+                                  style={{
+                                    backgroundColor: "rgba(59, 130, 246, 0.15)",
+                                    color: "rgb(59, 130, 246)",
+                                  }}
+                                >
+                                  <div className="h-2 w-2 rounded-full bg-blue-500 animate-pulse"></div>
+                                  Loading...
+                                </Badge>
                               )}
                             </div>
                           </div>

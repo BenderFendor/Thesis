@@ -47,6 +47,13 @@ export interface NewsArticle {
   tags: string[]
   originalLanguage: string
   translated: boolean
+  // Preloaded queue data
+  _queueData?: {
+    fullText?: string
+    readingTimeMinutes?: number
+    aiAnalysis?: ArticleAnalysis
+    preloadedAt?: number
+  }
 }
 
 export interface BookmarkEntry {

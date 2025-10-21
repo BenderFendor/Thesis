@@ -3,11 +3,13 @@ import { NewsArticle } from "@/lib/api";
 import {
   addToReadingQueue as apiAddToQueue,
   removeFromReadingQueueByUrl as apiRemoveFromQueue,
+  analyzeArticle,
 } from "@/lib/api";
 import { toast } from "sonner";
 
 const READING_QUEUE_STORAGE_KEY = "readingQueue";
 const USE_DATABASE = process.env.NEXT_PUBLIC_USE_DB_QUEUE === "true";
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
 
 // Event emitter for cross-component updates
 type QueueListener = (articles: NewsArticle[]) => void;
@@ -20,6 +22,60 @@ function notifyQueueListeners(articles: NewsArticle[]) {
 function subscribeToQueueChanges(listener: QueueListener) {
   queueListeners.add(listener);
   return () => queueListeners.delete(listener);
+}
+
+async function preloadArticleData(article: NewsArticle): Promise<NewsArticle> {
+  // Preload AI analysis, reading time, and full text for an article.
+  try {
+    const enhancedArticle = { ...article };
+
+    // Preload full text
+    try {
+      const response = await fetch(
+        `${API_BASE_URL}/article/extract?url=${encodeURIComponent(article.url)}`
+      );
+      if (response.ok) {
+        const data = await response.json();
+        const fullText = data.text || data.full_text || null;
+        if (fullText) {
+          // Calculate reading time (230 WPM average)
+          const wordCount = fullText.trim().split(/\s+/).length;
+          const readingTimeMinutes = Math.ceil(wordCount / 230);
+
+          if (!enhancedArticle._queueData) {
+            enhancedArticle._queueData = {};
+          }
+          enhancedArticle._queueData.fullText = fullText;
+          enhancedArticle._queueData.readingTimeMinutes = readingTimeMinutes;
+        }
+      }
+    } catch (error) {
+      console.error("Failed to preload full text:", error);
+    }
+
+    // Preload AI analysis
+    try {
+      const analysis = await analyzeArticle(article.url, article.source);
+      if (analysis) {
+        if (!enhancedArticle._queueData) {
+          enhancedArticle._queueData = {};
+        }
+        enhancedArticle._queueData.aiAnalysis = analysis;
+      }
+    } catch (error) {
+      console.error("Failed to preload AI analysis:", error);
+    }
+
+    // Mark preload timestamp
+    if (enhancedArticle._queueData) {
+      enhancedArticle._queueData.preloadedAt = Date.now();
+    }
+
+    return enhancedArticle;
+  } catch (error) {
+    console.error("Error preloading article data:", error);
+    return article;
+  }
 }
 
 export function useReadingQueue() {
@@ -99,6 +155,16 @@ export function useReadingQueue() {
         toast.success("Article added to reading queue.");
         // Add new articles to the top
         return [article, ...prev];
+      });
+
+      // Preload data in background
+      const preloadedArticle = await preloadArticleData(article);
+      
+      // Update with preloaded data
+      setQueuedArticles((prev) => {
+        return prev.map((a) =>
+          a.url === article.url ? preloadedArticle : a
+        );
       });
 
       // Also sync to database if enabled
@@ -184,6 +250,43 @@ export function useReadingQueue() {
     []
   );
 
+  const preloadMissingData = useCallback(async () => {
+    // Check for articles that don't have preloaded data and preload them
+    const articlesNeedingPreload = queuedArticles.filter(
+      (a) => !a._queueData || !a._queueData.fullText || !a._queueData.aiAnalysis
+    );
+
+    if (articlesNeedingPreload.length === 0) {
+      return;
+    }
+
+    // Preload data for articles that don't have it
+    let preloadedCount = 0;
+    for (const article of articlesNeedingPreload) {
+      const preloadedArticle = await preloadArticleData(article);
+      setQueuedArticles((prev) =>
+        prev.map((a) =>
+          a.url === article.url ? preloadedArticle : a
+        )
+      );
+      preloadedCount++;
+    }
+
+    // Show completion toast
+    if (preloadedCount > 0) {
+      toast.success(
+        `Preloaded ${preloadedCount} article${preloadedCount > 1 ? "s" : ""}`
+      );
+    }
+  }, [queuedArticles]);
+
+  // Preload missing data when queue is loaded
+  useEffect(() => {
+    if (isLoaded && queuedArticles.length > 0) {
+      preloadMissingData();
+    }
+  }, [isLoaded]);
+
   return {
     queuedArticles,
     addArticleToQueue,
@@ -195,5 +298,6 @@ export function useReadingQueue() {
     goPrev,
     getArticleIndex,
     markAsRead,
+    preloadMissingData,
   };
 }
