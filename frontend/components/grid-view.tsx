@@ -26,6 +26,11 @@ import { useFavorites } from "@/hooks/useFavorites"
 
 const logger = get_logger("GridView")
 
+// Snap-scrolling sensitivity constants
+const WHEEL_JUMP_SENSITIVITY = 50 // Lower is faster
+const WHEEL_DEBOUNCE_MS = 50 // Lower is faster
+const TOUCH_VELOCITY_MULTIPLIER = 2 // Higher is faster
+
 const categories = [
   "All",
   "Politics",
@@ -159,6 +164,11 @@ export function GridView({
 
     let wheelTimeout: ReturnType<typeof setTimeout> | null = null
     const onWheel = (ev: WheelEvent) => {
+      // If at the top and scrolling up, let the browser handle it to reveal header
+      if (currentGroupIndex === 0 && ev.deltaY < 0) {
+        return
+      }
+
       if (Math.abs(ev.deltaY) < Math.abs(ev.deltaX)) return
       ev.preventDefault()
 
@@ -166,13 +176,16 @@ export function GridView({
         clearTimeout(wheelTimeout)
       }
 
-      const jumpSize = Math.max(1, Math.floor(Math.abs(ev.deltaY) / 100))
+      const jumpSize = Math.max(
+        1,
+        Math.floor(Math.abs(ev.deltaY) / WHEEL_JUMP_SENSITIVITY)
+      )
       const direction = ev.deltaY > 0 ? 1 : -1
       const targetIndex = currentGroupIndex + direction * jumpSize
 
       wheelTimeout = setTimeout(() => {
         scrollToGroup(targetIndex)
-      }, 50) // A short debounce to prevent chaotic rapid-fire calls
+      }, WHEEL_DEBOUNCE_MS)
     }
 
     let startY = 0
@@ -184,13 +197,21 @@ export function GridView({
     const onTouchEnd = (ev: TouchEvent) => {
       const endY = ev.changedTouches[0].clientY
       const endTime = Date.now()
-      const deltaY = startY - endY
+      const deltaY = startY - endY // Positive delta means swipe up (scroll down)
       const duration = endTime - startTime
+
+      // If at the top and swiping down, do nothing to allow page scroll
+      if (currentGroupIndex === 0 && deltaY < 0) {
+        return
+      }
 
       if (Math.abs(deltaY) < 50) return // Ignore small movements
 
       const velocity = Math.abs(deltaY / duration)
-      const jumpSize = Math.max(1, Math.round(velocity * 2)) // Velocity multiplier
+      const jumpSize = Math.max(
+        1,
+        Math.round(velocity * TOUCH_VELOCITY_MULTIPLIER)
+      ) // Velocity multiplier
 
       const direction = deltaY > 0 ? 1 : -1
       const targetIndex = currentGroupIndex + direction * jumpSize
@@ -358,6 +379,37 @@ export function GridView({
       (a, b) => b.articles.length - a.articles.length
     )
   }, [filteredNews])
+
+  // Preload images for nearby source groups (2 above, 2 below) to avoid black flash
+  useEffect(() => {
+    const PRELOAD_RADIUS = 2
+    if (!sourceGroups || sourceGroups.length === 0) return
+    const start = Math.max(0, currentGroupIndex - PRELOAD_RADIUS)
+    const end = Math.min(sourceGroups.length - 1, currentGroupIndex + PRELOAD_RADIUS)
+    const imgs: HTMLImageElement[] = []
+
+    for (let i = start; i <= end; i++) {
+      const group = sourceGroups[i]
+      if (!group) continue
+      const slice = group.articles.slice(0, NUM_OF_ARTICLES)
+      for (const art of slice) {
+        if (!art.image) continue
+        const img = new Image()
+        img.src = art.image
+        imgs.push(img)
+        // Warm decode when supported to avoid the black flash on snap
+        if ('decode' in img) {
+          // @ts-ignore - decode might not be in older lib defs
+          img.decode?.().catch(() => {})
+        }
+      }
+    }
+
+    return () => {
+      // Allow GC of created Image objects
+      imgs.length = 0
+    }
+  }, [currentGroupIndex, sourceGroups])
 
   if (loading) {
     return (
