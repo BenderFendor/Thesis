@@ -55,10 +55,14 @@ npm run dev
 - Follow env var contract in `docker-compose.yml` (`NEXT_PUBLIC_API_URL`, `DATABASE_URL`, `CHROMA_HOST`); mirror defaults in `frontend/lib/api.ts` where the base URLs are derived.
 
 # Formatting Guide
+Naming Conventions:
+- Use descriptive and meaningful names for variables, functions, classes, and modules.
+
+## Linting and Formatting
 Use ruff for python linting and prettier for typescript/javascript linting. Below are some key points to follow:
-- Use 4 spaces for indentation in Python and 2 spaces in JavaScript/TypeScript
+- Use 4 spaces for indentation in Python and 2 spaces for indentation in JavaScript/TypeScript
 - Limit lines to 88 characters in Python and 80 characters in JavaScript/TypeScript
-- Use single quotes for strings in Python and double quotes in JavaScript/TypeScript
+- Use single quotes for strings in Python and double quotes for strings in JavaScript/TypeScript
 - Place imports in separate lines and group them by standard library, third-party libraries, and local modules
 - Use type hints in Python for function signatures and variable declarations
 - Use semicolons at the end of statements in JavaScript/TypeScript
