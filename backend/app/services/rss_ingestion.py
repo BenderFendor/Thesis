@@ -258,6 +258,7 @@ def _process_source(
     articles: List[NewsArticle] = []
     feed_status = "success"
     error_message: str | None = None
+    sub_feed_stats: List[Dict[str, Any]] = []
 
     for url in _iter_source_urls(source_info.get("url")):
         feed_json, feed = get_rss_as_json(url, source_name)
@@ -271,6 +272,12 @@ def _process_source(
             feed_status = "error"
             error_message = f"HTTP {feed.status} error"
             logger.error("❌ HTTP %s for %s: %s", feed.status, source_name, url)
+            sub_feed_stats.append({
+                "url": url,
+                "status": "error",
+                "article_count": 0,
+                "error": f"HTTP {feed.status}"
+            })
             continue
         if getattr(feed, "bozo", False):
             feed_status = "warning"
@@ -280,15 +287,28 @@ def _process_source(
                 feed.entries, source_name, source_info
             )
             articles.extend(parsed_articles)
+            sub_feed_stats.append({
+                "url": url,
+                "status": "warning",
+                "article_count": len(parsed_articles),
+                "error": bozo_error
+            })
             logger.warning(
-                "⚠️ XML parsing issue for %s: %s (got %s articles)",
+                "⚠️ XML parsing issue for %s at %s: %s (got %s articles)",
                 source_name,
+                url,
                 bozo_error,
                 len(parsed_articles),
             )
         elif not getattr(feed, "entries", None):
             feed_status = "warning"
             error_message = "No articles found in feed"
+            sub_feed_stats.append({
+                "url": url,
+                "status": "warning",
+                "article_count": 0,
+                "error": "No entries"
+            })
             logger.warning("⚠️ No entries found for %s: %s", source_name, url)
             continue
         else:
@@ -296,6 +316,11 @@ def _process_source(
                 feed.entries, source_name, source_info
             )
             articles.extend(parsed_articles)
+            sub_feed_stats.append({
+                "url": url,
+                "status": "success",
+                "article_count": len(parsed_articles)
+            })
             logger.info(
                 "✅ Parsed %s articles from %s (%s)",
                 len(parsed_articles),
@@ -319,6 +344,8 @@ def _process_source(
         "status": feed_status,
         "error_message": error_message,
         "last_checked": datetime.now().isoformat(),
+        "is_consolidated": source_info.get("consolidate", False),
+        "sub_feeds": sub_feed_stats if source_info.get("consolidate") else None,
     }
     return articles, source_stat
 

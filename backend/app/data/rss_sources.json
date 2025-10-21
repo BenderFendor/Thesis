@@ -96,14 +96,22 @@
         "category": "general",
         "country": "US",
         "funding_type": "Non-profit",
-        "bias_rating": "Center"
+        "bias_rating": "Center",
+        "consolidate": true
     },
     "New York Times": {
-        "url": "https://rss.nytimes.com/services/xml/rss/nyt/HomePage.xml",
+        "url": [
+            "https://rss.nytimes.com/services/xml/rss/nyt/HomePage.xml",
+            "https://rss.nytimes.com/services/xml/rss/nyt/World.xml",
+            "https://rss.nytimes.com/services/xml/rss/nyt/Africa.xml",
+            "https://rss.nytimes.com/services/xml/rss/nyt/MiddleEast.xml",
+            "https://rss.nytimes.com/services/xml/rss/nyt/US.xml"
+        ],
         "category": "general",
         "country": "US",
         "funding_type": "Commercial",
-        "bias_rating": "Left"
+        "bias_rating": "Left",
+        "consolidate": true
     },
     "The Guardian": {
         "url": "https://www.theguardian.com/world/rss",
@@ -357,6 +365,171 @@
         "funding_type": "Commercial",
         "bias_rating": "Center"
     },
+    "Bloomberg": {
+        "url": [
+            "https://feeds.bloomberg.com/markets/news.rss",
+            "https://feeds.bloomberg.com/politics/news.rss",
+            "https://feeds.bloomberg.com/technology/news.rss",
+            "https://feeds.bloomberg.com/wealth/news.rss"
+        ],
+        "category": "business",
+        "country": "US",
+        "funding_type": "Commercial",
+        "bias_rating": "Center",
+        "consolidate": true
+    },
+    "Jacobin": {
+        "url": "jacobin.com/feed/rss.xml",
+        "category": "politics",
+        "country": "US",
+        "funding_type": "Independent",
+        "bias_rating": "Left"
+    },
+    "Current Affairs": {
+        "url": "https://currentaffairs.org/news/rss.xml",
+        "category": "politics",
+        "country": "US",
+        "funding_type": "Independent",
+        "bias_rating": "Left"
+    },
+    "Aeon": {
+        "url": "https://aeon.co/feed.rss",
+        "category": "general",
+        "country": "International",
+        "funding_type": "Independent",
+        "bias_rating": "Center"
+    },
+    "Responsible Statecraft": {
+        "url": "https://responsiblestatecraft.org/feed/",
+        "category": "politics",
+        "country": "US",
+        "funding_type": "Non-profit",
+        "bias_rating": "Center"
+    },
+    "Religion Dispatches": {
+        "url": "https://religiondispatches.org/feed/",
+        "category": "general",
+        "country": "US",
+        "funding_type": "Non-profit",
+        "bias_rating": "Left-Center"
+    },
+    "Common Dreams": {
+        "url": "https://www.commondreams.org/feeds/feed.rss",
+        "category": "politics",
+        "country": "US",
+        "funding_type": "Non-profit",
+        "bias_rating": "Left"
+    },
+    "Le Monde": {
+        "url": "https://www.lemonde.fr/en/rss/une.xml",
+        "category": "general",
+        "country": "FR",
+        "funding_type": "Commercial",
+        "bias_rating": "Center"
+    },
+    "ABC News": {
+        "url": "http://feeds.abcnews.com/abcnews/usheadline",
+        "category": "general",
+        "country": "US",
+        "funding_type": "Commercial",
+        "bias_rating": "Center"
+    },
+    "CBS News": {
+        "url": "https://www.cbsnews.com/latest/rss/main",
+        "category": "general",
+        "country": "US",
+        "funding_type": "Commercial",
+        "bias_rating": "Center"
+    },
+    "The Atlantic - National": {
+        "url": "https://feeds.feedburner.com/AtlanticNational",
+        "category": "general",
+        "country": "US",
+        "funding_type": "Commercial",
+        "bias_rating": "Center"
+    },
+    "The Atlantic Wire": {
+        "url": "https://feeds.feedburner.com/TheAtlanticWire",
+        "category": "general",
+        "country": "US",
+        "funding_type": "Commercial",
+        "bias_rating": "Center"
+    },
+    "The Nation": {
+        "url": [
+            "http://www.thenation.com/rss/articles",
+            "http://www.thenation.com/blogs/rss/politics",
+            "http://www.thenation.com/blogs/rss/foreign-reporting"
+        ],
+        "category": "politics",
+        "country": "US",
+        "funding_type": "Independent",
+        "bias_rating": "Left",
+        "consolidate": true
+    },
+    "Washington Times - Politics": {
+        "url": "http://www.washingtontimes.com/rss/headlines/news/politics/",
+        "category": "politics",
+        "country": "US",
+        "funding_type": "Commercial",
+        "bias_rating": "Right"
+    },
+    "RealClearPolitics": {
+        "url": "http://feeds.feedburner.com/realclearpolitics/qlMj",
+        "category": "politics",
+        "country": "US",
+        "funding_type": "Commercial",
+        "bias_rating": "Center-Right"
+    },
+    "Breitbart": {
+        "url": "http://feeds.feedburner.com/BreitbartFeed",
+        "category": "politics",
+        "country": "US",
+        "funding_type": "Commercial",
+        "bias_rating": "Right"
+    },
+    "Variety": {
+        "url": "http://variety.com/feed/",
+        "category": "entertainment",
+        "country": "US",
+        "funding_type": "Commercial",
+        "bias_rating": "Center"
+    },
+    "Leader Post": {
+        "url": "http://leaderpost.com/feed/",
+        "category": "general",
+        "country": "Canada",
+        "funding_type": "",
+        "bias_rating": ""
+    },
+    "StarPhoenix": {
+        "url": "http://thestarphoenix.com/feed/",
+        "category": "general",
+        "country": "Canada",
+        "funding_type": "",
+        "bias_rating": ""
+    },
+    "Windsor Star": {
+        "url": "http://windsorstar.com/feed/",
+        "category": "general",
+        "country": "Canada",
+        "funding_type": "",
+        "bias_rating": ""
+    },
+    "Economic Times India": {
+        "url": "https://economictimes.indiatimes.com/News/rssfeeds/1715249553.cms",
+        "category": "general",
+        "country": "India",
+        "funding_type": "Commercial",
+        "bias_rating": "Center"
+    },
+    "Oxford Mail": {
+        "url": "https://www.oxfordmail.co.uk/news/rss/",
+        "category": "general",
+        "country": "UK",
+        "funding_type": "Commercial",
+        "bias_rating": "Center"
+    },
     "NBC10 Philadelphia": {
         "url": "https://news.google.com/rss/search?q=site:nbcphiladelphia.com",
         "category": "general",
@@ -364,4 +537,5 @@
         "funding_type": "Commercial",
         "bias_rating": "Center"
     }
+
 }

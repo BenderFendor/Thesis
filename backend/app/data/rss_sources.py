@@ -12,7 +12,12 @@ with _DATA_PATH.open("r", encoding="utf-8") as _source_file:
 
 
 def get_rss_sources() -> Dict[str, Dict[str, Any]]:
-    """Load RSS sources from JSON, flattening nested URL arrays into separate sources."""
+    """
+    Load RSS sources from JSON.
+    
+    If consolidate=true, keeps multi-URL sources as single entries with list of URLs.
+    Otherwise, flattens nested URL arrays into separate numbered sources (e.g., "AP - 1", "AP - 2").
+    """
     flattened = {}
 
     for key, value in _RAW_SOURCES.items():
@@ -22,19 +27,36 @@ def get_rss_sources() -> Dict[str, Dict[str, Any]]:
 
         # Check if 'url' is a list (multiple feeds) or string (single feed)
         urls = value.get("url")
+        consolidate = value.get("consolidate", False)
 
         if isinstance(urls, list) and urls:
-            # Flatten array of URLs into separate sources
-            for idx, url in enumerate(urls, 1):
-                if isinstance(url, str) and url.strip():
-                    composite_key = f"{key} - {idx}"
-                    flattened[composite_key] = {
-                        "url": url.strip(),
+            if consolidate:
+                # Keep as single consolidated source with all URLs
+                valid_urls = [
+                    url.strip() for url in urls
+                    if isinstance(url, str) and url.strip()
+                ]
+                if valid_urls:
+                    flattened[key] = {
+                        "url": valid_urls,
                         "category": value.get("category", "general"),
                         "country": value.get("country", ""),
                         "funding_type": value.get("funding_type", ""),
                         "bias_rating": value.get("bias_rating", ""),
+                        "consolidate": True,
                     }
+            else:
+                # Flatten array of URLs into separate sources
+                for idx, url in enumerate(urls, 1):
+                    if isinstance(url, str) and url.strip():
+                        composite_key = f"{key} - {idx}"
+                        flattened[composite_key] = {
+                            "url": url.strip(),
+                            "category": value.get("category", "general"),
+                            "country": value.get("country", ""),
+                            "funding_type": value.get("funding_type", ""),
+                            "bias_rating": value.get("bias_rating", ""),
+                        }
         elif isinstance(urls, str) and urls.strip():
             # Single URL source
             flattened[key] = {

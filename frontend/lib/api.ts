@@ -592,6 +592,7 @@ export interface SourceDebugData {
   source_name: string;
   source_config: any;
   rss_url: string;
+  all_urls?: string[];
   feed_metadata: {
     title: string;
     description: string;
@@ -621,7 +622,25 @@ export interface SourceDebugData {
     raw_entry_keys: string[];
   }>;
   cached_articles: any[];
-  source_statistics: any;
+  source_statistics?: {
+    name: string;
+    url: string | string[];
+    category: string;
+    country: string;
+    funding_type: string;
+    bias_rating: string;
+    article_count: number;
+    status: string;
+    error_message: string | null;
+    last_checked: string;
+    is_consolidated?: boolean;
+    sub_feeds?: Array<{
+      url: string;
+      status: "success" | "warning" | "error";
+      article_count: number;
+      error?: string;
+    }>;
+  } | null;
   debug_timestamp: string;
   image_analysis: {
     total_entries: number;

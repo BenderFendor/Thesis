@@ -193,6 +193,46 @@ export default function SourceDebugPage({ params }: { params: { source: string }
           </CardContent>
         </details>
 
+        {debugData.source_statistics?.is_consolidated && debugData.source_statistics?.sub_feeds && debugData.source_statistics.sub_feeds.length > 0 && (
+          <details open>
+            <summary className="cursor-pointer">
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <Globe className="w-5 h-5" />
+                  Sub-Feeds ({debugData.source_statistics.sub_feeds.length})
+                </CardTitle>
+              </CardHeader>
+            </summary>
+            <CardContent>
+              <div className="space-y-3">
+                {debugData.source_statistics.sub_feeds.map((subFeed, idx) => (
+                  <div key={idx} className="border border-muted rounded-lg p-3">
+                    <div className="flex items-start justify-between mb-2">
+                      <a
+                        href={subFeed.url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-sm font-mono text-blue-400 hover:underline truncate"
+                      >
+                        {subFeed.url}
+                      </a>
+                      <Badge
+                        variant={subFeed.status === "success" ? "default" : "secondary"}
+                      >
+                        {subFeed.status}
+                      </Badge>
+                    </div>
+                    <p className="text-xs text-muted-foreground">
+                      {subFeed.article_count} articles
+                      {subFeed.error && ` • Error: ${subFeed.error}`}
+                    </p>
+                  </div>
+                ))}
+              </div>
+            </CardContent>
+          </details>
+        )}
+
         {debugData.image_analysis && (
           <details>
             <summary className="cursor-pointer">
