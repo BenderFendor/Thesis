@@ -5,6 +5,7 @@ from typing import TypedDict
 
 try:
     import psutil
+
     PSUTIL_AVAILABLE = True
 except ImportError:
     PSUTIL_AVAILABLE = False
@@ -12,6 +13,7 @@ except ImportError:
 
 class ResourceConfig(TypedDict):
     """System resource allocation configuration."""
+
     cpu_workers: int
     fetch_concurrency: int
     fetch_queue_size: int
@@ -23,20 +25,20 @@ class ResourceConfig(TypedDict):
 def get_system_resources() -> ResourceConfig:
     """
     Dynamically tune pipeline settings based on system RAM and CPU.
-    
+
     Returns optimized configuration for RSS ingestion pipeline based on
     available system resources.
     """
     # Get CPU count
     cpu_cores = os.cpu_count() or 2
-    
+
     # Get RAM (fallback to conservative estimate if psutil unavailable)
     if PSUTIL_AVAILABLE:
         total_ram_gb = psutil.virtual_memory().total / (1024**3)
     else:
         # Conservative fallback: assume 8GB
         total_ram_gb = 8.0
-    
+
     # --- ProcessPoolExecutor Workers (CPU-bound parsing) ---
     # Reserve cores for FastAPI, databases, and OS
     if total_ram_gb <= 8 and cpu_cores > 2:
@@ -48,7 +50,7 @@ def get_system_resources() -> ResourceConfig:
     else:
         # Very low resources: 4GB, 2 cores → 1 worker
         cpu_workers = 1
-    
+
     # --- HTTP Fetch Concurrency (Network I/O) ---
     # This is separate from CPU workers - async can handle many more
     if total_ram_gb <= 8:
@@ -57,7 +59,7 @@ def get_system_resources() -> ResourceConfig:
         fetch_concurrency = 25  # Medium desktop
     else:
         fetch_concurrency = 40  # High-end server
-    
+
     # --- Queue Sizes (Backpressure management) ---
     # Smaller queues on low-RAM systems prevent memory exhaustion
     if total_ram_gb <= 8:
@@ -70,7 +72,7 @@ def get_system_resources() -> ResourceConfig:
         parse_queue_size = 100
         persist_queue_size = 200
         persist_batch_size = 200  # Larger batches for efficiency
-    
+
     return ResourceConfig(
         cpu_workers=cpu_workers,
         fetch_concurrency=fetch_concurrency,

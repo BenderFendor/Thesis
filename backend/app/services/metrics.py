@@ -8,25 +8,25 @@ from typing import Dict
 @dataclass
 class PipelineMetrics:
     """Metrics for RSS ingestion pipeline."""
-    
+
     fetch_count: int = 0
     fetch_errors: int = 0
     parse_count: int = 0
     parse_errors: int = 0
     persist_count: int = 0
     persist_errors: int = 0
-    
+
     start_time: datetime = field(default_factory=datetime.now)
     end_time: datetime | None = None
-    
+
     queue_sizes: Dict[str, int] = field(default_factory=dict)
-    
+
     def duration_seconds(self) -> float:
         """Calculate total pipeline duration."""
         if self.end_time is None:
             return (datetime.now() - self.start_time).total_seconds()
         return (self.end_time - self.start_time).total_seconds()
-    
+
     def to_dict(self) -> Dict:
         """Convert to dictionary for logging/API."""
         return {

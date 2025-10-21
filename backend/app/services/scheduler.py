@@ -11,13 +11,13 @@ logger = get_logger("scheduler")
 async def periodic_rss_refresh(interval_seconds: int = 600) -> None:
     """
     Periodic task that refreshes RSS cache every N seconds.
-    
+
     This runs as a background asyncio.Task in the main event loop.
     """
     from app.services.rss_ingestion import refresh_news_cache_async
-    
+
     logger.info("Starting periodic RSS refresh (interval: %ds)", interval_seconds)
-    
+
     while True:
         try:
             await asyncio.sleep(interval_seconds)

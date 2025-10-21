@@ -80,14 +80,14 @@ def _register_background_task(task: asyncio.Task[Any]) -> None:
 def _handle_shutdown_signal(signum, frame):
     """Handle SIGTERM/SIGINT for graceful shutdown."""
     logger.info("Received shutdown signal %s", signum)
-    
+
     if _shutdown_event:
         _shutdown_event.set()
-    
+
     if _process_pool:
         logger.info("Shutting down process pool...")
         _process_pool.shutdown(wait=True, cancel_futures=True)
-    
+
     logger.info("Shutdown complete")
 
 
@@ -162,8 +162,7 @@ async def on_startup() -> None:
 
     # 🔄 Start async RSS refresh scheduler (new optimized approach)
     scheduler_task = asyncio.create_task(
-        periodic_rss_refresh(interval_seconds=600),
-        name="rss_refresh_scheduler"
+        periodic_rss_refresh(interval_seconds=600), name="rss_refresh_scheduler"
     )
     _register_background_task(scheduler_task)
 
@@ -175,10 +174,9 @@ async def on_startup() -> None:
             await refresh_news_cache_async()
         except Exception as exc:  # pragma: no cover
             logger.error("Background RSS refresh failed: %s", exc, exc_info=True)
-    
+
     refresh_task = asyncio.create_task(
-        start_background_rss_refresh_async(),
-        name="initial_rss_refresh"
+        start_background_rss_refresh_async(), name="initial_rss_refresh"
     )
     _register_background_task(refresh_task)
 

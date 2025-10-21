@@ -281,12 +281,14 @@ def _process_source(
             feed_status = "error"
             error_message = f"HTTP {feed.status} error"
             logger.error("❌ HTTP %s for %s: %s", feed.status, source_name, url)
-            sub_feed_stats.append({
-                "url": url,
-                "status": "error",
-                "article_count": 0,
-                "error": f"HTTP {feed.status}"
-            })
+            sub_feed_stats.append(
+                {
+                    "url": url,
+                    "status": "error",
+                    "article_count": 0,
+                    "error": f"HTTP {feed.status}",
+                }
+            )
             continue
         if getattr(feed, "bozo", False):
             feed_status = "warning"
@@ -296,12 +298,14 @@ def _process_source(
                 feed.entries, source_name, source_info
             )
             articles.extend(parsed_articles)
-            sub_feed_stats.append({
-                "url": url,
-                "status": "warning",
-                "article_count": len(parsed_articles),
-                "error": bozo_error
-            })
+            sub_feed_stats.append(
+                {
+                    "url": url,
+                    "status": "warning",
+                    "article_count": len(parsed_articles),
+                    "error": bozo_error,
+                }
+            )
             logger.warning(
                 "⚠️ XML parsing issue for %s at %s: %s (got %s articles)",
                 source_name,
@@ -312,12 +316,14 @@ def _process_source(
         elif not getattr(feed, "entries", None):
             feed_status = "warning"
             error_message = "No articles found in feed"
-            sub_feed_stats.append({
-                "url": url,
-                "status": "warning",
-                "article_count": 0,
-                "error": "No entries"
-            })
+            sub_feed_stats.append(
+                {
+                    "url": url,
+                    "status": "warning",
+                    "article_count": 0,
+                    "error": "No entries",
+                }
+            )
             logger.warning("⚠️ No entries found for %s: %s", source_name, url)
             continue
         else:
@@ -325,11 +331,9 @@ def _process_source(
                 feed.entries, source_name, source_info
             )
             articles.extend(parsed_articles)
-            sub_feed_stats.append({
-                "url": url,
-                "status": "success",
-                "article_count": len(parsed_articles)
-            })
+            sub_feed_stats.append(
+                {"url": url, "status": "success", "article_count": len(parsed_articles)}
+            )
             logger.info(
                 "✅ Parsed %s articles from %s (%s)",
                 len(parsed_articles),
@@ -390,26 +394,26 @@ def _blocking_parse_feed(
 ) -> Tuple[List[NewsArticle], Dict[str, Any]]:
     """
     CPU-bound parsing function to run in ProcessPoolExecutor.
-    
+
     This function does ALL the heavy lifting:
     - feedparser.parse() (GIL-blocking)
     - Entry iteration and cleaning
     - NewsArticle object construction
-    
+
     Args:
         raw_xml: Raw XML string from RSS feed
         source_name: Name of the source
         source_info: Metadata dict for the source
-    
+
     Returns:
         Tuple of (articles, source_stat)
     """
     import feedparser
     from datetime import datetime
-    
+
     # Parse the feed (CPU-bound, GIL-blocking)
     feed = feedparser.parse(raw_xml)
-    
+
     # Build source stat
     source_stat = {
         "name": source_name,
@@ -422,21 +426,23 @@ def _blocking_parse_feed(
         "article_count": 0,
         "last_checked": datetime.now().isoformat(),
     }
-    
+
     # Check for errors
     if hasattr(feed, "status") and feed.status >= 400:
         source_stat["status"] = "error"
         source_stat["error_message"] = f"HTTP {feed.status}"
         return [], source_stat
-    
+
     if getattr(feed, "bozo", False):
         source_stat["status"] = "warning"
-        source_stat["error_message"] = str(getattr(feed, "bozo_exception", "Parse error"))
-    
+        source_stat["error_message"] = str(
+            getattr(feed, "bozo_exception", "Parse error")
+        )
+
     # Parse entries (reuse existing parse_rss_feed_entries logic)
     articles = parse_rss_feed_entries(feed.entries, source_name, source_info)
     source_stat["article_count"] = len(articles)
-    
+
     return articles, source_stat
 
 
@@ -448,11 +454,11 @@ async def _fetch_worker(
 ) -> None:
     """
     Async worker that fetches RSS feeds and queues them for parsing.
-    
+
     Uses semaphore to limit concurrent connections.
     """
     metrics = get_metrics()
-    
+
     while not _shutdown_event.is_set():
         try:
             # Get next source from queue (with timeout to check shutdown)
@@ -462,10 +468,10 @@ async def _fetch_worker(
                 )
             except asyncio.TimeoutError:
                 continue  # Check shutdown flag and retry
-            
+
             if source_name is None:  # Poison pill
                 break
-            
+
             # Acquire semaphore slot
             async with semaphore:
                 try:
@@ -478,12 +484,12 @@ async def _fetch_worker(
                     )
                     response.raise_for_status()
                     raw_xml = response.text
-                    
+
                     metrics.fetch_count += 1
-                    
+
                     # Queue for parsing
                     await parse_queue.put((raw_xml, source_name, source_info))
-                    
+
                 except Exception as e:
                     logger.error("Fetch failed for %s: %s", source_name, e)
                     metrics.fetch_errors += 1
@@ -496,10 +502,10 @@ async def _fetch_worker(
                     }
                     # Skip parsing, go straight to persistence (for stat tracking)
                     await parse_queue.put((None, source_name, error_stat))
-                
+
                 finally:
                     fetch_queue.task_done()
-        
+
         except Exception as e:
             logger.error("Fetch worker error: %s", e)
 
@@ -514,7 +520,7 @@ async def _parse_worker(
     """
     loop = asyncio.get_running_loop()
     metrics = get_metrics()
-    
+
     while not _shutdown_event.is_set():
         try:
             # Get next item from queue
@@ -522,19 +528,19 @@ async def _parse_worker(
                 item = await asyncio.wait_for(parse_queue.get(), timeout=1.0)
             except asyncio.TimeoutError:
                 continue
-            
+
             if item is None:  # Poison pill
                 break
-            
+
             raw_xml, source_name, source_info = item
-            
+
             # If raw_xml is None, this is an error from fetch_worker
             if raw_xml is None:
                 # source_info is actually the error_stat
                 await persist_queue.put(([], source_info))
                 parse_queue.task_done()
                 continue
-            
+
             try:
                 # Offload to process pool (releases GIL)
                 articles, stat = await loop.run_in_executor(
@@ -544,12 +550,12 @@ async def _parse_worker(
                     source_name,
                     source_info,
                 )
-                
+
                 metrics.parse_count += 1
-                
+
                 # Queue for persistence
                 await persist_queue.put((articles, stat))
-            
+
             except Exception as e:
                 logger.error("Parse failed for %s: %s", source_name, e)
                 metrics.parse_errors += 1
@@ -560,10 +566,10 @@ async def _parse_worker(
                     "article_count": 0,
                 }
                 await persist_queue.put(([], error_stat))
-            
+
             finally:
                 parse_queue.task_done()
-        
+
         except Exception as e:
             logger.error("Parse worker error: %s", e)
 
@@ -575,19 +581,19 @@ async def _persist_worker(
 ) -> None:
     """
     Worker that batches articles and persists to PostgreSQL + ChromaDB.
-    
+
     Provides instant UI feedback via callback, then batches for efficiency.
     """
     loop = asyncio.get_running_loop()
     metrics = get_metrics()
     article_batch: List[NewsArticle] = []
     stats_batch: List[Dict[str, Any]] = []
-    
+
     async def _flush_batch():
         """Helper to persist current batch."""
         if not article_batch:
             return
-        
+
         try:
             # Offload blocking DB writes to thread pool
             await loop.run_in_executor(
@@ -604,7 +610,7 @@ async def _persist_worker(
         finally:
             article_batch.clear()
             stats_batch.clear()
-    
+
     while not _shutdown_event.is_set():
         try:
             # Get next item
@@ -615,30 +621,30 @@ async def _persist_worker(
                 if article_batch:
                     await _flush_batch()
                 continue
-            
+
             if item is None:  # Poison pill
                 # Flush final batch and exit
                 await _flush_batch()
                 break
-            
+
             articles, stat = item
-            
+
             # --- 1. Instant UI Feedback ---
             if source_progress_callback:
                 try:
                     source_progress_callback(articles, stat)
                 except Exception as e:
                     logger.error("Progress callback error: %s", e)
-            
+
             # --- 2. Batch for DB Efficiency ---
             article_batch.extend(articles)
             stats_batch.append(stat)
-            
+
             if len(article_batch) >= batch_size:
                 await _flush_batch()
-            
+
             persist_queue.task_done()
-        
+
         except Exception as e:
             logger.error("Persist worker error: %s", e)
 
@@ -648,54 +654,54 @@ async def refresh_news_cache_async(
 ) -> None:
     """
     Async RSS refresh using fetch → parse → persist pipeline.
-    
+
     This replaces the old ThreadPoolExecutor approach with:
     - Async HTTP fetching (many concurrent)
     - Process pool parsing (bypasses GIL)
     - Batched persistence (efficient DB writes)
     """
     global _shutdown_event, _process_pool, _resources
-    
+
     if news_cache.update_in_progress:
         logger.info("Cache update already in progress, skipping...")
         return
-    
+
     news_cache.update_in_progress = True
     _shutdown_event = asyncio.Event()
     reset_metrics()
-    
+
     # Get resource configuration
     if _resources is None:
         _resources = get_system_resources()
         logger.info("Resource config: %s", _resources)
-    
+
     # Initialize process pool (once)
     if _process_pool is None:
         _process_pool = ProcessPoolExecutor(max_workers=_resources["cpu_workers"])
-    
+
     # Create queues
     fetch_queue = asyncio.Queue(maxsize=_resources["fetch_queue_size"])
     parse_queue = asyncio.Queue(maxsize=_resources["parse_queue_size"])
     persist_queue = asyncio.Queue(maxsize=_resources["persist_queue_size"])
-    
+
     # Create semaphore for fetch concurrency
     fetch_semaphore = asyncio.Semaphore(_resources["fetch_concurrency"])
-    
+
     # Create HTTP client with retries
     http_client = httpx.AsyncClient(
         timeout=httpx.Timeout(25.0),
         transport=httpx.AsyncHTTPTransport(retries=3),
         headers={"User-Agent": "ThesisNewsBot/1.0 (+https://example.com)"},
     )
-    
+
     all_articles: List[NewsArticle] = []
     source_stats: List[Dict[str, Any]] = []
-    
+
     def collect_results(articles: List[NewsArticle], stat: Dict[str, Any]) -> None:
         """Collect results from persist worker."""
         all_articles.extend(articles)
         source_stats.append(stat)
-    
+
     # Wrap callback to also collect results
     def combined_callback(articles: List[NewsArticle], stat: Dict[str, Any]) -> None:
         collect_results(articles, stat)
@@ -704,63 +710,63 @@ async def refresh_news_cache_async(
                 source_progress_callback(articles, stat)
             except Exception as e:
                 logger.error("Progress callback error: %s", e)
-    
+
     try:
         # Start worker tasks
         fetch_workers = [
             asyncio.create_task(
                 _fetch_worker(fetch_queue, parse_queue, fetch_semaphore, http_client),
-                name=f"fetch-worker-{i}"
+                name=f"fetch-worker-{i}",
             )
             for i in range(_resources["fetch_concurrency"])
         ]
-        
+
         parse_workers = [
             asyncio.create_task(
                 _parse_worker(parse_queue, persist_queue, _process_pool),
-                name=f"parse-worker-{i}"
+                name=f"parse-worker-{i}",
             )
             for i in range(_resources["cpu_workers"])
         ]
-        
+
         persist_worker = asyncio.create_task(
             _persist_worker(
-                persist_queue,
-                combined_callback,
-                _resources["persist_batch_size"]
+                persist_queue, combined_callback, _resources["persist_batch_size"]
             ),
-            name="persist-worker"
+            name="persist-worker",
         )
-        
+
         # Load sources and enqueue
         rss_sources = get_rss_sources()
         for source_name, source_info in rss_sources.items():
             await fetch_queue.put((source_name, source_info))
-        
+
         # Wait for all queues to empty
         await fetch_queue.join()
         await parse_queue.join()
         await persist_queue.join()
-        
+
         # Send poison pills
         for _ in fetch_workers:
             await fetch_queue.put((None, None))
         for _ in parse_workers:
             await parse_queue.put(None)
         await persist_queue.put(None)
-        
+
         # Wait for workers to finish
         await asyncio.gather(*fetch_workers, *parse_workers, persist_worker)
-        
+
         # Update cache with all collected articles
         try:
             all_articles.sort(key=lambda article: article.published, reverse=True)
         except Exception:
             pass
-        
+
         news_cache.update_cache(all_articles, source_stats)
-        logger.info("✅ Async cache refresh complete: %s total articles", len(all_articles))
-        
+        logger.info(
+            "✅ Async cache refresh complete: %s total articles", len(all_articles)
+        )
+
         # Notify clients via WebSocket
         async def notify_clients() -> None:
             await manager.broadcast(
@@ -774,19 +780,19 @@ async def refresh_news_cache_async(
                     },
                 }
             )
-        
+
         try:
             await notify_clients()
         except Exception as e:
             logger.error("Failed to notify clients: %s", e)
-        
+
         metrics = get_metrics()
         metrics.end_time = datetime.now()
         logger.info("📊 Pipeline metrics: %s", metrics.to_dict())
-    
+
     except Exception as e:
         logger.error("Async cache refresh failed: %s", e, exc_info=True)
-    
+
     finally:
         await http_client.aclose()
         news_cache.update_in_progress = False
