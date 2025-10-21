@@ -28,6 +28,7 @@ def calculate_read_time(text: Optional[str]) -> Optional[int]:
     if word_count == 0:
         return None
     import math
+
     return math.ceil(word_count / AVERAGE_READING_SPEED)
 
 
@@ -42,6 +43,12 @@ async def add_to_queue(
     session: AsyncSession, request: AddToQueueRequest, user_id: int = 1
 ) -> ReadingQueueItemSchema:
     """Add an article to the reading queue."""
+    from app.services.article_extraction import (
+        extract_article_full_text,
+        calculate_word_count,
+        calculate_read_time_minutes,
+    )
+
     # Check if article already exists in queue
     existing = await session.execute(
         select(ReadingQueueItem).where(
@@ -63,6 +70,29 @@ async def add_to_queue(
     max_position_item = max_pos.scalar_one_or_none()
     new_position = (max_position_item.position + 1) if max_position_item else 0
 
+    # Extract full text and calculate metrics
+    full_text = None
+    word_count = None
+    estimated_read_time = None
+
+    try:
+        extraction_result = await extract_article_full_text(request.article_url)
+        if extraction_result.get("success"):
+            full_text = extraction_result.get("text")
+            word_count = calculate_word_count(full_text)
+            estimated_read_time = calculate_read_time_minutes(full_text)
+            logger.info(
+                "Extracted %d words from %s",
+                word_count or 0,
+                request.article_url,
+            )
+    except Exception as e:
+        logger.warning(
+            "Could not extract full text from %s: %s",
+            request.article_url,
+            e,
+        )
+
     queue_item = ReadingQueueItem(
         user_id=user_id,
         article_id=request.article_id,
@@ -74,6 +104,9 @@ async def add_to_queue(
         position=new_position,
         read_status="unread",
         added_at=datetime.utcnow(),
+        full_text=full_text,
+        word_count=word_count,
+        estimated_read_time_minutes=estimated_read_time,
     )
 
     session.add(queue_item)
@@ -189,9 +222,7 @@ async def move_expired_to_permanent(session: AsyncSession, user_id: int = 1) -> 
 
     await session.commit()
 
-    logger.info(
-        "Moved %d items from daily to permanent queue", len(expired_items)
-    )
+    logger.info("Moved %d items from daily to permanent queue", len(expired_items))
     return len(expired_items)
 
 
@@ -223,9 +254,7 @@ async def archive_completed_items(session: AsyncSession, user_id: int = 1) -> in
 async def remove_by_url(session: AsyncSession, article_url: str) -> bool:
     """Remove an item from queue by article URL."""
     result = await session.execute(
-        select(ReadingQueueItem).where(
-            ReadingQueueItem.article_url == article_url
-        )
+        select(ReadingQueueItem).where(ReadingQueueItem.article_url == article_url)
     )
     queue_item = result.scalar_one_or_none()
 
@@ -239,9 +268,7 @@ async def remove_by_url(session: AsyncSession, article_url: str) -> bool:
     return True
 
 
-async def get_queue_overview(
-    session: AsyncSession, user_id: int = 1
-) -> dict:
+async def get_queue_overview(session: AsyncSession, user_id: int = 1) -> dict:
     """Get queue statistics and overview."""
     from app.api.routes.reading_queue import QueueOverviewResponse
 
@@ -273,3 +300,68 @@ async def get_queue_overview(
         completed_count=completed_count,
         estimated_total_read_time_minutes=total_read_time,
     )
+
+
+async def get_queue_item_by_id(
+    session: AsyncSession, queue_id: int, user_id: int = 1
+) -> Optional[ReadingQueueItemSchema]:
+    """Get a single queue item by ID."""
+    result = await session.execute(
+        select(ReadingQueueItem).where(
+            and_(
+                ReadingQueueItem.id == queue_id,
+                ReadingQueueItem.user_id == user_id,
+            )
+        )
+    )
+    queue_item = result.scalar_one_or_none()
+    if queue_item:
+        return ReadingQueueItemSchema.from_attributes(queue_item)
+    return None
+
+
+async def generate_daily_digest(session: AsyncSession, user_id: int = 1) -> dict:
+    """
+    Generate a daily digest of queue items.
+
+    Returns:
+        - digest_items: Top unread items for daily summary
+        - total_items: Total items in queue
+        - estimated_read_time: Total estimated read time for digest
+    """
+    result = await session.execute(
+        select(ReadingQueueItem)
+        .where(
+            and_(
+                ReadingQueueItem.user_id == user_id,
+                ReadingQueueItem.read_status == "unread",
+                ReadingQueueItem.queue_type == "daily",
+            )
+        )
+        .order_by(ReadingQueueItem.position.desc())
+        .limit(5)  # Top 5 items for digest
+    )
+    digest_items = result.scalars().all()
+
+    # Get all queue items for stats
+    all_items_result = await session.execute(
+        select(ReadingQueueItem).where(ReadingQueueItem.user_id == user_id)
+    )
+    all_items = all_items_result.scalars().all()
+
+    estimated_read_time = sum(
+        (item.estimated_read_time_minutes or 0)
+        for item in all_items
+        if item.read_status == "unread"
+    )
+
+    digest_schema_items = [
+        ReadingQueueItemSchema.from_attributes(item) for item in digest_items
+    ]
+
+    return {
+        "digest_items": digest_schema_items,
+        "total_items": len(all_items),
+        "estimated_read_time_minutes": estimated_read_time,
+        "generated_at": datetime.utcnow().isoformat(),
+    }

@@ -48,6 +48,71 @@ So for this you can like click on an article and it like parses the article and 
   - Fact-check suggestions
   - AI-generated summary
 - ✅ Environment variable configuration for GEMINI_API_KEY
+
+# Reading Queue Enhancements ✅ COMPLETED
+Full reading queue enhancement implementation with distraction-free reader, highlights, digest, and navigation.
+
+## Implementation Details:
+- ✅ **Distraction-Free Reader**: `frontend/app/reader/[id]/page.tsx` with clean UI and keyboard navigation
+  - Arrow keys (←/→, ↑/↓) navigate articles
+  - Enter marks article as read
+  - Esc returns to queue
+  - Progress indicator in footer
+  - Feature-gated: `NEXT_PUBLIC_ENABLE_READER_MODE`
+
+- ✅ **Article Extraction Service**: `backend/app/services/article_extraction.py`
+  - Async full-text extraction using newspaper3k
+  - Word count calculation
+  - Read time estimation (formula: ⌈word_count / 230⌉ minutes)
+  - Graceful degradation on extraction failure
+
+- ✅ **Highlight System**: Complete selection-based annotations
+  - Colors: Yellow, Blue, Red
+  - Database persistence with character ranges
+  - Floating toolbar on text selection
+  - Highlight list panel with edit/delete
+  - Notes support for each highlight
+  - `backend/app/services/highlights.py` for CRUD
+  - Feature-gated: `NEXT_PUBLIC_ENABLE_HIGHLIGHTS`
+
+- ✅ **Daily Digest**: `GET /api/queue/digest/daily`
+  - Top 5 unread articles preview
+  - Estimated read time summary
+  - Scheduling UI with localStorage persistence
+  - DigestCard component in sidebar
+  - Feature-gated: `NEXT_PUBLIC_ENABLE_DIGEST`
+
+- ✅ **Queue Overview Card**: Real-time statistics dashboard
+  - Total items, daily/permanent split
+  - Unread/reading/completed breakdown
+  - Estimated read time for unread items
+  - 30-second refresh interval
+  - `frontend/components/queue-overview-card.tsx`
+
+- ✅ **Read-Time Badges**: `frontend/components/read-time-badge.tsx`
+  - Compact and full view modes
+  - Word count and time display
+  - Integrated into reader header
+
+- ✅ **Backend Enhancements**:
+  - `GET /api/queue/{id}/content` - Full article for reader
+  - `GET /api/queue/overview` - Queue statistics
+  - `GET /api/queue/digest/daily` - Daily digest
+  - Highlight endpoints: POST/GET/PATCH/DELETE `/api/queue/highlights/*`
+  - Queue service methods: `get_queue_item_by_id()`, `generate_daily_digest()`
+
+- ✅ **API Integration**: `frontend/lib/api.ts`
+  - Feature gate constants
+  - New functions: `getQueueItemContent()`, `getDailyDigest()`, `getQueueOverview()`
+
+- ✅ **Testing**: Comprehensive test coverage
+  - Backend: `backend/test_reading_queue.py` - 10+ async tests
+  - Frontend: `frontend/__tests__/reading-queue.test.tsx` - Component tests
+  
+- ✅ **Code Quality**:
+  - Ruff formatting (8 files reformatted)
+  - ESLint resolution and React hook fixes
+  - Database schema already includes all required columns
 - ✅ Documentation updated in README.md
 
 # Free LLM APIs 

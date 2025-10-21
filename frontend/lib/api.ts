@@ -8,6 +8,11 @@ const DOCKER_API_BASE_URL = process.env.NEXT_PUBLIC_DOCKER_API_URL || API_BASE_U
 // Which uses 8001 instead of 8000 to avoid conflict with Next.js dev server
 // (In production, both frontend and backend would be served from the same origin)
 
+// --- Feature Gates ---
+export const ENABLE_READER_MODE = process.env.NEXT_PUBLIC_ENABLE_READER_MODE === "true"
+export const ENABLE_DIGEST = process.env.NEXT_PUBLIC_ENABLE_DIGEST === "true"
+export const ENABLE_HIGHLIGHTS = process.env.NEXT_PUBLIC_ENABLE_HIGHLIGHTS === "true"
+
 // --- Data Types ---
 
 // Data types
@@ -1757,3 +1762,62 @@ export async function deleteHighlight(highlightId: number): Promise<void> {
   }
 }
 
+// --- Reading Queue Content & Digest ---
+
+export interface QueueItemContent {
+  id: number
+  article_url: string
+  article_title: string
+  article_source: string
+  full_text: string
+  word_count?: number
+  estimated_read_time_minutes?: number
+  read_status: string
+}
+
+export interface QueueDigest {
+  digest_items: ReadingQueueItem[]
+  total_items: number
+  estimated_read_time_minutes: number
+  generated_at: string
+}
+
+export async function getQueueItemContent(queueId: number): Promise<QueueItemContent> {
+  try {
+    const response = await fetch(`${API_BASE_URL}/api/queue/${queueId}/content`, {
+      method: 'GET',
+      headers: { 'Content-Type': 'application/json' },
+    })
+
+    if (!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status}`)
+    }
+
+    const data = await response.json()
+    console.log('✅ Queue item content retrieved:', data)
+    return data
+  } catch (error) {
+    console.error('❌ Failed to fetch queue item content:', error)
+    throw error
+  }
+}
+
+export async function getDailyDigest(): Promise<QueueDigest> {
+  try {
+    const response = await fetch(`${API_BASE_URL}/api/queue/digest/daily`, {
+      method: 'GET',
+      headers: { 'Content-Type': 'application/json' },
+    })
+
+    if (!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status}`)
+    }
+
+    const data = await response.json()
+    console.log('✅ Daily digest retrieved:', data)
+    return data
+  } catch (error) {
+    console.error('❌ Failed to fetch daily digest:', error)
+    throw error
+  }
+}

@@ -1,71 +1,184 @@
 # Log
 
-## 2025-10-20: Reading Queue Enhancements - Phase 1
+## 2025-10-20: Reading Queue Enhancements - Phase 1 Complete
 
 ### Overview
-Implemented comprehensive reading queue improvements to support distraction-free reading, keyboard navigation, highlights, and queue management.
+Implemented comprehensive reading queue improvements to support distraction-free reading, keyboard navigation, highlights, queue management, and digest generation.
 
-### Features Added
+### Completed Features
 
-#### 1. **Extended Data Model**
-- Added `word_count`, `estimated_read_time_minutes`, and `full_text` columns to `ReadingQueueItem` in both Pydantic model and database
-- Added new `Highlight` model for storing user annotations
+#### 1. **Extended Data Model** ✅
+- Added `word_count`, `estimated_read_time_minutes`, and `full_text` columns to `ReadingQueueItem`
+- Database schema already includes these columns
 - Formula for read time: $\text{minutes} = \lceil \frac{\text{word\_count}}{230} \rceil$ (avg adult reading speed)
+- New `Highlight` model for storing user annotations with color coding and notes
 
-#### 2. **Navigation Enhancements**
-- Extended `useReadingQueue` hook with new methods:
+#### 2. **Navigation Enhancements** ✅
+- Extended `useReadingQueue` hook with existing methods:
   - `goNext(index)` - Navigate to next unread article
   - `goPrev(index)` - Navigate to previous article  
   - `getCurrentArticle(index)` - Get article at index
   - `getArticleIndex(url)` - Find article index by URL
   - `markAsRead(url)` - Mark article as completed
 
-#### 3. **Distraction-Free Reader Mode**
-- Created `frontend/app/reader/page.tsx` with full-screen reading interface
+#### 3. **Distraction-Free Reader Mode** ✅
+- Created `frontend/app/reader/[id]/page.tsx` with full-screen reading interface
 - **Keyboard Shortcuts**:
-  - `ArrowRight` - Next article
-  - `ArrowLeft` - Previous article
+  - `→/↓` - Next article
+  - `←/↑` - Previous article
+  - `Enter` - Mark as read
+  - `Esc` - Return to queue
 - **Features**:
   - Clean, typography-optimized layout
-  - Article metadata (source, publish date)
+  - Article metadata (source, read time, word count)
   - Full article content rendering
   - Navigation footer with progress indicator
+  - Feature-gated via `NEXT_PUBLIC_ENABLE_READER_MODE`
 
-#### 4. **Highlight System**
-- Added highlight creation, storage, and management
+#### 4. **Highlight System** ✅
+- Implemented highlight creation, storage, and management via `backend/app/services/highlights.py`
 - **Highlight Colors**: Yellow, Blue, Red
-- **Storage**: LocalStorage for client-side persistence + optional database sync
-- **Highlight Toolbar**: 
-  - Appears on text selection
-  - Color picker
+- **Storage**: Database persistence with character range tracking
+- **Highlight Toolbar** (`frontend/components/highlight-toolbar.tsx`):
+  - Floating toolbar appears on text selection
+  - Color picker for highlight categories
   - Optional notes for each highlight
-  - Delete functionality
-- **Highlights List**: Shows all highlights for current article with source links
+  - Delete and update functionality
+  - Highlights list panel showing all annotations
+- CRUD endpoints: `POST/GET/PATCH/DELETE /api/queue/highlights`
+- Feature-gated via `NEXT_PUBLIC_ENABLE_HIGHLIGHTS`
 
-#### 5. **Queue Overview & Statistics**
+#### 5. **Queue Overview & Statistics** ✅
 - New `GET /api/queue/overview` endpoint returning:
   - Total items count
   - Daily vs permanent split
   - Unread/reading/completed breakdown
   - Estimated total read time for unread articles
-- Created `QueueOverviewCard` component for sidebar integration
-- Real-time stats with 30-second refresh interval
+- `QueueOverviewCard` component displaying metrics in dashboard
+- Real-time updates via 30-second refresh interval
 
-#### 6. **Backend Highlights API** (`/api/queue/highlights/*`)
-- `POST /highlights` - Create highlight
-- `GET /highlights` - Get all highlights
-- `GET /highlights/article/{url}` - Get highlights for article
-- `PATCH /highlights/{id}` - Update highlight (color, note)
-- `DELETE /highlights/{id}` - Remove highlight
+#### 6. **Daily Digest** ✅
+- `GET /api/queue/digest/daily` endpoint returning top 5 unread items
+- Digest generation in `backend/app/services/reading_queue.py`
+- `DigestCard` component with:
+  - Top article preview
+  - Estimated read time summary
+  - Scheduling UI for daily digest delivery
+  - Scheduling persisted to localStorage
+- Feature-gated via `NEXT_PUBLIC_ENABLE_DIGEST`
 
-#### 7. **Frontend API Layer** (`frontend/lib/api.ts`)
-Added functions:
-- `getQueueOverview()` - Fetch queue statistics
-- `createHighlight()` - Save highlight to backend
-- `getHighlightsForArticle()` - Fetch article-specific highlights
-- `getAllHighlights()` - Fetch user's all highlights  
-- `updateHighlight()` - Modify highlight
-- `deleteHighlight()` - Remove highlight
+#### 7. **Article Extraction Service** ✅
+- Created `backend/app/services/article_extraction.py`:
+  - `extract_article_full_text()` - Async extraction using newspaper3k
+  - `calculate_word_count()` - Word count from text
+  - `calculate_read_time_minutes()` - Read time estimation
+- Integrated into `add_to_queue()` flow
+- Graceful degradation if extraction fails
+
+#### 8. **Read-Time Badges** ✅
+- `ReadTimeBadge` component for displaying metrics
+- Shows estimated read time with clock icon
+- Compact and full view modes
+- Displayed on queue items and reader header
+
+#### 9. **API Integration** ✅
+- Feature gate constants in `frontend/lib/api.ts`:
+  - `ENABLE_READER_MODE`
+  - `ENABLE_DIGEST`
+  - `ENABLE_HIGHLIGHTS`
+- New API functions:
+  - `getQueueItemContent(queueId)` - Fetch full article for reader
+  - `getDailyDigest()` - Get daily digest
+  - Extended highlight management functions
+
+#### 10. **Backend Enhancements** ✅
+- New endpoints in `backend/app/api/routes/reading_queue.py`:
+  - `GET /api/queue/{queue_id}/content` - Full article content
+  - `GET /api/queue/digest/daily` - Daily digest
+  - Full highlights CRUD operations
+- Service methods for queue management:
+  - `get_queue_item_by_id()` - Retrieve single item
+  - `generate_daily_digest()` - Digest generation with stats
+  - Maintenance operations: `move_expired_to_permanent()`, `archive_completed_items()`
+
+### File Locations & Implementation Details
+
+#### Backend Services
+- `backend/app/services/article_extraction.py` - Article text extraction with async processing
+- `backend/app/services/reading_queue.py` - Queue operations, metrics, digest generation
+- `backend/app/services/highlights.py` - Highlight CRUD operations (already existed, enhanced)
+- `backend/app/api/routes/reading_queue.py` - Extended with new endpoints
+
+#### Frontend Components
+- `frontend/app/reader/[id]/page.tsx` - Reader view with keyboard navigation
+- `frontend/components/queue-overview-card.tsx` - Stats dashboard card
+- `frontend/components/digest-card.tsx` - Daily digest with scheduling
+- `frontend/components/highlight-toolbar.tsx` - Text selection toolbar
+- `frontend/components/read-time-badge.tsx` - Read time display component
+- `frontend/hooks/useReadingQueue.ts` - Already includes navigation methods
+
+#### Frontend Library
+- `frontend/lib/api.ts` - Updated with feature gates and new endpoints:
+  - Constants: `ENABLE_READER_MODE`, `ENABLE_DIGEST`, `ENABLE_HIGHLIGHTS`
+  - Functions: `getQueueItemContent()`, `getDailyDigest()`, `getQueueOverview()`
+
+#### Tests
+- `backend/test_reading_queue.py` - Comprehensive async tests for queue service:
+  - Article extraction utilities (word count, read time calculations)
+  - Queue CRUD operations
+  - Overview and digest generation
+  - Queue expiration and archival
+- `frontend/__tests__/reading-queue.test.tsx` - React component tests:
+  - ReadTimeBadge component
+  - QueueOverviewCard statistics display
+  - DigestCard with scheduling
+  - HighlightToolbar selection and management
+  - Keyboard navigation
+
+### Code Quality ✅
+- Backend: Formatted with `uvx ruff format` (8 files reformatted)
+- Frontend: Resolved ESLint errors, fixed React hook ordering
+- Database schema: Already includes all required columns (`word_count`, `estimated_read_time_minutes`, `full_text`)
+
+### Feature Gates
+All features are behind environment variables for safe rollout:
+```bash
+NEXT_PUBLIC_ENABLE_READER_MODE=true      # Distraction-free reading
+NEXT_PUBLIC_ENABLE_DIGEST=true           # Daily digest
+NEXT_PUBLIC_ENABLE_HIGHLIGHTS=true       # Highlight & annotation
+```
+
+### Integration Points
+1. **Queue Add Flow**: Article extraction runs when adding to queue
+   - Full text extracted via newspaper3k
+   - Word count and read time calculated
+   - All metrics persisted to database
+   - Graceful degradation if extraction fails
+
+2. **Reader Navigation**: Keyboard shortcuts integrated
+   - Arrow keys navigate articles
+   - Enter marks as read
+   - Escape returns to queue
+   - Progress shown in navigation footer
+
+3. **Highlights**: Selection API integration
+   - Text selection triggers toolbar
+   - Color picker for categorization
+   - Notes support for annotations
+   - All data persisted to database
+
+4. **Analytics**: Queue overview updates in real-time
+   - 30-second refresh interval
+   - Estimates based on unread items
+   - Daily vs permanent breakdown
+
+### Next Steps (Optional Enhancements)
+- [ ] Email digest delivery integration
+- [ ] Definition popovers via agentic search
+- [ ] Highlight export to markdown/PDF
+- [ ] Reading analytics dashboard
+- [ ] Recommended articles based on highlights
+- [ ] Collaborative annotations (multi-user)
 
 #### 8. **UI Components**
 - `components/queue-overview-card.tsx` - Dashboard widget showing queue stats

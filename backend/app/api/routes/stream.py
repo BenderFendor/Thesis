@@ -51,12 +51,12 @@ async def stream_news(
     async def event_generator():
         try:
             stream_logger.info("🚀 Stream %s starting event generation", stream_id)
-            
+
             # IMMEDIATELY emit cached data as "initial" event before anything else
             cached_articles: List[NewsArticle] = []
             cached_stats: List[Dict[str, object]] = []
             cache_age = None
-            
+
             try:
                 cached_articles = news_cache.get_articles()
                 cached_stats = news_cache.get_source_stats()
@@ -103,7 +103,7 @@ async def stream_news(
                 stream_logger.warning(
                     "⚠️ Stream %s couldn't load cache: %s", stream_id, cache_err
                 )
-            
+
             # Then emit starting status
             initial_status = {
                 "status": "starting",

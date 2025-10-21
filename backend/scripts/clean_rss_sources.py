@@ -7,6 +7,7 @@ both a cleaned file and a flagged list for manual review.
 
 Run: python3 backend/scripts/clean_rss_sources.py
 """
+
 from __future__ import annotations
 
 import json
@@ -48,6 +49,7 @@ LOW_QUALITY_DOMAINS = (
 
 TABLOID_KEYWORDS = ("celebr", "gossip", "tabloid", "rumor", "rumour", "perez")
 
+
 def is_low_quality(key: str, entry: Dict[str, Any]) -> bool:
     url = entry.get("url")
     if isinstance(url, list):
@@ -84,9 +86,20 @@ def should_flag(key: str, entry: Dict[str, Any]) -> bool:
     url_text = " ".join(url) if isinstance(url, list) else str(url)
 
     # flag fashion, beauty, lifestyle, startup/finance blogs that might be ok
-    flag_keywords = ("fashion", "beauty", "lifestyle", "startup", "finance",
-                     "personal", "blog", "opinion", "entrepreneur")
-    if any(tok in k for tok in flag_keywords) or any(tok in cat for tok in flag_keywords):
+    flag_keywords = (
+        "fashion",
+        "beauty",
+        "lifestyle",
+        "startup",
+        "finance",
+        "personal",
+        "blog",
+        "opinion",
+        "entrepreneur",
+    )
+    if any(tok in k for tok in flag_keywords) or any(
+        tok in cat for tok in flag_keywords
+    ):
         return True
 
     # borderline entertainment / tv

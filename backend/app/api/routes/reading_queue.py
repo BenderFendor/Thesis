@@ -23,6 +23,7 @@ router = APIRouter(prefix="/api/queue", tags=["reading_queue"])
 
 class QueueOverviewResponse(BaseModel):
     """Queue overview statistics."""
+
     total_items: int
     daily_items: int
     permanent_items: int
@@ -186,9 +187,7 @@ async def update_highlight(
 
 
 @router.delete("/highlights/{highlight_id}", status_code=204)
-async def delete_highlight(
-    highlight_id: int, session: AsyncSession = Depends(get_db)
-):
+async def delete_highlight(highlight_id: int, session: AsyncSession = Depends(get_db)):
     """Delete a highlight."""
     try:
         success = await highlights_service.delete_highlight(session, highlight_id)
@@ -208,3 +207,42 @@ async def archive_completed_items(session: AsyncSession = Depends(get_db)):
     except Exception as e:
         logger.error("Error archiving items: %s", e)
         raise HTTPException(status_code=500, detail="Failed to archive items")
+
+
+@router.get("/{queue_id}/content", response_model=dict)
+async def get_queue_item_content(
+    queue_id: int, session: AsyncSession = Depends(get_db)
+):
+    """Get full article content for a queue item."""
+    try:
+        item = await queue_service.get_queue_item_by_id(session, queue_id)
+        if not item:
+            raise HTTPException(status_code=404, detail="Queue item not found")
+
+        # Return the full_text if available
+        return {
+            "id": item.id,
+            "article_url": item.article_url,
+            "article_title": item.article_title,
+            "article_source": item.article_source,
+            "full_text": item.full_text or "",
+            "word_count": item.word_count,
+            "estimated_read_time_minutes": item.estimated_read_time_minutes,
+            "read_status": item.read_status,
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error("Error fetching queue item content: %s", e)
+        raise HTTPException(status_code=500, detail="Failed to fetch content")
+
+
+@router.get("/digest/daily", response_model=dict)
+async def get_daily_digest(session: AsyncSession = Depends(get_db)):
+    """Get a daily digest of top queue items."""
+    try:
+        digest = await queue_service.generate_daily_digest(session)
+        return digest
+    except Exception as e:
+        logger.error("Error generating daily digest: %s", e)
+        raise HTTPException(status_code=500, detail="Failed to generate digest")

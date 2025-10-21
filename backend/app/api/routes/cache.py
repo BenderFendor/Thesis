@@ -35,30 +35,38 @@ async def manual_cache_refresh() -> Dict[str, str]:
 async def stream_cache_refresh() -> StreamingResponse:
     """Stream cache refresh progress as articles are ingested."""
     if news_cache.update_in_progress:
+
         async def already_running():
             yield f"data: {json.dumps({'status': 'error', 'message': 'Cache refresh already in progress'})}\n\n"
+
         return StreamingResponse(already_running(), media_type="text/event-stream")
 
     # Create a queue for communication between the refresh thread and the stream
     progress_queue: queue.Queue[Dict[str, Any]] = queue.Queue()
     refresh_complete = threading.Event()
 
-    def progress_callback(articles: list[NewsArticle], source_stat: Dict[str, Any]) -> None:
+    def progress_callback(
+        articles: list[NewsArticle], source_stat: Dict[str, Any]
+    ) -> None:
         """Callback called for each source processed."""
-        progress_queue.put({
-            "type": "source_complete",
-            "source": source_stat.get("name"),
-            "article_count": len(articles),
-            "source_stat": source_stat,
-            "timestamp": datetime.now().isoformat(),
-        })
+        progress_queue.put(
+            {
+                "type": "source_complete",
+                "source": source_stat.get("name"),
+                "article_count": len(articles),
+                "source_stat": source_stat,
+                "timestamp": datetime.now().isoformat(),
+            }
+        )
 
     def refresh_thread_func() -> None:
         """Run refresh in background thread with progress callback."""
         try:
             refresh_news_cache(source_progress_callback=progress_callback)
         finally:
-            progress_queue.put({"type": "complete", "timestamp": datetime.now().isoformat()})
+            progress_queue.put(
+                {"type": "complete", "timestamp": datetime.now().isoformat()}
+            )
             refresh_complete.set()
 
     # Start the refresh in a background thread
@@ -82,7 +90,7 @@ async def stream_cache_refresh() -> StreamingResponse:
                     if event["type"] == "source_complete":
                         processed_sources += 1
                         source_stat = event["source_stat"]
-                        
+
                         # Count failures
                         if source_stat.get("status") == "error":
                             failed_sources += 1
@@ -102,15 +110,29 @@ async def stream_cache_refresh() -> StreamingResponse:
                         # Send final completion event with summary
                         articles = news_cache.get_articles()
                         source_stats = news_cache.get_source_stats()
-                        
+
                         complete_event = {
                             "status": "complete",
                             "message": f"Cache refresh completed: {len(articles)} total articles",
                             "total_articles": len(articles),
                             "total_sources_processed": len(source_stats),
-                            "successful_sources": len([s for s in source_stats if s.get("status") == "success"]),
-                            "failed_sources": len([s for s in source_stats if s.get("status") == "error"]),
-                            "warning_sources": len([s for s in source_stats if s.get("status") == "warning"]),
+                            "successful_sources": len(
+                                [
+                                    s
+                                    for s in source_stats
+                                    if s.get("status") == "success"
+                                ]
+                            ),
+                            "failed_sources": len(
+                                [s for s in source_stats if s.get("status") == "error"]
+                            ),
+                            "warning_sources": len(
+                                [
+                                    s
+                                    for s in source_stats
+                                    if s.get("status") == "warning"
+                                ]
+                            ),
                             "timestamp": event["timestamp"],
                         }
                         yield f"data: {json.dumps(complete_event)}\n\n"
