@@ -26,11 +26,6 @@ import { useFavorites } from "@/hooks/useFavorites"
 
 const logger = get_logger("GridView")
 
-// Snap-scrolling sensitivity constants
-const WHEEL_JUMP_SENSITIVITY = 50 // Lower is faster
-const WHEEL_DEBOUNCE_MS = 50 // Lower is faster
-const TOUCH_VELOCITY_MULTIPLIER = 2 // Higher is faster
-
 const categories = [
   "All",
   "Politics",
@@ -87,38 +82,6 @@ export function GridView({
   const containerRef = useRef<HTMLDivElement | null>(null)
   const [currentGroupIndex, setCurrentGroupIndex] = useState<number>(0)
 
-  const scrollToGroup = useCallback((index: number) => {
-    const container = containerRef.current
-    if (!container) return
-    const groups = Array.from(
-      container.querySelectorAll<HTMLElement>(".grid-source-group")
-    )
-    const safeIndex = Math.max(0, Math.min(index, groups.length - 1))
-    const target = groups[safeIndex]
-    if (target) {
-      target.scrollIntoView({ behavior: "smooth", block: "start" })
-      setCurrentGroupIndex(safeIndex)
-    }
-  }, [])
-
-  const goNextGroup = useCallback(() => {
-    const container = containerRef.current
-    if (!container) return
-    const groups = container.querySelectorAll<HTMLElement>(".grid-source-group")
-    if (groups.length === 0) return
-    const next = Math.min(currentGroupIndex + 1, groups.length - 1)
-    if (next !== currentGroupIndex) scrollToGroup(next)
-  }, [currentGroupIndex, scrollToGroup])
-
-  const goPrevGroup = useCallback(() => {
-    const container = containerRef.current
-    if (!container) return
-    const groups = container.querySelectorAll<HTMLElement>(".grid-source-group")
-    if (groups.length === 0) return
-    const prev = Math.max(currentGroupIndex - 1, 0)
-    if (prev !== currentGroupIndex) scrollToGroup(prev)
-  }, [currentGroupIndex, scrollToGroup])
-
   // Helper to chunk articles into rows of COLUMN_COUNT
   const chunkArticlesIntoRows = useCallback((articles: NewsArticle[]) => {
     const rows: NewsArticle[][] = []
@@ -128,120 +91,18 @@ export function GridView({
     return rows
   }, [])
 
-  useEffect(() => {
-    const container = containerRef.current
-    if (!container) return
-
-    const onKey = (e: KeyboardEvent) => {
-      const activeEl = document.activeElement as HTMLElement | null
-      if (activeEl && /INPUT|TEXTAREA|SELECT/.test(activeEl.tagName)) return
-      switch (e.key) {
-        case 'ArrowDown':
-        case 'PageDown':
-          e.preventDefault()
-          goNextGroup()
-          break
-        case 'ArrowUp':
-        case 'PageUp':
-          e.preventDefault()
-          goPrevGroup()
-          break
-        case 'Home':
-          e.preventDefault()
-          scrollToGroup(0)
-          break
-        case 'End':
-          e.preventDefault()
-          {
-            const groups = container.querySelectorAll<HTMLElement>('.grid-source-group')
-            scrollToGroup(groups.length - 1)
-          }
-          break
-        default:
-          break
-      }
-    }
-
-    let wheelTimeout: ReturnType<typeof setTimeout> | null = null
-    const onWheel = (ev: WheelEvent) => {
-      // If at the top and scrolling up, let the browser handle it to reveal header
-      if (currentGroupIndex === 0 && ev.deltaY < 0) {
-        return
-      }
-
-      if (Math.abs(ev.deltaY) < Math.abs(ev.deltaX)) return
-      ev.preventDefault()
-
-      if (wheelTimeout) {
-        clearTimeout(wheelTimeout)
-      }
-
-      const jumpSize = Math.max(
-        1,
-        Math.floor(Math.abs(ev.deltaY) / WHEEL_JUMP_SENSITIVITY)
-      )
-      const direction = ev.deltaY > 0 ? 1 : -1
-      const targetIndex = currentGroupIndex + direction * jumpSize
-
-      wheelTimeout = setTimeout(() => {
-        scrollToGroup(targetIndex)
-      }, WHEEL_DEBOUNCE_MS)
-    }
-
-    let startY = 0
-    let startTime = 0
-    const onTouchStart = (ev: TouchEvent) => {
-      startY = ev.touches[0].clientY
-      startTime = Date.now()
-    }
-    const onTouchEnd = (ev: TouchEvent) => {
-      const endY = ev.changedTouches[0].clientY
-      const endTime = Date.now()
-      const deltaY = startY - endY // Positive delta means swipe up (scroll down)
-      const duration = endTime - startTime
-
-      // If at the top and swiping down, do nothing to allow page scroll
-      if (currentGroupIndex === 0 && deltaY < 0) {
-        return
-      }
-
-      if (Math.abs(deltaY) < 50) return // Ignore small movements
-
-      const velocity = Math.abs(deltaY / duration)
-      const jumpSize = Math.max(
-        1,
-        Math.round(velocity * TOUCH_VELOCITY_MULTIPLIER)
-      ) // Velocity multiplier
-
-      const direction = deltaY > 0 ? 1 : -1
-      const targetIndex = currentGroupIndex + direction * jumpSize
-      scrollToGroup(targetIndex)
-    }
-
-    container.addEventListener('keydown', onKey)
-    container.addEventListener('wheel', onWheel, { passive: false })
-    container.addEventListener('touchstart', onTouchStart, { passive: true })
-    container.addEventListener('touchend', onTouchEnd, { passive: true })
-
-    return () => {
-      container.removeEventListener('keydown', onKey)
-      container.removeEventListener('wheel', onWheel)
-      container.removeEventListener('touchstart', onTouchStart)
-      container.removeEventListener('touchend', onTouchEnd)
-      if (wheelTimeout) clearTimeout(wheelTimeout)
-    }
-  }, [goNextGroup, goPrevGroup, scrollToGroup])
-
   // Observe groups to update currentGroupIndex on manual scroll/snap
   useEffect(() => {
     const container = containerRef.current
     if (!container) return
     let observer: IntersectionObserver | null = null
-    const groups = Array.from(container.querySelectorAll<HTMLElement>('.grid-source-group'))
-    if (groups.length > 0 && 'IntersectionObserver' in window) {
+    const groups = Array.from(
+      container.querySelectorAll<HTMLElement>(".grid-source-group")
+    )
+    if (groups.length > 0 && "IntersectionObserver" in window) {
       observer = new IntersectionObserver(
-        (entries) => {
-          entries.forEach((entry) => {
+        entries => {
+          entries.forEach(entry => {
             if (entry.isIntersecting) {
               const index = groups.indexOf(entry.target as HTMLElement)
               if (index >= 0) setCurrentGroupIndex(index)
@@ -250,7 +111,7 @@ export function GridView({
         },
         { root: container, threshold: 0.6 }
       )
-      groups.forEach((g) => observer!.observe(g))
+      groups.forEach(g => observer!.observe(g))
     }
     return () => {
       if (observer) observer.disconnect()
@@ -498,13 +359,18 @@ export function GridView({
           role="region"
           aria-label="Sources scroller"
           className="flex-1 overflow-y-auto px-3 sm:px-4 lg:px-6 py-4"
-          style={{ outline: 'none' }}
+          style={{
+            outline: "none",
+            scrollSnapType: "y mandatory",
+            scrollPaddingTop: "1rem",
+          }}
         >
           <div className="space-y-6">
-            {sourceGroups.map((group) => (
+            {sourceGroups.map(group => (
               <div
                 key={group.sourceId}
-                className="grid-source-group bg-card/40 rounded-lg border border-border/50 overflow-hidden scroll-mt-4"
+                className="grid-source-group bg-card/40 rounded-lg border border-border/50 overflow-hidden"
+                style={{ scrollSnapAlign: "start" }}
               >
                 {/* Source Header */}
                 <div className="bg-card/60 px-4 py-3 border-b border-border/50 flex items-center justify-between">
