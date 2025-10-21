@@ -350,6 +350,13 @@
         "funding_type": "Commercial",
         "bias_rating": "Center"
     },
+    "The Economist": {
+        "url": "https://www.economist.com/the-world-this-week/rss.xml",
+        "category": "general",
+        "country": "UK",
+        "funding_type": "Commercial",
+        "bias_rating": "Center"
+    },
     "NBC10 Philadelphia": {
         "url": "https://news.google.com/rss/search?q=site:nbcphiladelphia.com",
         "category": "general",

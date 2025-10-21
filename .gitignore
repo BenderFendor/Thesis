@@ -354,3 +354,5 @@ volumes/
 .playwright-mcp
 
 /__pycache__/
+
+.ruff_cache/
