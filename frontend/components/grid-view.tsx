@@ -114,6 +114,15 @@ export function GridView({
     if (prev !== currentGroupIndex) scrollToGroup(prev)
   }, [currentGroupIndex, scrollToGroup])
 
+  // Helper to chunk articles into rows of COLUMN_COUNT
+  const chunkArticlesIntoRows = useCallback((articles: NewsArticle[]) => {
+    const rows: NewsArticle[][] = []
+    for (let i = 0; i < articles.length; i += COLUMN_COUNT) {
+      rows.push(articles.slice(i, i + COLUMN_COUNT))
+    }
+    return rows
+  }, [])
+
   useEffect(() => {
     const container = containerRef.current
     if (!container) return
@@ -514,101 +523,207 @@ export function GridView({
 
                 {/* Articles Grid */}
                 <div className="p-3">
-                  <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
-                    {group.articles
-                      .slice(
-                        0,
-                        expandedSourceId === group.sourceId
-                          ? group.articles.length
-                          : NUM_OF_ARTICLES
-                      )
-                      .map((article) => (
-                      <button
-                        key={article.id}
-                        onClick={() => handleArticleClick(article)}
-                        className="group text-left transition-all duration-200"
-                      >
-                        <Card className="h-full overflow-hidden flex flex-col hover:border-primary hover:shadow-lg transition-all duration-200 bg-card/70 hover:bg-card border-border/60 cursor-pointer">
-                          {/* Compact Image */}
-                          <div className="relative h-40 overflow-hidden bg-muted/40 flex-shrink-0">
-                            <img
-                              src={article.image || "/placeholder.svg"}
-                              alt={article.title}
-                              className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-300"
-                            />
-                            <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent" />
-
-                            {/* Action Buttons */}
-                            <div className="absolute top-1 right-1 flex gap-1">
-                              <Button
-                                variant="ghost"
-                                size="sm"
-                                onClick={(e) => {
-                                  e.stopPropagation()
-                                  handleQueueToggle(article)
-                                }}
-                                className="h-6 w-6 p-0 bg-black/50 hover:bg-black/70"
-                              >
-                                {isArticleInQueue(article.url) ? (
-                                  <MinusCircle className="w-3 h-3 text-blue-400" />
-                                ) : (
-                                  <PlusCircle className="w-3 h-3 text-white" />
-                                )}
-                              </Button>
-                              <Button
-                                variant="ghost"
-                                size="sm"
-                                onClick={(e) => {
-                                  e.stopPropagation()
-                                  handleLike(article.id as number)
-                                }}
-                                className="h-6 w-6 p-0 bg-black/50 hover:bg-black/70"
-                              >
-                                <Heart
-                                  className={`w-3 h-3 ${
-                                    likedArticles.has(article.id as number)
-                                      ? "fill-red-500 text-red-500"
-                                      : "text-white"
-                                  }`}
-                                />
-                              </Button>
-                            </div>
-
-                            {/* Category Badge */}
-                            <div className="absolute bottom-1 left-1">
-                              <Badge
-                                variant="outline"
-                                className="text-[8px] font-semibold px-1.5 py-0 bg-black/70 text-white border-white/20"
-                              >
-                                {article.category}
-                              </Badge>
+                  {expandedSourceId === group.sourceId &&
+                  group.articles.length > NUM_OF_ARTICLES ? (
+                    <div
+                      className="inner-snap-container"
+                      style={{
+                        maxHeight: '60vh',
+                        overflowY: 'auto',
+                        scrollSnapType: 'y mandatory',
+                        WebkitOverflowScrolling: 'touch',
+                      }}
+                    >
+                      {chunkArticlesIntoRows(group.articles).map(
+                        (row, rowIndex) => (
+                          <div
+                            key={rowIndex}
+                            className="snap-start"
+                            style={{ scrollSnapAlign: 'start' }}
+                          >
+                            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 p-2">
+                              {row.map((article) => (
+                                <button
+                                  key={article.id}
+                                  onClick={() => handleArticleClick(article)}
+                                  className="group text-left transition-all duration-200"
+                                >
+                                  <Card className="h-full overflow-hidden flex flex-col hover:border-primary hover:shadow-lg transition-all duration-200 bg-card/70 hover:bg-card border-border/60 cursor-pointer">
+                                    <div className="relative h-40 overflow-hidden bg-muted/40 flex-shrink-0">
+                                      <img
+                                        src={
+                                          article.image || '/placeholder.svg'
+                                        }
+                                        alt={article.title}
+                                        className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-300"
+                                      />
+                                      <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent" />
+                                      <div className="absolute top-1 right-1 flex gap-1">
+                                        <Button
+                                          variant="ghost"
+                                          size="sm"
+                                          onClick={(e) => {
+                                            e.stopPropagation()
+                                            handleQueueToggle(article)
+                                          }}
+                                          className="h-6 w-6 p-0 bg-black/50 hover:bg-black/70"
+                                        >
+                                          {isArticleInQueue(article.url) ? (
+                                            <MinusCircle className="w-3 h-3 text-blue-400" />
+                                          ) : (
+                                            <PlusCircle className="w-3 h-3 text-white" />
+                                          )}
+                                        </Button>
+                                        <Button
+                                          variant="ghost"
+                                          size="sm"
+                                          onClick={(e) => {
+                                            e.stopPropagation()
+                                            handleLike(article.id as number)
+                                          }}
+                                          className="h-6 w-6 p-0 bg-black/50 hover:bg-black/70"
+                                        >
+                                          <Heart
+                                            className={`w-3 h-3 ${
+                                              likedArticles.has(
+                                                article.id as number
+                                              )
+                                                ? 'fill-red-500 text-red-500'
+                                                : 'text-white'
+                                            }`}
+                                          />
+                                        </Button>
+                                      </div>
+                                      <div className="absolute bottom-1 left-1">
+                                        <Badge
+                                          variant="outline"
+                                          className="text-[8px] font-semibold px-1.5 py-0 bg-black/70 text-white border-white/20"
+                                        >
+                                          {article.category}
+                                        </Badge>
+                                      </div>
+                                    </div>
+                                    <CardContent className="flex-1 flex flex-col p-2">
+                                      <h3 className="text-md font-semibold text-foreground leading-snug line-clamp-4 mb-1 font-serif">
+                                        {article.title}
+                                      </h3>
+                                      <div className="flex items-center gap-1 text-xs text-muted-foreground mt-auto pt-1">
+                                        <Clock className="w-3 h-3" />
+                                        <span>
+                                          {new Date(
+                                            article.publishedAt
+                                          ).toLocaleDateString('en-US', {
+                                            month: 'short',
+                                            day: 'numeric',
+                                          })}
+                                        </span>
+                                      </div>
+                                    </CardContent>
+                                  </Card>
+                                </button>
+                              ))}
                             </div>
                           </div>
+                        )
+                      )}
+                    </div>
+                  ) : (
+                    <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
+                      {group.articles
+                        .slice(
+                          0,
+                          expandedSourceId === group.sourceId
+                            ? group.articles.length
+                            : NUM_OF_ARTICLES
+                        )
+                        .map((article) => (
+                          <button
+                            key={article.id}
+                            onClick={() => handleArticleClick(article)}
+                            className="group text-left transition-all duration-200"
+                          >
+                            <Card className="h-full overflow-hidden flex flex-col hover:border-primary hover:shadow-lg transition-all duration-200 bg-card/70 hover:bg-card border-border/60 cursor-pointer">
+                              {/* Compact Image */}
+                              <div className="relative h-40 overflow-hidden bg-muted/40 flex-shrink-0">
+                                <img
+                                  src={article.image || '/placeholder.svg'}
+                                  alt={article.title}
+                                  className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-300"
+                                />
+                                <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent" />
 
-                          {/* Content */}
-                          <CardContent className="flex-1 flex flex-col p-2">
-                            {/* Title */}
-                            <h3 className="text-md font-semibold text-foreground leading-snug line-clamp-4 mb-1 font-serif">
-                              {article.title}
-                            </h3>
+                                {/* Action Buttons */}
+                                <div className="absolute top-1 right-1 flex gap-1">
+                                  <Button
+                                    variant="ghost"
+                                    size="sm"
+                                    onClick={(e) => {
+                                      e.stopPropagation()
+                                      handleQueueToggle(article)
+                                    }}
+                                    className="h-6 w-6 p-0 bg-black/50 hover:bg-black/70"
+                                  >
+                                    {isArticleInQueue(article.url) ? (
+                                      <MinusCircle className="w-3 h-3 text-blue-400" />
+                                    ) : (
+                                      <PlusCircle className="w-3 h-3 text-white" />
+                                    )}
+                                  </Button>
+                                  <Button
+                                    variant="ghost"
+                                    size="sm"
+                                    onClick={(e) => {
+                                      e.stopPropagation()
+                                      handleLike(article.id as number)
+                                    }}
+                                    className="h-6 w-6 p-0 bg-black/50 hover:bg-black/70"
+                                  >
+                                    <Heart
+                                      className={`w-3 h-3 ${
+                                        likedArticles.has(article.id as number)
+                                          ? 'fill-red-500 text-red-500'
+                                          : 'text-white'
+                                      }`}
+                                    />
+                                  </Button>
+                                </div>
 
-                            {/* Meta Info */}
-                            <div className="flex items-center gap-1 text-xs text-muted-foreground mt-auto pt-1">
-                              <Clock className="w-3 h-3" />
-                              <span>
-                                {new Date(
-                                  article.publishedAt
-                                ).toLocaleDateString("en-US", {
-                                  month: "short",
-                                  day: "numeric",
-                                })}
-                              </span>
-                            </div>
-                          </CardContent>
-                        </Card>
-                      </button>
-                    ))}
-                  </div>
+                                {/* Category Badge */}
+                                <div className="absolute bottom-1 left-1">
+                                  <Badge
+                                    variant="outline"
+                                    className="text-[8px] font-semibold px-1.5 py-0 bg-black/70 text-white border-white/20"
+                                  >
+                                    {article.category}
+                                  </Badge>
+                                </div>
+                              </div>
+
+                              {/* Content */}
+                              <CardContent className="flex-1 flex flex-col p-2">
+                                {/* Title */}
+                                <h3 className="text-md font-semibold text-foreground leading-snug line-clamp-4 mb-1 font-serif">
+                                  {article.title}
+                                </h3>
+
+                                {/* Meta Info */}
+                                <div className="flex items-center gap-1 text-xs text-muted-foreground mt-auto pt-1">
+                                  <Clock className="w-3 h-3" />
+                                  <span>
+                                    {new Date(
+                                      article.publishedAt
+                                    ).toLocaleDateString('en-US', {
+                                      month: 'short',
+                                      day: 'numeric',
+                                    })}
+                                  </span>
+                                </div>
+                              </CardContent>
+                            </Card>
+                          </button>
+                        ))}
+                    </div>
+                  )}
                 </div>
               </div>
             ))}
@@ -616,7 +731,11 @@ export function GridView({
         </div>
       )}
 
-      {/* Category Filter Header removed as requested */}
+      {/* Pager UI */}
+      <div className="p-2 text-xs text-muted-foreground text-center">
+        Use ↑/↓ keys, PageUp/PageDown, mouse wheel or swipe to move between
+        sources — {currentGroupIndex + 1} / {sourceGroups.length}
+      </div>
 
       {/* Article Detail Modal */}
       <ArticleDetailModal
