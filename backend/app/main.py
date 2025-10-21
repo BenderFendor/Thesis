@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import signal
 import threading
 from typing import Any
 
@@ -18,7 +19,14 @@ from app.services.persistence import (
     migrate_cached_articles_on_startup,
     set_main_event_loop,
 )
-from app.services.rss_ingestion import refresh_news_cache, start_cache_refresh_scheduler
+from app.services.rss_ingestion import (
+    refresh_news_cache,
+    refresh_news_cache_async,
+    start_cache_refresh_scheduler,
+    _shutdown_event,
+    _process_pool,
+)
+from app.services.scheduler import periodic_rss_refresh
 from app.services.websocket_manager import manager
 
 configure_logging()
@@ -67,6 +75,20 @@ def _register_background_task(task: asyncio.Task[Any]) -> None:
             )
 
     task.add_done_callback(_cleanup)
+
+
+def _handle_shutdown_signal(signum, frame):
+    """Handle SIGTERM/SIGINT for graceful shutdown."""
+    logger.info("Received shutdown signal %s", signum)
+    
+    if _shutdown_event:
+        _shutdown_event.set()
+    
+    if _process_pool:
+        logger.info("Shutting down process pool...")
+        _process_pool.shutdown(wait=True, cancel_futures=True)
+    
+    logger.info("Shutdown complete")
 
 
 def _start_schedulers_once() -> None:
@@ -124,6 +146,10 @@ async def on_startup() -> None:
     loop = asyncio.get_running_loop()
     set_main_event_loop(loop)
 
+    # Register signal handlers for graceful shutdown
+    signal.signal(signal.SIGTERM, _handle_shutdown_signal)
+    signal.signal(signal.SIGINT, _handle_shutdown_signal)
+
     await init_db()
     logger.info("Database initialisation complete")
 
@@ -134,20 +160,27 @@ async def on_startup() -> None:
         target=_initial_cache_load, name="initial-cache-load", daemon=True
     ).start()
 
-    # 🔄 Start background RSS refresh without blocking startup
-    def start_background_rss_refresh() -> None:
-        import time
+    # 🔄 Start async RSS refresh scheduler (new optimized approach)
+    scheduler_task = asyncio.create_task(
+        periodic_rss_refresh(interval_seconds=600),
+        name="rss_refresh_scheduler"
+    )
+    _register_background_task(scheduler_task)
 
-        time.sleep(2)  # Give DB load a head start
-        logger.info("🔄 Starting background RSS refresh...")
+    # 🔄 Start initial background RSS refresh without blocking startup
+    async def start_background_rss_refresh_async() -> None:
+        await asyncio.sleep(2)  # Give DB load a head start
+        logger.info("🔄 Starting initial async RSS refresh...")
         try:
-            refresh_news_cache()
+            await refresh_news_cache_async()
         except Exception as exc:  # pragma: no cover
             logger.error("Background RSS refresh failed: %s", exc, exc_info=True)
-
-    threading.Thread(
-        target=start_background_rss_refresh, name="background-rss-refresh", daemon=True
-    ).start()
+    
+    refresh_task = asyncio.create_task(
+        start_background_rss_refresh_async(),
+        name="initial_rss_refresh"
+    )
+    _register_background_task(refresh_task)
 
     persistence_task = asyncio.create_task(
         article_persistence_worker(), name="article_persistence_worker"
