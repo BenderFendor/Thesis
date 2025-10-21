@@ -158,32 +158,43 @@ export function GridView({
     }
 
     let wheelTimeout: ReturnType<typeof setTimeout> | null = null
-    let accumulatedDelta = 0
     const onWheel = (ev: WheelEvent) => {
       if (Math.abs(ev.deltaY) < Math.abs(ev.deltaX)) return
       ev.preventDefault()
-      accumulatedDelta += ev.deltaY
-      if (wheelTimeout) clearTimeout(wheelTimeout)
+
+      if (wheelTimeout) {
+        clearTimeout(wheelTimeout)
+      }
+
+      const jumpSize = Math.max(1, Math.floor(Math.abs(ev.deltaY) / 100))
+      const direction = ev.deltaY > 0 ? 1 : -1
+      const targetIndex = currentGroupIndex + direction * jumpSize
+
       wheelTimeout = setTimeout(() => {
-        if (Math.abs(accumulatedDelta) > 20) {
-          if (accumulatedDelta > 0) goNextGroup()
-          else goPrevGroup()
-        }
-        accumulatedDelta = 0
-      }, 120)
+        scrollToGroup(targetIndex)
+      }, 50) // A short debounce to prevent chaotic rapid-fire calls
     }
 
     let startY = 0
+    let startTime = 0
     const onTouchStart = (ev: TouchEvent) => {
       startY = ev.touches[0].clientY
+      startTime = Date.now()
     }
     const onTouchEnd = (ev: TouchEvent) => {
       const endY = ev.changedTouches[0].clientY
-      const delta = startY - endY
-      if (Math.abs(delta) > 50) {
-        if (delta > 0) goNextGroup()
-        else goPrevGroup()
-      }
+      const endTime = Date.now()
+      const deltaY = startY - endY
+      const duration = endTime - startTime
+
+      if (Math.abs(deltaY) < 50) return // Ignore small movements
+
+      const velocity = Math.abs(deltaY / duration)
+      const jumpSize = Math.max(1, Math.round(velocity * 2)) // Velocity multiplier
+
+      const direction = deltaY > 0 ? 1 : -1
+      const targetIndex = currentGroupIndex + direction * jumpSize
+      scrollToGroup(targetIndex)
     }
 
     container.addEventListener('keydown', onKey)
