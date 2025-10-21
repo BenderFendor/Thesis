@@ -10,7 +10,7 @@ from sqlalchemy import (
     or_,
 )
 from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession, async_sessionmaker
-from sqlalchemy.ext.declarative import declarative_base
+from sqlalchemy.orm import declarative_base
 from datetime import datetime
 import os
 import logging
@@ -27,7 +27,6 @@ DATABASE_URL = os.getenv(
 engine = create_async_engine(
     DATABASE_URL,
     echo=False,  # Set to True for SQL debugging
-    future=True,
     pool_size=20,  # Adjust based on concurrent users
     max_overflow=0,
 )

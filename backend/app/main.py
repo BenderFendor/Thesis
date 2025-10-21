@@ -21,24 +21,10 @@ from app.services.persistence import (
 from app.services.rss_ingestion import refresh_news_cache, start_cache_refresh_scheduler
 from app.services.websocket_manager import manager
 
+from contextlib import asynccontextmanager
+
 configure_logging()
 logger = get_logger("app.main")
-
-app = FastAPI(
-    title=settings.app_title,
-    version=settings.app_version,
-    description="A comprehensive news aggregation platform providing diverse global perspectives",
-)
-
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=list(settings.frontend_origins),
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
-
-app.include_router(api_router)
 
 _background_tasks: list[asyncio.Task[Any]] = []
 _scheduler_lock = threading.Lock()
@@ -117,8 +103,10 @@ def _initial_cache_load() -> None:
         logger.error("Initial cache population failed: %s", exc, exc_info=True)
 
 
-@app.on_event("startup")
-async def on_startup() -> None:
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    """Manage application lifespan events."""
+    # Startup
     logger.info("Starting Global News Aggregation API...")
 
     loop = asyncio.get_running_loop()
@@ -164,9 +152,9 @@ async def on_startup() -> None:
         len(news_cache.get_articles()),
     )
 
+    yield
 
-@app.on_event("shutdown")
-async def on_shutdown() -> None:
+    # Shutdown
     logger.info("Shutting down Global News Aggregation API...")
 
     tasks_snapshot = list(_background_tasks)
@@ -177,6 +165,24 @@ async def on_shutdown() -> None:
         await asyncio.gather(*tasks_snapshot, return_exceptions=True)
 
     logger.info("Shutdown complete")
+
+
+app = FastAPI(
+    title=settings.app_title,
+    version=settings.app_version,
+    description="A comprehensive news aggregation platform providing diverse global perspectives",
+    lifespan=lifespan,
+)
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=list(settings.frontend_origins),
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+app.include_router(api_router)
 
 
 @app.websocket("/ws")
