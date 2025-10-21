@@ -8,6 +8,8 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { type NewsArticle, getSourceById, type NewsSource, fetchSourceDebugData, type SourceDebugData, analyzeArticle, type ArticleAnalysis, API_BASE_URL, createBookmark, deleteBookmark, performAgenticSearch, type FactCheckResult } from "@/lib/api"
 import { useReadingQueue } from "@/hooks/useReadingQueue"
 import { useFavorites } from "@/hooks/useFavorites"
+import { useInlineDefinition } from "@/hooks/useInlineDefinition"
+import InlineDefinition from "@/components/inline-definition"
 
 type FactCheckStatus = FactCheckResult["verification_status"]
 type FactCheckStatusFilter = FactCheckStatus | "all"
@@ -295,6 +297,9 @@ export function ArticleDetailModal({ article, isOpen, onClose, initialIsBookmark
     }
   }
 
+  // Inline definition hook (highlight → popover)
+  const { result: inlineResult, open: inlineOpen, setOpen: setInlineOpen, anchorRef: inlineAnchorRef } = useInlineDefinition()
+
   const getBiasColor = (bias: string) => {
     switch (bias) {
       case "left":
@@ -312,6 +317,13 @@ export function ArticleDetailModal({ article, isOpen, onClose, initialIsBookmark
 
   return (
     <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+      {/* Inline Definition Popover */}
+      <InlineDefinition
+        result={inlineResult}
+        open={inlineOpen}
+        setOpen={setInlineOpen}
+        anchorRef={inlineAnchorRef}
+      />
       <div className={`bg-black border border-gray-800 rounded-lg transition-all duration-300 ${
         isExpanded 
           ? 'w-full h-full max-w-none max-h-none overflow-y-auto' 

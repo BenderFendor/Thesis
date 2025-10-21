@@ -14,6 +14,7 @@ from . import (
     search,
     sources,
     stream,
+    inline,
 )
 
 router = APIRouter()
@@ -28,3 +29,4 @@ router.include_router(reading_queue.router)
 router.include_router(research.router)
 router.include_router(search.router)
 router.include_router(sources.router)
+router.include_router(inline.router)

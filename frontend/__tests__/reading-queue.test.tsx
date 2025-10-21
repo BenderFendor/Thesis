@@ -92,8 +92,9 @@ describe("QueueOverviewCard", () => {
 
     await waitFor(() => {
       expect(screen.getByText("Queue Overview")).toBeInTheDocument();
-      expect(screen.getByText("5")).toBeInTheDocument(); // total_items
+      // Component displays unread and completed counts
       expect(screen.getByText("3")).toBeInTheDocument(); // unread_count
+      expect(screen.getByText("1")).toBeInTheDocument(); // completed_count
     });
   });
 
@@ -101,8 +102,9 @@ describe("QueueOverviewCard", () => {
     render(<QueueOverviewCard />);
 
     await waitFor(() => {
-      expect(screen.getByText(/Daily Items:/)).toBeInTheDocument();
-      expect(screen.getByText(/Permanent Items:/)).toBeInTheDocument();
+      // The component renders short labels "Daily:" and "Permanent:"
+      expect(screen.getByText(/Daily:/)).toBeInTheDocument();
+      expect(screen.getByText(/Permanent:/)).toBeInTheDocument();
     });
   });
 

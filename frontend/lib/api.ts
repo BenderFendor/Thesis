@@ -285,6 +285,32 @@ export async function fetchCategories(): Promise<string[]> {
   }
 }
 
+// Inline definition API: request a short, one-paragraph definition for a highlighted term
+/**
+ * Requests a short, one-paragraph AI-generated definition for a highlighted term using the /api/inline/define endpoint.
+ * Returns a success flag, the term, and the definition or error.
+ */
+export async function requestInlineDefinition(term: string, context?: string): Promise<{ success: boolean; term: string; definition?: string | null; error?: string | null }> {
+  try {
+    const resp = await fetch(`${API_BASE_URL}/api/inline/define`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ term, context: context ?? '' }),
+    });
+
+    if (!resp.ok) {
+      const text = await resp.text();
+      throw new Error(`HTTP ${resp.status}: ${text}`);
+    }
+
+    const data = await resp.json();
+    return { success: true, term, definition: data.definition ?? null, error: data.error ?? null };
+  } catch (err: any) {
+    console.error('requestInlineDefinition failed', err);
+    return { success: false, term, definition: null, error: err?.message ?? String(err) };
+  }
+}
+
 export interface SourceStats {
   name: string;
   url: string;
@@ -593,6 +619,17 @@ export async function initializeData() {
   } catch (error) {
     console.error('Failed to initialize data:', error);
   }
+}
+
+
+/**
+ * Requests a definition for a term using the /api/inline/definition endpoint.
+ * Returns the definition and any error encountered.
+ */
+export async function fetchInlineDefinition(term: string, context?: string): Promise<{ definition?: string | null; error?: string | null }> {
+  // Backwards-compatible wrapper around requestInlineDefinition
+  const res = await requestInlineDefinition(term, context);
+  return { definition: res.definition ?? null, error: res.error ?? null };
 }
 
 export interface SourceDebugData {

@@ -57,12 +57,19 @@ export function HighlightToolbar({
       const selection = window.getSelection();
       if (selection && selection.toString().length > 0) {
         const range = selection.getRangeAt(0);
-        const rect = range.getBoundingClientRect();
+        let rect: DOMRect | null = null;
+        try {
+          rect = (range as any).getBoundingClientRect?.() ?? null;
+        } catch (err) {
+          rect = null;
+        }
 
-        // Show toolbar near selected text
+        // Show toolbar near selected text (fallback to center of window if unavailable)
         if (toolbarRef.current) {
-          toolbarRef.current.style.top = `${rect.top + window.scrollY - 50}px`;
-          toolbarRef.current.style.left = `${rect.left + window.scrollX}px`;
+          const top = rect ? rect.top + window.scrollY - 50 : window.innerHeight / 2;
+          const left = rect ? rect.left + window.scrollX : window.innerWidth / 2 - 100;
+          toolbarRef.current.style.top = `${top}px`;
+          toolbarRef.current.style.left = `${left}px`;
           toolbarRef.current.style.display = "flex";
         }
       }
