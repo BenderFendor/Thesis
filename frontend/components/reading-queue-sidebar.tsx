@@ -376,7 +376,7 @@ export function ReadingQueueSidebar() {
                         className="text-xs px-2 py-1 rounded-full"
                         style={{
                           backgroundColor: "rgba(168, 85, 247, 0.2)",
-                          color: "rgb(168, 85, 247)",
+                          color: "var(--primary)",
                           border: "1px solid rgba(168, 85, 247, 0.3)",
                         }}
                       >
@@ -933,21 +933,21 @@ export function ReadingQueueSidebar() {
                       components={{
                         h1: ({ node, ...props }) => (
                           <h1
-                            className="font-bold text-2xl mt-6 mb-3"
+                            className="font-bold font-serif text-2xl mt-6 mb-3"
                             style={{ color: "var(--foreground)" }}
                             {...props}
                           />
                         ),
                         h2: ({ node, ...props }) => (
                           <h2
-                            className="font-bold text-xl mt-5 mb-2"
+                            className="font-bold font-serif text-xl mt-5 mb-2"
                             style={{ color: "var(--foreground)" }}
                             {...props}
                           />
                         ),
                         h3: ({ node, ...props }) => (
                           <h3
-                            className="font-semibold text-lg mt-4 mb-2"
+                            className="font-semibold font-serif text-lg mt-4 mb-2"
                             style={{ color: "var(--foreground)" }}
                             {...props}
                           />
@@ -984,7 +984,7 @@ export function ReadingQueueSidebar() {
                           <blockquote
                             className="border-l-4 pl-4 italic my-3"
                             style={{
-                              borderColor: "rgba(168, 85, 247, 0.3)",
+                              borderColor: "var(--primary)",
                               color: "var(--muted-foreground)",
                             }}
                             {...props}
@@ -1046,7 +1046,7 @@ export function ReadingQueueSidebar() {
                           />
                         ),
                         strong: ({ node, ...props }) => (
-                          <strong className="font-semibold" style={{ color: "rgb(168, 85, 247)" }} {...props} />
+                          <strong className="font-semibold" style={{ color: "var(--primary)" }} {...props} />
                         ),
                         em: ({ node, ...props }) => (
                           <em className="italic" style={{ color: "var(--foreground)" }} {...props} />
@@ -1214,8 +1214,8 @@ export function ReadingQueueSidebar() {
                                 <span
                                   className="text-xs px-1.5 py-0.5 rounded"
                                   style={{
-                                    backgroundColor: "rgba(168, 85, 247, 0.15)",
-                                    color: "rgb(168, 85, 247)",
+                                    backgroundColor: "var(--primary)",
+                                    color: "var(--primary)",
                                   }}
                                 >
                                   {estimatedReadTimes[article.url]}m
