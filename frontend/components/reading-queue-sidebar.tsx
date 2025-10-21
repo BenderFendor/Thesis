@@ -38,6 +38,8 @@ import {
   fetchSourceDebugData,
   type SourceDebugData,
 } from "@/lib/api";
+import { ArticleDetailModal } from "@/components/article-detail-modal";
+import { ArticleInlineEmbed } from "@/components/article-inline-embed";
 
 export function ReadingQueueSidebar() {
   const READ_SPEED_WPM = 230; // Average adult reading speed
@@ -67,6 +69,8 @@ export function ReadingQueueSidebar() {
   const [queueDigest, setQueueDigest] = useState<string | null>(null);
   const [digestLoading, setDigestLoading] = useState(false);
   const [showQueueOverview, setShowQueueOverview] = useState(false);
+  const [embedModalArticle, setEmbedModalArticle] = useState<NewsArticle | null>(null);
+  const [embedModalOpen, setEmbedModalOpen] = useState(false);
 
   const generateQueueDigest = async () => {
     if (!queuedArticles || queuedArticles.length === 0) return;
@@ -986,44 +990,78 @@ export function ReadingQueueSidebar() {
                             {...props}
                           />
                         ),
-                        code: ({ node, ...props }) => (
-                          <code
-                            className="px-2 py-1 rounded text-sm"
-                            style={{
-                              backgroundColor: "rgba(0, 0, 0, 0.3)",
-                              color: "rgb(168, 85, 247)",
-                            }}
-                            {...props}
-                          />
-                        ),
+                        // Custom code renderer: detect the special json:articles fence and render inline embeds
+                        // Note: ReactMarkdown types are a bit strict here; use any for node/children
+                        // to keep the custom renderer concise.
+                        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                        code: ({ node, className, children, ...props }: any) => {
+                          const text = String(children).replace(/\n$/, "");
+                          const isStructured =
+                            (className === "language-json:articles") ||
+                            // Some markdown renderers include the fence label in node.lang or node.meta
+                            (typeof node?.lang === 'string' && node.lang === 'json:articles') ||
+                            (text.trim().startsWith('{') && text.includes('"articles"'));
+                          if (isStructured) {
+                            // try parse and render ArticleInlineEmbed components
+                            try {
+                              const payload = JSON.parse(text);
+                              const items = Array.isArray(payload.articles) ? payload.articles : [];
+                              return (
+                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 my-3">
+                                  {items.map((it: any, idx: number) => {
+                                    const url = it.url || it.link || `about:blank#${idx}`;
+                                    return (
+                                      <ArticleInlineEmbed
+                                        key={url}
+                                        url={url}
+                                        onOpen={(article) => {
+                                          setEmbedModalArticle(article);
+                                          setEmbedModalOpen(true);
+                                        }}
+                                      />
+                                    );
+                                  })}
+                                </div>
+                              );
+                            } catch (err) {
+                              console.error('Failed to parse structured articles JSON in markdown code block', err);
+                            }
+                          }
+                          // fallback: simple inline code style
+                          return (
+                            <code
+                              className="px-2 py-1 rounded text-sm"
+                              style={{ backgroundColor: "rgba(0,0,0,0.3)", color: "rgb(168,85,247)" }}
+                              {...props}
+                            >
+                              {text}
+                            </code>
+                          );
+                        },
                         pre: ({ node, ...props }) => (
                           <pre
                             className="p-4 rounded mb-3 overflow-x-auto text-sm"
-                            style={{
-                              backgroundColor: "rgba(0, 0, 0, 0.4)",
-                              color: "var(--foreground)",
-                            }}
+                            style={{ backgroundColor: "rgba(0, 0, 0, 0.4)", color: "var(--foreground)" }}
                             {...props}
                           />
                         ),
                         strong: ({ node, ...props }) => (
-                          <strong
-                            className="font-semibold"
-                            style={{ color: "rgb(168, 85, 247)" }}
-                            {...props}
-                          />
+                          <strong className="font-semibold" style={{ color: "rgb(168, 85, 247)" }} {...props} />
                         ),
                         em: ({ node, ...props }) => (
-                          <em
-                            className="italic"
-                            style={{ color: "var(--foreground)" }}
-                            {...props}
-                          />
+                          <em className="italic" style={{ color: "var(--foreground)" }} {...props} />
                         ),
                       }}
                     >
                       {queueDigest}
                     </ReactMarkdown>
+                    {embedModalArticle && (
+                      <ArticleDetailModal
+                        article={embedModalArticle}
+                        isOpen={embedModalOpen}
+                        onClose={() => setEmbedModalOpen(false)}
+                      />
+                    )}
                   </div>
                 ) : (
                   <div className="flex items-center justify-center h-full">
