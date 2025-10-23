@@ -16,7 +16,7 @@ COPY backend/app/ ./app/
 COPY backend/*.py ./
 
 # Copy SQL files if present
-COPY backend/*.sql ./ 2>/dev/null || true
+RUN cp -r backend/*.sql ./ 2>/dev/null || true
 
 EXPOSE 8001
 

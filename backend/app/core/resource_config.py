@@ -1,5 +1,7 @@
 """Dynamic resource configuration based on system capabilities."""
 
+# This was needed as my laptop doesn't run this well without it
+
 import os
 from typing import TypedDict
 
