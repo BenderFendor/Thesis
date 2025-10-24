@@ -226,3 +226,7 @@ When an article is add to the read it should have its ai anyslsis reading time a
 I need to make more clean the political leaning of sources from like a glance as I can't tell myself.
 
 Favorited sources should be on the top of the grid view
+
+Also I should add a debug mode that show all the articles I have in the postgres and chromadb and what those look like add that to the debug view.
+
+Changing the debug sources page to a debug page.
