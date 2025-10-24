@@ -222,3 +222,7 @@ These features help the user quickly assess the 20-article queue and decide wher
 
 When an article is add to the read it should have its ai anyslsis reading time and full text article added as well so that it doesn't have to load when you click the article since we can make the good guess that the reader wants to read that later and have it preloaded for them
 
+# Sources leaning
+I need to make more clean the political leaning of sources from like a glance as I can't tell myself.
+
+Favorited sources should be on the top of the grid view
