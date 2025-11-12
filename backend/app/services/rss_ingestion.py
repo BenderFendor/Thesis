@@ -950,6 +950,8 @@ def parse_rss_feed_entries(
 # This should refresh everyh 10 minutes (600 seconds)
 def start_cache_refresh_scheduler(interval_seconds: int = 600) -> None:
     def cache_scheduler() -> None:
+        # Initial delay to avoid competing with startup refresh
+        time.sleep(interval_seconds)
         while True:
             try:
                 refresh_news_cache()
@@ -961,5 +963,5 @@ def start_cache_refresh_scheduler(interval_seconds: int = 600) -> None:
     thread = threading.Thread(target=cache_scheduler, daemon=True)
     thread.start()
     logger.info(
-        "🚀 Cache refresh scheduler started (%s-second intervals)", interval_seconds
+        "🚀 Cache refresh scheduler started (every %s s, delayed first run)", interval_seconds
     )

@@ -102,12 +102,12 @@ def _start_schedulers_once() -> None:
 
 
 async def _load_cache_from_db_fast() -> None:
-    """Fast path: Load cached articles from DB on startup (~2-5 seconds for 10k+ articles)."""
+    """Fast path: Load small batch from DB on startup for instant readiness."""
     logger.info("📦 Attempting to load articles from database...")
     try:
         async with AsyncSessionLocal() as session:
-            # Load up to 10,000 recent articles from DB for instant load
-            articles_dicts = await fetch_all_articles(session, limit=10000)
+            # Load small batch (500) for fast perceived startup
+            articles_dicts = await fetch_all_articles(session, limit=500)
             if articles_dicts:
                 # Convert dictionaries back to NewsArticle Pydantic models
                 articles = [
@@ -121,12 +121,9 @@ async def _load_cache_from_db_fast() -> None:
                 )
                 return
             else:
-                logger.warning("⚠️ No articles in DB, falling back to full RSS fetch.")
+                logger.info("⚠️ No articles in DB; async refresh will populate cache.")
     except Exception as e:
-        logger.error("❌ Failed to load from DB: %s. Falling back to RSS.", e)
-
-    # Fallback: do full RSS fetch if DB load fails or returns no articles
-    refresh_news_cache()
+        logger.error("❌ Failed to load from DB: %s. Async refresh will handle.", e)
 
 
 def _initial_cache_load() -> None:
@@ -141,6 +138,10 @@ def _initial_cache_load() -> None:
 
 @app.on_event("startup")
 async def on_startup() -> None:
+    import time
+    from datetime import datetime, timezone, timedelta
+    
+    startup_start = time.time()
     logger.info("Starting Global News Aggregation API...")
 
     loop = asyncio.get_running_loop()
@@ -150,17 +151,19 @@ async def on_startup() -> None:
     signal.signal(signal.SIGTERM, _handle_shutdown_signal)
     signal.signal(signal.SIGINT, _handle_shutdown_signal)
 
+    db_start = time.time()
     await init_db()
-    logger.info("Database initialisation complete")
+    logger.info("Database initialisation complete (%.2fs)", time.time() - db_start)
 
     _start_schedulers_once()
 
-    # 🚀 Load DB cache immediately (fast, non-blocking)
+    # 🚀 Load small DB batch immediately (fast, non-blocking)
+    cache_load_start = time.time()
     threading.Thread(
         target=_initial_cache_load, name="initial-cache-load", daemon=True
     ).start()
 
-    # 🔄 Start async RSS refresh scheduler (new optimized approach)
+    # 🔄 Start async RSS refresh scheduler (delayed first run)
     scheduler_task = asyncio.create_task(
         periodic_rss_refresh(interval_seconds=600), name="rss_refresh_scheduler"
     )
@@ -169,9 +172,11 @@ async def on_startup() -> None:
     # 🔄 Start initial background RSS refresh without blocking startup
     async def start_background_rss_refresh_async() -> None:
         await asyncio.sleep(2)  # Give DB load a head start
+        refresh_start = time.time()
         logger.info("🔄 Starting initial async RSS refresh...")
         try:
             await refresh_news_cache_async()
+            logger.info("✅ Initial async RSS refresh complete (%.2fs)", time.time() - refresh_start)
         except Exception as exc:  # pragma: no cover
             logger.error("Background RSS refresh failed: %s", exc, exc_info=True)
 
@@ -185,13 +190,43 @@ async def on_startup() -> None:
     )
     _register_background_task(persistence_task)
 
+    # Only migrate if cache has stale articles (> 6 hours old)
+    async def conditional_migration() -> None:
+        await asyncio.sleep(3)  # Wait for initial preload
+        articles = news_cache.get_articles()
+        if articles:
+            try:
+                # Parse ISO format dates and find oldest
+                def parse_published(article):
+                    try:
+                        # Handle ISO format with/without timezone
+                        pub = article.published.replace('Z', '+00:00')
+                        return datetime.fromisoformat(pub)
+                    except:
+                        # Fallback to current time if parse fails
+                        return datetime.now(timezone.utc)
+                
+                oldest = min(articles, key=parse_published)
+                oldest_dt = parse_published(oldest)
+                age_hours = (datetime.now(timezone.utc) - oldest_dt).total_seconds() / 3600
+                if age_hours > 6:
+                    logger.info("📋 Cache has stale articles (%.1fh old), starting migration...", age_hours)
+                    await migrate_cached_articles_on_startup()
+                else:
+                    logger.info("✨ Cache is fresh (%.1fh old), skipping migration", age_hours)
+            except Exception as exc:
+                logger.warning("Could not determine cache age: %s; skipping migration", exc)
+        else:
+            logger.info("⏭️ Cache empty, skipping migration")
+
     migration_task = asyncio.create_task(
-        migrate_cached_articles_on_startup(), name="migrate_cached_articles"
+        conditional_migration(), name="conditional_migration"
     )
     _register_background_task(migration_task)
 
     logger.info(
-        "API startup complete - cache ready with %d articles",
+        "API startup complete (%.2fs) - cache ready with %d articles",
+        time.time() - startup_start,
         len(news_cache.get_articles()),
     )
 
