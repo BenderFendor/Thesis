@@ -1,0 +1,19 @@
+[build-system]
+requires = ["maturin>=1.4,<2.0"]
+build-backend = "maturin"
+
+[project]
+name = "rss-parser-rust"
+version = "0.1.0"
+description = "High performance RSS ingestion pipeline for Thesis backend"
+requires-python = ">=3.11"
+authors = [{ name = "Thesis" }]
+license = { text = "MIT" }
+classifiers = [
+    "Programming Language :: Rust",
+    "Programming Language :: Python :: 3",
+]
+
+[tool.maturin]
+module-name = "rss_parser_rust"
+features = ["pyo3/extension-module", "pyo3/abi3-py311"]

@@ -24,6 +24,13 @@ from app.services.metrics import get_metrics, reset_metrics
 from app.services.persistence import persist_articles_dual_write
 from app.services.websocket_manager import manager
 
+try:  # Optional Rust acceleration
+    import rss_parser_rust  # type: ignore
+
+    RUST_RSS_AVAILABLE = True
+except ImportError:  # pragma: no cover - optional dependency
+    RUST_RSS_AVAILABLE = False
+
 logger = get_logger("rss_ingestion")
 stream_logger = get_logger("news_stream")
 
@@ -652,42 +659,57 @@ async def _persist_worker(
 async def refresh_news_cache_async(
     source_progress_callback: Optional[callable] = None,
 ) -> None:
-    """
-    Async RSS refresh using fetch → parse → persist pipeline.
-
-    This replaces the old ThreadPoolExecutor approach with:
-    - Async HTTP fetching (many concurrent)
-    - Process pool parsing (bypasses GIL)
-    - Batched persistence (efficient DB writes)
-    """
+    """Refresh the news cache, preferring the Rust pipeline when available."""
     global _shutdown_event, _process_pool, _resources
 
     if news_cache.update_in_progress:
         logger.info("Cache update already in progress, skipping...")
         return
 
+    rss_sources = get_rss_sources()
     news_cache.update_in_progress = True
+
+    try:
+        if RUST_RSS_AVAILABLE:
+            try:
+                await _refresh_news_cache_with_rust(
+                    rss_sources, source_progress_callback
+                )
+                return
+            except Exception as rust_exc:  # pragma: no cover - fallback path
+                logger.error(
+                    "🛑 Rust ingestion failed, falling back to Python: %s",
+                    rust_exc,
+                    exc_info=True,
+                )
+
+        await _refresh_news_cache_with_python(rss_sources, source_progress_callback)
+    finally:
+        news_cache.update_in_progress = False
+
+
+async def _refresh_news_cache_with_python(
+    rss_sources: Dict[str, Dict[str, Any]],
+    source_progress_callback: Optional[callable],
+) -> None:
+    """Original async pipeline leveraging Python workers."""
+    global _shutdown_event, _process_pool, _resources
+
     _shutdown_event = asyncio.Event()
     reset_metrics()
 
-    # Get resource configuration
     if _resources is None:
         _resources = get_system_resources()
         logger.info("Resource config: %s", _resources)
 
-    # Initialize process pool (once)
     if _process_pool is None:
         _process_pool = ProcessPoolExecutor(max_workers=_resources["cpu_workers"])
 
-    # Create queues
     fetch_queue = asyncio.Queue(maxsize=_resources["fetch_queue_size"])
     parse_queue = asyncio.Queue(maxsize=_resources["parse_queue_size"])
     persist_queue = asyncio.Queue(maxsize=_resources["persist_queue_size"])
-
-    # Create semaphore for fetch concurrency
     fetch_semaphore = asyncio.Semaphore(_resources["fetch_concurrency"])
 
-    # Create HTTP client with retries
     http_client = httpx.AsyncClient(
         timeout=httpx.Timeout(25.0),
         transport=httpx.AsyncHTTPTransport(retries=3),
@@ -698,21 +720,18 @@ async def refresh_news_cache_async(
     source_stats: List[Dict[str, Any]] = []
 
     def collect_results(articles: List[NewsArticle], stat: Dict[str, Any]) -> None:
-        """Collect results from persist worker."""
         all_articles.extend(articles)
         source_stats.append(stat)
 
-    # Wrap callback to also collect results
     def combined_callback(articles: List[NewsArticle], stat: Dict[str, Any]) -> None:
         collect_results(articles, stat)
         if source_progress_callback:
             try:
                 source_progress_callback(articles, stat)
-            except Exception as e:
-                logger.error("Progress callback error: %s", e)
+            except Exception as exc:
+                logger.error("Progress callback error: %s", exc)
 
     try:
-        # Start worker tasks
         fetch_workers = [
             asyncio.create_task(
                 _fetch_worker(fetch_queue, parse_queue, fetch_semaphore, http_client),
@@ -736,67 +755,165 @@ async def refresh_news_cache_async(
             name="persist-worker",
         )
 
-        # Load sources and enqueue
-        rss_sources = get_rss_sources()
         for source_name, source_info in rss_sources.items():
             await fetch_queue.put((source_name, source_info))
 
-        # Wait for all queues to empty
         await fetch_queue.join()
         await parse_queue.join()
         await persist_queue.join()
 
-        # Send poison pills
         for _ in fetch_workers:
             await fetch_queue.put((None, None))
         for _ in parse_workers:
             await parse_queue.put(None)
         await persist_queue.put(None)
 
-        # Wait for workers to finish
         await asyncio.gather(*fetch_workers, *parse_workers, persist_worker)
 
-        # Update cache with all collected articles
         try:
             all_articles.sort(key=lambda article: article.published, reverse=True)
         except Exception:
             pass
 
         news_cache.update_cache(all_articles, source_stats)
-        logger.info(
-            "✅ Async cache refresh complete: %s total articles", len(all_articles)
-        )
-
-        # Notify clients via WebSocket
-        async def notify_clients() -> None:
-            await manager.broadcast(
-                {
-                    "type": "cache_updated",
-                    "message": "News cache has been updated",
-                    "timestamp": datetime.now().isoformat(),
-                    "stats": {
-                        "total_articles": len(all_articles),
-                        "sources_processed": len(source_stats),
-                    },
-                }
-            )
-
-        try:
-            await notify_clients()
-        except Exception as e:
-            logger.error("Failed to notify clients: %s", e)
+        await _broadcast_cache_update(len(all_articles), len(source_stats))
 
         metrics = get_metrics()
         metrics.end_time = datetime.now()
-        logger.info("📊 Pipeline metrics: %s", metrics.to_dict())
+        logger.info("📊 Python pipeline metrics: %s", metrics.to_dict())
 
-    except Exception as e:
-        logger.error("Async cache refresh failed: %s", e, exc_info=True)
+    except Exception as exc:
+        logger.error("Async cache refresh failed: %s", exc, exc_info=True)
 
     finally:
         await http_client.aclose()
-        news_cache.update_in_progress = False
         _shutdown_event.set()
+
+
+async def _refresh_news_cache_with_rust(
+    rss_sources: Dict[str, Dict[str, Any]],
+    source_progress_callback: Optional[callable],
+) -> None:
+    logger.info("🦀 Using Rust RSS ingestion pipeline")
+
+    sources_payload = [
+        (name, list(_iter_source_urls(info.get("url"))))
+        for name, info in rss_sources.items()
+    ]
+
+    if not sources_payload:
+        logger.warning("No RSS sources configured; skipping refresh")
+        news_cache.update_cache([], [])
+        await _broadcast_cache_update(0, 0)
+        return
+
+    result = await asyncio.to_thread(
+        rss_parser_rust.parse_feeds_parallel,
+        sources_payload,
+        min(64, max(8, len(sources_payload) * 2)),
+    )
+
+    articles_payload: List[Dict[str, Any]] = result.get("articles", [])
+    stats_payload: Dict[str, Dict[str, Any]] = result.get("source_stats", {})
+    metrics_payload: Dict[str, Any] = result.get("metrics", {})
+
+    articles_by_source: Dict[str, List[NewsArticle]] = {}
+    for item in articles_payload:
+        source_name = item.get("source") or "Unknown"
+        source_info = rss_sources.get(source_name, {})
+        category = item.get("category") or source_info.get("category", "general")
+
+        article = NewsArticle(
+            title=item.get("title", "No title"),
+            link=item.get("link", ""),
+            description=item.get("description", "No description"),
+            published=item.get("published", datetime.now().isoformat()),
+            source=source_name,
+            category=category,
+            image=item.get("image"),
+        )
+        articles_by_source.setdefault(source_name, []).append(article)
+
+    for articles in articles_by_source.values():
+        articles.sort(key=lambda article: article.published, reverse=True)
+
+    source_stats: List[Dict[str, Any]] = []
+    for name, source_info in rss_sources.items():
+        rust_stat = stats_payload.get(name, {})
+        stat = {
+            "name": name,
+            "url": source_info.get("url"),
+            "category": source_info.get("category", "general"),
+            "country": source_info.get("country", "US"),
+            "funding_type": source_info.get("funding_type"),
+            "bias_rating": source_info.get("bias_rating"),
+            "article_count": rust_stat.get(
+                "article_count", len(articles_by_source.get(name, []))
+            ),
+            "status": rust_stat.get("status", "success"),
+            "error_message": rust_stat.get("error_message"),
+            "last_checked": datetime.now().isoformat(),
+            "is_consolidated": source_info.get("consolidate", False),
+            "sub_feeds": rust_stat.get("sub_feeds"),
+        }
+        source_stats.append(stat)
+        if source_progress_callback:
+            try:
+                source_progress_callback(articles_by_source.get(name, []), stat)
+            except Exception as exc:
+                logger.error("Progress callback error: %s", exc)
+
+    loop = asyncio.get_running_loop()
+    persist_tasks = []
+    for name, articles in articles_by_source.items():
+        source_info = rss_sources.get(name, {})
+        persist_tasks.append(
+            loop.run_in_executor(
+                None,
+                persist_articles_dual_write,
+                articles,
+                {**source_info, "name": name, "source": name},
+            )
+        )
+
+    if persist_tasks:
+        await asyncio.gather(*persist_tasks)
+
+    all_articles = [
+        article for group in articles_by_source.values() for article in group
+    ]
+    try:
+        all_articles.sort(key=lambda article: article.published, reverse=True)
+    except Exception:
+        pass
+
+    news_cache.update_cache(all_articles, source_stats)
+    await _broadcast_cache_update(len(all_articles), len(source_stats))
+
+    logger.info(
+        "🦀 Rust parser complete: %s articles (fetch=%sms, parse=%sms, total=%sms)",
+        len(all_articles),
+        metrics_payload.get("fetch_duration_ms", 0),
+        metrics_payload.get("parse_duration_ms", 0),
+        metrics_payload.get("total_duration_ms", 0),
+    )
+
+
+async def _broadcast_cache_update(total_articles: int, source_count: int) -> None:
+    try:
+        await manager.broadcast(
+            {
+                "type": "cache_updated",
+                "message": "News cache has been updated",
+                "timestamp": datetime.now().isoformat(),
+                "stats": {
+                    "total_articles": total_articles,
+                    "sources_processed": source_count,
+                },
+            }
+        )
+    except Exception as exc:
+        logger.error("Failed to notify clients: %s", exc)
 
 
 def refresh_news_cache(
