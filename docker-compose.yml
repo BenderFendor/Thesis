@@ -88,9 +88,9 @@ services:
       - /app/node_modules
       - /app/.next
     environment:
-      - NODE_ENV=development
-      - NEXT_PUBLIC_API_URL=http://localhost:8000
-      - NEXT_PUBLIC_DOCKER_API_URL=http://localhost:8000
+      - NODE_ENV=development 
+      - NEXT_PUBLIC_API_URL=https://api.jordandgreen.com/ # use to be localhost:8000 for local dev but now using deployed backend
+      - NEXT_PUBLIC_DOCKER_API_URL=https://api.jordandgreen.com/
     depends_on:
       - backend
     restart: unless-stopped

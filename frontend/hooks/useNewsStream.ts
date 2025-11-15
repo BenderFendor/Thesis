@@ -1,6 +1,9 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
 import { streamNews, type NewsArticle, type StreamOptions, type StreamProgress } from '@/lib/api'
 
+const NEXT_PUBLIC_API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+const NEXT_PUBLIC_DOCKER_API_URL = process.env.NEXT_PUBLIC_DOCKER_API_URL || "http://localhost:8000";
+
 interface UseNewsStreamOptions extends Omit<StreamOptions, 'onProgress' | 'onSourceComplete' | 'onError'> {
   onUpdate?: (articles: NewsArticle[]) => void
   onComplete?: (result: { articles: NewsArticle[]; sources: string[]; errors: string[] }) => void
@@ -156,7 +159,7 @@ export const useNewsStream = (options: UseNewsStreamOptions = {}) => {
 
   // WebSocket listener for image updates
   useEffect(() => {
-    const ws = new WebSocket('ws://localhost:8000/ws');
+    const ws = new WebSocket(NEXT_PUBLIC_DOCKER_API_URL.replace(/^http/, 'ws') + '/ws' || 'ws://localhost:8000/ws');
 
     ws.onmessage = (event) => {
       const data = JSON.parse(event.data);

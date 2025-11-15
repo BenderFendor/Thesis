@@ -6,7 +6,7 @@
 Like for example Great! Let me create a summary of the changes I've made and making some new markdown files to document them. that isn't readme.md todo.md or log.md
 
 ## Architecture snapshot
-- FastAPI backend + Next.js 14 frontend; Docker Compose binds backend on http://localhost:8000 and frontend on http://localhost:3000.
+- FastAPI backend + Next.js 14 frontend; Docker Compose binds backend on http:// and frontend on http://localhost:3000.
 - Backend entrypoint `backend/app/main.py` registers routers, SSE endpoints, and Gemini integrations; cross-cutting services live in `app/services/*`.
 - RSS ingestion runs from `app/services/rss_ingestion.py` (`refresh_news_cache`, lines ~150-330) using thread pool throttling, writes to `news_cache`, and dual-writes to Postgres via `persist_articles_dual_write`.
 - Sources resolve from `app/data/rss_sources.py` (JSON-backed) and feed metadata into SSE progress events managed by `app/services/stream_manager.py`.
