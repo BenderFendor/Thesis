@@ -5,10 +5,12 @@ from sqlalchemy import (
     Text,
     DateTime,
     Boolean,
-    ARRAY,
+    JSON,
     select,
     or_,
 )
+from sqlalchemy.dialects import postgresql
+from sqlalchemy.types import TypeDecorator
 from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession, async_sessionmaker
 from sqlalchemy.ext.declarative import declarative_base
 from datetime import datetime
@@ -40,6 +42,31 @@ AsyncSessionLocal = async_sessionmaker(
 Base = declarative_base()
 
 
+# Custom Types
+
+
+class TagListType(TypeDecorator):
+    """Stores tag arrays as native ARRAY on Postgres and JSON elsewhere."""
+
+    impl = JSON
+    cache_ok = True
+
+    def load_dialect_impl(self, dialect):  # type: ignore[override]
+        if dialect.name == "postgresql":
+            return dialect.type_descriptor(postgresql.ARRAY(String))
+        return dialect.type_descriptor(JSON)
+
+    def process_bind_param(self, value, dialect):  # type: ignore[override]
+        if value is None:
+            return []
+        if isinstance(value, list):
+            return value
+        return list(value)
+
+    def process_result_value(self, value, dialect):  # type: ignore[override]
+        return value or []
+
+
 # Database Models
 class Article(Base):
     __tablename__ = "articles"
@@ -57,7 +84,7 @@ class Article(Base):
     published_at = Column(DateTime, nullable=False, index=True)
     category = Column(String, index=True)
     url = Column(String, unique=True, nullable=False, index=True)
-    tags = Column(ARRAY(String))
+    tags = Column(TagListType(), default=list)
     original_language = Column(String, default="en")
     translated = Column(Boolean, default=False)
     chroma_id = Column(String, unique=True)

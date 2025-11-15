@@ -1,4 +1,4 @@
-from typing import Optional
+from typing import Any, Optional
 from datetime import datetime
 from pydantic import BaseModel
 
@@ -24,6 +24,11 @@ class ReadingQueueItem(BaseModel):
 
     class Config:
         from_attributes = True
+
+    @classmethod
+    def from_attributes(cls, obj: Any) -> "ReadingQueueItem":
+        """Helper retained for compatibility with code expecting Pydantic v1."""
+        return cls.model_validate(obj, from_attributes=True)
 
 
 class AddToQueueRequest(BaseModel):
@@ -63,6 +68,10 @@ class Highlight(BaseModel):
 
     class Config:
         from_attributes = True
+
+    @classmethod
+    def from_attributes(cls, obj: Any) -> "Highlight":
+        return cls.model_validate(obj, from_attributes=True)
 
 
 class CreateHighlightRequest(BaseModel):
