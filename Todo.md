@@ -230,3 +230,7 @@ Favorited sources should be on the top of the grid view
 Also I should add a debug mode that show all the articles I have in the postgres and chromadb and what those look like add that to the debug view.
 
 Changing the debug sources page to a debug page.
+
+# Debug page ideas
+
+It should have like start up time, breaking that down from the backend to the rss parser to the chormadb init all those useful infomation about init / start up time should be in that page.

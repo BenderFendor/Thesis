@@ -1,4 +1,19 @@
-FROM ghcr.io/pyo3/maturin:1.4.0 as rust-builder
+FROM python:3.11-slim AS rust-builder
+
+# Install Rust and maturin for building the Rust RSS parser 
+
+ENV PATH="/root/.cargo/bin:${PATH}" 
+
+RUN apt-get update \
+	&& apt-get install -y --no-install-recommends \
+		build-essential \
+		curl \
+		libssl-dev \
+		pkg-config \
+	&& rm -rf /var/lib/apt/lists/*
+
+RUN curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y \
+	&& pip install --no-cache-dir maturin==1.8.2
 
 WORKDIR /build
 COPY backend/rss_parser_rust ./rss_parser_rust
@@ -7,10 +22,18 @@ RUN maturin build --release --locked
 
 FROM python:3.11-slim
 
+ENV PYTHONUNBUFFERED=1
+
 WORKDIR /app
 
-# Install uv
-COPY --from=ghcr.io/astral-sh/uv:latest /uv /usr/local/bin/uv
+RUN apt-get update \
+	&& apt-get install -y --no-install-recommends curl \
+	&& rm -rf /var/lib/apt/lists/*
+
+RUN curl -LsSf https://astral.sh/uv/install.sh | sh \
+	&& mv /root/.local/bin/uv /usr/local/bin/uv \
+	&& mv /root/.local/bin/uvx /usr/local/bin/uvx \
+	&& rm -rf /root/.local/share/uv
 
 # Copy requirements and install dependencies with uv
 COPY backend/requirements.txt .
