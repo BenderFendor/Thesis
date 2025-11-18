@@ -109,26 +109,6 @@ Use Model Context Protocol (MCP) tools to assist with development. These tools a
 - "FastAPI async middleware implementation"
 - "Next.js server components with streaming data"
 
-### context7
-**Purpose**: Fetch comprehensive, up-to-date documentation for any library or package.
-
-**Key Capabilities**:
-- Retrieve official documentation for libraries and SDKs
-- Get documentation focused on specific topics or features
-- Access version-specific documentation when available
-- Integrate seamlessly with code search for complete learning
-
-**When to Use**:
-- Need official API documentation for a library
-- Want focused information on specific features
-- Require version-specific documentation details
-- Combining knowledge from both code examples and official docs
-
-**Example Queries**:
-- "Next.js routing patterns" (fetches official Next.js routing docs)
-- "MongoDB connection pooling" (fetches MongoDB driver documentation)
-- "Supabase authentication hooks" (fetches Supabase docs on auth)
-
 ### git
 **Purpose**: Version control operations for managing repository changes.
 
