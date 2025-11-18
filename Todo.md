@@ -234,3 +234,7 @@ Changing the debug sources page to a debug page.
 # Debug page ideas
 
 It should have like start up time, breaking that down from the backend to the rss parser to the chormadb init all those useful infomation about init / start up time should be in that page.
+
+# Improving Agentic search
+
+Take my personal AI tool and all the AI tools here and get a model with a huge context window to critque my ai tools and then add all the improvements I made to this ai
