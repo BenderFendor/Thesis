@@ -1,9 +1,12 @@
+import time
 import chromadb
 from chromadb.config import Settings
-from typing import List, Dict, Optional
+from typing import Any, Dict, List, Optional
 import os
 import logging
 from sentence_transformers import SentenceTransformer
+
+from app.services.startup_metrics import startup_metrics
 
 logger = logging.getLogger(__name__)
 
@@ -13,6 +16,7 @@ CHROMA_PORT = int(os.getenv("CHROMA_PORT", "8000"))
 
 class VectorStore:
     def __init__(self):
+        init_start = time.time()
         try:
             # Use HTTP client for Docker setup
             self.client = chromadb.HttpClient(
@@ -35,11 +39,30 @@ class VectorStore:
             self.embedding_model = SentenceTransformer("all-MiniLM-L6-v2")
 
             logger.info(f"✅ Connected to ChromaDB at {CHROMA_HOST}:{CHROMA_PORT}")
+            collection_count = self.collection.count()
             logger.info(
-                f"📊 Collection '{self.collection.name}' has {self.collection.count()} documents"
+                f"📊 Collection '{self.collection.name}' has {collection_count} documents"
+            )
+            startup_metrics.record_event(
+                "vector_store_init",
+                init_start,
+                metadata={
+                    "host": CHROMA_HOST,
+                    "port": CHROMA_PORT,
+                    "collection": self.collection.name,
+                    "documents": collection_count,
+                },
+            )
+            startup_metrics.add_note(
+                "vector_store_status",
+                {
+                    "connected": True,
+                    "collection": self.collection.name,
+                },
             )
         except Exception as e:
             logger.error(f"❌ Failed to connect to ChromaDB: {e}")
+            startup_metrics.add_note("vector_store_error", str(e))
             raise
 
     def add_article(
@@ -176,6 +199,40 @@ class VectorStore:
         except Exception as e:
             logger.error(f"Batch add failed: {e}")
             return 0
+
+    def list_articles(self, limit: int = 50, offset: int = 0) -> Dict[str, Any]:
+        """Return a window of Chroma documents for debugging purposes."""
+        try:
+            payload = self.collection.get(
+                limit=limit,
+                offset=offset,
+                include=["metadatas", "documents"],
+            )
+
+            ids = payload.get("ids") or []
+            metadatas = payload.get("metadatas") or []
+            documents = payload.get("documents") or []
+
+            return {
+                "ids": ids,
+                "metadatas": metadatas,
+                "documents": documents,
+                "count": len(ids),
+                "total": self.collection.count(),
+            }
+        except Exception as exc:
+            logger.error("Failed to fetch Chroma documents: %s", exc)
+            raise
+
+    def list_all_ids(self) -> List[str]:
+        """Return every stored Chroma ID (used for drift detection)."""
+        try:
+            payload = self.collection.get(include=[])
+            ids = payload.get("ids") or []
+            return list(ids)
+        except Exception as exc:
+            logger.error("Failed to enumerate Chroma IDs: %s", exc)
+            raise
 
     def delete_article(self, article_id: str) -> bool:
         """Remove article from vector store"""

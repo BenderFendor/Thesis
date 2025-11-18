@@ -786,6 +786,172 @@ export async function fetchSourceDebugData(sourceName: string): Promise<SourceDe
   }
 }
 
+export interface ChromaDebugArticle {
+  id: string;
+  metadata: Record<string, unknown>;
+  preview: string;
+}
+
+export interface ChromaDebugResponse {
+  limit: number;
+  offset: number;
+  returned: number;
+  total?: number;
+  articles: ChromaDebugArticle[];
+}
+
+export interface DatabaseDebugResponse {
+  limit: number;
+  offset: number;
+  source?: string | null;
+  missing_embeddings_only: boolean;
+  sort_direction: "asc" | "desc";
+  published_before?: string | null;
+  published_after?: string | null;
+  total: number;
+  returned: number;
+  oldest_published?: string | null;
+  newest_published?: string | null;
+  articles: Array<{
+    id: number;
+    source: string;
+    title: string;
+    published_at?: string;
+    chroma_id?: string | null;
+    embedding_generated?: boolean | null;
+    url: string;
+    summary?: string | null;
+    content?: string | null;
+    image_url?: string | null;
+    [key: string]: unknown;
+  }>;
+}
+
+export interface StorageDriftReport {
+  database_total_articles: number;
+  database_with_embeddings: number;
+  database_missing_embeddings: number;
+  vector_total_documents: number;
+  missing_in_chroma_count: number;
+  dangling_in_chroma_count: number;
+  missing_in_chroma: Array<{ id: number; chroma_id?: string | null; embedding_generated?: boolean | null }>;
+  dangling_in_chroma: string[];
+}
+
+export interface StartupEventMetric {
+  name: string;
+  startedAt?: string | null;
+  completedAt?: string | null;
+  durationSeconds?: number | null;
+  detail?: string | null;
+  metadata?: Record<string, unknown>;
+}
+
+export interface StartupMetricsResponse {
+  startedAt?: string | null;
+  completedAt?: string | null;
+  durationSeconds?: number | null;
+  events: StartupEventMetric[];
+  notes: Record<string, unknown>;
+}
+
+export async function fetchChromaDebugArticles(params?: {
+  limit?: number;
+  offset?: number;
+}): Promise<ChromaDebugResponse> {
+  const searchParams = new URLSearchParams();
+  if (params?.limit) searchParams.append("limit", String(params.limit));
+  if (params?.offset) searchParams.append("offset", String(params.offset));
+
+  const query = searchParams.toString();
+  const response = await fetch(
+    `${API_BASE_URL}/debug/chromadb/articles${query ? `?${query}` : ""}`
+  );
+
+  if (!response.ok) {
+    throw new Error(`Failed to fetch Chroma debug data (${response.status})`);
+  }
+
+  return (await response.json()) as ChromaDebugResponse;
+}
+
+export async function fetchDatabaseDebugArticles(params?: {
+  limit?: number;
+  offset?: number;
+  source?: string;
+  missing_embeddings_only?: boolean;
+  sort_direction?: "asc" | "desc";
+  published_before?: string;
+  published_after?: string;
+}): Promise<DatabaseDebugResponse> {
+  const searchParams = new URLSearchParams();
+  if (params?.limit) searchParams.append("limit", String(params.limit));
+  if (params?.offset) searchParams.append("offset", String(params.offset));
+  if (params?.source) searchParams.append("source", params.source);
+  if (params?.missing_embeddings_only) {
+    searchParams.append("missing_embeddings_only", "true");
+  }
+  if (params?.sort_direction) {
+    searchParams.append("sort_direction", params.sort_direction);
+  }
+  if (params?.published_before) {
+    searchParams.append("published_before", params.published_before);
+  }
+  if (params?.published_after) {
+    searchParams.append("published_after", params.published_after);
+  }
+
+  const query = searchParams.toString();
+  const response = await fetch(
+    `${API_BASE_URL}/debug/database/articles${query ? `?${query}` : ""}`
+  );
+
+  if (!response.ok) {
+    throw new Error(`Failed to fetch database debug data (${response.status})`);
+  }
+
+  return (await response.json()) as DatabaseDebugResponse;
+}
+
+export async function fetchStorageDrift(sampleLimit: number = 50): Promise<StorageDriftReport> {
+  const response = await fetch(
+    `${API_BASE_URL}/debug/storage/drift?sample_limit=${sampleLimit}`
+  );
+
+  if (!response.ok) {
+    throw new Error(`Failed to fetch storage drift report (${response.status})`);
+  }
+
+  return (await response.json()) as StorageDriftReport;
+}
+
+export async function fetchStartupMetrics(): Promise<StartupMetricsResponse> {
+  const response = await fetch(`${API_BASE_URL}/debug/startup`);
+  if (!response.ok) {
+    throw new Error(`Failed to fetch startup metrics (${response.status})`);
+  }
+
+  const data = await response.json();
+  const events: StartupEventMetric[] = Array.isArray(data?.events)
+    ? data.events.map((event: any) => ({
+        name: event?.name ?? "event",
+        startedAt: event?.started_at ?? null,
+        completedAt: event?.completed_at ?? null,
+        durationSeconds: event?.duration_seconds ?? null,
+        detail: event?.detail ?? null,
+        metadata: event?.metadata ?? {},
+      }))
+    : [];
+
+  return {
+    startedAt: data?.started_at ?? null,
+    completedAt: data?.completed_at ?? null,
+    durationSeconds: data?.duration_seconds ?? null,
+    events,
+    notes: data?.notes ?? {},
+  };
+}
+
 // Enhanced news streaming function
 export function streamNews(options: StreamOptions = {}): {
   promise: Promise<{

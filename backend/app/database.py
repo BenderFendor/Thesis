@@ -8,6 +8,7 @@ from sqlalchemy import (
     JSON,
     select,
     or_,
+    func,
 )
 from sqlalchemy.dialects import postgresql
 from sqlalchemy.types import TypeDecorator
@@ -304,3 +305,79 @@ async def fetch_articles_by_ids(
             ordered.append(article)
 
     return ordered
+
+
+async def fetch_articles_page(
+    session: AsyncSession,
+    limit: int = 50,
+    offset: int = 0,
+    source: Optional[str] = None,
+    missing_embeddings_only: bool = False,
+    sort_direction: str = "desc",
+    published_before: Optional[datetime] = None,
+    published_after: Optional[datetime] = None,
+) -> Dict[str, Any]:
+    """Paginate through article rows for debugging and inspection."""
+
+    sort_column = Article.published_at
+    order_clause = (
+        sort_column.asc() if sort_direction.lower() == "asc" else sort_column.desc()
+    )
+
+    filters = []
+    if source:
+        filters.append(Article.source == source)
+    if missing_embeddings_only:
+        filters.append(
+            or_(Article.embedding_generated.is_(False), Article.embedding_generated.is_(None))
+        )
+    if published_before:
+        filters.append(Article.published_at <= published_before)
+    if published_after:
+        filters.append(Article.published_at >= published_after)
+
+    stmt = select(Article).order_by(order_clause, Article.id.desc()).limit(limit).offset(offset)
+    if filters:
+        stmt = stmt.where(*filters)
+
+    count_stmt = select(func.count()).select_from(Article)
+    if filters:
+        count_stmt = count_stmt.where(*filters)
+
+    result = await session.execute(stmt)
+    rows = [article_record_to_dict(record) for record in result.scalars().all()]
+
+    total = (await session.execute(count_stmt)).scalar_one()
+
+    range_stmt = select(func.min(Article.published_at), func.max(Article.published_at))
+    if filters:
+        range_stmt = range_stmt.where(*filters)
+    oldest, newest = (await session.execute(range_stmt)).one()
+
+    return {
+        "total": total,
+        "returned": len(rows),
+        "articles": rows,
+        "oldest_published": oldest.isoformat() if oldest else None,
+        "newest_published": newest.isoformat() if newest else None,
+    }
+
+
+async def fetch_article_chroma_mappings(session: AsyncSession) -> List[Dict[str, Any]]:
+    """Return article→chroma mappings for drift analysis."""
+
+    stmt = select(Article.id, Article.chroma_id, Article.embedding_generated)
+    result = await session.execute(stmt)
+
+    mappings = []
+    for row in result.all():
+        article_id, chroma_id, embedding_generated = row
+        mappings.append(
+            {
+                "id": article_id,
+                "chroma_id": chroma_id,
+                "embedding_generated": embedding_generated,
+            }
+        )
+
+    return mappings

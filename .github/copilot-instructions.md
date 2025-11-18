@@ -5,6 +5,8 @@
 - Do not suggest adding or modifying any markdown files other than README.md, Todo.md, or Log.md.
 Like for example Great! Let me create a summary of the changes I've made and making some new markdown files to document them. that isn't readme.md todo.md or log.md
 
+Use bash script and cmd tools when needed to extend your workflows.
+
 ## Architecture snapshot
 - FastAPI backend + Next.js 14 frontend; Docker Compose binds backend on http:// and frontend on http://localhost:3000.
 - Backend entrypoint `backend/app/main.py` registers routers, SSE endpoints, and Gemini integrations; cross-cutting services live in `app/services/*`.

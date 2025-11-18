@@ -2,15 +2,23 @@ from __future__ import annotations
 
 import re
 from datetime import datetime
-from typing import Dict
+from typing import Dict, List
 
 import feedparser  # type: ignore[import-unresolved]
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Query
+from fastapi.concurrency import run_in_threadpool
 
 from app.data.rss_sources import get_rss_sources
+from app.database import (
+    AsyncSessionLocal,
+    fetch_article_chroma_mappings,
+    fetch_articles_page,
+)
 from app.services.cache import news_cache
 from app.services.metrics import get_metrics
+from app.services.startup_metrics import startup_metrics
 from app.services.stream_manager import stream_manager
+from app.vector_store import vector_store
 
 router = APIRouter(prefix="/debug", tags=["debug"])
 
@@ -169,3 +177,125 @@ async def get_pipeline_metrics() -> Dict[str, object]:
         "success": True,
         "metrics": metrics.to_dict(),
     }
+
+
+@router.get("/startup")
+async def get_startup_metrics() -> Dict[str, object]:
+    """Expose recorded startup timings and notes."""
+    return startup_metrics.to_dict()
+
+
+@router.get("/chromadb/articles")
+async def list_chromadb_articles(
+    limit: int = Query(50, ge=1, le=500),
+    offset: int = Query(0, ge=0),
+) -> Dict[str, object]:
+    if vector_store is None:
+        raise HTTPException(status_code=503, detail="Vector store unavailable")
+
+    payload = await run_in_threadpool(vector_store.list_articles, limit, offset)
+
+    ids = payload.get("ids") or []
+    metadatas = payload.get("metadatas") or []
+    documents = payload.get("documents") or []
+
+    articles: List[Dict[str, object]] = []
+    for idx, chroma_id in enumerate(ids):
+        metadata = metadatas[idx] if idx < len(metadatas) else {}
+        document = documents[idx] if idx < len(documents) else ""
+        articles.append(
+            {
+                "id": chroma_id,
+                "metadata": metadata,
+                "preview": document[:200],
+            }
+        )
+
+    return {
+        "limit": limit,
+        "offset": offset,
+        "returned": len(articles),
+        "total": payload.get("total"),
+        "articles": articles,
+    }
+
+
+@router.get("/database/articles")
+async def list_database_articles(
+    limit: int = Query(50, ge=1, le=200),
+    offset: int = Query(0, ge=0),
+    source: str | None = Query(default=None, description="Filter by RSS source key"),
+    missing_embeddings_only: bool = Query(
+        default=False,
+        description="When true, only rows without generated embeddings are returned.",
+    ),
+    sort_direction: str = Query(
+        default="desc",
+        description="Sort published_at ascending or descending.",
+    ),
+    published_before: datetime | None = Query(default=None),
+    published_after: datetime | None = Query(default=None),
+) -> Dict[str, object]:
+    sort_normalized = sort_direction.lower()
+    if sort_normalized not in {"asc", "desc"}:
+        raise HTTPException(status_code=422, detail="sort_direction must be 'asc' or 'desc'")
+
+    async with AsyncSessionLocal() as session:
+        page = await fetch_articles_page(
+            session=session,
+            limit=limit,
+            offset=offset,
+            source=source,
+            missing_embeddings_only=missing_embeddings_only,
+            sort_direction=sort_normalized,
+            published_before=published_before,
+            published_after=published_after,
+        )
+
+    return {
+        "limit": limit,
+        "offset": offset,
+        "source": source,
+        "missing_embeddings_only": missing_embeddings_only,
+        "sort_direction": sort_normalized,
+        "published_before": published_before.isoformat() if published_before else None,
+        "published_after": published_after.isoformat() if published_after else None,
+        **page,
+    }
+
+
+@router.get("/storage/drift")
+async def get_storage_drift(
+    sample_limit: int = Query(50, ge=5, le=500),
+) -> Dict[str, object]:
+    if vector_store is None:
+        raise HTTPException(status_code=503, detail="Vector store unavailable")
+
+    async with AsyncSessionLocal() as session:
+        mappings = await fetch_article_chroma_mappings(session)
+
+    db_total = len(mappings)
+    db_chroma_ids = {m["chroma_id"] for m in mappings if m["chroma_id"]}
+    db_missing_chroma = [m for m in mappings if not m["chroma_id"]]
+
+    chroma_ids = set(await run_in_threadpool(vector_store.list_all_ids))
+
+    missing_in_chroma = [
+        m
+        for m in mappings
+        if m["chroma_id"] and m["chroma_id"] not in chroma_ids
+    ]
+    dangling_in_chroma = list(chroma_ids - db_chroma_ids)
+
+    drift_report = {
+        "database_total_articles": db_total,
+        "database_with_embeddings": len(db_chroma_ids),
+        "database_missing_embeddings": len(db_missing_chroma),
+        "vector_total_documents": len(chroma_ids),
+        "missing_in_chroma": missing_in_chroma[:sample_limit],
+        "dangling_in_chroma": dangling_in_chroma[:sample_limit],
+        "missing_in_chroma_count": len(missing_in_chroma),
+        "dangling_in_chroma_count": len(dangling_in_chroma),
+    }
+
+    return drift_report
