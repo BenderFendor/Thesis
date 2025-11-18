@@ -456,7 +456,11 @@ function NewsPage() {
           {categories.map((category) => {
             const IconComponent = category.icon
             return (
-              <TabsContent key={category.id} value={category.id} className="mt-0 flex-1 overflow-hidden">
+              <TabsContent
+                key={category.id}
+                value={category.id}
+                className="mt-0 flex-1 overflow-hidden flex flex-col"
+              >
                 {/* Content Views - Pass articles as props */}
                 <>
                   {currentView === "globe" && (

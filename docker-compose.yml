@@ -26,7 +26,8 @@ services:
       test: ["CMD-SHELL", "pg_isready -U newsuser -d newsdb"]
       interval: 10s
       timeout: 5s
-      retries: 5
+      start_period: 40s
+      retries: 10
     networks:
       - thesis_network
 

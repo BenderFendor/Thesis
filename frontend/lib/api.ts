@@ -1,8 +1,14 @@
 // API utility for communicating with FastAPI backend
 
 // Default to localhost backend when env var is not set (makes dev easier)
-export const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'
-const DOCKER_API_BASE_URL = process.env.NEXT_PUBLIC_DOCKER_API_URL || API_BASE_URL
+const resolveBaseUrl = (value?: string) => {
+  const fallback = 'http://localhost:8000';
+  const raw = value && value.trim().length > 0 ? value : fallback;
+  return raw.replace(/\/+$/, '');
+};
+
+export const API_BASE_URL = resolveBaseUrl(process.env.NEXT_PUBLIC_API_URL);
+const DOCKER_API_BASE_URL = resolveBaseUrl(process.env.NEXT_PUBLIC_DOCKER_API_URL || API_BASE_URL);
 
 // Use DOCKER_API_BASE_URL when running in Docker
 // This allows the frontend to reach the backend when both are in Docker containers

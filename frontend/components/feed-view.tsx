@@ -1,12 +1,11 @@
-"use client"
+"use client";
 
-import { useState, useEffect, useCallback, useMemo } from "react";
+import { useState, useEffect, useCallback } from "react";
+import { FixedSizeList, ListChildComponentProps } from "react-window";
 import { type NewsArticle, fetchBookmarks, createBookmark, deleteBookmark } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Heart, Bookmark, ExternalLink, Eye, Star } from "lucide-react";
-import { FixedSizeList as List } from "react-window";
-import AutoSizer from "react-virtualized-auto-sizer";
 import { ArticleDetailModal } from "./article-detail-modal";
 import { get_logger } from "@/lib/utils";
 import { useFavorites } from "@/hooks/useFavorites";
@@ -17,8 +16,6 @@ interface FeedViewProps {
   articles: NewsArticle[];
   loading: boolean;
 }
-
-const ROW_HEIGHT = typeof window !== 'undefined' ? window.innerHeight : 900;
 
 export function FeedView({ articles, loading }: FeedViewProps) {
   const [likedArticles, setLikedArticles] = useState<Set<number>>(new Set());
@@ -92,56 +89,10 @@ export function FeedView({ articles, loading }: FeedViewProps) {
     });
   };
 
-  // Virtual row renderer for feed
-  const FeedRow = useCallback(
-    ({ index, style }: { index: number; style: React.CSSProperties }) => {
-      const article = articles[index];
-      if (!article) return null;
-
-      return (
-        <div key={article.id} style={style} className="h-full w-full relative bg-black">
-          <img src={article.image || '/placeholder.svg'} alt={article.title} className="absolute inset-0 w-full h-full object-cover opacity-40" />
-          <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-black/20" />
-          <div className="relative z-10 h-full flex flex-col justify-end p-6 text-white">
-            <div className="absolute top-6 left-6 flex gap-2">
-              <Badge variant="secondary">{article.category}</Badge>
-              <Badge variant={article.credibility === 'high' ? 'default' : article.credibility === 'medium' ? 'secondary' : 'destructive'}>{article.credibility} credibility</Badge>
-            </div>
-            <div className="flex items-end">
-              <div className="flex-1 space-y-3">
-                <h1 className="text-2xl font-bold leading-tight text-balance">{article.title}</h1>
-                <p className="text-sm text-white/80 line-clamp-2">{article.summary}</p>
-                <div className="flex items-center gap-2">
-                  <Button size="sm" variant="secondary" onClick={() => { setSelectedArticle(article); setIsArticleModalOpen(true); }}>
-                    <Eye className="w-4 h-4 mr-2" />
-                    Read More
-                  </Button>
-                  <a href={article.url} target="_blank" rel="noopener noreferrer">
-                    <Button size="sm" variant="outline" className="bg-transparent text-white border-white/50 hover:bg-white/10">
-                      <ExternalLink className="w-4 h-4 mr-2" />
-                      Source
-                    </Button>
-                  </a>
-                </div>
-              </div>
-              <div className="flex flex-col items-center gap-3 ml-6">
-                <Button variant="ghost" size="icon" className="h-10 w-10" onClick={() => handleLike(article.id)}>
-                  <Heart className={`w-5 h-5 ${likedArticles.has(article.id) ? "fill-red-500 text-red-500" : ""}`} />
-                </Button>
-                <Button variant="ghost" size="icon" className="h-10 w-10" onClick={() => toggleFavorite(article.sourceId)} title={isFavorite(article.sourceId) ? "Remove from favorites" : "Add to favorites"}>
-                  <Star className={`w-5 h-5 transition-colors ${isFavorite(article.sourceId) ? "fill-yellow-500 text-yellow-500" : ""}`} />
-                </Button>
-                <Button variant="ghost" size="icon" className="h-10 w-10" onClick={() => void handleBookmark(article.id)}>
-                  <Bookmark className={`w-5 h-5 ${bookmarkedArticles.has(article.id) ? "fill-yellow-400 text-yellow-400" : ""}`} />
-                </Button>
-              </div>
-            </div>
-          </div>
-        </div>
-      )
-    },
-    [likedArticles, bookmarkedArticles, isFavorite, toggleFavorite],
-  )
+  const handleArticlePreview = useCallback((article: NewsArticle) => {
+    setSelectedArticle(article);
+    setIsArticleModalOpen(true);
+  }, []);
 
   if (loading) {
     return <div className="h-screen w-full flex items-center justify-center bg-black text-white">Loading...</div>;
@@ -153,19 +104,64 @@ export function FeedView({ articles, loading }: FeedViewProps) {
 
   return (
     <>
-      <AutoSizer>
-        {({ height, width }: { height: number; width: number }) => (
-          <List
-            itemCount={articles.length}
-            itemSize={height}
-            width={width}
-            height={height}
-            overscanCount={2}
-          >
-            {FeedRow}
-          </List>
-        )}
-      </AutoSizer>
+      <div className="relative flex-1 h-full min-h-0 w-full overflow-y-auto snap-y snap-mandatory scroll-smooth bg-black text-white">
+        <FixedSizeList
+          height={window.innerHeight}
+          width="100%"
+          itemSize={600}
+          itemCount={articles.length}
+          overscanCount={3}
+        >
+          {({ index, style }: ListChildComponentProps) => {
+            const article = articles[index];
+            return (
+              <section
+                key={article.id}
+                style={style}
+                className="snap-start h-full min-h-full w-full relative"
+              >
+                <img src={article.image || '/placeholder.svg'} alt={article.title} className="absolute inset-0 w-full h-full object-cover opacity-40" />
+                <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-black/20" />
+                <div className="relative z-10 h-full flex flex-col justify-end p-6">
+                  <div className="absolute top-6 left-6 flex flex-wrap gap-2">
+                    <Badge variant="secondary">{article.category}</Badge>
+                    <Badge variant={article.credibility === 'high' ? 'default' : article.credibility === 'medium' ? 'secondary' : 'destructive'}>{article.credibility} credibility</Badge>
+                  </div>
+                  <div className="flex items-end gap-4">
+                    <div className="flex-1 space-y-4">
+                      <h1 className="text-3xl font-bold leading-tight text-balance drop-shadow-lg">{article.title}</h1>
+                      <p className="text-base text-white/85 line-clamp-3 max-w-2xl drop-shadow">{article.summary}</p>
+                      <div className="flex items-center gap-3">
+                        <Button size="sm" variant="secondary" onClick={() => handleArticlePreview(article)}>
+                          <Eye className="w-4 h-4 mr-2" />
+                          Read More
+                        </Button>
+                        <a href={article.url} target="_blank" rel="noopener noreferrer">
+                          <Button size="sm" variant="outline" className="bg-transparent text-white border-white/50 hover:bg-white/10">
+                            <ExternalLink className="w-4 h-4 mr-2" />
+                            Source
+                          </Button>
+                        </a>
+                      </div>
+                    </div>
+                    <div className="flex flex-col items-center gap-4">
+                      <Button variant="ghost" size="icon" className="h-12 w-12" onClick={() => handleLike(article.id)}>
+                        <Heart className={`w-6 h-6 ${likedArticles.has(article.id) ? "fill-red-500 text-red-500" : ""}`} />
+                      </Button>
+                      <Button variant="ghost" size="icon" className="h-12 w-12" onClick={() => toggleFavorite(article.sourceId)} title={isFavorite(article.sourceId) ? "Remove from favorites" : "Add to favorites"}>
+                        <Star className={`w-6 h-6 transition-colors ${isFavorite(article.sourceId) ? "fill-yellow-500 text-yellow-500" : ""}`} />
+                      </Button>
+                      <Button variant="ghost" size="icon" className="h-12 w-12" onClick={() => void handleBookmark(article.id)}>
+                        <Bookmark className={`w-6 h-6 ${bookmarkedArticles.has(article.id) ? "fill-yellow-400 text-yellow-400" : ""}`} />
+                      </Button>
+                    </div>
+                  </div>
+                </div>
+              </section>
+            );
+          }}
+        </FixedSizeList>
+      </div>
       <ArticleDetailModal
         article={selectedArticle}
         isOpen={isArticleModalOpen}
