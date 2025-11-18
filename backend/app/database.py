@@ -19,6 +19,8 @@ import os
 import logging
 from typing import Any, Dict, List, Optional
 
+from app.core.config import settings
+
 logger = logging.getLogger(__name__)
 
 # Database URL from environment
@@ -27,18 +29,23 @@ DATABASE_URL = os.getenv(
 )
 
 # Async engine configuration
-engine = create_async_engine(
-    DATABASE_URL,
-    echo=False,  # Set to True for SQL debugging
-    future=True,
-    pool_size=20,  # Adjust based on concurrent users
-    max_overflow=0,
-)
+if settings.enable_database:
+    engine = create_async_engine(
+        DATABASE_URL,
+        echo=False,  # Set to True for SQL debugging
+        future=True,
+        pool_size=20,  # Adjust based on concurrent users
+        max_overflow=0,
+    )
 
-# Session factory
-AsyncSessionLocal = async_sessionmaker(
-    engine, class_=AsyncSession, expire_on_commit=False
-)
+    # Session factory
+    AsyncSessionLocal = async_sessionmaker(
+        engine, class_=AsyncSession, expire_on_commit=False
+    )
+else:
+    engine = None
+    AsyncSessionLocal = None
+    logger.warning("Database disabled via ENABLE_DATABASE=0; skipping engine creation")
 
 Base = declarative_base()
 
@@ -163,6 +170,9 @@ class Highlight(Base):
 # Dependency for FastAPI
 async def get_db():
     """Database session dependency for FastAPI endpoints"""
+    if not settings.enable_database or AsyncSessionLocal is None:
+        raise RuntimeError("Database access requested but ENABLE_DATABASE=0")
+
     async with AsyncSessionLocal() as session:
         try:
             yield session
@@ -177,6 +187,9 @@ async def get_db():
 # Initialize database tables
 async def init_db():
     """Create all tables if they don't exist"""
+    if not settings.enable_database or engine is None:
+        logger.info("Skipping database initialization; ENABLE_DATABASE=0")
+        return
     try:
         async with engine.begin() as conn:
             await conn.run_sync(Base.metadata.create_all)

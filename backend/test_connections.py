@@ -8,12 +8,17 @@ import asyncio
 import os
 import sys
 
+from app.core.config import settings
+
 # Add parent directory to path
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
 
 async def test_postgresql():
     """Test PostgreSQL connection"""
+    if not settings.enable_database:
+        print("ℹ️ PostgreSQL test skipped (ENABLE_DATABASE=0)\n")
+        return True
     try:
         from app.database import engine, AsyncSessionLocal
         from sqlalchemy import text
@@ -42,9 +47,14 @@ async def test_postgresql():
 
 def test_chromadb():
     """Test ChromaDB connection"""
-    try:
-        from app.vector_store import vector_store
+    from app.vector_store import get_vector_store
 
+    if not settings.enable_vector_store:
+        print("ℹ️ ChromaDB test skipped (ENABLE_VECTOR_STORE=0)\n")
+        return True
+
+    try:
+        vector_store = get_vector_store()
         print("🔍 Testing ChromaDB connection...")
 
         if vector_store is None:
@@ -73,10 +83,18 @@ def test_chromadb():
 
 async def test_dual_write():
     """Test writing to both databases"""
+    if not settings.enable_database:
+        print("ℹ️ Dual-write test skipped (ENABLE_DATABASE=0)\n")
+        return True
     try:
         from app.database import AsyncSessionLocal, Article
-        from app.vector_store import vector_store
+        from app.vector_store import get_vector_store
         from datetime import datetime
+
+        vector_store = get_vector_store()
+        if vector_store is None:
+            print("ℹ️ Dual-write test skipped (vector store unavailable)\n")
+            return True
 
         print("🔍 Testing dual-write pattern...")
 

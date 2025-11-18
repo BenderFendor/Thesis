@@ -20,7 +20,7 @@ from langchain_google_genai import ChatGoogleGenerativeAI
 from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
 from langchain_core.callbacks import BaseCallbackHandler
 from datetime import datetime, timedelta
-from app.vector_store import vector_store
+from app.vector_store import get_vector_store
 
 logger = logging.getLogger(__name__)
 
@@ -328,6 +328,7 @@ def semantic_search_articles(query: str) -> str:
     """Use the ChromaDB vector store for semantic article search."""
     global _referenced_articles_tracker
 
+    vector_store = get_vector_store()
     if not vector_store:
         return "Semantic search is unavailable because the vector store is offline."
 

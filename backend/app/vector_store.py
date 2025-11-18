@@ -1,17 +1,26 @@
-import time
-import chromadb
-from chromadb.config import Settings
-from typing import Any, Dict, List, Optional
-import os
+from __future__ import annotations
+
 import logging
+import os
+import threading
+import time
+from typing import Any, Dict, List, Optional
+
+import chromadb
+from chromadb.config import Settings as ChromaSettings
 from sentence_transformers import SentenceTransformer
 
+from app.core.config import settings
 from app.services.startup_metrics import startup_metrics
 
 logger = logging.getLogger(__name__)
 
 CHROMA_HOST = os.getenv("CHROMA_HOST", "localhost")
 CHROMA_PORT = int(os.getenv("CHROMA_PORT", "8000"))
+CHROMA_TIMEOUT_SECONDS = int(os.getenv("CHROMA_TIMEOUT_SECONDS", "5"))
+
+_vector_store: Optional["VectorStore"] = None
+_vector_store_lock = threading.Lock()
 
 
 class VectorStore:
@@ -22,9 +31,11 @@ class VectorStore:
             self.client = chromadb.HttpClient(
                 host=CHROMA_HOST,
                 port=CHROMA_PORT,
-                settings=Settings(
+                settings=ChromaSettings(
                     anonymized_telemetry=False,
                     allow_reset=True,  # Enable for development
+                    chroma_client_timeout=CHROMA_TIMEOUT_SECONDS,
+                    chroma_server_ssl_verify=False,
                 ),
             )
 
@@ -61,7 +72,7 @@ class VectorStore:
                 },
             )
         except Exception as e:
-            logger.error(f"❌ Failed to connect to ChromaDB: {e}")
+            logger.error("❌ Failed to connect to ChromaDB: %s", e)
             startup_metrics.add_note("vector_store_error", str(e))
             raise
 
@@ -99,7 +110,7 @@ class VectorStore:
             return True
 
         except Exception as e:
-            logger.error(f"Failed to add article to vector store: {e}")
+            logger.error("Failed to add article to vector store: %s", e)
             return False
 
     def search_similar(
@@ -145,7 +156,7 @@ class VectorStore:
             return articles
 
         except Exception as e:
-            logger.error(f"Vector search failed: {e}")
+            logger.error("Vector search failed: %s", e)
             return []
 
     def batch_add_articles(self, articles: List[Dict]) -> int:
@@ -197,7 +208,7 @@ class VectorStore:
             return len(articles)
 
         except Exception as e:
-            logger.error(f"Batch add failed: {e}")
+            logger.error("Batch add failed: %s", e)
             return 0
 
     def list_articles(self, limit: int = 50, offset: int = 0) -> Dict[str, Any]:
@@ -241,7 +252,7 @@ class VectorStore:
             logger.debug(f"Deleted article {article_id} from vector store")
             return True
         except Exception as e:
-            logger.error(f"Failed to delete article: {e}")
+            logger.error("Failed to delete article: %s", e)
             return False
 
     def get_collection_stats(self) -> Dict:
@@ -255,13 +266,31 @@ class VectorStore:
                 "similarity_metric": "cosine",
             }
         except Exception as e:
-            logger.error(f"Failed to get stats: {e}")
+            logger.error("Failed to get stats: %s", e)
             return {"total_articles": 0, "error": str(e)}
 
 
-# Global instance - initialized when module is imported
-try:
-    vector_store = VectorStore()
-except Exception as e:
-    logger.warning(f"⚠️ ChromaDB not available: {e}")
-    vector_store = None
+def get_vector_store() -> Optional[VectorStore]:
+    """Return a lazily initialised vector store (or None if disabled/unavailable)."""
+    if not settings.enable_vector_store:
+        logger.info("Vector store disabled via ENABLE_VECTOR_STORE=0")
+        startup_metrics.add_note(
+            "vector_store_status",
+            {"connected": False, "disabled": True},
+        )
+        return None
+
+    global _vector_store
+    if _vector_store is not None:
+        return _vector_store
+
+    with _vector_store_lock:
+        if _vector_store is not None:
+            return _vector_store
+        try:
+            _vector_store = VectorStore()
+        except Exception as exc:
+            logger.warning("⚠️ ChromaDB not available: %s", exc)
+            startup_metrics.add_note("vector_store_error", str(exc))
+            _vector_store = None
+        return _vector_store

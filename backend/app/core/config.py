@@ -8,6 +8,11 @@ from google import genai
 load_dotenv()
 
 
+def _env_enabled(name: str, default: str = "1") -> bool:
+    raw = os.getenv(name, default)
+    return raw not in {"0", "false", "False", ""}
+
+
 @dataclass(frozen=True)
 class Settings:
     app_title: str = "Global News Aggregation API"
@@ -17,6 +22,8 @@ class Settings:
         "http://localhost:3000",
         "http://localhost:3001",
     )
+    enable_vector_store: bool = _env_enabled("ENABLE_VECTOR_STORE")
+    enable_database: bool = _env_enabled("ENABLE_DATABASE")
 
 
 settings = Settings()

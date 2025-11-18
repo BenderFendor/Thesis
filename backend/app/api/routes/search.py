@@ -8,7 +8,7 @@ from sqlalchemy.ext.asyncio import AsyncSession  # type: ignore[import-unresolve
 
 from app.core.logging import get_logger
 from app.database import Article as ArticleRecord, SearchHistory, get_db
-from app.vector_store import vector_store
+from app.vector_store import get_vector_store
 
 router = APIRouter(prefix="/api/search", tags=["search"])
 logger = get_logger("semantic_search")
@@ -21,6 +21,7 @@ async def semantic_search(
     category: Optional[str] = None,
     db: AsyncSession = Depends(get_db),
 ) -> Dict[str, object]:
+    vector_store = get_vector_store()
     if vector_store is None:
         raise HTTPException(status_code=503, detail="Vector store is not available")
 

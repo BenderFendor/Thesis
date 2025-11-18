@@ -104,6 +104,10 @@ def _start_schedulers_once() -> None:
 
 async def _load_cache_from_db_fast() -> None:
     """Fast path: Load small batch from DB on startup for instant readiness."""
+    if not settings.enable_database or AsyncSessionLocal is None:
+        logger.info("⏭️ Skipping DB cache warmup; ENABLE_DATABASE=0")
+        return
+
     logger.info("📦 Attempting to load articles from database...")
     try:
         async with AsyncSessionLocal() as session:
@@ -129,6 +133,10 @@ async def _load_cache_from_db_fast() -> None:
 
 def _initial_cache_load() -> None:
     """Initialize cache on startup using fast DB load path."""
+    if not settings.enable_database or AsyncSessionLocal is None:
+        logger.info("⏭️ Initial cache load disabled (database unavailable)")
+        return
+
     load_start = time.time()
     metadata: dict[str, Any] = {}
     detail = "completed"
@@ -174,19 +182,26 @@ async def on_startup() -> None:
     signal.signal(signal.SIGTERM, _handle_shutdown_signal)
     signal.signal(signal.SIGINT, _handle_shutdown_signal)
 
-    db_start = time.time()
-    await init_db()
-    logger.info("Database initialisation complete (%.2fs)", time.time() - db_start)
-    startup_metrics.record_event("database_initialised", db_start)
+    if settings.enable_database:
+        db_start = time.time()
+        await init_db()
+        logger.info(
+            "Database initialisation complete (%.2fs)", time.time() - db_start
+        )
+        startup_metrics.record_event("database_initialised", db_start)
+    else:
+        logger.info("Database disabled; skipping initialisation and persistence")
+        startup_metrics.add_note("database_disabled", True)
 
     _start_schedulers_once()
     startup_metrics.add_note("schedulers_started_at", time.time())
 
-    # 🚀 Load small DB batch immediately (fast, non-blocking)
-    threading.Thread(
-        target=_initial_cache_load, name="initial-cache-load", daemon=True
-    ).start()
-    startup_metrics.add_note("cache_preload_thread_started_at", time.time())
+    if settings.enable_database and AsyncSessionLocal is not None:
+        # 🚀 Load small DB batch immediately (fast, non-blocking)
+        threading.Thread(
+            target=_initial_cache_load, name="initial-cache-load", daemon=True
+        ).start()
+        startup_metrics.add_note("cache_preload_thread_started_at", time.time())
 
     # 🔄 Start async RSS refresh scheduler (delayed first run)
     scheduler_task = asyncio.create_task(
@@ -218,62 +233,71 @@ async def on_startup() -> None:
     )
     _register_background_task(refresh_task)
 
-    persistence_task = asyncio.create_task(
-        article_persistence_worker(), name="article_persistence_worker"
-    )
-    _register_background_task(persistence_task)
+    if settings.enable_database:
+        persistence_task = asyncio.create_task(
+            article_persistence_worker(), name="article_persistence_worker"
+        )
+        _register_background_task(persistence_task)
 
     # Only migrate if cache has stale articles (> 6 hours old)
-    async def conditional_migration() -> None:
-        await asyncio.sleep(3)  # Wait for initial preload
-        articles = news_cache.get_articles()
-        if articles:
-            try:
-                # Parse ISO format dates and find oldest
-                def parse_published(article):
-                    try:
-                        # Handle ISO format with/without timezone
-                        pub = article.published.replace('Z', '+00:00')
-                        return datetime.fromisoformat(pub)
-                    except Exception:
-                        # Fallback to current time if parse fails
-                        return datetime.now(timezone.utc)
-                
-                oldest = min(articles, key=parse_published)
-                oldest_dt = parse_published(oldest)
-                age_hours = (datetime.now(timezone.utc) - oldest_dt).total_seconds() / 3600
-                if age_hours > 6:
-                    logger.info(
-                        "📋 Cache has stale articles (%.1fh old), starting migration...",
-                        age_hours,
-                    )
-                    migration_start = time.time()
-                    await migrate_cached_articles_on_startup()
-                    startup_metrics.record_event(
-                        "cached_article_migration",
-                        migration_start,
-                        metadata={
-                            "article_count": len(articles),
-                            "oldest_article_hours": age_hours,
-                        },
-                    )
-                else:
-                    logger.info("✨ Cache is fresh (%.1fh old), skipping migration", age_hours)
-                    startup_metrics.add_note(
-                        "cache_freshness_hours",
-                        round(age_hours, 2),
-                    )
-            except Exception as exc:
-                logger.warning("Could not determine cache age: %s; skipping migration", exc)
-                startup_metrics.add_note("cache_age_error", str(exc))
-        else:
-            logger.info("⏭️ Cache empty, skipping migration")
-            startup_metrics.add_note("cache_preload_articles", 0)
+    if settings.enable_database:
+        async def conditional_migration() -> None:
+            await asyncio.sleep(3)  # Wait for initial preload
+            articles = news_cache.get_articles()
+            if articles:
+                try:
+                    # Parse ISO format dates and find oldest
+                    def parse_published(article):
+                        try:
+                            # Handle ISO format with/without timezone
+                            pub = article.published.replace('Z', '+00:00')
+                            return datetime.fromisoformat(pub)
+                        except Exception:
+                            # Fallback to current time if parse fails
+                            return datetime.now(timezone.utc)
 
-    migration_task = asyncio.create_task(
-        conditional_migration(), name="conditional_migration"
-    )
-    _register_background_task(migration_task)
+                    oldest = min(articles, key=parse_published)
+                    oldest_dt = parse_published(oldest)
+                    age_hours = (
+                        (datetime.now(timezone.utc) - oldest_dt).total_seconds()
+                        / 3600
+                    )
+                    if age_hours > 6:
+                        logger.info(
+                            "📋 Cache has stale articles (%.1fh old), starting migration...",
+                            age_hours,
+                        )
+                        migration_start = time.time()
+                        await migrate_cached_articles_on_startup()
+                        startup_metrics.record_event(
+                            "cached_article_migration",
+                            migration_start,
+                            metadata={
+                                "article_count": len(articles),
+                                "oldest_article_hours": age_hours,
+                            },
+                        )
+                    else:
+                        logger.info(
+                            "✨ Cache is fresh (%.1fh old), skipping migration", age_hours
+                        )
+                        startup_metrics.add_note(
+                            "cache_freshness_hours",
+                            round(age_hours, 2),
+                        )
+                except Exception as exc:
+                    logger.warning(
+                        "Could not determine cache age: %s; skipping migration", exc
+                    )
+                    startup_metrics.add_note("cache_age_error", str(exc))
+            else:
+                logger.info("⏭️ Cache empty, skipping migration")
+                startup_metrics.add_note("cache_preload_articles", 0)
+
+        migration_task = asyncio.create_task(
+            conditional_migration(), name="conditional_migration"
+        )
+        _register_background_task(migration_task)
 
     logger.info(
         "API startup complete (%.2fs) - cache ready with %d articles",

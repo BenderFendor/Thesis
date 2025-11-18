@@ -8,6 +8,7 @@ import feedparser  # type: ignore[import-unresolved]
 from fastapi import APIRouter, HTTPException, Query
 from fastapi.concurrency import run_in_threadpool
 
+from app.core.config import settings
 from app.data.rss_sources import get_rss_sources
 from app.database import (
     AsyncSessionLocal,
@@ -18,7 +19,7 @@ from app.services.cache import news_cache
 from app.services.metrics import get_metrics
 from app.services.startup_metrics import startup_metrics
 from app.services.stream_manager import stream_manager
-from app.vector_store import vector_store
+from app.vector_store import get_vector_store
 
 router = APIRouter(prefix="/debug", tags=["debug"])
 
@@ -190,6 +191,7 @@ async def list_chromadb_articles(
     limit: int = Query(50, ge=1, le=500),
     offset: int = Query(0, ge=0),
 ) -> Dict[str, object]:
+    vector_store = get_vector_store()
     if vector_store is None:
         raise HTTPException(status_code=503, detail="Vector store unavailable")
 
@@ -240,6 +242,9 @@ async def list_database_articles(
     if sort_normalized not in {"asc", "desc"}:
         raise HTTPException(status_code=422, detail="sort_direction must be 'asc' or 'desc'")
 
+    if not settings.enable_database or AsyncSessionLocal is None:
+        raise HTTPException(status_code=503, detail="Database unavailable")
+
     async with AsyncSessionLocal() as session:
         page = await fetch_articles_page(
             session=session,
@@ -268,8 +273,12 @@ async def list_database_articles(
 async def get_storage_drift(
     sample_limit: int = Query(50, ge=5, le=500),
 ) -> Dict[str, object]:
+    vector_store = get_vector_store()
     if vector_store is None:
         raise HTTPException(status_code=503, detail="Vector store unavailable")
+
+    if not settings.enable_database or AsyncSessionLocal is None:
+        raise HTTPException(status_code=503, detail="Database unavailable")
 
     async with AsyncSessionLocal() as session:
         mappings = await fetch_article_chroma_mappings(session)

@@ -8,6 +8,7 @@ from typing import Any, Dict, List, Optional, Tuple
 from sqlalchemy import select  # type: ignore[import-unresolved]
 from sqlalchemy.ext.asyncio import AsyncSession  # type: ignore[import-unresolved]
 
+from app.core.config import settings
 from app.core.logging import get_logger
 from app.database import (
     Article as ArticleRecord,
@@ -15,7 +16,7 @@ from app.database import (
 )
 from app.models.news import NewsArticle
 from app.services.cache import news_cache
-from app.vector_store import vector_store
+from app.vector_store import VectorStore, get_vector_store
 
 logger = get_logger("persistence")
 
@@ -62,6 +63,7 @@ async def _upsert_article(
     session: AsyncSession,
     article: NewsArticle,
     source_info: Dict[str, Any],
+    vector_store: Optional[VectorStore],
     vector_batch: Optional[List[Dict[str, Any]]] = None,
     vector_deletes: Optional[List[str]] = None,
 ) -> int:
@@ -180,6 +182,10 @@ async def _persist_articles_async(
 ) -> None:
     if not articles:
         return
+    if not settings.enable_database or AsyncSessionLocal is None:
+        logger.info("Database disabled; skipping persistence for %s", source_info)
+        return
+    vector_store = get_vector_store()
     async with AsyncSessionLocal() as session:
         try:
             vector_batch: List[Dict[str, Any]] = []
@@ -189,6 +195,7 @@ async def _persist_articles_async(
                     session,
                     article,
                     source_info,
+                    vector_store,
                     vector_batch=vector_batch if vector_store else None,
                     vector_deletes=vector_deletes if vector_store else None,
                 )
@@ -244,6 +251,9 @@ def persist_articles_dual_write(
 ) -> None:
     if not articles:
         return
+    if not settings.enable_database or AsyncSessionLocal is None:
+        logger.info("Database disabled; dropping persistence batch for %s", source_info)
+        return
     try:
         loop = asyncio.get_running_loop()
     except RuntimeError:
@@ -271,6 +281,9 @@ def persist_articles_dual_write(
 
 
 async def article_persistence_worker() -> None:
+    if not settings.enable_database or AsyncSessionLocal is None:
+        logger.info("Persistence worker exiting; ENABLE_DATABASE=0")
+        return
     while True:
         articles, source_info = await article_persistence_queue.get()
         try:
@@ -287,6 +300,9 @@ async def article_persistence_worker() -> None:
 
 
 async def migrate_cached_articles_on_startup(delay_seconds: int = 5) -> None:
+    if not settings.enable_database or AsyncSessionLocal is None:
+        logger.info("Database disabled; skipping cached article migration")
+        return
     from app.data.rss_sources import get_rss_sources
 
     await asyncio.sleep(delay_seconds)
