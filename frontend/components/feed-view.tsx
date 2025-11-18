@@ -1,7 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
-import { FixedSizeList, ListChildComponentProps } from "react-window";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { type NewsArticle, fetchBookmarks, createBookmark, deleteBookmark } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -22,7 +21,13 @@ export function FeedView({ articles, loading }: FeedViewProps) {
   const [bookmarkedArticles, setBookmarkedArticles] = useState<Set<number>>(new Set());
   const [selectedArticle, setSelectedArticle] = useState<NewsArticle | null>(null);
   const [isArticleModalOpen, setIsArticleModalOpen] = useState(false);
+  const [activeIndex, setActiveIndex] = useState(0);
   const { isFavorite, toggleFavorite } = useFavorites();
+  const containerRef = useRef<HTMLDivElement | null>(null);
+  const slideRefs = useRef<(HTMLElement | null)[]>([]);
+  const isAnimatingRef = useRef(false);
+  const touchStartRef = useRef<number | null>(null);
+  const scrollTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Load bookmarks on mount
   useEffect(() => {
@@ -94,6 +99,153 @@ export function FeedView({ articles, loading }: FeedViewProps) {
     setIsArticleModalOpen(true);
   }, []);
 
+  const scrollToIndex = useCallback(
+    (index: number, smooth = true) => {
+      if (!articles.length) {
+        return;
+      }
+
+      const boundedIndex = Math.min(Math.max(index, 0), articles.length - 1);
+      const target = slideRefs.current[boundedIndex];
+
+      if (!target) {
+        return;
+      }
+
+      setActiveIndex(boundedIndex);
+      isAnimatingRef.current = true;
+      target.scrollIntoView({ behavior: smooth ? "smooth" : "auto", block: "start" });
+
+      if (scrollTimeoutRef.current) {
+        clearTimeout(scrollTimeoutRef.current);
+      }
+
+      scrollTimeoutRef.current = setTimeout(() => {
+        isAnimatingRef.current = false;
+      }, smooth ? 500 : 0);
+    },
+    [articles.length]
+  );
+
+  useEffect(() => {
+    slideRefs.current = slideRefs.current.slice(0, articles.length);
+    if (activeIndex > articles.length - 1) {
+      setActiveIndex(Math.max(articles.length - 1, 0));
+    }
+  }, [articles.length, activeIndex]);
+
+  useEffect(() => {
+    return () => {
+      if (scrollTimeoutRef.current) {
+        clearTimeout(scrollTimeoutRef.current);
+      }
+    };
+  }, []);
+
+  useEffect(() => {
+    const container = containerRef.current;
+    if (!container) {
+      return;
+    }
+
+    const handleWheel = (event: WheelEvent) => {
+      if (articles.length === 0) {
+        return;
+      }
+
+      if (Math.abs(event.deltaY) < 20 || isAnimatingRef.current) {
+        return;
+      }
+
+      const direction = event.deltaY > 0 ? 1 : -1;
+      const nextIndex = Math.min(
+        Math.max(activeIndex + direction, 0),
+        articles.length - 1
+      );
+
+      if (nextIndex === activeIndex) {
+        return;
+      }
+
+      event.preventDefault();
+      scrollToIndex(nextIndex);
+    };
+
+    container.addEventListener("wheel", handleWheel, { passive: false });
+
+    return () => {
+      container.removeEventListener("wheel", handleWheel);
+    };
+  }, [activeIndex, articles.length, scrollToIndex]);
+
+  useEffect(() => {
+    const container = containerRef.current;
+    if (!container) {
+      return;
+    }
+
+    const handleTouchStart = (event: TouchEvent) => {
+      touchStartRef.current = event.touches[0]?.clientY ?? null;
+    };
+
+    const handleTouchEnd = (event: TouchEvent) => {
+      if (touchStartRef.current === null || articles.length === 0) {
+        return;
+      }
+
+      const deltaY = touchStartRef.current - (event.changedTouches[0]?.clientY ?? 0);
+      touchStartRef.current = null;
+
+      if (Math.abs(deltaY) < 40 || isAnimatingRef.current) {
+        return;
+      }
+
+      const direction = deltaY > 0 ? 1 : -1;
+      const nextIndex = Math.min(
+        Math.max(activeIndex + direction, 0),
+        articles.length - 1
+      );
+
+      if (nextIndex !== activeIndex) {
+        scrollToIndex(nextIndex);
+      }
+    };
+
+    container.addEventListener("touchstart", handleTouchStart, { passive: true });
+    container.addEventListener("touchend", handleTouchEnd, { passive: true });
+
+    return () => {
+      container.removeEventListener("touchstart", handleTouchStart);
+      container.removeEventListener("touchend", handleTouchEnd);
+    };
+  }, [activeIndex, articles.length, scrollToIndex]);
+
+  useEffect(() => {
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key !== "ArrowDown" && event.key !== "ArrowUp") {
+        return;
+      }
+
+      if (isAnimatingRef.current || articles.length === 0) {
+        return;
+      }
+
+      event.preventDefault();
+      const direction = event.key === "ArrowDown" ? 1 : -1;
+      const nextIndex = Math.min(
+        Math.max(activeIndex + direction, 0),
+        articles.length - 1
+      );
+
+      if (nextIndex !== activeIndex) {
+        scrollToIndex(nextIndex);
+      }
+    };
+
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [activeIndex, articles.length, scrollToIndex]);
+
   if (loading) {
     return <div className="h-screen w-full flex items-center justify-center bg-black text-white">Loading...</div>;
   }
@@ -104,63 +256,57 @@ export function FeedView({ articles, loading }: FeedViewProps) {
 
   return (
     <>
-      <div className="relative flex-1 h-full min-h-0 w-full overflow-y-auto snap-y snap-mandatory scroll-smooth bg-black text-white">
-        <FixedSizeList
-          height={window.innerHeight}
-          width="100%"
-          itemSize={600}
-          itemCount={articles.length}
-          overscanCount={3}
-        >
-          {({ index, style }: ListChildComponentProps) => {
-            const article = articles[index];
-            return (
-              <section
-                key={article.id}
-                style={style}
-                className="snap-start h-full min-h-full w-full relative"
-              >
-                <img src={article.image || '/placeholder.svg'} alt={article.title} className="absolute inset-0 w-full h-full object-cover opacity-40" />
-                <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-black/20" />
-                <div className="relative z-10 h-full flex flex-col justify-end p-6">
-                  <div className="absolute top-6 left-6 flex flex-wrap gap-2">
-                    <Badge variant="secondary">{article.category}</Badge>
-                    <Badge variant={article.credibility === 'high' ? 'default' : article.credibility === 'medium' ? 'secondary' : 'destructive'}>{article.credibility} credibility</Badge>
-                  </div>
-                  <div className="flex items-end gap-4">
-                    <div className="flex-1 space-y-4">
-                      <h1 className="text-3xl font-bold leading-tight text-balance drop-shadow-lg">{article.title}</h1>
-                      <p className="text-base text-white/85 line-clamp-3 max-w-2xl drop-shadow">{article.summary}</p>
-                      <div className="flex items-center gap-3">
-                        <Button size="sm" variant="secondary" onClick={() => handleArticlePreview(article)}>
-                          <Eye className="w-4 h-4 mr-2" />
-                          Read More
-                        </Button>
-                        <a href={article.url} target="_blank" rel="noopener noreferrer">
-                          <Button size="sm" variant="outline" className="bg-transparent text-white border-white/50 hover:bg-white/10">
-                            <ExternalLink className="w-4 h-4 mr-2" />
-                            Source
-                          </Button>
-                        </a>
-                      </div>
-                    </div>
-                    <div className="flex flex-col items-center gap-4">
-                      <Button variant="ghost" size="icon" className="h-12 w-12" onClick={() => handleLike(article.id)}>
-                        <Heart className={`w-6 h-6 ${likedArticles.has(article.id) ? "fill-red-500 text-red-500" : ""}`} />
+      <div
+        ref={containerRef}
+        className="relative flex-1 h-full min-h-0 w-full overflow-y-auto snap-y snap-mandatory scroll-smooth bg-black text-white"
+      >
+        {articles.map((article, index) => (
+          <section
+            key={article.id}
+            ref={el => {
+              slideRefs.current[index] = el;
+            }}
+            className="snap-start h-screen min-h-screen w-full relative"
+          >
+            <img src={article.image || '/placeholder.svg'} alt={article.title} className="absolute inset-0 w-full h-full object-cover opacity-40" />
+            <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-black/20" />
+            <div className="relative z-10 h-full flex flex-col justify-end p-6">
+              <div className="absolute top-6 left-6 flex flex-wrap gap-2">
+                <Badge variant="secondary">{article.category}</Badge>
+                <Badge variant={article.credibility === 'high' ? 'default' : article.credibility === 'medium' ? 'secondary' : 'destructive'}>{article.credibility} credibility</Badge>
+              </div>
+              <div className="flex items-end gap-4">
+                <div className="flex-1 space-y-4">
+                  <h1 className="text-3xl font-bold leading-tight text-balance drop-shadow-lg">{article.title}</h1>
+                  <p className="text-base text-white/85 line-clamp-3 max-w-2xl drop-shadow">{article.summary}</p>
+                  <div className="flex items-center gap-3">
+                    <Button size="sm" variant="secondary" onClick={() => handleArticlePreview(article)}>
+                      <Eye className="w-4 h-4 mr-2" />
+                      Read More
+                    </Button>
+                    <a href={article.url} target="_blank" rel="noopener noreferrer">
+                      <Button size="sm" variant="outline" className="bg-transparent text-white border-white/50 hover:bg-white/10">
+                        <ExternalLink className="w-4 h-4 mr-2" />
+                        Source
                       </Button>
-                      <Button variant="ghost" size="icon" className="h-12 w-12" onClick={() => toggleFavorite(article.sourceId)} title={isFavorite(article.sourceId) ? "Remove from favorites" : "Add to favorites"}>
-                        <Star className={`w-6 h-6 transition-colors ${isFavorite(article.sourceId) ? "fill-yellow-500 text-yellow-500" : ""}`} />
-                      </Button>
-                      <Button variant="ghost" size="icon" className="h-12 w-12" onClick={() => void handleBookmark(article.id)}>
-                        <Bookmark className={`w-6 h-6 ${bookmarkedArticles.has(article.id) ? "fill-yellow-400 text-yellow-400" : ""}`} />
-                      </Button>
-                    </div>
+                    </a>
                   </div>
                 </div>
-              </section>
-            );
-          }}
-        </FixedSizeList>
+                <div className="flex flex-col items-center gap-4">
+                  <Button variant="ghost" size="icon" className="h-12 w-12" onClick={() => handleLike(article.id)}>
+                    <Heart className={`w-6 h-6 ${likedArticles.has(article.id) ? "fill-red-500 text-red-500" : ""}`} />
+                  </Button>
+                  <Button variant="ghost" size="icon" className="h-12 w-12" onClick={() => toggleFavorite(article.sourceId)} title={isFavorite(article.sourceId) ? "Remove from favorites" : "Add to favorites"}>
+                    <Star className={`w-6 h-6 transition-colors ${isFavorite(article.sourceId) ? "fill-yellow-500 text-yellow-500" : ""}`} />
+                  </Button>
+                  <Button variant="ghost" size="icon" className="h-12 w-12" onClick={() => void handleBookmark(article.id)}>
+                    <Bookmark className={`w-6 h-6 ${bookmarkedArticles.has(article.id) ? "fill-yellow-400 text-yellow-400" : ""}`} />
+                  </Button>
+                </div>
+              </div>
+            </div>
+          </section>
+        ))}
       </div>
       <ArticleDetailModal
         article={selectedArticle}
