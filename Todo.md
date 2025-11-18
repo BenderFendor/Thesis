@@ -238,3 +238,16 @@ It should have like start up time, breaking that down from the backend to the rs
 # Improving Agentic search
 
 Take my personal AI tool and all the AI tools here and get a model with a huge context window to critque my ai tools and then add all the improvements I made to this ai
+
+# Features to add
+News from differnet parts of the world. *What I mean here is having the global feature world and show show news from around the world.*
+
+Reporter / source research like wiki pages.
+
+So for the reporters it does research on them using agentic research makes a infomation page about them then saves that to the database as a apart of the like reporters database. It then can like make graphs to other reporters say by their leanings politcal or funding or for what plan they report.
+
+Funding reports. So how does the source get there funding what is there backing etc.
+
+Material interest reports of say like on going conflicts could be useful.
+
+This is something that could be a feature where you like use the agentic search to look at say a the civil war in sudan look at the matieral interest so like the UAE and gold and the / cross and source that infomation with the other like social or politcal interesnt / plus say historial context that would be needed in as netural of a tone as

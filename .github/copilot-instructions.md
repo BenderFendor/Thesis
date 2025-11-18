@@ -7,6 +7,11 @@ Like for example Great! Let me create a summary of the changes I've made and mak
 
 Use bash script and cmd tools when needed to extend your workflows.
 
+# Constrains
+Constraints: Prefer open-source, local solutions that can run on a mid-range workstation
+(e.g., NVIDIA RTX 3060, ~32 GB system RAM, and a capable CPU). Prioritize runnability
+and execution speed so the project can be developed and tested locally on that hardware. 
+
 ## Architecture snapshot
 - FastAPI backend + Next.js 14 frontend; Docker Compose binds backend on http:// and frontend on http://localhost:3000.
 - Backend entrypoint `backend/app/main.py` registers routers, SSE endpoints, and Gemini integrations; cross-cutting services live in `app/services/*`.
