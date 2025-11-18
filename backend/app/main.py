@@ -131,7 +131,7 @@ async def _load_cache_from_db_fast() -> None:
         logger.error("❌ Failed to load from DB: %s. Async refresh will handle.", e)
 
 
-def _initial_cache_load() -> None:
+async def _initial_cache_load() -> None:
     """Initialize cache on startup using fast DB load path."""
     if not settings.enable_database or AsyncSessionLocal is None:
         logger.info("⏭️ Initial cache load disabled (database unavailable)")
@@ -142,7 +142,7 @@ def _initial_cache_load() -> None:
     detail = "completed"
     try:
         logger.info("🚀 Starting initial cache load...")
-        asyncio.run(_load_cache_from_db_fast())
+        await _load_cache_from_db_fast()
         logger.info("Initial cache population complete")
         metadata["result"] = "loaded"
         metadata["cache_size"] = len(news_cache.get_articles())
@@ -197,11 +197,11 @@ async def on_startup() -> None:
     startup_metrics.add_note("schedulers_started_at", time.time())
 
     if settings.enable_database and AsyncSessionLocal is not None:
-        # 🚀 Load small DB batch immediately (fast, non-blocking)
-        threading.Thread(
-            target=_initial_cache_load, name="initial-cache-load", daemon=True
-        ).start()
-        startup_metrics.add_note("cache_preload_thread_started_at", time.time())
+        cache_preload_task = asyncio.create_task(
+            _initial_cache_load(), name="initial_cache_load"
+        )
+        _register_background_task(cache_preload_task)
+        startup_metrics.add_note("cache_preload_task", cache_preload_task.get_name())
 
     # 🔄 Start async RSS refresh scheduler (delayed first run)
     scheduler_task = asyncio.create_task(

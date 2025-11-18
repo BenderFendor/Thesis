@@ -17,7 +17,6 @@ logger = logging.getLogger(__name__)
 
 CHROMA_HOST = os.getenv("CHROMA_HOST", "localhost")
 CHROMA_PORT = int(os.getenv("CHROMA_PORT", "8000"))
-CHROMA_TIMEOUT_SECONDS = int(os.getenv("CHROMA_TIMEOUT_SECONDS", "5"))
 
 _vector_store: Optional["VectorStore"] = None
 _vector_store_lock = threading.Lock()
@@ -34,10 +33,12 @@ class VectorStore:
                 settings=ChromaSettings(
                     anonymized_telemetry=False,
                     allow_reset=True,  # Enable for development
-                    chroma_client_timeout=CHROMA_TIMEOUT_SECONDS,
                     chroma_server_ssl_verify=False,
                 ),
             )
+
+            # Fail fast if the Chroma server isn't reachable.
+            self.client.heartbeat()
 
             # Create or get collection
             self.collection = self.client.get_or_create_collection(
