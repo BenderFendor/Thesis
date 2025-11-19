@@ -5,7 +5,7 @@ import json
 import queue
 import threading
 from collections import defaultdict
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Any, Dict
 
 from fastapi import APIRouter
@@ -55,7 +55,7 @@ async def stream_cache_refresh() -> StreamingResponse:
                 "source": source_stat.get("name"),
                 "article_count": len(articles),
                 "source_stat": source_stat,
-                "timestamp": datetime.now().isoformat(),
+                "timestamp": datetime.now(timezone.utc).isoformat(),
             }
         )
 
@@ -65,7 +65,7 @@ async def stream_cache_refresh() -> StreamingResponse:
             refresh_news_cache(source_progress_callback=progress_callback)
         finally:
             progress_queue.put(
-                {"type": "complete", "timestamp": datetime.now().isoformat()}
+                {"type": "complete", "timestamp": datetime.now(timezone.utc).isoformat()}
             )
             refresh_complete.set()
 
@@ -148,7 +148,7 @@ async def stream_cache_refresh() -> StreamingResponse:
             error_event = {
                 "status": "error",
                 "message": f"Error during cache refresh: {str(e)}",
-                "timestamp": datetime.now().isoformat(),
+                "timestamp": datetime.now(timezone.utc).isoformat(),
             }
             yield f"data: {json.dumps(error_event)}\n\n"
 
@@ -173,7 +173,7 @@ async def get_cache_status() -> Dict[str, object]:
     for article in articles:
         category_counts[article.category] += 1
 
-    cache_age = (datetime.now() - news_cache.last_updated).total_seconds()
+    cache_age = (datetime.now(timezone.utc) - news_cache.last_updated).total_seconds()
 
     return {
         "last_updated": news_cache.last_updated.isoformat(),

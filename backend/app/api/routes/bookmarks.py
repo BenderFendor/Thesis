@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Dict
 
 from fastapi import APIRouter, Depends, HTTPException
@@ -135,7 +135,7 @@ async def update_bookmark(
     if not bookmark:
         raise HTTPException(status_code=404, detail="Bookmark not found")
 
-    bookmark.created_at = datetime.utcnow()
+    bookmark.created_at = datetime.now(timezone.utc).replace(tzinfo=None)
     await db.flush()
 
     return {

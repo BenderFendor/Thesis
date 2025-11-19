@@ -14,7 +14,7 @@ from sqlalchemy.dialects import postgresql
 from sqlalchemy.types import TypeDecorator
 from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession, async_sessionmaker
 from sqlalchemy.ext.declarative import declarative_base
-from datetime import datetime
+from datetime import datetime, timezone
 import os
 import logging
 from typing import Any, Dict, List, Optional
@@ -46,6 +46,9 @@ else:
     engine = None
     AsyncSessionLocal = None
     logger.warning("Database disabled via ENABLE_DATABASE=0; skipping engine creation")
+
+def get_utc_now():
+    return datetime.now(timezone.utc).replace(tzinfo=None)
 
 Base = declarative_base()
 
@@ -97,8 +100,8 @@ class Article(Base):
     translated = Column(Boolean, default=False)
     chroma_id = Column(String, unique=True)
     embedding_generated = Column(Boolean, default=False)
-    created_at = Column(DateTime, default=datetime.utcnow)
-    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    created_at = Column(DateTime, default=get_utc_now)
+    updated_at = Column(DateTime, default=get_utc_now, onupdate=get_utc_now)
 
 
 class Bookmark(Base):
@@ -106,7 +109,7 @@ class Bookmark(Base):
 
     id = Column(Integer, primary_key=True, index=True)
     article_id = Column(Integer, nullable=False, unique=True)
-    created_at = Column(DateTime, default=datetime.utcnow)
+    created_at = Column(DateTime, default=get_utc_now)
 
 
 class Preference(Base):
@@ -115,7 +118,7 @@ class Preference(Base):
     id = Column(Integer, primary_key=True, index=True)
     key = Column(String, unique=True, nullable=False)
     value = Column(Text, nullable=False)  # Store as JSON string
-    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    updated_at = Column(DateTime, default=get_utc_now, onupdate=get_utc_now)
 
 
 class SearchHistory(Base):
@@ -125,7 +128,7 @@ class SearchHistory(Base):
     query = Column(Text, nullable=False)
     search_type = Column(String)  # 'semantic', 'keyword', 'agentic'
     results_count = Column(Integer)
-    created_at = Column(DateTime, default=datetime.utcnow)
+    created_at = Column(DateTime, default=get_utc_now)
 
 
 class ReadingQueueItem(Base):
@@ -143,10 +146,10 @@ class ReadingQueueItem(Base):
     read_status = Column(
         String, default="unread", index=True
     )  # 'unread', 'reading', 'completed'
-    added_at = Column(DateTime, default=datetime.utcnow, index=True)
+    added_at = Column(DateTime, default=get_utc_now, index=True)
     archived_at = Column(DateTime, nullable=True)
-    created_at = Column(DateTime, default=datetime.utcnow)
-    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    created_at = Column(DateTime, default=get_utc_now)
+    updated_at = Column(DateTime, default=get_utc_now, onupdate=get_utc_now)
     word_count = Column(Integer, nullable=True)
     estimated_read_time_minutes = Column(Integer, nullable=True)
     full_text = Column(Text, nullable=True)
@@ -163,8 +166,8 @@ class Highlight(Base):
     note = Column(Text, nullable=True)
     character_start = Column(Integer, nullable=False)
     character_end = Column(Integer, nullable=False)
-    created_at = Column(DateTime, default=datetime.utcnow)
-    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    created_at = Column(DateTime, default=get_utc_now)
+    updated_at = Column(DateTime, default=get_utc_now, onupdate=get_utc_now)
 
 
 # Dependency for FastAPI

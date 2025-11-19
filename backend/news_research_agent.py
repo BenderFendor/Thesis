@@ -5,7 +5,7 @@ from __future__ import annotations
 import json
 import os
 import re
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Annotated, Any, Dict, Generator, List, Optional, Sequence
 
 from duckduckgo_search import DDGS
@@ -194,7 +194,7 @@ def rag_index_documents(documents: List[Dict[str, Any]]) -> str:
         metadata = document.get("metadata", {})
         title = metadata.get("title") or document.get("title") or "External Article"
         summary = content[:500]
-        unique_key = metadata.get("url") or f"rag_{int(datetime.now().timestamp())}_{added}"
+        unique_key = metadata.get("url") or f"rag_{int(datetime.now(timezone.utc).timestamp())}_{added}"
         success = store.add_article(
             article_id=str(unique_key),
             title=title,
@@ -261,7 +261,7 @@ def _build_initial_messages(
     query: str, chat_history: Optional[List[Dict[str, str]]] = None
 ) -> List[BaseMessage]:
     system_message = SystemMessage(
-        content=SYSTEM_PROMPT.format(date=datetime.utcnow().strftime("%Y-%m-%d"))
+        content=SYSTEM_PROMPT.format(date=datetime.now(timezone.utc).strftime("%Y-%m-%d"))
     )
     history_messages: List[BaseMessage] = []
     if chat_history:
@@ -326,7 +326,7 @@ def research_news(
                 {
                     "type": "thought",
                     "content": final_answer,
-                    "timestamp": datetime.utcnow().isoformat(),
+                    "timestamp": datetime.now(timezone.utc).isoformat(),
                 }
             )
             for tool_call in getattr(agent_message, "tool_calls", []) or []:
@@ -334,7 +334,7 @@ def research_news(
                     {
                         "type": "action",
                         "content": f"Calling {tool_call['name']} with {tool_call.get('args', {})}",
-                        "timestamp": datetime.utcnow().isoformat(),
+                        "timestamp": datetime.now(timezone.utc).isoformat(),
                     }
                 )
         if "tools" in update:
@@ -343,7 +343,7 @@ def research_news(
                     {
                         "type": "observation",
                         "content": _content_to_text(tool_message.content)[:2000],
-                        "timestamp": datetime.utcnow().isoformat(),
+                        "timestamp": datetime.now(timezone.utc).isoformat(),
                     }
                 )
 

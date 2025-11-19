@@ -251,3 +251,10 @@ Funding reports. So how does the source get there funding what is there backing 
 Material interest reports of say like on going conflicts could be useful.
 
 This is something that could be a feature where you like use the agentic search to look at say a the civil war in sudan look at the matieral interest so like the UAE and gold and the / cross and source that infomation with the other like social or politcal interesnt / plus say historial context that would be needed in as netural of a tone as
+
+# Research / search page ideas
+So have it give more verbose errors as well as better like step by step infomation on what the agent and tool is doing
+
+so instead of like Researching...
+
+Still working — gathering more coverage... / give real infomation so like calling x api waiting for x response etc. adding more infomation if it hangs etc. flesh this out more.

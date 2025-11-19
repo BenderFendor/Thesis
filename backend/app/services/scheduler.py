@@ -1,7 +1,7 @@
 """Async task scheduler for periodic RSS refresh."""
 
 import asyncio
-from datetime import datetime
+from datetime import datetime, timezone
 
 from app.core.logging import get_logger
 
@@ -21,7 +21,7 @@ async def periodic_rss_refresh(interval_seconds: int = 600) -> None:
     while True:
         try:
             await asyncio.sleep(interval_seconds)
-            logger.info("🔄 Starting scheduled RSS refresh at %s", datetime.now())
+            logger.info("🔄 Starting scheduled RSS refresh at %s", datetime.now(timezone.utc))
             await refresh_news_cache_async()
         except asyncio.CancelledError:
             logger.info("Periodic refresh cancelled")

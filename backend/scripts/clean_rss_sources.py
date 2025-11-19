@@ -12,7 +12,7 @@ from __future__ import annotations
 
 import json
 import shutil
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Dict, List
 
@@ -30,7 +30,7 @@ def save_json(path: Path, data: Dict[str, Any]) -> None:
 
 
 def backup(path: Path) -> Path:
-    ts = datetime.utcnow().strftime("%Y%m%dT%H%M%SZ")
+    ts = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
     bak = path.with_suffix(f".json.bak.{ts}")
     shutil.copy2(path, bak)
     return bak

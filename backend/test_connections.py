@@ -89,7 +89,7 @@ async def test_dual_write():
     try:
         from app.database import AsyncSessionLocal, Article
         from app.vector_store import get_vector_store
-        from datetime import datetime
+        from datetime import datetime, timezone
 
         vector_store = get_vector_store()
         if vector_store is None:
@@ -102,8 +102,8 @@ async def test_dual_write():
             "title": "Test Article for Database Integration",
             "source": "Test Source",
             "summary": "This is a test article to verify dual-write functionality between PostgreSQL and ChromaDB.",
-            "url": f"https://test.example.com/article-{datetime.now().timestamp()}",
-            "published_at": datetime.utcnow(),
+            "url": f"https://test.example.com/article-{datetime.now(timezone.utc).timestamp()}",
+            "published_at": datetime.now(timezone.utc).replace(tzinfo=None),
             "category": "test",
             "tags": ["test", "integration"],
         }

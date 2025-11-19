@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import re
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Dict, List
 
 import feedparser  # type: ignore[import-unresolved]
@@ -77,7 +77,7 @@ async def get_source_debug_data(source_name: str) -> Dict[str, object]:
         "parsed_entries": [],
         "cached_articles": cached_articles,
         "source_statistics": source_stat,
-        "debug_timestamp": datetime.now().isoformat(),
+        "debug_timestamp": datetime.now(timezone.utc).isoformat(),
         "image_analysis": {
             "total_entries": len(feed.entries) if hasattr(feed, "entries") else 0,
             "entries_with_images": 0,
@@ -160,7 +160,7 @@ async def get_stream_status() -> Dict[str, object]:
                     "sources_completed": info["sources_completed"],
                     "total_sources": info["total_sources"],
                     "duration_seconds": (
-                        datetime.now() - info["start_time"]
+                        datetime.now(timezone.utc) - info["start_time"]
                     ).total_seconds(),
                     "client_connected": info["client_connected"],
                 }

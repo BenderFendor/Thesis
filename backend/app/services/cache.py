@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import threading
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Dict, List
 
 from app.core.logging import get_logger
@@ -14,7 +14,7 @@ class NewsCache:
     def __init__(self) -> None:
         self.articles: List[NewsArticle] = []
         self.source_stats: List[Dict[str, object]] = []
-        self.last_updated: datetime = datetime.now()
+        self.last_updated: datetime = datetime.now(timezone.utc)
         self.lock = threading.Lock()
         self.update_in_progress: bool = False
         self.update_count: int = 0
@@ -36,7 +36,7 @@ class NewsCache:
             old_count = len(self.articles)
             self.articles = articles
             self.source_stats = source_stats
-            self.last_updated = datetime.now()
+            self.last_updated = datetime.now(timezone.utc)
             self.update_in_progress = False
             self.update_count += 1
 

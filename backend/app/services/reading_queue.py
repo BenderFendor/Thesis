@@ -1,4 +1,4 @@
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import List, Optional, Tuple
 from sqlalchemy import select, desc, and_
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -103,7 +103,7 @@ async def add_to_queue(
         queue_type=request.queue_type or "daily",
         position=new_position,
         read_status="unread",
-        added_at=datetime.utcnow(),
+        added_at=datetime.now(timezone.utc).replace(tzinfo=None),
         full_text=full_text,
         word_count=word_count,
         estimated_read_time_minutes=estimated_read_time,
@@ -193,7 +193,7 @@ async def update_queue_item(
     if request.archived_at:
         queue_item.archived_at = request.archived_at
 
-    queue_item.updated_at = datetime.utcnow()
+    queue_item.updated_at = datetime.now(timezone.utc).replace(tzinfo=None)
     await session.commit()
     await session.refresh(queue_item)
 
@@ -203,7 +203,7 @@ async def update_queue_item(
 
 async def move_expired_to_permanent(session: AsyncSession, user_id: int = 1) -> int:
     """Move daily queue items older than TTL to permanent queue."""
-    cutoff_date = datetime.utcnow() - timedelta(days=DAILY_QUEUE_TTL_DAYS)
+    cutoff_date = datetime.now(timezone.utc).replace(tzinfo=None) - timedelta(days=DAILY_QUEUE_TTL_DAYS)
 
     result = await session.execute(
         select(ReadingQueueItem).where(
@@ -218,7 +218,7 @@ async def move_expired_to_permanent(session: AsyncSession, user_id: int = 1) -> 
 
     for item in expired_items:
         item.queue_type = "permanent"
-        item.updated_at = datetime.utcnow()
+        item.updated_at = datetime.now(timezone.utc).replace(tzinfo=None)
 
     await session.commit()
 
@@ -228,7 +228,7 @@ async def move_expired_to_permanent(session: AsyncSession, user_id: int = 1) -> 
 
 async def archive_completed_items(session: AsyncSession, user_id: int = 1) -> int:
     """Archive completed items that are older than 30 days."""
-    cutoff_date = datetime.utcnow() - timedelta(days=30)
+    cutoff_date = datetime.now(timezone.utc).replace(tzinfo=None) - timedelta(days=30)
 
     result = await session.execute(
         select(ReadingQueueItem).where(
@@ -243,7 +243,7 @@ async def archive_completed_items(session: AsyncSession, user_id: int = 1) -> in
     archived_items = result.scalars().all()
 
     for item in archived_items:
-        item.archived_at = datetime.utcnow()
+        item.archived_at = datetime.now(timezone.utc).replace(tzinfo=None)
 
     await session.commit()
 
@@ -363,5 +363,5 @@ async def generate_daily_digest(session: AsyncSession, user_id: int = 1) -> dict
         "digest_items": digest_schema_items,
         "total_items": len(all_items),
         "estimated_read_time_minutes": estimated_read_time,
-        "generated_at": datetime.utcnow().isoformat(),
+        "generated_at": datetime.now(timezone.utc).isoformat(),
     }

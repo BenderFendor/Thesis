@@ -5,7 +5,7 @@ import concurrent.futures
 import json
 import random
 import time
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Dict, List, Tuple
 
 from fastapi import APIRouter, Request
@@ -60,7 +60,7 @@ async def stream_news(
             try:
                 cached_articles = news_cache.get_articles()
                 cached_stats = news_cache.get_source_stats()
-                cache_age = (datetime.now() - news_cache.last_updated).total_seconds()
+                cache_age = (datetime.now(timezone.utc) - news_cache.last_updated).total_seconds()
                 stream_logger.info(
                     "💾 Stream %s found %s cached articles (age: %.1fs)",
                     stream_id,
@@ -91,7 +91,7 @@ async def stream_news(
                         "source_stats": cached_stats,
                         "cache_age_seconds": cache_age,
                         "message": f"Loaded {len(cached_articles)} cached articles instantly",
-                        "timestamp": datetime.now().isoformat(),
+                        "timestamp": datetime.now(timezone.utc).isoformat(),
                     }
                     yield f"data: {json.dumps(initial_data)}\n\n"
                     stream_logger.info(
@@ -109,7 +109,7 @@ async def stream_news(
                 "status": "starting",
                 "stream_id": stream_id,
                 "message": f"Initializing news stream (use_cache={use_cache})...",
-                "timestamp": datetime.now().isoformat(),
+                "timestamp": datetime.now(timezone.utc).isoformat(),
                 "active_streams": stream_manager.get_active_stream_count(),
             }
             yield f"data: {json.dumps(initial_status)}\n\n"
@@ -128,7 +128,7 @@ async def stream_news(
                         "stream_id": stream_id,
                         "message": "Used fresh cached data",
                         "cache_age_seconds": cache_age,
-                        "timestamp": datetime.now().isoformat(),
+                        "timestamp": datetime.now(timezone.utc).isoformat(),
                     }
                     yield f"data: {json.dumps(final_data)}\n\n"
                     return
@@ -269,7 +269,7 @@ async def stream_news(
                                 if total_sources
                                 else 100,
                             },
-                            "timestamp": datetime.now().isoformat(),
+                            "timestamp": datetime.now(timezone.utc).isoformat(),
                         }
                         yield f"data: {json.dumps(progress_data)}\n\n"
                     except Exception as exc:  # pragma: no cover - defensive logging
@@ -293,7 +293,7 @@ async def stream_news(
                                 if total_sources
                                 else 100,
                             },
-                            "timestamp": datetime.now().isoformat(),
+                            "timestamp": datetime.now(timezone.utc).isoformat(),
                         }
                         yield f"data: {json.dumps(error_data)}\n\n"
 
@@ -329,7 +329,7 @@ async def stream_news(
                         "total": total_sources,
                         "percentage": 100,
                     },
-                    "timestamp": datetime.now().isoformat(),
+                    "timestamp": datetime.now(timezone.utc).isoformat(),
                 }
                 yield f"data: {json.dumps(final_data)}\n\n"
         except asyncio.CancelledError:  # pragma: no cover - cooperative cancellation
@@ -341,7 +341,7 @@ async def stream_news(
                 "status": "error",
                 "stream_id": stream_id,
                 "error": str(exc),
-                "timestamp": datetime.now().isoformat(),
+                "timestamp": datetime.now(timezone.utc).isoformat(),
             }
             yield f"data: {json.dumps(error_response)}\n\n"
         finally:

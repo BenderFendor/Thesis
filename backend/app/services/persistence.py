@@ -48,9 +48,9 @@ def parse_published_datetime(published: Optional[str]) -> datetime:
                 normalized = published.replace("Z", "+00:00")
                 dt = datetime.fromisoformat(normalized)
             except Exception:
-                dt = datetime.utcnow().replace(tzinfo=timezone.utc)
+                dt = datetime.now(timezone.utc)
     else:
-        dt = datetime.utcnow().replace(tzinfo=timezone.utc)
+        dt = datetime.now(timezone.utc)
 
     if dt.tzinfo is None:
         dt = dt.replace(tzinfo=timezone.utc)
@@ -98,7 +98,7 @@ async def _upsert_article(
             article_record.credibility = source_info.get("credibility")
         if tags:
             article_record.tags = tags
-        article_record.updated_at = datetime.utcnow()
+        article_record.updated_at = datetime.now(timezone.utc).replace(tzinfo=None)
     else:
         article_record = ArticleRecord(
             title=article.title,

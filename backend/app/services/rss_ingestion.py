@@ -7,7 +7,7 @@ import random
 import threading
 import time
 from concurrent.futures import ProcessPoolExecutor
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Any, Dict, Iterable, List, Optional, Tuple
 from urllib.parse import urljoin, urlparse
 
@@ -101,7 +101,7 @@ def parse_rss_feed(
                 title=title,
                 link=article_link,
                 description=description,
-                published=entry.get("published", str(datetime.now())),
+                published=entry.get("published", str(datetime.now(timezone.utc))),
                 source=source_name,
                 category=source_info.get("category", "general"),
                 image=image_url,
@@ -363,7 +363,7 @@ def _process_source(
         "article_count": len(articles),
         "status": feed_status,
         "error_message": error_message,
-        "last_checked": datetime.now().isoformat(),
+        "last_checked": datetime.now(timezone.utc).isoformat(),
         "is_consolidated": source_info.get("consolidate", False),
         "sub_feeds": sub_feed_stats if source_info.get("consolidate") else None,
     }
@@ -431,7 +431,7 @@ def _blocking_parse_feed(
         "bias_rating": source_info.get("bias_rating"),
         "status": "success",
         "article_count": 0,
-        "last_checked": datetime.now().isoformat(),
+        "last_checked": datetime.now(timezone.utc).isoformat(),
     }
 
     # Check for errors
@@ -779,7 +779,7 @@ async def _refresh_news_cache_with_python(
         await _broadcast_cache_update(len(all_articles), len(source_stats))
 
         metrics = get_metrics()
-        metrics.end_time = datetime.now()
+        metrics.end_time = datetime.now(timezone.utc)
         logger.info("📊 Python pipeline metrics: %s", metrics.to_dict())
 
     except Exception as exc:
@@ -827,7 +827,7 @@ async def _refresh_news_cache_with_rust(
             title=item.get("title", "No title"),
             link=item.get("link", ""),
             description=item.get("description", "No description"),
-            published=item.get("published", datetime.now().isoformat()),
+            published=item.get("published", datetime.now(timezone.utc).isoformat()),
             source=source_name,
             category=category,
             image=item.get("image"),
@@ -852,7 +852,7 @@ async def _refresh_news_cache_with_rust(
             ),
             "status": rust_stat.get("status", "success"),
             "error_message": rust_stat.get("error_message"),
-            "last_checked": datetime.now().isoformat(),
+            "last_checked": datetime.now(timezone.utc).isoformat(),
             "is_consolidated": source_info.get("consolidate", False),
             "sub_feeds": rust_stat.get("sub_feeds"),
         }
@@ -905,7 +905,7 @@ async def _broadcast_cache_update(total_articles: int, source_count: int) -> Non
             {
                 "type": "cache_updated",
                 "message": "News cache has been updated",
-                "timestamp": datetime.now().isoformat(),
+                "timestamp": datetime.now(timezone.utc).isoformat(),
                 "stats": {
                     "total_articles": total_articles,
                     "sources_processed": source_count,
@@ -971,7 +971,7 @@ def refresh_news_cache(
                         "article_count": 0,
                         "status": "error",
                         "error_message": str(exc),
-                        "last_checked": datetime.now().isoformat(),
+                        "last_checked": datetime.now(timezone.utc).isoformat(),
                     }
                 )
                 # Also call callback for error stats
@@ -994,7 +994,7 @@ def refresh_news_cache(
             {
                 "type": "cache_updated",
                 "message": "News cache has been updated",
-                "timestamp": datetime.now().isoformat(),
+                "timestamp": datetime.now(timezone.utc).isoformat(),
                 "stats": {
                     "total_articles": len(all_articles),
                     "sources_processed": len(source_stats),
@@ -1054,7 +1054,7 @@ def parse_rss_feed_entries(
             title=title,
             link=entry.get("link", ""),
             description=description,
-            published=entry.get("published", str(datetime.now())),
+            published=entry.get("published", str(datetime.now(timezone.utc))),
             source=source_name,
             category=source_info.get("category", "general"),
             image=image_url,

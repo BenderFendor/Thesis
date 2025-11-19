@@ -1,6 +1,6 @@
 import threading
 import time
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Dict, Tuple
 
 from app.core.logging import get_logger
@@ -19,7 +19,7 @@ class StreamManager:
         with self.lock:
             stream_info = {
                 "id": stream_id,
-                "start_time": datetime.now(),
+                "start_time": datetime.now(timezone.utc),
                 "status": "starting",
                 "sources_completed": 0,
                 "total_sources": 0,
@@ -44,7 +44,7 @@ class StreamManager:
         with self.lock:
             if stream_id in self.active_streams:
                 stream_info = self.active_streams.pop(stream_id)
-                duration = (datetime.now() - stream_info["start_time"]).total_seconds()
+                duration = (datetime.now(timezone.utc) - stream_info["start_time"]).total_seconds()
                 logger.info(
                     "🏁 Stream %s completed in %.2fs. Active streams: %s",
                     stream_id,

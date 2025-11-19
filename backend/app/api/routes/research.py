@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import json
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Dict, List, Optional
 
 from fastapi import APIRouter, Query
@@ -27,7 +27,7 @@ async def news_research_stream_endpoint(
 ):
     async def generate():
         try:
-            yield f"data: {json.dumps({'type': 'status', 'message': 'Starting research...', 'timestamp': datetime.now().isoformat()})}\n\n"
+            yield f"data: {json.dumps({'type': 'status', 'message': 'Starting research...', 'timestamp': datetime.now(timezone.utc).isoformat()})}\n\n"
 
             articles_payload = await load_articles_for_research(query)
             articles_dict = articles_payload.get("articles", [])
@@ -43,7 +43,7 @@ async def news_research_stream_endpoint(
                     f"recent: {retrieval_summary.get('recent_count', 0)})"
                 ),
                 "vector_enabled": retrieval_summary.get("vector_enabled", False),
-                "timestamp": datetime.now().isoformat(),
+                "timestamp": datetime.now(timezone.utc).isoformat(),
             }
             yield f"data: {json.dumps(status_message)}\n\n"
 
@@ -64,15 +64,15 @@ async def news_research_stream_endpoint(
             )
 
             for step in result.get("thinking_steps", []):
-                yield f"data: {json.dumps({'type': 'thinking_step', 'step': step, 'timestamp': datetime.now().isoformat()})}\n\n"
+                yield f"data: {json.dumps({'type': 'thinking_step', 'step': step, 'timestamp': datetime.now(timezone.utc).isoformat()})}\n\n"
 
             if result.get("structured_articles"):
-                yield f"data: {json.dumps({'type': 'articles_json', 'data': result['structured_articles'], 'timestamp': datetime.now().isoformat()})}\n\n"
+                yield f"data: {json.dumps({'type': 'articles_json', 'data': result['structured_articles'], 'timestamp': datetime.now(timezone.utc).isoformat()})}\n\n"
 
             if result.get("referenced_articles"):
-                yield f"data: {json.dumps({'type': 'referenced_articles', 'articles': result['referenced_articles'], 'timestamp': datetime.now().isoformat()})}\n\n"
+                yield f"data: {json.dumps({'type': 'referenced_articles', 'articles': result['referenced_articles'], 'timestamp': datetime.now(timezone.utc).isoformat()})}\n\n"
 
-            yield f"data: {json.dumps({'type': 'complete', 'result': result, 'timestamp': datetime.now().isoformat()})}\n\n"
+            yield f"data: {json.dumps({'type': 'complete', 'result': result, 'timestamp': datetime.now(timezone.utc).isoformat()})}\n\n"
         except Exception as exc:  # pragma: no cover - defensive logging
             message = str(exc)
             lower_msg = message.lower()
@@ -86,7 +86,7 @@ async def news_research_stream_endpoint(
                     "Request Timeout: The research took too long. Try a simpler query."
                 )
 
-            yield f"data: {json.dumps({'type': 'error', 'message': message, 'timestamp': datetime.now().isoformat()})}\n\n"
+            yield f"data: {json.dumps({'type': 'error', 'message': message, 'timestamp': datetime.now(timezone.utc).isoformat()})}\n\n"
 
     return StreamingResponse(generate(), media_type="text/event-stream")
 
