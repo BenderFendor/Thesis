@@ -256,24 +256,25 @@ export function ScrollView({ articles, loading }: { articles: NewsArticle[], loa
   }
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-4 h-full flex flex-col">
       {/* Stream Controls - Simplified */}
-      <div className="flex items-center justify-between bg-muted/30 p-4 rounded-lg">
-        <div className="flex items-center gap-4">
-          <div className="flex items-center gap-2">
-            <Badge variant="default" className="text-sm">
-              Live Stream
-            </Badge>
-
-          </div>
-          
-          <Badge variant="secondary" className="text-sm">
-            {articles.length} articles
-          </Badge>
+      <div className="flex items-center justify-between px-4 py-2 border-b bg-background/50 backdrop-blur-sm shrink-0">
+        <div className="flex items-center gap-2">
+            <div className="flex items-center gap-1.5">
+                <span className="relative flex h-2 w-2">
+                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75"></span>
+                  <span className="relative inline-flex rounded-full h-2 w-2 bg-green-500"></span>
+                </span>
+                <span className="text-xs font-medium text-muted-foreground">Live</span>
+            </div>
         </div>
+        
+        <Badge variant="outline" className="text-xs font-normal bg-transparent border-border/50">
+          {articles.length} articles
+        </Badge>
       </div>
 
-      <div className="relative h-[calc(100vh-200px)] overflow-hidden" ref={containerRef}>
+      <div className="relative flex-1 overflow-hidden rounded-lg mx-4 mb-4 border border-border/50 shadow-sm" ref={containerRef}>
         {/* Navigation Arrows */}
       <div className="absolute right-4 top-1/2 transform -translate-y-1/2 z-20 flex flex-col gap-2">
         <Button

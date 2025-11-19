@@ -53,29 +53,33 @@ export function GlobeView({ articles, loading }: GlobeViewProps) {
           <div className="md:col-span-2 h-full rounded-lg border overflow-hidden relative">
             <InteractiveGlobe articles={articles} onCountrySelect={handleCountrySelect} selectedCountry={selectedCountry} />
           </div>
-          <div className="h-full rounded-lg border flex flex-col">
+          <div className="h-full rounded-xl border bg-card/50 backdrop-blur-sm flex flex-col shadow-lg overflow-hidden">
             {selectedCountry ? (
-                <div className="p-4 border-b bg-muted/30">
-                    <div className="flex items-center justify-between mb-4">
-                        <h2 className="text-xl font-bold flex items-center gap-2">
-                            <span className="text-2xl">
+                <div className="p-6 border-b bg-gradient-to-r from-primary/10 to-transparent">
+                    <div className="flex items-center justify-between mb-6">
+                        <h2 className="text-2xl font-bold flex items-center gap-3">
+                            <span className="text-4xl shadow-sm">
                                 {getFlagEmoji(selectedCountry)}
                             </span>
-                            {selectedCountryName || selectedCountry}
+                            <span className="tracking-tight">{selectedCountryName || selectedCountry}</span>
                         </h2>
-                        <button onClick={() => handleCountrySelect(null)} className="text-xs text-muted-foreground hover:text-foreground">
+                        <button 
+                            onClick={() => handleCountrySelect(null)} 
+                            className="text-xs font-medium text-muted-foreground hover:text-foreground bg-background/50 px-3 py-1.5 rounded-full transition-colors"
+                        >
                             Close
                         </button>
                     </div>
                     
                     <Tabs value={viewMode} onValueChange={(v) => setViewMode(v as any)} className="w-full">
-                        <TabsList className="w-full grid grid-cols-2">
-                            <TabsTrigger value="internal">Local Sources</TabsTrigger>
-                            <TabsTrigger value="external">Global View</TabsTrigger>
+                        <TabsList className="w-full grid grid-cols-2 bg-background/50 p-1">
+                            <TabsTrigger value="internal" className="data-[state=active]:bg-background data-[state=active]:shadow-sm">Local Sources</TabsTrigger>
+                            <TabsTrigger value="external" className="data-[state=active]:bg-background data-[state=active]:shadow-sm">Global View</TabsTrigger>
                         </TabsList>
                     </Tabs>
                     
-                    <div className="mt-2 text-xs text-muted-foreground">
+                    <div className="mt-3 text-xs text-muted-foreground flex items-center gap-2">
+                        <div className="w-1.5 h-1.5 rounded-full bg-primary animate-pulse"></div>
                         {viewMode === 'internal' 
                             ? `Showing articles from ${selectedCountryName} sources`
                             : `Showing articles about ${selectedCountryName} from other countries`
@@ -83,13 +87,16 @@ export function GlobeView({ articles, loading }: GlobeViewProps) {
                     </div>
                 </div>
             ) : (
-                <div className="p-4 border-b bg-muted/30">
-                    <h2 className="text-xl font-bold">Global Feed</h2>
-                    <p className="text-sm text-muted-foreground">Select a country on the globe to filter</p>
+                <div className="p-8 border-b bg-gradient-to-br from-muted/50 to-transparent flex flex-col items-center justify-center text-center h-48">
+                    <div className="w-12 h-12 rounded-full bg-primary/10 flex items-center justify-center mb-4 text-primary">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 2a14.5 14.5 0 0 0 0 20 14.5 14.5 0 0 0 0-20"/><path d="M2 12h20"/></svg>
+                    </div>
+                    <h2 className="text-xl font-bold mb-2">Global Feed</h2>
+                    <p className="text-sm text-muted-foreground max-w-[200px]">Select a country on the globe to filter news by region</p>
                 </div>
             )}
             
-            <div className="flex-1 overflow-hidden">
+            <div className="flex-1 overflow-hidden bg-background/30">
                 <ScrollView articles={filteredArticles} loading={loading} />
             </div>
           </div>
