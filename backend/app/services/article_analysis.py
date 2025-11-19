@@ -4,10 +4,10 @@ import json
 from typing import Any, Dict, Optional
 
 from google.genai import types  # type: ignore[import-unresolved]
-from newspaper import Article  # type: ignore[import-unresolved]
 
 from app.core.config import create_gemini_client
 from app.core.logging import get_logger
+from app.services.article_extraction import extract_article_full_text
 
 logger = get_logger("article_analysis")
 
@@ -15,25 +15,8 @@ gemini_client = create_gemini_client(logger)
 
 
 async def extract_article_content(url: str) -> Dict[str, Any]:
-    try:
-        article = Article(url)
-        article.download()
-        article.parse()
-
-        return {
-            "success": True,
-            "title": article.title,
-            "authors": article.authors,
-            "publish_date": str(article.publish_date) if article.publish_date else None,
-            "text": article.text,
-            "top_image": article.top_image,
-            "images": list(article.images),
-            "keywords": getattr(article, "keywords", []),
-            "meta_description": getattr(article, "meta_description", None),
-        }
-    except Exception as exc:  # pragma: no cover - defensive logging
-        logger.error("Error extracting article from %s: %s", url, exc)
-        return {"success": False, "error": str(exc)}
+    """Async facade over the shared extraction helper."""
+    return await extract_article_full_text(url)
 
 
 async def analyze_with_gemini(

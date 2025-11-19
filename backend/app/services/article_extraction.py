@@ -70,6 +70,11 @@ def _extract_sync(url: str) -> Dict[str, Any]:
         }
 
 
+def extract_article_content(url: str) -> Dict[str, Any]:
+    """Blocking helper for contexts that cannot await coroutines."""
+    return _extract_sync(url)
+
+
 def calculate_word_count(text: Optional[str]) -> Optional[int]:
     """Calculate word count from text."""
     if not text:
