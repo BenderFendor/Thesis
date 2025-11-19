@@ -3,21 +3,19 @@ from __future__ import annotations
 import json
 from typing import Any, Dict, Optional
 
-from google.genai import types  # type: ignore[import-unresolved]
-
-from app.core.config import create_gemini_client
+from app.core.config import create_openai_client, settings
 from app.core.logging import get_logger
 from app.services.article_extraction import extract_article_full_text
 from tenacity import retry, stop_after_attempt, wait_exponential, retry_if_exception
 
 logger = get_logger("article_analysis")
 
-gemini_client = create_gemini_client(logger)
+openai_client = create_openai_client(logger)
 
 
 def _is_retryable_error(exception):
     msg = str(exception)
-    return "429" in msg or "RESOURCE_EXHAUSTED" in msg or "Too Many Requests" in msg
+    return "429" in msg or "rate limit" in msg.lower() or "too many requests" in msg.lower()
 
 
 @retry(
@@ -26,11 +24,11 @@ def _is_retryable_error(exception):
     stop=stop_after_attempt(5),
     reraise=True
 )
-def _generate_content_safe(client, model, contents, config):
-    return client.models.generate_content(
+def _generate_content_safe(client, model, messages):
+    return client.chat.completions.create(
         model=model,
-        contents=contents,
-        config=config,
+        messages=messages,
+        response_format={"type": "json_object"}
     )
 
 
@@ -39,49 +37,49 @@ async def extract_article_content(url: str) -> Dict[str, Any]:
     return await extract_article_full_text(url)
 
 
+def _extract_grounding_metadata(response: Any) -> Optional[Dict[str, Any]]:
+    """Extract grounding metadata from Gemini response candidate."""
+    # Grounding is specific to Google's API and not available via standard OpenRouter chat completions
+    return None
+
+
 async def analyze_with_gemini(
     article_data: Dict[str, Any], source_name: Optional[str] = None
 ) -> Dict[str, Any]:
-    if not gemini_client:
-        return {"error": "Gemini API key not configured"}
+    if not openai_client:
+        return {"error": "OpenRouter API key not configured"}
 
     try:
-        grounding_tool = types.Tool(google_search=types.GoogleSearch())
-        config = types.GenerateContentConfig(
-            tools=[grounding_tool], response_modalities=["TEXT"]
-        )
-
         prompt = _build_analysis_prompt(article_data, source_name)
 
         response = _generate_content_safe(
-            client=gemini_client,
-            model="gemini-2.0-flash-exp",
-            contents=prompt,
-            config=config,
+            client=openai_client,
+            model=settings.open_router_model,
+            messages=[
+                {"role": "system", "content": "You are an expert news analyst. Return valid JSON."},
+                {"role": "user", "content": prompt}
+            ]
         )
 
-        grounding_metadata = _extract_grounding_metadata(response)
-
         try:
-            response_text = response.text.strip()
+            response_text = response.choices[0].message.content.strip()
             if response_text.startswith("```"):
                 response_text = response_text.split("```")[1]
                 if response_text.startswith("json"):
                     response_text = response_text[4:]
 
             analysis = json.loads(response_text)
-            if grounding_metadata:
-                analysis["grounding_metadata"] = grounding_metadata
             return analysis
         except json.JSONDecodeError:
+            logger.error("Failed to parse AI response as JSON: %s", response_text)
             return {
-                "raw_response": response.text,
-                "grounding_metadata": grounding_metadata,
-                "error": "Failed to parse AI response as JSON",
+                "error": "Failed to parse analysis results",
+                "raw_response": response_text,
             }
-    except Exception as exc:  # pragma: no cover - defensive logging
-        logger.error("Error analyzing with Gemini: %s", exc)
-        return {"error": str(exc)}
+
+    except Exception as e:
+        logger.error("AI analysis failed: %s", e)
+        return {"error": str(e)}
 
 
 def _build_analysis_prompt(
@@ -163,33 +161,10 @@ CRITICAL: For fact_check_results, verify ALL specific details including:
 Provide only the JSON response, no additional text.
 """
 
-
 def _extract_grounding_metadata(response: Any) -> Dict[str, Any]:
-    grounding_metadata: Dict[str, Any] = {
+    # Grounding is specific to Google's API and not available via standard OpenRouter chat completions
+    return {
         "grounding_chunks": [],
         "grounding_supports": [],
         "web_search_queries": [],
     }
-
-    if not getattr(response, "candidates", None):
-        return grounding_metadata
-
-    candidate = response.candidates[0]
-    metadata = getattr(candidate, "grounding_metadata", None)
-    if not metadata:
-        return grounding_metadata
-
-    if getattr(metadata, "grounding_chunks", None):
-        for chunk in metadata.grounding_chunks:
-            if getattr(chunk, "web", None):
-                grounding_metadata["grounding_chunks"].append(
-                    {
-                        "uri": getattr(chunk.web, "uri", None),
-                        "title": getattr(chunk.web, "title", None),
-                    }
-                )
-
-    if getattr(metadata, "web_search_queries", None):
-        grounding_metadata["web_search_queries"] = list(metadata.web_search_queries)
-
-    return grounding_metadata

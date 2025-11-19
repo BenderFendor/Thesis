@@ -5,12 +5,12 @@ from __future__ import annotations
 import json
 from typing import Any, Dict, List
 
-from app.core.config import create_gemini_client
+from app.core.config import create_openai_client, settings
 from app.core.logging import get_logger
 
 logger = get_logger("queue_digest")
 
-gemini_client = create_gemini_client(logger)
+openai_client = create_openai_client(logger)
 
 
 async def generate_queue_digest(
@@ -26,21 +26,24 @@ async def generate_queue_digest(
     Returns:
         Formatted digest as markdown string
     """
-    if not gemini_client:
-        logger.error("Gemini API client not configured")
-        raise RuntimeError("Gemini API key not configured")
+    if not openai_client:
+        logger.error("OpenRouter API client not configured")
+        raise RuntimeError("OpenRouter API key not configured")
 
     try:
-        model = gemini_client.models.generate_content(
-            model="gemini-2.0-flash",
-            contents=_build_digest_prompt(articles, grouped),
+        response = openai_client.chat.completions.create(
+            model=settings.open_router_model,
+            messages=[
+                {"role": "system", "content": "You are a helpful news assistant."},
+                {"role": "user", "content": _build_digest_prompt(articles, grouped)}
+            ]
         )
 
-        if not model or not hasattr(model, "text"):
-            logger.error("Invalid response from Gemini API")
+        if not response or not response.choices:
+            logger.error("Invalid response from OpenRouter API")
             raise RuntimeError("Failed to generate digest: invalid API response")
 
-        digest = model.text.strip()
+        digest = response.choices[0].message.content.strip()
 
         # Append a structured JSON block the frontend can parse/embed. This
         # follows the same "```json:articles\n<JSON>\n```" fenced format used

@@ -18,8 +18,14 @@ import {
   ArrowLeft,
   ChevronDown,
   ChevronUp,
-  Sparkles
-  ,ChevronLeft, ChevronRight
+  Sparkles,
+  ChevronLeft, 
+  ChevronRight,
+  ArrowRight,
+  ArrowUp,
+  Share2,
+  MoreHorizontal,
+  Plus
 } from "lucide-react"
 import { API_BASE_URL, ThinkingStep, type NewsArticle, semanticSearch, type SemanticSearchResult } from "@/lib/api"
 import { Button } from "@/components/ui/button"
@@ -179,6 +185,30 @@ export default function NewsResearchPage() {
     }
   }
 
+  const handleDeleteChats = (ids: string[]) => {
+    const remainingChats = chats.filter(chat => !ids.includes(chat.id))
+    
+    // If active chat is deleted, switch to the first available remaining chat
+    let nextChatId = activeChatId
+    if (activeChatId && ids.includes(activeChatId)) {
+      nextChatId = remainingChats[0]?.id ?? null
+    }
+
+    // Remove messages for deleted chats
+    const newChatMessagesMap = { ...chatMessagesMap }
+    ids.forEach(id => {
+      delete newChatMessagesMap[id]
+    })
+
+    setChats(remainingChats)
+    setChatMessagesMap(newChatMessagesMap)
+
+    if (activeChatId !== nextChatId || (activeChatId && ids.includes(activeChatId))) {
+      setActiveChatId(nextChatId || null)
+      setMessages(nextChatId ? (newChatMessagesMap[nextChatId] || []) : [])
+    }
+  }
+
   // Hydrate chats from localStorage on first load
   useEffect(() => {
     if (typeof window === 'undefined') return
@@ -322,7 +352,7 @@ export default function NewsResearchPage() {
 
     setMessages(prev => [...prev, streamingPlaceholder])
 
-    semanticSearch(trimmedQuery, { limit: 6 })
+    semanticSearch(trimmedQuery, { limit: 3 })
       .then((response) => {
         const relevant = response.results
           .filter((result: SemanticSearchResult) => {
@@ -627,14 +657,20 @@ export default function NewsResearchPage() {
     if (!articles || articles.length === 0) {
       // No articles, just render text
       return (
-        <div className="prose prose-invert max-w-none prose-headings:text-foreground prose-p:text-foreground prose-p:leading-relaxed prose-strong:font-semibold prose-strong:text-foreground prose-ul:text-foreground prose-ol:text-foreground prose-li:text-foreground prose-a:text-primary prose-code:text-primary prose-pre:bg-muted/50 prose-h1:text-xl prose-h2:text-lg prose-h3:text-base">
+        <div className="prose prose-invert max-w-none prose-p:leading-relaxed prose-pre:p-0 prose-pre:bg-transparent">
           <ReactMarkdown 
             remarkPlugins={[remarkGfm]}
             components={{
-              strong: ({node, ...props}) => <span className="font-semibold" {...props} />,
+              strong: ({node, ...props}) => <span className="font-semibold text-white" {...props} />,
               a: ({node, href, children, ...props}) => {
-                return <a href={href} target="_blank" rel="noopener noreferrer" className="text-primary hover:underline" {...props}>{children}</a>
-              }
+                return <a href={href} target="_blank" rel="noopener noreferrer" className="text-primary hover:underline decoration-primary/30 underline-offset-2" {...props}>{children}</a>
+              },
+              h1: ({node, ...props}) => <h1 className="text-xl font-semibold text-white mt-6 mb-3" {...props} />,
+              h2: ({node, ...props}) => <h2 className="text-lg font-semibold text-white mt-5 mb-2" {...props} />,
+              h3: ({node, ...props}) => <h3 className="text-base font-medium text-white mt-4 mb-2" {...props} />,
+              ul: ({node, ...props}) => <ul className="my-3 space-y-1" {...props} />,
+              li: ({node, ...props}) => <li className="text-neutral-300" {...props} />,
+              p: ({node, ...props}) => <p className="text-neutral-300 leading-7 mb-4" {...props} />,
             }}
           >
             {cleanedContent}
@@ -654,11 +690,17 @@ export default function NewsResearchPage() {
     });
 
     return (
-      <div className="prose prose-invert max-w-none prose-headings:text-foreground prose-p:text-foreground prose-p:leading-relaxed prose-strong:font-semibold prose-strong:text-foreground prose-ul:text-foreground prose-ol:text-foreground prose-li:text-foreground prose-code:text-primary prose-pre:bg-muted/50 prose-h1:text-xl prose-h2:text-lg prose-h3:text-base">
+      <div className="prose prose-invert max-w-none prose-p:leading-relaxed prose-pre:p-0 prose-pre:bg-transparent">
         <ReactMarkdown 
           remarkPlugins={[remarkGfm]}
           components={{
-            strong: ({node, ...props}) => <span className="font-semibold" {...props} />,
+            strong: ({node, ...props}) => <span className="font-semibold text-white" {...props} />,
+            h1: ({node, ...props}) => <h1 className="text-xl font-semibold text-white mt-6 mb-3" {...props} />,
+            h2: ({node, ...props}) => <h2 className="text-lg font-semibold text-white mt-5 mb-2" {...props} />,
+            h3: ({node, ...props}) => <h3 className="text-base font-medium text-white mt-4 mb-2" {...props} />,
+            ul: ({node, ...props}) => <ul className="my-3 space-y-1" {...props} />,
+            li: ({node, ...props}) => <li className="text-neutral-300" {...props} />,
+            p: ({node, ...props}) => <p className="text-neutral-300 leading-7 mb-4" {...props} />,
             a: ({node, href, children, ...props}) => {
               // Check if this URL matches one of our articles
               const article = href ? (urlToArticleMap.get(href) || urlToArticleMap.get(href.replace(/\/$/, ''))) : null;
@@ -671,24 +713,23 @@ export default function NewsResearchPage() {
                       setSelectedArticle(article);
                       setIsArticleModalOpen(true);
                     }}
-                    className="not-prose block my-3 w-full"
+                    className="not-prose group relative block w-full my-6 overflow-hidden rounded-xl border border-white/10 bg-white/5 hover:bg-white/10 transition-all duration-300 text-left hover:shadow-2xl hover:shadow-black/50 hover:-translate-y-0.5"
                   >
-                    <div className="mb-4 transition-all duration-500 ease-in-out hover:scale-[1.01] hover:shadow-xl bg-gradient-to-br from-black via-zinc-900 to-zinc-950 rounded-xl border border-zinc-800 p-4 flex flex-col gap-2">
-                      <div className="flex items-center gap-4">
-                        {article.image && (
-                          <img src={article.image} alt={article.title} className="w-20 h-20 object-cover rounded-lg shadow-md transition-all duration-500" />
-                        )}
-                        <div className="flex-1 min-w-0">
-                          <div className="font-semibold text-base text-slate-50 mb-1 flex items-center gap-2 line-clamp-2">
-                            {article.title.length > 120 ? article.title.slice(0, 120) + '...' : article.title}
-                            {article.url && (
-                                <a href={article.url} target="_blank" rel="noopener noreferrer" className="ml-2 px-2 py-1 rounded bg-primary/20 text-primary text-xs font-medium transition hover:bg-primary/40 flex-shrink-0">Read</a>
-                              )}
-                            </div>
-                            <div className="text-xs text-slate-400 mb-1">{article.source} • {new Date(article.publishedAt).toLocaleDateString()}</div>
-                            <p className="text-sm text-slate-300 leading-relaxed line-clamp-2">
-                              {article.summary && article.summary.length > 150 ? article.summary.slice(0, 150) + '...' : article.summary}
-                            </p>
+                    <div className="flex flex-col sm:flex-row gap-4 p-4">
+                      {article.image && (
+                        <div className="h-48 sm:h-24 sm:w-32 flex-shrink-0 overflow-hidden rounded-lg bg-neutral-800">
+                          <img src={article.image} alt={article.title} className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-105" />
+                        </div>
+                      )}
+                      <div className="flex flex-col justify-between py-1 min-w-0 flex-1">
+                        <div>
+                          <h4 className="font-medium text-neutral-100 line-clamp-2 group-hover:text-primary transition-colors text-base">{article.title}</h4>
+                          <p className="mt-2 text-sm text-neutral-400 line-clamp-2 leading-relaxed">{article.summary}</p>
+                        </div>
+                        <div className="mt-3 flex items-center gap-2 text-[10px] font-medium text-neutral-500 uppercase tracking-wider">
+                          <span className="text-primary/80">{article.source}</span>
+                          <span>•</span>
+                          <span>{new Date(article.publishedAt).toLocaleDateString()}</span>
                         </div>
                       </div>
                     </div>
@@ -697,7 +738,7 @@ export default function NewsResearchPage() {
               }
               
               // Regular link (not an article)
-              return <a href={href} target="_blank" rel="noopener noreferrer" className="text-primary hover:underline" {...props}>{children}</a>
+              return <a href={href} target="_blank" rel="noopener noreferrer" className="text-primary hover:underline decoration-primary/30 underline-offset-2" {...props}>{children}</a>
             }
           }}
         >
@@ -707,195 +748,199 @@ export default function NewsResearchPage() {
     )
   }
 
+  const isEmpty = messages.length === 0
+
   return (
-    <div className="min-h-screen text-white flex flex-col" style={{ backgroundColor: 'var(--news-bg-primary)' }}>
-      {/* Header - Minimal */}
-      <header className="border-b fixed top-0 left-0 right-0 z-50 backdrop-blur-lg" style={{ borderColor: 'var(--border)', backgroundColor: 'var(--news-bg-secondary)' + 'E6' }}>
-        <div className="container mx-auto px-4 py-3">
-          {/* Small screens: simple flex header */}
-          <div className="flex items-center justify-between md:hidden">
-            <div className="flex items-center gap-2">
-              <button onClick={toggleSidebar} className="p-2 rounded-md hover:bg-neutral-800/30">
-                {sidebarCollapsed ? <ChevronRight className="w-4 h-4 text-neutral-300" /> : <ChevronLeft className="w-4 h-4 text-neutral-300" />}
-              </button>
-              <Link href="/" className="flex items-center gap-2 hover:opacity-80 transition-opacity">
-                <ArrowLeft className="w-4 h-4" style={{ color: 'var(--muted-foreground)' }} />
-                <span className="text-sm" style={{ color: 'var(--muted-foreground)' }}>Back</span>
-              </Link>
-            </div>
-            <div className="flex items-center gap-2">
-              <Brain className="w-5 h-5 text-primary" />
-              <h1 className="text-lg font-semibold">News Research</h1>
-            </div>
-            <div className="flex items-center gap-2">
-              <Button variant="ghost" size="sm">
-                <Settings className="w-4 h-4" />
-              </Button>
-            </div>
-          </div>
-
-          {/* md+ screens: grid header aligned with sidebar width */}
-          <div className="hidden md:block">
-            <div className="grid" style={{ gridTemplateColumns: sidebarCollapsed ? '64px 1fr 64px' : '18rem 1fr 64px', alignItems: 'center' }}>
-              <div className="flex items-center">
-                <Link href="/" className="flex items-center gap-2 hover:opacity-80 transition-opacity">
-                  <ArrowLeft className="w-4 h-4" style={{ color: 'var(--muted-foreground)' }} />
-                  <span className="text-sm" style={{ color: 'var(--muted-foreground)' }}>Back</span>
-                </Link>
-              </div>
-
-              <div className="flex items-center justify-center">
-                <div className="flex items-center gap-2">
-                  <Brain className="w-5 h-5 text-primary" />
-                  <h1 className="text-lg font-semibold">News Research</h1>
-                </div>
-              </div>
-
-              <div className="flex items-center justify-end gap-2">
-                <Button variant="ghost" size="sm">
-                  <Settings className="w-4 h-4" />
-                </Button>
-              </div>
-            </div>
-          </div>
-        </div>
-      </header>
+    <div className="flex h-screen w-full bg-[#09090b] text-neutral-100 font-sans selection:bg-primary/20">
+      {/* Sidebar */}
+      <div className={`${sidebarCollapsed ? 'w-0 md:w-0' : 'w-full md:w-[280px]'} fixed inset-y-0 z-50 md:relative md:block transition-all duration-300 ease-in-out border-r border-white/5 bg-[#09090b]`}>
+        <ChatSidebar
+          chats={chats}
+          onSelect={handleSelectChat}
+          onNewChat={handleNewChat}
+          onRename={handleRenameChat}
+          onDelete={handleDeleteChat}
+          onDeleteMultiple={handleDeleteChats}
+          activeId={activeChatId}
+          collapsed={sidebarCollapsed}
+          onToggle={toggleSidebar}
+        />
+      </div>
 
       {/* Main Content */}
-      <main className="flex flex-1 pt-16 overflow-hidden">
-        <div className="flex flex-1 overflow-hidden">
-          {/* Sidebar - hidden on very small screens */}
-          <div className="hidden md:flex flex-shrink-0 h-full">
-            <ChatSidebar
-              chats={chats}
-              onSelect={handleSelectChat}
-              onNewChat={handleNewChat}
-              onRename={handleRenameChat}
-              onDelete={handleDeleteChat}
-              activeId={activeChatId}
-              collapsed={sidebarCollapsed}
-              onToggle={toggleSidebar}
-            />
+      <div className="flex-1 flex flex-col h-full relative min-w-0 bg-[#09090b]">
+        {/* Header */}
+        <header className="flex items-center justify-between px-4 py-3 border-b border-white/5 bg-[#09090b]/80 backdrop-blur-md z-10 absolute top-0 left-0 right-0">
+          <div className="flex items-center gap-2">
+            <button onClick={toggleSidebar} className="p-2 rounded-lg hover:bg-white/5 text-neutral-400 hover:text-white transition-colors md:hidden">
+              {sidebarCollapsed ? <ChevronRight size={18} /> : <ChevronLeft size={18} />}
+            </button>
+            <button onClick={toggleSidebar} className="p-2 rounded-lg hover:bg-white/5 text-neutral-400 hover:text-white transition-colors hidden md:block">
+              {sidebarCollapsed ? <ChevronRight size={18} /> : <ChevronLeft size={18} />}
+            </button>
+            <span className="font-medium text-sm text-neutral-400 ml-2">
+              {activeChatId ? (chats.find(c => c.id === activeChatId)?.title || 'Untitled Research') : 'New Research'}
+            </span>
           </div>
+          <div className="flex items-center gap-2">
+             <Link href="/" className="p-2 rounded-lg hover:bg-white/5 text-neutral-400 hover:text-white transition-colors">
+                <Home size={18} />
+             </Link>
+          </div>
+        </header>
 
-          {/* Right/Main column */}
-          <div className="flex flex-1 flex-col overflow-hidden" style={{ backgroundColor: 'var(--news-bg-primary)' }}>
-            {/* Messages Area */}
-            <div className="flex-1 overflow-y-auto">
-              <div className="container mx-auto px-4 py-8 max-w-4xl">
-
-            {/* Welcome State */}
-            {messages.length === 0 && (
-              <div className="flex flex-col items-center justify-center min-h-[60vh] text-center">
-                <div className="w-16 h-16 rounded-2xl flex items-center justify-center mb-6" style={{ backgroundColor: 'var(--primary)' + '20' }}>
-                  <Brain className="w-8 h-8 text-primary" />
+        {/* Scrollable Area */}
+        <div className="flex-1 overflow-y-auto scroll-smooth pt-14">
+          <div className={`mx-auto px-4 transition-all duration-500 ${isEmpty ? 'h-full flex flex-col justify-center items-center max-w-2xl' : 'max-w-3xl py-8'}`}>
+            
+            {isEmpty ? (
+              <div className="w-full space-y-8 -mt-20 animate-in fade-in zoom-in-95 duration-500">
+                <div className="text-center space-y-6">
+                  <div className="inline-flex items-center justify-center p-4 rounded-3xl bg-white/5 ring-1 ring-white/10 mb-4 shadow-2xl shadow-primary/10 relative overflow-hidden group">
+                    <div className="absolute inset-0 bg-gradient-to-tr from-primary/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
+                    <Brain className="w-10 h-10 text-primary relative z-10" />
+                  </div>
+                  <h1 className="text-3xl md:text-4xl font-medium tracking-tight text-white">
+                    What do you want to know?
+                  </h1>
                 </div>
-                <h2 className="text-2xl font-semibold mb-2">News Research Assistant</h2>
-                <p className="text-sm mb-8" style={{ color: 'var(--muted-foreground)' }}>
-                  Ask me anything about the news. I'll search through articles and provide analysis.
-                </p>
                 
-                {/* Sample Queries */}
-                <div className="w-full max-w-2xl space-y-2">
-                  <p className="text-xs font-medium mb-3" style={{ color: 'var(--muted-foreground)' }}>Try asking:</p>
-                  {sampleQueries.map((sample, index) => (
-                    <button
-                      key={index}
-                      onClick={() => handleSampleQuery(sample)}
-                      className="w-full text-left p-3 rounded-lg border hover:border-primary hover:bg-primary/5 hover:scale-[1.01] transition-all duration-200 text-sm group"
-                      style={{ 
-                        backgroundColor: 'var(--news-bg-secondary)', 
-                        borderColor: 'var(--border)',
-                      }}
+                {/* Search Input (Centered) */}
+                <form onSubmit={handleSearch} className="relative w-full group">
+                  <div className="absolute -inset-0.5 bg-gradient-to-r from-primary/30 via-purple-500/30 to-blue-500/30 rounded-2xl blur opacity-20 group-hover:opacity-40 transition duration-500" />
+                  <div className="relative flex items-center bg-[#18181b] border border-white/10 rounded-2xl shadow-2xl transition-all duration-200 focus-within:ring-1 focus-within:ring-primary/50 focus-within:border-primary/50">
+                    <Search className="ml-5 w-5 h-5 text-neutral-500" />
+                    <input 
+                      ref={inputRef}
+                      value={query}
+                      onChange={(e) => setQuery(e.target.value)}
+                      placeholder="Search for news, topics, or analysis..."
+                      className="w-full bg-transparent border-none px-4 py-5 text-lg placeholder:text-neutral-500 focus:outline-none focus:ring-0 text-white"
+                    />
+                    <div className="pr-3">
+                      <Button type="submit" size="icon" disabled={!query.trim()} className="h-10 w-10 rounded-xl bg-white/10 hover:bg-white/20 text-white border-0 transition-all disabled:opacity-50">
+                        <ArrowRight className="w-5 h-5" />
+                      </Button>
+                    </div>
+                  </div>
+                </form>
+
+                {/* Suggestions */}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3 pt-4">
+                  {sampleQueries.slice(0, 4).map((q, i) => (
+                    <button 
+                      key={i} 
+                      onClick={() => handleSampleQuery(q)} 
+                      className="text-left p-4 rounded-xl bg-white/5 hover:bg-white/10 border border-white/5 hover:border-white/10 transition-all text-sm text-neutral-400 hover:text-white group"
                     >
-                      <span className="group-hover:text-primary transition-colors">{sample}</span>
+                      <span className="line-clamp-1 group-hover:translate-x-1 transition-transform duration-200">{q}</span>
                     </button>
                   ))}
                 </div>
               </div>
-            )}
-            {/* Messages */}
-            {messages.map((message) => (
-              <div key={message.id} className="mb-6">
-                {message.type === 'user' ? (
-                  <div className="flex justify-end animate-in slide-in-from-right duration-300">
-                    <div className="max-w-[80%] p-4 rounded-2xl hover:shadow-lg transition-shadow" style={{ backgroundColor: 'var(--primary)', color: 'var(--primary-foreground)' }}>
-                      <p className="text-sm leading-relaxed">{message.content}</p>
-                    </div>
-                  </div>
-                ) : (
-                  <div className="flex justify-start animate-in slide-in-from-left duration-300">
-                    <div className="max-w-[85%] space-y-3 w-full">
-                      {message.toolType === 'semantic_search' && message.semanticResults ? (
-                        <div className="p-4 rounded-2xl border hover:shadow-lg transition-all duration-200" style={{ backgroundColor: 'var(--news-bg-secondary)', borderColor: 'var(--border)' }}>
-                          <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-emerald-400 mb-3">
-                            <Sparkles className="w-4 h-4" />
-                            Semantic matches
-                          </div>
-                          <div className="space-y-3">
-                            {message.semanticResults.map(({ article, similarityScore }) => (
-                              <button
-                                key={`semantic-${article.url || article.id}`}
-                                onClick={() => {
-                                  setSelectedArticle(article)
-                                  setIsArticleModalOpen(true)
-                                }}
-                                className="w-full text-left group"
-                              >
-                                <div
-                                  className="p-3 rounded-xl border transition-all duration-200 hover:border-primary hover:bg-primary/10 flex gap-3"
-                                  style={{ borderColor: 'var(--border)' }}
-                                >
-                                  {article.image && (
-                                    <div className="w-20 h-16 rounded-md overflow-hidden flex-shrink-0 bg-black/40">
-                                      <img
-                                        src={article.image}
-                                        alt={article.title}
-                                        className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-200"
-                                      />
-                                    </div>
-                                  )}
-                                  <div className="flex-1 min-w-0 space-y-1">
-                                    <div className="flex items-center gap-2 text-xs font-medium text-primary/80 uppercase">
-                                      <span>{article.source}</span>
-                                      {typeof similarityScore === 'number' && (
-                                        <span className="px-2 py-0.5 rounded-full bg-primary/20 text-primary">
-                                          {(similarityScore * 100).toFixed(1)}% match
-                                        </span>
-                                      )}
-                                    </div>
-                                    <h3 className="text-sm font-semibold leading-snug line-clamp-2 group-hover:text-primary transition-colors">
-                                      {article.title}
-                                    </h3>
-                                    <p className="text-xs text-muted-foreground line-clamp-2">
-                                      {article.summary}
-                                    </p>
-                                  </div>
-                                </div>
-                              </button>
-                            ))}
+            ) : (
+              <div className="space-y-10 pb-24">
+                {messages.map((message) => (
+                  <div key={message.id} className="animate-in fade-in slide-in-from-bottom-4 duration-500">
+                    {message.type === 'user' ? (
+                      <div className="flex justify-end mb-8">
+                        <div className="bg-white/10 text-white px-6 py-4 rounded-3xl rounded-tr-sm max-w-[85%] text-base leading-relaxed shadow-sm backdrop-blur-sm">
+                          {message.content}
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="flex gap-6 mb-8 group">
+                        <div className="flex-shrink-0 mt-1 hidden sm:block">
+                          <div className="w-10 h-10 rounded-full bg-gradient-to-b from-primary/20 to-primary/5 flex items-center justify-center border border-primary/10 shadow-lg shadow-primary/5">
+                            <Brain className="w-5 h-5 text-primary" />
                           </div>
                         </div>
-                      ) : (
-                        <div className="p-4 rounded-2xl border hover:shadow-lg transition-all duration-200" style={{ backgroundColor: 'var(--news-bg-secondary)', borderColor: 'var(--border)' }}>
-                          {/* Assistant Message with inline embeds */}
+                        <div className="flex-1 min-w-0 space-y-6">
+                          {/* Semantic Search Results */}
+                          {message.toolType === 'semantic_search' && message.semanticResults && (
+                            <div className="rounded-2xl border border-white/10 bg-white/5 overflow-hidden">
+                              <div className="px-4 py-3 border-b border-white/5 flex items-center gap-2 bg-white/5">
+                                <Sparkles className="w-4 h-4 text-emerald-400" />
+                                <span className="text-xs font-medium text-emerald-400 uppercase tracking-wider">Related Coverage</span>
+                              </div>
+                              <div className="divide-y divide-white/5">
+                                {message.semanticResults.map(({ article, similarityScore }) => (
+                                  <button
+                                    key={`semantic-${article.url || article.id}`}
+                                    onClick={() => {
+                                      setSelectedArticle(article)
+                                      setIsArticleModalOpen(true)
+                                    }}
+                                    className="w-full text-left p-4 hover:bg-white/5 transition-colors flex gap-4 group/item"
+                                  >
+                                    {article.image && (
+                                      <div className="w-16 h-12 rounded-md overflow-hidden flex-shrink-0 bg-neutral-800">
+                                        <img src={article.image} alt="" className="w-full h-full object-cover opacity-70 group-hover/item:opacity-100 transition-opacity" />
+                                      </div>
+                                    )}
+                                    <div className="flex-1 min-w-0">
+                                      <h4 className="text-sm font-medium text-neutral-200 line-clamp-1 group-hover/item:text-primary transition-colors">{article.title}</h4>
+                                      <div className="flex items-center gap-2 mt-1">
+                                        <span className="text-xs text-neutral-500">{article.source}</span>
+                                        {typeof similarityScore === 'number' && (
+                                          <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
+                                            {Math.round(similarityScore * 100)}% match
+                                          </span>
+                                        )}
+                                      </div>
+                                    </div>
+                                  </button>
+                                ))}
+                              </div>
+                            </div>
+                          )}
+
+                          {/* Thinking Steps */}
+                          {message.thinking_steps && message.thinking_steps.length > 0 && (
+                            <div className="rounded-xl border border-white/10 bg-[#121214] overflow-hidden">
+                              <button 
+                                onClick={() => toggleThinking(message.id)}
+                                className="w-full flex items-center justify-between px-4 py-3 hover:bg-white/5 transition-colors"
+                              >
+                                <div className="flex items-center gap-2 text-xs font-medium text-neutral-400">
+                                  <Activity className="w-4 h-4" />
+                                  <span>Reasoning Process</span>
+                                  <span className="px-2 py-0.5 rounded-full bg-white/5 text-neutral-500">{message.thinking_steps.length} steps</span>
+                                </div>
+                                {expandedThinking === message.id ? <ChevronUp className="w-4 h-4 text-neutral-500" /> : <ChevronDown className="w-4 h-4 text-neutral-500" />}
+                              </button>
+                              
+                              {expandedThinking === message.id && (
+                                <div className="px-4 py-3 border-t border-white/5 space-y-3 bg-black/20">
+                                  {message.thinking_steps.map((step, idx) => (
+                                    <div key={idx} className="flex gap-3 text-xs">
+                                      <div className="mt-0.5 text-neutral-500 font-mono">{(idx + 1).toString().padStart(2, '0')}</div>
+                                      <div className="flex-1">
+                                        <div className="font-medium text-neutral-300 mb-0.5 capitalize">{step.type.replace('_', ' ')}</div>
+                                        <div className="text-neutral-500 leading-relaxed">{step.content}</div>
+                                      </div>
+                                    </div>
+                                  ))}
+                                </div>
+                              )}
+                            </div>
+                          )}
+
+                          {/* Main Content */}
                           {message.isStreaming ? (
-                            <div className="flex items-start gap-3">
-                              <Loader2 className="w-5 h-5 text-primary animate-spin flex-shrink-0 mt-0.5" />
-                              <div className="flex-1">
-                                <p className="text-sm font-medium mb-1">Researching...</p>
-                                <p className="text-xs animate-pulse" style={{ color: 'var(--muted-foreground)' }}>
-                                  {message.streamingStatus || 'Processing...'}
-                                </p>
+                            <div className="space-y-4">
+                              <div className="flex items-center gap-3 text-neutral-400">
+                                <Loader2 className="w-5 h-5 animate-spin text-primary" />
+                                <span className="text-sm animate-pulse">{message.streamingStatus || 'Analyzing...'}</span>
                               </div>
                             </div>
                           ) : message.error ? (
-                            <div className="flex items-start gap-2">
-                              <AlertCircle className="w-5 h-5 text-destructive flex-shrink-0 mt-0.5" />
-                              <p className="text-sm" style={{ color: 'var(--muted-foreground)' }}>{message.content}</p>
+                            <div className="p-4 rounded-xl bg-red-500/10 border border-red-500/20 text-red-400 text-sm flex items-start gap-3">
+                              <AlertCircle className="w-5 h-5 flex-shrink-0" />
+                              <p>{message.content}</p>
                             </div>
                           ) : (
-                            <>
+                            <div className="text-neutral-200">
                               {(() => {
                                 const structuredFallback: NewsArticle[] = (message.structured_articles_json?.articles ?? []).map((article) => {
                                   const tags = [article.category, article.source].filter((value): value is string => Boolean(value))
@@ -932,194 +977,84 @@ export default function NewsResearchPage() {
 
                                 return renderContentWithEmbeds(message.content, articlesToEmbed)
                               })()}
-                            
-                            {/* Sources Section */}
-                            {message.referenced_articles && message.referenced_articles.length > 0 && (
-                              <div className="mt-6 pt-4 border-t" style={{ borderColor: 'var(--border)' }}>
-                                <h4 className="text-xs font-semibold uppercase tracking-wider mb-3 flex items-center gap-2" style={{ color: 'var(--muted-foreground)' }}>
-                                  <Database className="w-3 h-3" />
-                                  Sources
-                                </h4>
-                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                                  {message.referenced_articles.map((article) => (
-                                    <button
-                                      key={`source-${article.id}`}
-                                      onClick={() => {
-                                        setSelectedArticle(article)
-                                        setIsArticleModalOpen(true)
-                                      }}
-                                      className="text-left group p-3 rounded-xl border transition-all duration-200 hover:border-primary/30"
-                                      style={{ backgroundColor: 'var(--card)', borderColor: 'var(--border)' }}
-                                    >
-                                      <div className="flex items-start gap-3">
-                                        {article.image && (
-                                          <div className="w-12 h-12 rounded-lg overflow-hidden flex-shrink-0 bg-muted">
-                                            <img src={article.image} alt="" className="w-full h-full object-cover opacity-80 group-hover:opacity-100 transition-opacity" />
-                                          </div>
-                                        )}
-                                        <div className="flex-1 min-w-0">
-                                          <h5 className="text-sm font-medium leading-tight line-clamp-2 group-hover:text-primary transition-colors mb-1">
-                                            {article.title}
-                                          </h5>
-                                          <div className="flex items-center gap-2 text-xs" style={{ color: 'var(--muted-foreground)' }}>
-                                            <span className="font-medium" style={{ color: 'var(--foreground)' }}>{article.source}</span>
-                                            <span>•</span>
-                                            <span>{new Date(article.publishedAt).toLocaleDateString()}</span>
-                                          </div>
-                                        </div>
-                                      </div>
-                                    </button>
-                                  ))}
-                                </div>
-                              </div>
-                            )}
-                          </>
-                        )}
-                        </div>
-                      )}
+                            </div>
+                          )}
 
-                      {/* Metadata */}
-                      {message.articles_searched !== undefined && (
-                        <div className="flex items-center gap-3 text-xs px-2" style={{ color: 'var(--muted-foreground)' }}>
-                          <div className="flex items-center gap-1">
-                            <Database className="w-3 h-3" />
-                            <span>{message.articles_searched} articles</span>
-                          </div>
-                          {message.thinking_steps && message.thinking_steps.length > 0 && (
-                            <>
-                              <span>•</span>
-                              <button
-                                onClick={() => toggleThinking(message.id)}
-                                className="flex items-center gap-1 hover:text-primary transition-colors"
-                              >
-                                <Brain className="w-3 h-3" />
-                                <span>{message.thinking_steps.length} reasoning steps</span>
-                                {expandedThinking === message.id ? (
-                                  <ChevronUp className="w-3 h-3" />
-                                ) : (
-                                  <ChevronDown className="w-3 h-3" />
-                                )}
-                              </button>
-                            </>
+                          {/* Sources Grid (Bottom) */}
+                          {!message.isStreaming && !message.error && message.referenced_articles && message.referenced_articles.length > 0 && (
+                            <div className="pt-6 border-t border-white/5">
+                              <h4 className="text-xs font-semibold uppercase tracking-wider text-neutral-500 mb-4 flex items-center gap-2">
+                                <Database className="w-3 h-3" />
+                                Sources Used
+                              </h4>
+                              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
+                                {message.referenced_articles.map((article) => (
+                                  <button
+                                    key={`source-${article.id}`}
+                                    onClick={() => {
+                                      setSelectedArticle(article)
+                                      setIsArticleModalOpen(true)
+                                    }}
+                                    className="text-left group flex flex-col h-full p-3 rounded-xl border border-white/5 bg-white/5 hover:bg-white/10 hover:border-white/10 transition-all"
+                                  >
+                                    {article.image && (
+                                      <div className="w-full aspect-video rounded-lg overflow-hidden bg-neutral-800 mb-2">
+                                        <img src={article.image} alt="" className="w-full h-full object-cover opacity-60 group-hover:opacity-100 transition-opacity" />
+                                      </div>
+                                    )}
+                                    <div className="flex-1 min-w-0 flex flex-col">
+                                      <div className="flex items-center gap-1.5 mb-1">
+                                        <div className="w-4 h-4 rounded-full bg-white/10 flex items-center justify-center text-[8px] font-bold text-neutral-400">
+                                          {article.source.slice(0, 1)}
+                                        </div>
+                                        <span className="text-[10px] font-medium text-neutral-400 truncate">{article.source}</span>
+                                      </div>
+                                      <h5 className="text-xs font-medium text-neutral-300 line-clamp-2 group-hover:text-white transition-colors">
+                                        {article.title}
+                                      </h5>
+                                    </div>
+                                  </button>
+                                ))}
+                              </div>
+                            </div>
                           )}
                         </div>
-                      )}
-                      
-                      {/* Perplexity-style Thinking Steps */}
-                      {message.thinking_steps && message.thinking_steps.length > 0 && expandedThinking === message.id && (
-                        <div className="rounded-xl border overflow-hidden animate-in slide-in-from-top duration-300" style={{ backgroundColor: 'var(--news-bg-secondary)', borderColor: 'var(--border)' }}>
-                          <div className="p-3 border-b flex items-center gap-2" style={{ backgroundColor: 'var(--muted)', borderColor: 'var(--border)' }}>
-                            <Brain className="w-4 h-4 text-primary" />
-                            <span className="text-xs font-semibold">Reasoning Process</span>
-                          </div>
-                          <div className="p-3 space-y-1">
-                          {message.thinking_steps.map((step, index) => {
-                            const getStepIcon = () => {
-                              switch (step.type) {
-                                case 'thought': return <Brain className="h-3 w-3 text-purple-400" />
-                                case 'action': return <Sparkles className="h-3 w-3 text-blue-400" />
-                                case 'tool_start': return <Loader2 className="h-3 w-3 text-yellow-400" />
-                                case 'observation': return <CheckCircle className="h-3 w-3 text-green-400" />
-                                case 'answer': return <Newspaper className="h-3 w-3 text-primary" />
-                                default: return <Brain className="h-3 w-3 text-gray-400" />
-                              }
-                            }
-
-                            const getStepLabel = (type: string) => {
-                              switch (type) {
-                                case 'thought': return 'Thinking'
-                                case 'action': return 'Action'
-                                case 'tool_start': return 'Tool'
-                                case 'observation': return 'Result'
-                                case 'answer': return 'Answer'
-                                default: return type
-                              }
-                            }
-
-                            let displayContent = step.content
-                            if (step.type === 'action' && step.content.includes('Input:')) {
-                              try {
-                                const toolMatch = step.content.match(/tool:\s*([^\n]+)/i)
-                                const inputMatch = step.content.match(/Input:\s*([\s\S]+)/)
-                                if (toolMatch && inputMatch) {
-                                  displayContent = `Using tool: ${toolMatch[1]}\n\nInput: ${inputMatch[1].trim()}`
-                                }
-                              } catch (e) {
-                                // Keep original
-                              }
-                            }
-
-                            return (
-                              <div key={index} className="flex gap-2 p-2 rounded hover:bg-muted/50 transition-colors duration-150 group">
-                                <div className="flex-shrink-0 mt-0.5">
-                                  {getStepIcon()}
-                                </div>
-                                <div className="flex-1 min-w-0">
-                                  <div className="flex items-center gap-2 mb-1">
-                                    <span className="font-semibold text-xs group-hover:text-primary transition-colors">{getStepLabel(step.type)}</span>
-                                    <span className="text-[10px]" style={{ color: 'var(--muted-foreground)' }}>
-                                      {new Date(step.timestamp).toLocaleTimeString()}
-                                    </span>
-                                  </div>
-                                  <p className="text-xs leading-relaxed" style={{ color: 'var(--muted-foreground)' }}>
-                                    {displayContent}
-                                  </p>
-                                </div>
-                              </div>
-                            )
-                          })}
-                          </div>
-                        </div>
-                      )}
-                    </div>
+                      </div>
+                    )}
                   </div>
-                )}
-              </div>
-            ))}
-
-            {/* Loading state is now shown inline in the streaming message */}
-            
+                ))}
                 <div ref={messagesEndRef} />
               </div>
-            </div>
+            )}
+          </div>
+        </div>
 
-            {/* Input Area - Fixed at bottom */}
-            <div className="border-t backdrop-blur-lg" style={{ borderColor: 'var(--border)', backgroundColor: 'var(--news-bg-secondary)' + 'E6' }}>
-              <div className="container mx-auto px-4 py-4 max-w-4xl">
-                <form onSubmit={handleSearch}>
-                  <div className="flex gap-2">
-                    <Input
-                      ref={inputRef}
-                      type="text"
-                      placeholder="Ask me anything about the news..."
-                      value={query}
-                      onChange={(e) => setQuery(e.target.value)}
-                      className="flex-1 h-12 text-sm rounded-xl border-2 focus:border-primary transition-colors"
-                      style={{
-                        backgroundColor: 'var(--news-bg-primary)',
-                        borderColor: 'var(--border)',
-                      }}
-                      disabled={isSearching}
-                    />
-                    <Button
-                      type="submit"
-                      size="lg"
-                      disabled={isSearching || !query.trim()}
-                      className="px-6 h-12 rounded-xl"
-                    >
-                      {isSearching ? (
-                        <Loader2 className="h-5 w-5 animate-spin" />
-                      ) : (
-                        <Sparkles className="h-5 w-5" />
-                      )}
-                    </Button>
-                  </div>
-                </form>
+        {/* Bottom Input (Only when not empty) */}
+        {!isEmpty && (
+          <div className="absolute bottom-0 left-0 right-0 p-4 bg-gradient-to-t from-[#09090b] via-[#09090b] to-transparent z-20">
+            <div className="max-w-3xl mx-auto">
+              <form onSubmit={handleSearch} className="relative flex items-center bg-[#18181b] border border-white/10 rounded-xl shadow-2xl shadow-black/50 focus-within:ring-1 focus-within:ring-primary/50 transition-all">
+                <input 
+                  ref={inputRef}
+                  value={query}
+                  onChange={(e) => setQuery(e.target.value)}
+                  placeholder="Ask a follow-up question..."
+                  className="w-full bg-transparent border-none px-4 py-3.5 text-base placeholder:text-neutral-500 focus:outline-none focus:ring-0 text-white"
+                  disabled={isSearching}
+                />
+                <div className="pr-2 flex items-center gap-2">
+                  <Button type="submit" size="sm" disabled={isSearching || !query.trim()} className="h-8 w-8 rounded-lg bg-primary text-primary-foreground hover:bg-primary/90 p-0 flex items-center justify-center">
+                    {isSearching ? <Loader2 className="w-4 h-4 animate-spin" /> : <ArrowUp className="w-4 h-4" />}
+                  </Button>
+                </div>
+              </form>
+              <div className="text-center mt-2">
+                <p className="text-[10px] text-neutral-600">AI can make mistakes. Check sources.</p>
               </div>
             </div>
           </div>
-        </div>
-      </main>
+        )}
+      </div>
 
       {/* Article Detail Modal */}
       <ArticleDetailModal

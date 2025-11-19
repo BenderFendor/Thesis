@@ -4,6 +4,7 @@ from typing import Optional
 
 from dotenv import load_dotenv
 from google import genai
+from openai import OpenAI
 
 load_dotenv()
 
@@ -18,6 +19,8 @@ class Settings:
     app_title: str = "Global News Aggregation API"
     app_version: str = "1.0.0"
     gemini_api_key: Optional[str] = os.getenv("GEMINI_API_KEY")
+    open_router_api_key: Optional[str] = os.getenv("OPEN_ROUTER_API_KEY")
+    open_router_model: str = os.getenv("OPEN_ROUTER_MODEL", "google/gemini-2.0-flash-exp:free")
     frontend_origins: tuple[str, ...] = (
         "http://localhost:3000",
         "http://localhost:3001",
@@ -43,4 +46,22 @@ def create_gemini_client(logger) -> Optional[genai.Client]:
     except Exception as e:
         logger.error(f"❌ Failed to initialize Gemini client: {e}")
         # Fallback or return None to prevent crash
+        return None
+
+
+def create_openai_client(logger) -> Optional[OpenAI]:
+    """Initialise and return the OpenAI client for OpenRouter if an API key is configured."""
+    if not settings.open_router_api_key:
+        logger.warning("⚠️ OPEN_ROUTER_API_KEY not found in environment variables")
+        return None
+
+    try:
+        client = OpenAI(
+            base_url="https://openrouter.ai/api/v1",
+            api_key=settings.open_router_api_key,
+        )
+        logger.info("✅ OpenRouter API configured successfully")
+        return client
+    except Exception as e:
+        logger.error(f"❌ Failed to initialize OpenRouter client: {e}")
         return None

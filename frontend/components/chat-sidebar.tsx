@@ -1,13 +1,15 @@
 import React, { useMemo, useState } from 'react'
 import { Button } from './ui/button'
 import {
+  CheckSquare,
   ChevronRight,
   PanelLeftClose,
   PanelLeftOpen,
   PenLine,
   Plus,
   Search,
-  Trash2
+  Trash2,
+  X
 } from 'lucide-react'
 import { AnimatePresence, motion } from 'framer-motion'
 
@@ -24,15 +26,18 @@ interface ChatSidebarProps {
   onNewChat: () => void
   onRename: (id: string, title: string) => void
   onDelete: (id: string) => void
+  onDeleteMultiple?: (ids: string[]) => void
   activeId?: string | null
   collapsed?: boolean
   onToggle?: () => void
 }
 
-export function ChatSidebar({ chats, onSelect, onNewChat, onRename, onDelete, activeId, collapsed = false, onToggle }: ChatSidebarProps) {
+export function ChatSidebar({ chats, onSelect, onNewChat, onRename, onDelete, onDeleteMultiple, activeId, collapsed = false, onToggle }: ChatSidebarProps) {
   const [searchTerm, setSearchTerm] = useState('')
   const [editingId, setEditingId] = useState<string | null>(null)
   const [draftTitle, setDraftTitle] = useState('')
+  const [isSelectionMode, setIsSelectionMode] = useState(false)
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
 
   const filteredChats = useMemo(() => {
     if (!searchTerm.trim()) return chats
@@ -61,6 +66,37 @@ export function ChatSidebar({ chats, onSelect, onNewChat, onRename, onDelete, ac
       onRename(editingId, trimmed)
     }
     cancelRename()
+  }
+
+  const toggleSelectionMode = () => {
+    setIsSelectionMode(!isSelectionMode)
+    setSelectedIds(new Set())
+    setEditingId(null)
+  }
+
+  const toggleSelection = (id: string) => {
+    const newSelected = new Set(selectedIds)
+    if (newSelected.has(id)) {
+      newSelected.delete(id)
+    } else {
+      newSelected.add(id)
+    }
+    setSelectedIds(newSelected)
+  }
+
+  const handleDeleteSelected = () => {
+    if (selectedIds.size === 0) return
+    
+    if (window.confirm(`Delete ${selectedIds.size} selected chats? This action cannot be undone.`)) {
+      if (onDeleteMultiple) {
+        onDeleteMultiple(Array.from(selectedIds))
+      } else {
+        // Fallback if multiple delete not provided
+        selectedIds.forEach(id => onDelete(id))
+      }
+      setIsSelectionMode(false)
+      setSelectedIds(new Set())
+    }
   }
 
   if (collapsed) {
@@ -95,14 +131,55 @@ export function ChatSidebar({ chats, onSelect, onNewChat, onRename, onDelete, ac
   return (
     <aside className="w-72 min-w-[18rem] bg-neutral-950/95 text-neutral-100 border-r border-neutral-900 h-full flex flex-col shadow-2xl shadow-black/40 backdrop-blur-md">
       <div className="px-4 pt-4 pb-3 border-b border-neutral-900">
-        <Button
-          onClick={onNewChat}
-          variant="ghost"
-          className="w-full justify-start gap-3 rounded-xl border border-neutral-800 bg-neutral-900/60 hover:bg-neutral-800/80 hover:border-neutral-700 transition-all duration-200 font-semibold font-serif text-sm"
-        >
-          <Plus className="w-4 h-4" />
-          New research chat
-        </Button>
+        {!isSelectionMode ? (
+          <div className="flex gap-2">
+            <Button
+              onClick={onNewChat}
+              variant="ghost"
+              className="flex-1 justify-start gap-3 rounded-xl border border-neutral-800 bg-neutral-900/60 hover:bg-neutral-800/80 hover:border-neutral-700 transition-all duration-200 font-semibold font-serif text-sm"
+            >
+              <Plus className="w-4 h-4" />
+              New research chat
+            </Button>
+            <Button
+              onClick={toggleSelectionMode}
+              variant="ghost"
+              size="icon"
+              title="Select chats"
+              className="rounded-xl border border-neutral-800 bg-neutral-900/60 hover:bg-neutral-800/80 hover:border-neutral-700 transition-all duration-200"
+            >
+              <CheckSquare className="w-4 h-4 text-neutral-400" />
+            </Button>
+          </div>
+        ) : (
+          <div className="flex items-center justify-between h-10">
+            <span className="text-sm font-medium text-neutral-300 pl-1">
+              {selectedIds.size} selected
+            </span>
+            <div className="flex gap-1">
+              <Button
+                onClick={handleDeleteSelected}
+                variant="ghost"
+                size="sm"
+                disabled={selectedIds.size === 0}
+                className="text-destructive hover:text-destructive hover:bg-destructive/10 h-8 px-2"
+              >
+                <Trash2 className="w-4 h-4 mr-1" />
+                Delete
+              </Button>
+              <Button
+                onClick={toggleSelectionMode}
+                variant="ghost"
+                size="sm"
+                className="text-neutral-400 hover:text-neutral-200 h-8 px-2"
+              >
+                <X className="w-4 h-4 mr-1" />
+                Cancel
+              </Button>
+            </div>
+          </div>
+        )}
+        
         <div className="mt-4 relative">
           <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-neutral-500" />
           <input
@@ -126,6 +203,7 @@ export function ChatSidebar({ chats, onSelect, onNewChat, onRename, onDelete, ac
               {filteredChats.map((chat) => {
                 const isActive = activeId === chat.id
                 const isEditing = editingId === chat.id
+                const isSelected = selectedIds.has(chat.id)
 
                 return (
                   <motion.li
@@ -137,8 +215,27 @@ export function ChatSidebar({ chats, onSelect, onNewChat, onRename, onDelete, ac
                     transition={{ duration: 0.18, ease: 'easeOut' }}
                   >
                     <div
-                      className={`group flex items-center gap-2 rounded-xl border px-3 py-2 transition-all duration-200 ${isActive ? 'border-primary/50 bg-primary/10 shadow-lg shadow-primary/10' : 'border-transparent hover:border-neutral-800 hover:bg-neutral-900/60'}`}
+                      className={`group flex items-center gap-2 rounded-xl border px-3 py-2 transition-all duration-200 ${
+                        isSelectionMode 
+                          ? isSelected 
+                            ? 'border-primary/50 bg-primary/10' 
+                            : 'border-transparent hover:bg-neutral-900/60 cursor-pointer'
+                          : isActive 
+                            ? 'border-primary/50 bg-primary/10 shadow-lg shadow-primary/10' 
+                            : 'border-transparent hover:border-neutral-800 hover:bg-neutral-900/60'
+                      }`}
+                      onClick={() => {
+                        if (isSelectionMode) {
+                          toggleSelection(chat.id)
+                        }
+                      }}
                     >
+                      {isSelectionMode && (
+                        <div className={`w-4 h-4 rounded border flex items-center justify-center transition-colors ${isSelected ? 'bg-primary border-primary' : 'border-neutral-600 bg-transparent'}`}>
+                          {isSelected && <CheckSquare className="w-3 h-3 text-primary-foreground" />}
+                        </div>
+                      )}
+
                       {isEditing ? (
                         <form
                           onSubmit={(event) => {
@@ -146,6 +243,7 @@ export function ChatSidebar({ chats, onSelect, onNewChat, onRename, onDelete, ac
                             commitRename()
                           }}
                           className="flex-1"
+                          onClick={(e) => e.stopPropagation()}
                         >
                           <input
                             value={draftTitle}
@@ -163,9 +261,17 @@ export function ChatSidebar({ chats, onSelect, onNewChat, onRename, onDelete, ac
                         </form>
                       ) : (
                         <button
-                          onClick={() => onSelect(chat.id)}
+                          onClick={(e) => {
+                            if (isSelectionMode) {
+                              e.preventDefault()
+                              toggleSelection(chat.id)
+                            } else {
+                              onSelect(chat.id)
+                            }
+                          }}
                           className="flex-1 text-left"
                           aria-label={`Open chat ${chat.title}`}
+                          disabled={isSelectionMode} // Disable button behavior in selection mode, handled by parent div
                         >
                           <div>
                             <div className="font-medium font-serif text-sm text-neutral-100 truncate">
@@ -180,36 +286,38 @@ export function ChatSidebar({ chats, onSelect, onNewChat, onRename, onDelete, ac
                         </button>
                       )}
 
-                      <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 transition-opacity">
-                        <button
-                          type="button"
-                          onClick={(event) => {
-                            event.stopPropagation()
-                            if (isEditing) {
-                              commitRename()
-                            } else {
-                              startRename(chat)
-                            }
-                          }}
-                          className="p-1 rounded-md hover:bg-neutral-800/70 transition"
-                          aria-label="Rename chat"
-                        >
-                          <PenLine className="w-4 h-4 text-neutral-300" />
-                        </button>
-                        <button
-                          type="button"
-                          onClick={(event) => {
-                            event.stopPropagation()
-                            if (window.confirm('Delete this chat? This action cannot be undone.')) {
-                              onDelete(chat.id)
-                            }
-                          }}
-                          className="p-1 rounded-md hover:bg-destructive/20 transition"
-                          aria-label="Delete chat"
-                        >
-                          <Trash2 className="w-4 h-4 text-destructive" />
-                        </button>
-                      </div>
+                      {!isSelectionMode && (
+                        <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 transition-opacity">
+                          <button
+                            type="button"
+                            onClick={(event) => {
+                              event.stopPropagation()
+                              if (isEditing) {
+                                commitRename()
+                              } else {
+                                startRename(chat)
+                              }
+                            }}
+                            className="p-1 rounded-md hover:bg-neutral-800/70 transition"
+                            aria-label="Rename chat"
+                          >
+                            <PenLine className="w-4 h-4 text-neutral-300" />
+                          </button>
+                          <button
+                            type="button"
+                            onClick={(event) => {
+                              event.stopPropagation()
+                              if (window.confirm('Delete this chat? This action cannot be undone.')) {
+                                onDelete(chat.id)
+                              }
+                            }}
+                            className="p-1 rounded-md hover:bg-destructive/20 transition"
+                            aria-label="Delete chat"
+                          >
+                            <Trash2 className="w-4 h-4 text-destructive" />
+                          </button>
+                        </div>
+                      )}
                     </div>
                   </motion.li>
                 )

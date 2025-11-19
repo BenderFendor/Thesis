@@ -12,9 +12,11 @@ from ddgs import DDGS
 from langchain_core.messages import AIMessage, BaseMessage, HumanMessage, SystemMessage
 from langchain_core.tools import tool
 from langchain_google_genai import ChatGoogleGenerativeAI
+from langchain_openai import ChatOpenAI
 from langgraph.graph import END, START, StateGraph
 from langgraph.graph.message import add_messages
 from langgraph.prebuilt import ToolNode
+from pydantic import SecretStr
 from typing_extensions import TypedDict
 
 from app.core.config import settings
@@ -26,6 +28,8 @@ logger = get_logger("news_research_agent")
 
 if settings.gemini_api_key:
     os.environ.setdefault("GOOGLE_API_KEY", settings.gemini_api_key)
+if settings.open_router_api_key:
+    os.environ.setdefault("OPEN_ROUTER_API_KEY", settings.open_router_api_key)
 
 SYSTEM_PROMPT = (
     "You are an expert news research agent working for a multi-perspective platform.\n"
@@ -35,7 +39,7 @@ SYSTEM_PROMPT = (
     "the store. Cite sources with URLs, highlight differing viewpoints, and mention\n"
     "bias or funding details when relevant. Current date: {date}."
 )
-MAX_ITERATIONS = 8
+MAX_ITERATIONS = 3
 
 _news_articles_cache: List[Dict[str, Any]] = []
 _referenced_articles_tracker: List[Dict[str, Any]] = []
@@ -142,8 +146,8 @@ def search_internal_news(query: str, top_k: int = 5) -> str:
 def web_search(query: str, num_results: int = 10) -> str:
     """Perform general web search for recent context."""
     try:
-        with DDGS() as ddgs:
-            results = list(ddgs.text(query, max_results=num_results))
+        ddgs = DDGS()
+        results = list(ddgs.text(query, max_results=num_results))
         return json.dumps(results[:num_results], indent=2) if results else "No results found."
     except Exception as exc:  # pragma: no cover - network errors
         logger.warning("Web search failed: %s", exc)
@@ -154,8 +158,8 @@ def web_search(query: str, num_results: int = 10) -> str:
 def news_search(keywords: str, max_results: int = 10, region: str = "wt-wt") -> str:
     """Use DuckDuckGo news vertical for near-real-time stories."""
     try:
-        with DDGS() as ddgs:
-            results = list(ddgs.news(keywords=keywords, max_results=max_results, region=region))
+        ddgs = DDGS()
+        results = list(ddgs.news(keywords, max_results=max_results, region=region))
         return json.dumps(results[:max_results], indent=2) if results else "No results found."
     except Exception as exc:  # pragma: no cover - network errors
         logger.warning("News search failed: %s", exc)
@@ -215,11 +219,20 @@ tools = [
     rag_index_documents,
 ]
 
-llm = ChatGoogleGenerativeAI(
-    model=os.getenv("NEWS_RESEARCH_GEMINI_MODEL", "gemini-2.0-flash"),
-    temperature=0.2,
-    max_retries=2,
-)
+if settings.open_router_api_key:
+    llm = ChatOpenAI(
+        model=settings.open_router_model,
+        temperature=0.2,
+        api_key=SecretStr(settings.open_router_api_key),
+        base_url="https://openrouter.ai/api/v1",
+    )
+else:
+    llm = ChatGoogleGenerativeAI(
+        model=os.getenv("NEWS_RESEARCH_GEMINI_MODEL", "gemini-2.0-flash"),
+        temperature=0.2,
+        max_retries=2,
+    )
+
 model = llm.bind_tools(tools)
 
 

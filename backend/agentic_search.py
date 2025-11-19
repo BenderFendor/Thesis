@@ -20,6 +20,7 @@ from langchain_classic.agents import create_tool_calling_agent
 from langchain_classic.agents.agent import AgentExecutor
 from langchain.tools import tool
 from langchain_google_genai import ChatGoogleGenerativeAI
+from langchain_openai import ChatOpenAI
 from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
 
 # Load environment variables from .env file
@@ -99,12 +100,20 @@ def create_agent_executor():
     Returns:
         AgentExecutor configured with the LLM, tools, and prompt
     """
-    # Initialize the Gemini LLM
-    llm = ChatGoogleGenerativeAI(
-        model="gemini-2.0-flash",
-        temperature=0.7,
-        google_api_key=os.getenv("GEMINI_API_KEY"),
-    )
+    # Initialize the LLM
+    if os.getenv("OPEN_ROUTER_API_KEY"):
+        llm = ChatOpenAI(
+            model=os.getenv("OPEN_ROUTER_MODEL", "google/gemini-2.0-flash-exp:free"),
+            temperature=0.7,
+            api_key=os.getenv("OPEN_ROUTER_API_KEY"),
+            base_url="https://openrouter.ai/api/v1",
+        )
+    else:
+        llm = ChatGoogleGenerativeAI(
+            model="gemini-2.0-flash",
+            temperature=0.7,
+            google_api_key=os.getenv("GEMINI_API_KEY"),
+        )
 
     # Define the tools available to the agent
     tools = [get_web_search_results]
@@ -151,13 +160,13 @@ def main():
     Main execution function demonstrating the agentic search tool.
     """
     # Check if API key is set
-    if not os.getenv("GEMINI_API_KEY"):
-        print("ERROR: GEMINI_API_KEY not found in environment variables.")
-        print("Please set it in your .env file or environment.")
+    if not os.getenv("GEMINI_API_KEY") and not os.getenv("OPEN_ROUTER_API_KEY"):
+        print("ERROR: Neither GEMINI_API_KEY nor OPEN_ROUTER_API_KEY found in environment variables.")
+        print("Please set one in your .env file or environment.")
         return
 
     print("=" * 80)
-    print("Agentic Search Tool - Powered by Gemini 2.0 Flash")
+    print("Agentic Search Tool - Powered by Gemini 2.0 Flash or OpenRouter")
     print("=" * 80)
     print()
 

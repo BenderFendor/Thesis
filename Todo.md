@@ -2,68 +2,87 @@
 
 I would like to add sql backend for this so that I don't have to load the articles each time I st12art up the website. It should also track the date of the article and make sure not to add dupicalates as well which should be easy.
 
-# Add the feature so that when you like on one of the tabs like games or business it truly changes what new articles show up.
+# Add the feature so that when you like on one of the tabs like games or business it truly changes what new articles show up
 
 # Source debugging
+
 Also update the source page to work with the new backend and add a like toggle for debugging mode and user mode and have it so that you can debug mode has all the console.log prints and all those debugging like meals then those are removed when your in user mode so the end user doesn't have hella things on the screen
 
 # Styling
+
 The font like the main main header one should be like garamond or some seirf then it should use geisit for the most of the other fonts.
 Also there is no hover animation or color for any of the button on this page and the backgroudns and secondy backgruonds are the same color I like the dark black but there should be a lighter black for the other panels like 20% lighter
 
 # Image source debugging
+
 For this Im thinking we have to add like errors for parsing but what type of error. Like image found but not parsedable by frontend. No images in the json/source at all. Images founded and we can use them but it still doesn't any us to display them idk why?
 
-https://forum.kustom.rocks/t/help-me-get-images-from-google-news-rss-feed/7173 may help here
+<https://forum.kustom.rocks/t/help-me-get-images-from-google-news-rss-feed/7173> may help here
 
-# The stream vs static source.
+# The stream vs static source
+
 I don't really understand why that exist it really show be the same thing and just two parts of it right now it is coded like two different features instead of one fused backend feature for getting sources.
 
 # Add a logger feature
+
 So it like turns the debug print logs off or on
 
 # RSS and Image Parsing
+
 I need a more robust image parsing and also some that can get the images and load them when they are http or https
 
 Also for the rss and image parsing I should make a debug menu or page that I can like just input an rss feed or input an article url and see how the backend parses it and it like gives me a breakdown of how the rss and even the page url and article are being parsed.
 
-# Sources that don't get their iamges parsed right at the moment.
+# Sources that don't get their iamges parsed right at the moment
+
 New york times and CNN
 
 # Fact Checking API
-Google as a fact checking api as well which we could maybe uses. as well as https://rapidapi.com/mbfcnews/api/media-bias-fact-check-ratings-api2 as it has a free tier
+
+Google as a fact checking api as well which we could maybe uses. as well as <https://rapidapi.com/mbfcnews/api/media-bias-fact-check-ratings-api2> as it has a free tier
 
 # Add an article feature. ✅ COMPLETED
+
 So for this you can like click on an article and it like parses the article and gives you the full articles as well as like the background of say like the sources if it can find any and the reporter and their baises and background
 
-# Free LLM APIs 
-https://github.com/cheahjs/free-llm-api-resources?tab=readme-ov-file#free-providers
+# Free LLM APIs
+
+<https://github.com/cheahjs/free-llm-api-resources?tab=readme-ov-file#free-providers>
 
 # Bias Detector
+
 ## Tone Bias
+
 Say for tone bias it looks like the wording and highlights words or senetces have seem to have a tone bias.
 
 ## Framing Bias
+
 Same with framing bias as well
 
 ## Selection / Sourcing Bias
+
 Where do they get their infomation and where don't they.
 
 ## Ownership Bias
+
 Who owns this source and what are their parents companies etc.
 
 ## Common Enemy (Idealogy)
+
 Having some scapegoat as common figure to down talk.
 
 ## Factual Sources
+
 How true is their infomation
+
 ## Left and Right leaning
 
-https://dl.acm.org/doi/10.1145/3706598.3713716
+<https://dl.acm.org/doi/10.1145/3706598.3713716>
 
 # Remove fake likes shares and comments ✅ COMPLETED
 
-## Implementation Details:
+## Implementation Details
+
 - ✅ Removed `likes`, `comments`, and `shares` from NewsArticle interface
 - ✅ Removed fake random number generation for engagement metrics
 - ✅ Removed display of fake counts in all UI components:
@@ -77,33 +96,36 @@ https://dl.acm.org/doi/10.1145/3706598.3713716
 - ✅ Removed comments and shares buttons since there's no real data
 - ✅ Cleaned up unused imports (MessageCircle, Share2)
 
-
 # Speeding up the database loading
+
 The backend loads up really slowly so if I could speed that up that would be great.
 
 # Features to add
 
 ## Fonts to switch to
+
  Instrument Serif and maybe Libre Bodoni
 
 ## Add Static code anylsis as well
 
-
 ## Add a feature where you can open articles up as like tabs ✅ COMPLETED
+
 So like it is like a temp reading list then a permainlty reading list
 
 as right now my workflow is just openning all the articles in like 30 tabs so there has to be a way to streamline that.
 
 So like it should go like you add an article that that goes to the up of the read queue you can have a daily read queue and a like permanlty read queue so it has the daily one and any ones that go past that are put in the perm read queue as a backlog and it just adds the new article to the top of this queue.
 
-
 ## For sources like AP news
+
 I don't like the whole assciotos press 1 - 2 - 3 thing it should just take all the xml concated them as one mega xml then like show the sources as like a sub net or sub brach of the main source but it should act like one source
 
 ### ✅ COMPLETED
+
 Implemented consolidated RSS sources feature. Multi-feed sources (AP News, Bloomberg, etc.) can now be configured with `"consolidate": true` in `rss_sources.json` to appear as a single unified source instead of being split into numbered sub-sources.
 
 **Implementation Details:**
+
 - ✅ Modified `backend/app/data/rss_sources.py` - `get_rss_sources()` now checks for `"consolidate"` flag; when `true`, keeps multi-URL sources as single entries
 - ✅ Updated `backend/app/services/rss_ingestion.py` - `_process_source()` tracks individual sub-feed stats (URL, status, article_count, error) and includes them in source stats when consolidated
 - ✅ Added `"consolidate": true` to Associated Press and Bloomberg in `rss_sources.json`
@@ -111,40 +133,48 @@ Implemented consolidated RSS sources feature. Multi-feed sources (AP News, Bloom
 - ✅ Enhanced `frontend/app/sources/[source]/debug/page.tsx` - displays sub-feeds section with status indicators for each feed URL
 
 **How to use:**
+
 - For existing sources, add `"consolidate": true` to the JSON entry in `rss_sources.json`
 - Articles from all sub-feeds merge into single source stream
 - Debug page shows each sub-feed URL, status (success/warning/error), and article count
 - Users see "Associated Press" instead of "AP - 1", "AP - 2", etc.
 
 ## Add a feature for like your favorite / most important new sources
+
 so you have like your favorites at the top of your feed and the other at the bottom past those favorites.
 
 ## Have a sidebar that shows all the sources you have current as well so you can like select just those sources and see jus tthose sources
+
 It is like this feature of having news from only some sources like a selection thing.
 
 ## Also with new sources and articles
+
 Show aritcles for the past week first then older articles from like the last month or years back last. also I would like it if like has the sources that are most current first so like if a source only has 2023 show that at the end of the feed not the top.
 
-
 # for the sources
+
 FOr the faviorts sources there should be a sleection for sources and it should be like a sidebar with the list of sources and like you can view those sources
 
-
 # Add a feature to research the author of an article
+
 give like an overview background facts that could should their baises and leanings etc.
 
 # Add a feature to see liked and bookmarked articles
+
 also what is the difference between the two and do I need both like and bookmarked
 
 Im thinking you use like for getting recs for articles and bookmarks for saving articles but the yoiu have the reading queue which I guess after you read get put in the the read part of that and idk I feel like I can combined this features into like 2 or 1 so just like reading queue plus likes or something idk
 
 # For favorites
+
 That should only be for sources not articles themselves.
 
 # This should be removed
+
 The fact check under that fact check results that just tells you to fact check stuff.
 
-# For the aritcle to read (Making reading articles easier) 
+# For the aritcle to read (Making reading articles easier)
+
 This is for the reading queue itself
 
 Category 1: Triage & Prioritization (Helping the User Decide What to Read First)
@@ -170,6 +200,7 @@ These features help the user quickly assess the 20-article queue and decide wher
 **UX:** While reading, the user comes across a name they don't know ("Janet Yellen") or a concept ("quantitative easing"). They can double-tap or highlight the term. A non-intrusive pop-over appears with a one-paragraph, AI-generated definition. This keeps the user in the "flow" of reading, preventing them from opening a new tab to Google it.
 
 **Tech:**  
+
 - Combines a simple UI event listener (for the highlight) with an LLM call.
 - Prompt:  
   - "The user is reading an article. They highlighted the term '[HIGHLIGHTED_TEXT]'. Provide a brief, one-paragraph explanation of this term in the context of [article's main topic, e.g., 'US economics']."
@@ -183,6 +214,7 @@ These features help the user quickly assess the 20-article queue and decide wher
 - The app has a separate "Highlights" tab. Here, the user sees a feed of all their highlights from all their articles, with each highlight linking back to its source. They can filter this feed by tag or search it.
 
 **Tech:**  
+
 - When a user highlights text, use the browser's Selection API to get the text and its location (e.g., the "XPath" or character offset).
 - Save this as a JSON object in your database, linked to the user's ID and the article's ID.
 - The "Highlights" page is a new interface that queries and displays all these saved JSON objects.
@@ -214,6 +246,7 @@ These features help the user quickly assess the 20-article queue and decide wher
 - At the top of this expanded view is a new AI summary, one that synthesizes all 5 sources. (e.g., "TechCrunch focused on the speed, while The Verge discussed the price. All sources agree it's an iterative update.")
 
 **Tech:**  
+
 - When a new article is added, use AI to generate a "vector embedding" of its content (a numerical representation of its meaning).
 - Compare this vector to the vectors of other unread articles. If it's semantically very similar (high cosine similarity) to one or more others, automatically group them.
 - The "cluster summary" is generated by sending all 5 texts to an LLM at once.
@@ -223,6 +256,7 @@ These features help the user quickly assess the 20-article queue and decide wher
 When an article is add to the read it should have its ai anyslsis reading time and full text article added as well so that it doesn't have to load when you click the article since we can make the good guess that the reader wants to read that later and have it preloaded for them
 
 # Sources leaning
+
 I need to make more clean the political leaning of sources from like a glance as I can't tell myself.
 
 Favorited sources should be on the top of the grid view
@@ -240,6 +274,7 @@ It should have like start up time, breaking that down from the backend to the rs
 Take my personal AI tool and all the AI tools here and get a model with a huge context window to critque my ai tools and then add all the improvements I made to this ai
 
 # Features to add
+
 News from differnet parts of the world. *What I mean here is having the global feature world and show show news from around the world.*
 
 Reporter / source research like wiki pages.
@@ -253,8 +288,19 @@ Material interest reports of say like on going conflicts could be useful.
 This is something that could be a feature where you like use the agentic search to look at say a the civil war in sudan look at the matieral interest so like the UAE and gold and the / cross and source that infomation with the other like social or politcal interesnt / plus say historial context that would be needed in as netural of a tone as
 
 # Research / search page ideas
+
 So have it give more verbose errors as well as better like step by step infomation on what the agent and tool is doing
 
 so instead of like Researching...
 
 Still working — gathering more coverage... / give real infomation so like calling x api waiting for x response etc. adding more infomation if it hangs etc. flesh this out more.
+
+Also gemini is really rate limiting so switching to something else would be nice.
+
+# for open router
+
+add in the confg the model you want so in the
+
+# RSS source more then 80
+
+need to improve like pagation or something so when you have 2000+ article then aren't all loaded at once and lag the page out etc.
