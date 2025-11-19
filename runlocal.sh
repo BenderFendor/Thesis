@@ -96,7 +96,7 @@ start_data_services() {
 
 run_backend() {
 	require_cmd python
-	require_cmd pip
+	require_cmd uv pip
 	start_data_services
 
 	pushd "$BACKEND_DIR" >/dev/null
