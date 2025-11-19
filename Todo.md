@@ -304,3 +304,24 @@ add in the confg the model you want so in the
 # RSS source more then 80
 
 need to improve like pagation or something so when you have 2000+ article then aren't all loaded at once and lag the page out etc.
+
+# 🌍 Global News & Local Lens (Planned)
+
+## 1. Backend Data Standardization
+- [ ] Update `rss_sources.py` to use ISO country codes (US, GB, CN, etc.) instead of full names.
+- [ ] Ensure `NewsArticle` model passes this code to the frontend.
+
+## 2. Globe Visualization
+- [ ] Create `countries.json` with Lat/Lng/ISO codes for major world countries.
+- [ ] Update `ThreeGlobe` to load markers dynamically from this JSON.
+- [ ] **Heatmap Logic**: Color/Size markers based on the count of cached articles from that country (News Intensity).
+
+## 3. "Local Lens" Feature
+- [ ] Update `GlobeView` to show a split view or tabs when a country is selected:
+    - **Internal View**: `SELECT * FROM articles WHERE source_country = 'CODE'`
+    - **External View**: `SELECT * FROM articles WHERE content CONTAINS 'Country Name' AND source_country != 'CODE'`
+- [ ] Add "Context" tab for static data (Press Freedom Index, Media Ownership info).
+
+## 4. Data Overlays (Future)
+- [ ] Integrate static datasets for context (Reporters Without Borders, etc.).
+- [ ] Add visual toggle on Globe to switch between "News Volume" and "Press Freedom" coloring.

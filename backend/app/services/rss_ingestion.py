@@ -104,6 +104,7 @@ def parse_rss_feed(
                 published=entry.get("published", str(datetime.now(timezone.utc))),
                 source=source_name,
                 category=source_info.get("category", "general"),
+                country=source_info.get("country"),
                 image=image_url,
             )
             articles.append(article)
@@ -830,6 +831,7 @@ async def _refresh_news_cache_with_rust(
             published=item.get("published", datetime.now(timezone.utc).isoformat()),
             source=source_name,
             category=category,
+            country=source_info.get("country"),
             image=item.get("image"),
         )
         articles_by_source.setdefault(source_name, []).append(article)
@@ -1056,6 +1058,7 @@ def parse_rss_feed_entries(
             description=description,
             published=entry.get("published", str(datetime.now(timezone.utc))),
             source=source_name,
+            country=source_info.get("country"),
             category=source_info.get("category", "general"),
             image=image_url,
         )

@@ -11,6 +11,7 @@ class NewsArticle(BaseModel):
     published: str
     source: str
     category: str = "general"
+    country: Optional[str] = None
     image: Optional[str] = None
 
 

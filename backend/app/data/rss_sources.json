@@ -2,21 +2,21 @@
       "BBC": {
         "url": "https://feeds.bbci.co.uk/news/rss.xml",
         "category": "general",
-        "country": "UK",
+        "country": "GB",
         "funding_type": "Public",
         "bias_rating": "Center"
     },
     "BBC News - Home": {
         "url": "http://feeds.bbci.co.uk/news/rss.xml",
         "category": "BBC News - Home",
-        "country": "United Kingdom",
+        "country": "GB",
         "funding_type": "",
         "bias_rating": ""
     },
     "BBC News - India": {
         "url": "http://feeds.bbci.co.uk/news/world/asia/india/rss.xml",
         "category": "BBC News - India",
-        "country": "India",
+        "country": "IN",
         "funding_type": "",
         "bias_rating": ""
     },
@@ -51,7 +51,7 @@
     "Reuters": {
         "url": "https://www.reuters.com/tools/rss",
         "category": "general",
-        "country": "UK", 
+        "country": "GB", 
         "funding_type": "Commercial",
         "bias_rating": "Center"
     },
@@ -65,7 +65,7 @@
     "National Post": {
         "url": "https://nationalpost.com/feed/",
         "category": "CBC | Top Stories News",
-        "country": "Canada",
+        "country": "CA",
         "funding_type": "",
         "bias_rating": ""
     },
@@ -116,7 +116,7 @@
     "The Guardian": {
         "url": "https://www.theguardian.com/world/rss",
         "category": "general",
-        "country": "UK",
+        "country": "GB",
         "funding_type": "Commercial",
         "bias_rating": "Left"
     },
@@ -165,7 +165,7 @@
     "Novara Media": {
         "url": "https://novaramedia.com/feed/",
         "category": "politics",
-        "country": "UK",
+        "country": "GB",
         "funding_type": "Independent",
         "bias_rating": "Left"
     },
@@ -249,7 +249,7 @@
     "Japan Times latest articles": {
         "url": "https://www.japantimes.co.jp/feed/topstories/",
         "category": "Japan Times latest articles",
-        "country": "Japan",
+        "country": "JP",
         "funding_type": "",
         "bias_rating": ""
     },
@@ -347,7 +347,7 @@
     "The Economist": {
         "url": "https://www.economist.com/the-world-this-week/rss.xml",
         "category": "general",
-        "country": "UK",
+        "country": "GB",
         "funding_type": "Commercial",
         "bias_rating": "Center"
     },
@@ -484,35 +484,35 @@
     "Leader Post": {
         "url": "http://leaderpost.com/feed/",
         "category": "general",
-        "country": "Canada",
+        "country": "CA",
         "funding_type": "",
         "bias_rating": ""
     },
     "StarPhoenix": {
         "url": "http://thestarphoenix.com/feed/",
         "category": "general",
-        "country": "Canada",
+        "country": "CA",
         "funding_type": "",
         "bias_rating": ""
     },
     "Windsor Star": {
         "url": "http://windsorstar.com/feed/",
         "category": "general",
-        "country": "Canada",
+        "country": "CA",
         "funding_type": "",
         "bias_rating": ""
     },
     "Economic Times India": {
         "url": "https://economictimes.indiatimes.com/News/rssfeeds/1715249553.cms",
         "category": "general",
-        "country": "India",
+        "country": "IN",
         "funding_type": "Commercial",
         "bias_rating": "Center"
     },
     "Oxford Mail": {
         "url": "https://www.oxfordmail.co.uk/news/rss/",
         "category": "general",
-        "country": "UK",
+        "country": "GB",
         "funding_type": "Commercial",
         "bias_rating": "Center"
     },
