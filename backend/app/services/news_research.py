@@ -180,3 +180,17 @@ def run_research_agent(
     return research_news(
         query=query, articles=articles, verbose=verbose, chat_history=chat_history
     )
+
+
+def stream_research_agent(
+    query: str,
+    articles: List[Dict[str, Any]],
+    chat_history: Optional[List[Dict[str, Any]]] = None,
+) -> Any:
+    backend_path = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    if backend_path not in sys.path:
+        sys.path.insert(0, backend_path)
+
+    from news_research_agent import research_stream  # type: ignore[import-not-found]
+
+    return research_stream(query=query, articles=articles, chat_history=chat_history)

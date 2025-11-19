@@ -8,10 +8,30 @@ from google.genai import types  # type: ignore[import-unresolved]
 from app.core.config import create_gemini_client
 from app.core.logging import get_logger
 from app.services.article_extraction import extract_article_full_text
+from tenacity import retry, stop_after_attempt, wait_exponential, retry_if_exception
 
 logger = get_logger("article_analysis")
 
 gemini_client = create_gemini_client(logger)
+
+
+def _is_retryable_error(exception):
+    msg = str(exception)
+    return "429" in msg or "RESOURCE_EXHAUSTED" in msg or "Too Many Requests" in msg
+
+
+@retry(
+    retry=retry_if_exception(_is_retryable_error),
+    wait=wait_exponential(multiplier=2, min=4, max=60),
+    stop=stop_after_attempt(5),
+    reraise=True
+)
+def _generate_content_safe(client, model, contents, config):
+    return client.models.generate_content(
+        model=model,
+        contents=contents,
+        config=config,
+    )
 
 
 async def extract_article_content(url: str) -> Dict[str, Any]:
@@ -33,7 +53,8 @@ async def analyze_with_gemini(
 
         prompt = _build_analysis_prompt(article_data, source_name)
 
-        response = gemini_client.models.generate_content(
+        response = _generate_content_safe(
+            client=gemini_client,
             model="gemini-2.0-flash-exp",
             contents=prompt,
             config=config,

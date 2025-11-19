@@ -411,9 +411,20 @@ export default function NewsResearchPage() {
             )
           } else if (isArticlesJsonMessage(data)) {
             try {
-              const jsonMatch = data.data.match(/```json:articles\n([\s\S]*?)\n```/)
-              if (jsonMatch) {
-                structuredArticles = JSON.parse(jsonMatch[1]) as StructuredArticlesPayload
+              // Try parsing directly first (new backend format)
+              let parsed: StructuredArticlesPayload | null = null
+              try {
+                parsed = JSON.parse(data.data) as StructuredArticlesPayload
+              } catch (e) {
+                // Fallback to regex if it's wrapped in markdown (old format)
+                const jsonMatch = data.data.match(/```json:articles\n([\s\S]*?)\n```/)
+                if (jsonMatch) {
+                  parsed = JSON.parse(jsonMatch[1]) as StructuredArticlesPayload
+                }
+              }
+
+              if (parsed) {
+                structuredArticles = parsed
                 setMessages(prev =>
                   prev.map((msg) => {
                     if (msg.id !== assistantId) {
@@ -922,7 +933,46 @@ export default function NewsResearchPage() {
                                 return renderContentWithEmbeds(message.content, articlesToEmbed)
                               })()}
                             
-                            {/* Render structured articles grid if available - hidden since embeds cover this use case */}
+                            {/* Sources Section */}
+                            {message.referenced_articles && message.referenced_articles.length > 0 && (
+                              <div className="mt-6 pt-4 border-t" style={{ borderColor: 'var(--border)' }}>
+                                <h4 className="text-xs font-semibold uppercase tracking-wider mb-3 flex items-center gap-2" style={{ color: 'var(--muted-foreground)' }}>
+                                  <Database className="w-3 h-3" />
+                                  Sources
+                                </h4>
+                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                                  {message.referenced_articles.map((article) => (
+                                    <button
+                                      key={`source-${article.id}`}
+                                      onClick={() => {
+                                        setSelectedArticle(article)
+                                        setIsArticleModalOpen(true)
+                                      }}
+                                      className="text-left group p-3 rounded-xl border transition-all duration-200 hover:border-primary/30"
+                                      style={{ backgroundColor: 'var(--card)', borderColor: 'var(--border)' }}
+                                    >
+                                      <div className="flex items-start gap-3">
+                                        {article.image && (
+                                          <div className="w-12 h-12 rounded-lg overflow-hidden flex-shrink-0 bg-muted">
+                                            <img src={article.image} alt="" className="w-full h-full object-cover opacity-80 group-hover:opacity-100 transition-opacity" />
+                                          </div>
+                                        )}
+                                        <div className="flex-1 min-w-0">
+                                          <h5 className="text-sm font-medium leading-tight line-clamp-2 group-hover:text-primary transition-colors mb-1">
+                                            {article.title}
+                                          </h5>
+                                          <div className="flex items-center gap-2 text-xs" style={{ color: 'var(--muted-foreground)' }}>
+                                            <span className="font-medium" style={{ color: 'var(--foreground)' }}>{article.source}</span>
+                                            <span>•</span>
+                                            <span>{new Date(article.publishedAt).toLocaleDateString()}</span>
+                                          </div>
+                                        </div>
+                                      </div>
+                                    </button>
+                                  ))}
+                                </div>
+                              </div>
+                            )}
                           </>
                         )}
                         </div>

@@ -8,9 +8,15 @@ from typing import Dict, List, Optional
 from fastapi import APIRouter, Query
 from fastapi.responses import StreamingResponse
 
+from starlette.concurrency import iterate_in_threadpool
+
 from app.core.logging import get_logger
 from app.models.research import NewsResearchRequest, NewsResearchResponse, ThinkingStep
-from app.services.news_research import load_articles_for_research, run_research_agent
+from app.services.news_research import (
+    load_articles_for_research,
+    run_research_agent,
+    stream_research_agent,
+)
 
 logger = get_logger(__name__)
 
@@ -54,25 +60,66 @@ async def news_research_stream_endpoint(
                 except json.JSONDecodeError:
                     chat_history = None
 
-            # Run blocking research agent in thread pool to avoid blocking event loop
-            result = await asyncio.to_thread(
-                run_research_agent,
-                query,
-                articles_dict,
-                include_thinking,
-                chat_history,
-            )
+            # Stream the research agent events
+            async for event_raw in iterate_in_threadpool(
+                stream_research_agent(query, articles_dict, chat_history)
+            ):
+                try:
+                    # event_raw is formatted as "data: {...}\n\n"
+                    json_str = event_raw.replace("data: ", "").strip()
+                    if not json_str:
+                        continue
 
-            for step in result.get("thinking_steps", []):
-                yield f"data: {json.dumps({'type': 'thinking_step', 'step': step, 'timestamp': datetime.now(timezone.utc).isoformat()})}\n\n"
+                    event = json.loads(json_str)
+                    timestamp = datetime.now(timezone.utc).isoformat()
 
-            if result.get("structured_articles"):
-                yield f"data: {json.dumps({'type': 'articles_json', 'data': result['structured_articles'], 'timestamp': datetime.now(timezone.utc).isoformat()})}\n\n"
+                    if event["type"] == "thinking":
+                        yield f"data: {json.dumps({'type': 'thinking_step', 'step': {'type': 'thought', 'content': event['content'], 'timestamp': timestamp}, 'timestamp': timestamp})}\n\n"
 
-            if result.get("referenced_articles"):
-                yield f"data: {json.dumps({'type': 'referenced_articles', 'articles': result['referenced_articles'], 'timestamp': datetime.now(timezone.utc).isoformat()})}\n\n"
+                    elif event["type"] == "tool_start":
+                        tool_name = event["tool"]
+                        args = event["args"]
 
-            yield f"data: {json.dumps({'type': 'complete', 'result': result, 'timestamp': datetime.now(timezone.utc).isoformat()})}\n\n"
+                        # Generate verbose status message
+                        status_msg = f"Using tool: {tool_name}..."
+                        if tool_name == "web_search":
+                            q = args.get("query", "")
+                            status_msg = f"Searching web for: {q}..."
+                        elif tool_name == "news_search":
+                            k = args.get("keywords", "")
+                            status_msg = f"Searching news for: {k}..."
+                        elif tool_name == "search_internal_news":
+                            status_msg = "Searching internal knowledge base..."
+                        elif tool_name == "fetch_article_content":
+                            u = args.get("url", "url")
+                            status_msg = f"Reading article: {u}..."
+                        elif tool_name == "rag_index_documents":
+                            status_msg = "Indexing new documents..."
+
+                        yield f"data: {json.dumps({'type': 'status', 'message': status_msg, 'timestamp': timestamp})}\n\n"
+
+                        if include_thinking:
+                            content = f"Calling {tool_name} with {json.dumps(args)}"
+                            yield f"data: {json.dumps({'type': 'thinking_step', 'step': {'type': 'tool_start', 'content': content, 'timestamp': timestamp}, 'timestamp': timestamp})}\n\n"
+
+                    elif event["type"] == "tool_result":
+                        yield f"data: {json.dumps({'type': 'status', 'message': 'Processing tool results...', 'timestamp': timestamp})}\n\n"
+                        if include_thinking:
+                            yield f"data: {json.dumps({'type': 'thinking_step', 'step': {'type': 'observation', 'content': event['content'], 'timestamp': timestamp}, 'timestamp': timestamp})}\n\n"
+
+                    elif event["type"] == "articles_json":
+                        yield f"data: {json.dumps({'type': 'articles_json', 'data': event['data'], 'timestamp': timestamp})}\n\n"
+
+                    elif event["type"] == "referenced_articles":
+                        yield f"data: {json.dumps({'type': 'referenced_articles', 'articles': event['articles'], 'timestamp': timestamp})}\n\n"
+
+                    elif event["type"] == "complete":
+                        yield f"data: {json.dumps({'type': 'complete', 'result': event['result'], 'timestamp': timestamp})}\n\n"
+
+                except Exception as e:
+                    logger.error(f"Error processing stream event: {e}")
+                    continue
+
         except Exception as exc:  # pragma: no cover - defensive logging
             message = str(exc)
             lower_msg = message.lower()

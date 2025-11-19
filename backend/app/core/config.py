@@ -35,6 +35,12 @@ def create_gemini_client(logger) -> Optional[genai.Client]:
         logger.warning("⚠️ GEMINI_API_KEY not found in environment variables")
         return None
 
-    client = genai.Client(api_key=settings.gemini_api_key)
-    logger.info("✅ Gemini API configured successfully")
-    return client
+    try:
+        # Attempt to create client with default settings
+        client = genai.Client(api_key=settings.gemini_api_key)
+        logger.info("✅ Gemini API configured successfully")
+        return client
+    except Exception as e:
+        logger.error(f"❌ Failed to initialize Gemini client: {e}")
+        # Fallback or return None to prevent crash
+        return None

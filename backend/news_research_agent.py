@@ -8,7 +8,7 @@ import re
 from datetime import datetime, timezone
 from typing import Annotated, Any, Dict, Generator, List, Optional, Sequence
 
-from duckduckgo_search import DDGS
+from ddgs import DDGS
 from langchain_core.messages import AIMessage, BaseMessage, HumanMessage, SystemMessage
 from langchain_core.tools import tool
 from langchain_google_genai import ChatGoogleGenerativeAI
@@ -318,7 +318,7 @@ def research_news(
     thinking_steps: List[Dict[str, Any]] = []
     final_answer = ""
 
-    for update in graph.stream(initial_state, stream_mode="values"):
+    for update in graph.stream(initial_state, stream_mode="updates"):
         if "agent" in update:
             agent_message = update["agent"]["messages"][-1]
             final_answer = _content_to_text(agent_message.content)
@@ -358,9 +358,12 @@ def research_news(
             "total": len(referenced_articles),
             "query": query,
         }
-        structured_block = f"\n```json:articles\n{json.dumps(payload, indent=2)}\n```\n"
+        json_payload = json.dumps(payload)
+        structured_block = (
+            f"\n```json:articles\n{json.dumps(payload, indent=2)}\n```\n"
+        )
 
-    return {
+    result = {
         "success": bool(final_answer),
         "query": query,
         "answer": final_answer,
@@ -369,6 +372,10 @@ def research_news(
         "articles_searched": len(_news_articles_cache),
         "referenced_articles": referenced_articles,
     }
+    if structured_block and structured_block not in final_answer:
+        result["answer"] += structured_block
+
+    return result
 
 
 def research_stream(
@@ -382,11 +389,18 @@ def research_stream(
         "iteration": 0,
     }
 
-    for update in graph.stream(initial_state, stream_mode="values"):
+    final_answer = ""
+
+    for update in graph.stream(initial_state, stream_mode="updates"):
         if "agent" in update:
             agent_message = update["agent"]["messages"][-1]
             content_text = _content_to_text(agent_message.content)
-            yield "data: " + json.dumps({"type": "thinking", "content": content_text}) + "\n\n"
+            if content_text:
+                final_answer = content_text
+                yield "data: " + json.dumps(
+                    {"type": "thinking", "content": content_text}
+                ) + "\n\n"
+
             for tool_call in getattr(agent_message, "tool_calls", []) or []:
                 yield "data: " + json.dumps(
                     {
@@ -398,12 +412,48 @@ def research_stream(
         if "tools" in update:
             for tool_message in update["tools"]["messages"]:
                 yield "data: " + json.dumps(
-                    {"type": "tool_result", "content": _content_to_text(tool_message.content)[:2000]}
+                    {
+                        "type": "tool_result",
+                        "content": _content_to_text(tool_message.content)[:2000],
+                    }
                 ) + "\n\n"
 
     referenced_articles = list(_referenced_articles_tracker)
-    yield "data: " + json.dumps({"type": "referenced_articles", "articles": referenced_articles}) + "\n\n"
-    yield "data: {\"type\": \"done\"}\n\n"
+    if not referenced_articles and final_answer:
+        referenced_articles = _match_articles_in_text(final_answer)
+
+    yield "data: " + json.dumps(
+        {"type": "referenced_articles", "articles": referenced_articles}
+    ) + "\n\n"
+
+    structured_block = ""
+    if referenced_articles:
+        payload = {
+            "articles": referenced_articles,
+            "total": len(referenced_articles),
+            "query": query,
+        }
+        json_payload = json.dumps(payload)
+        yield "data: " + json.dumps(
+            {"type": "articles_json", "data": json_payload}
+        ) + "\n\n"
+        structured_block = (
+            f"\n```json:articles\n{json.dumps(payload, indent=2)}\n```\n"
+        )
+
+    result = {
+        "success": True,
+        "query": query,
+        "answer": final_answer,
+        "structured_articles": structured_block,
+        "articles_searched": len(_news_articles_cache),
+        "referenced_articles": referenced_articles,
+    }
+    # if structured_block and structured_block not in final_answer:
+    #     result["answer"] += structured_block
+
+    yield "data: " + json.dumps({"type": "complete", "result": result}) + "\n\n"
+    yield 'data: {"type": "done"}\n\n'
 
 
 __all__ = [
