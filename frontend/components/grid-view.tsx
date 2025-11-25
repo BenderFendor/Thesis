@@ -19,10 +19,13 @@ import {
 } from "lucide-react"
 import { SourceInfoModal } from "./source-info-modal"
 import { ArticleDetailModal } from "./article-detail-modal"
+import { VirtualizedGrid } from "./virtualized-grid"
 import type { NewsArticle } from "@/lib/api"
 import { get_logger } from "@/lib/utils"
 import { useReadingQueue } from "@/hooks/useReadingQueue"
 import { useFavorites } from "@/hooks/useFavorites"
+import { usePaginatedNews } from "@/hooks/usePaginatedNews"
+import { FEATURE_FLAGS } from "@/lib/constants"
 
 const logger = get_logger("GridView")
 
@@ -50,6 +53,7 @@ interface GridViewProps {
   loading: boolean
   onCountChange?: (count: number) => void
   apiUrl?: string | null
+  useVirtualization?: boolean // New prop for virtualization mode
 }
 
 interface SourceGroup {
@@ -65,6 +69,7 @@ export function GridView({
   loading,
   onCountChange,
   apiUrl,
+  useVirtualization = FEATURE_FLAGS.USE_VIRTUALIZATION,
 }: GridViewProps) {
   const [searchTerm, setSearchTerm] = useState("")
   const [selectedCategory, setSelectedCategory] = useState("All")
@@ -77,6 +82,22 @@ export function GridView({
   const { addArticleToQueue, removeArticleFromQueue, isArticleInQueue } =
     useReadingQueue()
   const { isFavorite, toggleFavorite } = useFavorites()
+
+  // Paginated news hook for virtualization mode
+  const {
+    articles: paginatedArticles,
+    totalCount,
+    isLoading: paginatedLoading,
+    isFetchingNextPage,
+    hasNextPage,
+    fetchNextPage,
+  } = usePaginatedNews({
+    limit: FEATURE_FLAGS.PAGINATION_PAGE_SIZE,
+    category: selectedCategory === "All" ? undefined : selectedCategory,
+    search: searchTerm || undefined,
+    useCached: true,
+    enabled: useVirtualization, // Only enable when virtualization is active
+  })
 
   // Snap-scrolling support
   const containerRef = useRef<HTMLDivElement | null>(null)
@@ -240,9 +261,12 @@ export function GridView({
     )
   }, [filteredNews])
 
+  // Determine which articles to display based on mode
+  const displayArticles = useVirtualization ? paginatedArticles : filteredNews
+  const isLoadingState = useVirtualization ? paginatedLoading : loading
+  const displayTotalCount = useVirtualization ? totalCount : filteredNews.length
 
-
-  if (loading) {
+  if (isLoadingState && displayArticles.length === 0) {
     return (
       <div className="w-full h-full flex items-center justify-center">
         <div className="bg-card/50 p-8 rounded-xl border border-border/50">
@@ -254,6 +278,97 @@ export function GridView({
       </div>
     )
   }
+
+  // Virtualized Grid Mode - high performance for large datasets
+  if (useVirtualization) {
+    return (
+      <div className="w-full h-full flex flex-col overflow-hidden bg-background">
+        {/* Category Filter Header */}
+        <div className="flex-shrink-0 border-b border-border/30 bg-background/40 backdrop-blur-sm px-4 sm:px-6 lg:px-8 py-3">
+          <div className="flex items-center gap-2 overflow-x-auto pb-2">
+            {categories.map((category) => (
+              <Button
+                key={category}
+                onClick={() => setSelectedCategory(category)}
+                variant={selectedCategory === category ? "default" : "outline"}
+                className="text-sm font-medium whitespace-nowrap px-3 py-2 h-auto"
+              >
+                {category}
+              </Button>
+            ))}
+          </div>
+        </div>
+
+        {/* Search Bar */}
+        <div className="flex-shrink-0 px-4 sm:px-6 lg:px-8 py-3 border-b border-border/30 bg-background/40 backdrop-blur-sm">
+          <div className="relative">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-muted-foreground" />
+            <input
+              type="text"
+              placeholder="Search articles..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className="w-full pl-12 pr-4 py-3 text-base rounded-lg bg-background/80 border border-border/50 text-foreground placeholder-muted-foreground focus:outline-none focus:ring-1 focus:ring-primary"
+            />
+          </div>
+        </div>
+
+        {/* Virtualized Grid */}
+        {paginatedArticles.length === 0 && !paginatedLoading ? (
+          <div className="text-center py-16 flex-1 flex items-center justify-center">
+            <div className="mx-auto">
+              <div
+                className="mx-auto w-16 h-16 rounded-full flex items-center justify-center mb-4"
+                style={{ backgroundColor: "var(--background)" }}
+              >
+                <Newspaper
+                  className="w-8 h-8"
+                  style={{ color: "var(--muted-foreground)" }}
+                />
+              </div>
+              <h3 className="text-lg font-medium">No articles found</h3>
+              <p className="mt-1 max-w-md mx-auto text-sm text-muted-foreground">
+                Try adjusting your search or filters to find what you are
+                looking for.
+              </p>
+              <Button
+                variant="outline"
+                className="mt-4"
+                onClick={() => {
+                  setSearchTerm("")
+                  setSelectedCategory("All")
+                }}
+              >
+                <RefreshCw className="w-4 h-4 mr-2" />
+                Reset filters
+              </Button>
+            </div>
+          </div>
+        ) : (
+          <VirtualizedGrid
+            articles={paginatedArticles}
+            hasNextPage={hasNextPage}
+            isFetchingNextPage={isFetchingNextPage}
+            fetchNextPage={fetchNextPage}
+            onArticleClick={handleArticleClick}
+            totalCount={totalCount}
+          />
+        )}
+
+        {/* Article Detail Modal */}
+        <ArticleDetailModal
+          article={selectedArticle}
+          isOpen={isArticleModalOpen}
+          onClose={() => {
+            setIsArticleModalOpen(false)
+            setSelectedArticle(null)
+          }}
+        />
+      </div>
+    )
+  }
+
+  // Legacy source-grouped mode (default when virtualization is disabled)
 
   return (
     <div className="w-full h-full flex flex-col overflow-hidden bg-background">

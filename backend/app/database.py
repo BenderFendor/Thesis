@@ -1,5 +1,6 @@
 from sqlalchemy import (
     Column,
+    Index,
     Integer,
     String,
     Text,
@@ -47,8 +48,10 @@ else:
     AsyncSessionLocal = None
     logger.warning("Database disabled via ENABLE_DATABASE=0; skipping engine creation")
 
+
 def get_utc_now():
     return datetime.now(timezone.utc).replace(tzinfo=None)
+
 
 Base = declarative_base()
 
@@ -102,6 +105,16 @@ class Article(Base):
     embedding_generated = Column(Boolean, default=False)
     created_at = Column(DateTime, default=get_utc_now)
     updated_at = Column(DateTime, default=get_utc_now, onupdate=get_utc_now)
+
+    # Composite indexes for efficient cursor-based pagination
+    __table_args__ = (
+        # Primary pagination index: published_at DESC, id DESC
+        Index("ix_articles_published_at_id_desc", published_at.desc(), id.desc()),
+        # Category filtering with date ordering
+        Index("ix_articles_category_published", category, published_at.desc()),
+        # Source filtering with date ordering
+        Index("ix_articles_source_published", source, published_at.desc()),
+    )
 
 
 class Bookmark(Base):
@@ -345,14 +358,22 @@ async def fetch_articles_page(
         filters.append(Article.source == source)
     if missing_embeddings_only:
         filters.append(
-            or_(Article.embedding_generated.is_(False), Article.embedding_generated.is_(None))
+            or_(
+                Article.embedding_generated.is_(False),
+                Article.embedding_generated.is_(None),
+            )
         )
     if published_before:
         filters.append(Article.published_at <= published_before)
     if published_after:
         filters.append(Article.published_at >= published_after)
 
-    stmt = select(Article).order_by(order_clause, Article.id.desc()).limit(limit).offset(offset)
+    stmt = (
+        select(Article)
+        .order_by(order_clause, Article.id.desc())
+        .limit(limit)
+        .offset(offset)
+    )
     if filters:
         stmt = stmt.where(*filters)
 

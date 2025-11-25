@@ -2057,3 +2057,93 @@ export async function getDailyDigest(): Promise<QueueDigest> {
     throw error
   }
 }
+
+// --- Pagination Types ---
+
+export interface PaginatedResponse {
+  articles: NewsArticle[];
+  total: number;
+  limit: number;
+  next_cursor: string | null;
+  prev_cursor: string | null;
+  has_more: boolean;
+}
+
+export interface PaginationParams {
+  limit?: number;
+  cursor?: string;
+  category?: string;
+  source?: string;
+  search?: string;
+}
+
+// --- Paginated Fetch Functions ---
+
+export async function fetchNewsPaginated(
+  params: PaginationParams = {}
+): Promise<PaginatedResponse> {
+  const searchParams = new URLSearchParams();
+
+  if (params.limit) searchParams.append("limit", params.limit.toString());
+  if (params.cursor) searchParams.append("cursor", params.cursor);
+  if (params.category) searchParams.append("category", params.category);
+  if (params.source) searchParams.append("source", params.source);
+  if (params.search) searchParams.append("search", params.search);
+
+  const url = `${API_BASE_URL}/news/page${searchParams.toString() ? "?" + searchParams.toString() : ""}`;
+
+  console.log(`📄 Fetching paginated news: ${url}`);
+
+  const response = await fetch(url);
+
+  if (!response.ok) {
+    throw new Error(`HTTP error! status: ${response.status}`);
+  }
+
+  const data = await response.json();
+
+  // Map backend format to frontend format
+  const articles = mapBackendArticles(data.articles || []);
+
+  return {
+    articles,
+    total: data.total,
+    limit: data.limit,
+    next_cursor: data.next_cursor,
+    prev_cursor: data.prev_cursor,
+    has_more: data.has_more,
+  };
+}
+
+export async function fetchCachedNewsPaginated(
+  params: PaginationParams & { offset?: number } = {}
+): Promise<PaginatedResponse> {
+  const searchParams = new URLSearchParams();
+
+  if (params.limit) searchParams.append("limit", params.limit.toString());
+  if (params.offset !== undefined)
+    searchParams.append("offset", params.offset.toString());
+  if (params.category) searchParams.append("category", params.category);
+  if (params.source) searchParams.append("source", params.source);
+  if (params.search) searchParams.append("search", params.search);
+
+  const url = `${API_BASE_URL}/news/page/cached${searchParams.toString() ? "?" + searchParams.toString() : ""}`;
+
+  const response = await fetch(url);
+
+  if (!response.ok) {
+    throw new Error(`HTTP error! status: ${response.status}`);
+  }
+
+  const data = await response.json();
+  const articles = mapBackendArticles(data.articles || []);
+
+  return {
+    articles,
+    total: data.total,
+    limit: data.limit,
+    next_cursor: data.next_cursor,
+    prev_cursor: null,
+    has_more: data.has_more,
+  };
+}

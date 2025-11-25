@@ -24,3 +24,13 @@ export const navLinks = [
     ],
   },
 ];
+
+// Feature flags for gradual rollout
+export const FEATURE_FLAGS = {
+  USE_PAGINATION: process.env.NEXT_PUBLIC_USE_PAGINATION === "true",
+  USE_VIRTUALIZATION: process.env.NEXT_PUBLIC_USE_VIRTUALIZATION === "true",
+  PAGINATION_PAGE_SIZE: parseInt(
+    process.env.NEXT_PUBLIC_PAGINATION_PAGE_SIZE || "50",
+    10
+  ),
+};
