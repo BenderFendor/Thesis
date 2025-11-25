@@ -168,7 +168,9 @@ async def stream_news(
                 len(sources_to_process),
             )
 
-            with concurrent.futures.ThreadPoolExecutor(max_workers=5) as executor:
+            # Use executor WITHOUT context manager to avoid blocking shutdown
+            executor = concurrent.futures.ThreadPoolExecutor(max_workers=5)
+            try:
                 future_to_source = {}
                 for name, info in sources_to_process:
                     should_throttle, wait_time = stream_manager.should_throttle_source(
@@ -225,6 +227,10 @@ async def stream_news(
                             "🔌 Stream %s client disconnected", stream_id
                         )
                         stream_manager.update_stream(stream_id, client_connected=False)
+                        # Cancel pending futures instead of blocking
+                        for pending_future in future_to_source:
+                            if not pending_future.done():
+                                pending_future.cancel()
                         break
 
                     try:
@@ -332,6 +338,11 @@ async def stream_news(
                     "timestamp": datetime.now(timezone.utc).isoformat(),
                 }
                 yield f"data: {json.dumps(final_data)}\n\n"
+            finally:
+                # Shutdown executor without waiting (non-blocking)
+                # cancel_futures=True requires Python 3.9+
+                executor.shutdown(wait=False, cancel_futures=True)
+                stream_logger.info("🔧 Stream %s executor shutdown initiated", stream_id)
         except asyncio.CancelledError:  # pragma: no cover - cooperative cancellation
             stream_logger.warning("🚫 Stream %s was cancelled", stream_id)
             raise

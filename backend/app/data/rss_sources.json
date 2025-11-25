@@ -599,6 +599,531 @@
         "country": "US",
         "funding_type": "Commercial",
         "bias_rating": "Center"
+    },
+    "CBC": {
+        "url": "https://www.cbc.ca/cmlink/rss-topstories",
+        "category": "general",
+        "country": "CA",
+        "funding_type": "Public",
+        "bias_rating": "Center"
+    },
+    "The Guardian - UK": {
+        "url": "https://www.theguardian.com/uk/rss",
+        "category": "general",
+        "country": "GB",
+        "funding_type": "Commercial",
+        "bias_rating": "Left"
+    },
+    "France24": {
+        "url": "https://www.france24.com/en/rss",
+        "category": "general",
+        "country": "FR",
+        "funding_type": "Public",
+        "bias_rating": "Center"
+    },
+    "The Kyiv Independent": {
+        "url": "https://kyivindependent.com/feed/",
+        "category": "general",
+        "country": "UA",
+        "funding_type": "Independent",
+        "bias_rating": "Center"
+    },
+    "The Times of Israel": {
+        "url": "https://www.timesofisrael.com/feed/",
+        "category": "general",
+        "country": "IL",
+        "funding_type": "Commercial",
+        "bias_rating": "Center"
+    },
+    "South China Morning Post": {
+        "url": "https://www.scmp.com/rss/91/feed",
+        "category": "general",
+        "country": "HK",
+        "funding_type": "Commercial",
+        "bias_rating": "Center"
+    },
+    "The Times of India": {
+        "url": "https://timesofindia.indiatimes.com/rssfeedstopstories.cms",
+        "category": "general",
+        "country": "IN",
+        "funding_type": "Commercial",
+        "bias_rating": "Center"
+    },
+    "The Straits Times": {
+        "url": "https://www.straitstimes.com/news/asia/rss",
+        "category": "general",
+        "country": "SG",
+        "funding_type": "Commercial",
+        "bias_rating": "Center"
+    },
+    "Africanews": {
+        "url": "https://www.africanews.com/feed/rss",
+        "category": "general",
+        "country": "International",
+        "funding_type": "Commercial",
+        "bias_rating": "Center"
+    },
+    "News24": {
+        "url": "http://feeds.news24.com/articles/news24/TopStories/rss",
+        "category": "general",
+        "country": "ZA",
+        "funding_type": "Commercial",
+        "bias_rating": "Center"
+    },
+    "MercoPress": {
+        "url": "https://en.mercopress.com/rss",
+        "category": "general",
+        "country": "International",
+        "funding_type": "Independent",
+        "bias_rating": "Center"
+    },
+    "Mexico News Daily": {
+        "url": "https://mexiconewsdaily.com/feed/",
+        "category": "general",
+        "country": "MX",
+        "funding_type": "Commercial",
+        "bias_rating": "Center"
+    },
+    "ABC News Australia": {
+        "url": "https://www.abc.net.au/news/feed/51120/rss.xml",
+        "category": "general",
+        "country": "AU",
+        "funding_type": "Public",
+        "bias_rating": "Center"
+    },
+    "RNZ": {
+        "url": "https://www.rnz.co.nz/rss/pacific.xml",
+        "category": "general",
+        "country": "NZ",
+        "funding_type": "Public",
+        "bias_rating": "Center"
+    },
+    "Global Voices": {
+        "url": "https://globalvoices.org/feed/",
+        "category": "general",
+        "country": "International",
+        "funding_type": "Non-profit",
+        "bias_rating": "Center"
+    },
+    "The Indian Express": {
+        "url": "https://indianexpress.com/section/india/feed/",
+        "category": "general",
+        "country": "IN",
+        "funding_type": "Commercial",
+        "bias_rating": "Center"
+    },
+    "Antara News": {
+        "url": "https://en.antaranews.com/rss/news.xml",
+        "category": "general",
+        "country": "ID",
+        "funding_type": "State-funded",
+        "bias_rating": "Center"
+    },
+    "Dawn": {
+        "url": "https://www.dawn.com/feeds/home",
+        "category": "general",
+        "country": "PK",
+        "funding_type": "Commercial",
+        "bias_rating": "Center"
+    },
+    "The Punch": {
+        "url": "https://rss.punchng.com/v1/category/latest_news",
+        "category": "general",
+        "country": "NG",
+        "funding_type": "Commercial",
+        "bias_rating": "Center"
+    },
+    "The Daily Star": {
+        "url": "https://www.thedailystar.net/frontpage/rss.xml",
+        "category": "general",
+        "country": "BD",
+        "funding_type": "Commercial",
+        "bias_rating": "Center"
+    },
+    "The Moscow Times": {
+        "url": "https://www.themoscowtimes.com/page/rss",
+        "category": "general",
+        "country": "RU",
+        "funding_type": "Independent",
+        "bias_rating": "Left-Center"
+    },
+    "Addis Standard": {
+        "url": "https://addisstandard.com/feed/",
+        "category": "general",
+        "country": "ET",
+        "funding_type": "Independent",
+        "bias_rating": "Center"
+    },
+    "Inquirer.net": {
+        "url": "https://inquirer.net/feed",
+        "category": "general",
+        "country": "PH",
+        "funding_type": "Commercial",
+        "bias_rating": "Center"
+    },
+    "Daily News Egypt": {
+        "url": "https://dailynewsegypt.com/feed/",
+        "category": "general",
+        "country": "EG",
+        "funding_type": "Commercial",
+        "bias_rating": "Center"
+    },
+    "Radio Okapi": {
+        "url": "https://www.radiookapi.net/rss",
+        "category": "general",
+        "country": "CD",
+        "funding_type": "Non-profit",
+        "bias_rating": "Center"
+    },
+    "VnExpress International": {
+        "url": "https://e.vnexpress.net/rss/home.rss",
+        "category": "general",
+        "country": "VN",
+        "funding_type": "Commercial",
+        "bias_rating": "Center"
+    },
+    "Radio Farda": {
+        "url": "https://en.radiofarda.com/rssfeeds",
+        "category": "general",
+        "country": "IR",
+        "funding_type": "Non-profit",
+        "bias_rating": "Left-Center"
+    },
+    "Duvar English": {
+        "url": "https://www.duvarenglish.com/rss",
+        "category": "general",
+        "country": "TR",
+        "funding_type": "Independent",
+        "bias_rating": "Center"
+    },
+    "Bangkok Post": {
+        "url": "https://www.bangkokpost.com/rss/data/topstories.xml",
+        "category": "general",
+        "country": "TH",
+        "funding_type": "Commercial",
+        "bias_rating": "Center"
+    },
+    "ANSA": {
+        "url": "https://www.ansa.it/english/sito/notizie/topnews/topnews_rss.xml",
+        "category": "general",
+        "country": "IT",
+        "funding_type": "Commercial",
+        "bias_rating": "Center"
+    },
+    "The Citizen": {
+        "url": "https://www.thecitizen.co.tz/rss",
+        "category": "general",
+        "country": "TZ",
+        "funding_type": "Commercial",
+        "bias_rating": "Center"
+    },
+    "Myanmar Now": {
+        "url": "https://myanmar-now.org/en/feed",
+        "category": "general",
+        "country": "MM",
+        "funding_type": "Independent",
+        "bias_rating": "Left-Center"
+    },
+    "The Standard": {
+        "url": "https://www.standardmedia.co.ke/rss/headlines.php",
+        "category": "general",
+        "country": "KE",
+        "funding_type": "Commercial",
+        "bias_rating": "Center"
+    },
+    "The Korea Herald": {
+        "url": "https://m.koreaherald.com/rss/newsAll",
+        "category": "general",
+        "country": "KR",
+        "funding_type": "Commercial",
+        "bias_rating": "Center"
+    },
+    "Colombia Reports": {
+        "url": "https://colombiareports.com/feed/",
+        "category": "general",
+        "country": "CO",
+        "funding_type": "Non-profit",
+        "bias_rating": "Center"
+    },
+    "El País": {
+        "url": "https://english.elpais.com/rss",
+        "category": "general",
+        "country": "ES",
+        "funding_type": "Commercial",
+        "bias_rating": "Center"
+    },
+    "Xinhua News Agency": {
+        "url": "http://www.xinhuanet.com/english/rss/chinanews.xml",
+        "category": "general",
+        "country": "CN",
+        "funding_type": "State-funded",
+        "bias_rating": "Right"
+    },
+    "Xinhua World News": {
+        "url": "http://www.xinhuanet.com/english/rss/world.xml",
+        "category": "general",
+        "country": "CN",
+        "funding_type": "State-funded",
+        "bias_rating": "Center"
+    },
+    "TASS": {
+        "url": "https://tass.com/rss",
+        "category": "general",
+        "country": "RU",
+        "funding_type": "State-funded",
+        "bias_rating": "Right"
+    },
+    "RT": {
+        "url": "https://www.rt.com/rss/",
+        "category": "general",
+        "country": "RU",
+        "funding_type": "State-funded",
+        "bias_rating": "Right"
+    },
+    "Press TV": {
+        "url": "https://www.presstv.ir/rss",
+        "category": "general",
+        "country": "IR",
+        "funding_type": "State-funded",
+        "bias_rating": "Left"
+    },
+    "Anadolu Agency": {
+        "url": "https://www.aa.com.tr/en/rss/default?cat=live",
+        "category": "general",
+        "country": "TR",
+        "funding_type": "State-funded",
+        "bias_rating": "Center"
+    },
+    "Saudi Press Agency": {
+        "url": "https://www.spa.gov.sa/rss",
+        "category": "general",
+        "country": "SA",
+        "funding_type": "State-funded",
+        "bias_rating": "Right"
+    },
+    "Vietnam News Agency": {
+        "url": "https://vnanet.vn/en/rss/",
+        "category": "general",
+        "country": "VN",
+        "funding_type": "State-funded",
+        "bias_rating": "Center"
+    },
+    "Ahram Online": {
+        "url": "https://english.ahram.org.eg/RSS/",
+        "category": "general",
+        "country": "EG",
+        "funding_type": "State-funded",
+        "bias_rating": "Center"
+    },
+    "KCNA Watch": {
+        "url": "https://kcnawatch.org/feed/",
+        "category": "general",
+        "country": "KP",
+        "funding_type": "State-funded",
+        "bias_rating": "Right"
+    },
+    "Prensa Latina": {
+        "url": "https://www.plenglish.com/feed/",
+        "category": "general",
+        "country": "CU",
+        "funding_type": "State-funded",
+        "bias_rating": "Left"
+    },
+    "Dominican Today": {
+        "url": "https://dominicantoday.com/feed/",
+        "category": "general",
+        "country": "DO",
+        "funding_type": "Commercial",
+        "bias_rating": "Center"
+    },
+    "Channel NewsAsia": {
+        "url": "https://www.channelnewsasia.com/api/v1/rss-outbound-feed?_format=xml",
+        "category": "general",
+        "country": "SG",
+        "funding_type": "State-affiliated",
+        "bias_rating": "Center"
+    },
+    "Malaysiakini": {
+        "url": "https://www.malaysiakini.com/rss/en/news.xml",
+        "category": "general",
+        "country": "MY",
+        "funding_type": "Independent",
+        "bias_rating": "Center"
+    },
+    "Hong Kong Free Press": {
+        "url": "https://hongkongfp.com/feed/",
+        "category": "general",
+        "country": "HK",
+        "funding_type": "Non-profit",
+        "bias_rating": "Left-Center"
+    },
+    "Rappler": {
+        "url": "https://www.rappler.com/feed",
+        "category": "general",
+        "country": "PH",
+        "funding_type": "Commercial",
+        "bias_rating": "Center"
+    },
+    "Fijivillage": {
+        "url": "https://www.fijivillage.com/rss/news.xml",
+        "category": "general",
+        "country": "FJ",
+        "funding_type": "Commercial",
+        "bias_rating": "Center"
+    },
+    "Focus Taiwan": {
+        "url": "https://focustaiwan.tw/rss",
+        "category": "general",
+        "country": "TW",
+        "funding_type": "State-funded",
+        "bias_rating": "Center"
+    },
+    "Taipei Times": {
+        "url": "https://www.taipeitimes.com/xml/index.rss",
+        "category": "general",
+        "country": "TW",
+        "funding_type": "Commercial",
+        "bias_rating": "Center"
+    },
+    "The Astana Times": {
+        "url": "https://astanatimes.com/feed/",
+        "category": "general",
+        "country": "KZ",
+        "funding_type": "Commercial",
+        "bias_rating": "Center"
+    },
+    "Ekathimerini": {
+        "url": "https://feeds.feedburner.com/ekathimerini/sKip",
+        "category": "general",
+        "country": "GR",
+        "funding_type": "Commercial",
+        "bias_rating": "Center"
+    },
+    "Caracas Chronicles": {
+        "url": "https://www.caracaschronicles.com/feed/",
+        "category": "general",
+        "country": "VE",
+        "funding_type": "Independent",
+        "bias_rating": "Left-Center"
+    },
+    "Buenos Aires Times": {
+        "url": "https://www.batimes.com.ar/feed",
+        "category": "general",
+        "country": "AR",
+        "funding_type": "Commercial",
+        "bias_rating": "Center"
+    },
+    "Venezuelanalysis": {
+        "url": "https://venezuelanalysis.com/feed",
+        "category": "general",
+        "country": "VE",
+        "funding_type": "Independent",
+        "bias_rating": "Left"
+    },
+    "NK News": {
+        "url": "https://www.nknews.org/rss",
+        "category": "general",
+        "country": "KP",
+        "funding_type": "Independent",
+        "bias_rating": "Center"
+    },
+    "Telesur English": {
+        "url": "https://www.telesurenglish.net/feed",
+        "category": "general",
+        "country": "International",
+        "funding_type": "State-funded",
+        "bias_rating": "Left"
+    },
+    "Resumen Latinoamericano": {
+        "url": "https://resumen-english.org/feed",
+        "category": "general",
+        "country": "International",
+        "funding_type": "Independent",
+        "bias_rating": "Left"
+    },
+    "Al Mayadeen": {
+        "url": "https://english.almayadeen.net/feed.rss",
+        "category": "general",
+        "country": "LB",
+        "funding_type": "Commercial",
+        "bias_rating": "Left"
+    },
+    "Jamestown Foundation": {
+        "url": "https://jamestown.org/feed",
+        "category": "general",
+        "country": "US",
+        "funding_type": "Non-profit",
+        "bias_rating": "Center-Right"
+    },
+    "War on the Rocks": {
+        "url": "http://warontherocks.com/feed",
+        "category": "politics",
+        "country": "US",
+        "funding_type": "Non-profit",
+        "bias_rating": "Center"
+    },
+    "Geopolitical Futures": {
+        "url": "http://geopoliticalfutures.com/feed",
+        "category": "politics",
+        "country": "US",
+        "funding_type": "Commercial",
+        "bias_rating": "Center"
+    },
+    "The New Humanitarian": {
+        "url": "https://www.thenewhumanitarian.org/feed",
+        "category": "general",
+        "country": "International",
+        "funding_type": "Non-profit",
+        "bias_rating": "Center"
+    },
+    "The Diplomat": {
+        "url": "https://thediplomat.com/feed",
+        "category": "general",
+        "country": "International",
+        "funding_type": "Commercial",
+        "bias_rating": "Center"
+    },
+    "38 North": {
+        "url": "https://www.38north.org/feed",
+        "category": "general",
+        "country": "US",
+        "funding_type": "Non-profit",
+        "bias_rating": "Center"
+    },
+    "The Hindu": {
+        "url": "https://www.thehindu.com/feeder/default.rss",
+        "category": "general",
+        "country": "IN",
+        "funding_type": "Commercial",
+        "bias_rating": "Center"
+    },
+    "Africa Check": {
+        "url": "http://africacheck.org/feed",
+        "category": "general",
+        "country": "International",
+        "funding_type": "Non-profit",
+        "bias_rating": "Center"
+    },
+    "Canada News Online": {
+        "url": "https://cananewsonline.com/main/category/news/full-news/rss",
+        "category": "general",
+        "country": "CA",
+        "funding_type": "Commercial",
+        "bias_rating": "Center"
+    },
+    "The Economist - Finance": {
+        "url": "https://www.economist.com/finance-and-economics/rss.xml",
+        "category": "business",
+        "country": "GB",
+        "funding_type": "Commercial",
+        "bias_rating": "Center"
+    },
+    "The Economist - International": {
+        "url": "https://www.economist.com/international/rss.xml",
+        "category": "general",
+        "country": "GB",
+        "funding_type": "Commercial",
+        "bias_rating": "Center"
     }
 
 }
