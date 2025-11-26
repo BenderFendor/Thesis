@@ -1,5 +1,7 @@
 
 # Copilot Instructions for Thesis Project
+Only make changes that are directly requested. Keep solutions simple and focused.
+do not use emojis
 
 # Things you shouldn't do
 - Do not suggest adding or modifying any markdown files other than README.md, Todo.md, or Log.md.
@@ -35,23 +37,9 @@ and execution speed so the project can be developed and tested locally on that h
 
 ## Developer workflows
 - Ensure `backend/.env` defines `GEMINI_API_KEY`; Postgres and Chroma containers come up via Compose but backend tolerates their absence in dev.
-- Start the full stack from repo root:
-```bash
-docker compose up --build
-```
-- Run backend locally:
-```bash
-cd backend
-python -m venv .venv && source .venv/bin/activate
-pip install -r requirements.txt
-uvicorn app.main:app --reload --port 8000
-```
-- Run frontend locally:
-```bash
-cd frontend
-npm install
-npm run dev
-```
+
+use ./runlocal.sh to start both backend + frontend.
+
 - Backend tests: `pytest`; add targeted async tests alongside services you touch before modifying large streaming handlers.
 
 ## Conventions and guardrails

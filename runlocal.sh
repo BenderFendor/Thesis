@@ -45,10 +45,6 @@ USAGE
 }
 
 cleanup() {
-	if [[ ${#PIDS[@]} -eq 0 ]]; then
-		return
-	fi
-
 	log "Stopping background processes..."
 	for pid in "${PIDS[@]}"; do
 		if kill -0 "$pid" >/dev/null 2>&1; then
@@ -56,6 +52,24 @@ cleanup() {
 		fi
 	done
 	PIDS=()
+
+	stop_data_services
+}
+
+stop_data_services() {
+	if command -v docker >/dev/null 2>&1 && docker compose version >/dev/null 2>&1; then
+		log "Stopping Postgres and ChromaDB containers..."
+		docker compose stop postgres chromadb
+		return
+	fi
+
+	if command -v docker-compose >/dev/null 2>&1; then
+		log "Stopping Postgres and ChromaDB containers..."
+		docker-compose stop postgres chromadb
+		return
+	fi
+
+	log "Docker Compose is not available; skipping container shutdown"
 }
 
 handle_signal() {

@@ -69,7 +69,7 @@ export function GridView({
   loading,
   onCountChange,
   apiUrl,
-  useVirtualization = FEATURE_FLAGS.USE_VIRTUALIZATION,
+  useVirtualization = false, // Disabled by default - parent already provides articles
 }: GridViewProps) {
   const [searchTerm, setSearchTerm] = useState("")
   const [selectedCategory, setSelectedCategory] = useState("All")
@@ -97,6 +97,14 @@ export function GridView({
     search: searchTerm || undefined,
     useCached: true,
     enabled: useVirtualization, // Only enable when virtualization is active
+  })
+
+  // DEBUG: Log feature flags and hook state
+  console.log(`[GridView DEBUG] Feature flags:`, {
+    USE_VIRTUALIZATION: FEATURE_FLAGS.USE_VIRTUALIZATION,
+    USE_PAGINATION: FEATURE_FLAGS.USE_PAGINATION,
+    PAGINATION_PAGE_SIZE: FEATURE_FLAGS.PAGINATION_PAGE_SIZE,
+    useVirtualizationProp: useVirtualization,
   })
 
   // Snap-scrolling support
@@ -265,6 +273,21 @@ export function GridView({
   const displayArticles = useVirtualization ? paginatedArticles : filteredNews
   const isLoadingState = useVirtualization ? paginatedLoading : loading
   const displayTotalCount = useVirtualization ? totalCount : filteredNews.length
+
+  // DEBUG: Log state to diagnose loading issue
+  console.log(`[GridView DEBUG] Mode check:`, {
+    useVirtualization,
+    isLoadingState,
+    displayArticlesLength: displayArticles.length,
+    paginatedArticlesLength: paginatedArticles.length,
+    paginatedLoading,
+    filteredNewsLength: filteredNews.length,
+    passedLoading: loading,
+    passedArticlesLength: articles.length,
+    hasNextPage,
+    totalCount,
+    willShowLoadingSpinner: isLoadingState && displayArticles.length === 0,
+  })
 
   if (isLoadingState && displayArticles.length === 0) {
     return (

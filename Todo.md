@@ -8,20 +8,11 @@ I would like to add sql backend for this so that I don't have to load the articl
 
 Also update the source page to work with the new backend and add a like toggle for debugging mode and user mode and have it so that you can debug mode has all the console.log prints and all those debugging like meals then those are removed when your in user mode so the end user doesn't have hella things on the screen
 
-# Styling
-
-The font like the main main header one should be like garamond or some seirf then it should use geisit for the most of the other fonts.
-Also there is no hover animation or color for any of the button on this page and the backgroudns and secondy backgruonds are the same color I like the dark black but there should be a lighter black for the other panels like 20% lighter
-
 # Image source debugging
 
 For this Im thinking we have to add like errors for parsing but what type of error. Like image found but not parsedable by frontend. No images in the json/source at all. Images founded and we can use them but it still doesn't any us to display them idk why?
 
 <https://forum.kustom.rocks/t/help-me-get-images-from-google-news-rss-feed/7173> may help here
-
-# The stream vs static source
-
-I don't really understand why that exist it really show be the same thing and just two parts of it right now it is coded like two different features instead of one fused backend feature for getting sources.
 
 # Add a logger feature
 
@@ -33,111 +24,13 @@ I need a more robust image parsing and also some that can get the images and loa
 
 Also for the rss and image parsing I should make a debug menu or page that I can like just input an rss feed or input an article url and see how the backend parses it and it like gives me a breakdown of how the rss and even the page url and article are being parsed.
 
-# Sources that don't get their iamges parsed right at the moment
+# Sources that don't get their images parsed right at the moment
 
 New york times and CNN
 
-# Fact Checking API
-
-Google as a fact checking api as well which we could maybe uses. as well as <https://rapidapi.com/mbfcnews/api/media-bias-fact-check-ratings-api2> as it has a free tier
-
-# Add an article feature. ✅ COMPLETED
-
-So for this you can like click on an article and it like parses the article and gives you the full articles as well as like the background of say like the sources if it can find any and the reporter and their baises and background
-
-# Free LLM APIs
-
-<https://github.com/cheahjs/free-llm-api-resources?tab=readme-ov-file#free-providers>
-
-# Bias Detector
-
-## Tone Bias
-
-Say for tone bias it looks like the wording and highlights words or senetces have seem to have a tone bias.
-
-## Framing Bias
-
-Same with framing bias as well
-
-## Selection / Sourcing Bias
-
-Where do they get their infomation and where don't they.
-
-## Ownership Bias
-
-Who owns this source and what are their parents companies etc.
-
-## Common Enemy (Idealogy)
-
-Having some scapegoat as common figure to down talk.
-
-## Factual Sources
-
-How true is their infomation
-
-## Left and Right leaning
-
-<https://dl.acm.org/doi/10.1145/3706598.3713716>
-
-# Remove fake likes shares and comments ✅ COMPLETED
-
-## Implementation Details
-
-- ✅ Removed `likes`, `comments`, and `shares` from NewsArticle interface
-- ✅ Removed fake random number generation for engagement metrics
-- ✅ Removed display of fake counts in all UI components:
-  - article-detail-modal.tsx
-  - article-detail-modal-old.tsx
-  - feed-view.tsx
-  - scroll-view.tsx
-  - search page
-  - article-inline-embed.tsx
-- ✅ Kept like and bookmark buttons for user interaction (client-side state only)
-- ✅ Removed comments and shares buttons since there's no real data
-- ✅ Cleaned up unused imports (MessageCircle, Share2)
-
-# Speeding up the database loading
-
-The backend loads up really slowly so if I could speed that up that would be great.
-
 # Features to add
 
-## Fonts to switch to
-
- Instrument Serif and maybe Libre Bodoni
-
 ## Add Static code anylsis as well
-
-## Add a feature where you can open articles up as like tabs ✅ COMPLETED
-
-So like it is like a temp reading list then a permainlty reading list
-
-as right now my workflow is just openning all the articles in like 30 tabs so there has to be a way to streamline that.
-
-So like it should go like you add an article that that goes to the up of the read queue you can have a daily read queue and a like permanlty read queue so it has the daily one and any ones that go past that are put in the perm read queue as a backlog and it just adds the new article to the top of this queue.
-
-## For sources like AP news
-
-I don't like the whole assciotos press 1 - 2 - 3 thing it should just take all the xml concated them as one mega xml then like show the sources as like a sub net or sub brach of the main source but it should act like one source
-
-### ✅ COMPLETED
-
-Implemented consolidated RSS sources feature. Multi-feed sources (AP News, Bloomberg, etc.) can now be configured with `"consolidate": true` in `rss_sources.json` to appear as a single unified source instead of being split into numbered sub-sources.
-
-**Implementation Details:**
-
-- ✅ Modified `backend/app/data/rss_sources.py` - `get_rss_sources()` now checks for `"consolidate"` flag; when `true`, keeps multi-URL sources as single entries
-- ✅ Updated `backend/app/services/rss_ingestion.py` - `_process_source()` tracks individual sub-feed stats (URL, status, article_count, error) and includes them in source stats when consolidated
-- ✅ Added `"consolidate": true` to Associated Press and Bloomberg in `rss_sources.json`
-- ✅ Updated `frontend/lib/api.ts` - `SourceDebugData` interface now includes sub_feeds array
-- ✅ Enhanced `frontend/app/sources/[source]/debug/page.tsx` - displays sub-feeds section with status indicators for each feed URL
-
-**How to use:**
-
-- For existing sources, add `"consolidate": true` to the JSON entry in `rss_sources.json`
-- Articles from all sub-feeds merge into single source stream
-- Debug page shows each sub-feed URL, status (success/warning/error), and article count
-- Users see "Associated Press" instead of "AP - 1", "AP - 2", etc.
 
 ## Add a feature for like your favorite / most important new sources
 
