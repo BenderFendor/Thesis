@@ -8,19 +8,24 @@ from . import (
     cache,
     debug,
     general,
+    image_proxy,
+    inline,
+    jobs,
     news,
+    news_by_country,
     reading_queue,
     research,
     search,
     sources,
     stream,
-    inline,
+    updates,
 )
 
 router = APIRouter()
 router.include_router(general.router)
 router.include_router(article_analysis.router)
 router.include_router(news.router)
+router.include_router(news_by_country.router)
 router.include_router(cache.router)
 router.include_router(stream.router)
 router.include_router(debug.router)
@@ -30,3 +35,6 @@ router.include_router(research.router)
 router.include_router(search.router)
 router.include_router(sources.router)
 router.include_router(inline.router)
+router.include_router(jobs.router)
+router.include_router(updates.router)
+router.include_router(image_proxy.router)

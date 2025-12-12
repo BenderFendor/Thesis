@@ -308,3 +308,218 @@ async def get_storage_drift(
     }
 
     return drift_report
+
+
+# --- Phase 3: Debug Page Consolidation - New Endpoints ---
+
+
+@router.get("/system/status")
+async def get_system_status() -> Dict[str, object]:
+    """
+    Comprehensive system status for debug page.
+    
+    Returns startup metrics, component health, and runtime info.
+    """
+    import os
+    import sys
+    import platform
+    
+    startup_data = startup_metrics.to_dict()
+    cache_stats = news_cache.get_source_stats()
+    
+    # Component health checks
+    components = {
+        "cache": {
+            "healthy": True,
+            "article_count": len(news_cache.get_articles()),
+            "source_count": len(cache_stats),
+        },
+        "database": {
+            "healthy": settings.enable_database and AsyncSessionLocal is not None,
+            "enabled": settings.enable_database,
+        },
+        "vector_store": {
+            "healthy": get_vector_store() is not None,
+        },
+    }
+    
+    return {
+        "startup": startup_data,
+        "components": components,
+        "runtime": {
+            "python_version": sys.version,
+            "platform": platform.platform(),
+            "pid": os.getpid(),
+            "working_dir": os.getcwd(),
+        },
+        "config": {
+            "debug_mode": settings.debug if hasattr(settings, "debug") else False,
+            "enable_database": settings.enable_database,
+            "chroma_host": getattr(settings, "chroma_host", None),
+            "chroma_port": getattr(settings, "chroma_port", None),
+        },
+        "timestamp": datetime.now(timezone.utc).isoformat(),
+    }
+
+
+# Runtime log level state
+_current_log_level: str = "INFO"
+
+
+@router.get("/loglevel")
+async def get_log_level() -> Dict[str, str]:
+    """Get current runtime log level."""
+    return {"level": _current_log_level}
+
+
+@router.post("/loglevel")
+async def set_log_level(level: str = Query(..., description="Log level: DEBUG, INFO, WARNING, ERROR")) -> Dict[str, str]:
+    """
+    Set runtime log level for all loggers.
+    
+    Valid levels: DEBUG, INFO, WARNING, ERROR, CRITICAL
+    """
+    import logging
+    global _current_log_level
+    
+    level_upper = level.upper()
+    valid_levels = {"DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"}
+    
+    if level_upper not in valid_levels:
+        raise HTTPException(
+            status_code=400, 
+            detail=f"Invalid log level. Must be one of: {', '.join(valid_levels)}"
+        )
+    
+    # Set level on root logger
+    logging.getLogger().setLevel(getattr(logging, level_upper))
+    
+    # Set level on our app loggers
+    for logger_name in ["rss_ingestion", "news_stream", "image_proxy", "jobs", "updates", "cache"]:
+        logger = logging.getLogger(logger_name)
+        logger.setLevel(getattr(logging, level_upper))
+    
+    _current_log_level = level_upper
+    
+    return {
+        "message": f"Log level set to {level_upper}",
+        "level": _current_log_level,
+    }
+
+
+@router.post("/parser/test/rss")
+async def test_rss_parser(
+    url: str = Query(..., description="RSS feed URL to test"),
+    max_entries: int = Query(5, ge=1, le=20),
+) -> Dict[str, object]:
+    """
+    Test RSS parser on an arbitrary URL.
+    
+    Returns parsed feed metadata and sample entries for debugging.
+    """
+    import time
+    
+    start_time = time.time()
+    
+    try:
+        feed = feedparser.parse(url, agent="NewsAggregator/1.0 (Debug Parser Test)")
+        parse_time = time.time() - start_time
+        
+        result = {
+            "url": url,
+            "parse_time_seconds": round(parse_time, 3),
+            "success": not getattr(feed, "bozo", False),
+            "feed_info": {
+                "title": getattr(feed.feed, "title", ""),
+                "description": getattr(feed.feed, "description", ""),
+                "link": getattr(feed.feed, "link", ""),
+                "language": getattr(feed.feed, "language", ""),
+            },
+            "status": {
+                "http_status": getattr(feed, "status", "N/A"),
+                "bozo": getattr(feed, "bozo", False),
+                "bozo_exception": str(getattr(feed, "bozo_exception", "")),
+                "entries_count": len(feed.entries) if hasattr(feed, "entries") else 0,
+            },
+            "sample_entries": [],
+        }
+        
+        for i, entry in enumerate(feed.entries[:max_entries]):
+            # Extract image using new extraction service
+            from app.services.image_extraction import extract_image_from_entry
+            image_result = extract_image_from_entry(entry, base_url=url)
+            
+            result["sample_entries"].append({
+                "index": i,
+                "title": entry.get("title", ""),
+                "link": entry.get("link", ""),
+                "published": entry.get("published", ""),
+                "image_extraction": image_result.to_dict(),
+            })
+        
+        return result
+        
+    except Exception as e:
+        return {
+            "url": url,
+            "success": False,
+            "error": str(e),
+            "parse_time_seconds": time.time() - start_time,
+        }
+
+
+@router.post("/parser/test/article")
+async def test_article_parser(
+    url: str = Query(..., description="Article page URL to test og:image extraction"),
+) -> Dict[str, object]:
+    """
+    Test article page parser for og:image extraction.
+    
+    Fetches the page and attempts to extract og:image, twitter:image, etc.
+    """
+    from app.services.image_extraction import fetch_og_image
+    
+    result = await fetch_og_image(url)
+    
+    return {
+        "url": url,
+        "success": result.image_url is not None,
+        "image_url": result.image_url,
+        "candidates": [
+            {"url": c.url, "source": c.source, "priority": c.priority}
+            for c in result.image_candidates
+        ],
+        "error": result.image_error.value if result.image_error else None,
+        "error_details": result.image_error_details,
+    }
+
+
+@router.get("/jobs")
+async def list_active_jobs() -> Dict[str, object]:
+    """List all active ingestion jobs."""
+    from app.api.routes.jobs import _active_jobs
+    
+    return {
+        "active_jobs": len(_active_jobs),
+        "jobs": {
+            job_id: {
+                "status": job.get("status"),
+                "started_at": job.get("started_at"),
+                "progress": job.get("progress"),
+                "error": job.get("error"),
+            }
+            for job_id, job in _active_jobs.items()
+        },
+    }
+
+
+@router.get("/updates/subscribers")
+async def get_updates_subscribers() -> Dict[str, object]:
+    """Get updates stream subscriber info."""
+    from app.api.routes.updates import _update_subscribers, _event_counter
+    
+    return {
+        "subscriber_count": len(_update_subscribers),
+        "total_events_sent": _event_counter,
+    }
+

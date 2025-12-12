@@ -1,0 +1,302 @@
+{
+    "AF": {
+        "name": "Afghanistan",
+        "lat": 33.93,
+        "lng": 67.71
+    },
+    "AL": {
+        "name": "Albania",
+        "lat": 41.15,
+        "lng": 20.17
+    },
+    "DZ": {
+        "name": "Algeria",
+        "lat": 28.03,
+        "lng": 1.66
+    },
+    "AR": {
+        "name": "Argentina",
+        "lat": -38.42,
+        "lng": -63.62
+    },
+    "AU": {
+        "name": "Australia",
+        "lat": -25.27,
+        "lng": 133.78
+    },
+    "AT": {
+        "name": "Austria",
+        "lat": 47.52,
+        "lng": 14.55
+    },
+    "BD": {
+        "name": "Bangladesh",
+        "lat": 23.68,
+        "lng": 90.36
+    },
+    "BE": {
+        "name": "Belgium",
+        "lat": 50.50,
+        "lng": 4.47
+    },
+    "BR": {
+        "name": "Brazil",
+        "lat": -14.24,
+        "lng": -51.93
+    },
+    "CA": {
+        "name": "Canada",
+        "lat": 56.13,
+        "lng": -106.35
+    },
+    "CD": {
+        "name": "Democratic Republic of the Congo",
+        "lat": -4.04,
+        "lng": 21.76
+    },
+    "CL": {
+        "name": "Chile",
+        "lat": -35.68,
+        "lng": -71.54
+    },
+    "CN": {
+        "name": "China",
+        "lat": 35.86,
+        "lng": 104.20
+    },
+    "CO": {
+        "name": "Colombia",
+        "lat": 4.57,
+        "lng": -74.30
+    },
+    "CZ": {
+        "name": "Czech Republic",
+        "lat": 49.82,
+        "lng": 15.47
+    },
+    "DE": {
+        "name": "Germany",
+        "lat": 51.17,
+        "lng": 10.45
+    },
+    "DK": {
+        "name": "Denmark",
+        "lat": 56.26,
+        "lng": 9.50
+    },
+    "EG": {
+        "name": "Egypt",
+        "lat": 26.82,
+        "lng": 30.80
+    },
+    "ES": {
+        "name": "Spain",
+        "lat": 40.46,
+        "lng": -3.75
+    },
+    "ET": {
+        "name": "Ethiopia",
+        "lat": 9.15,
+        "lng": 40.49
+    },
+    "FI": {
+        "name": "Finland",
+        "lat": 61.92,
+        "lng": 25.75
+    },
+    "FR": {
+        "name": "France",
+        "lat": 46.23,
+        "lng": 2.21
+    },
+    "GB": {
+        "name": "United Kingdom",
+        "lat": 55.38,
+        "lng": -3.44
+    },
+    "GR": {
+        "name": "Greece",
+        "lat": 39.07,
+        "lng": 21.82
+    },
+    "HK": {
+        "name": "Hong Kong",
+        "lat": 22.40,
+        "lng": 114.11
+    },
+    "HU": {
+        "name": "Hungary",
+        "lat": 47.16,
+        "lng": 19.50
+    },
+    "ID": {
+        "name": "Indonesia",
+        "lat": -0.79,
+        "lng": 113.92
+    },
+    "IE": {
+        "name": "Ireland",
+        "lat": 53.14,
+        "lng": -7.69
+    },
+    "IL": {
+        "name": "Israel",
+        "lat": 31.05,
+        "lng": 34.85
+    },
+    "IN": {
+        "name": "India",
+        "lat": 20.59,
+        "lng": 78.96
+    },
+    "IQ": {
+        "name": "Iraq",
+        "lat": 33.22,
+        "lng": 43.68
+    },
+    "IR": {
+        "name": "Iran",
+        "lat": 32.43,
+        "lng": 53.69
+    },
+    "IT": {
+        "name": "Italy",
+        "lat": 41.87,
+        "lng": 12.57
+    },
+    "JP": {
+        "name": "Japan",
+        "lat": 36.20,
+        "lng": 138.25
+    },
+    "KE": {
+        "name": "Kenya",
+        "lat": -0.02,
+        "lng": 37.91
+    },
+    "KR": {
+        "name": "South Korea",
+        "lat": 35.91,
+        "lng": 127.77
+    },
+    "MX": {
+        "name": "Mexico",
+        "lat": 23.63,
+        "lng": -102.55
+    },
+    "MY": {
+        "name": "Malaysia",
+        "lat": 4.21,
+        "lng": 101.98
+    },
+    "NG": {
+        "name": "Nigeria",
+        "lat": 9.08,
+        "lng": 8.68
+    },
+    "NL": {
+        "name": "Netherlands",
+        "lat": 52.13,
+        "lng": 5.29
+    },
+    "NO": {
+        "name": "Norway",
+        "lat": 60.47,
+        "lng": 8.47
+    },
+    "NZ": {
+        "name": "New Zealand",
+        "lat": -40.90,
+        "lng": 174.89
+    },
+    "PH": {
+        "name": "Philippines",
+        "lat": 12.88,
+        "lng": 121.77
+    },
+    "PK": {
+        "name": "Pakistan",
+        "lat": 30.38,
+        "lng": 69.35
+    },
+    "PL": {
+        "name": "Poland",
+        "lat": 51.92,
+        "lng": 19.15
+    },
+    "PT": {
+        "name": "Portugal",
+        "lat": 39.40,
+        "lng": -8.22
+    },
+    "QA": {
+        "name": "Qatar",
+        "lat": 25.35,
+        "lng": 51.18
+    },
+    "RO": {
+        "name": "Romania",
+        "lat": 45.94,
+        "lng": 24.97
+    },
+    "RU": {
+        "name": "Russia",
+        "lat": 61.52,
+        "lng": 105.32
+    },
+    "SA": {
+        "name": "Saudi Arabia",
+        "lat": 23.89,
+        "lng": 45.08
+    },
+    "SE": {
+        "name": "Sweden",
+        "lat": 60.13,
+        "lng": 18.64
+    },
+    "SG": {
+        "name": "Singapore",
+        "lat": 1.35,
+        "lng": 103.82
+    },
+    "TH": {
+        "name": "Thailand",
+        "lat": 15.87,
+        "lng": 100.99
+    },
+    "TR": {
+        "name": "Turkey",
+        "lat": 38.96,
+        "lng": 35.24
+    },
+    "TW": {
+        "name": "Taiwan",
+        "lat": 23.70,
+        "lng": 120.96
+    },
+    "UA": {
+        "name": "Ukraine",
+        "lat": 48.38,
+        "lng": 31.17
+    },
+    "US": {
+        "name": "United States",
+        "lat": 37.09,
+        "lng": -95.71
+    },
+    "VN": {
+        "name": "Vietnam",
+        "lat": 14.06,
+        "lng": 108.28
+    },
+    "ZA": {
+        "name": "South Africa",
+        "lat": -30.56,
+        "lng": 22.94
+    },
+    "International": {
+        "name": "International",
+        "lat": 0.00,
+        "lng": 0.00
+    }
+}

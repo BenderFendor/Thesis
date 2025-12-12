@@ -1,7 +1,7 @@
 "use client";
 
 import { useInfiniteQuery, useQueryClient } from "@tanstack/react-query";
-import { useCallback, useMemo } from "react";
+import { useCallback, useMemo, useEffect } from "react";
 import {
   fetchNewsPaginated,
   fetchCachedNewsPaginated,
@@ -14,6 +14,7 @@ interface UsePaginatedNewsOptions {
   limit?: number;
   category?: string;
   source?: string;
+  sources?: string[];  // NEW: Multi-source selection
   search?: string;
   useCached?: boolean;
   enabled?: boolean;
@@ -27,6 +28,7 @@ interface UsePaginatedNewsReturn {
   hasNextPage: boolean;
   fetchNextPage: () => void;
   refetch: () => void;
+  invalidate: () => void;  // NEW: Explicit invalidation
   error: Error | null;
 }
 
@@ -37,6 +39,7 @@ export function usePaginatedNews(
     limit = 50,
     category,
     source,
+    sources,
     search,
     useCached = true,
     enabled = true,
@@ -44,10 +47,21 @@ export function usePaginatedNews(
 
   const queryClient = useQueryClient();
 
-  // Build query key from options
+  // Build query key from ALL filter options for proper cache management
+  // When filters change, React Query will refetch with new filters
   const queryKey = useMemo(
-    () => ["news", "paginated", { category, source, search, useCached }],
-    [category, source, search, useCached]
+    () => [
+      "news",
+      "paginated",
+      {
+        category: category || null,
+        source: source || null,
+        sources: sources?.length ? sources.sort().join(",") : null,
+        search: search || null,
+        useCached,
+      },
+    ],
+    [category, source, sources, search, useCached]
   );
 
   const {
@@ -62,12 +76,19 @@ export function usePaginatedNews(
   } = useInfiniteQuery<PaginatedResponse, Error>({
     queryKey,
     queryFn: async ({ pageParam }) => {
-      const params: PaginationParams & { offset?: number } = {
+      // Build params with multi-source support
+      const params: PaginationParams & { offset?: number; sources?: string } = {
         limit,
         category,
-        source,
         search,
       };
+
+      // Use sources array if provided, otherwise fall back to single source
+      if (sources?.length) {
+        params.sources = sources.join(",");
+      } else if (source) {
+        params.source = source;
+      }
 
       if (useCached) {
         // Offset-based pagination for cached endpoint
@@ -114,6 +135,11 @@ export function usePaginatedNews(
     }
   }, [hasNextPage, isFetchingNextPage, fetchNextPage]);
 
+  // Invalidate all news queries (used when SSE signals new content)
+  const invalidate = useCallback(() => {
+    queryClient.invalidateQueries({ queryKey: ["news"] });
+  }, [queryClient]);
+
   return {
     articles,
     totalCount,
@@ -122,6 +148,7 @@ export function usePaginatedNews(
     hasNextPage: hasNextPage ?? false,
     fetchNextPage: handleFetchNextPage,
     refetch,
+    invalidate,
     error: error ?? null,
   };
 }

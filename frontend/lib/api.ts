@@ -125,33 +125,33 @@ export async function fetchNews(params?: {
   try {
     const searchParams = new URLSearchParams();
     searchParams.append('use_cache', 'true'); // Use cache by default
-    
+
     if (params?.limit) searchParams.append('limit', params.limit.toString());
     if (params?.category) searchParams.append('category', params.category);
 
     const url = `${API_BASE_URL}/news/stream${searchParams.toString() ? '?' + searchParams.toString() : ''}`;
     console.log(`🔄 Fetching news from unified endpoint: ${url}`);
     const response = await fetch(url);
-    
+
     if (!response.ok) {
       throw new Error(`HTTP error! status: ${response.status}`);
     }
-    
+
     const data = await response.json();
     console.log(`📡 Backend response:`, data);
-    
+
     // Backend returns { articles: [...], total: number, sources: [...], stream_id: string }
     let articles = data.articles || [];
-    
+
     if (articles.length === 0) {
       console.log(`⚠️ No articles received from backend. Full response:`, JSON.stringify(data, null, 2));
     } else {
       console.log(`✅ Received ${articles.length} articles from unified backend endpoint`);
     }
-    
+
     // Convert backend format to frontend format
     articles = mapBackendArticles(articles);
-    
+
     // Client-side search filtering if needed
     if (params?.search) {
       const searchTerm = params.search.toLowerCase();
@@ -162,7 +162,7 @@ export async function fetchNews(params?: {
       );
       console.log(`🔍 Search filter applied: ${beforeFilterCount} → ${articles.length} articles (search: "${params.search}")`);
     }
-    
+
     // Client-side category filtering if needed
     if (params?.category) {
       const beforeFilterCount = articles.length;
@@ -171,11 +171,11 @@ export async function fetchNews(params?: {
       );
       console.log(`🏷️ Category filter applied: ${beforeFilterCount} → ${articles.length} articles (category: "${params.category}")`);
     }
-    
+
     if (articles.length === 0) {
       console.log(`❌ No articles to return after processing. Params:`, params);
     }
-    
+
     return articles;
   } catch (error) {
     console.error('Failed to fetch news from unified endpoint:', error);
@@ -233,13 +233,13 @@ export async function fetchNewsByCategory(category: string): Promise<NewsArticle
 export async function fetchSources(): Promise<NewsSource[]> {
   try {
     const response = await fetch(`${API_BASE_URL}/sources`);
-    
+
     if (!response.ok) {
       throw new Error(`HTTP error! status: ${response.status}`);
     }
-    
+
     const sources = await response.json();
-    
+
     // Convert backend source format to frontend format
     return sources.map((source: any) => ({
       id: source.name.toLowerCase().replace(/\s+/g, '-'),
@@ -278,11 +278,11 @@ function mapBias(biasRating?: string): "left" | "center" | "right" {
 export async function fetchCategories(): Promise<string[]> {
   try {
     const response = await fetch(`${API_BASE_URL}/categories`);
-    
+
     if (!response.ok) {
       throw new Error(`HTTP error! status: ${response.status}`);
     }
-    
+
     const data = await response.json();
     // Backend returns { categories: [...] }
     return Array.isArray(data) ? data : (data?.categories || []);
@@ -334,11 +334,11 @@ export interface SourceStats {
 export async function fetchSourceStats(): Promise<SourceStats[]> {
   try {
     const response = await fetch(`${API_BASE_URL}/news/sources/stats`);
-    
+
     if (!response.ok) {
       throw new Error(`HTTP error! status: ${response.status}`);
     }
-    
+
     const data = await response.json();
     return data.sources || [];
   } catch (error) {
@@ -362,11 +362,11 @@ export interface CacheStatus {
 export async function fetchCacheStatus(): Promise<CacheStatus | null> {
   try {
     const response = await fetch(`${API_BASE_URL}/cache/status`);
-    
+
     if (!response.ok) {
       throw new Error(`HTTP error! status: ${response.status}`);
     }
-    
+
     return await response.json();
   } catch (error) {
     console.error('Failed to fetch cache status:', error);
@@ -613,7 +613,7 @@ export async function getArticlesByCountry(country: string): Promise<NewsArticle
   if (cachedArticles.length === 0) {
     cachedArticles = await fetchNews({ limit: 3000 }); // Get more articles for filtering
   }
-  return cachedArticles.filter(article => 
+  return cachedArticles.filter(article =>
     article.country.toLowerCase() === country.toLowerCase()
   );
 }
@@ -749,14 +749,14 @@ export async function fetchSourceDebugData(sourceName: string): Promise<SourceDe
         error: `HTTP error! status: ${response.status}`
       };
     }
-    
+
     const debugData = await response.json();
     console.log(`✅ Debug data received for ${sourceName}:`, {
       entriesCount: debugData.feed_status?.entries_count,
       cachedArticles: debugData.cached_articles?.length,
       hasError: !!debugData.error
     });
-    
+
     return debugData;
   } catch (error: any) {
     console.error('Error fetching source debug data:', error);
@@ -940,13 +940,13 @@ export async function fetchStartupMetrics(): Promise<StartupMetricsResponse> {
   const data = await response.json();
   const events: StartupEventMetric[] = Array.isArray(data?.events)
     ? data.events.map((event: any) => ({
-        name: event?.name ?? "event",
-        startedAt: event?.started_at ?? null,
-        completedAt: event?.completed_at ?? null,
-        durationSeconds: event?.duration_seconds ?? null,
-        detail: event?.detail ?? null,
-        metadata: event?.metadata ?? {},
-      }))
+      name: event?.name ?? "event",
+      startedAt: event?.started_at ?? null,
+      completedAt: event?.completed_at ?? null,
+      durationSeconds: event?.duration_seconds ?? null,
+      detail: event?.detail ?? null,
+      metadata: event?.metadata ?? {},
+    }))
     : [];
 
   return {
@@ -1533,11 +1533,11 @@ function removeDuplicateArticles(articles: NewsArticle[]): NewsArticle[] {
 export async function fetchStreamStatus(): Promise<any> {
   try {
     const response = await fetch(`${API_BASE_URL}/debug/streams`);
-    
+
     if (!response.ok) {
       throw new Error(`HTTP error! status: ${response.status}`);
     }
-    
+
     const data = await response.json();
     console.log('📊 Stream status:', data);
     return data;
@@ -1587,7 +1587,7 @@ export interface ArticleAnalysis {
   fact_check_suggestions?: string[];
   fact_check_results?: FactCheckResult[];
   grounding_metadata?: {
-    grounding_chunks?: Array<{uri?: string; title?: string}>;
+    grounding_chunks?: Array<{ uri?: string; title?: string }>;
     grounding_supports?: any[];
     web_search_queries?: string[];
   };
@@ -1609,11 +1609,11 @@ export async function analyzeArticle(url: string, sourceName?: string): Promise<
         source_name: sourceName
       })
     });
-    
+
     if (!response.ok) {
       throw new Error(`HTTP error! status: ${response.status}`);
     }
-    
+
     const data = await response.json();
     console.log('✅ Article analysis complete:', data);
     return data;
@@ -1642,7 +1642,7 @@ export interface NewsResearchResponse {
 
 // Perform news research using the AI agent
 export async function performNewsResearch(
-  query: string, 
+  query: string,
   includeThinking: boolean = true
 ): Promise<NewsResearchResponse> {
   try {
@@ -1657,11 +1657,11 @@ export async function performNewsResearch(
         include_thinking: includeThinking
       })
     });
-    
+
     if (!response.ok) {
       throw new Error(`HTTP error! status: ${response.status}`);
     }
-    
+
     const data = await response.json();
     console.log('✅ News research complete:', data);
     return data;
@@ -2074,6 +2074,7 @@ export interface PaginationParams {
   cursor?: string;
   category?: string;
   source?: string;
+  sources?: string;  // Comma-separated source names for multi-select
   search?: string;
 }
 
@@ -2087,12 +2088,17 @@ export async function fetchNewsPaginated(
   if (params.limit) searchParams.append("limit", params.limit.toString());
   if (params.cursor) searchParams.append("cursor", params.cursor);
   if (params.category) searchParams.append("category", params.category);
-  if (params.source) searchParams.append("source", params.source);
+  // Support both single source and multi-source
+  if (params.sources) {
+    searchParams.append("sources", params.sources);
+  } else if (params.source) {
+    searchParams.append("source", params.source);
+  }
   if (params.search) searchParams.append("search", params.search);
 
   const url = `${API_BASE_URL}/news/page${searchParams.toString() ? "?" + searchParams.toString() : ""}`;
 
-  console.log(`📄 Fetching paginated news: ${url}`);
+  console.log(`[Pagination] Fetching paginated news: ${url}`);
 
   const response = await fetch(url);
 
@@ -2124,7 +2130,12 @@ export async function fetchCachedNewsPaginated(
   if (params.offset !== undefined)
     searchParams.append("offset", params.offset.toString());
   if (params.category) searchParams.append("category", params.category);
-  if (params.source) searchParams.append("source", params.source);
+  // Support both single source and multi-source
+  if (params.sources) {
+    searchParams.append("sources", params.sources);
+  } else if (params.source) {
+    searchParams.append("source", params.source);
+  }
   if (params.search) searchParams.append("search", params.search);
 
   const url = `${API_BASE_URL}/news/page/cached${searchParams.toString() ? "?" + searchParams.toString() : ""}`;
@@ -2145,5 +2156,106 @@ export async function fetchCachedNewsPaginated(
     next_cursor: data.next_cursor,
     prev_cursor: null,
     has_more: data.has_more,
+  };
+}
+
+// --- Country/Globe API Functions ---
+
+export interface CountryArticleCounts {
+  counts: Record<string, number>;
+  total_articles: number;
+  articles_with_country: number;
+  articles_without_country: number;
+  country_count: number;
+}
+
+export interface CountryGeoData {
+  countries: Record<string, { name: string; lat: number; lng: number }>;
+  total: number;
+}
+
+export interface CountryListItem {
+  code: string;
+  article_count: number;
+  latest_article: string | null;
+}
+
+export interface CountryListResponse {
+  countries: CountryListItem[];
+  total_countries: number;
+}
+
+export interface LocalLensResponse {
+  country_code: string;
+  view: "internal" | "external";
+  view_description: string;
+  total: number;
+  limit: number;
+  offset: number;
+  returned: number;
+  has_more: boolean;
+  articles: NewsArticle[];
+}
+
+/**
+ * Get article counts grouped by country for globe heatmap
+ */
+export async function fetchArticleCountsByCountry(): Promise<CountryArticleCounts> {
+  const response = await fetch(`${API_BASE_URL}/news/by-country`);
+  if (!response.ok) {
+    throw new Error(`HTTP error! status: ${response.status}`);
+  }
+  return response.json();
+}
+
+/**
+ * Get static country geographic data for globe markers
+ */
+export async function fetchCountryGeoData(): Promise<CountryGeoData> {
+  const response = await fetch(`${API_BASE_URL}/news/countries/geo`);
+  if (!response.ok) {
+    throw new Error(`HTTP error! status: ${response.status}`);
+  }
+  return response.json();
+}
+
+/**
+ * Get list of countries with article counts
+ */
+export async function fetchCountryList(): Promise<CountryListResponse> {
+  const response = await fetch(`${API_BASE_URL}/news/countries/list`);
+  if (!response.ok) {
+    throw new Error(`HTTP error! status: ${response.status}`);
+  }
+  return response.json();
+}
+
+/**
+ * Local Lens: Get news for a specific country
+ * @param code ISO country code
+ * @param view "internal" (from country) or "external" (about country)
+ */
+export async function fetchNewsForCountry(
+  code: string,
+  view: "internal" | "external" = "internal",
+  limit: number = 50,
+  offset: number = 0
+): Promise<LocalLensResponse> {
+  const params = new URLSearchParams({
+    view,
+    limit: limit.toString(),
+    offset: offset.toString(),
+  });
+
+  const response = await fetch(`${API_BASE_URL}/news/country/${code}?${params}`);
+  if (!response.ok) {
+    throw new Error(`HTTP error! status: ${response.status}`);
+  }
+
+  const data = await response.json();
+
+  return {
+    ...data,
+    articles: mapBackendArticles(data.articles || []),
   };
 }

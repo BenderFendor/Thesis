@@ -915,7 +915,22 @@ async def _broadcast_cache_update(total_articles: int, source_count: int) -> Non
             }
         )
     except Exception as exc:
-        logger.error("Failed to notify clients: %s", exc)
+        logger.error("Failed to notify clients via WebSocket: %s", exc)
+    
+    # Also broadcast to lightweight SSE updates stream
+    try:
+        from app.api.routes.updates import broadcast_update
+        import asyncio
+        asyncio.create_task(broadcast_update(
+            "invalidate",
+            {
+                "reason": "cache_refresh_complete",
+                "total_articles": total_articles,
+                "sources_processed": source_count,
+            }
+        ))
+    except Exception as exc:
+        logger.error("Failed to notify updates stream: %s", exc)
 
 
 def refresh_news_cache(

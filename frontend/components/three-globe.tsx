@@ -5,31 +5,79 @@ import * as THREE from "three"
 import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js"
 import { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js"
 
-interface ThreeGlobeProps {
-  onCountrySelect: (country: string | null) => void
-  selectedCountry: string | null
+interface CountryData {
+  code: string
+  name: string
+  lat: number
+  lng: number
+  articleCount?: number
 }
 
-const countries = [
-  { name: "United States", lat: 39.8283, lng: -98.5795 },
-  { name: "United Kingdom", lat: 55.3781, lng: -3.436 },
-  { name: "Germany", lat: 51.1657, lng: 10.4515 },
-  { name: "France", lat: 46.2276, lng: 2.2137 },
-  { name: "Japan", lat: 36.2048, lng: 138.2529 },
-  { name: "Australia", lat: -25.2744, lng: 133.7751 },
-  { name: "Brazil", lat: -14.235, lng: -51.9253 },
-  { name: "India", lat: 20.5937, lng: 78.9629 },
-  { name: "China", lat: 35.8617, lng: 104.1954 },
-  { name: "Russia", lat: 61.524, lng: 105.3188 },
+interface ThreeGlobeProps {
+  onCountrySelect: (countryCode: string | null) => void
+  selectedCountry: string | null
+  // Dynamic country data with article counts (optional)
+  countryData?: CountryData[]
+  // Article counts by country code for intensity mapping
+  intensityData?: Record<string, number>
+}
+
+// Default countries for fallback
+const defaultCountries: CountryData[] = [
+  { code: "US", name: "United States", lat: 39.8283, lng: -98.5795 },
+  { code: "GB", name: "United Kingdom", lat: 55.3781, lng: -3.436 },
+  { code: "DE", name: "Germany", lat: 51.1657, lng: 10.4515 },
+  { code: "FR", name: "France", lat: 46.2276, lng: 2.2137 },
+  { code: "JP", name: "Japan", lat: 36.2048, lng: 138.2529 },
+  { code: "AU", name: "Australia", lat: -25.2744, lng: 133.7751 },
+  { code: "BR", name: "Brazil", lat: -14.235, lng: -51.9253 },
+  { code: "IN", name: "India", lat: 20.5937, lng: 78.9629 },
+  { code: "CN", name: "China", lat: 35.8617, lng: 104.1954 },
+  { code: "RU", name: "Russia", lat: 61.524, lng: 105.3188 },
 ]
 
-export function ThreeGlobe({ onCountrySelect, selectedCountry }: ThreeGlobeProps) {
+// Helper to calculate marker size based on article count
+function getMarkerSize(count: number, maxCount: number): number {
+  if (!count || !maxCount) return 0.02
+  const normalized = Math.min(count / maxCount, 1)
+  // Scale from 0.02 (min) to 0.06 (max)
+  return 0.02 + normalized * 0.04
+}
+
+// Helper to calculate marker color based on intensity
+function getMarkerColor(count: number, maxCount: number, isSelected: boolean): number {
+  if (isSelected) return 0x10b981 // emerald for selected
+  if (!count || !maxCount) return 0x059669
+
+  const normalized = Math.min(count / maxCount, 1)
+  // Gradient from green (low) to yellow (medium) to red (high)
+  if (normalized < 0.33) {
+    return 0x059669 // green
+  } else if (normalized < 0.66) {
+    return 0xf59e0b // amber
+  } else {
+    return 0xef4444 // red
+  }
+}
+
+export function ThreeGlobe({
+  onCountrySelect,
+  selectedCountry,
+  countryData,
+  intensityData = {},
+}: ThreeGlobeProps) {
   const mountRef = useRef<HTMLDivElement>(null)
   const sceneRef = useRef<THREE.Scene>()
   const rendererRef = useRef<THREE.WebGLRenderer>()
   const globeRef = useRef<THREE.Object3D>()
   const markersRef = useRef<THREE.Group>()
   const [isLoaded, setIsLoaded] = useState(false)
+
+  // Use provided country data or fallback to defaults
+  const countries = countryData || defaultCountries
+
+  // Calculate max article count for normalization
+  const maxCount = Object.values(intensityData).reduce((max, v) => Math.max(max, v), 1)
 
   useEffect(() => {
     if (!mountRef.current) return
@@ -106,18 +154,27 @@ export function ThreeGlobe({ onCountrySelect, selectedCountry }: ThreeGlobeProps
       const y = 1.02 * Math.cos(phi)
       const z = 1.02 * Math.sin(phi) * Math.sin(theta)
 
-      // Create marker
-      const markerGeometry = new THREE.SphereGeometry(0.02, 8, 8)
-      const markerMaterial = new THREE.MeshBasicMaterial({
-        color: selectedCountry === country.name ? 0x10b981 : 0x059669,
-      })
+      // Get article count for this country (use code)
+      const articleCount = intensityData[country.code] || 0
+      const isSelected = selectedCountry === country.code
+
+      // Create marker with intensity-based size
+      const markerSize = getMarkerSize(articleCount, maxCount)
+      const markerColor = getMarkerColor(articleCount, maxCount, isSelected)
+
+      const markerGeometry = new THREE.SphereGeometry(markerSize, 8, 8)
+      const markerMaterial = new THREE.MeshBasicMaterial({ color: markerColor })
       const marker = new THREE.Mesh(markerGeometry, markerMaterial)
       marker.position.set(x, y, z)
-      marker.userData = { country: country.name }
+      marker.userData = {
+        countryCode: country.code,
+        countryName: country.name,
+        articleCount,
+      }
 
       // Add glow effect for selected country
-      if (selectedCountry === country.name) {
-        const glowGeometry = new THREE.SphereGeometry(0.04, 8, 8)
+      if (isSelected) {
+        const glowGeometry = new THREE.SphereGeometry(markerSize * 2, 8, 8)
         const glowMaterial = new THREE.MeshBasicMaterial({
           color: 0x10b981,
           transparent: true,
@@ -157,8 +214,10 @@ export function ThreeGlobe({ onCountrySelect, selectedCountry }: ThreeGlobeProps
 
       if (intersects.length > 0) {
         const clickedMarker = intersects[0].object
-        const countryName = clickedMarker.userData.country
-        onCountrySelect(selectedCountry === countryName ? null : countryName)
+        const countryCode = clickedMarker.userData.countryCode
+        if (countryCode) {
+          onCountrySelect(selectedCountry === countryCode ? null : countryCode)
+        }
       }
     }
 
@@ -186,7 +245,7 @@ export function ThreeGlobe({ onCountrySelect, selectedCountry }: ThreeGlobeProps
     }
   }, [])
 
-  // Update markers when selectedCountry changes
+  // Update markers when selectedCountry or intensityData changes
   useEffect(() => {
     if (!markersRef.current) return
 
@@ -195,7 +254,7 @@ export function ThreeGlobe({ onCountrySelect, selectedCountry }: ThreeGlobeProps
       markersRef.current.remove(markersRef.current.children[0])
     }
 
-    // Recreate markers with updated selection
+    // Recreate markers with updated selection and intensity
     countries.forEach((country) => {
       const phi = (90 - country.lat) * (Math.PI / 180)
       const theta = (country.lng + 180) * (Math.PI / 180)
@@ -204,18 +263,27 @@ export function ThreeGlobe({ onCountrySelect, selectedCountry }: ThreeGlobeProps
       const y = 1.02 * Math.cos(phi)
       const z = 1.02 * Math.sin(phi) * Math.sin(theta)
 
-      // Create marker
-      const markerGeometry = new THREE.SphereGeometry(0.02, 8, 8)
-      const markerMaterial = new THREE.MeshBasicMaterial({
-        color: selectedCountry === country.name ? 0x10b981 : 0x059669,
-      })
+      // Get article count for this country
+      const articleCount = intensityData[country.code] || 0
+      const isSelected = selectedCountry === country.code
+
+      // Create marker with intensity-based size
+      const markerSize = getMarkerSize(articleCount, maxCount)
+      const markerColor = getMarkerColor(articleCount, maxCount, isSelected)
+
+      const markerGeometry = new THREE.SphereGeometry(markerSize, 8, 8)
+      const markerMaterial = new THREE.MeshBasicMaterial({ color: markerColor })
       const marker = new THREE.Mesh(markerGeometry, markerMaterial)
       marker.position.set(x, y, z)
-      marker.userData = { country: country.name }
+      marker.userData = {
+        countryCode: country.code,
+        countryName: country.name,
+        articleCount,
+      }
 
       // Add glow effect for selected country
-      if (selectedCountry === country.name) {
-        const glowGeometry = new THREE.SphereGeometry(0.04, 8, 8)
+      if (isSelected) {
+        const glowGeometry = new THREE.SphereGeometry(markerSize * 2, 8, 8)
         const glowMaterial = new THREE.MeshBasicMaterial({
           color: 0x10b981,
           transparent: true,
@@ -228,7 +296,7 @@ export function ThreeGlobe({ onCountrySelect, selectedCountry }: ThreeGlobeProps
 
       markersRef.current?.add(marker)
     })
-  }, [selectedCountry])
+  }, [selectedCountry, intensityData, countries, maxCount])
 
   return (
     <div className="flex items-center justify-center h-full">

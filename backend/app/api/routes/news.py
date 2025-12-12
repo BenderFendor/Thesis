@@ -61,6 +61,7 @@ async def get_news_paginated(
     cursor: Optional[str] = Query(default=None),
     category: Optional[str] = Query(default=None),
     source: Optional[str] = Query(default=None),
+    sources: Optional[str] = Query(default=None, description="Comma-separated source names for multi-select"),
     search: Optional[str] = Query(default=None),
     sort_order: str = Query(default="desc"),
     db: AsyncSession = Depends(get_db),
@@ -72,6 +73,12 @@ async def get_news_paginated(
     - Consistent performance regardless of page number
     - No "skipping" issues when new data is inserted
     - Better index utilization
+
+    Supports filtering by:
+    - category: Single category filter
+    - source: Single source filter (legacy)
+    - sources: Comma-separated list for multi-source filtering
+    - search: Text search in title and summary
 
     Returns:
         PaginatedResponse with articles, cursors, and metadata
@@ -86,7 +93,13 @@ async def get_news_paginated(
     if category:
         filters.append(Article.category == category)
 
-    if source:
+    # Multi-source filter (comma-separated)
+    if sources:
+        source_list = [s.strip() for s in sources.split(",") if s.strip()]
+        if source_list:
+            filters.append(Article.source.in_(source_list))
+    elif source:
+        # Legacy single source filter
         filters.append(Article.source == source)
 
     if search:
