@@ -25,6 +25,7 @@ interface OrganizationPanelProps {
     website?: string
     onClose?: () => void
     showOwnershipChain?: boolean
+    compact?: boolean
 }
 
 const FUNDING_TYPE_COLORS: Record<string, string> = {
@@ -61,10 +62,13 @@ export function OrganizationPanel({
     organizationName,
     website,
     onClose,
-    showOwnershipChain = true
+    showOwnershipChain = true,
+    compact = false
 }: OrganizationPanelProps) {
     const [forceRefresh, setForceRefresh] = useState(false)
     const [showChain, setShowChain] = useState(false)
+    const [expanded, setExpanded] = useState(!compact)
+    const [localCompact, setLocalCompact] = useState(compact)
 
     const { data: org, isLoading, error, refetch } = useQuery({
         queryKey: ["organization-research", organizationName, forceRefresh],
@@ -88,22 +92,24 @@ export function OrganizationPanel({
     if (isLoading) {
         return (
             <Card className="w-full max-w-md">
-                <CardHeader>
-                    <Skeleton className="h-6 w-3/4" />
-                </CardHeader>
-                <CardContent className="space-y-4">
-                    <Skeleton className="h-4 w-full" />
-                    <Skeleton className="h-4 w-5/6" />
-                    <div className="flex gap-2">
-                        <Skeleton className="h-6 w-20" />
-                        <Skeleton className="h-6 w-16" />
+                <CardHeader className="py-3">
+                    <div className="flex items-center gap-2">
+                        <Skeleton className="h-6 w-6 rounded-full" />
+                        <Skeleton className="h-5 w-32" />
                     </div>
-                </CardContent>
+                </CardHeader>
+                {!compact && (
+                    <CardContent className="space-y-4">
+                        <Skeleton className="h-4 w-full" />
+                        <Skeleton className="h-4 w-3/4" />
+                    </CardContent>
+                )}
             </Card>
         )
     }
 
     if (error) {
+        if (compact) return null // Don't show error card in sidebar to save space
         return (
             <Card className="w-full max-w-md border-red-500/30">
                 <CardContent className="pt-6">
@@ -126,8 +132,32 @@ export function OrganizationPanel({
     const biasColor = BIAS_COLORS[org.media_bias_rating || ""] || ""
     const factualColor = FACTUAL_COLORS[org.factual_reporting || ""] || ""
 
+    // Compact mode - just show a summary bar that expands
+    if (compact && !expanded) {
+        return (
+            <div
+                className="flex items-center gap-2 p-2 rounded-lg cursor-pointer bg-muted/50 hover:bg-muted transition-colors"
+                onClick={() => setExpanded(true)}
+            >
+                <Building2 className="h-4 w-4 text-primary" />
+                <span className="text-sm font-medium truncate flex-1">{org.name}</span>
+                {org.funding_type && (
+                    <Badge variant="outline" className="text-[10px] px-1 h-5">
+                        {org.funding_type}
+                    </Badge>
+                )}
+                {org.media_bias_rating && (
+                    <Badge variant="outline" className={`text-[10px] px-1 h-5 ${biasColor.replace('bg-', 'text-').split(' ')[0]}`}>
+                        {org.media_bias_rating}
+                    </Badge>
+                )}
+                <ChevronRight className="h-4 w-4 text-muted-foreground" />
+            </div>
+        )
+    }
+
     return (
-        <Card className="w-full max-w-md">
+        <Card className="w-full">
             <CardHeader className="pb-3">
                 <div className="flex items-start justify-between">
                     <div className="flex items-center gap-3">
@@ -135,20 +165,26 @@ export function OrganizationPanel({
                             <Building2 className="h-5 w-5 text-primary" />
                         </div>
                         <div>
-                            <CardTitle className="text-lg">{org.name}</CardTitle>
+                            <CardTitle className="text-lg leading-tight">{org.name}</CardTitle>
                             {org.parent_org && (
-                                <p className="text-sm text-muted-foreground">
-                                    Owned by {org.parent_org}
+                                <p className="text-xs text-muted-foreground mt-1">
+                                    Owned by: {org.parent_org}
                                 </p>
                             )}
                         </div>
                     </div>
                     <div className="flex items-center gap-1">
-                        <Button variant="ghost" size="icon" onClick={handleRefresh} title="Refresh">
-                            <RefreshCw className="h-4 w-4" />
+                        <Button variant="ghost" size="icon" onClick={handleRefresh} title="Refresh" className="h-8 w-8">
+                            <RefreshCw className="h-3 w-3" />
                         </Button>
-                        {onClose && (
-                            <Button variant="ghost" size="icon" onClick={onClose}>
+                        {compact && (
+                            <Button variant="ghost" size="icon" onClick={() => setExpanded(false)} className="h-8 w-8">
+                                <span className="sr-only">Collapse</span>
+                                <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="h-4 w-4"><path d="m18 15-6-6-6 6" /></svg>
+                            </Button>
+                        )}
+                        {onClose && !compact && (
+                            <Button variant="ghost" size="icon" onClick={onClose} className="h-8 w-8">
                                 x
                             </Button>
                         )}
@@ -161,6 +197,7 @@ export function OrganizationPanel({
                 {org.funding_type && (
                     <div className="flex items-center gap-2">
                         <DollarSign className="h-4 w-4 text-muted-foreground" />
+                        <span className="text-sm font-medium">Funding:</span>
                         <Badge className={fundingColor}>
                             {org.funding_type}
                         </Badge>
@@ -183,16 +220,17 @@ export function OrganizationPanel({
 
                 {/* Financial Info */}
                 {org.annual_revenue && (
-                    <div className="text-sm">
-                        <span className="text-muted-foreground">Annual Revenue: </span>
-                        <span>${Number(org.annual_revenue).toLocaleString()}</span>
-                    </div>
-                )}
-
-                {/* EIN for non-profits */}
-                {org.ein && (
-                    <div className="text-sm text-muted-foreground">
-                        EIN: {org.ein} (Non-profit)
+                    <div className="text-sm border-t border-border pt-2">
+                        <div className="flex justify-between">
+                            <span className="text-muted-foreground">Revenue:</span>
+                            <span className="font-medium">${Number(org.annual_revenue).toLocaleString()}</span>
+                        </div>
+                        {org.ein && (
+                            <div className="flex justify-between mt-1">
+                                <span className="text-muted-foreground">EIN:</span>
+                                <span className="font-mono text-xs">{org.ein}</span>
+                            </div>
+                        )}
                     </div>
                 )}
 
@@ -201,10 +239,10 @@ export function OrganizationPanel({
                     <Button
                         variant="outline"
                         size="sm"
-                        className="w-full"
+                        className="w-full text-xs h-8"
                         onClick={() => setShowChain(!showChain)}
                     >
-                        <Users className="h-4 w-4 mr-2" />
+                        <Users className="h-3 w-3 mr-2" />
                         {showChain ? "Hide" : "Show"} Ownership Chain
                     </Button>
                 )}
@@ -212,25 +250,20 @@ export function OrganizationPanel({
                 {/* Ownership Chain */}
                 {showChain && ownershipChain && (
                     <div className="pt-2 border-t border-border">
-                        <p className="text-xs text-muted-foreground mb-2">Ownership Chain</p>
+                        <p className="text-xs text-muted-foreground mb-2">Ownership Structure</p>
                         {chainLoading ? (
                             <div className="space-y-2">
                                 <Skeleton className="h-4 w-full" />
                                 <Skeleton className="h-4 w-3/4" />
                             </div>
                         ) : (
-                            <div className="space-y-1">
+                            <div className="space-y-1 pl-1 border-l-2 border-primary/20">
                                 {ownershipChain.chain.map((link, i) => (
                                     <div key={i} className="flex items-center gap-2 text-sm">
                                         {i > 0 && <ChevronRight className="h-3 w-3 text-muted-foreground" />}
-                                        <span className={i === 0 ? "font-medium" : ""}>
+                                        <span className={i === 0 ? "font-semibold text-primary" : ""}>
                                             {link.name}
                                         </span>
-                                        {link.funding_type && (
-                                            <Badge variant="outline" className="text-xs">
-                                                {link.funding_type}
-                                            </Badge>
-                                        )}
                                     </div>
                                 ))}
                             </div>
@@ -245,9 +278,9 @@ export function OrganizationPanel({
                             href={org.wikipedia_url}
                             target="_blank"
                             rel="noopener noreferrer"
-                            className="p-2 hover:bg-muted rounded-md transition-colors flex items-center gap-1 text-sm"
+                            className="p-1 px-2 hover:bg-muted rounded-md transition-colors flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground"
                         >
-                            <Globe className="h-4 w-4" />
+                            <Globe className="h-3 w-3" />
                             Wikipedia
                         </a>
                     )}
@@ -256,24 +289,12 @@ export function OrganizationPanel({
                             href={website}
                             target="_blank"
                             rel="noopener noreferrer"
-                            className="p-2 hover:bg-muted rounded-md transition-colors flex items-center gap-1 text-sm"
+                            className="p-1 px-2 hover:bg-muted rounded-md transition-colors flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground"
                         >
-                            <ExternalLink className="h-4 w-4" />
+                            <ExternalLink className="h-3 w-3" />
                             Website
                         </a>
                     )}
-                </div>
-
-                {/* Research Metadata */}
-                <div className="text-xs text-muted-foreground flex items-center justify-between pt-2 border-t border-border">
-                    <span className="flex items-center gap-1">
-                        <ConfidenceIcon className="h-3 w-3" />
-                        {org.research_confidence || "unknown"} confidence
-                    </span>
-                    <span>
-                        {org.cached ? "Cached" : "Fresh"} |
-                        Sources: {org.research_sources?.join(", ") || "none"}
-                    </span>
                 </div>
             </CardContent>
         </Card>

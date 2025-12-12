@@ -54,6 +54,10 @@ export interface NewsArticle {
   tags: string[]
   originalLanguage: string
   translated: boolean
+  // Phase 5 Fields
+  source_country?: string
+  mentioned_countries?: string[]
+  author?: string
   // Preloaded queue data
   _queueData?: {
     fullText?: string

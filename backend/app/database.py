@@ -344,6 +344,10 @@ def article_record_to_dict(record: Article) -> Dict[str, Any]:
         "embedding_generated": record.embedding_generated,
         "created_at": record.created_at.isoformat() if record.created_at else None,
         "updated_at": record.updated_at.isoformat() if record.updated_at else None,
+        # Phase 5 Fields
+        "source_country": record.source_country,
+        "mentioned_countries": record.mentioned_countries or [],
+        # "author": record.authors[0].name if record.authors else None, # Future: support multiple authors
     }
 
 

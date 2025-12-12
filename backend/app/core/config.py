@@ -65,3 +65,10 @@ def create_openai_client(logger) -> Optional[OpenAI]:
     except Exception as e:
         logger.error(f"❌ Failed to initialize OpenRouter client: {e}")
         return None
+
+
+def get_openai_client() -> Optional[OpenAI]:
+    """Helper to get OpenAI client with a default logger."""
+    import logging
+    logger = logging.getLogger("app.core.config")
+    return create_openai_client(logger)

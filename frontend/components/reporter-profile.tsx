@@ -23,7 +23,10 @@ interface ReporterProfilePanelProps {
     organization?: string
     articleContext?: string
     onClose?: () => void
+    compact?: boolean
 }
+
+// ... existing constants ...
 
 const LEANING_COLORS: Record<string, string> = {
     "left": "bg-blue-500/20 text-blue-400 border-blue-500/30",
@@ -43,9 +46,11 @@ export function ReporterProfilePanel({
     reporterName,
     organization,
     articleContext,
-    onClose
+    onClose,
+    compact = false
 }: ReporterProfilePanelProps) {
     const [forceRefresh, setForceRefresh] = useState(false)
+    const [expanded, setExpanded] = useState(!compact)
 
     const { data: profile, isLoading, error, refetch } = useQuery({
         queryKey: ["reporter-profile", reporterName, organization, forceRefresh],
@@ -62,23 +67,29 @@ export function ReporterProfilePanel({
     if (isLoading) {
         return (
             <Card className="w-full max-w-md">
-                <CardHeader>
-                    <Skeleton className="h-6 w-3/4" />
-                </CardHeader>
-                <CardContent className="space-y-4">
-                    <Skeleton className="h-4 w-full" />
-                    <Skeleton className="h-4 w-5/6" />
-                    <Skeleton className="h-4 w-4/6" />
-                    <div className="flex gap-2">
-                        <Skeleton className="h-6 w-16" />
-                        <Skeleton className="h-6 w-20" />
+                <CardHeader className="py-3">
+                    <div className="flex items-center gap-2">
+                        <Skeleton className="h-6 w-6 rounded-full" />
+                        <Skeleton className="h-5 w-32" />
                     </div>
-                </CardContent>
+                </CardHeader>
+                {!compact && (
+                    <CardContent className="space-y-4">
+                        <Skeleton className="h-4 w-full" />
+                        <Skeleton className="h-4 w-5/6" />
+                        <Skeleton className="h-4 w-4/6" />
+                        <div className="flex gap-2">
+                            <Skeleton className="h-6 w-16" />
+                            <Skeleton className="h-6 w-20" />
+                        </div>
+                    </CardContent>
+                )}
             </Card>
         )
     }
 
     if (error) {
+        if (compact) return null
         return (
             <Card className="w-full max-w-md border-red-500/30">
                 <CardContent className="pt-6">
@@ -99,6 +110,29 @@ export function ReporterProfilePanel({
     const ConfidenceIcon = CONFIDENCE_ICONS[profile.research_confidence || "low"] || HelpCircle
     const leaningColor = LEANING_COLORS[profile.political_leaning || ""] || LEANING_COLORS["center"]
 
+    // Compact mode - just show a summary bar that expands
+    if (compact && !expanded) {
+        return (
+            <div
+                className="flex items-center gap-2 p-2 rounded-lg cursor-pointer bg-muted/50 hover:bg-muted transition-colors"
+                onClick={() => setExpanded(true)}
+            >
+                <User className="h-4 w-4 text-primary" />
+                <span className="text-sm font-medium truncate flex-1">{profile.name}</span>
+                {profile.topics && profile.topics.length > 0 && (
+                    <Badge variant="outline" className="text-[10px] px-1 h-5 max-w-[80px] truncate">
+                        {profile.topics[0]}
+                    </Badge>
+                )}
+                {profile.political_leaning && (
+                    <Badge variant="outline" className={`text-[10px] px-1 h-5 ${leaningColor.replace('bg-', 'text-').split(' ')[0]}`}>
+                        {profile.political_leaning}
+                    </Badge>
+                )}
+            </div>
+        )
+    }
+
     return (
         <Card className="w-full max-w-md">
             <CardHeader className="pb-3">
@@ -118,7 +152,13 @@ export function ReporterProfilePanel({
                         <Button variant="ghost" size="icon" onClick={handleRefresh} title="Refresh profile">
                             <RefreshCw className="h-4 w-4" />
                         </Button>
-                        {onClose && (
+                        {compact && (
+                            <Button variant="ghost" size="icon" onClick={() => setExpanded(false)} className="h-8 w-8">
+                                <span className="sr-only">Collapse</span>
+                                <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="h-4 w-4"><path d="m18 15-6-6-6 6" /></svg>
+                            </Button>
+                        )}
+                        {onClose && !compact && (
                             <Button variant="ghost" size="icon" onClick={onClose}>
                                 <span className="sr-only">Close</span>
                                 x
