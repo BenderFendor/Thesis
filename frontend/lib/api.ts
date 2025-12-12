@@ -2259,3 +2259,234 @@ export async function fetchNewsForCountry(
     articles: mapBackendArticles(data.articles || []),
   };
 }
+
+// ============================================
+// Phase 5B: Reporter and Organization Research
+// ============================================
+
+export interface ReporterProfile {
+  id?: number;
+  name: string;
+  normalized_name?: string;
+  bio?: string;
+  career_history?: Array<{ organization?: string; role?: string; source?: string }>;
+  topics?: string[];
+  political_leaning?: string;
+  leaning_confidence?: string;
+  twitter_handle?: string;
+  linkedin_url?: string;
+  wikipedia_url?: string;
+  research_sources?: string[];
+  research_confidence?: string;
+  cached: boolean;
+}
+
+export interface OrganizationProfile {
+  id?: number;
+  name: string;
+  normalized_name?: string;
+  org_type?: string;
+  parent_org?: string;
+  funding_type?: string;
+  funding_sources?: string[];
+  ein?: string;
+  annual_revenue?: string;
+  media_bias_rating?: string;
+  factual_reporting?: string;
+  wikipedia_url?: string;
+  research_sources?: string[];
+  research_confidence?: string;
+  cached: boolean;
+}
+
+export interface OwnershipChain {
+  organization: string;
+  chain: OrganizationProfile[];
+  depth: number;
+}
+
+/**
+ * Profile a reporter/journalist
+ */
+export async function profileReporter(
+  name: string,
+  organization?: string,
+  articleContext?: string,
+  forceRefresh: boolean = false
+): Promise<ReporterProfile> {
+  const params = forceRefresh ? "?force_refresh=true" : "";
+  const response = await fetch(`${API_BASE_URL}/research/entity/reporter/profile${params}`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      name,
+      organization,
+      article_context: articleContext,
+    }),
+  });
+
+  if (!response.ok) {
+    throw new Error(`HTTP error! status: ${response.status}`);
+  }
+
+  return response.json();
+}
+
+/**
+ * Get a cached reporter by ID
+ */
+export async function getReporter(reporterId: number): Promise<ReporterProfile> {
+  const response = await fetch(`${API_BASE_URL}/research/entity/reporter/${reporterId}`);
+  if (!response.ok) {
+    throw new Error(`HTTP error! status: ${response.status}`);
+  }
+  return response.json();
+}
+
+/**
+ * List all cached reporters
+ */
+export async function listReporters(limit: number = 50, offset: number = 0): Promise<ReporterProfile[]> {
+  const params = new URLSearchParams({ limit: limit.toString(), offset: offset.toString() });
+  const response = await fetch(`${API_BASE_URL}/research/entity/reporters?${params}`);
+  if (!response.ok) {
+    throw new Error(`HTTP error! status: ${response.status}`);
+  }
+  return response.json();
+}
+
+/**
+ * Research a news organization's funding and ownership
+ */
+export async function researchOrganization(
+  name: string,
+  website?: string,
+  forceRefresh: boolean = false
+): Promise<OrganizationProfile> {
+  const params = forceRefresh ? "?force_refresh=true" : "";
+  const response = await fetch(`${API_BASE_URL}/research/entity/organization/research${params}`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ name, website }),
+  });
+
+  if (!response.ok) {
+    throw new Error(`HTTP error! status: ${response.status}`);
+  }
+
+  return response.json();
+}
+
+/**
+ * Get a cached organization by ID
+ */
+export async function getOrganization(orgId: number): Promise<OrganizationProfile> {
+  const response = await fetch(`${API_BASE_URL}/research/entity/organization/${orgId}`);
+  if (!response.ok) {
+    throw new Error(`HTTP error! status: ${response.status}`);
+  }
+  return response.json();
+}
+
+/**
+ * Get ownership chain for an organization
+ */
+export async function getOwnershipChain(orgName: string, maxDepth: number = 5): Promise<OwnershipChain> {
+  const params = new URLSearchParams({ max_depth: maxDepth.toString() });
+  const response = await fetch(
+    `${API_BASE_URL}/research/entity/organization/${encodeURIComponent(orgName)}/ownership-chain?${params}`
+  );
+  if (!response.ok) {
+    throw new Error(`HTTP error! status: ${response.status}`);
+  }
+  return response.json();
+}
+
+/**
+ * List all cached organizations
+ */
+export async function listOrganizations(limit: number = 50, offset: number = 0): Promise<OrganizationProfile[]> {
+  const params = new URLSearchParams({ limit: limit.toString(), offset: offset.toString() });
+  const response = await fetch(`${API_BASE_URL}/research/entity/organizations?${params}`);
+  if (!response.ok) {
+    throw new Error(`HTTP error! status: ${response.status}`);
+  }
+  return response.json();
+}
+
+// ============================================
+// Phase 5C: Material Interest Analysis
+// ============================================
+
+export interface TradeRelationship {
+  country_pair: string;
+  relationship?: string;
+  key_sectors?: string[];
+  tension_areas?: string[];
+  trade_volume?: string;
+}
+
+export interface MaterialContext {
+  source: string;
+  source_country: string;
+  mentioned_countries: string[];
+  trade_relationships: TradeRelationship[];
+  known_interests: Record<string, any>;
+  potential_conflicts: string[];
+  analysis_summary?: string;
+  reader_warnings?: string[];
+  confidence?: string;
+  analyzed_at?: string;
+}
+
+export interface CountryEconomicProfile {
+  country_code: string;
+  profile: {
+    gdp?: string;
+    gdp_rank?: number;
+    top_exports?: string[];
+    top_imports?: string[];
+    major_partners?: string[];
+    note?: string;
+  };
+}
+
+/**
+ * Analyze material interests affecting news coverage
+ */
+export async function analyzeMaterialContext(
+  source: string,
+  sourceCountry: string,
+  mentionedCountries: string[],
+  topics?: string[],
+  articleText?: string
+): Promise<MaterialContext> {
+  const response = await fetch(`${API_BASE_URL}/research/entity/material-context`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      source,
+      source_country: sourceCountry,
+      mentioned_countries: mentionedCountries,
+      topics,
+      article_text: articleText,
+    }),
+  });
+
+  if (!response.ok) {
+    throw new Error(`HTTP error! status: ${response.status}`);
+  }
+
+  return response.json();
+}
+
+/**
+ * Get economic profile for a country
+ */
+export async function getCountryEconomicProfile(countryCode: string): Promise<CountryEconomicProfile> {
+  const response = await fetch(`${API_BASE_URL}/research/entity/country/${countryCode}/economic-profile`);
+  if (!response.ok) {
+    throw new Error(`HTTP error! status: ${response.status}`);
+  }
+  return response.json();
+}

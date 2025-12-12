@@ -24,12 +24,18 @@ function subscribeToQueueChanges(listener: QueueListener) {
   return () => queueListeners.delete(listener);
 }
 
-async function preloadArticleData(article: NewsArticle): Promise<NewsArticle> {
-  // Preload AI analysis, reading time, and full text for an article.
+async function preloadArticleData(
+  article: NewsArticle,
+  options: { includeAiAnalysis?: boolean } = {}
+): Promise<NewsArticle> {
+  // Preload full text and optionally AI analysis for an article.
+  // By default, skip AI analysis to avoid rate limiting during bulk preloads.
+  const { includeAiAnalysis = false } = options;
+
   try {
     const enhancedArticle = { ...article };
 
-    // Preload full text
+    // Preload full text (fast, no rate limits)
     try {
       const response = await fetch(
         `${API_BASE_URL}/article/extract?url=${encodeURIComponent(article.url)}`
@@ -53,17 +59,19 @@ async function preloadArticleData(article: NewsArticle): Promise<NewsArticle> {
       console.error("Failed to preload full text:", error);
     }
 
-    // Preload AI analysis
-    try {
-      const analysis = await analyzeArticle(article.url, article.source);
-      if (analysis) {
-        if (!enhancedArticle._queueData) {
-          enhancedArticle._queueData = {};
+    // Only preload AI analysis if explicitly requested (to avoid rate limiting)
+    if (includeAiAnalysis) {
+      try {
+        const analysis = await analyzeArticle(article.url, article.source);
+        if (analysis) {
+          if (!enhancedArticle._queueData) {
+            enhancedArticle._queueData = {};
+          }
+          enhancedArticle._queueData.aiAnalysis = analysis;
         }
-        enhancedArticle._queueData.aiAnalysis = analysis;
+      } catch (error) {
+        console.error("Failed to preload AI analysis:", error);
       }
-    } catch (error) {
-      console.error("Failed to preload AI analysis:", error);
     }
 
     // Mark preload timestamp
@@ -159,7 +167,7 @@ export function useReadingQueue() {
 
       // Preload data in background
       const preloadedArticle = await preloadArticleData(article);
-      
+
       // Update with preloaded data
       setQueuedArticles((prev) => {
         return prev.map((a) =>
@@ -280,12 +288,13 @@ export function useReadingQueue() {
     }
   }, [queuedArticles]);
 
-  // Preload missing data when queue is loaded
-  useEffect(() => {
-    if (isLoaded && queuedArticles.length > 0) {
-      preloadMissingData();
-    }
-  }, [isLoaded]);
+  // Auto-preload disabled to prevent rate limiting and unnecessary network calls on load.
+  // Users can manually call preloadMissingData() when they want to preload articles.
+  // useEffect(() => {
+  //   if (isLoaded && queuedArticles.length > 0) {
+  //     preloadMissingData();
+  //   }
+  // }, [isLoaded]);
 
   return {
     queuedArticles,

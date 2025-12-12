@@ -77,31 +77,16 @@ export function ReadingQueueSidebar() {
 
     try {
       setDigestLoading(true);
-      
-      // Get summaries and content for all articles
-      const articleSummaries = await Promise.all(
-        queuedArticles.map(async (article) => {
-          try {
-            const analysis = await analyzeArticle(article.url, article.source);
-            return {
-              title: article.title,
-              source: article.source,
-              url: article.url,
-              summary: analysis?.summary || article.summary || "",
-              category: article.category || "Uncategorized",
-            };
-          } catch (e) {
-            console.error(`Failed to analyze ${article.title}:`, e);
-            return {
-              title: article.title,
-              source: article.source,
-              url: article.url,
-              summary: article.summary || "",
-              category: article.category || "Uncategorized",
-            };
-          }
-        })
-      );
+
+      // Build article summaries without calling AI analysis (to avoid rate limiting)
+      // Use existing article summaries instead of fetching AI analysis for each one
+      const articleSummaries = queuedArticles.map((article) => ({
+        title: article.title,
+        source: article.source,
+        url: article.url,
+        summary: article.summary || "",
+        category: article.category || "Uncategorized",
+      }));
 
       // Group by category
       const grouped = articleSummaries.reduce(
@@ -114,7 +99,7 @@ export function ReadingQueueSidebar() {
         {} as Record<string, typeof articleSummaries>
       );
 
-      // Generate digest via API
+      // Generate digest via API (single AI call for the whole digest)
       const response = await fetch(
         `${API_BASE_URL}/api/queue/digest`,
         {
@@ -241,7 +226,7 @@ export function ReadingQueueSidebar() {
         const data = await response.json();
         const text = data.text || data.full_text || null;
         setFullArticleText(text);
-        
+
         // Calculate and store read time
         if (text) {
           const readTime = calculateReadTime(text);
@@ -274,7 +259,7 @@ export function ReadingQueueSidebar() {
       setIsBookmarked(false);
       setShowSourceDetails(false);
       setDebugOpen(false);
-      
+
       // Immediately clear old content
       setAiAnalysisLoading(true);
       setSourceLoading(true);
@@ -286,7 +271,7 @@ export function ReadingQueueSidebar() {
 
       // Load article content first (priority)
       loadFullArticle(selectedArticle);
-      
+
       // Load AI analysis and source in parallel
       loadAiAnalysis(selectedArticle);
       loadSource(selectedArticle);
@@ -527,9 +512,8 @@ export function ReadingQueueSidebar() {
                         }
                       >
                         <Heart
-                          className={`h-4 w-4 mr-2 ${
-                            isLiked ? "fill-current" : ""
-                          }`}
+                          className={`h-4 w-4 mr-2 ${isLiked ? "fill-current" : ""
+                            }`}
                         />
                         Like
                       </Button>
@@ -542,18 +526,17 @@ export function ReadingQueueSidebar() {
                         }
                         className={
                           selectedArticle &&
-                          isFavorite(selectedArticle.sourceId)
+                            isFavorite(selectedArticle.sourceId)
                             ? "text-yellow-400"
                             : "text-gray-400"
                         }
                       >
                         <Star
-                          className={`h-4 w-4 mr-2 ${
-                            selectedArticle &&
-                            isFavorite(selectedArticle.sourceId)
+                          className={`h-4 w-4 mr-2 ${selectedArticle &&
+                              isFavorite(selectedArticle.sourceId)
                               ? "fill-current"
                               : ""
-                          }`}
+                            }`}
                         />
                         Favorite
                       </Button>
@@ -566,9 +549,8 @@ export function ReadingQueueSidebar() {
                         }
                       >
                         <Bookmark
-                          className={`h-4 w-4 ${
-                            isBookmarked ? "fill-current" : ""
-                          }`}
+                          className={`h-4 w-4 ${isBookmarked ? "fill-current" : ""
+                            }`}
                         />
                         Bookmark
                       </Button>
@@ -1112,224 +1094,224 @@ export function ReadingQueueSidebar() {
 
               <div className="flex-1 overflow-y-auto flex flex-col px-6 py-6">
                 {isLoaded && queuedArticles.length === 0 ? (
-              <div className="flex h-full items-center justify-center text-center">
-                <div className="space-y-2">
-                  <p
-                    className="text-lg font-semibold"
-                    style={{ color: "var(--foreground)" }}
-                  >
-                    Your queue is empty
-                  </p>
-                  <p
-                    className="text-sm"
-                    style={{ color: "var(--muted-foreground)" }}
-                  >
-                    Start adding articles to build your reading list
-                  </p>
-                </div>
-              </div>
-            ) : (
-              <div className="space-y-3">
-                {/* Articles List */}
-                {queuedArticles.map((article, index) => {
-                  const isExpanded = expandedIndex === index;
-
-                  return (
-                    <button
-                      key={article.url}
-                      onClick={() =>
-                        setExpandedIndex(isExpanded ? null : index)
-                      }
-                      className={cn(
-                        "w-full transition-all duration-300 ease-out cursor-pointer text-left group",
-                        "transform hover:scale-105"
-                      )}
-                      style={{
-                        marginLeft: `${Math.min(index * 4, 16)}px`,
-                        marginTop: index > 0 ? "-8px" : "0px",
-                      }}
-                    >
-                      <div
-                        className={cn(
-                          "relative rounded-2xl border overflow-hidden backdrop-blur-sm",
-                          "transition-all duration-300",
-                          "p-4 flex flex-col",
-                          isExpanded
-                            ? "shadow-2xl ring-2"
-                            : "shadow-lg group-hover:shadow-xl"
-                        )}
-                        style={{
-                          backgroundColor: isExpanded
-                            ? "var(--news-bg-secondary)"
-                            : "var(--card)",
-                          borderColor: isExpanded
-                            ? "var(--primary)"
-                            : "var(--border)",
-                          outlineColor: isExpanded
-                            ? "var(--primary)"
-                            : undefined,
-                          outlineWidth: isExpanded ? "2px" : "0px",
-                          outlineOffset: isExpanded ? "0px" : "0px",
-                        }}
+                  <div className="flex h-full items-center justify-center text-center">
+                    <div className="space-y-2">
+                      <p
+                        className="text-lg font-semibold"
+                        style={{ color: "var(--foreground)" }}
                       >
-                        <div className="flex items-start gap-3">
-                          {/* Index Badge */}
-                          <div
-                            className="flex-shrink-0 text-xs font-bold rounded-full w-7 h-7 flex items-center justify-center"
-                            style={{
-                              backgroundColor: "var(--primary)",
-                              color: "var(--primary-foreground)",
-                            }}
-                          >
-                            {index + 1}
-                          </div>
+                        Your queue is empty
+                      </p>
+                      <p
+                        className="text-sm"
+                        style={{ color: "var(--muted-foreground)" }}
+                      >
+                        Start adding articles to build your reading list
+                      </p>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="space-y-3">
+                    {/* Articles List */}
+                    {queuedArticles.map((article, index) => {
+                      const isExpanded = expandedIndex === index;
 
-                          {/* Title and Source */}
-                          <div className="flex-1 min-w-0">
-                            <h3
-                              className={cn(
-                                "font-bold leading-tight group-hover:text-primary transition-colors",
-                                isExpanded
-                                  ? "text-base"
-                                  : "text-sm line-clamp-2"
-                              )}
-                              style={{
-                                color: isExpanded
-                                  ? "var(--foreground)"
-                                  : "var(--foreground)",
-                              }}
-                            >
-                              {article.title}
-                            </h3>
-                            <div className="flex items-center gap-2 mt-1">
-                              <p
-                                className="text-xs"
-                                style={{
-                                  color: "var(--muted-foreground)",
-                                }}
-                              >
-                                {article.source}
-                              </p>
-                              {estimatedReadTimes[article.url] && (
-                                <span
-                                  className="text-xs px-1.5 py-0.5 rounded"
-                                  style={{
-                                    backgroundColor: "var(--primary)",
-                                    color: "var(--primary)",
-                                  }}
-                                >
-                                  {estimatedReadTimes[article.url]}m
-                                </span>
-                              )}
-                              {!article._queueData?.preloadedAt && (
-                                <Badge
-                                  className="text-xs flex items-center gap-1 animate-pulse"
-                                  style={{
-                                    backgroundColor: "rgba(59, 130, 246, 0.15)",
-                                    color: "rgb(59, 130, 246)",
-                                  }}
-                                >
-                                  <div className="h-2 w-2 rounded-full bg-blue-500 animate-pulse"></div>
-                                  Loading...
-                                </Badge>
-                              )}
-                            </div>
-                          </div>
-
-                          {/* Image Thumbnail - Right Side */}
-                          {article.image && !isExpanded && (
-                            <div
-                              className="flex-shrink-0 h-12 w-16 rounded-lg overflow-hidden border"
-                              style={{ borderColor: "var(--border)" }}
-                            >
-                              <img
-                                src={article.image}
-                                alt={article.title}
-                                className="w-full h-full object-cover"
-                              />
-                            </div>
+                      return (
+                        <button
+                          key={article.url}
+                          onClick={() =>
+                            setExpandedIndex(isExpanded ? null : index)
+                          }
+                          className={cn(
+                            "w-full transition-all duration-300 ease-out cursor-pointer text-left group",
+                            "transform hover:scale-105"
                           )}
-
-                          {/* Expand Indicator */}
+                          style={{
+                            marginLeft: `${Math.min(index * 4, 16)}px`,
+                            marginTop: index > 0 ? "-8px" : "0px",
+                          }}
+                        >
                           <div
-                            className="flex-shrink-0 transition-transform"
+                            className={cn(
+                              "relative rounded-2xl border overflow-hidden backdrop-blur-sm",
+                              "transition-all duration-300",
+                              "p-4 flex flex-col",
+                              isExpanded
+                                ? "shadow-2xl ring-2"
+                                : "shadow-lg group-hover:shadow-xl"
+                            )}
                             style={{
-                              color: "var(--muted-foreground)",
-                              transform: isExpanded
-                                ? "rotate(180deg)"
-                                : "rotate(0deg)",
+                              backgroundColor: isExpanded
+                                ? "var(--news-bg-secondary)"
+                                : "var(--card)",
+                              borderColor: isExpanded
+                                ? "var(--primary)"
+                                : "var(--border)",
+                              outlineColor: isExpanded
+                                ? "var(--primary)"
+                                : undefined,
+                              outlineWidth: isExpanded ? "2px" : "0px",
+                              outlineOffset: isExpanded ? "0px" : "0px",
                             }}
                           >
-                            <ChevronDown className="h-5 w-5" />
-                          </div>
-                        </div>
-
-                        {/* Expandable Content */}
-                        {isExpanded && (
-                          <div
-                            className="space-y-3 pt-3 mt-3 border-t animate-in fade-in slide-in-from-top-2 duration-200"
-                            style={{ borderColor: "var(--border)" }}
-                          >
-                            {article.image && (
-                              <img
-                                src={article.image}
-                                alt={article.title}
-                                className="w-full h-40 object-cover rounded-lg"
-                              />
-                            )}
-                            <p
-                              className="text-sm"
-                              style={{
-                                color: "var(--foreground)",
-                              }}
-                            >
-                              {(() => {
-                                const text =
-                                  article.summary ||
-                                  article.content ||
-                                  "No description available";
-                                const words = text.split(/\s+/);
-                                if (words.length > 150) {
-                                  return words.slice(0, 150).join(" ") + " ...";
-                                }
-                                return text;
-                              })()}
-                            </p>
-                            <div className="flex gap-2 pt-2">
-                              <Button
-                                size="sm"
-                                className="flex-1"
-                                onClick={(e) => {
-                                  e.preventDefault();
-                                  setSelectedArticleUrl(article.url);
-                                }}
+                            <div className="flex items-start gap-3">
+                              {/* Index Badge */}
+                              <div
+                                className="flex-shrink-0 text-xs font-bold rounded-full w-7 h-7 flex items-center justify-center"
                                 style={{
                                   backgroundColor: "var(--primary)",
                                   color: "var(--primary-foreground)",
                                 }}
                               >
-                                Read Article
-                              </Button>
-                              <Button
-                                size="sm"
-                                variant="ghost"
-                                onClick={(e) => {
-                                  e.preventDefault();
-                                  handleRemove(article.url);
+                                {index + 1}
+                              </div>
+
+                              {/* Title and Source */}
+                              <div className="flex-1 min-w-0">
+                                <h3
+                                  className={cn(
+                                    "font-bold leading-tight group-hover:text-primary transition-colors",
+                                    isExpanded
+                                      ? "text-base"
+                                      : "text-sm line-clamp-2"
+                                  )}
+                                  style={{
+                                    color: isExpanded
+                                      ? "var(--foreground)"
+                                      : "var(--foreground)",
+                                  }}
+                                >
+                                  {article.title}
+                                </h3>
+                                <div className="flex items-center gap-2 mt-1">
+                                  <p
+                                    className="text-xs"
+                                    style={{
+                                      color: "var(--muted-foreground)",
+                                    }}
+                                  >
+                                    {article.source}
+                                  </p>
+                                  {estimatedReadTimes[article.url] && (
+                                    <span
+                                      className="text-xs px-1.5 py-0.5 rounded"
+                                      style={{
+                                        backgroundColor: "var(--primary)",
+                                        color: "var(--primary)",
+                                      }}
+                                    >
+                                      {estimatedReadTimes[article.url]}m
+                                    </span>
+                                  )}
+                                  {!article._queueData?.preloadedAt && (
+                                    <Badge
+                                      className="text-xs flex items-center gap-1 animate-pulse"
+                                      style={{
+                                        backgroundColor: "rgba(59, 130, 246, 0.15)",
+                                        color: "rgb(59, 130, 246)",
+                                      }}
+                                    >
+                                      <div className="h-2 w-2 rounded-full bg-blue-500 animate-pulse"></div>
+                                      Loading...
+                                    </Badge>
+                                  )}
+                                </div>
+                              </div>
+
+                              {/* Image Thumbnail - Right Side */}
+                              {article.image && !isExpanded && (
+                                <div
+                                  className="flex-shrink-0 h-12 w-16 rounded-lg overflow-hidden border"
+                                  style={{ borderColor: "var(--border)" }}
+                                >
+                                  <img
+                                    src={article.image}
+                                    alt={article.title}
+                                    className="w-full h-full object-cover"
+                                  />
+                                </div>
+                              )}
+
+                              {/* Expand Indicator */}
+                              <div
+                                className="flex-shrink-0 transition-transform"
+                                style={{
+                                  color: "var(--muted-foreground)",
+                                  transform: isExpanded
+                                    ? "rotate(180deg)"
+                                    : "rotate(0deg)",
                                 }}
-                                className="text-destructive hover:text-destructive hover:bg-destructive/10"
                               >
-                                <Trash2 className="h-4 w-4" />
-                              </Button>
+                                <ChevronDown className="h-5 w-5" />
+                              </div>
                             </div>
+
+                            {/* Expandable Content */}
+                            {isExpanded && (
+                              <div
+                                className="space-y-3 pt-3 mt-3 border-t animate-in fade-in slide-in-from-top-2 duration-200"
+                                style={{ borderColor: "var(--border)" }}
+                              >
+                                {article.image && (
+                                  <img
+                                    src={article.image}
+                                    alt={article.title}
+                                    className="w-full h-40 object-cover rounded-lg"
+                                  />
+                                )}
+                                <p
+                                  className="text-sm"
+                                  style={{
+                                    color: "var(--foreground)",
+                                  }}
+                                >
+                                  {(() => {
+                                    const text =
+                                      article.summary ||
+                                      article.content ||
+                                      "No description available";
+                                    const words = text.split(/\s+/);
+                                    if (words.length > 150) {
+                                      return words.slice(0, 150).join(" ") + " ...";
+                                    }
+                                    return text;
+                                  })()}
+                                </p>
+                                <div className="flex gap-2 pt-2">
+                                  <Button
+                                    size="sm"
+                                    className="flex-1"
+                                    onClick={(e) => {
+                                      e.preventDefault();
+                                      setSelectedArticleUrl(article.url);
+                                    }}
+                                    style={{
+                                      backgroundColor: "var(--primary)",
+                                      color: "var(--primary-foreground)",
+                                    }}
+                                  >
+                                    Read Article
+                                  </Button>
+                                  <Button
+                                    size="sm"
+                                    variant="ghost"
+                                    onClick={(e) => {
+                                      e.preventDefault();
+                                      handleRemove(article.url);
+                                    }}
+                                    className="text-destructive hover:text-destructive hover:bg-destructive/10"
+                                  >
+                                    <Trash2 className="h-4 w-4" />
+                                  </Button>
+                                </div>
+                              </div>
+                            )}
                           </div>
-                        )}
-                      </div>
-                    </button>
-                  );
-                })}
-              </div>
-            )}
+                        </button>
+                      );
+                    })}
+                  </div>
+                )}
               </div>
             </>
           )}

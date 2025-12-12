@@ -183,6 +183,103 @@ class Highlight(Base):
     updated_at = Column(DateTime, default=get_utc_now, onupdate=get_utc_now)
 
 
+# Phase 5B: Reporter and Organization Research Tables
+
+
+class Reporter(Base):
+    """Stores research data about journalists/reporters/authors."""
+    __tablename__ = "reporters"
+
+    id = Column(Integer, primary_key=True, index=True)
+    name = Column(String, nullable=False, index=True)
+    normalized_name = Column(String, index=True)  # lowercase, stripped for matching
+    
+    # Profile data
+    bio = Column(Text)  # Brief biography
+    career_history = Column(JSON)  # List of past employers/positions
+    topics = Column(TagListType(), default=list)  # Areas of expertise
+    education = Column(JSON)  # Educational background
+    
+    # Bias/leaning indicators
+    political_leaning = Column(String)  # left, center-left, center, center-right, right
+    leaning_confidence = Column(String)  # high, medium, low
+    leaning_sources = Column(JSON)  # Sources used to determine leaning
+    
+    # Social/external links
+    twitter_handle = Column(String)
+    linkedin_url = Column(String)
+    wikipedia_url = Column(String)
+    
+    # Research metadata
+    research_sources = Column(JSON)  # Which APIs/sources were consulted
+    last_researched_at = Column(DateTime)
+    research_confidence = Column(String)  # overall confidence in data quality
+    
+    created_at = Column(DateTime, default=get_utc_now)
+    updated_at = Column(DateTime, default=get_utc_now, onupdate=get_utc_now)
+
+
+class Organization(Base):
+    """Stores research data about news organizations and their ownership."""
+    __tablename__ = "organizations"
+
+    id = Column(Integer, primary_key=True, index=True)
+    name = Column(String, nullable=False, index=True)
+    normalized_name = Column(String, index=True)  # lowercase for matching
+    
+    # Organization type
+    org_type = Column(String)  # publisher, parent_company, owner, funder, advertiser
+    
+    # Ownership structure
+    parent_org_id = Column(Integer, index=True)  # Self-referential for ownership chain
+    ownership_percentage = Column(String)  # If known
+    
+    # Funding information
+    funding_type = Column(String)  # public, commercial, non-profit, state-funded, independent
+    funding_sources = Column(JSON)  # List of known funding sources
+    major_advertisers = Column(JSON)  # Major advertising revenue sources
+    
+    # 990 / Financial data (for non-profits)
+    ein = Column(String)  # Tax ID for 990 lookup
+    annual_revenue = Column(String)
+    top_donors = Column(JSON)  # From 990 filings
+    
+    # Bias indicators
+    media_bias_rating = Column(String)  # From MBFC or similar
+    factual_reporting = Column(String)  # From MBFC
+    
+    # External links
+    website = Column(String)
+    wikipedia_url = Column(String)
+    littlesis_url = Column(String)
+    opensecrets_url = Column(String)
+    
+    # Research metadata
+    research_sources = Column(JSON)
+    last_researched_at = Column(DateTime)
+    research_confidence = Column(String)
+    
+    created_at = Column(DateTime, default=get_utc_now)
+    updated_at = Column(DateTime, default=get_utc_now, onupdate=get_utc_now)
+
+
+class ArticleAuthor(Base):
+    """Junction table linking articles to their authors/reporters."""
+    __tablename__ = "article_authors"
+
+    id = Column(Integer, primary_key=True, index=True)
+    article_id = Column(Integer, nullable=False, index=True)
+    reporter_id = Column(Integer, nullable=False, index=True)
+    author_role = Column(String, default="author")  # author, contributor, editor
+    
+    created_at = Column(DateTime, default=get_utc_now)
+
+    __table_args__ = (
+        Index("ix_article_authors_article_reporter", "article_id", "reporter_id", unique=True),
+    )
+
+
+
 # Dependency for FastAPI
 async def get_db():
     """Database session dependency for FastAPI endpoints"""

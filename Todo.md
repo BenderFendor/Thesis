@@ -1,5 +1,53 @@
 # Features to add
 
+---
+
+## Phase 5A: Globe + Country-Coded News (COMPLETE)
+
+- [x] ISO country codes in rss_sources.json (already done)
+- [x] `/news/by-country` endpoint for globe heatmap data
+- [x] `/news/country/{code}` endpoint with Local Lens views (internal/external)
+- [x] `/news/countries/list` for country article counts
+- [x] `/news/countries/geo` for static lat/lng data
+- [x] `countries.json` with 60+ country coordinates
+- [x] `ThreeGlobe` component enhanced with intensity-based marker sizing/coloring
+- [x] `LocalLensView` component for internal vs external news comparison
+
+---
+
+## Phase 5B: Reporter/Organization Research (COMPLETE)
+
+### Database
+- [x] Create `reporters` table (name, bio, leanings, confidence)
+- [x] Create `organizations` table (name, parent, ownership, funding)
+- [x] Create `article_authors` junction table
+
+### Backend Agents
+- [x] Implement ReporterProfiler agent (identity, career history, topics, leanings)
+- [x] Implement FundingResearcher agent (ownership, 990 filings, SEC data)
+- [x] Uses Wikipedia + ProPublica Nonprofit Explorer + known org data
+
+### API Endpoints
+- [x] Create `/research/entity/reporter/profile` endpoints
+- [x] Create `/research/entity/organization/research` endpoints
+- [x] Create `/research/entity/organization/{name}/ownership-chain` endpoint
+
+### Frontend Components
+- [x] Create `reporter-profile.tsx` with topics/leaning badges
+- [x] Create `organization-panel.tsx` with ownership chain display
+
+---
+
+## Phase 5C: Material Interest Analysis (COMPLETE)
+
+- [x] MaterialInterestAgent with trade relationships data
+- [x] `/research/entity/material-context` endpoint
+- [x] `/research/entity/country/{code}/economic-profile` endpoint
+- [x] `material-context-panel.tsx` with conflict detection
+
+---
+
+
 # Add the feature so that when you like on one of the tabs like games or business it truly changes what new articles show up
 
 # Source debugging

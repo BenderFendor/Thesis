@@ -7,6 +7,7 @@ from . import (
     bookmarks,
     cache,
     debug,
+    entity_research,
     general,
     image_proxy,
     inline,
@@ -32,9 +33,11 @@ router.include_router(debug.router)
 router.include_router(bookmarks.router)
 router.include_router(reading_queue.router)
 router.include_router(research.router)
+router.include_router(entity_research.router)
 router.include_router(search.router)
 router.include_router(sources.router)
 router.include_router(inline.router)
 router.include_router(jobs.router)
 router.include_router(updates.router)
 router.include_router(image_proxy.router)
+
