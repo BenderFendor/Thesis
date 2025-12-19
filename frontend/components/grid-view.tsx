@@ -28,32 +28,21 @@ import { usePaginatedNews } from "@/hooks/usePaginatedNews"
 import { FEATURE_FLAGS } from "@/lib/constants"
 
 const logger = get_logger("GridView")
-
-const categories = [
-  "All",
-  "Politics",
-  "Economy",
-  "Environment",
-  "Technology",
-  "Education",
-  "Healthcare",
-  "Energy",
-  "Trade",
-]
+const isDev = process.env.NODE_ENV !== "production"
 
 // Virtual grid constants for optimization
-const COLUMN_COUNT = 4
 const COLUMN_WIDTH = 320
-const ROW_HEIGHT = 420  // Increased to prevent card content overlap
+const ROW_HEIGHT = 420
 const GAP = 12
-const ROW_GAP = 16  // Vertical gap between rows
-const NUM_OF_ARTICLES = 12
+const CARD_WIDTH = 280
+const NUM_OF_ARTICLES = 20
+
 interface GridViewProps {
   articles: NewsArticle[]
   loading: boolean
   onCountChange?: (count: number) => void
   apiUrl?: string | null
-  useVirtualization?: boolean // New prop for virtualization mode
+  useVirtualization?: boolean
 }
 
 interface SourceGroup {
@@ -69,16 +58,17 @@ export function GridView({
   loading,
   onCountChange,
   apiUrl,
-  useVirtualization = false, // Disabled by default - parent already provides articles
+  useVirtualization = false,
 }: GridViewProps) {
   const [searchTerm, setSearchTerm] = useState("")
-  const [selectedCategory, setSelectedCategory] = useState("All")
+  // Removed internal category state as it is handled by the parent
   const [selectedArticle, setSelectedArticle] = useState<NewsArticle | null>(
     null
   )
   const [isArticleModalOpen, setIsArticleModalOpen] = useState(false)
   const [likedArticles, setLikedArticles] = useState<Set<number>>(new Set())
   const [expandedSourceId, setExpandedSourceId] = useState<string | null>(null)
+  const [visibleGroupIds, setVisibleGroupIds] = useState<Set<string>>(new Set())
   const { addArticleToQueue, removeArticleFromQueue, isArticleInQueue } =
     useReadingQueue()
   const { isFavorite, toggleFavorite } = useFavorites()
@@ -93,23 +83,25 @@ export function GridView({
     fetchNextPage,
   } = usePaginatedNews({
     limit: FEATURE_FLAGS.PAGINATION_PAGE_SIZE,
-    category: selectedCategory === "All" ? undefined : selectedCategory,
     search: searchTerm || undefined,
     useCached: true,
     enabled: useVirtualization, // Only enable when virtualization is active
   })
 
-  // DEBUG: Log feature flags and hook state
-  console.log(`[GridView DEBUG] Feature flags:`, {
-    USE_VIRTUALIZATION: FEATURE_FLAGS.USE_VIRTUALIZATION,
-    USE_PAGINATION: FEATURE_FLAGS.USE_PAGINATION,
-    PAGINATION_PAGE_SIZE: FEATURE_FLAGS.PAGINATION_PAGE_SIZE,
-    useVirtualizationProp: useVirtualization,
-  })
+  if (isDev) {
+    logger.debug("Feature flags", {
+      USE_VIRTUALIZATION: FEATURE_FLAGS.USE_VIRTUALIZATION,
+      USE_PAGINATION: FEATURE_FLAGS.USE_PAGINATION,
+      PAGINATION_PAGE_SIZE: FEATURE_FLAGS.PAGINATION_PAGE_SIZE,
+      useVirtualizationProp: useVirtualization,
+    })
+  }
 
   // Snap-scrolling support
   const containerRef = useRef<HTMLDivElement | null>(null)
   const [currentGroupIndex, setCurrentGroupIndex] = useState<number>(0)
+  const scrollRafRef = useRef<number | null>(null)
+  const [rowSize, setRowSize] = useState<number>(3)
 
   // Track current group index by scroll position
   useEffect(() => {
@@ -117,6 +109,9 @@ export function GridView({
     if (!container) return
 
     const handleScroll = () => {
+      if (scrollRafRef.current !== null) return
+      scrollRafRef.current = requestAnimationFrame(() => {
+        scrollRafRef.current = null
       const groups = Array.from(
         container.querySelectorAll<HTMLElement>(".grid-source-group")
       )
@@ -140,10 +135,37 @@ export function GridView({
       })
 
       setCurrentGroupIndex(closestIndex)
+      })
     }
 
     container.addEventListener("scroll", handleScroll, { passive: true })
-    return () => container.removeEventListener("scroll", handleScroll)
+    return () => {
+      container.removeEventListener("scroll", handleScroll)
+      if (scrollRafRef.current !== null) {
+        cancelAnimationFrame(scrollRafRef.current)
+        scrollRafRef.current = null
+      }
+    }
+  }, [])
+
+  useEffect(() => {
+    const container = containerRef.current
+    if (!container) return
+
+    const updateRowSize = () => {
+      const width = container.clientWidth
+      const next = Math.max(1, Math.floor((width + GAP) / (CARD_WIDTH + GAP)))
+      setRowSize((prev) => (prev === next ? prev : next))
+    }
+
+    updateRowSize()
+
+    const observer = new ResizeObserver(() => {
+      updateRowSize()
+    })
+    observer.observe(container)
+
+    return () => observer.disconnect()
   }, [])
 
   // Filter articles based on user selections
@@ -153,14 +175,18 @@ export function GridView({
         !searchTerm ||
         article.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
         article.summary?.toLowerCase().includes(searchTerm.toLowerCase())
-      const matchesCategory =
-        selectedCategory === "All" || article.category?.toLowerCase() === selectedCategory.toLowerCase()
-
-      return matchesSearch && matchesCategory
+      
+      return matchesSearch
     })
-    console.log(`GridView filter: ${articles.length} articles -> ${result.length} after filtering (searchTerm="${searchTerm}", selectedCategory="${selectedCategory}")`)
+    if (isDev) {
+      logger.debug("Filter results", {
+        total: articles.length,
+        filtered: result.length,
+        searchTerm,
+      })
+    }
     return result
-  }, [articles, searchTerm, selectedCategory])
+  }, [articles, searchTerm])
 
   // Notify parent about filtered count
   useEffect(() => {
@@ -178,11 +204,16 @@ export function GridView({
       filteredCount: filteredNews.length,
       filters: {
         searchTerm,
-        selectedCategory,
       },
     })
-    console.log(`GridView render check: articles=${articles.length}, filteredNews=${filteredNews.length}, loading=${loading}`)
-  }, [articles.length, filteredNews.length, searchTerm, selectedCategory, loading])
+    if (isDev) {
+      logger.debug("Render check", {
+        articles: articles.length,
+        filteredNews: filteredNews.length,
+        loading,
+      })
+    }
+  }, [articles.length, filteredNews.length, searchTerm, loading])
 
   const getCredibilityColor = (credibility: string) => {
     switch (credibility?.toLowerCase()) {
@@ -264,31 +295,77 @@ export function GridView({
       groups.get(sourceKey)!.articles.push(article)
     })
 
-    // Convert to array and sort by number of articles
-    return Array.from(groups.values()).sort(
-      (a, b) => b.articles.length - a.articles.length
+    // Convert to array and sort: favorites first, then by article count
+    return Array.from(groups.values()).sort((a, b) => {
+      const aFav = isFavorite(a.sourceId) ? 1 : 0
+      const bFav = isFavorite(b.sourceId) ? 1 : 0
+
+      if (aFav !== bFav) return bFav - aFav // Higher value (favorite) first
+
+      return bFav - aFav || b.articles.length - a.articles.length
+    })
+  }, [filteredNews, isFavorite])
+
+  useEffect(() => {
+    const container = containerRef.current
+    if (!container) return
+
+    const groups = Array.from(
+      container.querySelectorAll<HTMLElement>(".grid-source-group")
     )
-  }, [filteredNews])
+    if (groups.length === 0) return
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        setVisibleGroupIds((prev) => {
+          let next = prev
+          let changed = false
+
+          entries.forEach((entry) => {
+            if (!entry.isIntersecting) return
+            const sourceId = (entry.target as HTMLElement).dataset.sourceId
+            if (!sourceId || prev.has(sourceId)) return
+            if (!changed) {
+              next = new Set(prev)
+              changed = true
+            }
+            next.add(sourceId)
+          })
+
+          return changed ? next : prev
+        })
+      },
+      {
+        root: container,
+        rootMargin: "800px 0px",
+        threshold: 0.1,
+      }
+    )
+
+    groups.forEach((group) => observer.observe(group))
+    return () => observer.disconnect()
+  }, [sourceGroups])
 
   // Determine which articles to display based on mode
   const displayArticles = useVirtualization ? paginatedArticles : filteredNews
   const isLoadingState = useVirtualization ? paginatedLoading : loading
   const displayTotalCount = useVirtualization ? totalCount : filteredNews.length
 
-  // DEBUG: Log state to diagnose loading issue
-  console.log(`[GridView DEBUG] Mode check:`, {
-    useVirtualization,
-    isLoadingState,
-    displayArticlesLength: displayArticles.length,
-    paginatedArticlesLength: paginatedArticles.length,
-    paginatedLoading,
-    filteredNewsLength: filteredNews.length,
-    passedLoading: loading,
-    passedArticlesLength: articles.length,
-    hasNextPage,
-    totalCount,
-    willShowLoadingSpinner: isLoadingState && displayArticles.length === 0,
-  })
+  if (isDev) {
+    logger.debug("Mode check", {
+      useVirtualization,
+      isLoadingState,
+      displayArticlesLength: displayArticles.length,
+      paginatedArticlesLength: paginatedArticles.length,
+      paginatedLoading,
+      filteredNewsLength: filteredNews.length,
+      passedLoading: loading,
+      passedArticlesLength: articles.length,
+      hasNextPage,
+      totalCount,
+      willShowLoadingSpinner: isLoadingState && displayArticles.length === 0,
+    })
+  }
 
   if (isLoadingState && displayArticles.length === 0) {
     return (
@@ -307,22 +384,6 @@ export function GridView({
   if (useVirtualization) {
     return (
       <div className="w-full h-full flex flex-col overflow-hidden bg-background">
-        {/* Category Filter Header */}
-        <div className="flex-shrink-0 border-b border-border/30 bg-background/40 backdrop-blur-sm px-4 sm:px-6 lg:px-8 py-3">
-          <div className="flex items-center gap-2 overflow-x-auto pb-2">
-            {categories.map((category) => (
-              <Button
-                key={category}
-                onClick={() => setSelectedCategory(category)}
-                variant={selectedCategory === category ? "default" : "outline"}
-                className="text-sm font-medium whitespace-nowrap px-3 py-2 h-auto"
-              >
-                {category}
-              </Button>
-            ))}
-          </div>
-        </div>
-
         {/* Search Bar */}
         <div className="flex-shrink-0 px-4 sm:px-6 lg:px-8 py-3 border-b border-border/30 bg-background/40 backdrop-blur-sm">
           <div className="relative">
@@ -352,7 +413,7 @@ export function GridView({
               </div>
               <h3 className="text-lg font-medium">No articles found</h3>
               <p className="mt-1 max-w-md mx-auto text-sm text-muted-foreground">
-                Try adjusting your search or filters to find what you are
+                Try adjusting your search to find what you are
                 looking for.
               </p>
               <Button
@@ -360,11 +421,10 @@ export function GridView({
                 className="mt-4"
                 onClick={() => {
                   setSearchTerm("")
-                  setSelectedCategory("All")
                 }}
               >
                 <RefreshCw className="w-4 h-4 mr-2" />
-                Reset filters
+                Reset search
               </Button>
             </div>
           </div>
@@ -396,26 +456,6 @@ export function GridView({
 
   return (
     <div className="w-full h-full flex flex-col overflow-hidden bg-background">
-      {/* Category Filter Header - Now below nav/top bar */}
-      <div className="flex-shrink-0 border-b border-border/30 bg-background/40 backdrop-blur-sm px-4 sm:px-6 lg:px-8 py-3">
-        <div className="flex items-center gap-2 overflow-x-auto pb-2">
-          {categories.map((category) => (
-            <Button
-              key={category}
-              onClick={() => setSelectedCategory(category)}
-              variant={selectedCategory === category ? 'default' : 'outline'}
-              className="text-sm font-medium whitespace-nowrap px-3 py-2 h-auto"
-            >
-              {category}
-            </Button>
-          ))}
-        </div>
-        <div className="text-sm text-muted-foreground mt-2">
-          Showing {filteredNews.length} articles from {sourceGroups.length}{" "}
-          sources
-        </div>
-      </div>
-
       {/* Search Bar */}
       <div className="flex-shrink-0 px-4 sm:px-6 lg:px-8 py-3 border-b border-border/30 bg-background/40 backdrop-blur-sm">
         <div className="relative">
@@ -445,7 +485,7 @@ export function GridView({
             </div>
             <h3 className="text-lg font-medium">No articles found</h3>
             <p className="mt-1 max-w-md mx-auto text-sm text-muted-foreground">
-              Try adjusting your search or filters to find what you are looking
+              Try adjusting your search to find what you are looking
               for.
             </p>
             <Button
@@ -453,34 +493,52 @@ export function GridView({
               className="mt-4"
               onClick={() => {
                 setSearchTerm("")
-                setSelectedCategory("All")
               }}
             >
               <RefreshCw className="w-4 h-4 mr-2" />
-              Reset filters
+              Reset search
             </Button>
           </div>
         </div>
       ) : (
         <div
           ref={containerRef}
-          className="flex-1 overflow-y-scroll px-3 sm:px-4 lg:px-6 py-4"
+          className="flex-1 overflow-y-scroll px-3 sm:px-4 lg:px-6 py-4 snap-y snap-mandatory"
           style={{
-            scrollSnapType: "y mandatory",
             scrollPaddingTop: "1rem",
             scrollBehavior: "smooth",
             WebkitOverflowScrolling: "touch",
           }}
         >
           <div className="space-y-6">
-            {sourceGroups.map(group => (
+            {sourceGroups.map((group, index) => {
+              // Optimization: Only render groups near the viewport
+              const shouldRender =
+                visibleGroupIds.size === 0
+                  ? index < 3
+                  : visibleGroupIds.has(group.sourceId)
+              const isExpanded = expandedSourceId === group.sourceId
+              const displayedArticles = isExpanded
+                ? group.articles
+                : group.articles.slice(0, NUM_OF_ARTICLES)
+              const rows: NewsArticle[][] = []
+              const safeRowSize = Math.max(1, rowSize)
+              for (let i = 0; i < displayedArticles.length; i += safeRowSize) {
+                rows.push(displayedArticles.slice(i, i + safeRowSize))
+              }
+
+              return (
               <div
                 key={group.sourceId}
+                data-source-id={group.sourceId}
                 className="grid-source-group bg-card/40 rounded-lg border border-border/50 overflow-hidden"
-                style={{ 
+                style={{
                   scrollSnapAlign: "center",
                   scrollSnapStop: "always",
                   scrollMargin: "2rem",
+                  minHeight: shouldRender ? "auto" : "300px",
+                  contentVisibility: "auto",
+                  containIntrinsicSize: "360px",
                 }}
               >
                 {/* Source Header */}
@@ -528,166 +586,44 @@ export function GridView({
                   </div>
                   <div className="flex items-center gap-2 text-xs text-muted-foreground">
                     <span>
-                      {expandedSourceId === group.sourceId
-                        ? group.articles.length
-                        : Math.min(NUM_OF_ARTICLES, group.articles.length)}{" "}
-                      of {group.articles.length} articles
+                      {group.articles.length} articles
                     </span>
-                    {group.articles.length > NUM_OF_ARTICLES && (
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        className="h-6 px-2 text-xs hover:text-primary"
-                        onClick={() =>
-                          setExpandedSourceId(
-                            expandedSourceId === group.sourceId
-                              ? null
-                              : group.sourceId
-                          )
-                        }
-                      >
-                        {expandedSourceId === group.sourceId
-                          ? "Show less"
-                          : "View all"}
-                        <ChevronRight
-                          className={`w-3 h-3 ml-1 transition-transform ${
-                            expandedSourceId === group.sourceId
-                              ? "rotate-90"
-                              : ""
-                          }`}
-                        />
-                      </Button>
-                    )}
                   </div>
                 </div>
 
-                {/* Articles Grid */}
+                {/* Articles Horizontal List (Snap Scroll) */}
+                {shouldRender && (
                 <div className="p-3">
-                  <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
-                    {group.articles
-                      .slice(0, NUM_OF_ARTICLES)
-                      .map((article: NewsArticle) => (
-                        <button
-                          key={article.id}
-                          onClick={() => handleArticleClick(article)}
-                          className="group text-left transition-all duration-200"
-                        >
-                          <Card className="h-full overflow-hidden flex flex-col hover:border-primary hover:shadow-lg transition-all duration-200 bg-card/70 hover:bg-card border-border/60 cursor-pointer">
-                            {/* Compact Image */}
-                            <div className="relative h-40 overflow-hidden bg-muted/40 flex-shrink-0">
-                              <img
-                                src={article.image || '/placeholder.svg'}
-                                alt={article.title}
-                                className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-300"
-                              />
-                              <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent" />
-
-                              {/* Action Buttons */}
-                              <div className="absolute top-1 right-1 flex gap-1">
-                                <Button
-                                  variant="ghost"
-                                  size="sm"
-                                  onClick={(e) => {
-                                    e.stopPropagation()
-                                    handleQueueToggle(article)
-                                  }}
-                                  className="h-6 w-6 p-0 bg-black/50 hover:bg-black/70"
-                                >
-                                  {isArticleInQueue(article.url) ? (
-                                    <MinusCircle className="w-3 h-3 text-blue-400" />
-                                  ) : (
-                                    <PlusCircle className="w-3 h-3 text-white" />
-                                  )}
-                                </Button>
-                                <Button
-                                  variant="ghost"
-                                  size="sm"
-                                  onClick={(e) => {
-                                    e.stopPropagation()
-                                    handleLike(article.id as number)
-                                  }}
-                                  className="h-6 w-6 p-0 bg-black/50 hover:bg-black/70"
-                                >
-                                  <Heart
-                                    className={`w-3 h-3 ${
-                                      likedArticles.has(article.id as number)
-                                        ? 'fill-red-500 text-red-500'
-                                        : 'text-white'
-                                    }`}
-                                  />
-                                </Button>
-                              </div>
-
-                              {/* Category Badge */}
-                              <div className="absolute bottom-1 left-1">
-                                <Badge
-                                  variant="outline"
-                                  className="text-[8px] font-semibold px-1.5 py-0 bg-black/70 text-white border-white/20"
-                                >
-                                  {article.category}
-                                </Badge>
-                              </div>
-                            </div>
-
-                            {/* Content */}
-                            <CardContent className="flex-1 flex flex-col p-2">
-                              {/* Title */}
-                              <h3 className="text-md font-semibold text-foreground leading-snug line-clamp-4 mb-1 font-serif">
-                                {article.title}
-                              </h3>
-
-                              {/* Meta Info */}
-                              <div className="flex items-center gap-1 text-xs text-muted-foreground mt-auto pt-1">
-                                <Clock className="w-3 h-3" />
-                                <span>
-                                  {new Date(
-                                    article.publishedAt
-                                  ).toLocaleDateString('en-US', {
-                                    month: 'short',
-                                    day: 'numeric',
-                                  })}
-                                </span>
-                              </div>
-                            </CardContent>
-                          </Card>
-                        </button>
-                      ))}
-                  </div>
-                  {group.articles.length > NUM_OF_ARTICLES && (
-                    <div className="mt-4 text-center">
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() =>
-                          setExpandedSourceId(
-                            expandedSourceId === group.sourceId
-                              ? null
-                              : group.sourceId
-                          )
-                        }
-                        className="text-xs"
+                  <div
+                    className="max-h-[520px] overflow-y-auto pr-1 space-y-4 snap-y snap-mandatory"
+                    style={{
+                      scrollbarWidth: "thin",
+                      WebkitOverflowScrolling: "touch",
+                    }}
+                  >
+                    {rows.map((row, rowIndex) => (
+                      <div
+                        key={`${group.sourceId}-row-${rowIndex}`}
+                        className="grid gap-3 snap-start"
+                        style={{
+                          gridTemplateColumns: `repeat(${safeRowSize}, minmax(0, 1fr))`,
+                          scrollSnapStop: "always",
+                        }}
                       >
-                        {expandedSourceId === group.sourceId ? "Show less" : `View all (${group.articles.length})`}
-                      </Button>
-                    </div>
-                  )}
-                  {expandedSourceId === group.sourceId && (
-                    <div className="mt-4 grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
-                      {group.articles
-                        .slice(NUM_OF_ARTICLES)
-                        .map((article: NewsArticle) => (
+                        {row.map((article) => (
                           <button
                             key={article.id}
                             onClick={() => handleArticleClick(article)}
-                            className="group text-left transition-all duration-200"
+                            className="w-full text-left transition-all duration-200"
                           >
                             <Card className="h-full overflow-hidden flex flex-col hover:border-primary hover:shadow-lg transition-all duration-200 bg-card/70 hover:bg-card border-border/60 cursor-pointer">
                               {/* Compact Image */}
                               <div className="relative h-40 overflow-hidden bg-muted/40 flex-shrink-0">
                                 <img
-                                  src={article.image || '/placeholder.svg'}
+                                  src={article.image || "/placeholder.svg"}
                                   alt={article.title}
-                                  className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-300"
+                                  className="w-full h-full object-cover hover:scale-110 transition-transform duration-300"
+                                  loading="lazy"
                                 />
                                 <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent" />
 
@@ -713,15 +649,15 @@ export function GridView({
                                     size="sm"
                                     onClick={(e) => {
                                       e.stopPropagation()
-                                      handleLike(article.id as number)
+                                      handleQueueToggle(article)
                                     }}
                                     className="h-6 w-6 p-0 bg-black/50 hover:bg-black/70"
                                   >
                                     <Heart
                                       className={`w-3 h-3 ${
                                         likedArticles.has(article.id as number)
-                                          ? 'fill-red-500 text-red-500'
-                                          : 'text-white'
+                                          ? "fill-red-500 text-red-500"
+                                          : "text-white"
                                       }`}
                                     />
                                   </Button>
@@ -741,7 +677,7 @@ export function GridView({
                               {/* Content */}
                               <CardContent className="flex-1 flex flex-col p-2">
                                 {/* Title */}
-                                <h3 className="text-md font-semibold text-foreground leading-snug line-clamp-4 mb-1 font-serif">
+                                <h3 className="text-sm font-semibold text-foreground leading-snug line-clamp-3 mb-2 font-serif">
                                   {article.title}
                                 </h3>
 
@@ -749,11 +685,9 @@ export function GridView({
                                 <div className="flex items-center gap-1 text-xs text-muted-foreground mt-auto pt-1">
                                   <Clock className="w-3 h-3" />
                                   <span>
-                                    {new Date(
-                                      article.publishedAt
-                                    ).toLocaleDateString('en-US', {
-                                      month: 'short',
-                                      day: 'numeric',
+                                    {new Date(article.publishedAt).toLocaleDateString("en-US", {
+                                      month: "short",
+                                      day: "numeric",
                                     })}
                                   </span>
                                 </div>
@@ -761,11 +695,29 @@ export function GridView({
                             </Card>
                           </button>
                         ))}
+                      </div>
+                    ))}
+                  </div>
+                  {group.articles.length > NUM_OF_ARTICLES && (
+                    <div className="mt-3 flex justify-center">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() =>
+                          setExpandedSourceId(isExpanded ? null : group.sourceId)
+                        }
+                        className="text-xs border-border/60 bg-transparent"
+                      >
+                        {isExpanded
+                          ? "Show fewer"
+                          : `View all ${group.articles.length}`}
+                      </Button>
                     </div>
                   )}
                 </div>
+                )}
               </div>
-            ))}
+            )})}
           </div>
         </div>
       )}

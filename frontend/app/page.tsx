@@ -80,6 +80,7 @@ function NewsPage() {
   const [leadArticle, setLeadArticle] = useState<NewsArticle | null>(null);
   const [leadModalOpen, setLeadModalOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
+  const [deskOpen, setDeskOpen] = useState(false);
 
   // New: State for articles per category to avoid reloading on view switches
   const [articlesByCategory, setArticlesByCategory] = useState<Record<string, NewsArticle[]>>({})
@@ -436,7 +437,7 @@ function NewsPage() {
 
       <main className="flex-1">
         <div className="max-w-[1600px] mx-auto grid grid-cols-1 lg:grid-cols-12 gap-px bg-border/40">
-          <section className={`${isGlobeView ? "lg:col-span-12" : "lg:col-span-8"} bg-[var(--news-bg-primary)] flex flex-col min-h-[calc(100vh-80px)]`}>
+          <section className="lg:col-span-12 bg-[var(--news-bg-primary)] flex flex-col min-h-[calc(100vh-80px)]">
             {!isGlobeView && (
               <div className="relative p-8 border-b border-border/60">
               <div
@@ -534,12 +535,24 @@ function NewsPage() {
 
             <Tabs value={activeCategory} onValueChange={(value) => setActiveCategory(value)} className="flex-1 flex flex-col overflow-hidden">
               <div className="px-8 py-6 border-b border-border/60">
-                <div className="flex items-center gap-4 mb-6">
-                  <h3 className="font-serif text-2xl uppercase font-black tracking-tight">The Index</h3>
-                  <div className="flex-1 h-px bg-border/60" />
-                  <span className="font-mono text-[10px] uppercase tracking-[0.3em] text-muted-foreground">
-                    {articleCount} articles
-                  </span>
+                <div className="flex items-center justify-between mb-6">
+                  <div className="flex items-center gap-4">
+                    <h3 className="font-serif text-2xl uppercase font-black tracking-tight">The Index</h3>
+                    <div className="flex-1 h-px bg-border/60" />
+                    <span className="font-mono text-[10px] uppercase tracking-[0.3em] text-muted-foreground">
+                      {articleCount} articles
+                    </span>
+                  </div>
+                  {!isGlobeView && (
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => setDeskOpen(!deskOpen)}
+                      className={`h-8 px-3 text-[10px] uppercase tracking-widest font-mono border ${deskOpen ? 'bg-primary text-primary-foreground border-primary' : 'border-border/60'}`}
+                    >
+                      {deskOpen ? 'Hide Desk' : 'Show Desk'}
+                    </Button>
+                  )}
                 </div>
                 <TabsList className="flex flex-wrap gap-2 bg-transparent p-0 h-auto">
                   {categories.map((category) => (
@@ -592,9 +605,15 @@ function NewsPage() {
             </Tabs>
           </section>
 
-          {!isGlobeView && (
-            <aside className="lg:col-span-4 bg-[var(--news-bg-primary)] border-l border-border/60">
-              <div className="sticky top-24 p-6 space-y-6">
+          {!isGlobeView && deskOpen && (
+            <aside className="fixed right-0 top-24 bottom-6 z-40 w-[320px] group">
+              <div className="flex h-full translate-x-[calc(100%-2.5rem)] group-hover:translate-x-0 group-focus-within:translate-x-0 transition-transform duration-300 ease-out">
+                <div className="w-10 flex items-center justify-center bg-[var(--news-bg-secondary)] border-l border-border/60">
+                  <span className="text-[10px] font-mono uppercase tracking-[0.3em] rotate-90 whitespace-nowrap text-muted-foreground">
+                    Desk
+                  </span>
+                </div>
+                <div className="flex-1 h-full overflow-y-auto p-6 space-y-6 bg-[var(--news-bg-primary)] border-l border-border/60 shadow-xl">
                 <div className="group rounded-lg border border-border/60 bg-[var(--news-bg-secondary)] overflow-hidden transition-all duration-500 ease-out">
                   <div className="p-5 flex items-center justify-between">
                     <div>
@@ -699,6 +718,7 @@ function NewsPage() {
                       <ChevronRight size={12} />
                     </Link>
                   </div>
+                </div>
                 </div>
               </div>
             </aside>
