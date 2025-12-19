@@ -15,6 +15,7 @@ import feedparser  # type: ignore[import-unresolved]
 import httpx
 import requests
 
+from app.core.config import settings
 from app.core.logging import get_logger
 from app.core.resource_config import get_system_resources, ResourceConfig
 from app.data.rss_sources import get_rss_sources
@@ -38,6 +39,8 @@ stream_logger = get_logger("news_stream")
 _shutdown_event: Optional[asyncio.Event] = None
 _process_pool: Optional[ProcessPoolExecutor] = None
 _resources: Optional[ResourceConfig] = None
+_source_cache_headers: Dict[str, Dict[str, str]] = {}
+_source_cache_lock = threading.Lock()
 
 
 def _iter_source_urls(url_field: Any) -> Iterable[str]:
@@ -55,6 +58,7 @@ def parse_rss_feed(
     try:
         feed = feedparser.parse(url, agent="NewsAggregator/1.0")
         articles: List[NewsArticle] = []
+        seen_urls: set[str] = set()
 
         if getattr(feed, "bozo", False):
             logger.warning(
@@ -78,6 +82,11 @@ def parse_rss_feed(
                 channel_image_url = image.get("url") or image.get("href")
 
         for entry in feed.entries:
+            article_link = entry.get("link", "") or getattr(feed.feed, "link", url)
+            if article_link in seen_urls:
+                continue
+            seen_urls.add(article_link)
+
             image_url = _extract_image_from_entry(entry)
             if not image_url and channel_image_url:
                 image_url = channel_image_url
@@ -96,7 +105,6 @@ def parse_rss_feed(
                 except Exception:
                     image_url = None
 
-            article_link = entry.get("link", "") or getattr(feed.feed, "link", url)
             article = NewsArticle(
                 title=title,
                 link=article_link,
@@ -484,14 +492,53 @@ async def _fetch_worker(
             async with semaphore:
                 try:
                     # Fetch raw XML with aggressive timeout
-                    url = source_info["url"]
+                    url_field = source_info["url"]
+                    url = url_field[0] if isinstance(url_field, list) else url_field
+
+                    headers: Dict[str, str] = {}
+                    with _source_cache_lock:
+                        cached = _source_cache_headers.get(source_name, {})
+                        if cached.get("etag"):
+                            headers["If-None-Match"] = cached["etag"]
+                        if cached.get("last_modified"):
+                            headers["If-Modified-Since"] = cached["last_modified"]
+
                     response = await http_client.get(
                         url,
                         timeout=httpx.Timeout(25.0),
                         follow_redirects=True,
+                        headers=headers or None,
                     )
+
+                    if response.status_code == 304:
+                        metrics.fetch_count += 1
+                        metrics.fetch_not_modified += 1
+                        not_modified_stat = {
+                            "name": source_name,
+                            "url": url,
+                            "category": source_info.get("category", "general"),
+                            "country": source_info.get("country", "US"),
+                            "funding_type": source_info.get("funding_type"),
+                            "bias_rating": source_info.get("bias_rating"),
+                            "status": "not_modified",
+                            "article_count": 0,
+                            "last_checked": datetime.now(timezone.utc).isoformat(),
+                        }
+                        await parse_queue.put((None, source_name, not_modified_stat))
+                        fetch_queue.task_done()
+                        continue
+
                     response.raise_for_status()
                     raw_xml = response.text
+
+                    with _source_cache_lock:
+                        etag = response.headers.get("etag")
+                        last_modified = response.headers.get("last-modified")
+                        if etag or last_modified:
+                            _source_cache_headers[source_name] = {
+                                "etag": etag or "",
+                                "last_modified": last_modified or "",
+                            }
 
                     metrics.fetch_count += 1
 
@@ -721,8 +768,14 @@ async def _refresh_news_cache_with_python(
     source_stats: List[Dict[str, Any]] = []
 
     def collect_results(articles: List[NewsArticle], stat: Dict[str, Any]) -> None:
-        all_articles.extend(articles)
-        source_stats.append(stat)
+        if settings.enable_incremental_cache:
+            replace_articles = stat.get("status") in {"success", "warning"}
+            news_cache.update_source_cache(
+                articles, stat, replace_articles=replace_articles
+            )
+        else:
+            all_articles.extend(articles)
+            source_stats.append(stat)
 
     def combined_callback(articles: List[NewsArticle], stat: Dict[str, Any]) -> None:
         collect_results(articles, stat)
@@ -771,13 +824,18 @@ async def _refresh_news_cache_with_python(
 
         await asyncio.gather(*fetch_workers, *parse_workers, persist_worker)
 
-        try:
-            all_articles.sort(key=lambda article: article.published, reverse=True)
-        except Exception:
-            pass
+        if settings.enable_incremental_cache:
+            total_articles = len(news_cache.get_articles())
+            total_sources = len(news_cache.get_source_stats())
+            await _broadcast_cache_update(total_articles, total_sources)
+        else:
+            try:
+                all_articles.sort(key=lambda article: article.published, reverse=True)
+            except Exception:
+                pass
 
-        news_cache.update_cache(all_articles, source_stats)
-        await _broadcast_cache_update(len(all_articles), len(source_stats))
+            news_cache.update_cache(all_articles, source_stats)
+            await _broadcast_cache_update(len(all_articles), len(source_stats))
 
         metrics = get_metrics()
         metrics.end_time = datetime.now(timezone.utc)
@@ -859,6 +917,13 @@ async def _refresh_news_cache_with_rust(
             "sub_feeds": rust_stat.get("sub_feeds"),
         }
         source_stats.append(stat)
+        if settings.enable_incremental_cache:
+            replace_articles = stat.get("status") in {"success", "warning"}
+            news_cache.update_source_cache(
+                articles_by_source.get(name, []),
+                stat,
+                replace_articles=replace_articles,
+            )
         if source_progress_callback:
             try:
                 source_progress_callback(articles_by_source.get(name, []), stat)
@@ -884,13 +949,18 @@ async def _refresh_news_cache_with_rust(
     all_articles = [
         article for group in articles_by_source.values() for article in group
     ]
-    try:
-        all_articles.sort(key=lambda article: article.published, reverse=True)
-    except Exception:
-        pass
+    if settings.enable_incremental_cache:
+        total_articles = len(news_cache.get_articles())
+        total_sources = len(news_cache.get_source_stats())
+        await _broadcast_cache_update(total_articles, total_sources)
+    else:
+        try:
+            all_articles.sort(key=lambda article: article.published, reverse=True)
+        except Exception:
+            pass
 
-    news_cache.update_cache(all_articles, source_stats)
-    await _broadcast_cache_update(len(all_articles), len(source_stats))
+        news_cache.update_cache(all_articles, source_stats)
+        await _broadcast_cache_update(len(all_articles), len(source_stats))
 
     logger.info(
         "Rust parser complete: %s articles (fetch=%sms, parse=%sms, total=%sms)",
@@ -1003,7 +1073,18 @@ def refresh_news_cache(
     except Exception:
         pass
 
-    news_cache.update_cache(all_articles, source_stats)
+    if settings.enable_incremental_cache:
+        replace_articles = True
+        for stat in source_stats:
+            source_name = stat.get("name")
+            if not source_name:
+                continue
+            source_articles = [a for a in all_articles if a.source == source_name]
+            news_cache.update_source_cache(
+                source_articles, stat, replace_articles=replace_articles
+            )
+    else:
+        news_cache.update_cache(all_articles, source_stats)
     logger.info("Cache refresh completed: %s total articles", len(all_articles))
 
     async def notify_clients() -> None:
@@ -1049,7 +1130,13 @@ def parse_rss_feed_entries(
     entries: Iterable[Any], source_name: str, source_info: Dict[str, Any]
 ) -> List[NewsArticle]:
     articles: List[NewsArticle] = []
+    seen_urls: set[str] = set()
     for entry in entries:
+        link = entry.get("link", "")
+        if link in seen_urls:
+            continue
+        seen_urls.add(link)
+
         image_url = _extract_image_from_entry(entry)
 
         title = _clean_text(entry.get("title", "No title"))
@@ -1069,7 +1156,7 @@ def parse_rss_feed_entries(
 
         article = NewsArticle(
             title=title,
-            link=entry.get("link", ""),
+            link=link,
             description=description,
             published=entry.get("published", str(datetime.now(timezone.utc))),
             source=source_name,

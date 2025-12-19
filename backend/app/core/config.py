@@ -27,6 +27,10 @@ class Settings:
     )
     enable_vector_store: bool = _env_enabled("ENABLE_VECTOR_STORE")
     enable_database: bool = _env_enabled("ENABLE_DATABASE")
+    enable_incremental_cache: bool = _env_enabled("ENABLE_INCREMENTAL_CACHE", "1")
+    embedding_batch_size: int = int(os.getenv("EMBEDDING_BATCH_SIZE", "64"))
+    embedding_max_per_minute: int = int(os.getenv("EMBEDDING_MAX_PER_MINUTE", "240"))
+    embedding_queue_size: int = int(os.getenv("EMBEDDING_QUEUE_SIZE", "2000"))
 
 
 settings = Settings()

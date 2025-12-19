@@ -848,6 +848,38 @@ export interface StorageDriftReport {
   dangling_in_chroma: string[];
 }
 
+export interface CacheDebugArticle {
+  id?: number | null;
+  title: string;
+  link: string;
+  description: string;
+  published: string;
+  source: string;
+  category: string;
+  country?: string | null;
+  image?: string | null;
+}
+
+export interface CacheDebugResponse {
+  limit: number;
+  offset: number;
+  source?: string | null;
+  total: number;
+  returned: number;
+  articles: CacheDebugArticle[];
+}
+
+export interface CacheDeltaResponse {
+  cache_total: number;
+  cache_sampled: number;
+  db_total: number;
+  missing_in_db_count: number;
+  missing_in_db_sample: string[];
+  source?: string | null;
+  sample_offset: number;
+  sample_limit: number;
+}
+
 export interface StartupEventMetric {
   name: string;
   startedAt?: string | null;
@@ -933,6 +965,60 @@ export async function fetchStorageDrift(sampleLimit: number = 50): Promise<Stora
   }
 
   return (await response.json()) as StorageDriftReport;
+}
+
+export async function fetchCacheDebugArticles(params?: {
+  limit?: number;
+  offset?: number;
+  source?: string;
+}): Promise<CacheDebugResponse> {
+  const searchParams = new URLSearchParams();
+  if (params?.limit) searchParams.append("limit", String(params.limit));
+  if (params?.offset) searchParams.append("offset", String(params.offset));
+  if (params?.source) searchParams.append("source", params.source);
+
+  const query = searchParams.toString();
+  const response = await fetch(
+    `${API_BASE_URL}/debug/cache/articles${query ? `?${query}` : ""}`
+  );
+
+  if (!response.ok) {
+    throw new Error(`Failed to fetch cache debug data (${response.status})`);
+  }
+
+  return (await response.json()) as CacheDebugResponse;
+}
+
+export async function fetchCacheDelta(params?: {
+  sample_limit?: number;
+  sample_offset?: number;
+  source?: string;
+  sample_preview_limit?: number;
+}): Promise<CacheDeltaResponse> {
+  const searchParams = new URLSearchParams();
+  if (params?.sample_limit) {
+    searchParams.append("sample_limit", String(params.sample_limit));
+  }
+  if (params?.sample_offset) {
+    searchParams.append("sample_offset", String(params.sample_offset));
+  }
+  if (params?.source) {
+    searchParams.append("source", params.source);
+  }
+  if (params?.sample_preview_limit != null) {
+    searchParams.append("sample_preview_limit", String(params.sample_preview_limit));
+  }
+
+  const query = searchParams.toString();
+  const response = await fetch(
+    `${API_BASE_URL}/debug/cache/delta${query ? `?${query}` : ""}`
+  );
+
+  if (!response.ok) {
+    throw new Error(`Failed to fetch cache delta (${response.status})`);
+  }
+
+  return (await response.json()) as CacheDeltaResponse;
 }
 
 export async function fetchStartupMetrics(): Promise<StartupMetricsResponse> {

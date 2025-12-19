@@ -39,6 +39,15 @@ class PaginatedResponse(BaseModel):
     has_more: bool = False
 
 
+class RecentPageResponse(BaseModel):
+    """Lightweight response for recent articles without total counts."""
+
+    articles: List[Dict[str, Any]]
+    limit: int
+    next_cursor: Optional[str] = None
+    has_more: bool = False
+
+
 def encode_cursor(published_at: datetime, article_id: int) -> str:
     """Encode pagination cursor as base64 string."""
     data = {"published_at": published_at.isoformat(), "id": article_id}
@@ -253,6 +262,63 @@ async def get_cached_news_paginated(
     return PaginatedResponse(
         articles=articles,
         total=total,
+        limit=limit,
+        next_cursor=next_cursor,
+        has_more=has_more,
+    )
+
+
+@router.get("/recent", response_model=RecentPageResponse)
+async def get_recent_news(
+    limit: int = Query(default=50, ge=1, le=200),
+    cursor: Optional[str] = Query(default=None),
+    category: Optional[str] = Query(default=None),
+    source: Optional[str] = Query(default=None),
+    db: AsyncSession = Depends(get_db),
+) -> RecentPageResponse:
+    """
+    Lightweight recent articles endpoint for historical paging.
+
+    Uses keyset pagination and avoids total counts for faster queries.
+    """
+    filters = []
+
+    if category:
+        filters.append(Article.category == category)
+
+    if source:
+        filters.append(Article.source == source)
+
+    if cursor:
+        cursor_data = decode_cursor(cursor)
+        cursor_dt = datetime.fromisoformat(cursor_data.published_at)
+        filters.append(
+            or_(
+                Article.published_at < cursor_dt,
+                and_(Article.published_at == cursor_dt, Article.id < cursor_data.id),
+            )
+        )
+
+    stmt = (
+        select(Article)
+        .where(*filters) if filters else select(Article)
+    ).order_by(desc(Article.published_at), desc(Article.id)).limit(limit + 1)
+
+    result = await db.execute(stmt)
+    rows = list(result.scalars().all())
+
+    has_more = len(rows) > limit
+    if has_more:
+        rows = rows[:limit]
+
+    articles = [article_record_to_dict(row) for row in rows]
+    next_cursor = None
+    if has_more and rows:
+        last = rows[-1]
+        next_cursor = encode_cursor(last.published_at, last.id)
+
+    return RecentPageResponse(
+        articles=articles,
         limit=limit,
         next_cursor=next_cursor,
         has_more=has_more,

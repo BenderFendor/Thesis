@@ -318,6 +318,20 @@ def article_record_to_dict(record: Article) -> Dict[str, Any]:
         return {}
 
     published = record.published_at.isoformat() if record.published_at else None
+    missing_fields = []
+    if not hasattr(record, "source_country"):
+        missing_fields.append("source_country")
+    if not hasattr(record, "mentioned_countries"):
+        missing_fields.append("mentioned_countries")
+    if missing_fields:
+        logger.debug(
+            "Article missing fields %s; defaulting to None/empty. id=%s",
+            ",".join(missing_fields),
+            record.id,
+        )
+
+    source_country = getattr(record, "source_country", None)
+    mentioned_countries = getattr(record, "mentioned_countries", None)
 
     return {
         "id": record.id,
@@ -345,8 +359,8 @@ def article_record_to_dict(record: Article) -> Dict[str, Any]:
         "created_at": record.created_at.isoformat() if record.created_at else None,
         "updated_at": record.updated_at.isoformat() if record.updated_at else None,
         # Phase 5 Fields
-        "source_country": record.source_country,
-        "mentioned_countries": record.mentioned_countries or [],
+        "source_country": source_country,
+        "mentioned_countries": mentioned_countries or [],
         # "author": record.authors[0].name if record.authors else None, # Future: support multiple authors
     }
 

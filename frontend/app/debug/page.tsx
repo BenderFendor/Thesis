@@ -26,6 +26,10 @@ import {
   DatabaseDebugResponse,
   StorageDriftReport,
   StartupMetricsResponse,
+  CacheDebugResponse,
+  CacheDeltaResponse,
+  fetchCacheDebugArticles,
+  fetchCacheDelta,
   fetchChromaDebugArticles,
   fetchDatabaseDebugArticles,
   fetchStorageDrift,
@@ -58,9 +62,16 @@ export default function DebugDashboardPage() {
   const [dbAfterDraft, setDbAfterDraft] = useState("")
   const [dbAfterFilter, setDbAfterFilter] = useState<string | undefined>(undefined)
 
+  const [cacheLimit, setCacheLimit] = usePersistentNumber(25, 5, 500)
+  const [cacheOffset, setCacheOffset] = usePersistentNumber(0, 0, 5000)
+  const [cacheSourceDraft, setCacheSourceDraft] = useState("")
+  const [cacheSourceFilter, setCacheSourceFilter] = useState<string | undefined>(undefined)
+
   const [chromaData, setChromaData] = useState<ChromaDebugResponse | null>(null)
   const [dbData, setDbData] = useState<DatabaseDebugResponse | null>(null)
   const [driftData, setDriftData] = useState<StorageDriftReport | null>(null)
+  const [cacheData, setCacheData] = useState<CacheDebugResponse | null>(null)
+  const [cacheDelta, setCacheDelta] = useState<CacheDeltaResponse | null>(null)
   const [startupMetrics, setStartupMetrics] = useState<StartupMetricsResponse | null>(null)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -83,7 +94,14 @@ export default function DebugDashboardPage() {
     setLoading(true)
     setError(null)
     try {
-      const [chromaResponse, dbResponse, driftResponse, startupResponse] = await Promise.all([
+      const [
+        chromaResponse,
+        dbResponse,
+        driftResponse,
+        startupResponse,
+        cacheResponse,
+        deltaResponse,
+      ] = await Promise.all([
         fetchChromaDebugArticles({ limit: chromaLimit, offset: chromaOffset }),
         fetchDatabaseDebugArticles({
           limit: dbLimit,
@@ -96,11 +114,24 @@ export default function DebugDashboardPage() {
         }),
         fetchStorageDrift(100),
         fetchStartupMetrics(),
+        fetchCacheDebugArticles({
+          limit: cacheLimit,
+          offset: cacheOffset,
+          source: cacheSourceFilter,
+        }),
+        fetchCacheDelta({
+          sample_limit: cacheLimit,
+          sample_offset: cacheOffset,
+          source: cacheSourceFilter,
+          sample_preview_limit: 50,
+        }),
       ])
       setChromaData(chromaResponse)
       setDbData(dbResponse)
       setDriftData(driftResponse)
       setStartupMetrics(startupResponse)
+      setCacheData(cacheResponse)
+      setCacheDelta(deltaResponse)
     } catch (err) {
       const message = err instanceof Error ? err.message : "Failed to load debug data"
       setError(message)
@@ -117,6 +148,9 @@ export default function DebugDashboardPage() {
     dbSortDirection,
     dbBeforeFilter,
     dbAfterFilter,
+    cacheLimit,
+    cacheOffset,
+    cacheSourceFilter,
   ])
 
   useEffect(() => {
@@ -140,6 +174,14 @@ export default function DebugDashboardPage() {
       newest: dbData.newest_published,
     }
   }, [dbData])
+
+  const cacheStats = useMemo(() => {
+    if (!cacheData) return null
+    return {
+      total: cacheData.total,
+      showing: cacheData.returned,
+    }
+  }, [cacheData])
 
   const driftStats = useMemo(() => driftData, [driftData])
 
@@ -210,6 +252,10 @@ export default function DebugDashboardPage() {
     setDbSourceFilter(dbSourceDraft.trim() || undefined)
     setDbBeforeFilter(dbBeforeDraft || undefined)
     setDbAfterFilter(dbAfterDraft || undefined)
+  }
+
+  const applyCacheFilters = () => {
+    setCacheSourceFilter(cacheSourceDraft.trim() || undefined)
   }
 
   // Phase 3: Load system status
@@ -331,7 +377,7 @@ export default function DebugDashboardPage() {
       )}
 
       <Tabs value={activeTab} onValueChange={setActiveTab}>
-        <TabsList className="grid w-full grid-cols-4">
+      <TabsList className="grid w-full grid-cols-4">
           <TabsTrigger value="system">System</TabsTrigger>
           <TabsTrigger value="storage">Storage</TabsTrigger>
           <TabsTrigger value="parser">Parser Tester</TabsTrigger>
@@ -356,10 +402,31 @@ export default function DebugDashboardPage() {
                         ({systemStatus.components?.cache?.article_count} articles)
                       </p>
                       <p>
+                        Cache updated: {formatTimestamp(systemStatus.components?.cache?.last_updated)}
+                      </p>
+                      <p>
+                        Cache age: {formatDuration(systemStatus.components?.cache?.age_seconds)}
+                      </p>
+                      <p>
+                        Cache refresh: {systemStatus.components?.cache?.update_in_progress ? "Running" : "Idle"}
+                      </p>
+                      <p>
+                        Cache updates: {systemStatus.components?.cache?.update_count ?? "—"}
+                      </p>
+                      <p>
+                        Incremental cache: {systemStatus.components?.cache?.incremental_enabled ? "Enabled" : "Disabled"}
+                      </p>
+                      <p>
+                        Sources tracked: {systemStatus.components?.cache?.sources_tracked ?? "—"}
+                      </p>
+                      <p>
                         Database: {systemStatus.components?.database?.healthy ? "Healthy" : "Unavailable"}
                       </p>
                       <p>
                         Vector Store: {systemStatus.components?.vector_store?.healthy ? "Healthy" : "Unavailable"}
+                      </p>
+                      <p>
+                        Embedding queue: {systemStatus.components?.embedding_queue?.depth ?? "—"}
                       </p>
                     </div>
                   </div>
@@ -378,6 +445,43 @@ export default function DebugDashboardPage() {
               <Button variant="outline" size="sm" onClick={loadSystemStatus}>
                 Refresh Status
               </Button>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader>
+              <CardTitle>Pipeline Signals</CardTitle>
+              <CardDescription>RSS fetch cadence, cache behavior, and embeddings</CardDescription>
+            </CardHeader>
+            <CardContent className="grid gap-4 md:grid-cols-3 text-sm">
+              <div>
+                <p className="text-muted-foreground">ETag hits</p>
+                <p className="text-lg font-semibold">
+                  {systemStatus?.pipeline?.fetch?.not_modified ?? "—"}
+                </p>
+                <p className="text-xs text-muted-foreground">
+                  Not-modified responses in current run
+                </p>
+              </div>
+              <div>
+                <p className="text-muted-foreground">Fetch errors</p>
+                <p className="text-lg font-semibold">
+                  {systemStatus?.pipeline?.fetch?.errors ?? "—"}
+                </p>
+                <p className="text-xs text-muted-foreground">
+                  Failures during feed fetch
+                </p>
+              </div>
+              <div>
+                <p className="text-muted-foreground">Embedding queue depth</p>
+                <p className="text-lg font-semibold">
+                  {systemStatus?.components?.embedding_queue?.depth ?? "—"}
+                </p>
+                <p className="text-xs text-muted-foreground">
+                  Batch size {systemStatus?.components?.embedding_queue?.batch_size ?? "—"} ·
+                  max/min {systemStatus?.components?.embedding_queue?.max_per_minute ?? "—"}
+                </p>
+              </div>
             </CardContent>
           </Card>
 
@@ -438,7 +542,42 @@ export default function DebugDashboardPage() {
 
         {/* Storage Tab (existing content) */}
         <TabsContent value="storage" className="space-y-4">
-          <div className="grid gap-4 md:grid-cols-3">
+          <div className="grid gap-4 md:grid-cols-4">
+            <Card>
+              <CardHeader>
+                <CardTitle>Cache Snapshot</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-2 text-sm">
+                <p>Total cached: {cacheStats?.total ?? "-"}</p>
+                <p>Showing: {cacheStats?.showing ?? "-"}</p>
+                <div className="flex flex-wrap items-center gap-2">
+                  <span>Limit</span>
+                  <Select
+                    value={String(cacheLimit)}
+                    onValueChange={(value) => setCacheLimit(Number(value))}
+                  >
+                    <SelectTrigger className="w-[100px]">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {[10, 25, 50, 100, 200, 500].map((size) => (
+                        <SelectItem key={size} value={String(size)}>
+                          {size}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <span>Offset</span>
+                  <Input
+                    type="number"
+                    className="w-24"
+                    value={cacheOffset}
+                    onChange={(event) => setCacheOffset(Number(event.target.value))}
+                  />
+                </div>
+              </CardContent>
+            </Card>
+
             <Card>
               <CardHeader>
                 <CardTitle>Chroma Snapshot</CardTitle>
@@ -539,6 +678,23 @@ export default function DebugDashboardPage() {
 
           <Card>
             <CardHeader className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
+              <CardTitle>Cache filters</CardTitle>
+              <div className="flex flex-wrap items-center gap-2">
+                <Input
+                  placeholder="Source (e.g. bbc)"
+                  className="w-40"
+                  value={cacheSourceDraft}
+                  onChange={(event) => setCacheSourceDraft(event.target.value)}
+                />
+                <Button variant="secondary" onClick={applyCacheFilters}>
+                  Apply filters
+                </Button>
+              </div>
+            </CardHeader>
+          </Card>
+
+          <Card>
+            <CardHeader className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
               <CardTitle>Database filters</CardTitle>
               <div className="flex flex-wrap items-center gap-2">
                 <Input
@@ -566,6 +722,48 @@ export default function DebugDashboardPage() {
                 </Button>
               </div>
             </CardHeader>
+          </Card>
+
+          <Card>
+            <CardHeader>
+              <CardTitle>Cache vs database delta</CardTitle>
+              <CardDescription>Compares the current cache window against Postgres</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4 text-sm">
+              <div className="grid gap-2 md:grid-cols-4">
+                <div>
+                  <p className="text-muted-foreground">Cache total</p>
+                  <p className="text-lg font-semibold">{cacheDelta?.cache_total ?? "-"}</p>
+                </div>
+                <div>
+                  <p className="text-muted-foreground">Cache sampled</p>
+                  <p className="text-lg font-semibold">{cacheDelta?.cache_sampled ?? "-"}</p>
+                </div>
+                <div>
+                  <p className="text-muted-foreground">DB total</p>
+                  <p className="text-lg font-semibold">{cacheDelta?.db_total ?? "-"}</p>
+                </div>
+                <div>
+                  <p className="text-muted-foreground">Missing in DB</p>
+                  <p className="text-lg font-semibold">{cacheDelta?.missing_in_db_count ?? "-"}</p>
+                </div>
+              </div>
+
+              <div>
+                <p className="text-xs text-muted-foreground mb-2">Missing cache URLs (sample)</p>
+                <div className="max-h-40 overflow-auto rounded border border-border bg-muted/30 p-3 text-xs">
+                  {cacheDelta?.missing_in_db_sample?.length ? (
+                    <ul className="space-y-1">
+                      {cacheDelta.missing_in_db_sample.map((url) => (
+                        <li key={url} className="break-all">{url}</li>
+                      ))}
+                    </ul>
+                  ) : (
+                    <p className="text-muted-foreground">No missing URLs in sample.</p>
+                  )}
+                </div>
+              </div>
+            </CardContent>
           </Card>
 
           <Card>
@@ -650,6 +848,46 @@ export default function DebugDashboardPage() {
                 </TableBody>
                 <TableCaption>
                   Showing {chromaData?.returned ?? 0} / {chromaData?.total ?? chromaData?.returned ?? 0} vectors
+                </TableCaption>
+              </Table>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader>
+              <CardTitle>Cached articles</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Source</TableHead>
+                    <TableHead>Title</TableHead>
+                    <TableHead>Published</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {cacheData?.articles?.map((article, index) => (
+                    <TableRow key={`${article.link}-${index}`}>
+                      <TableCell>{article.source}</TableCell>
+                      <TableCell>
+                        <a
+                          href={article.link}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="text-primary underline-offset-2 hover:underline"
+                        >
+                          {article.title}
+                        </a>
+                      </TableCell>
+                      <TableCell className="text-xs text-muted-foreground">
+                        {article.published ? new Date(article.published).toLocaleString() : "-"}
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+                <TableCaption>
+                  Showing {cacheData?.returned ?? 0} / {cacheData?.total ?? 0} cached
                 </TableCaption>
               </Table>
             </CardContent>
@@ -921,4 +1159,3 @@ export default function DebugDashboardPage() {
     </div >
   )
 }
-

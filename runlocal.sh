@@ -62,6 +62,25 @@ stop_backend_processes() {
 	pkill -9 -f "$BACKEND_DIR/.venv/bin/python3 $BACKEND_DIR/.venv/bin/uvicorn app.main" >/dev/null 2>&1 || true
 }
 
+free_port() {
+	local port="$1"
+	if command -v ss >/dev/null 2>&1; then
+		local pid
+		pid="$(ss -lptn "sport = :${port}" 2>/dev/null | awk -F'pid=' 'NR>1 {print $2}' | awk -F',' '{print $1}' | head -n 1)"
+		if [[ -n "$pid" ]]; then
+			log "Stopping process $pid on port $port"
+			kill "$pid" >/dev/null 2>&1 || true
+			sleep 0.2
+			if kill -0 "$pid" >/dev/null 2>&1; then
+				log "Force-stopping process $pid on port $port"
+				kill -9 "$pid" >/dev/null 2>&1 || true
+			fi
+		fi
+	else
+		log "ss not available; cannot auto-free port $port"
+	fi
+}
+
 stop_data_services() {
 	if command -v docker >/dev/null 2>&1 && docker compose version >/dev/null 2>&1; then
 		log "Stopping Postgres and ChromaDB containers..."
@@ -118,6 +137,7 @@ run_backend() {
 	require_cmd python
 	require_cmd uv pip
 	start_data_services
+	free_port "$BACKEND_PORT"
 
 	pushd "$BACKEND_DIR" >/dev/null
 

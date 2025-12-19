@@ -17,6 +17,7 @@ from app.models.news import NewsArticle
 from app.services.cache import news_cache
 from app.services.persistence import (
     article_persistence_worker,
+    embedding_generation_worker,
     migrate_cached_articles_on_startup,
     set_main_event_loop,
 )
@@ -238,6 +239,11 @@ async def on_startup() -> None:
             article_persistence_worker(), name="article_persistence_worker"
         )
         _register_background_task(persistence_task)
+        if settings.enable_vector_store:
+            embedding_task = asyncio.create_task(
+                embedding_generation_worker(), name="embedding_generation_worker"
+            )
+            _register_background_task(embedding_task)
 
     # Only migrate if cache has stale articles (> 6 hours old)
     if settings.enable_database:

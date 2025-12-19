@@ -11,6 +11,7 @@ class PipelineMetrics:
 
     fetch_count: int = 0
     fetch_errors: int = 0
+    fetch_not_modified: int = 0
     parse_count: int = 0
     parse_errors: int = 0
     persist_count: int = 0
@@ -30,7 +31,11 @@ class PipelineMetrics:
     def to_dict(self) -> Dict:
         """Convert to dictionary for logging/API."""
         return {
-            "fetch": {"count": self.fetch_count, "errors": self.fetch_errors},
+            "fetch": {
+                "count": self.fetch_count,
+                "errors": self.fetch_errors,
+                "not_modified": self.fetch_not_modified,
+            },
             "parse": {"count": self.parse_count, "errors": self.parse_errors},
             "persist": {"count": self.persist_count, "errors": self.persist_errors},
             "duration_seconds": self.duration_seconds(),

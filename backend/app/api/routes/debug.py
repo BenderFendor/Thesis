@@ -7,15 +7,18 @@ from typing import Dict, List
 import feedparser  # type: ignore[import-unresolved]
 from fastapi import APIRouter, HTTPException, Query
 from fastapi.concurrency import run_in_threadpool
+from sqlalchemy import func, select  # type: ignore[import-unresolved]
 
 from app.core.config import settings
 from app.data.rss_sources import get_rss_sources
 from app.database import (
+    Article,
     AsyncSessionLocal,
     fetch_article_chroma_mappings,
     fetch_articles_page,
 )
 from app.services.cache import news_cache
+from app.services.persistence import get_embedding_queue_depth
 from app.services.metrics import get_metrics
 from app.services.startup_metrics import startup_metrics
 from app.services.stream_manager import stream_manager
@@ -269,6 +272,80 @@ async def list_database_articles(
     }
 
 
+@router.get("/cache/articles")
+async def list_cached_articles(
+    limit: int = Query(50, ge=1, le=500),
+    offset: int = Query(0, ge=0),
+    source: str | None = Query(default=None, description="Filter by RSS source key"),
+) -> Dict[str, object]:
+    cached = news_cache.get_articles()
+    if source:
+        cached = [article for article in cached if article.source == source]
+
+    total = len(cached)
+    window = cached[offset : offset + limit]
+
+    return {
+        "limit": limit,
+        "offset": offset,
+        "source": source,
+        "total": total,
+        "returned": len(window),
+        "articles": [article.dict() for article in window],
+    }
+
+
+@router.get("/cache/delta")
+async def get_cache_db_delta(
+    sample_limit: int = Query(200, ge=10, le=1000),
+    sample_offset: int = Query(0, ge=0),
+    source: str | None = Query(default=None, description="Filter by RSS source key"),
+    sample_preview_limit: int = Query(50, ge=0, le=200),
+) -> Dict[str, object]:
+    if not settings.enable_database or AsyncSessionLocal is None:
+        raise HTTPException(status_code=503, detail="Database unavailable")
+
+    cached = news_cache.get_articles()
+    if source:
+        cached = [article for article in cached if article.source == source]
+
+    cache_total = len(cached)
+    sample_slice = cached[sample_offset : sample_offset + sample_limit]
+    cache_urls = [article.link for article in sample_slice if article.link]
+
+    if not cache_urls:
+        return {
+            "cache_total": cache_total,
+            "cache_sampled": 0,
+            "db_total": 0,
+            "missing_in_db_count": 0,
+            "missing_in_db_sample": [],
+            "source": source,
+        }
+
+    async with AsyncSessionLocal() as session:
+        db_total_stmt = select(func.count(Article.id))
+        if source:
+            db_total_stmt = db_total_stmt.where(Article.source == source)
+        db_total = (await session.execute(db_total_stmt)).scalar_one()
+
+        matched_stmt = select(Article.url).where(Article.url.in_(cache_urls))
+        matched_urls = {row[0] for row in (await session.execute(matched_stmt)).all()}
+
+    missing_in_db = [url for url in cache_urls if url not in matched_urls]
+
+    return {
+        "cache_total": cache_total,
+        "cache_sampled": len(cache_urls),
+        "db_total": db_total,
+        "missing_in_db_count": len(missing_in_db),
+        "missing_in_db_sample": missing_in_db[:sample_preview_limit],
+        "source": source,
+        "sample_offset": sample_offset,
+        "sample_limit": sample_limit,
+    }
+
+
 @router.get("/storage/drift")
 async def get_storage_drift(
     sample_limit: int = Query(50, ge=5, le=500),
@@ -326,6 +403,12 @@ async def get_system_status() -> Dict[str, object]:
     
     startup_data = startup_metrics.to_dict()
     cache_stats = news_cache.get_source_stats()
+    cache_last_updated = news_cache.last_updated
+    cache_age_seconds = None
+    if cache_last_updated:
+        cache_age_seconds = (
+            datetime.now(timezone.utc) - cache_last_updated
+        ).total_seconds()
     
     # Component health checks
     components = {
@@ -333,6 +416,14 @@ async def get_system_status() -> Dict[str, object]:
             "healthy": True,
             "article_count": len(news_cache.get_articles()),
             "source_count": len(cache_stats),
+            "last_updated": cache_last_updated.isoformat()
+            if cache_last_updated
+            else None,
+            "age_seconds": cache_age_seconds,
+            "update_in_progress": news_cache.update_in_progress,
+            "update_count": news_cache.update_count,
+            "incremental_enabled": settings.enable_incremental_cache,
+            "sources_tracked": len(news_cache.articles_by_source),
         },
         "database": {
             "healthy": settings.enable_database and AsyncSessionLocal is not None,
@@ -341,11 +432,17 @@ async def get_system_status() -> Dict[str, object]:
         "vector_store": {
             "healthy": get_vector_store() is not None,
         },
+        "embedding_queue": {
+            "depth": get_embedding_queue_depth(),
+            "batch_size": settings.embedding_batch_size,
+            "max_per_minute": settings.embedding_max_per_minute,
+        },
     }
     
     return {
         "startup": startup_data,
         "components": components,
+        "pipeline": get_metrics().to_dict(),
         "runtime": {
             "python_version": sys.version,
             "platform": platform.platform(),
@@ -522,4 +619,3 @@ async def get_updates_subscribers() -> Dict[str, object]:
         "subscriber_count": len(_update_subscribers),
         "total_events_sent": _event_counter,
     }
-

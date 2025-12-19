@@ -5,7 +5,8 @@ from collections import defaultdict
 from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional, Tuple
 
-from sqlalchemy import select  # type: ignore[import-unresolved]
+from sqlalchemy import bindparam, update  # type: ignore[import-unresolved]
+from sqlalchemy.dialects.postgresql import insert  # type: ignore[import-unresolved]
 from sqlalchemy.ext.asyncio import AsyncSession  # type: ignore[import-unresolved]
 
 from app.core.config import settings
@@ -23,6 +24,9 @@ logger = get_logger("persistence")
 article_persistence_queue: asyncio.Queue[Tuple[List[NewsArticle], Dict[str, Any]]] = (
     asyncio.Queue()
 )
+embedding_generation_queue: asyncio.Queue[
+    Tuple[List[Dict[str, Any]], List[str]]
+] = asyncio.Queue(maxsize=settings.embedding_queue_size)
 _main_event_loop: Optional[asyncio.AbstractEventLoop] = None
 
 
@@ -33,6 +37,10 @@ def set_main_event_loop(loop: asyncio.AbstractEventLoop) -> None:
 
 def get_main_event_loop() -> Optional[asyncio.AbstractEventLoop]:
     return _main_event_loop
+
+
+def get_embedding_queue_depth() -> int:
+    return embedding_generation_queue.qsize()
 
 
 def parse_published_datetime(published: Optional[str]) -> datetime:
@@ -59,122 +67,37 @@ def parse_published_datetime(published: Optional[str]) -> datetime:
     return dt
 
 
-async def _upsert_article(
-    session: AsyncSession,
-    article: NewsArticle,
-    source_info: Dict[str, Any],
-    vector_store: Optional[VectorStore],
-    vector_batch: Optional[List[Dict[str, Any]]] = None,
-    vector_deletes: Optional[List[str]] = None,
-) -> int:
-    published_dt = parse_published_datetime(article.published)
-    published_value = published_dt.astimezone(timezone.utc).replace(tzinfo=None)
-
-    tags = []
+def _build_article_tags(article: NewsArticle) -> List[str]:
+    tags: List[str] = []
     if article.category:
         tags.append(article.category)
     if article.source:
         tags.append(article.source)
-    tags = list(dict.fromkeys([tag for tag in tags if tag]))
+    return list(dict.fromkeys([tag for tag in tags if tag]))
 
-    existing_result = await session.execute(
-        select(ArticleRecord).where(ArticleRecord.url == article.link)
-    )
-    article_record = existing_result.scalar_one_or_none()
 
-    if article_record:
-        article_record.title = article.title
-        article_record.summary = article.description
-        article_record.content = article.description
-        article_record.image_url = article.image
-        article_record.published_at = published_value
-        article_record.category = article.category
-        article_record.source = article.source
-        if source_info.get("country"):
-            article_record.country = source_info.get("country")
-        if source_info.get("bias_rating"):
-            article_record.bias = source_info.get("bias_rating")
-        if source_info.get("credibility"):
-            article_record.credibility = source_info.get("credibility")
-        if tags:
-            article_record.tags = tags
-        article_record.updated_at = datetime.now(timezone.utc).replace(tzinfo=None)
-    else:
-        article_record = ArticleRecord(
-            title=article.title,
-            source=article.source,
-            source_id=source_info.get("source_id"),
-            country=source_info.get("country"),
-            credibility=source_info.get("credibility"),
-            bias=source_info.get("bias_rating"),
-            summary=article.description,
-            content=article.description,
-            image_url=article.image,
-            published_at=published_value,
-            category=article.category,
-            url=article.link,
-            tags=tags if tags else None,
-        )
-        session.add(article_record)
-        await session.flush()
-
-    article_id = article_record.id
-
-    if vector_store:
-        chroma_id = f"article_{article_id}"
-        metadata_payload = {
-            "source": article_record.source,
-            "category": article_record.category
-            or source_info.get("category", "general"),
-            "published": article_record.published_at.isoformat()
-            if article_record.published_at
-            else None,
-            "country": article_record.country or source_info.get("country", "Unknown"),
-            "url": article_record.url,
-        }
-
-        if vector_batch is not None:
-            if (
-                article_record.chroma_id
-                and article_record.chroma_id != chroma_id
-                and vector_deletes is not None
-            ):
-                vector_deletes.append(article_record.chroma_id)
-
-            vector_batch.append(
-                {
-                    "chroma_id": chroma_id,
-                    "title": article_record.title,
-                    "summary": article_record.summary or "",
-                    "content": (article_record.content or article_record.summary or ""),
-                    "metadata": metadata_payload,
-                    "record": article_record,
-                }
-            )
-            article_record.embedding_generated = False
-        else:
-            try:
-                if article_record.chroma_id and article_record.chroma_id != chroma_id:
-                    vector_store.delete_article(article_record.chroma_id)
-                success = vector_store.add_article(
-                    article_id=chroma_id,
-                    title=article_record.title,
-                    summary=article_record.summary or "",
-                    content=(article_record.content or article_record.summary or ""),
-                    metadata=metadata_payload,
-                )
-                if success:
-                    article_record.chroma_id = chroma_id
-                    article_record.embedding_generated = True
-            except Exception as chroma_error:  # pragma: no cover - best effort logging
-                logger.error(
-                    "Vector store write failed for article %s: %s",
-                    article_id,
-                    chroma_error,
-                )
-
-    article.id = article_id
-    return article_id
+def _build_article_values(
+    article: NewsArticle, source_info: Dict[str, Any]
+) -> Dict[str, Any]:
+    published_dt = parse_published_datetime(article.published)
+    published_value = published_dt.astimezone(timezone.utc).replace(tzinfo=None)
+    tags = _build_article_tags(article)
+    return {
+        "title": article.title,
+        "source": article.source,
+        "source_id": source_info.get("source_id"),
+        "country": source_info.get("country"),
+        "credibility": source_info.get("credibility"),
+        "bias": source_info.get("bias_rating"),
+        "summary": article.description,
+        "content": article.description,
+        "image_url": article.image,
+        "published_at": published_value,
+        "category": article.category,
+        "url": article.link,
+        "tags": tags if tags else None,
+        "updated_at": datetime.now(timezone.utc).replace(tzinfo=None),
+    }
 
 
 async def _persist_articles_async(
@@ -188,54 +111,126 @@ async def _persist_articles_async(
     vector_store = get_vector_store()
     async with AsyncSessionLocal() as session:
         try:
-            vector_batch: List[Dict[str, Any]] = []
-            vector_deletes: List[str] = []
+            unique_articles: Dict[str, NewsArticle] = {}
             for article in articles:
-                await _upsert_article(
-                    session,
-                    article,
-                    source_info,
-                    vector_store,
-                    vector_batch=vector_batch if vector_store else None,
-                    vector_deletes=vector_deletes if vector_store else None,
-                )
+                if article.link:
+                    unique_articles.setdefault(article.link, article)
 
-            if vector_store and vector_batch:
-                delete_targets = [
-                    chroma_id for chroma_id in vector_deletes if chroma_id
-                ]
-                for chroma_id in delete_targets:
-                    try:
-                        vector_store.delete_article(chroma_id)
-                    except Exception as chroma_error:
-                        logger.error(
-                            "Vector store delete failed for %s: %s",
-                            chroma_id,
-                            chroma_error,
+            if not unique_articles:
+                return
+
+            payloads = [
+                _build_article_values(article, source_info)
+                for article in unique_articles.values()
+            ]
+
+            insert_stmt = insert(ArticleRecord).values(payloads)
+            upsert_stmt = insert_stmt.on_conflict_do_update(
+                index_elements=[ArticleRecord.url],
+                set_={
+                    "title": insert_stmt.excluded.title,
+                    "summary": insert_stmt.excluded.summary,
+                    "content": insert_stmt.excluded.content,
+                    "image_url": insert_stmt.excluded.image_url,
+                    "published_at": insert_stmt.excluded.published_at,
+                    "category": insert_stmt.excluded.category,
+                    "source": insert_stmt.excluded.source,
+                    "source_id": insert_stmt.excluded.source_id,
+                    "country": insert_stmt.excluded.country,
+                    "credibility": insert_stmt.excluded.credibility,
+                    "bias": insert_stmt.excluded.bias,
+                    "tags": insert_stmt.excluded.tags,
+                    "updated_at": insert_stmt.excluded.updated_at,
+                },
+            ).returning(
+                ArticleRecord.id,
+                ArticleRecord.url,
+                ArticleRecord.chroma_id,
+                ArticleRecord.embedding_generated,
+                ArticleRecord.source,
+                ArticleRecord.category,
+                ArticleRecord.country,
+                ArticleRecord.published_at,
+                ArticleRecord.title,
+                ArticleRecord.summary,
+                ArticleRecord.content,
+            )
+
+            result = await session.execute(upsert_stmt)
+            rows = result.fetchall()
+
+            url_to_row = {row.url: row for row in rows}
+            for url, article in unique_articles.items():
+                row = url_to_row.get(url)
+                if row:
+                    article.id = row.id
+
+            embedding_payloads: List[Dict[str, Any]] = []
+            chroma_updates: List[Dict[str, Any]] = []
+            vector_deletes: List[str] = []
+
+            if vector_store:
+                for row in rows:
+                    desired_chroma_id = f"article_{row.id}"
+                    chroma_changed = row.chroma_id != desired_chroma_id
+                    needs_embedding = not row.embedding_generated or chroma_changed
+
+                    if chroma_changed:
+                        if row.chroma_id:
+                            vector_deletes.append(row.chroma_id)
+                        chroma_updates.append(
+                            {"id": row.id, "chroma_id": desired_chroma_id}
                         )
 
-                payloads = []
-                for item in vector_batch:
-                    payloads.append(
-                        {
-                            "chroma_id": item["chroma_id"],
-                            "title": item["title"],
-                            "summary": item["summary"],
-                            "content": item["content"],
-                            "metadata": item["metadata"],
+                    if needs_embedding:
+                        article = unique_articles.get(row.url)
+                        if not article:
+                            continue
+                        metadata_payload = {
+                            "source": row.source,
+                            "category": row.category
+                            or source_info.get("category", "general"),
+                            "published": row.published_at.isoformat()
+                            if row.published_at
+                            else None,
+                            "country": row.country
+                            or source_info.get("country", "Unknown"),
+                            "url": row.url,
                         }
+                        embedding_payloads.append(
+                            {
+                                "article_id": row.id,
+                                "chroma_id": desired_chroma_id,
+                                "title": row.title,
+                                "summary": row.summary or "",
+                                "content": (row.content or row.summary or ""),
+                                "metadata": metadata_payload,
+                            }
+                        )
+
+                if chroma_updates:
+                    update_stmt = (
+                        update(ArticleRecord)
+                        .where(ArticleRecord.id == bindparam("id"))
+                        .values(
+                            chroma_id=bindparam("chroma_id"),
+                            embedding_generated=False,
+                        )
                     )
-
-                added_count = vector_store.batch_add_articles(payloads)
-
-                if added_count:
-                    for item in vector_batch:
-                        record = item.get("record")
-                        if record:
-                            record.chroma_id = item["chroma_id"]
-                            record.embedding_generated = True
+                    await session.execute(update_stmt, chroma_updates)
 
             await session.commit()
+
+            if vector_store and (embedding_payloads or vector_deletes):
+                try:
+                    embedding_generation_queue.put_nowait(
+                        (embedding_payloads, vector_deletes)
+                    )
+                except asyncio.QueueFull:
+                    logger.warning(
+                        "Embedding queue full; dropping %s embeddings",
+                        len(embedding_payloads),
+                    )
         except Exception as exc:  # pragma: no cover - critical logging
             await session.rollback()
             logger.error(
@@ -297,6 +292,69 @@ async def article_persistence_worker() -> None:
             )
         finally:
             article_persistence_queue.task_done()
+
+
+async def embedding_generation_worker() -> None:
+    if not settings.enable_database or AsyncSessionLocal is None:
+        logger.info("Embedding worker exiting; ENABLE_DATABASE=0")
+        return
+    while True:
+        payloads, delete_ids = await embedding_generation_queue.get()
+        drained = 1
+        try:
+            while (
+                len(payloads) < settings.embedding_batch_size
+                and not embedding_generation_queue.empty()
+            ):
+                try:
+                    extra_payloads, extra_deletes = embedding_generation_queue.get_nowait()
+                except asyncio.QueueEmpty:
+                    break
+                payloads.extend(extra_payloads)
+                delete_ids.extend(extra_deletes)
+                drained += 1
+
+            vector_store = get_vector_store()
+            if vector_store is None:
+                logger.warning("Vector store unavailable; skipping embedding batch")
+                continue
+
+            for chroma_id in delete_ids:
+                try:
+                    vector_store.delete_article(chroma_id)
+                except Exception as chroma_error:
+                    logger.error(
+                        "Vector store delete failed for %s: %s",
+                        chroma_id,
+                        chroma_error,
+                    )
+
+            if payloads:
+                added_count = vector_store.batch_add_articles(payloads)
+                if added_count:
+                    article_ids = [item["article_id"] for item in payloads]
+                    async with AsyncSessionLocal() as session:
+                        stmt = (
+                            update(ArticleRecord)
+                            .where(ArticleRecord.id.in_(article_ids))
+                            .values(embedding_generated=True)
+                        )
+                        await session.execute(stmt)
+                        await session.commit()
+
+                if settings.embedding_max_per_minute > 0:
+                    delay = (
+                        len(payloads)
+                        * 60
+                        / max(1, settings.embedding_max_per_minute)
+                    )
+                    if delay > 0:
+                        await asyncio.sleep(delay)
+        except Exception as exc:  # pragma: no cover - defensive logging
+            logger.error("Embedding worker failed: %s", exc, exc_info=True)
+        finally:
+            for _ in range(drained):
+                embedding_generation_queue.task_done()
 
 
 async def migrate_cached_articles_on_startup(delay_seconds: int = 5) -> None:
