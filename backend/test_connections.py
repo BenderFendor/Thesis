@@ -17,31 +17,31 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 async def test_postgresql():
     """Test PostgreSQL connection"""
     if not settings.enable_database:
-        print("ℹ️ PostgreSQL test skipped (ENABLE_DATABASE=0)\n")
+        print("ℹPostgreSQL test skipped (ENABLE_DATABASE=0)\n")
         return True
     try:
         from app.database import engine, AsyncSessionLocal
         from sqlalchemy import text
 
-        print("🔍 Testing PostgreSQL connection...")
+        print("Testing PostgreSQL connection...")
 
         # Test basic connection
         async with engine.begin() as conn:
             result = await conn.execute(text("SELECT version();"))
             version = result.fetchone()
-            print(f"✅ PostgreSQL connected: {version[0][:50]}...")
+            print(f"PostgreSQL connected: {version[0][:50]}...")
 
         # Test session
         async with AsyncSessionLocal() as session:
             result = await session.execute(text("SELECT COUNT(*) FROM articles;"))
             count = result.scalar()
-            print(f"✅ Articles table accessible: {count} articles found")
+            print(f"Articles table accessible: {count} articles found")
 
-        print("✅ PostgreSQL test passed!\n")
+        print("PostgreSQL test passed!\n")
         return True
 
     except Exception as e:
-        print(f"❌ PostgreSQL test failed: {e}\n")
+        print(f"PostgreSQL test failed: {e}\n")
         return False
 
 
@@ -50,41 +50,41 @@ def test_chromadb():
     from app.vector_store import get_vector_store
 
     if not settings.enable_vector_store:
-        print("ℹ️ ChromaDB test skipped (ENABLE_VECTOR_STORE=0)\n")
+        print("ℹChromaDB test skipped (ENABLE_VECTOR_STORE=0)\n")
         return True
 
     try:
         vector_store = get_vector_store()
-        print("🔍 Testing ChromaDB connection...")
+        print("Testing ChromaDB connection...")
 
         if vector_store is None:
-            print("❌ ChromaDB not initialized")
+            print("ChromaDB not initialized")
             return False
 
         # Test connection
         stats = vector_store.get_collection_stats()
         print(
-            f"✅ ChromaDB connected: {stats['total_articles']} documents in '{stats['collection_name']}'"
+            f"ChromaDB connected: {stats['total_articles']} documents in '{stats['collection_name']}'"
         )
 
         # Test embedding generation
-        print("🔍 Testing embedding generation...")
+        print("Testing embedding generation...")
         test_text = "This is a test article about technology and AI."
         embedding = vector_store.embedding_model.encode(test_text).tolist()
-        print(f"✅ Generated embedding: {len(embedding)} dimensions")
+        print(f"Generated embedding: {len(embedding)} dimensions")
 
-        print("✅ ChromaDB test passed!\n")
+        print("ChromaDB test passed!\n")
         return True
 
     except Exception as e:
-        print(f"❌ ChromaDB test failed: {e}\n")
+        print(f"ChromaDB test failed: {e}\n")
         return False
 
 
 async def test_dual_write():
     """Test writing to both databases"""
     if not settings.enable_database:
-        print("ℹ️ Dual-write test skipped (ENABLE_DATABASE=0)\n")
+        print("ℹDual-write test skipped (ENABLE_DATABASE=0)\n")
         return True
     try:
         from app.database import AsyncSessionLocal, Article
@@ -93,10 +93,10 @@ async def test_dual_write():
 
         vector_store = get_vector_store()
         if vector_store is None:
-            print("ℹ️ Dual-write test skipped (vector store unavailable)\n")
+            print("ℹDual-write test skipped (vector store unavailable)\n")
             return True
 
-        print("🔍 Testing dual-write pattern...")
+        print("Testing dual-write pattern...")
 
         test_article_data = {
             "title": "Test Article for Database Integration",
@@ -115,7 +115,7 @@ async def test_dual_write():
             await session.commit()
             await session.refresh(article)
             article_id = article.id
-            print(f"✅ Article saved to PostgreSQL: ID {article_id}")
+            print(f"Article saved to PostgreSQL: ID {article_id}")
 
         # 2. Write to ChromaDB
         chroma_id = f"article_{article_id}"
@@ -132,9 +132,9 @@ async def test_dual_write():
         )
 
         if success:
-            print(f"✅ Article saved to ChromaDB: {chroma_id}")
+            print(f"Article saved to ChromaDB: {chroma_id}")
         else:
-            print("❌ Failed to save to ChromaDB")
+            print("Failed to save to ChromaDB")
             return False
 
         # 3. Update PostgreSQL with ChromaDB reference
@@ -143,7 +143,7 @@ async def test_dual_write():
             article.chroma_id = chroma_id
             article.embedding_generated = True
             await session.commit()
-            print("✅ Article updated with chroma_id reference")
+            print("Article updated with chroma_id reference")
 
         # 4. Test semantic search
         results = vector_store.search_similar(
@@ -152,15 +152,15 @@ async def test_dual_write():
 
         found = any(r["chroma_id"] == chroma_id for r in results)
         if found:
-            print("✅ Test article found in semantic search")
+            print("Test article found in semantic search")
         else:
-            print("⚠️ Test article not found in search (may need more data)")
+            print("Test article not found in search (may need more data)")
 
-        print("✅ Dual-write test passed!\n")
+        print("Dual-write test passed!\n")
         return True
 
     except Exception as e:
-        print(f"❌ Dual-write test failed: {e}\n")
+        print(f"Dual-write test failed: {e}\n")
         import traceback
 
         traceback.print_exc()
@@ -189,16 +189,16 @@ async def main():
     print("TEST SUMMARY")
     print("=" * 60)
     for test_name, passed in results.items():
-        status = "✅ PASSED" if passed else "❌ FAILED"
+        status = "PASSED" if passed else "FAILED"
         print(f"{test_name.upper()}: {status}")
 
     all_passed = all(results.values())
     print()
     if all_passed:
-        print("🎉 All tests passed! Database integration is ready.")
+        print("All tests passed! Database integration is ready.")
         return 0
     else:
-        print("⚠️ Some tests failed. Check the errors above.")
+        print("Some tests failed. Check the errors above.")
         return 1
 
 

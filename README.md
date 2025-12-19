@@ -164,7 +164,7 @@ Summarized from `FACT_CHECK_IMPLEMENTATION.md` and `SEARCH_STRUCTURED_RESPONSE.m
 ### Fact-Checking Pipeline
 - Single Gemini call (`gemini-2.0-flash-exp`) performs summary, bias, reporter analysis, fact-check suggestions, and **fact verification** with Google Search grounding.
 - Response augments `ArticleAnalysisResponse` with `fact_check_results` (claim, verification status, evidence, sources, confidence, notes) and `grounding_metadata`.
-- Frontend highlights verification results with colored badges (✅ verified, ⚠️ partially verified, ❓ unverified, ❌ false) and evidence links.
+- Frontend highlights verification results with colored badges (verified, partially verified, unverified, false) and evidence links.
 - Performance gains: ~80% token reduction and ~70% latency improvement compared to multi-call approach.
 
 ### Structured Research Response

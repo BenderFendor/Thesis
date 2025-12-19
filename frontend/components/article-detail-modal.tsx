@@ -18,7 +18,7 @@ type FactCheckStatus = FactCheckResult["verification_status"]
 type FactCheckStatusFilter = FactCheckStatus | "all"
 
 const VERIFICATION_STYLE_MAP: Record<FactCheckStatus, string> = {
-  verified: "bg-emerald-500/15 text-emerald-200 border border-emerald-500/40",
+  verified: "bg-primary/15 text-primary border border-primary/40",
   "partially-verified": "bg-amber-500/15 text-amber-200 border border-amber-500/40",
   unverified: "bg-slate-600/20 text-slate-200 border border-slate-500/40",
   false: "bg-rose-500/15 text-rose-200 border border-rose-500/40"
@@ -277,7 +277,7 @@ export function ArticleDetailModal({ article, isOpen, onClose, initialIsBookmark
   const getConfidenceColor = (confidence: FactCheckResult["confidence"]) => {
     switch (confidence) {
       case "high":
-        return "bg-emerald-500/15 text-emerald-200 border border-emerald-500/40"
+        return "bg-primary/15 text-primary border border-primary/40"
       case "medium":
         return "bg-amber-500/15 text-amber-200 border border-amber-500/40"
       case "low":
@@ -290,7 +290,7 @@ export function ArticleDetailModal({ article, isOpen, onClose, initialIsBookmark
   const getCredibilityColor = (credibility: string) => {
     switch (credibility) {
       case "high":
-        return "bg-emerald-500/20 text-emerald-400 border-emerald-500/30"
+        return "bg-primary/15 text-primary border-primary/30"
       case "medium":
         return "bg-yellow-500/20 text-yellow-400 border-yellow-500/30"
       case "low":
@@ -403,7 +403,7 @@ export function ArticleDetailModal({ article, isOpen, onClose, initialIsBookmark
           {/* Main Content Area */}
           <div className={isExpanded ? "max-w-5xl mx-auto px-8 py-12" : "px-6 py-6"}>
             {/* Summary Quote */}
-            <div className={isExpanded ? "mb-12 border-l-4 border-emerald-500 pl-6 py-2" : "mb-6 border-l-4 border-emerald-500 pl-4 py-2"}>
+            <div className={isExpanded ? "mb-12 border-l-4 border-primary pl-6 py-2" : "mb-6 border-l-4 border-primary pl-4 py-2"}>
               <p className={`text-gray-200 leading-relaxed font-light italic ${isExpanded ? 'text-2xl' : 'text-lg'
                 }`}>
                 "{article.summary}"
@@ -422,7 +422,7 @@ export function ArticleDetailModal({ article, isOpen, onClose, initialIsBookmark
 
                   {articleLoading ? (
                     <div className="flex items-center gap-3 p-6 bg-gray-900/50 rounded-lg border border-gray-800">
-                      <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-emerald-400"></div>
+                      <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-primary"></div>
                       <p className="text-gray-400">Loading full article text...</p>
                     </div>
                   ) : fullArticleText ? (
@@ -440,14 +440,14 @@ export function ArticleDetailModal({ article, isOpen, onClose, initialIsBookmark
 
                 {/* AI Analysis Note - Only show if AI provides additional insights */}
                 {aiAnalysis?.full_text && aiAnalysis.full_text !== fullArticleText && aiAnalysis.full_text !== article.content && (
-                  <div className="bg-purple-500/5 border border-purple-500/30 rounded-lg p-4">
+                  <div className="bg-primary/10 border border-primary/30 rounded-lg p-4">
                     <div className="flex items-center gap-2 mb-2">
-                      <Sparkles className="h-4 w-4 text-purple-400" />
+                      <Sparkles className="h-4 w-4 text-primary" />
                       <h3 className="text-sm font-semibold text-white">AI Enhanced Version Available</h3>
                     </div>
                     <p className="text-sm text-gray-400 mb-3">AI has extracted an enhanced version of this article with better formatting.</p>
                     <details className="text-sm">
-                      <summary className="cursor-pointer text-purple-400 hover:text-purple-300">Show AI Version</summary>
+                      <summary className="cursor-pointer text-primary hover:text-primary/80">Show AI Version</summary>
                       <div className="mt-3 text-gray-300 leading-relaxed whitespace-pre-wrap">
                         {aiAnalysis.full_text}
                       </div>
@@ -536,9 +536,9 @@ export function ArticleDetailModal({ article, isOpen, onClose, initialIsBookmark
                     <div className="sticky top-6 space-y-6">
                       {/* AI Summary */}
                       {aiAnalysis.summary && (
-                        <div className="bg-gradient-to-br from-purple-500/10 to-blue-500/10 border border-purple-500/30 rounded-lg p-6">
+                        <div className="bg-gradient-to-br from-primary/15 to-amber-500/10 border border-primary/30 rounded-lg p-6">
                           <div className="flex items-center gap-2 mb-3">
-                            <Sparkles className="h-5 w-5 text-purple-400" />
+                            <Sparkles className="h-5 w-5 text-primary" />
                             <h3 className="text-lg font-semibold text-white">AI Summary</h3>
                           </div>
                           <p className="text-gray-300 leading-relaxed text-sm">{aiAnalysis.summary}</p>
@@ -633,16 +633,16 @@ export function ArticleDetailModal({ article, isOpen, onClose, initialIsBookmark
                                   setSelectedClaim(factCheckResults[0])
                                 }
                               }}
-                              className="group relative w-full overflow-hidden rounded-xl border border-emerald-500/30 bg-gradient-to-br from-emerald-500/15 via-emerald-500/10 to-emerald-500/0 p-6 text-left transition-all duration-300 hover:-translate-y-1 hover:border-emerald-400/60 hover:shadow-[0_0_30px_rgba(16,185,129,0.25)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-400"
+                              className="group relative w-full overflow-hidden rounded-xl border border-primary/30 bg-gradient-to-br from-primary/15 via-primary/10 to-transparent p-6 text-left transition-all duration-300 hover:-translate-y-1 hover:border-primary/60 hover:shadow-[0_0_30px_rgba(233,118,43,0.25)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
                               aria-label="Open verified claims report"
                             >
-                              <div className="pointer-events-none absolute -right-20 -top-20 h-40 w-40 rounded-full bg-emerald-400/10 blur-3xl transition-opacity duration-500 group-hover:opacity-60" />
+                              <div className="pointer-events-none absolute -right-20 -top-20 h-40 w-40 rounded-full bg-primary/10 blur-3xl transition-opacity duration-500 group-hover:opacity-60" />
                               <div className="mb-4 flex items-center justify-between">
                                 <div className="flex items-center gap-2">
-                                  <Sparkles className="h-5 w-5 text-emerald-300 transition-transform duration-300 group-hover:rotate-3" />
-                                  <h3 className="text-lg font-semibold text-emerald-100">Fact Check Results</h3>
+                                  <Sparkles className="h-5 w-5 text-primary/80 transition-transform duration-300 group-hover:rotate-3" />
+                                  <h3 className="text-lg font-semibold text-foreground">Fact Check Results</h3>
                                 </div>
-                                <span className="rounded-full border border-emerald-400/40 bg-emerald-500/15 px-3 py-1 text-xs font-semibold uppercase tracking-wide text-emerald-100/90">
+                                <span className="rounded-full border border-primary/40 bg-primary/15 px-3 py-1 text-xs font-semibold uppercase tracking-wide text-foreground/90">
                                   {factCheckResults.length} claims
                                 </span>
                               </div>
@@ -650,16 +650,16 @@ export function ArticleDetailModal({ article, isOpen, onClose, initialIsBookmark
                                 {factCheckResults.slice(0, 3).map((result, index) => (
                                   <div
                                     key={`${result.claim}-${index}`}
-                                    className="flex items-start gap-3 rounded-lg border border-transparent bg-emerald-500/10 p-3 transition-all duration-300 group-hover:border-emerald-400/40"
+                                    className="flex items-start gap-3 rounded-lg border border-transparent bg-primary/10 p-3 transition-all duration-300 group-hover:border-primary/40"
                                   >
                                     <Badge className={`${VERIFICATION_STYLE_MAP[result.verification_status]} text-[0.65rem] uppercase tracking-wide`}>
                                       {VERIFICATION_LABEL_MAP[result.verification_status]}
                                     </Badge>
-                                    <p className="text-sm text-emerald-50/85 line-clamp-2">"{result.claim}"</p>
+                                    <p className="text-sm text-foreground/80 line-clamp-2">"{result.claim}"</p>
                                   </div>
                                 ))}
                               </div>
-                              <div className="mt-5 flex items-center justify-between text-xs text-emerald-100/70">
+                              <div className="mt-5 flex items-center justify-between text-xs text-foreground/70">
                                 <span>Click to review the full verification report</span>
                                 <div className="flex items-center gap-2 font-semibold">
                                   <span>Open</span>
@@ -669,13 +669,13 @@ export function ArticleDetailModal({ article, isOpen, onClose, initialIsBookmark
                             </button>
                           </DialogTrigger>
 
-                          <DialogContent className="sm:max-w-2xl border border-emerald-500/30 bg-slate-950/95 text-slate-100 shadow-2xl shadow-emerald-500/10">
+                          <DialogContent className="sm:max-w-2xl border border-primary/30 bg-slate-950/95 text-slate-100 shadow-2xl shadow-primary/10">
                             <DialogHeader className="space-y-1">
-                              <DialogTitle className="flex items-center gap-2 text-emerald-100">
-                                <Sparkles className="h-5 w-5 text-emerald-300" />
+                              <DialogTitle className="flex items-center gap-2 text-foreground">
+                                <Sparkles className="h-5 w-5 text-primary/80" />
                                 Verified Claims
                               </DialogTitle>
-                              <p className="text-xs text-emerald-200/70">
+                              <p className="text-xs text-foreground/70">
                                 Cross-check statements, filter by confidence, and trigger live agentic research for additional corroboration.
                               </p>
                             </DialogHeader>
@@ -693,14 +693,14 @@ export function ArticleDetailModal({ article, isOpen, onClose, initialIsBookmark
                                       <button
                                         key={status}
                                         type="button"
-                                        className={`rounded-full border px-3 py-1 text-xs font-semibold uppercase tracking-wide transition-all ${isActive ? "border-emerald-400 bg-emerald-500/15 text-emerald-100 shadow-[0_0_18px_rgba(16,185,129,0.25)]" : "border-emerald-500/20 text-emerald-200/75 hover:border-emerald-400/40 hover:text-emerald-100"} ${isDisabled ? "cursor-not-allowed opacity-40 hover:border-emerald-500/20 hover:text-emerald-200/75" : "cursor-pointer"}`}
+                                        className={`rounded-full border px-3 py-1 text-xs font-semibold uppercase tracking-wide transition-all ${isActive ? "border-primary/60 bg-primary/15 text-foreground shadow-[0_0_18px_rgba(233,118,43,0.25)]" : "border-primary/30 text-foreground/75 hover:border-primary/60 hover:text-foreground"} ${isDisabled ? "cursor-not-allowed opacity-40 hover:border-primary/30 hover:text-foreground/75" : "cursor-pointer"}`}
                                         onClick={() => {
                                           if (isDisabled) return
                                           setActiveStatusFilter(status)
                                         }}
                                       >
                                         {status === "all" ? "All" : VERIFICATION_LABEL_MAP[status as FactCheckStatus]}
-                                        <span className="ml-2 rounded-full bg-emerald-500/15 px-2 py-0.5 text-[10px] font-bold text-emerald-100/80">
+                                        <span className="ml-2 rounded-full bg-primary/15 px-2 py-0.5 text-[10px] font-bold text-foreground/80">
                                           {count}
                                         </span>
                                       </button>
@@ -709,7 +709,7 @@ export function ArticleDetailModal({ article, isOpen, onClose, initialIsBookmark
                                 </div>
 
                                 <div>
-                                  <h4 className="mb-2 text-xs font-semibold uppercase tracking-wide text-emerald-200/70">Claims</h4>
+                                  <h4 className="mb-2 text-xs font-semibold uppercase tracking-wide text-foreground/70">Claims</h4>
                                   <div className="max-h-72 space-y-2 overflow-y-auto pr-1">
                                     {filteredClaims.map((claim, index) => {
                                       const isActive = selectedClaim?.claim === claim.claim
@@ -717,7 +717,7 @@ export function ArticleDetailModal({ article, isOpen, onClose, initialIsBookmark
                                         <button
                                           key={`${claim.claim}-${index}`}
                                           type="button"
-                                          className={`w-full rounded-lg border bg-slate-900/70 p-3 text-left transition-all duration-200 hover:-translate-y-0.5 hover:border-emerald-400/60 hover:shadow-lg hover:shadow-emerald-500/10 ${isActive ? "border-emerald-400/60 shadow-lg shadow-emerald-500/20" : "border-slate-800/80"}`}
+                                          className={`w-full rounded-lg border bg-slate-900/70 p-3 text-left transition-all duration-200 hover:-translate-y-0.5 hover:border-primary/60 hover:shadow-lg hover:shadow-primary/10 ${isActive ? "border-primary/60 shadow-lg shadow-primary/20" : "border-slate-800/80"}`}
                                           onClick={() => {
                                             setSelectedClaim(claim)
                                             setAgenticAnswer(null)
@@ -728,7 +728,7 @@ export function ArticleDetailModal({ article, isOpen, onClose, initialIsBookmark
                                             <Badge className={`${VERIFICATION_STYLE_MAP[claim.verification_status]} text-[0.6rem] uppercase tracking-wide`}>
                                               {VERIFICATION_LABEL_MAP[claim.verification_status]}
                                             </Badge>
-                                            <span className="text-xs text-emerald-100/80 line-clamp-2">{claim.claim}</span>
+                                            <span className="text-xs text-foreground/80 line-clamp-2">{claim.claim}</span>
                                           </div>
                                         </button>
                                       )
@@ -746,7 +746,7 @@ export function ArticleDetailModal({ article, isOpen, onClose, initialIsBookmark
                               <div className="space-y-4">
                                 {selectedClaim ? (
                                   <div className="space-y-4">
-                                    <div className="rounded-xl border border-slate-800/80 bg-slate-900/70 p-5 shadow-inner shadow-emerald-500/10">
+                                    <div className="rounded-xl border border-slate-800/80 bg-slate-900/70 p-5 shadow-inner shadow-primary/10">
                                       <div className="mb-4 flex items-start justify-between gap-3">
                                         <Badge className={`${VERIFICATION_STYLE_MAP[selectedClaim.verification_status]} text-[0.65rem] uppercase tracking-wide`}>
                                           {VERIFICATION_LABEL_MAP[selectedClaim.verification_status]}
@@ -755,12 +755,12 @@ export function ArticleDetailModal({ article, isOpen, onClose, initialIsBookmark
                                           confidence: {selectedClaim.confidence}
                                         </Badge>
                                       </div>
-                                      <p className="text-sm text-emerald-50/90">"{selectedClaim.claim}"</p>
+                                      <p className="text-sm text-foreground/90">"{selectedClaim.claim}"</p>
                                       {selectedClaim.notes && (
                                         <p className="mt-3 text-xs text-slate-300/80">{selectedClaim.notes}</p>
                                       )}
                                       <div className="mt-4 space-y-2">
-                                        <h5 className="text-xs font-semibold uppercase tracking-wide text-emerald-200/60">Evidence</h5>
+                                        <h5 className="text-xs font-semibold uppercase tracking-wide text-foreground/60">Evidence</h5>
                                         <div className="rounded-lg border border-slate-800 bg-slate-950/70 p-3 text-xs text-slate-200/80">
                                           {selectedClaim.evidence || "Evidence details not provided."}
                                         </div>
@@ -771,7 +771,7 @@ export function ArticleDetailModal({ article, isOpen, onClose, initialIsBookmark
                                               href={source}
                                               target="_blank"
                                               rel="noopener noreferrer"
-                                              className="group/link inline-flex items-center gap-1 rounded-full border border-slate-700 bg-slate-800/60 px-3 py-1 transition hover:border-emerald-400/60 hover:text-emerald-100"
+                                              className="group/link inline-flex items-center gap-1 rounded-full border border-slate-700 bg-slate-800/60 px-3 py-1 transition hover:border-primary/60 hover:text-foreground"
                                             >
                                               <LinkIcon className="h-3 w-3" />
                                               <span className="max-w-[12rem] truncate">{source}</span>
@@ -786,7 +786,7 @@ export function ArticleDetailModal({ article, isOpen, onClose, initialIsBookmark
                                       <div className="mt-4 flex flex-wrap gap-2 text-xs text-slate-400">
                                         <button
                                           type="button"
-                                          className="inline-flex items-center gap-1 rounded-full border border-slate-700 px-3 py-1 transition hover:border-emerald-400/60 hover:text-emerald-100"
+                                          className="inline-flex items-center gap-1 rounded-full border border-slate-700 px-3 py-1 transition hover:border-primary/60 hover:text-foreground"
                                           onClick={() => {
                                             if (typeof navigator !== "undefined") {
                                               navigator.clipboard.writeText(`${selectedClaim.claim}\n\nEvidence: ${selectedClaim.evidence ?? "N/A"}`).catch(() => null)
@@ -809,18 +809,18 @@ export function ArticleDetailModal({ article, isOpen, onClose, initialIsBookmark
                                       </div>
                                     </div>
 
-                                    <div className="rounded-xl border border-emerald-500/25 bg-emerald-500/10 p-5">
+                                    <div className="rounded-xl border border-primary/30 bg-primary/10 p-5">
                                       <div className="mb-3 flex items-start justify-between gap-3">
                                         <div>
-                                          <h4 className="flex items-center gap-2 text-sm font-semibold text-emerald-100">
+                                          <h4 className="flex items-center gap-2 text-sm font-semibold text-foreground">
                                             <Search className="h-4 w-4" /> Live Agentic Research
                                           </h4>
-                                          <p className="text-xs text-emerald-200/70">
+                                          <p className="text-xs text-foreground/70">
                                             Run the LangChain agent with enriched context to surface the latest corroborating evidence.
                                           </p>
                                         </div>
                                         {agenticHistory.length > 0 && (
-                                          <div className="rounded-lg border border-emerald-400/30 bg-emerald-500/10 px-3 py-1 text-[10px] uppercase tracking-wide text-emerald-200/80">
+                                          <div className="rounded-lg border border-primary/30 bg-primary/10 px-3 py-1 text-[10px] uppercase tracking-wide text-foreground/80">
                                             Last run {new Date(agenticHistory[0].timestamp).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
                                           </div>
                                         )}
@@ -847,7 +847,7 @@ export function ArticleDetailModal({ article, isOpen, onClose, initialIsBookmark
                                           type="button"
                                           variant="ghost"
                                           size="sm"
-                                          className="inline-flex items-center gap-2 text-emerald-200/80 hover:text-emerald-100"
+                                          className="inline-flex items-center gap-2 text-foreground/80 hover:text-foreground"
                                           onClick={() => runAgenticSearch(selectedClaim)}
                                           disabled={agenticLoading}
                                         >
@@ -864,19 +864,19 @@ export function ArticleDetailModal({ article, isOpen, onClose, initialIsBookmark
                                       )}
 
                                       {agenticAnswer && (
-                                        <div className="mt-4 space-y-2 rounded-lg border border-emerald-400/40 bg-emerald-500/10 p-4 text-sm text-emerald-50">
-                                          <div className="flex items-start gap-2 text-xs uppercase tracking-wide text-emerald-200/70">
+                                        <div className="mt-4 space-y-2 rounded-lg border border-primary/40 bg-primary/10 p-4 text-sm text-foreground">
+                                          <div className="flex items-start gap-2 text-xs uppercase tracking-wide text-foreground/70">
                                             <CheckCircle2 className="mt-0.5 h-4 w-4" />
                                             Agent response
                                           </div>
-                                          <p className="whitespace-pre-line text-sm leading-relaxed text-emerald-50/90">{agenticAnswer}</p>
+                                          <p className="whitespace-pre-line text-sm leading-relaxed text-foreground/90">{agenticAnswer}</p>
                                         </div>
                                       )}
                                     </div>
                                   </div>
                                 ) : (
                                   <div className="flex h-full flex-col items-center justify-center gap-3 rounded-xl border border-slate-800/80 bg-slate-900/70 p-6 text-center text-sm text-slate-300/70">
-                                    <Sparkles className="h-6 w-6 text-emerald-300" />
+                                    <Sparkles className="h-6 w-6 text-primary/80" />
                                     <p>Select a claim from the list to view its evidence and run deeper research.</p>
                                   </div>
                                 )}
@@ -966,7 +966,7 @@ export function ArticleDetailModal({ article, isOpen, onClose, initialIsBookmark
                             <div className="text-gray-400">Entries: {debugData.feed_status?.entries_count}</div>
                             <div className="text-gray-400">Has Images: {debugData.image_analysis?.entries_with_images}/{debugData.image_analysis?.total_entries}</div>
                             {matchedEntryIndex !== null && (
-                              <div className="text-emerald-400">Matched at index: {matchedEntryIndex}</div>
+                              <div className="text-primary">Matched at index: {matchedEntryIndex}</div>
                             )}
                           </div>
                         ) : (
@@ -980,17 +980,17 @@ export function ArticleDetailModal({ article, isOpen, onClose, initialIsBookmark
 
               {/* Compact AI Loading Indicator */}
               {!isExpanded && aiAnalysisLoading && (
-                <div className="flex items-center gap-3 p-4 bg-gradient-to-r from-purple-500/10 to-blue-500/10 border border-purple-500/30 rounded-lg">
-                  <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-purple-400"></div>
+                <div className="flex items-center gap-3 p-4 bg-gradient-to-r from-primary/15 to-amber-500/10 border border-primary/30 rounded-lg">
+                  <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-primary"></div>
                   <p className="text-sm text-gray-400">AI is analyzing article in background...</p>
                 </div>
               )}
 
               {/* Compact AI Summary - Show when not expanded */}
               {!isExpanded && aiAnalysis?.summary && (
-                <div className="bg-gradient-to-br from-purple-500/10 to-blue-500/10 border border-purple-500/30 rounded-lg p-4">
+                <div className="bg-gradient-to-br from-primary/15 to-amber-500/10 border border-primary/30 rounded-lg p-4">
                   <div className="flex items-center gap-2 mb-2">
-                    <Sparkles className="h-4 w-4 text-purple-400" />
+                    <Sparkles className="h-4 w-4 text-primary" />
                     <h3 className="text-sm font-semibold text-white">AI Summary</h3>
                   </div>
                   <p className="text-gray-300 leading-relaxed text-sm">{aiAnalysis.summary}</p>

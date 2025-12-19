@@ -282,13 +282,13 @@ def _process_source(
 
         if source_name in {"Novara Media", "CNN Politics"}:
             logger.info(
-                "📄 RSS JSON for %s: %s", source_name, json.dumps(feed_json, indent=2)
+                "RSS JSON for %s: %s", source_name, json.dumps(feed_json, indent=2)
             )
 
         if hasattr(feed, "status") and feed.status >= 400:
             feed_status = "error"
             error_message = f"HTTP {feed.status} error"
-            logger.error("❌ HTTP %s for %s: %s", feed.status, source_name, url)
+            logger.error("HTTP %s for %s: %s", feed.status, source_name, url)
             sub_feed_stats.append(
                 {
                     "url": url,
@@ -315,7 +315,7 @@ def _process_source(
                 }
             )
             logger.warning(
-                "⚠️ XML parsing issue for %s at %s: %s (got %s articles)",
+                "XML parsing issue for %s at %s: %s (got %s articles)",
                 source_name,
                 url,
                 bozo_error,
@@ -332,7 +332,7 @@ def _process_source(
                     "error": "No entries",
                 }
             )
-            logger.warning("⚠️ No entries found for %s: %s", source_name, url)
+            logger.warning("No entries found for %s: %s", source_name, url)
             continue
         else:
             parsed_articles = parse_rss_feed_entries(
@@ -343,7 +343,7 @@ def _process_source(
                 {"url": url, "status": "success", "article_count": len(parsed_articles)}
             )
             logger.info(
-                "✅ Parsed %s articles from %s (%s)",
+                "Parsed %s articles from %s (%s)",
                 len(parsed_articles),
                 source_name,
                 url,
@@ -374,13 +374,13 @@ def _process_source(
 def _process_source_with_debug(
     source_name: str, source_info: Dict[str, Any], stream_id: str
 ) -> Tuple[List[NewsArticle], Dict[str, Any]]:
-    stream_logger.debug("🔍 Stream %s processing source: %s", stream_id, source_name)
+    stream_logger.debug("Stream %s processing source: %s", stream_id, source_name)
     start_time = time.time()
     articles, source_stat = _process_source(source_name, source_info)
     processing_time = time.time() - start_time
 
     stream_logger.info(
-        "⚡ Stream %s processed %s in %.2fs: %s articles, status: %s",
+        "Stream %s processed %s in %.2fs: %s articles, status: %s",
         stream_id,
         source_name,
         processing_time,
@@ -679,7 +679,7 @@ async def refresh_news_cache_async(
                 return
             except Exception as rust_exc:  # pragma: no cover - fallback path
                 logger.error(
-                    "🛑 Rust ingestion failed, falling back to Python: %s",
+                    "Rust ingestion failed, falling back to Python: %s",
                     rust_exc,
                     exc_info=True,
                 )
@@ -781,7 +781,7 @@ async def _refresh_news_cache_with_python(
 
         metrics = get_metrics()
         metrics.end_time = datetime.now(timezone.utc)
-        logger.info("📊 Python pipeline metrics: %s", metrics.to_dict())
+        logger.info("Python pipeline metrics: %s", metrics.to_dict())
 
     except Exception as exc:
         logger.error("Async cache refresh failed: %s", exc, exc_info=True)
@@ -795,7 +795,7 @@ async def _refresh_news_cache_with_rust(
     rss_sources: Dict[str, Dict[str, Any]],
     source_progress_callback: Optional[callable],
 ) -> None:
-    logger.info("🦀 Using Rust RSS ingestion pipeline")
+    logger.info("Using Rust RSS ingestion pipeline")
 
     sources_payload = [
         (name, list(_iter_source_urls(info.get("url"))))
@@ -893,7 +893,7 @@ async def _refresh_news_cache_with_rust(
     await _broadcast_cache_update(len(all_articles), len(source_stats))
 
     logger.info(
-        "🦀 Rust parser complete: %s articles (fetch=%sms, parse=%sms, total=%sms)",
+        "Rust parser complete: %s articles (fetch=%sms, parse=%sms, total=%sms)",
         len(all_articles),
         metrics_payload.get("fetch_duration_ms", 0),
         metrics_payload.get("parse_duration_ms", 0),
@@ -975,7 +975,7 @@ def refresh_news_cache(
                 source_stats.append(source_stat)
                 partial_update_callback(articles, source_stat)
             except Exception as exc:  # pragma: no cover
-                logger.error("💥 Exception for %s: %s", source_name, exc)
+                logger.error("Exception for %s: %s", source_name, exc)
                 info = rss_sources[source_name]
                 source_stats.append(
                     {
@@ -1004,7 +1004,7 @@ def refresh_news_cache(
         pass
 
     news_cache.update_cache(all_articles, source_stats)
-    logger.info("✅ Cache refresh completed: %s total articles", len(all_articles))
+    logger.info("Cache refresh completed: %s total articles", len(all_articles))
 
     async def notify_clients() -> None:
         await manager.broadcast(
@@ -1026,11 +1026,11 @@ def refresh_news_cache(
         loop.create_task(notify_clients())
 
     if not all_articles:
-        logger.warning("⚠️ Cache refresh resulted in 0 articles! Check RSS sources.")
+        logger.warning("Cache refresh resulted in 0 articles! Check RSS sources.")
         working_sources = [s for s in source_stats if s.get("status") == "success"]
         error_sources = [s for s in source_stats if s.get("status") == "error"]
         logger.info(
-            "📊 Source status: %s working, %s with errors",
+            "Source status: %s working, %s with errors",
             len(working_sources),
             len(error_sources),
         )
@@ -1040,7 +1040,7 @@ def refresh_news_cache(
             category_counts[article.category] = (
                 category_counts.get(article.category, 0) + 1
             )
-        logger.info("📊 Articles by category: %s", category_counts)
+        logger.info("Articles by category: %s", category_counts)
 
     news_cache.update_in_progress = False
 
@@ -1098,5 +1098,5 @@ def start_cache_refresh_scheduler(interval_seconds: int = 600) -> None:
     thread = threading.Thread(target=cache_scheduler, daemon=True)
     thread.start()
     logger.info(
-        "🚀 Cache refresh scheduler started (every %s s, delayed first run)", interval_seconds
+        "Cache refresh scheduler started (every %s s, delayed first run)", interval_seconds
     )

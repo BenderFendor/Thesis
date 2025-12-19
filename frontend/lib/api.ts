@@ -134,7 +134,7 @@ export async function fetchNews(params?: {
     if (params?.category) searchParams.append('category', params.category);
 
     const url = `${API_BASE_URL}/news/stream${searchParams.toString() ? '?' + searchParams.toString() : ''}`;
-    console.log(`🔄 Fetching news from unified endpoint: ${url}`);
+    console.log(`Fetching news from unified endpoint: ${url}`);
     const response = await fetch(url);
 
     if (!response.ok) {
@@ -142,15 +142,15 @@ export async function fetchNews(params?: {
     }
 
     const data = await response.json();
-    console.log(`📡 Backend response:`, data);
+    console.log(`Backend response:`, data);
 
     // Backend returns { articles: [...], total: number, sources: [...], stream_id: string }
     let articles = data.articles || [];
 
     if (articles.length === 0) {
-      console.log(`⚠️ No articles received from backend. Full response:`, JSON.stringify(data, null, 2));
+      console.log(`No articles received from backend. Full response:`, JSON.stringify(data, null, 2));
     } else {
-      console.log(`✅ Received ${articles.length} articles from unified backend endpoint`);
+      console.log(`Received ${articles.length} articles from unified backend endpoint`);
     }
 
     // Convert backend format to frontend format
@@ -164,7 +164,7 @@ export async function fetchNews(params?: {
         article.title.toLowerCase().includes(searchTerm) ||
         article.summary.toLowerCase().includes(searchTerm)
       );
-      console.log(`🔍 Search filter applied: ${beforeFilterCount} → ${articles.length} articles (search: "${params.search}")`);
+      console.log(`Search filter applied: ${beforeFilterCount} -> ${articles.length} articles (search: "${params.search}")`);
     }
 
     // Client-side category filtering if needed
@@ -173,11 +173,11 @@ export async function fetchNews(params?: {
       articles = articles.filter((article: NewsArticle) =>
         article.category.toLowerCase() === params.category!.toLowerCase()
       );
-      console.log(`🏷️ Category filter applied: ${beforeFilterCount} → ${articles.length} articles (category: "${params.category}")`);
+      console.log(`Category filter applied: ${beforeFilterCount} -> ${articles.length} articles (category: "${params.category}")`);
     }
 
     if (articles.length === 0) {
-      console.log(`❌ No articles to return after processing. Params:`, params);
+      console.log(`No articles to return after processing. Params:`, params);
     }
 
     return articles;
@@ -721,7 +721,7 @@ export async function fetchSourceDebugData(sourceName: string): Promise<SourceDe
   console.log(`� Fetching debug data for source: ${url}`);
   try {
     const response = await fetch(url);
-    console.log(`📡 Debug response status for source ${sourceName}:`, response.status);
+    console.log(`Debug response status for source ${sourceName}:`, response.status);
     if (!response.ok) {
       return {
         source_name: sourceName,
@@ -755,7 +755,7 @@ export async function fetchSourceDebugData(sourceName: string): Promise<SourceDe
     }
 
     const debugData = await response.json();
-    console.log(`✅ Debug data received for ${sourceName}:`, {
+    console.log(`Debug data received for ${sourceName}:`, {
       entriesCount: debugData.feed_status?.entries_count,
       cachedArticles: debugData.cached_articles?.length,
       hasError: !!debugData.error
@@ -974,7 +974,7 @@ export function streamNews(options: StreamOptions = {}): {
 } {
   const { useCache = true, category, onProgress, onSourceComplete, onError, signal } = options;
 
-  console.log(`🎯 Starting news stream with useCache=${useCache} and category=${category}`);
+  console.log(`Starting news stream with useCache=${useCache} and category=${category}`);
 
   // Build SSE URL with parameters
   const baseUrl = (
@@ -1002,7 +1002,7 @@ export function streamNews(options: StreamOptions = {}): {
     let settled = false;
     let abortController: AbortController | null = null;
 
-    console.log(`🔗 Connecting to unified stream endpoint: ${sseUrl}`);
+    console.log(`Connecting to unified stream endpoint: ${sseUrl}`);
 
     try {
       // Create abort controller for fetch
@@ -1011,7 +1011,7 @@ export function streamNews(options: StreamOptions = {}): {
       // Handle external signal abort
       const handleAbort = () => {
         if (abortController && !abortController.signal.aborted) {
-          console.warn("🧹 Streaming aborted by external signal");
+          console.warn("Streaming aborted by external signal");
           abortController.abort();
         }
       };
@@ -1053,7 +1053,7 @@ export function streamNews(options: StreamOptions = {}): {
         throw new Error("No response body received from stream");
       }
 
-      console.log("✅ Stream connection opened, reading body...");
+      console.log("Stream connection opened, reading body...");
 
       const reader = response.body.getReader();
       const decoder = new TextDecoder();
@@ -1066,7 +1066,7 @@ export function streamNews(options: StreamOptions = {}): {
       const timeoutInterval = setInterval(() => {
         const timeSinceLastMessage = Date.now() - lastMessageTime;
         if (timeSinceLastMessage > messageTimeout) {
-          console.error("🚨 Stream timeout - no data received in 2 minutes");
+          console.error("Stream timeout - no data received in 2 minutes");
           if (abortController) {
             abortController.abort();
           }
@@ -1081,7 +1081,7 @@ export function streamNews(options: StreamOptions = {}): {
           Date.now() - lastMessageTime > cacheLoadTimeout
         ) {
           console.warn(
-            `⚠️ Stream ${streamId} stalled after cache load - auto-completing`
+            `Stream ${streamId} stalled after cache load - auto-completing`
           );
           clearInterval(timeoutInterval);
           clearInterval(stallInterval);
@@ -1105,7 +1105,7 @@ export function streamNews(options: StreamOptions = {}): {
           const { done, value } = await reader.read();
 
           if (done) {
-            console.log("📪 Stream reader completed");
+            console.log("Stream reader completed");
             clearInterval(timeoutInterval);
             clearInterval(stallInterval);
             if (!settled) {
@@ -1156,7 +1156,7 @@ export function streamNews(options: StreamOptions = {}): {
                   data = JSON.parse(JSON.parse(`"${eventData}"`));
                 }
 
-                console.log(`📬 Stream event [${data.status}]:`, {
+                console.log(`Stream event [${data.status}]:`, {
                   streamId: data.stream_id,
                   source: data.source,
                   articlesCount: data.articles?.length,
@@ -1179,7 +1179,7 @@ export function streamNews(options: StreamOptions = {}): {
                       const cacheAge = data.cache_age_seconds || 999;
 
                       console.log(
-                        `⚡ Stream ${streamId} INITIAL data: ${mappedArticles.length} articles (cache age: ${cacheAge}s)`
+                        `Stream ${streamId} INITIAL data: ${mappedArticles.length} articles (cache age: ${cacheAge}s)`
                       );
 
                       // Process articles in batches to avoid UI freeze
@@ -1231,7 +1231,7 @@ export function streamNews(options: StreamOptions = {}): {
                     break;
 
                   case "starting":
-                    console.log(`🚀 Stream ${streamId} starting: ${data.message}`);
+                    console.log(`Stream ${streamId} starting: ${data.message}`);
                     onProgress?.({
                       completed: 0,
                       total: 0,
@@ -1248,7 +1248,7 @@ export function streamNews(options: StreamOptions = {}): {
                       const cacheAge = data.cache_age_seconds || 999;
 
                       console.log(
-                        `💾 Stream ${streamId} cache data: ${mappedArticles.length} articles (cache age: ${cacheAge}s, fresh: ${cacheAge < 120})`
+                        `Stream ${streamId} cache data: ${mappedArticles.length} articles (cache age: ${cacheAge}s, fresh: ${cacheAge < 120})`
                       );
 
                       // Process articles in batches to avoid UI freeze
@@ -1294,12 +1294,12 @@ export function streamNews(options: StreamOptions = {}): {
                         // If cache is fresh (<120s), set a short timeout to auto-complete if server doesn't send complete event
                         if (cacheAge < 120) {
                           console.log(
-                            `⏰ Cache is fresh (${cacheAge}s), waiting for completion or timeout after 5s...`
+                            `Cache is fresh (${cacheAge}s), waiting for completion or timeout after 5s...`
                           );
                           setTimeout(() => {
                             if (!settled && hasReceivedData) {
                               console.log(
-                                `⏱️ Auto-completing stream after fresh cache timeout`
+                                `Auto-completing stream after fresh cache timeout`
                               );
                               if (abortController) {
                                 abortController.abort();
@@ -1324,7 +1324,7 @@ export function streamNews(options: StreamOptions = {}): {
                       sources.add(data.source);
 
                       console.log(
-                        `✅ Stream ${streamId} source complete: ${data.source} (${mappedArticles.length} articles)`
+                        `Stream ${streamId} source complete: ${data.source} (${mappedArticles.length} articles)`
                       );
 
                       onSourceComplete?.(data.source, mappedArticles);
@@ -1337,7 +1337,7 @@ export function streamNews(options: StreamOptions = {}): {
 
                   case "source_error":
                     const errorMsg = `Error loading ${data.source}: ${data.error}`;
-                    console.warn(`❌ Stream ${streamId} source error:`, errorMsg);
+                    console.warn(`Stream ${streamId} source error:`, errorMsg);
                     errors.push(errorMsg);
                     onError?.(errorMsg);
 
@@ -1347,7 +1347,7 @@ export function streamNews(options: StreamOptions = {}): {
                     break;
 
                   case "complete":
-                    console.log(`🏁 Stream ${streamId} complete:`, {
+                    console.log(`Stream ${streamId} complete:`, {
                       totalArticles: data.total_articles,
                       successfulSources: data.successful_sources,
                       failedSources: data.failed_sources,
@@ -1369,7 +1369,7 @@ export function streamNews(options: StreamOptions = {}): {
                     break;
 
                   case "error":
-                    console.error(`💥 Stream ${streamId} error:`, data.error);
+                    console.error(`Stream ${streamId} error:`, data.error);
                     clearInterval(timeoutInterval);
                     clearInterval(stallInterval);
 
@@ -1393,12 +1393,12 @@ export function streamNews(options: StreamOptions = {}): {
 
                   default:
                     console.log(
-                      `❓ Stream ${streamId} unknown status: ${data.status}`
+                      `Stream ${streamId} unknown status: ${data.status}`
                     );
                 }
               } catch (parseError) {
                 console.error(
-                  "🚨 Error parsing stream event:",
+                  "Error parsing stream event:",
                   parseError,
                   "Raw data:",
                   eventData
@@ -1417,7 +1417,7 @@ export function streamNews(options: StreamOptions = {}): {
             readError instanceof Error &&
             readError.name === "AbortError"
           ) {
-            console.warn("🧹 Stream reader aborted");
+            console.warn("Stream reader aborted");
             if (!settled) {
               settled = true;
               resolve({
@@ -1438,7 +1438,7 @@ export function streamNews(options: StreamOptions = {}): {
         }
       }
     } catch (error) {
-      console.error("🚨 Stream fetch error:", error);
+      console.error("Stream fetch error:", error);
       clearInterval(undefined as any); // This will be caught, it's ok
 
       if (!settled) {
@@ -1543,10 +1543,10 @@ export async function fetchStreamStatus(): Promise<any> {
     }
 
     const data = await response.json();
-    console.log('📊 Stream status:', data);
+    console.log('Stream status:', data);
     return data;
   } catch (error) {
-    console.error('❌ Failed to fetch stream status:', error);
+    console.error('Failed to fetch stream status:', error);
     return null;
   }
 }
@@ -1602,7 +1602,7 @@ export interface ArticleAnalysis {
 // Analyze article with AI
 export async function analyzeArticle(url: string, sourceName?: string): Promise<ArticleAnalysis> {
   try {
-    console.log(`🤖 Analyzing article: ${url}`);
+    console.log(`Analyzing article: ${url}`);
     const response = await fetch(`${API_BASE_URL}/api/article/analyze`, {
       method: 'POST',
       headers: {
@@ -1619,10 +1619,10 @@ export async function analyzeArticle(url: string, sourceName?: string): Promise<
     }
 
     const data = await response.json();
-    console.log('✅ Article analysis complete:', data);
+    console.log('Article analysis complete:', data);
     return data;
   } catch (error) {
-    console.error('❌ Failed to analyze article:', error);
+    console.error('Failed to analyze article:', error);
     throw error;
   }
 }
@@ -1650,7 +1650,7 @@ export async function performNewsResearch(
   includeThinking: boolean = true
 ): Promise<NewsResearchResponse> {
   try {
-    console.log(`🔍 Performing news research: ${query}`);
+    console.log(`Performing news research: ${query}`);
     const response = await fetch(`${API_BASE_URL}/api/news/research`, {
       method: 'POST',
       headers: {
@@ -1667,10 +1667,10 @@ export async function performNewsResearch(
     }
 
     const data = await response.json();
-    console.log('✅ News research complete:', data);
+    console.log('News research complete:', data);
     return data;
   } catch (error) {
-    console.error('❌ Failed to perform news research:', error);
+    console.error('Failed to perform news research:', error);
     throw error;
   }
 }
@@ -1703,7 +1703,7 @@ export async function performAgenticSearch(query: string, maxSteps: number = 8):
     const data = await response.json()
     return data as AgenticSearchResponse
   } catch (error) {
-    console.error('❌ Agentic search failed:', error)
+    console.error('Agentic search failed:', error)
     throw error
   }
 }
@@ -1756,10 +1756,10 @@ export async function addToReadingQueue(
     }
 
     const data = await response.json()
-    console.log('✅ Article added to reading queue:', data)
+    console.log('Article added to reading queue:', data)
     return data
   } catch (error) {
-    console.error('❌ Failed to add article to reading queue:', error)
+    console.error('Failed to add article to reading queue:', error)
     throw error
   }
 }
@@ -1774,9 +1774,9 @@ export async function removeFromReadingQueue(queueItemId: number): Promise<void>
       throw new Error(`HTTP error! status: ${response.status}`)
     }
 
-    console.log('✅ Article removed from reading queue')
+    console.log('Article removed from reading queue')
   } catch (error) {
-    console.error('❌ Failed to remove article from reading queue:', error)
+    console.error('Failed to remove article from reading queue:', error)
     throw error
   }
 }
@@ -1795,9 +1795,9 @@ export async function removeFromReadingQueueByUrl(
       throw new Error(`HTTP error! status: ${response.status}`)
     }
 
-    console.log('✅ Article removed from reading queue by URL')
+    console.log('Article removed from reading queue by URL')
   } catch (error) {
-    console.error('❌ Failed to remove article from reading queue:', error)
+    console.error('Failed to remove article from reading queue:', error)
     throw error
   }
 }
@@ -1814,10 +1814,10 @@ export async function getReadingQueue(): Promise<QueueResponse> {
     }
 
     const data = await response.json()
-    console.log('✅ Reading queue retrieved:', data)
+    console.log('Reading queue retrieved:', data)
     return data
   } catch (error) {
-    console.error('❌ Failed to fetch reading queue:', error)
+    console.error('Failed to fetch reading queue:', error)
     throw error
   }
 }
@@ -1845,10 +1845,10 @@ export async function updateReadingQueueItem(
     }
 
     const data = await response.json()
-    console.log('✅ Queue item updated:', data)
+    console.log('Queue item updated:', data)
     return data
   } catch (error) {
-    console.error('❌ Failed to update queue item:', error)
+    console.error('Failed to update queue item:', error)
     throw error
   }
 }
@@ -1875,10 +1875,10 @@ export async function getQueueOverview(): Promise<QueueOverview> {
     }
 
     const data = await response.json()
-    console.log('✅ Queue overview retrieved:', data)
+    console.log('Queue overview retrieved:', data)
     return data
   } catch (error) {
-    console.error('❌ Failed to fetch queue overview:', error)
+    console.error('Failed to fetch queue overview:', error)
     throw error
   }
 }
@@ -1910,10 +1910,10 @@ export async function createHighlight(highlight: Highlight): Promise<Highlight> 
     }
 
     const data = await response.json()
-    console.log('✅ Highlight created:', data)
+    console.log('Highlight created:', data)
     return data
   } catch (error) {
-    console.error('❌ Failed to create highlight:', error)
+    console.error('Failed to create highlight:', error)
     throw error
   }
 }
@@ -1933,10 +1933,10 @@ export async function getHighlightsForArticle(
     }
 
     const data = await response.json()
-    console.log('✅ Highlights retrieved:', data)
+    console.log('Highlights retrieved:', data)
     return data
   } catch (error) {
-    console.error('❌ Failed to fetch highlights:', error)
+    console.error('Failed to fetch highlights:', error)
     throw error
   }
 }
@@ -1953,10 +1953,10 @@ export async function getAllHighlights(): Promise<Highlight[]> {
     }
 
     const data = await response.json()
-    console.log('✅ All highlights retrieved:', data)
+    console.log('All highlights retrieved:', data)
     return data
   } catch (error) {
-    console.error('❌ Failed to fetch highlights:', error)
+    console.error('Failed to fetch highlights:', error)
     throw error
   }
 }
@@ -1977,10 +1977,10 @@ export async function updateHighlight(
     }
 
     const data = await response.json()
-    console.log('✅ Highlight updated:', data)
+    console.log('Highlight updated:', data)
     return data
   } catch (error) {
-    console.error('❌ Failed to update highlight:', error)
+    console.error('Failed to update highlight:', error)
     throw error
   }
 }
@@ -1995,9 +1995,9 @@ export async function deleteHighlight(highlightId: number): Promise<void> {
       throw new Error(`HTTP error! status: ${response.status}`)
     }
 
-    console.log('✅ Highlight deleted')
+    console.log('Highlight deleted')
   } catch (error) {
-    console.error('❌ Failed to delete highlight:', error)
+    console.error('Failed to delete highlight:', error)
     throw error
   }
 }
@@ -2034,10 +2034,10 @@ export async function getQueueItemContent(queueId: number): Promise<QueueItemCon
     }
 
     const data = await response.json()
-    console.log('✅ Queue item content retrieved:', data)
+    console.log('Queue item content retrieved:', data)
     return data
   } catch (error) {
-    console.error('❌ Failed to fetch queue item content:', error)
+    console.error('Failed to fetch queue item content:', error)
     throw error
   }
 }
@@ -2054,10 +2054,10 @@ export async function getDailyDigest(): Promise<QueueDigest> {
     }
 
     const data = await response.json()
-    console.log('✅ Daily digest retrieved:', data)
+    console.log('Daily digest retrieved:', data)
     return data
   } catch (error) {
-    console.error('❌ Failed to fetch daily digest:', error)
+    console.error('Failed to fetch daily digest:', error)
     throw error
   }
 }

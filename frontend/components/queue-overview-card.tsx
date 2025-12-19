@@ -47,11 +47,11 @@ export function QueueOverviewCard() {
   }
 
   return (
-    <Card className="p-4 bg-gradient-to-br from-blue-50 to-purple-50 dark:from-gray-900 dark:to-gray-800 border-blue-200 dark:border-gray-700">
+    <Card className="p-4 bg-gradient-to-br from-primary/10 to-amber-500/10 dark:from-gray-900 dark:to-gray-800 border-primary/30 dark:border-gray-700">
       <div className="space-y-3">
         <div className="flex items-center justify-between">
           <h3 className="font-serif font-bold text-lg">Queue Overview</h3>
-          <FileText className="w-5 h-5 text-blue-600 dark:text-blue-400" />
+          <FileText className="w-5 h-5 text-primary" />
         </div>
 
         <div className="grid grid-cols-2 gap-3">

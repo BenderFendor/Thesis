@@ -37,7 +37,7 @@ export function ArticleAnalysisDisplay({ analysis }: ArticleAnalysisDisplayProps
   const getVerificationIcon = (status: string) => {
     switch (status) {
       case 'verified':
-        return <Shield className="h-5 w-5 text-emerald-400" />
+        return <Shield className="h-5 w-5 text-primary" />
       case 'partially-verified':
         return <AlertTriangleIcon className="h-5 w-5 text-yellow-400" />
       case 'unverified':
@@ -52,7 +52,7 @@ export function ArticleAnalysisDisplay({ analysis }: ArticleAnalysisDisplayProps
   const getVerificationColor = (status: string) => {
     switch (status) {
       case 'verified':
-        return "bg-emerald-500/20 text-emerald-400 border-emerald-500/30"
+        return "bg-primary/15 text-primary border-primary/30"
       case 'partially-verified':
         return "bg-yellow-500/20 text-yellow-400 border-yellow-500/30"
       case 'unverified':
@@ -80,9 +80,9 @@ export function ArticleAnalysisDisplay({ analysis }: ArticleAnalysisDisplayProps
     <div className="space-y-4">
       {/* AI Summary */}
       {analysis.summary && (
-        <div className="p-4 bg-gradient-to-r from-purple-500/10 to-blue-500/10 border border-purple-500/20 rounded-lg">
+        <div className="p-4 bg-gradient-to-r from-primary/15 to-amber-500/10 border border-primary/30 rounded-lg">
           <div className="flex items-center gap-2 mb-3">
-            <Sparkles className="h-5 w-5 text-purple-400" />
+            <Sparkles className="h-5 w-5 text-primary" />
             <h3 className="text-lg font-semibold text-white">AI Summary</h3>
           </div>
           <p className="text-gray-300 leading-relaxed">{analysis.summary}</p>
@@ -126,7 +126,7 @@ export function ArticleAnalysisDisplay({ analysis }: ArticleAnalysisDisplayProps
             className="w-full p-4 bg-gray-900/50 hover:bg-gray-900/70 transition-colors flex items-center justify-between"
           >
             <div className="flex items-center gap-2">
-              <Building2 className="h-5 w-5 text-emerald-400" />
+              <Building2 className="h-5 w-5 text-primary" />
               <h3 className="text-lg font-semibold text-white">Source Analysis</h3>
             </div>
             {expandedSections.sourceAnalysis ? (
@@ -255,15 +255,15 @@ export function ArticleAnalysisDisplay({ analysis }: ArticleAnalysisDisplayProps
 
       {/* Fact Check Results - AI Verified */}
       {analysis.fact_check_results && analysis.fact_check_results.length > 0 && (
-        <div className="border border-emerald-900 rounded-xl overflow-hidden bg-gradient-to-br from-black via-zinc-900 to-zinc-950 shadow-lg">
+        <div className="border border-border/60 rounded-xl overflow-hidden bg-gradient-to-br from-black via-zinc-900 to-zinc-950 shadow-lg">
           <button
             onClick={() => toggleSection('factCheckResults')}
-            className="w-full p-4 bg-emerald-950/40 hover:bg-emerald-950/60 transition-colors flex items-center justify-between"
+            className="w-full p-4 bg-primary/10 hover:bg-primary/20 transition-colors flex items-center justify-between"
           >
             <div className="flex items-center gap-2">
-              <Shield className="h-5 w-5 text-emerald-400" />
-              <h3 className="text-lg font-semibold text-emerald-100">Fact Check Results</h3>
-              <Badge variant="outline" className="text-xs bg-emerald-500/20 text-emerald-400 border-emerald-500/30">
+              <Shield className="h-5 w-5 text-primary" />
+              <h3 className="text-lg font-semibold text-foreground">Fact Check Results</h3>
+              <Badge variant="outline" className="text-xs bg-primary/15 text-primary border-primary/30">
                 {analysis.fact_check_results.length} verified
               </Badge>
             </div>
@@ -288,7 +288,7 @@ export function ArticleAnalysisDisplay({ analysis }: ArticleAnalysisDisplayProps
                           {result.confidence} confidence
                         </Badge>
                       </div>
-                      <p className="text-emerald-100 font-medium mb-2 line-clamp-2">
+                      <p className="text-foreground font-medium mb-2 line-clamp-2">
                         {result.claim.length > 200 ? result.claim.slice(0, 200) + '...' : result.claim}
                       </p>
                       <p className="text-slate-300 text-sm mb-3 line-clamp-3">

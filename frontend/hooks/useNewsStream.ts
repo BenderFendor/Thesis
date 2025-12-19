@@ -32,11 +32,11 @@ export const useNewsStream = (options: UseNewsStreamOptions = {}) => {
 
   const startStream = useCallback(async (streamOptions?: Partial<StreamOptions>) => {
     if (startingRef.current || isStreaming) {
-      console.warn('⚠️ Stream already in progress, ignoring start request');
+      console.warn('Stream already in progress, ignoring start request');
       return;
     }
 
-    console.log('🚀 Starting news stream with options:', { ...options, ...streamOptions });
+    console.log('Starting news stream with options:', { ...options, ...streamOptions });
 
     // Cancel any existing stream
     if (abortControllerRef.current) {
@@ -178,7 +178,7 @@ export const useNewsStream = (options: UseNewsStreamOptions = {}) => {
   // Auto-start if requested
   useEffect(() => {
     if (options.autoStart && !isStreaming && status === 'idle') {
-      console.log('🚀 Auto-starting stream');
+      console.log('Auto-starting stream');
       startStream();
     }
   }, [options.autoStart, isStreaming, status, startStream]);
@@ -189,7 +189,7 @@ export const useNewsStream = (options: UseNewsStreamOptions = {}) => {
     return () => {
       // On unmount, immediately abort the stream if it's still going
       if (isStreaming && abortControllerRef.current) {
-        console.log('🧹 Component unmounting, aborting stream');
+        console.log('Component unmounting, aborting stream');
         abortControllerRef.current.abort();
       }
       isMountedRef.current = false;

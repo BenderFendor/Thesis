@@ -35,16 +35,16 @@ settings = Settings()
 def create_gemini_client(logger) -> Optional[genai.Client]:
     """Initialise and return the Gemini client if an API key is configured."""
     if not settings.gemini_api_key:
-        logger.warning("⚠️ GEMINI_API_KEY not found in environment variables")
+        logger.warning("GEMINI_API_KEY not found in environment variables")
         return None
 
     try:
         # Attempt to create client with default settings
         client = genai.Client(api_key=settings.gemini_api_key)
-        logger.info("✅ Gemini API configured successfully")
+        logger.info("Gemini API configured successfully")
         return client
     except Exception as e:
-        logger.error(f"❌ Failed to initialize Gemini client: {e}")
+        logger.error(f"Failed to initialize Gemini client: {e}")
         # Fallback or return None to prevent crash
         return None
 
@@ -52,7 +52,7 @@ def create_gemini_client(logger) -> Optional[genai.Client]:
 def create_openai_client(logger) -> Optional[OpenAI]:
     """Initialise and return the OpenAI client for OpenRouter if an API key is configured."""
     if not settings.open_router_api_key:
-        logger.warning("⚠️ OPEN_ROUTER_API_KEY not found in environment variables")
+        logger.warning("OPEN_ROUTER_API_KEY not found in environment variables")
         return None
 
     try:
@@ -60,10 +60,10 @@ def create_openai_client(logger) -> Optional[OpenAI]:
             base_url="https://openrouter.ai/api/v1",
             api_key=settings.open_router_api_key,
         )
-        logger.info("✅ OpenRouter API configured successfully")
+        logger.info("OpenRouter API configured successfully")
         return client
     except Exception as e:
-        logger.error(f"❌ Failed to initialize OpenRouter client: {e}")
+        logger.error(f"Failed to initialize OpenRouter client: {e}")
         return None
 
 

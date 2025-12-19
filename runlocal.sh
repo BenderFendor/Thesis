@@ -53,7 +53,13 @@ cleanup() {
 	done
 	PIDS=()
 
+	stop_backend_processes
 	stop_data_services
+}
+
+stop_backend_processes() {
+	# Ensure uvicorn launched from the backend venv does not linger after shutdown.
+	pkill -9 -f "$BACKEND_DIR/.venv/bin/python3 $BACKEND_DIR/.venv/bin/uvicorn app.main" >/dev/null 2>&1 || true
 }
 
 stop_data_services() {

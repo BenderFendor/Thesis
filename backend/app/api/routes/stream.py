@@ -29,12 +29,12 @@ async def stream_news(
     category: str | None = None,
 ):
     stream_id = f"stream_{int(time.time())}_{random.randint(1000, 9999)}"
-    stream_logger.info("🎯 NEWS REQUEST: %s, use_cache=%s", stream_id, use_cache)
+    stream_logger.info("NEWS REQUEST: %s, use_cache=%s", stream_id, use_cache)
 
     active_count = stream_manager.get_active_stream_count()
     if active_count >= 5:
         stream_logger.warning(
-            "🚫 Stream %s rejected: too many active streams (%s)",
+            "Stream %s rejected: too many active streams (%s)",
             stream_id,
             active_count,
         )
@@ -45,12 +45,12 @@ async def stream_news(
         return StreamingResponse(error_stream(), media_type="text/event-stream")
 
     stream_manager.register_stream(stream_id)
-    stream_logger.info("🚀 %s using streaming mode", stream_id)
+    stream_logger.info("%s using streaming mode", stream_id)
     stream_manager.update_stream(stream_id, status="starting")
 
     async def event_generator():
         try:
-            stream_logger.info("🚀 Stream %s starting event generation", stream_id)
+            stream_logger.info("Stream %s starting event generation", stream_id)
 
             # IMMEDIATELY emit cached data as "initial" event before anything else
             cached_articles: List[NewsArticle] = []
@@ -62,7 +62,7 @@ async def stream_news(
                 cached_stats = news_cache.get_source_stats()
                 cache_age = (datetime.now(timezone.utc) - news_cache.last_updated).total_seconds()
                 stream_logger.info(
-                    "💾 Stream %s found %s cached articles (age: %.1fs)",
+                    "Stream %s found %s cached articles (age: %.1fs)",
                     stream_id,
                     len(cached_articles),
                     cache_age,
@@ -76,7 +76,7 @@ async def stream_news(
                         if article.category == category
                     ]
                     stream_logger.info(
-                        "🏷️ Stream %s filtered to category '%s': %s articles",
+                        "Stream %s filtered to category '%s': %s articles",
                         stream_id,
                         category,
                         len(cached_articles),
@@ -95,13 +95,13 @@ async def stream_news(
                     }
                     yield f"data: {json.dumps(initial_data)}\n\n"
                     stream_logger.info(
-                        "⚡ Stream %s emitted initial cached data (%s articles)",
+                        "Stream %s emitted initial cached data (%s articles)",
                         stream_id,
                         len(cached_articles),
                     )
             except Exception as cache_err:
                 stream_logger.warning(
-                    "⚠️ Stream %s couldn't load cache: %s", stream_id, cache_err
+                    "Stream %s couldn't load cache: %s", stream_id, cache_err
                 )
 
             # Then emit starting status
@@ -119,7 +119,7 @@ async def stream_news(
                 # Cache already loaded above, just check if it's fresh enough
                 if cache_age is not None and cache_age < 120 and cached_articles:
                     stream_logger.info(
-                        "✅ Stream %s cache is fresh enough (%.1fs), ending stream",
+                        "Stream %s cache is fresh enough (%.1fs), ending stream",
                         stream_id,
                         cache_age,
                     )
@@ -134,12 +134,12 @@ async def stream_news(
                     return
                 else:
                     stream_logger.info(
-                        "⏰ Stream %s cache exists but may be stale (%.1fs), will fetch fresh data",
+                        "Stream %s cache exists but may be stale (%.1fs), will fetch fresh data",
                         stream_id,
                         cache_age if cache_age is not None else 0,
                     )
 
-            stream_logger.info("🔄 Stream %s starting fresh data fetch", stream_id)
+            stream_logger.info("Stream %s starting fresh data fetch", stream_id)
             stream_manager.update_stream(stream_id, status="fetching_fresh")
             loop = asyncio.get_event_loop()
             rss_sources = get_rss_sources()
@@ -163,7 +163,7 @@ async def stream_news(
                 stream_id, total_sources=len(sources_to_process)
             )
             stream_logger.info(
-                "📊 Stream %s will process %s sources",
+                "Stream %s will process %s sources",
                 stream_id,
                 len(sources_to_process),
             )
@@ -179,7 +179,7 @@ async def stream_news(
 
                     if should_throttle:
                         stream_logger.info(
-                            "⏳ Stream %s throttling source %s for %.1fs",
+                            "Stream %s throttling source %s for %.1fs",
                             stream_id,
                             name,
                             wait_time,
@@ -215,7 +215,7 @@ async def stream_news(
                 all_source_stats: List[Dict[str, object]] = []
 
                 stream_logger.info(
-                    "⚡ Stream %s processing %s sources with %s futures",
+                    "Stream %s processing %s sources with %s futures",
                     stream_id,
                     total_sources,
                     len(future_to_source),
@@ -224,7 +224,7 @@ async def stream_news(
                 for future in asyncio.as_completed(list(future_to_source.keys())):
                     if await request.is_disconnected():
                         stream_logger.warning(
-                            "🔌 Stream %s client disconnected", stream_id
+                            "Stream %s client disconnected", stream_id
                         )
                         stream_manager.update_stream(stream_id, client_connected=False)
                         # Cancel pending futures instead of blocking
@@ -252,7 +252,7 @@ async def stream_news(
                         )
 
                         stream_logger.info(
-                            "✅ Stream %s completed source %s: %s articles",
+                            "Stream %s completed source %s: %s articles",
                             stream_id,
                             source_name,
                             len(articles),
@@ -282,7 +282,7 @@ async def stream_news(
                         completed_sources += 1
                         source_name = future_to_source.get(future, "unknown")
                         stream_logger.error(
-                            "❌ Stream %s error for %s: %s", stream_id, source_name, exc
+                            "Stream %s error for %s: %s", stream_id, source_name, exc
                         )
 
                         error_data = {
@@ -304,7 +304,7 @@ async def stream_news(
                         yield f"data: {json.dumps(error_data)}\n\n"
 
                 stream_logger.info(
-                    "🏁 Stream %s completed: %s total articles from %s sources",
+                    "Stream %s completed: %s total articles from %s sources",
                     stream_id,
                     len(all_articles),
                     len(all_source_stats),
@@ -316,7 +316,7 @@ async def stream_news(
                     )
                 except Exception as exc:  # pragma: no cover - defensive logging
                     stream_logger.warning(
-                        "⚠️ Stream %s couldn't sort articles: %s", stream_id, exc
+                        "Stream %s couldn't sort articles: %s", stream_id, exc
                     )
 
                 final_data = {
@@ -342,12 +342,12 @@ async def stream_news(
                 # Shutdown executor without waiting (non-blocking)
                 # cancel_futures=True requires Python 3.9+
                 executor.shutdown(wait=False, cancel_futures=True)
-                stream_logger.info("🔧 Stream %s executor shutdown initiated", stream_id)
+                stream_logger.info("Stream %s executor shutdown initiated", stream_id)
         except asyncio.CancelledError:  # pragma: no cover - cooperative cancellation
-            stream_logger.warning("🚫 Stream %s was cancelled", stream_id)
+            stream_logger.warning("Stream %s was cancelled", stream_id)
             raise
         except Exception as exc:  # pragma: no cover - defensive logging
-            stream_logger.error("💥 Stream %s unexpected error: %s", stream_id, exc)
+            stream_logger.error("Stream %s unexpected error: %s", stream_id, exc)
             error_response = {
                 "status": "error",
                 "stream_id": stream_id,
@@ -357,7 +357,7 @@ async def stream_news(
             yield f"data: {json.dumps(error_response)}\n\n"
         finally:
             stream_manager.unregister_stream(stream_id)
-            stream_logger.info("🧹 Stream %s cleanup completed", stream_id)
+            stream_logger.info("Stream %s cleanup completed", stream_id)
 
     return StreamingResponse(
         event_generator(),

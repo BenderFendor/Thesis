@@ -31,7 +31,7 @@ interface OrganizationPanelProps {
 const FUNDING_TYPE_COLORS: Record<string, string> = {
     "public": "bg-blue-500/20 text-blue-400 border-blue-500/30",
     "commercial": "bg-green-500/20 text-green-400 border-green-500/30",
-    "non-profit": "bg-purple-500/20 text-purple-400 border-purple-500/30",
+    "non-profit": "bg-primary/15 text-primary border-primary/30",
     "state-funded": "bg-red-500/20 text-red-400 border-red-500/30",
     "independent": "bg-gray-500/20 text-gray-400 border-gray-500/30",
 }
@@ -45,7 +45,7 @@ const BIAS_COLORS: Record<string, string> = {
 }
 
 const FACTUAL_COLORS: Record<string, string> = {
-    "very-high": "bg-emerald-500/20 text-emerald-400",
+    "very-high": "bg-primary/15 text-primary",
     "high": "bg-green-500/20 text-green-400",
     "mixed": "bg-yellow-500/20 text-yellow-400",
     "low": "bg-orange-500/20 text-orange-400",

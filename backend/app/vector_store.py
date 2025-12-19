@@ -50,10 +50,10 @@ class VectorStore:
             # Alternative: 'BAAI/bge-small-en-v1.5' (384 dims, better quality)
             self.embedding_model = SentenceTransformer("all-MiniLM-L6-v2")
 
-            logger.info(f"✅ Connected to ChromaDB at {CHROMA_HOST}:{CHROMA_PORT}")
+            logger.info(f"Connected to ChromaDB at {CHROMA_HOST}:{CHROMA_PORT}")
             collection_count = self.collection.count()
             logger.info(
-                f"📊 Collection '{self.collection.name}' has {collection_count} documents"
+                f"Collection '{self.collection.name}' has {collection_count} documents"
             )
             startup_metrics.record_event(
                 "vector_store_init",
@@ -73,7 +73,7 @@ class VectorStore:
                 },
             )
         except Exception as e:
-            logger.error("❌ Failed to connect to ChromaDB: %s", e)
+            logger.error("Failed to connect to ChromaDB: %s", e)
             startup_metrics.add_note("vector_store_error", str(e))
             raise
 
@@ -291,7 +291,7 @@ def get_vector_store() -> Optional[VectorStore]:
         try:
             _vector_store = VectorStore()
         except Exception as exc:
-            logger.warning("⚠️ ChromaDB not available: %s", exc)
+            logger.warning("ChromaDB not available: %s", exc)
             startup_metrics.add_note("vector_store_error", str(exc))
             _vector_store = None
         return _vector_store

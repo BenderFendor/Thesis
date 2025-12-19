@@ -21,7 +21,7 @@ async def test_resource_config():
     from app.core.resource_config import get_system_resources
 
     config = get_system_resources()
-    print(f"\n✅ Resource configuration loaded:")
+    print(f"\nResource configuration loaded:")
     print(f"   CPU workers: {config['cpu_workers']}")
     print(f"   Fetch concurrency: {config['fetch_concurrency']}")
     print(f"   Fetch queue size: {config['fetch_queue_size']}")
@@ -41,7 +41,7 @@ async def test_metrics():
     reset_metrics()
     metrics = get_metrics()
 
-    print(f"\n✅ Metrics initialized:")
+    print(f"\nMetrics initialized:")
     print(f"   Fetch count: {metrics.fetch_count}")
     print(f"   Parse count: {metrics.parse_count}")
     print(f"   Persist count: {metrics.persist_count}")
@@ -52,7 +52,7 @@ async def test_metrics():
     metrics.parse_count = 5
     metrics.persist_count = 100
 
-    print(f"\n✅ After simulated activity:")
+    print(f"\nAfter simulated activity:")
     metrics_dict = metrics.to_dict()
     print(f"   Fetch: {metrics_dict['fetch']}")
     print(f"   Parse: {metrics_dict['parse']}")
@@ -89,16 +89,16 @@ async def test_blocking_parse():
         }
 
         articles, stat = _blocking_parse_feed(sample_rss, "Test Source", source_info)
-        print(f"\n✅ Parse successful:")
+        print(f"\nParse successful:")
         print(f"   Articles parsed: {len(articles)}")
         print(f"   Source status: {stat['status']}")
         print(f"   Source category: {stat['category']}")
         if articles:
             print(f"   First article title: {articles[0].title}")
     except ImportError as e:
-        print(f"\n⚠️  Parse test skipped (dependencies not installed): {e}")
+        print(f"\nParse test skipped (dependencies not installed): {e}")
     except Exception as e:
-        print(f"\n⚠️  Parse test failed: {e}")
+        print(f"\nParse test failed: {e}")
 
 
 async def test_imports():
@@ -116,14 +116,14 @@ async def test_imports():
     for module_name, components in modules:
         try:
             module = __import__(module_name, fromlist=components)
-            print(f"\n✅ {module_name}")
+            print(f"\n{module_name}")
             for component in components:
                 if hasattr(module, component):
                     print(f"   - {component} available")
                 else:
-                    print(f"   ⚠️  {component} not found")
+                    print(f"   {component} not found")
         except Exception as e:
-            print(f"\n❌ {module_name} failed: {e}")
+            print(f"\n{module_name} failed: {e}")
 
 
 async def main():
@@ -139,11 +139,11 @@ async def main():
         await test_blocking_parse()
 
         print("\n" + "=" * 60)
-        print("✅ All tests completed successfully!")
+        print("All tests completed successfully!")
         print("=" * 60 + "\n")
 
     except Exception as e:
-        print(f"\n❌ Test failed: {e}")
+        print(f"\nTest failed: {e}")
         import traceback
 
         traceback.print_exc()

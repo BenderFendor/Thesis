@@ -21,12 +21,12 @@ class NewsCache:
 
     def get_articles(self) -> List[NewsArticle]:
         with self.lock:
-            logger.debug("📋 Cache accessed: %s articles available", len(self.articles))
+            logger.debug("Cache accessed: %s articles available", len(self.articles))
             return self.articles.copy()
 
     def get_source_stats(self) -> List[Dict[str, object]]:
         with self.lock:
-            logger.debug("📊 Source stats accessed: %s sources", len(self.source_stats))
+            logger.debug("Source stats accessed: %s sources", len(self.source_stats))
             return self.source_stats.copy()
 
     def update_cache(
@@ -41,7 +41,7 @@ class NewsCache:
             self.update_count += 1
 
             logger.info(
-                "🔄 Cache updated #%s: %s -> %s articles from %s sources",
+                "Cache updated #%s: %s -> %s articles from %s sources",
                 self.update_count,
                 old_count,
                 len(articles),
@@ -51,7 +51,7 @@ class NewsCache:
             working_sources = [s for s in source_stats if s.get("status") == "success"]
             error_sources = [s for s in source_stats if s.get("status") == "error"]
             logger.info(
-                "📊 Cache health: %s working, %s error sources",
+                "Cache health: %s working, %s error sources",
                 len(working_sources),
                 len(error_sources),
             )

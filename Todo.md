@@ -246,7 +246,7 @@ add in the confg the model you want so in the
 
 need to improve like pagation or something so when you have 2000+ article then aren't all loaded at once and lag the page out etc.
 
-# 🌍 Global News & Local Lens (Planned)
+# Global News & Local Lens (Planned)
 
 ## 1. Backend Data Standardization
 - [ ] Update `rss_sources.py` to use ISO country codes (US, GB, CN, etc.) instead of full names.

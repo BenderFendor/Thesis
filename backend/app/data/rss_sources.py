@@ -71,5 +71,5 @@ def get_rss_sources() -> Dict[str, Dict[str, Any]]:
                 f"Skipping {key}: url field is neither string nor list or is empty"
             )
 
-    logger.info(f"✅ Loaded {len(flattened)} RSS sources")
+    logger.info(f"Loaded {len(flattened)} RSS sources")
     return flattened

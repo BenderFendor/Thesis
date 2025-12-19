@@ -52,13 +52,13 @@ async def _send_image_update(article_url: str, image_url: str) -> None:
 
 
 async def _scrape_and_update_image(article_url: str) -> None:
-    logger.info("🖼️ Starting background image scrape for: %s", article_url)
+    logger.info("Starting background image scrape for: %s", article_url)
     image_url = await _get_og_image_from_url(article_url)
     if image_url:
-        logger.info("✅ Found image for %s: %s", article_url, image_url)
+        logger.info("Found image for %s: %s", article_url, image_url)
         await _send_image_update(article_url, image_url)
     else:
-        logger.info("🤷 No image found for %s", article_url)
+        logger.info("No image found for %s", article_url)
 
 
 async def scrape_missing_images(batch_size: int = 5) -> None:
@@ -69,7 +69,7 @@ async def scrape_missing_images(batch_size: int = 5) -> None:
         return
 
     logger.info(
-        "🖼️ Found %s articles without images, starting scrape...",
+        "Found %s articles without images, starting scrape...",
         len(articles_without_images),
     )
 
@@ -98,5 +98,5 @@ def start_image_scraping_scheduler(interval_seconds: int = 60) -> None:
     thread = threading.Thread(target=image_scraper, daemon=True)
     thread.start()
     logger.info(
-        "🚀 Image scraping scheduler started (%s-second intervals)", interval_seconds
+        "Image scraping scheduler started (%s-second intervals)", interval_seconds
     )

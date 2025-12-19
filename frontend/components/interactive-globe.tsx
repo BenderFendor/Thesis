@@ -25,6 +25,8 @@ interface InteractiveGlobeProps {
 
 export function InteractiveGlobe({ articles, onCountrySelect, selectedCountry }: InteractiveGlobeProps) {
   const globeEl = useRef<any>()
+  const containerRef = useRef<HTMLDivElement | null>(null)
+  const [dimensions, setDimensions] = useState({ width: 0, height: 0 })
   const [countries, setCountries] = useState({ features: [] })
   const [hoverD, setHoverD] = useState<any | null>(null)
   const { theme } = useTheme()
@@ -63,76 +65,70 @@ export function InteractiveGlobe({ articles, onCountrySelect, selectedCountry }:
     }
   }, [])
 
+  useEffect(() => {
+    if (!containerRef.current) return
+    const element = containerRef.current
+    const updateSize = () => {
+      const rect = element.getBoundingClientRect()
+      setDimensions({
+        width: Math.max(0, Math.floor(rect.width)),
+        height: Math.max(0, Math.floor(rect.height)),
+      })
+    }
+    updateSize()
+    const observer = new ResizeObserver(updateSize)
+    observer.observe(element)
+    return () => observer.disconnect()
+  }, [])
+
   return (
-    <div className="h-full w-full relative overflow-hidden rounded-lg bg-gradient-to-b from-slate-950 to-slate-900">
+    <div
+      ref={containerRef}
+      className="h-full w-full relative overflow-hidden bg-[var(--news-bg-primary)]"
+    >
       <Globe
         ref={globeEl}
         globeImageUrl="//unpkg.com/three-globe/example/img/earth-blue-marble.jpg"
         bumpImageUrl="//unpkg.com/three-globe/example/img/earth-topology.png"
-        backgroundImageUrl={null} // Remove space background for cleaner look
-        backgroundColor="rgba(0,0,0,0)" // Transparent to show gradient
-        atmosphereColor="#7dd3fc" // Light blue atmosphere
-        atmosphereAltitude={0.15}
+        backgroundImageUrl={null}
+        backgroundColor="rgba(0,0,0,0)"
+        atmosphereColor="#e9762b"
+        atmosphereAltitude={0.12}
         lineHoverPrecision={0}
-        polygonsData={countries.features.filter((d: any) => d.properties.ISO_A2 !== "AQ")} // Exclude Antarctica
-        polygonAltitude={(d: any) => (d === hoverD ? 0.12 : selectedCountry === d.properties.ISO_A2 ? 0.06 : 0.01)}
+        polygonsData={countries.features.filter((d: any) => d.properties.ISO_A2 !== "AQ")}
+        polygonAltitude={(d: any) => (d === hoverD ? 0.12 : selectedCountry === d.properties.ISO_A2 ? 0.08 : 0.01)}
         polygonCapColor={(d: any) => {
           const iso = d.properties.ISO_A2
           const count = countryCounts[iso] || 0
           
-          if (d === hoverD) return "rgba(255, 255, 255, 0.3)"
-          if (selectedCountry === iso) return "rgba(16, 185, 129, 0.8)" // Green for selected
+          if (d === hoverD) return "rgba(255, 255, 255, 0.2)"
+          if (selectedCountry === iso) return "#e9762b"
           
-          // Heatmap color if articles exist, otherwise transparent/default
-          return count > 0 ? String(colorScale(count)) : "rgba(255, 255, 255, 0.05)"
+          return count > 0 ? "rgba(233, 118, 43, 0.4)" : "rgba(255, 255, 255, 0.03)"
         }}
         polygonSideColor={() => "rgba(255, 255, 255, 0.05)"}
-        polygonStrokeColor={() => "rgba(255, 255, 255, 0.1)"}
+        polygonStrokeColor={() => "rgba(255, 255, 255, 0.08)"}
         polygonLabel={({ properties: d }: any) => `
-          <div class="bg-background/90 text-foreground p-2 rounded border shadow-sm text-xs">
-            <b>${d.NAME}</b> (${d.ISO_A2}) <br />
-            Articles: ${countryCounts[d.ISO_A2] || 0}
+          <div class="bg-[var(--news-bg-secondary)]/90 text-foreground p-3 rounded-lg border border-border/60 shadow-2xl backdrop-blur-md">
+            <p class="font-serif italic text-base text-primary">${d.NAME}</p>
+            <p class="font-mono text-[9px] uppercase tracking-[0.2em] text-muted-foreground mt-1">
+              ISO: ${d.ISO_A2} · ${countryCounts[d.ISO_A2] || 0} Articles
+            </p>
           </div>
         `}
         onPolygonHover={setHoverD}
         onPolygonClick={(d: any) => {
-            const iso = d.properties.ISO_A2
-            const name = d.properties.NAME
-            if (selectedCountry === iso) {
-                onCountrySelect(null, null)
-            } else {
-                onCountrySelect(iso, name)
-            }
+          const iso = d.properties.ISO_A2
+          const name = d.properties.NAME
+          if (selectedCountry === iso) {
+            onCountrySelect(null, null)
+          } else {
+            onCountrySelect(iso, name)
+          }
         }}
-        width={undefined} // Let it take container width
-        height={undefined} // Let it take container height
+        width={dimensions.width}
+        height={dimensions.height}
       />
-      
-      {/* Legend / Info Overlay */}
-      <div className="absolute bottom-4 left-4 bg-background/60 backdrop-blur-md p-4 rounded-xl border border-white/10 shadow-lg text-xs z-10">
-        <h3 className="font-semibold mb-2 text-foreground">News Intensity</h3>
-        <div className="flex items-center gap-2">
-            <span className="text-[10px] text-muted-foreground">Low</span>
-            <div className="w-24 h-2 bg-gradient-to-r from-emerald-50 to-emerald-900 rounded-full"></div>
-            <span className="text-[10px] text-muted-foreground">High</span>
-        </div>
-        <div className="mt-3 text-muted-foreground">
-            Click a country to filter
-        </div>
-        {selectedCountry && (
-            <div className="mt-3 pt-3 border-t border-white/10">
-                <div className="flex justify-between items-center">
-                    <span>Selected: <span className="font-bold text-primary">{selectedCountry}</span></span>
-                    <button 
-                        onClick={() => onCountrySelect(null, null)}
-                        className="text-xs bg-primary/10 hover:bg-primary/20 text-primary px-2 py-1 rounded transition-colors"
-                    >
-                        Clear
-                    </button>
-                </div>
-            </div>
-        )}
-      </div>
     </div>
   )
 }

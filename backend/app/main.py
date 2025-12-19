@@ -105,10 +105,10 @@ def _start_schedulers_once() -> None:
 async def _load_cache_from_db_fast() -> None:
     """Fast path: Load small batch from DB on startup for instant readiness."""
     if not settings.enable_database or AsyncSessionLocal is None:
-        logger.info("⏭️ Skipping DB cache warmup; ENABLE_DATABASE=0")
+        logger.info("Skipping DB cache warmup; ENABLE_DATABASE=0")
         return
 
-    logger.info("📦 Attempting to load articles from database...")
+    logger.info("Attempting to load articles from database...")
     try:
         async with AsyncSessionLocal() as session:
             # Load small batch (500) for fast perceived startup
@@ -122,26 +122,26 @@ async def _load_cache_from_db_fast() -> None:
                 stats = {"loaded_from_db": len(articles), "sources": {}}
                 news_cache.update_cache(articles, stats)
                 logger.info(
-                    "✅ Loaded %d articles from database into cache.", len(articles)
+                    "Loaded %d articles from database into cache.", len(articles)
                 )
                 return
             else:
-                logger.info("⚠️ No articles in DB; async refresh will populate cache.")
+                logger.info("No articles in DB; async refresh will populate cache.")
     except Exception as e:
-        logger.error("❌ Failed to load from DB: %s. Async refresh will handle.", e)
+        logger.error("Failed to load from DB: %s. Async refresh will handle.", e)
 
 
 async def _initial_cache_load() -> None:
     """Initialize cache on startup using fast DB load path."""
     if not settings.enable_database or AsyncSessionLocal is None:
-        logger.info("⏭️ Initial cache load disabled (database unavailable)")
+        logger.info("Initial cache load disabled (database unavailable)")
         return
 
     load_start = time.time()
     metadata: dict[str, Any] = {}
     detail = "completed"
     try:
-        logger.info("🚀 Starting initial cache load...")
+        logger.info("Starting initial cache load...")
         await _load_cache_from_db_fast()
         logger.info("Initial cache population complete")
         metadata["result"] = "loaded"
@@ -203,22 +203,22 @@ async def on_startup() -> None:
         _register_background_task(cache_preload_task)
         startup_metrics.add_note("cache_preload_task", cache_preload_task.get_name())
 
-    # 🔄 Start async RSS refresh scheduler (delayed first run)
+    # Start async RSS refresh scheduler (delayed first run)
     scheduler_task = asyncio.create_task(
         periodic_rss_refresh(interval_seconds=600), name="rss_refresh_scheduler"
     )
     _register_background_task(scheduler_task)
     startup_metrics.add_note("rss_scheduler_task", scheduler_task.get_name())
 
-    # 🔄 Start initial background RSS refresh without blocking startup
+    # Start initial background RSS refresh without blocking startup
     async def start_background_rss_refresh_async() -> None:
         await asyncio.sleep(2)  # Give DB load a head start
         refresh_start = time.time()
-        logger.info("🔄 Starting initial async RSS refresh...")
+        logger.info("Starting initial async RSS refresh...")
         try:
             await refresh_news_cache_async()
             duration = time.time() - refresh_start
-            logger.info("✅ Initial async RSS refresh complete (%.2fs)", duration)
+            logger.info("Initial async RSS refresh complete (%.2fs)", duration)
             startup_metrics.record_event(
                 "initial_rss_refresh",
                 refresh_start,
@@ -264,7 +264,7 @@ async def on_startup() -> None:
                     )
                     if age_hours > 6:
                         logger.info(
-                            "📋 Cache has stale articles (%.1fh old), starting migration...",
+                            "Cache has stale articles (%.1fh old), starting migration...",
                             age_hours,
                         )
                         migration_start = time.time()
@@ -279,7 +279,7 @@ async def on_startup() -> None:
                         )
                     else:
                         logger.info(
-                            "✨ Cache is fresh (%.1fh old), skipping migration", age_hours
+                            "Cache is fresh (%.1fh old), skipping migration", age_hours
                         )
                         startup_metrics.add_note(
                             "cache_freshness_hours",
@@ -291,7 +291,7 @@ async def on_startup() -> None:
                     )
                     startup_metrics.add_note("cache_age_error", str(exc))
             else:
-                logger.info("⏭️ Cache empty, skipping migration")
+                logger.info("Cache empty, skipping migration")
                 startup_metrics.add_note("cache_preload_articles", 0)
 
         migration_task = asyncio.create_task(

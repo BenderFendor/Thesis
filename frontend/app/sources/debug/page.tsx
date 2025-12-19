@@ -166,7 +166,7 @@ export default function DebugSourcesPage() {
     const b = bias.toLowerCase()
     if (b.includes("left")) return "bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200"
     if (b.includes("right")) return "bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200"
-    return "bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-200"
+    return "bg-primary/15 text-primary border-primary/30"
   }
 
   const successCount = sources.filter(s => s.status === "success").length
@@ -243,7 +243,7 @@ export default function DebugSourcesPage() {
                       </p>
                       {refreshProgress?.message && (
                         <p className="text-sm text-green-600 mt-1">
-                          ✅ {refreshProgress.message}
+                          {refreshProgress.message}
                         </p>
                       )}
                     </div>

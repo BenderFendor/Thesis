@@ -56,10 +56,10 @@ export function DigestCard({ onRefresh }: DigestCardProps) {
   }
 
   return (
-    <Card className="p-4 space-y-3 bg-gradient-to-br from-purple-50 to-indigo-50 dark:from-purple-950 dark:to-indigo-950 border-purple-200 dark:border-purple-800">
+    <Card className="p-4 space-y-3 bg-gradient-to-br from-primary/10 to-amber-500/10 dark:from-gray-900 dark:to-gray-800 border-primary/30 dark:border-gray-700">
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
-          <BookMarked className="h-5 w-5 text-purple-600 dark:text-purple-400" />
+          <BookMarked className="h-5 w-5 text-primary" />
           <h3 className="font-semibold text-gray-900 dark:text-white">
             Today's Digest
           </h3>
@@ -76,7 +76,7 @@ export function DigestCard({ onRefresh }: DigestCardProps) {
             <Link
               key={item.id}
               href={`/reader/${item.id}`}
-              className="block p-2 bg-white dark:bg-slate-900 rounded-lg hover:bg-purple-100 dark:hover:bg-purple-900 transition-colors border border-purple-200 dark:border-purple-800"
+              className="block p-2 bg-white dark:bg-slate-900 rounded-lg hover:bg-primary/10 dark:hover:bg-primary/20 transition-colors border border-primary/20 dark:border-primary/40"
             >
               <div className="text-sm font-medium text-gray-900 dark:text-white truncate">
                 {item.article_title}
@@ -106,7 +106,7 @@ export function DigestCard({ onRefresh }: DigestCardProps) {
       </div>
 
       {/* Scheduling Section */}
-      <div className="pt-2 border-t border-purple-200 dark:border-purple-800">
+      <div className="pt-2 border-t border-primary/30 dark:border-primary/40">
         {showSchedule ? (
           <div className="space-y-2">
             <label className="block text-xs font-medium text-gray-700 dark:text-gray-300">
@@ -117,7 +117,7 @@ export function DigestCard({ onRefresh }: DigestCardProps) {
                 type="time"
                 value={scheduleTime}
                 onChange={(e) => setScheduleTime(e.target.value)}
-                className="flex-1 px-2 py-1 text-xs rounded border border-purple-300 dark:border-purple-700 bg-white dark:bg-slate-800 text-gray-900 dark:text-white"
+                className="flex-1 px-2 py-1 text-xs rounded border border-primary/30 dark:border-primary/50 bg-white dark:bg-slate-800 text-gray-900 dark:text-white"
               />
               <Button
                 size="sm"

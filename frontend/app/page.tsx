@@ -436,7 +436,7 @@ function NewsPage() {
 
       <main className="flex-1">
         <div className="max-w-[1600px] mx-auto grid grid-cols-1 lg:grid-cols-12 gap-px bg-border/40">
-          <section className={`${isGlobeView ? "lg:col-span-9" : "lg:col-span-8"} bg-[var(--news-bg-primary)] flex flex-col min-h-[calc(100vh-80px)]`}>
+          <section className={`${isGlobeView ? "lg:col-span-12" : "lg:col-span-8"} bg-[var(--news-bg-primary)] flex flex-col min-h-[calc(100vh-80px)]`}>
             {!isGlobeView && (
               <div className="relative p-8 border-b border-border/60">
               <div
@@ -592,134 +592,97 @@ function NewsPage() {
             </Tabs>
           </section>
 
-          <aside className={`${isGlobeView ? "lg:col-span-3" : "lg:col-span-4"} bg-[var(--news-bg-primary)] border-l border-border/60`}>
-            <div className="sticky top-24 p-6 space-y-6">
-              <div className="group rounded-lg border border-border/60 bg-[var(--news-bg-secondary)] overflow-hidden transition-all duration-500 ease-out">
-                <div className="p-5 flex items-center justify-between">
-                  <div>
-                    <h3 className="font-serif italic text-lg text-primary">Desk Summary</h3>
-                    <p className="text-[10px] font-mono uppercase tracking-[0.3em] text-muted-foreground mt-1">
-                      Context and verification
-                    </p>
-                  </div>
-                  <div className="flex gap-2">
-                    <button
-                      onClick={() => setBioView("brief")}
-                      className={`text-[9px] font-mono uppercase px-2 py-0.5 border ${
-                        bioView === "brief"
-                          ? "bg-primary text-primary-foreground border-primary"
-                          : "border-border/60 text-muted-foreground"
-                      }`}
-                    >
-                      Brief
-                    </button>
-                    <button
-                      onClick={() => setBioView("depth")}
-                      className={`text-[9px] font-mono uppercase px-2 py-0.5 border ${
-                        bioView === "depth"
-                          ? "bg-primary text-primary-foreground border-primary"
-                          : "border-border/60 text-muted-foreground"
-                      }`}
-                    >
-                      Depth
-                    </button>
-                  </div>
-                </div>
-                <div className="px-5 pb-5 transition-all duration-500 ease-out max-h-0 opacity-0 translate-y-2 group-hover:max-h-[460px] group-hover:opacity-100 group-hover:translate-y-0 group-focus-within:max-h-[460px] group-focus-within:opacity-100 group-focus-within:translate-y-0">
-                  <p className="text-sm text-foreground/75 leading-relaxed line-clamp-4">
-                    {bioView === "brief"
-                      ? "Scoop is a multi-perspective news desk focused on global context, evidence, and transparency. We synthesize sources and surface the signals that matter."
-                      : "Scoop combines curated RSS feeds with AI-assisted research to map bias, credibility, and claims across sources. The goal is a newsroom-grade interface that treats context as the headline and makes verification visible."}
-                  </p>
-                  <div className="mt-4 grid grid-cols-2 gap-3 text-xs">
-                    <div className="rounded border border-border/50 bg-[var(--news-bg-primary)]/40 px-3 py-2">
-                      <div className="text-[10px] uppercase text-muted-foreground">Articles</div>
-                      <div className="text-sm font-semibold">{articleCount}</div>
-                    </div>
-                    <div className="rounded border border-border/50 bg-[var(--news-bg-primary)]/40 px-3 py-2">
-                      <div className="text-[10px] uppercase text-muted-foreground">Sources</div>
-                      <div className="text-sm font-semibold">
-                        {selectedSources.size > 0 ? selectedSources.size : "All"}
-                      </div>
-                    </div>
-                    <div className="rounded border border-border/50 bg-[var(--news-bg-primary)]/40 px-3 py-2">
-                      <div className="text-[10px] uppercase text-muted-foreground">Confidence</div>
-                      <div className="text-sm font-semibold text-primary">{leadCredibility}</div>
-                    </div>
-                    <div className="rounded border border-border/50 bg-[var(--news-bg-primary)]/40 px-3 py-2">
-                      <div className="text-[10px] uppercase text-muted-foreground">Bias</div>
-                      <div className="text-sm font-semibold">{leadBias}</div>
-                    </div>
-                  </div>
-                </div>
-              </div>
-
-              {isGlobeView && (
+          {!isGlobeView && (
+            <aside className="lg:col-span-4 bg-[var(--news-bg-primary)] border-l border-border/60">
+              <div className="sticky top-24 p-6 space-y-6">
                 <div className="group rounded-lg border border-border/60 bg-[var(--news-bg-secondary)] overflow-hidden transition-all duration-500 ease-out">
                   <div className="p-5 flex items-center justify-between">
                     <div>
-                      <h3 className="font-serif italic text-lg text-primary">Lead Story</h3>
+                      <h3 className="font-serif italic text-lg text-primary">Desk Summary</h3>
                       <p className="text-[10px] font-mono uppercase tracking-[0.3em] text-muted-foreground mt-1">
-                        Spotlight
+                        Context and verification
                       </p>
                     </div>
-                    <span className="text-[10px] font-mono uppercase tracking-[0.3em] text-muted-foreground">
-                      {leadArticle ? formatDate(leadArticle.publishedAt) : "Updating feed"}
-                    </span>
-                  </div>
-                  <div className="px-5 pb-5 transition-all duration-500 ease-out max-h-0 opacity-0 translate-y-2 group-hover:max-h-[420px] group-hover:opacity-100 group-hover:translate-y-0 group-focus-within:max-h-[420px] group-focus-within:opacity-100 group-focus-within:translate-y-0">
-                    <p className="text-sm text-foreground/85 leading-snug line-clamp-3">
-                      {leadArticle?.title || "Loading coverage..."}
-                    </p>
-                    <p className="mt-2 text-xs text-muted-foreground leading-relaxed line-clamp-3">
-                      {leadSummary}
-                    </p>
-                    <div className="mt-4 flex flex-wrap gap-2">
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => leadArticle && setLeadModalOpen(true)}
-                        className="border-border/60 bg-transparent text-xs"
+                    <div className="flex gap-2">
+                      <button
+                        onClick={() => setBioView("brief")}
+                        className={`text-[9px] font-mono uppercase px-2 py-0.5 border ${
+                          bioView === "brief"
+                            ? "bg-primary text-primary-foreground border-primary"
+                            : "border-border/60 text-muted-foreground"
+                        }`}
                       >
-                        Open analysis
-                      </Button>
-                      <Button asChild variant="outline" size="sm" className="border-border/60 bg-transparent text-xs">
-                        <Link href="/search">Research workspace</Link>
-                      </Button>
+                        Brief
+                      </button>
+                      <button
+                        onClick={() => setBioView("depth")}
+                        className={`text-[9px] font-mono uppercase px-2 py-0.5 border ${
+                          bioView === "depth"
+                            ? "bg-primary text-primary-foreground border-primary"
+                            : "border-border/60 text-muted-foreground"
+                        }`}
+                      >
+                        Depth
+                      </button>
+                    </div>
+                  </div>
+                  <div className="px-5 pb-5 transition-all duration-500 ease-out max-h-0 opacity-0 translate-y-2 group-hover:max-h-[460px] group-hover:opacity-100 group-hover:translate-y-0 group-focus-within:max-h-[460px] group-focus-within:opacity-100 group-focus-within:translate-y-0">
+                    <p className="text-sm text-foreground/75 leading-relaxed line-clamp-4">
+                      {bioView === "brief"
+                        ? "Scoop is a multi-perspective news desk focused on global context, evidence, and transparency. We synthesize sources and surface the signals that matter."
+                        : "Scoop combines curated RSS feeds with AI-assisted research to map bias, credibility, and claims across sources. The goal is a newsroom-grade interface that treats context as the headline and makes verification visible."}
+                    </p>
+                    <div className="mt-4 grid grid-cols-2 gap-3 text-xs">
+                      <div className="rounded border border-border/50 bg-[var(--news-bg-primary)]/40 px-3 py-2">
+                        <div className="text-[10px] uppercase text-muted-foreground">Articles</div>
+                        <div className="text-sm font-semibold">{articleCount}</div>
+                      </div>
+                      <div className="rounded border border-border/50 bg-[var(--news-bg-primary)]/40 px-3 py-2">
+                        <div className="text-[10px] uppercase text-muted-foreground">Sources</div>
+                        <div className="text-sm font-semibold">
+                          {selectedSources.size > 0 ? selectedSources.size : "All"}
+                        </div>
+                      </div>
+                      <div className="rounded border border-border/50 bg-[var(--news-bg-primary)]/40 px-3 py-2">
+                        <div className="text-[10px] uppercase text-muted-foreground">Confidence</div>
+                        <div className="text-sm font-semibold text-primary">{leadCredibility}</div>
+                      </div>
+                      <div className="rounded border border-border/50 bg-[var(--news-bg-primary)]/40 px-3 py-2">
+                        <div className="text-[10px] uppercase text-muted-foreground">Bias</div>
+                        <div className="text-sm font-semibold">{leadBias}</div>
+                      </div>
                     </div>
                   </div>
                 </div>
-              )}
 
-              <div className={`group rounded-lg border overflow-hidden transition-all duration-500 ease-out ${leadArticle?.credibility === "low" ? "border-rose-500/40 bg-rose-500/10" : "border-border/60 bg-[var(--news-bg-secondary)]"}`}>
-                <div className="p-5 flex items-center justify-between">
-                  <div className="flex items-center gap-2 text-primary">
-                    <AlertCircle size={16} className={leadArticle?.credibility === "low" ? "text-rose-400" : "text-primary"} />
-                    <h4 className="font-mono text-[10px] uppercase tracking-[0.3em]">Verification</h4>
+                <div className={`group rounded-lg border overflow-hidden transition-all duration-500 ease-out ${leadArticle?.credibility === "low" ? "border-rose-500/40 bg-rose-500/10" : "border-border/60 bg-[var(--news-bg-secondary)]"}`}>
+                  <div className="p-5 flex items-center justify-between">
+                    <div className="flex items-center gap-2 text-primary">
+                      <AlertCircle size={16} className={leadArticle?.credibility === "low" ? "text-rose-400" : "text-primary"} />
+                      <h4 className="font-mono text-[10px] uppercase tracking-[0.3em]">Verification</h4>
+                    </div>
+                    <span className="text-[10px] uppercase text-muted-foreground">Status</span>
                   </div>
-                  <span className="text-[10px] uppercase text-muted-foreground">Status</span>
+                  <div className="px-5 pb-5 transition-all duration-500 ease-out max-h-0 opacity-0 translate-y-2 group-hover:max-h-[360px] group-hover:opacity-100 group-hover:translate-y-0 group-focus-within:max-h-[360px] group-focus-within:opacity-100 group-focus-within:translate-y-0">
+                    <p className="text-xs text-foreground/70 leading-relaxed">
+                      {leadArticle?.credibility === "low"
+                        ? "Variances detected across low-credibility sources. Confirm before sharing."
+                        : "Story cross-referenced with cached sources and live feeds. Review evidence for full context."}
+                    </p>
+                    {leadArticle?.url && (
+                      <a
+                        href={leadArticle.url}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="mt-4 w-full inline-flex items-center justify-center gap-2 py-2 border border-border/60 rounded font-mono text-[10px] uppercase hover:bg-foreground hover:text-primary-foreground transition-colors text-foreground"
+                      >
+                        Check evidence
+                        <ExternalLink className="w-3 h-3" />
+                      </a>
+                    )}
+                  </div>
                 </div>
-                <div className="px-5 pb-5 transition-all duration-500 ease-out max-h-0 opacity-0 translate-y-2 group-hover:max-h-[360px] group-hover:opacity-100 group-hover:translate-y-0 group-focus-within:max-h-[360px] group-focus-within:opacity-100 group-focus-within:translate-y-0">
-                  <p className="text-xs text-foreground/70 leading-relaxed">
-                    {leadArticle?.credibility === "low"
-                      ? "Variances detected across low-credibility sources. Confirm before sharing."
-                      : "Story cross-referenced with cached sources and live feeds. Review evidence for full context."}
-                  </p>
-                  {leadArticle?.url && (
-                    <a
-                      href={leadArticle.url}
-                      target="_blank"
-                      rel="noreferrer"
-                      className="mt-4 w-full inline-flex items-center justify-center gap-2 py-2 border border-border/60 rounded font-mono text-[10px] uppercase hover:bg-foreground hover:text-primary-foreground transition-colors text-foreground"
-                    >
-                      Check evidence
-                      <ExternalLink className="w-3 h-3" />
-                    </a>
-                  )}
-                </div>
-              </div>
 
-              {!isGlobeView && (
                 <div className="rounded-lg border border-border/60 bg-[var(--news-bg-secondary)] p-4">
                   <h5 className="text-[10px] font-mono uppercase tracking-[0.3em] text-muted-foreground">Desk Actions</h5>
                   <div className="mt-3 grid gap-2 text-xs">
@@ -737,11 +700,12 @@ function NewsPage() {
                     </Link>
                   </div>
                 </div>
-              )}
-            </div>
-          </aside>
+              </div>
+            </aside>
+          )}
         </div>
       </main>
+
 
       {/* Source Sidebar */}
       <SourceSidebar isOpen={sidebarOpen} onClose={() => setSidebarOpen(false)} />

@@ -324,4 +324,4 @@ async def migrate_cached_articles_on_startup(delay_seconds: int = 5) -> None:
         await _persist_articles_async(articles, source_info)
         migrated_count += len(articles)
 
-    logger.info("🗄️ Migrated %s cached articles to databases on startup", migrated_count)
+    logger.info("Migrated %s cached articles to databases on startup", migrated_count)

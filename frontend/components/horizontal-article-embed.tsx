@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react';
+import { MapPin } from 'lucide-react';
 import { fetchNews, NewsArticle } from '../lib/api';
 import { Card } from './ui/card';
 import { Badge } from './ui/badge';
@@ -73,8 +74,9 @@ const HorizontalArticleEmbed: React.FC<HorizontalArticleEmbedProps> = ({
                 </div>
                 <p className="text-xs text-muted-foreground line-clamp-2 mb-2">{article.summary}</p>
                 {article.country && (
-                  <div className="flex items-center gap-1 mt-auto">
-                    <span className="text-xs text-muted-foreground">📍 {article.country}</span>
+                  <div className="flex items-center gap-1 mt-auto text-xs text-muted-foreground">
+                    <MapPin className="w-3 h-3" />
+                    <span>{article.country}</span>
                   </div>
                 )}
               </div>

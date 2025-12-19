@@ -456,7 +456,7 @@ export function ReadingQueueSidebar() {
                         <h3 className="font-bold text-lg mb-2">Full Article</h3>
                         {articleLoading ? (
                           <div className="flex items-center gap-3 p-4 bg-gray-900/50 rounded-lg border border-gray-800">
-                            <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-emerald-400"></div>
+                            <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-primary"></div>
                             <p className="text-gray-400 text-sm">
                               Loading full article text...
                             </p>
@@ -571,7 +571,7 @@ export function ReadingQueueSidebar() {
                         }
                         title="Mark as read (M)"
                       >
-                        ✓ Read
+                        Read
                       </Button>
                     </div>
                   </div>
@@ -618,7 +618,7 @@ export function ReadingQueueSidebar() {
                           borderColor: "var(--border)",
                         }}
                       >
-                        <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-purple-400"></div>
+                        <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-primary"></div>
                       </div>
                     ) : aiAnalysis?.success && aiAnalysis.summary ? (
                       <div
@@ -630,7 +630,7 @@ export function ReadingQueueSidebar() {
                         }}
                       >
                         <div className="flex items-center gap-2 mb-3">
-                          <Sparkles className="h-4 w-4 text-purple-400" />
+                          <Sparkles className="h-4 w-4 text-primary" />
                           <h3 className="font-semibold text-sm text-white">
                             AI Summary
                           </h3>
@@ -861,8 +861,7 @@ export function ReadingQueueSidebar() {
                   }
                   title="Mark as read (M)"
                 >
-                  ✓
-                </Button>
+                  </Button>
                 <Button
                   variant="ghost"
                   onClick={() => {
@@ -900,7 +899,7 @@ export function ReadingQueueSidebar() {
                 {digestLoading ? (
                   <div className="flex items-center justify-center h-full">
                     <div className="flex flex-col items-center gap-3">
-                      <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-purple-400"></div>
+                      <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
                       <p style={{ color: "var(--muted-foreground)" }}>
                         Generating your digest...
                       </p>

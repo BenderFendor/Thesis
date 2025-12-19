@@ -107,7 +107,7 @@ export function ArticleDetailModal({ article, isOpen, onClose }: ArticleDetailMo
   const getCredibilityColor = (credibility: string) => {
     switch (credibility) {
       case "high":
-        return "bg-emerald-500/20 text-emerald-400 border-emerald-500/30"
+        return "bg-primary/15 text-primary border-primary/30"
       case "medium":
         return "bg-yellow-500/20 text-yellow-400 border-yellow-500/30"
       case "low":
@@ -193,7 +193,7 @@ export function ArticleDetailModal({ article, isOpen, onClose }: ArticleDetailMo
                     variant="outline" 
                     size="sm" 
                     onClick={() => { setAiAnalysisOpen(true); loadAiAnalysis(); }}
-                    className="bg-gradient-to-r from-purple-500/20 to-blue-500/20 hover:from-purple-500/30 hover:to-blue-500/30 border-purple-500/30"
+                    className="bg-gradient-to-r from-primary/20 to-amber-500/20 hover:from-primary/30 hover:to-amber-500/30 border-primary/30"
                   >
                     <Sparkles className="h-4 w-4 mr-1" /> AI Analysis
                   </Button>
@@ -270,10 +270,10 @@ export function ArticleDetailModal({ article, isOpen, onClose }: ArticleDetailMo
 
             {/* AI Analysis Panel */}
             {aiAnalysisOpen && (
-              <div className="bg-gray-900/60 rounded-lg p-6 mb-6 border border-purple-500/30">
+              <div className="bg-gray-900/60 rounded-lg p-6 mb-6 border border-primary/30">
                 <div className="flex items-center justify-between mb-4">
                   <h3 className="text-lg font-semibold text-white flex items-center gap-2">
-                    <Sparkles className="h-5 w-5 text-purple-400" /> AI-Powered Article Analysis
+                    <Sparkles className="h-5 w-5 text-primary" /> AI-Powered Article Analysis
                   </h3>
                   <Button variant="ghost" size="sm" onClick={() => setAiAnalysisOpen(false)}>
                     <X className="h-4 w-4" />
@@ -281,7 +281,7 @@ export function ArticleDetailModal({ article, isOpen, onClose }: ArticleDetailMo
                 </div>
                 {aiAnalysisLoading ? (
                   <div className="flex flex-col items-center justify-center p-12">
-                    <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-purple-400 mb-4"></div>
+                    <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mb-4"></div>
                     <p className="text-gray-400">Analyzing article with AI...</p>
                     <p className="text-sm text-gray-500 mt-2">This may take 10-30 seconds</p>
                   </div>
@@ -298,7 +298,7 @@ export function ArticleDetailModal({ article, isOpen, onClose }: ArticleDetailMo
               <div className="bg-gray-900/60 rounded-lg p-6 mb-6 border border-gray-800">
                 <div className="flex items-center justify-between mb-3">
                   <h3 className="text-lg font-semibold text-white flex items-center gap-2">
-                    <Bug className="h-5 w-5 text-emerald-400" /> Image Debugger
+                    <Bug className="h-5 w-5 text-primary" /> Image Debugger
                   </h3>
                   <Button variant="ghost" size="sm" onClick={() => setDebugOpen(false)}>
                     <X className="h-4 w-4" />

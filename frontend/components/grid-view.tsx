@@ -158,7 +158,7 @@ export function GridView({
 
       return matchesSearch && matchesCategory
     })
-    console.log(`🔍 GridView filter: ${articles.length} articles → ${result.length} after filtering (searchTerm="${searchTerm}", selectedCategory="${selectedCategory}")`)
+    console.log(`GridView filter: ${articles.length} articles -> ${result.length} after filtering (searchTerm="${searchTerm}", selectedCategory="${selectedCategory}")`)
     return result
   }, [articles, searchTerm, selectedCategory])
 
@@ -181,13 +181,13 @@ export function GridView({
         selectedCategory,
       },
     })
-    console.log(`🎬 GridView render check: articles=${articles.length}, filteredNews=${filteredNews.length}, loading=${loading}`)
+    console.log(`GridView render check: articles=${articles.length}, filteredNews=${filteredNews.length}, loading=${loading}`)
   }, [articles.length, filteredNews.length, searchTerm, selectedCategory, loading])
 
   const getCredibilityColor = (credibility: string) => {
     switch (credibility?.toLowerCase()) {
       case "high":
-        return "bg-emerald-500/20 text-emerald-400 border-emerald-500/30"
+        return "bg-primary/15 text-primary border-primary/30"
       case "medium":
         return "bg-yellow-500/20 text-yellow-400 border-yellow-500/30"
       case "low":
@@ -198,15 +198,16 @@ export function GridView({
   }
 
   const getBiasIndicator = (bias: string) => {
+    const baseClass = "inline-flex h-2 w-2 rounded-full"
     switch (bias) {
       case "left":
-        return "🔵"
+        return <span className={`${baseClass} bg-blue-400`} />
       case "right":
-        return "🔴"
+        return <span className={`${baseClass} bg-red-400`} />
       case "center":
-        return "⚪"
+        return <span className={`${baseClass} bg-neutral-300`} />
       default:
-        return "⚫"
+        return <span className={`${baseClass} bg-neutral-600`} />
     }
   }
 

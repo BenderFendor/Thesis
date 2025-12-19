@@ -46,17 +46,17 @@ function getMarkerSize(count: number, maxCount: number): number {
 
 // Helper to calculate marker color based on intensity
 function getMarkerColor(count: number, maxCount: number, isSelected: boolean): number {
-  if (isSelected) return 0x10b981 // emerald for selected
-  if (!count || !maxCount) return 0x059669
+  if (isSelected) return 0xe9762b
+  if (!count || !maxCount) return 0xd46a3a
 
   const normalized = Math.min(count / maxCount, 1)
-  // Gradient from green (low) to yellow (medium) to red (high)
+  // Warm gradient from ember to saffron to red
   if (normalized < 0.33) {
-    return 0x059669 // green
+    return 0xd46a3a
   } else if (normalized < 0.66) {
-    return 0xf59e0b // amber
+    return 0xf1a85a
   } else {
-    return 0xef4444 // red
+    return 0xe0563f
   }
 }
 

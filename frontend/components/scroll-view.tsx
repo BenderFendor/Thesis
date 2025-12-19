@@ -37,10 +37,10 @@ export function ScrollView({ articles, loading }: { articles: NewsArticle[], loa
   //   onUpdate: useCallback((newArticles: NewsArticle[]) => {
   //     setScrollNews(newArticles)
   //     setLoading(false)
-  //     console.log(`🔄 Scroll View: Stream updated with ${newArticles.length} articles`)
+  //     console.log(`Scroll View: Stream updated with ${newArticles.length} articles`)
   //   }, []),
   //   onComplete: useCallback(() => {
-  //     console.log('🔄 Scroll View: Stream completed')
+  //     console.log('Scroll View: Stream completed')
   //     setLoading(false)
   //   }, []),
   //   onError: useCallback((error: string) => {
@@ -55,10 +55,10 @@ export function ScrollView({ articles, loading }: { articles: NewsArticle[], loa
   //   try {
   //     const articles = await fetchNews({ limit: 1000 }) // Get all articles
   //     setScrollNews(articles)
-  //     console.log(`🔄 Scroll View: Loaded ${articles.length} articles from API at ${new Date().toLocaleTimeString()}`)
+  //     console.log(`Scroll View: Loaded ${articles.length} articles from API at ${new Date().toLocaleTimeString()}`)
   //     
   //     if (articles.length === 0) {
-  //     console.log(`⚠️ Scroll View: No articles loaded. This will show "No articles available" message.`)
+  //     console.log(`Scroll View: No articles loaded. This will show "No articles available" message.`)
   //     }
   //   } catch (error) {
   //     console.error('Failed to load news:', error)
@@ -73,7 +73,7 @@ export function ScrollView({ articles, loading }: { articles: NewsArticle[], loa
   //   streamHook.startStream()
   //   const fallbackTimer = setTimeout(async () => {
   //     if (scrollNews.length === 0) {
-  //       console.log('⏳ No streamed articles yet in ScrollView; falling back to REST fetch')
+  //       console.log('No streamed articles yet in ScrollView; falling back to REST fetch')
   //       await loadNewsFromAPI()
   //     }
   //   }, 7000)
@@ -221,15 +221,16 @@ export function ScrollView({ articles, loading }: { articles: NewsArticle[], loa
   }
 
   const getBiasIndicator = (bias: string) => {
+    const baseClass = "inline-flex h-2 w-2 rounded-full"
     switch (bias) {
       case "left":
-        return "🔵"
+        return <span className={`${baseClass} bg-blue-400`} />
       case "right":
-        return "🔴"
+        return <span className={`${baseClass} bg-red-400`} />
       case "center":
-        return "⚪"
+        return <span className={`${baseClass} bg-neutral-300`} />
       default:
-        return "⚫"
+        return <span className={`${baseClass} bg-neutral-600`} />
     }
   }
 
@@ -245,7 +246,7 @@ export function ScrollView({ articles, loading }: { articles: NewsArticle[], loa
   }
 
   if (articles.length === 0) {
-    console.log(`📺 Scroll View: Displaying "No articles available" message (loading: ${loading})`);
+    console.log(`Scroll View: Displaying "No articles available" message (loading: ${loading})`)
     return (
       <div className="relative h-[calc(100vh-140px)] overflow-hidden flex items-center justify-center">
         <div className="text-center">

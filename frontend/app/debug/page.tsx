@@ -691,7 +691,7 @@ export default function DebugDashboardPage() {
                           : "-"}
                       </TableCell>
                       <TableCell className="text-xs">
-                        {article.embedding_generated ? "✅" : "—"} {article.chroma_id && (
+                        {article.embedding_generated ? "" : "—"} {article.chroma_id && (
                           <span className="ml-1 font-mono text-[11px] text-muted-foreground">
                             {article.chroma_id}
                           </span>

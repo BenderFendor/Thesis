@@ -38,7 +38,7 @@ class StreamManager:
         with self.lock:
             if stream_id in self.active_streams:
                 self.active_streams[stream_id].update(updates)
-                logger.debug("🔄 Stream %s updated: %s", stream_id, updates)
+                logger.debug("Stream %s updated: %s", stream_id, updates)
 
     def unregister_stream(self, stream_id: str) -> None:
         with self.lock:
@@ -46,7 +46,7 @@ class StreamManager:
                 stream_info = self.active_streams.pop(stream_id)
                 duration = (datetime.now(timezone.utc) - stream_info["start_time"]).total_seconds()
                 logger.info(
-                    "🏁 Stream %s completed in %.2fs. Active streams: %s",
+                    "Stream %s completed in %.2fs. Active streams: %s",
                     stream_id,
                     duration,
                     len(self.active_streams),

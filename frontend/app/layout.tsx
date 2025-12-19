@@ -35,9 +35,9 @@ export default function RootLayout({
         <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="" />
         <link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Inter:wght@100..900&display=swap" rel="stylesheet" />
       </head>
-      <body className={`font-sans text-white ${GeistSans.variable} ${GeistMono.variable} ${inter.variable} ${instrumentSerif.variable}`} style={{ backgroundColor: 'var(--news-bg-primary)' }}>
+      <body className={`font-sans text-foreground ${GeistSans.variable} ${GeistMono.variable} ${inter.variable} ${instrumentSerif.variable}`} style={{ backgroundColor: 'var(--news-bg-primary)' }}>
         <Providers>
-          <div className="min-h-screen" style={{ background: 'linear-gradient(to bottom, var(--news-bg-primary), var(--news-bg-secondary))' }}>
+          <div className="min-h-screen" style={{ backgroundColor: 'var(--news-bg-primary)' }}>
             {children}
           </div>
         </Providers>

@@ -1,6 +1,6 @@
 # Global News Aggregation Platform
 
-## 🎯 Current Phase: **Phase 1 - MVP Development (In Progress)**
+## Current Phase: **Phase 1 - MVP Development (In Progress)**
 
 ### Tech Stack Decisions (Finalized)
 - **Backend**: FastAPI (Python) - Better for rapid prototyping and ML integration
@@ -11,10 +11,10 @@
 ### Vision
 Create a comprehensive news aggregation platform that provides diverse global perspectives on current events, focusing initially on American politics but expandable to international sources and multiple categories (games, fashion, hobbies, etc.).
 
-## 🚀 Development Phases
+## Development Phases
 
-### ✅ Phase 1: MVP - American News Focus (Current)
-**Status**: ✅ **COMPLETED** - Backend and Frontend MVP Ready
+### Phase 1: MVP - American News Focus (Current)
+**Status**: **COMPLETED** - Backend and Frontend MVP Ready
 
 **Features**:
 - [x] FastAPI backend with RSS feed parsing
@@ -45,7 +45,7 @@ thesis-news-platform/
 └── README.md               # Complete setup guide
 ```
 
-**🎉 Ready to Run**:
+**Ready to Run**:
 ```bash
 cd thesis-news-platform
 docker-compose up --build
@@ -53,26 +53,26 @@ docker-compose up --build
 # API: http://localhost:8000/docs
 ```
 
-### 📋 Phase 2: Enhanced Features (Next)
+### Phase 2: Enhanced Features (Next)
 - Source funding transparency display
 - Article similarity clustering with ChromaDB
 - Basic categorization algorithm
 - User preferences and bookmarking
 - PWA functionality for mobile installation
 
-### 🌍 Phase 3: Global Expansion
+### Phase 3: Global Expansion
 - Interactive 3D globe with Three.js
 - International news sources by country
 - Translation service integration
 - Multi-language support (English → Spanish priority)
 
-### 🔍 Phase 4: Advanced Intelligence
+### Phase 4: Advanced Intelligence
 - Local LLM integration for article summarization
 - Fact-checking system integration
 - AI-powered content analysis
 - Web scraper for additional fact verification
 
-## 🏗️ Technical Architecture
+## Technical Architecture
 
 ### Why Next.js over other frameworks?
 - **SSR/SSG**: Better SEO for news content

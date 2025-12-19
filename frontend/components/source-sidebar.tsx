@@ -116,8 +116,7 @@ export function SourceSidebar({ isOpen, onClose }: SourceSidebarProps) {
           <div className="px-4 pt-2 pb-1">
             <Badge variant="secondary" className="cursor-pointer"
               onClick={handleClearAll}>
-              {getSelectionCount()} selected ✕
-            </Badge>
+              {getSelectionCount()} selected </Badge>
           </div>
         )}
 

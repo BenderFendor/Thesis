@@ -73,7 +73,7 @@ export function SourceInfoModal({ sourceId, children }: SourceInfoModalProps) {
   const getCredibilityColor = (credibility: string) => {
     switch (credibility) {
       case "high":
-        return "bg-emerald-100 text-emerald-800 dark:bg-emerald-900 dark:text-emerald-200"
+        return "bg-primary/15 text-primary border-primary/30"
       case "medium":
         return "bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200"
       case "low":
