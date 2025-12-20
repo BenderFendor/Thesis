@@ -29,10 +29,12 @@ const ArticleCard = memo(function ArticleCard({
   article,
   onClick,
   style,
+  articleNumber,
 }: {
   article: NewsArticle;
   onClick: () => void;
   style: React.CSSProperties;
+  articleNumber: number;
 }) {
   const { addArticleToQueue, removeArticleFromQueue, isArticleInQueue } =
     useReadingQueue();
@@ -56,6 +58,18 @@ const ArticleCard = memo(function ArticleCard({
     setLiked((prev) => !prev);
   }, []);
 
+  const hasRealImage = useMemo(() => {
+    const src = article.image;
+    if (!src) return false;
+    const trimmed = src.trim();
+    if (!trimmed) return false;
+    const lower = trimmed.toLowerCase();
+    return (
+      !lower.includes("/placeholder.svg") &&
+      !lower.includes("/placeholder.jpg")
+    );
+  }, [article.image]);
+
   return (
     <div style={style} className="p-2">
       <Card
@@ -64,13 +78,35 @@ const ArticleCard = memo(function ArticleCard({
       >
         {/* Image */}
         <div className="relative h-40 overflow-hidden bg-muted/40 flex-shrink-0">
-          <img
-            src={article.image || "/placeholder.svg"}
-            alt={article.title}
-            className="w-full h-full object-cover hover:scale-110 transition-transform duration-300"
-            loading="lazy"
-          />
-          <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent" />
+          {hasRealImage ? (
+            <>
+              <img
+                src={article.image}
+                alt={article.title}
+                className="w-full h-full object-cover hover:scale-110 transition-transform duration-300"
+                loading="lazy"
+              />
+              <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent" />
+            </>
+          ) : (
+            <>
+              <div className="absolute inset-0 bg-gradient-to-br from-primary/5 via-muted/20 to-background" />
+              <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_0%,rgba(255,255,255,0.05),transparent_60%)]" />
+              <div className="absolute left-2 top-2">
+                <Badge
+                  variant="outline"
+                  className="text-[10px] font-semibold px-2 py-0.5 bg-background/20 backdrop-blur-sm border-white/10 text-muted-foreground"
+                >
+                  {articleNumber}#
+                </Badge>
+              </div>
+              <div className="absolute inset-0 p-6 flex flex-col items-center justify-center text-center">
+                <h3 className="text-base font-bold text-foreground/90 leading-relaxed line-clamp-4 font-serif tracking-tight drop-shadow-sm">
+                  {article.title}
+                </h3>
+              </div>
+            </>
+          )}
 
           {/* Action Buttons */}
           <div className="absolute top-1 right-1 flex gap-1">
@@ -117,12 +153,14 @@ const ArticleCard = memo(function ArticleCard({
           </div>
 
           {/* Title */}
-          <h3 className="text-sm font-semibold text-foreground leading-snug line-clamp-3 mb-2 font-serif">
-            {article.title}
-          </h3>
+          {hasRealImage && (
+            <h3 className="text-sm font-semibold text-foreground leading-snug line-clamp-3 mb-2 font-serif">
+              {article.title}
+            </h3>
+          )}
 
           {/* Summary */}
-          <p className="text-xs text-muted-foreground line-clamp-2 flex-1">
+          <p className={`text-xs text-muted-foreground flex-1 ${hasRealImage ? "line-clamp-2" : "line-clamp-6 mt-1"}`}>
             {article.summary}
           </p>
 
@@ -292,11 +330,12 @@ export function VirtualizedGrid({
                 }}
                 className="flex justify-center gap-0"
               >
-                {rowArticles.map((article) => (
+                {rowArticles.map((article, colIndex) => (
                   <ArticleCard
                     key={article.id}
                     article={article}
                     onClick={() => onArticleClick(article)}
+                    articleNumber={startIndex + colIndex + 1}
                     style={{
                       width: cardWidth + GAP,
                       height: CARD_HEIGHT,

@@ -356,3 +356,5 @@ volumes/
 /__pycache__/
 
 .ruff_cache/
+
+dev-browser/

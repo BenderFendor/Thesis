@@ -1,5 +1,11 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
 import { streamNews, type NewsArticle, type StreamOptions, type StreamProgress } from '@/lib/api'
+import {
+  perfLogger,
+  startStream as perfStartStream,
+  logStreamEvent as perfLogStreamEvent,
+  endStream as perfEndStream,
+} from '@/lib/performance-logger'
 
 const NEXT_PUBLIC_API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
 const NEXT_PUBLIC_DOCKER_API_URL = process.env.NEXT_PUBLIC_DOCKER_API_URL || "http://localhost:8000";
@@ -36,6 +42,7 @@ export const useNewsStream = (options: UseNewsStreamOptions = {}) => {
       return;
     }
 
+    const streamStartTime = Date.now();
     console.log('Starting news stream with options:', { ...options, ...streamOptions });
 
     // Cancel any existing stream
@@ -58,6 +65,10 @@ export const useNewsStream = (options: UseNewsStreamOptions = {}) => {
     setStreamId(undefined)
     setApiUrl(null)
 
+    // Generate stream ID for tracking
+    const trackingStreamId = `fe_stream_${Date.now()}_${Math.random().toString(36).substr(2, 6)}`;
+    perfStartStream(trackingStreamId);
+
     try {
       const streamData = streamNews({
         useCache: options.useCache ?? true,
@@ -69,9 +80,25 @@ export const useNewsStream = (options: UseNewsStreamOptions = {}) => {
           setProgress(progress);
           setCurrentMessage(progress.message || `${progress.completed}/${progress.total} sources processed`);
           setStatus('loading');
+          
+          // Log progress to performance logger
+          perfLogStreamEvent(trackingStreamId, 'progress', {
+            details: {
+              completed: progress.completed,
+              total: progress.total,
+              percentage: progress.percentage,
+              message: progress.message,
+            },
+          });
         },
         onSourceComplete: (source, sourceArticles) => {
           if (!isMountedRef.current) return;
+
+          // Log source completion to performance logger
+          perfLogStreamEvent(trackingStreamId, 'source_complete', {
+            source,
+            articleCount: sourceArticles.length,
+          });
 
           // Filter out duplicates using a Set of article IDs
           const newArticles = sourceArticles.filter(article => {
@@ -96,6 +123,12 @@ export const useNewsStream = (options: UseNewsStreamOptions = {}) => {
           if (!isMountedRef.current) return;
           setErrors(prev => [...prev, error]);
           options.onError?.(error);
+          
+          // Log error to performance logger
+          perfLogStreamEvent(trackingStreamId, 'error', {
+            isError: true,
+            details: { error },
+          });
         }
       });
 
@@ -113,16 +146,35 @@ export const useNewsStream = (options: UseNewsStreamOptions = {}) => {
         setCurrentMessage(`Loaded ${result.articles.length} articles from ${result.sources.length} sources`);
         options.onComplete?.(result);
         setRetryCount(0); // Reset on success
+        
+        // End stream tracking with success
+        const totalDuration = Date.now() - streamStartTime;
+        perfEndStream(trackingStreamId, 'complete');
+        perfLogger.logEvent('stream_end', 'stream', 'complete', {
+          streamId: trackingStreamId,
+          durationMs: totalDuration,
+          details: {
+            articleCount: result.articles.length,
+            sourceCount: result.sources.length,
+            errorCount: result.errors.length,
+            backendStreamId: result.streamId,
+          },
+        });
       }
     } catch (error) {
       if (isMountedRef.current) {
         if (abortControllerRef.current?.signal.aborted) {
           setStatus('cancelled');
           setCurrentMessage('Stream was cancelled');
+          perfEndStream(trackingStreamId, 'cancelled');
         } else if (retryCount < maxRetries) {
           const delay = 2000 * Math.pow(2, retryCount);
           setStatus(`retrying-${retryCount + 1}`);
           setCurrentMessage(`Connection lost, retrying... (${retryCount + 1}/${maxRetries})`);
+          
+          perfLogStreamEvent(trackingStreamId, 'retry', {
+            details: { retryCount: retryCount + 1, delayMs: delay },
+          });
           
           await new Promise(resolve => setTimeout(resolve, delay));
           setRetryCount(prev => prev + 1);
@@ -131,6 +183,7 @@ export const useNewsStream = (options: UseNewsStreamOptions = {}) => {
           setStatus('error');
           setCurrentMessage('Failed to load news. Please try again later.');
           options.onError?.(error instanceof Error ? error.message : String(error));
+          perfEndStream(trackingStreamId, 'error');
         }
       }
     } finally {

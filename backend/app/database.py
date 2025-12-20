@@ -15,6 +15,9 @@ from sqlalchemy.dialects import postgresql
 from sqlalchemy.types import TypeDecorator
 from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession, async_sessionmaker
 from sqlalchemy.ext.declarative import declarative_base
+from sqlalchemy.exc import OperationalError
+import asyncio
+import time
 from datetime import datetime, timezone
 import os
 import logging
@@ -303,13 +306,67 @@ async def init_db():
     if not settings.enable_database or engine is None:
         logger.info("Skipping database initialization; ENABLE_DATABASE=0")
         return
-    try:
-        async with engine.begin() as conn:
-            await conn.run_sync(Base.metadata.create_all)
-        logger.info("Database tables initialized successfully")
-    except Exception as e:
-        logger.error(f"Failed to initialize database: {e}")
-        raise
+
+    def _iter_exception_chain(exc: BaseException):
+        current: BaseException | None = exc
+        seen: set[int] = set()
+        while current is not None and id(current) not in seen:
+            seen.add(id(current))
+            yield current
+            current = current.__cause__ or current.__context__
+
+    def _is_transient_startup_error(exc: BaseException) -> bool:
+        for err in _iter_exception_chain(exc):
+            # asyncpg can bubble up directly from SQLAlchemy.
+            if err.__class__.__module__.startswith("asyncpg"):
+                if err.__class__.__name__ in {
+                    "CannotConnectNowError",
+                    "ConnectionDoesNotExistError",
+                    "TooManyConnectionsError",
+                }:
+                    return True
+
+            if isinstance(err, OperationalError):
+                return True
+
+            message = str(err).lower()
+            if "the database system is starting up" in message:
+                return True
+            if "connection refused" in message or "could not connect" in message:
+                return True
+            if "timeout" in message and "connect" in message:
+                return True
+        return False
+
+    timeout_seconds = float(os.getenv("DB_STARTUP_TIMEOUT_SECONDS", "60"))
+    deadline = time.monotonic() + timeout_seconds
+    delay_seconds = 0.25
+    attempt = 0
+
+    while True:
+        try:
+            async with engine.begin() as conn:
+                await conn.run_sync(Base.metadata.create_all)
+            logger.info("Database tables initialized successfully")
+            return
+        except asyncio.CancelledError:
+            raise
+        except Exception as exc:
+            if not _is_transient_startup_error(exc) or time.monotonic() >= deadline:
+                logger.error("Failed to initialize database: %s", exc, exc_info=True)
+                raise
+
+            attempt += 1
+            remaining = max(0.0, deadline - time.monotonic())
+            logger.warning(
+                "Database not ready yet (attempt %d). Retrying in %.2fs (%.1fs left): %s",
+                attempt,
+                delay_seconds,
+                remaining,
+                exc,
+            )
+            await asyncio.sleep(delay_seconds)
+            delay_seconds = min(delay_seconds * 1.5, 5.0)
 
 
 def article_record_to_dict(record: Article) -> Dict[str, Any]:

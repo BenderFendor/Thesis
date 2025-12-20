@@ -8,6 +8,7 @@ import {
   Globe,
   Grid3X3,
   Scroll,
+  List,
   Search,
   Menu,
   ChevronRight,
@@ -30,6 +31,7 @@ import { useRouter } from "next/navigation"
 import { GlobeView } from "@/components/globe-view"
 import { GridView } from "@/components/grid-view"
 import { FeedView } from "@/components/feed-view"
+import { ListView } from "@/components/list-view"
 import { ArticleDetailModal } from "@/components/article-detail-modal"
 
 import { useNewsStream } from "@/hooks/useNewsStream"
@@ -40,7 +42,7 @@ import { ErrorBoundary } from '@/components/ErrorBoundary';
 import { NotificationsPopup, Notification } from '@/components/notification-popup';
 import { SourceSidebar } from "@/components/source-sidebar";
 
-type ViewMode = "globe" | "grid" | "scroll"
+type ViewMode = "globe" | "grid" | "scroll" | "list"
 
 const categoryIcons: { [key: string]: React.ElementType } = {
   politics: Building2,
@@ -357,6 +359,15 @@ function NewsPage() {
                 <Scroll className="w-3 h-3" />
                 Scroll
               </button>
+              <button
+                className={`flex items-center gap-2 pb-1 border-b ${
+                  currentView === "list" ? "text-primary border-primary" : "border-transparent hover:text-foreground"
+                }`}
+                onClick={() => setCurrentView("list")}
+              >
+                <List className="w-3 h-3" />
+                List
+              </button>
             </nav>
           </div>
 
@@ -385,6 +396,14 @@ function NewsPage() {
                 className="h-8 w-8 p-0"
               >
                 <Scroll className="w-4 h-4" />
+              </Button>
+              <Button
+                variant={currentView === "list" ? "default" : "ghost"}
+                size="sm"
+                onClick={() => setCurrentView("list")}
+                className="h-8 w-8 p-0"
+              >
+                <List className="w-4 h-4" />
               </Button>
             </div>
             <div className="relative hidden lg:block">
@@ -599,6 +618,9 @@ function NewsPage() {
                   )}
                   {currentView === "scroll" && (
                     <FeedView key={`${category.id}-scroll`} articles={filterAndSortArticles(articlesByCategory[category.id] || [])} loading={loading} />
+                  )}
+                  {currentView === "list" && (
+                    <ListView key={`${category.id}-list`} articles={filterAndSortArticles(articlesByCategory[category.id] || [])} loading={loading} />
                   )}
                 </TabsContent>
               ))}

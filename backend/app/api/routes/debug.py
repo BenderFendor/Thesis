@@ -22,6 +22,7 @@ from app.services.persistence import get_embedding_queue_depth
 from app.services.metrics import get_metrics
 from app.services.startup_metrics import startup_metrics
 from app.services.stream_manager import stream_manager
+from app.services.debug_logger import debug_logger, DEBUG_LOG_DIR
 from app.vector_store import get_vector_store
 
 router = APIRouter(prefix="/debug", tags=["debug"])
@@ -618,4 +619,227 @@ async def get_updates_subscribers() -> Dict[str, object]:
     return {
         "subscriber_count": len(_update_subscribers),
         "total_events_sent": _event_counter,
+    }
+
+
+# --- Debug Logger Endpoints ---
+
+
+@router.get("/logs/report")
+async def get_debug_report() -> Dict[str, object]:
+    """
+    Get comprehensive debug report for agentic debugging tools.
+    
+    This endpoint returns everything needed to diagnose issues:
+    - Performance summary with component stats
+    - Active streams and their state
+    - Recent events (last 50)
+    - Slow operations detected
+    - Hang suspects
+    - AI-generated recommendations
+    
+    Use this as the primary entry point for debugging sessions.
+    """
+    return debug_logger.get_debug_report()
+
+
+@router.get("/logs/events")
+async def get_debug_events(
+    limit: int = Query(100, ge=1, le=1000),
+    event_type: str | None = Query(default=None, description="Filter by event type"),
+) -> Dict[str, object]:
+    """
+    Get recent debug events.
+    
+    Event types include:
+    - request_start, request_end, request_error
+    - stream_start, stream_event, stream_end, stream_error
+    - db_query_start, db_query_end, db_query_error
+    - cache_hit, cache_miss, cache_update
+    - rss_fetch_start, rss_fetch_end, rss_fetch_error
+    - performance_warning, bottleneck_detected, hang_suspected
+    """
+    from app.services.debug_logger import EventType
+    
+    filter_type = None
+    if event_type:
+        try:
+            filter_type = EventType(event_type)
+        except ValueError:
+            valid_types = [e.value for e in EventType]
+            raise HTTPException(
+                status_code=400,
+                detail=f"Invalid event_type. Must be one of: {', '.join(valid_types)}"
+            )
+    
+    events = debug_logger.get_recent_events(limit=limit, event_type=filter_type)
+    return {
+        "count": len(events),
+        "limit": limit,
+        "filter": event_type,
+        "events": events,
+    }
+
+
+@router.get("/logs/streams")
+async def get_active_debug_streams() -> Dict[str, object]:
+    """
+    Get detailed info about active streams being traced.
+    
+    Includes timing, event gaps, potential hang detection.
+    """
+    return {
+        "active_streams": debug_logger.get_active_streams(),
+        "stream_manager_streams": {
+            stream_id: {
+                "status": info["status"],
+                "sources_completed": info["sources_completed"],
+                "total_sources": info["total_sources"],
+                "duration_seconds": (
+                    datetime.now(timezone.utc) - info["start_time"]
+                ).total_seconds(),
+                "client_connected": info["client_connected"],
+            }
+            for stream_id, info in stream_manager.active_streams.items()
+        },
+    }
+
+
+@router.get("/logs/slow")
+async def get_slow_operations() -> Dict[str, object]:
+    """
+    Get list of slow operations detected.
+    
+    These are operations that exceeded their performance thresholds.
+    """
+    slow_ops = debug_logger.get_slow_operations()
+    return {
+        "count": len(slow_ops),
+        "operations": slow_ops,
+        "thresholds": {
+            "request_slow": "5.0s",
+            "db_query_slow": "1.0s",
+            "rss_fetch_slow": "10.0s",
+            "stream_event_gap": "5.0s",
+        },
+    }
+
+
+@router.get("/logs/performance")
+async def get_performance_summary() -> Dict[str, object]:
+    """
+    Get performance summary with timing statistics by component.
+    """
+    return debug_logger.get_performance_summary()
+
+
+@router.get("/logs/files")
+async def list_debug_log_files() -> Dict[str, object]:
+    """
+    List available debug log files.
+    
+    Debug logs are stored as JSON Lines (.jsonl) files.
+    """
+    log_files = []
+    if DEBUG_LOG_DIR.exists():
+        for log_file in sorted(DEBUG_LOG_DIR.glob("debug_*.jsonl"), reverse=True):
+            stat = log_file.stat()
+            log_files.append({
+                "filename": log_file.name,
+                "size_bytes": stat.st_size,
+                "size_kb": round(stat.st_size / 1024, 2),
+                "modified": datetime.fromtimestamp(stat.st_mtime, tz=timezone.utc).isoformat(),
+                "created": datetime.fromtimestamp(stat.st_ctime, tz=timezone.utc).isoformat(),
+            })
+    
+    return {
+        "log_directory": str(DEBUG_LOG_DIR),
+        "file_count": len(log_files),
+        "files": log_files[:20],  # Limit to 20 most recent
+    }
+
+
+@router.get("/logs/file/{filename}")
+async def read_debug_log_file(
+    filename: str,
+    limit: int = Query(100, ge=1, le=1000),
+    offset: int = Query(0, ge=0),
+    event_type: str | None = Query(default=None),
+) -> Dict[str, object]:
+    """
+    Read events from a specific debug log file.
+    
+    Supports pagination and filtering by event type.
+    """
+    import json
+    
+    log_file = DEBUG_LOG_DIR / filename
+    if not log_file.exists():
+        raise HTTPException(status_code=404, detail=f"Log file not found: {filename}")
+    
+    if not log_file.name.startswith("debug_") or not log_file.suffix == ".jsonl":
+        raise HTTPException(status_code=400, detail="Invalid log file name")
+    
+    events = []
+    total_lines = 0
+    
+    try:
+        with open(log_file, "r") as f:
+            for i, line in enumerate(f):
+                if not line.strip():
+                    continue
+                total_lines += 1
+                
+                if i < offset:
+                    continue
+                if len(events) >= limit:
+                    continue
+                
+                try:
+                    event = json.loads(line)
+                    if event_type and event.get("event_type") != event_type:
+                        continue
+                    events.append(event)
+                except json.JSONDecodeError:
+                    continue
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to read log file: {e}")
+    
+    return {
+        "filename": filename,
+        "total_lines": total_lines,
+        "offset": offset,
+        "limit": limit,
+        "returned": len(events),
+        "filter": event_type,
+        "events": events,
+    }
+
+
+@router.delete("/logs/files")
+async def clear_old_log_files(
+    keep_recent: int = Query(5, ge=1, le=20, description="Number of recent files to keep"),
+) -> Dict[str, object]:
+    """
+    Delete old debug log files, keeping the most recent ones.
+    """
+    if not DEBUG_LOG_DIR.exists():
+        return {"message": "No log directory exists", "deleted": 0}
+    
+    log_files = sorted(DEBUG_LOG_DIR.glob("debug_*.jsonl"), reverse=True)
+    files_to_delete = log_files[keep_recent:]
+    
+    deleted = []
+    for log_file in files_to_delete:
+        try:
+            size = log_file.stat().st_size
+            log_file.unlink()
+            deleted.append({"filename": log_file.name, "size_bytes": size})
+        except Exception as e:
+            deleted.append({"filename": log_file.name, "error": str(e)})
+    
+    return {
+        "message": f"Deleted {len(deleted)} old log files",
+        "kept": keep_recent,
+        "deleted": deleted,
     }

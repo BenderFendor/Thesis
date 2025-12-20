@@ -13,6 +13,7 @@ from app.api.routes import router as api_router
 from app.core.config import settings
 from app.core.logging import configure_logging, get_logger
 from app.database import init_db, AsyncSessionLocal, fetch_all_articles
+from app.middleware.request_tracing import RequestTracingMiddleware
 from app.models.news import NewsArticle
 from app.services.cache import news_cache
 from app.services.persistence import (
@@ -47,6 +48,9 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# Add request tracing middleware for debugging
+app.add_middleware(RequestTracingMiddleware)
 
 app.include_router(api_router)
 

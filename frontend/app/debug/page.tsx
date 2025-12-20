@@ -37,6 +37,7 @@ import {
   API_BASE_URL,
 } from "@/lib/api"
 import { logger, isDebugMode, setDebugMode } from "@/lib/logger"
+import { perfLogger, exportDebugData, type PerformanceSummary } from "@/lib/performance-logger"
 
 function usePersistentNumber(initial: number, min: number, max: number): [number, (value: number) => void] {
   const [value, setValue] = useState(initial)
@@ -89,6 +90,13 @@ export default function DebugDashboardPage() {
   const [articleTestUrl, setArticleTestUrl] = useState("")
   const [articleTestResult, setArticleTestResult] = useState<any>(null)
   const [articleTestLoading, setArticleTestLoading] = useState(false)
+
+  // Performance logging state
+  const [backendDebugReport, setBackendDebugReport] = useState<any>(null)
+  const [frontendPerfData, setFrontendPerfData] = useState<ReturnType<typeof exportDebugData> | null>(null)
+  const [backendLogEvents, setBackendLogEvents] = useState<any[]>([])
+  const [backendSlowOps, setBackendSlowOps] = useState<any[]>([])
+  const [backendLogFiles, setBackendLogFiles] = useState<any[]>([])
 
   const loadData = useCallback(async () => {
     setLoading(true)
@@ -313,6 +321,54 @@ export default function DebugDashboardPage() {
     loadLogLevel()
   }, [loadSystemStatus, loadLogLevel])
 
+  // Load performance debugging data
+  const loadPerformanceData = useCallback(async () => {
+    try {
+      // Load backend debug report
+      const reportResponse = await fetch(`${API_BASE_URL}/debug/logs/report`)
+      if (reportResponse.ok) {
+        const report = await reportResponse.json()
+        setBackendDebugReport(report)
+      }
+
+      // Load backend log events
+      const eventsResponse = await fetch(`${API_BASE_URL}/debug/logs/events?limit=100`)
+      if (eventsResponse.ok) {
+        const eventsData = await eventsResponse.json()
+        setBackendLogEvents(eventsData.events || [])
+      }
+
+      // Load slow operations
+      const slowResponse = await fetch(`${API_BASE_URL}/debug/logs/slow`)
+      if (slowResponse.ok) {
+        const slowData = await slowResponse.json()
+        setBackendSlowOps(slowData.operations || [])
+      }
+
+      // Load log files
+      const filesResponse = await fetch(`${API_BASE_URL}/debug/logs/files`)
+      if (filesResponse.ok) {
+        const filesData = await filesResponse.json()
+        setBackendLogFiles(filesData.files || [])
+      }
+
+      // Load frontend performance data
+      setFrontendPerfData(exportDebugData())
+    } catch (err) {
+      logger.error("Failed to load performance data", err)
+    }
+  }, [])
+
+  // Refresh frontend perf data periodically
+  useEffect(() => {
+    const interval = setInterval(() => {
+      if (activeTab === "performance") {
+        setFrontendPerfData(exportDebugData())
+      }
+    }, 5000)
+    return () => clearInterval(interval)
+  }, [activeTab])
+
   // Phase 3: Test RSS parser
   const testRssParser = async () => {
     if (!rssTestUrl.trim()) return
@@ -376,12 +432,18 @@ export default function DebugDashboardPage() {
         </Card>
       )}
 
-      <Tabs value={activeTab} onValueChange={setActiveTab}>
-      <TabsList className="grid w-full grid-cols-4">
+      <Tabs value={activeTab} onValueChange={(value) => {
+        setActiveTab(value)
+        if (value === "performance") {
+          loadPerformanceData()
+        }
+      }}>
+      <TabsList className="grid w-full grid-cols-5">
           <TabsTrigger value="system">System</TabsTrigger>
           <TabsTrigger value="storage">Storage</TabsTrigger>
           <TabsTrigger value="parser">Parser Tester</TabsTrigger>
           <TabsTrigger value="logs">Logging</TabsTrigger>
+          <TabsTrigger value="performance">Performance</TabsTrigger>
         </TabsList>
 
         {/* System Status Tab */}
@@ -1152,6 +1214,254 @@ export default function DebugDashboardPage() {
                 When enabled, detailed logs will appear in the browser console.
                 Stored in localStorage as <code>thesis_debug_mode</code>.
               </p>
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        {/* Performance Tab */}
+        <TabsContent value="performance" className="space-y-4">
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="text-lg font-medium">Performance Debugging</h2>
+            <Button onClick={loadPerformanceData} variant="outline" size="sm">
+              Refresh
+            </Button>
+          </div>
+
+          {/* Backend Debug Report Summary */}
+          {backendDebugReport && (
+            <Card>
+              <CardHeader>
+                <CardTitle>Backend Debug Report</CardTitle>
+                <CardDescription>
+                  Generated at {new Date(backendDebugReport.generated_at).toLocaleString()}
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="grid gap-4 md:grid-cols-3">
+                  <div className="text-center p-4 bg-muted rounded-lg">
+                    <p className="text-2xl font-bold">{backendDebugReport.summary?.total_events ?? 0}</p>
+                    <p className="text-sm text-muted-foreground">Total Events</p>
+                  </div>
+                  <div className="text-center p-4 bg-muted rounded-lg">
+                    <p className="text-2xl font-bold text-yellow-600">
+                      {backendDebugReport.summary?.slow_operations ?? 0}
+                    </p>
+                    <p className="text-sm text-muted-foreground">Slow Operations</p>
+                  </div>
+                  <div className="text-center p-4 bg-muted rounded-lg">
+                    <p className="text-2xl font-bold text-red-600">
+                      {backendDebugReport.summary?.errors ?? 0}
+                    </p>
+                    <p className="text-sm text-muted-foreground">Errors</p>
+                  </div>
+                </div>
+
+                {/* Active Streams */}
+                {backendDebugReport.active_streams?.length > 0 && (
+                  <div>
+                    <h3 className="font-medium mb-2">Active Streams</h3>
+                    <div className="space-y-2">
+                      {backendDebugReport.active_streams.map((stream: Record<string, unknown>, idx: number) => (
+                        <div key={idx} className="flex items-center justify-between p-2 bg-muted rounded text-sm">
+                          <span className="font-mono">{String(stream.stream_id).substring(0, 8)}...</span>
+                          <span>{stream.request_path as string}</span>
+                          <span className="text-muted-foreground">
+                            {((stream.duration_so_far as number) || 0).toFixed(1)}s
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* Recommendations */}
+                {backendDebugReport.recommendations?.length > 0 && (
+                  <div>
+                    <h3 className="font-medium mb-2">Recommendations</h3>
+                    <ul className="space-y-1 text-sm text-muted-foreground">
+                      {backendDebugReport.recommendations.map((rec: string, idx: number) => (
+                        <li key={idx} className="flex items-start gap-2">
+                          <span className="text-yellow-500">!</span>
+                          {rec}
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          )}
+
+          {/* Slow Operations */}
+          {backendSlowOps.length > 0 && (
+            <Card>
+              <CardHeader>
+                <CardTitle>Slow Operations</CardTitle>
+                <CardDescription>Operations exceeding performance thresholds</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-2 max-h-80 overflow-y-auto">
+                  {backendSlowOps.map((op: Record<string, unknown>, idx: number) => (
+                    <div
+                      key={idx}
+                      className="flex items-center justify-between p-2 border rounded text-sm"
+                    >
+                      <div className="flex items-center gap-2">
+                        <span className={`px-2 py-0.5 rounded text-xs ${
+                          op.event_type === "error" ? "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400" :
+                          "bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-400"
+                        }`}>
+                          {String(op.event_type)}
+                        </span>
+                        <span className="font-mono text-muted-foreground">
+                          {op.stream_id ? String(op.stream_id).substring(0, 8) : op.request_id ? String(op.request_id).substring(0, 8) : ""}
+                        </span>
+                      </div>
+                      <span className="text-red-600 font-medium">
+                        {typeof op.duration_ms === "number" ? `${op.duration_ms.toFixed(0)}ms` : ""}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              </CardContent>
+            </Card>
+          )}
+
+          {/* Recent Backend Events */}
+          <Card>
+            <CardHeader>
+              <CardTitle>Recent Backend Events</CardTitle>
+              <CardDescription>Last 100 debug events from the backend</CardDescription>
+            </CardHeader>
+            <CardContent>
+              {backendLogEvents.length > 0 ? (
+                <div className="space-y-1 max-h-96 overflow-y-auto font-mono text-xs">
+                  {backendLogEvents.slice(0, 50).map((event: Record<string, unknown>, idx: number) => (
+                    <div key={idx} className="flex items-start gap-2 p-1 hover:bg-muted rounded">
+                      <span className="text-muted-foreground w-20 flex-shrink-0">
+                        {new Date(event.timestamp as string).toLocaleTimeString()}
+                      </span>
+                      <span className={`px-1 rounded text-xs flex-shrink-0 ${
+                        event.event_type === "error" ? "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400" :
+                        event.event_type === "stream_event" ? "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400" :
+                        event.event_type === "request_start" ? "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400" :
+                        "bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-300"
+                      }`}>
+                        {String(event.event_type)}
+                      </span>
+                      <span className="flex-1 truncate">{String(event.message || "")}</span>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <p className="text-sm text-muted-foreground">No events logged yet</p>
+              )}
+            </CardContent>
+          </Card>
+
+          {/* Frontend Performance */}
+          {frontendPerfData && (
+            <Card>
+              <CardHeader>
+                <CardTitle>Frontend Performance</CardTitle>
+                <CardDescription>Browser-side metrics and stream tracking</CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="grid gap-4 md:grid-cols-4">
+                  <div className="text-center p-3 bg-muted rounded-lg">
+                    <p className="text-xl font-bold">{frontendPerfData.summary.totalEvents}</p>
+                    <p className="text-xs text-muted-foreground">Total Events</p>
+                  </div>
+                  <div className="text-center p-3 bg-muted rounded-lg">
+                    <p className="text-xl font-bold text-red-600">{frontendPerfData.summary.errors}</p>
+                    <p className="text-xs text-muted-foreground">Errors</p>
+                  </div>
+                  <div className="text-center p-3 bg-muted rounded-lg">
+                    <p className="text-xl font-bold">{frontendPerfData.activeStreams.length}</p>
+                    <p className="text-xs text-muted-foreground">Active Streams</p>
+                  </div>
+                  <div className="text-center p-3 bg-muted rounded-lg">
+                    <p className="text-xl font-bold">
+                      {frontendPerfData.summary.averageStreamDuration?.toFixed(1) || "0"}s
+                    </p>
+                    <p className="text-xs text-muted-foreground">Avg Stream Duration</p>
+                  </div>
+                </div>
+
+                {/* Active Frontend Streams */}
+                {frontendPerfData.activeStreams.length > 0 && (
+                  <div>
+                    <h3 className="font-medium mb-2 text-sm">Active Frontend Streams</h3>
+                    <div className="space-y-1">
+                      {frontendPerfData.activeStreams.map((stream, idx) => (
+                        <div key={idx} className="flex items-center justify-between p-2 bg-muted rounded text-sm">
+                          <span className="font-mono text-xs">{stream.streamId.substring(0, 12)}...</span>
+                          <span>{stream.eventCount} events</span>
+                          <span className="text-muted-foreground">
+                            {((Date.now() - stream.startTime) / 1000).toFixed(1)}s
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* Recent Frontend Events */}
+                <div>
+                  <h3 className="font-medium mb-2 text-sm">Recent Frontend Events</h3>
+                  <div className="space-y-1 max-h-40 overflow-y-auto font-mono text-xs">
+                    {frontendPerfData.events.slice(-20).reverse().map((event, idx) => (
+                      <div key={idx} className="flex items-start gap-2 p-1 hover:bg-muted rounded">
+                        <span className="text-muted-foreground w-20 flex-shrink-0">
+                          {new Date(event.timestamp).toLocaleTimeString()}
+                        </span>
+                        <span className={`px-1 rounded ${
+                          event.type === "error" ? "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400" :
+                          event.type === "stream_event" ? "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400" :
+                          "bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-300"
+                        }`}>
+                          {event.type}
+                        </span>
+                        <span className="flex-1 truncate">{event.message}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          )}
+
+          {/* Log Files Browser */}
+          <Card>
+            <CardHeader>
+              <CardTitle>Debug Log Files</CardTitle>
+              <CardDescription>JSON Lines log files saved on the backend</CardDescription>
+            </CardHeader>
+            <CardContent>
+              {backendLogFiles.length > 0 ? (
+                <div className="space-y-2">
+                  {backendLogFiles.map((file: Record<string, unknown>, idx: number) => (
+                    <div key={idx} className="flex items-center justify-between p-2 border rounded text-sm">
+                      <div>
+                        <span className="font-mono">{String(file.filename)}</span>
+                        <span className="ml-2 text-muted-foreground text-xs">
+                          {typeof file.size_bytes === "number" ? `${(file.size_bytes / 1024).toFixed(1)} KB` : ""}
+                        </span>
+                      </div>
+                      <a
+                        href={`${API_BASE_URL}/debug/logs/file/${file.filename}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-blue-600 hover:underline text-xs"
+                      >
+                        Download
+                      </a>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <p className="text-sm text-muted-foreground">No log files available</p>
+              )}
             </CardContent>
           </Card>
         </TabsContent>

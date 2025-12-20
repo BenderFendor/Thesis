@@ -9,6 +9,9 @@ import {
   ChevronLeft, 
   ChevronRight,
   ArrowRight,
+  Cpu,
+  Filter,
+  Clock,
 } from "lucide-react"
 import { API_BASE_URL, ThinkingStep, type NewsArticle, semanticSearch, type SemanticSearchResult } from "@/lib/api"
 import { Button } from "@/components/ui/button"
@@ -826,106 +829,140 @@ export default function NewsResearchPage() {
             </div>
           </header>
 
-          <main className="flex-1">
-            <div className="max-w-[1400px] mx-auto px-6 py-6 space-y-6">
-              <section className="rounded-xl border border-border/60 bg-[var(--news-bg-secondary)] p-5">
-                <div className="flex flex-col gap-4 lg:flex-row lg:items-end">
-                  <div className="flex-1">
-                    <p className="text-[10px] font-mono uppercase tracking-[0.3em] text-muted-foreground">Research query</p>
-                    <form onSubmit={handleSearch} className="mt-2 flex items-center gap-2">
-                      <div className="relative flex-1">
-                        <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" size={16} />
-                        <input
-                          ref={inputRef}
+          <main className="flex-1 flex flex-col bg-[#050505]">
+            {isEmpty ? (
+              <div className="flex-1 flex flex-col p-6 lg:p-12">
+                <div className="flex-1 max-w-4xl mx-auto w-full flex flex-col justify-center">
+                  <div className="text-center mb-12 animate-fade-in">
+                    <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-zinc-900/50 border border-zinc-800 mb-6">
+                      <Cpu className="w-8 h-8 text-zinc-400" />
+                    </div>
+                    <h1 className="text-3xl font-medium tracking-tight text-zinc-100 mb-3">Deep Research</h1>
+                    <p className="text-zinc-500 text-lg">Autonomous agent for complex news analysis</p>
+                  </div>
+
+                  <div className="relative group w-full">
+                    <div className="absolute -inset-0.5 bg-gradient-to-r from-zinc-800 to-zinc-800 rounded-xl opacity-20 group-hover:opacity-40 transition duration-500 blur"></div>
+                    <div className="relative bg-[#0a0a0a] rounded-xl border border-zinc-800 p-4 shadow-2xl">
+                      <form onSubmit={handleSearch}>
+                        <textarea 
+                          ref={inputRef as any}
                           value={query}
                           onChange={(e) => setQuery(e.target.value)}
-                          placeholder="Ask a question, compare sources, or request analysis..."
-                          className="w-full bg-[var(--news-bg-primary)] border border-border/60 rounded-lg pl-9 pr-4 py-2.5 text-sm focus:outline-none focus:border-primary text-foreground placeholder:text-muted-foreground/70"
-                          disabled={isSearching}
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter' && !e.shiftKey) {
+                              e.preventDefault();
+                              handleSearch(e);
+                            }
+                          }}
+                          placeholder="Ask a complex question requiring multi-step reasoning..."
+                          className="w-full bg-transparent text-zinc-300 placeholder-zinc-600 resize-none focus:outline-none text-lg min-h-[120px]"
                         />
-                      </div>
-                      <Button type="submit" size="sm" disabled={!query.trim() || isSearching} className="h-10 px-4">
-                        {isSearching ? <Loader2 className="w-4 h-4 animate-spin" /> : <ArrowRight className="w-4 h-4" />}
-                      </Button>
-                    </form>
+                        <div className="flex justify-between items-center mt-4 pt-4 border-t border-zinc-900">
+                          <div className="flex gap-2">
+                            <button type="button" className="p-2 hover:bg-zinc-900 rounded-lg text-zinc-500 hover:text-zinc-300 transition-colors">
+                              <Filter className="w-4 h-4" />
+                            </button>
+                            <button type="button" className="p-2 hover:bg-zinc-900 rounded-lg text-zinc-500 hover:text-zinc-300 transition-colors">
+                              <Clock className="w-4 h-4" />
+                            </button>
+                          </div>
+                          <button 
+                            type="submit" 
+                            disabled={!query.trim() || isSearching}
+                            className="bg-zinc-100 hover:bg-white text-black px-4 py-2 rounded-lg text-sm font-medium transition-colors flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+                          >
+                            {isSearching ? <Loader2 className="w-4 h-4 animate-spin" /> : <>Start Research <ArrowRight className="w-4 h-4" /></>}
+                          </button>
+                        </div>
+                      </form>
+                    </div>
                   </div>
-                  <div className="flex items-center gap-2">
-                    <Button
-                      variant={researchView === "brief" ? "default" : "outline"}
-                      size="sm"
-                      className="border-border/60"
-                      onClick={() => setResearchView("brief")}
-                    >
-                      Brief
-                    </Button>
-                    <Button
-                      variant={researchView === "flow" ? "default" : "outline"}
-                      size="sm"
-                      className="border-border/60"
-                      onClick={() => setResearchView("flow")}
-                    >
-                      Flow
-                    </Button>
-                  </div>
-                </div>
-                {(isSearching || latestAssistantMessage?.isStreaming) && (
-                  <div className="mt-3 flex items-center gap-2 text-xs text-muted-foreground">
-                    <Loader2 className="w-3.5 h-3.5 animate-spin text-primary" />
-                    <span>{latestAssistantMessage?.streamingStatus || 'Running research...'}</span>
-                  </div>
-                )}
-              </section>
-
-              {isEmpty ? (
-                <div className="grid gap-6 lg:grid-cols-[minmax(0,1.1fr)_minmax(0,0.9fr)]">
-                  <div className="rounded-xl border border-border/60 bg-[var(--news-bg-secondary)] p-6">
-                    <h2 className="text-2xl font-semibold">Start a research brief</h2>
-                    <p className="mt-2 text-sm text-muted-foreground">
-                      Run a question across your live sources. Scoop will stream findings, bias notes, and evidence links.
-                    </p>
-                    <div className="mt-4 grid gap-2">
-                      {sampleQueries.slice(0, 5).map((q) => (
+                  
+                  <div className="mt-12 grid grid-cols-1 md:grid-cols-3 gap-4">
+                     {sampleQueries.slice(0, 3).map((q) => (
                         <button
                           key={q}
                           onClick={() => handleSampleQuery(q)}
-                          className="text-left rounded-lg border border-border/50 bg-[var(--news-bg-primary)]/40 px-4 py-3 text-sm text-muted-foreground hover:border-primary/60 hover:text-foreground transition-colors"
+                          className="text-left p-4 rounded-xl bg-zinc-900/30 border border-zinc-800/50 hover:bg-zinc-900/50 hover:border-zinc-700 transition-all group"
                         >
-                          {q}
+                          <p className="text-sm text-zinc-400 group-hover:text-zinc-200 transition-colors">{q}</p>
                         </button>
                       ))}
-                    </div>
-                  </div>
-                  <div className="rounded-xl border border-border/60 bg-[var(--news-bg-secondary)] p-6">
-                    <h3 className="text-[10px] font-mono uppercase tracking-[0.3em] text-muted-foreground">What you get</h3>
-                    <ul className="mt-4 space-y-3 text-sm text-foreground/80">
-                      <li>Comparative analysis across sources and regions.</li>
-                      <li>Bias notes with confidence context and citations.</li>
-                      <li>Structured coverage cards you can open in the reader.</li>
-                    </ul>
                   </div>
                 </div>
-              ) : (
-                <div className="grid gap-6 lg:grid-cols-[minmax(0,1.2fr)_minmax(0,0.8fr)]">
-                  <section className="space-y-6">
-                    <div className="rounded-xl border border-border/60 bg-[var(--news-bg-secondary)] p-6">
+              </div>
+            ) : (
+              <div className="max-w-[1400px] mx-auto px-6 py-6 space-y-6 w-full">
+                 <section className="rounded-xl border border-zinc-800 bg-[#0a0a0a] p-5">
+                    <div className="flex flex-col gap-4 lg:flex-row lg:items-end">
+                      <div className="flex-1">
+                        <p className="text-[10px] font-mono uppercase tracking-[0.3em] text-zinc-500">Research query</p>
+                        <form onSubmit={handleSearch} className="mt-2 flex items-center gap-2">
+                          <div className="relative flex-1">
+                            <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-zinc-500" size={16} />
+                            <input
+                              ref={inputRef}
+                              value={query}
+                              onChange={(e) => setQuery(e.target.value)}
+                              placeholder="Ask a question..."
+                              className="w-full bg-zinc-900/50 border border-zinc-800 rounded-lg pl-9 pr-4 py-2.5 text-sm focus:outline-none focus:border-zinc-700 text-zinc-200 placeholder:text-zinc-600"
+                              disabled={isSearching}
+                            />
+                          </div>
+                          <Button type="submit" size="sm" disabled={!query.trim() || isSearching} className="h-10 px-4 bg-zinc-100 text-black hover:bg-white">
+                            {isSearching ? <Loader2 className="w-4 h-4 animate-spin" /> : <ArrowRight className="w-4 h-4" />}
+                          </Button>
+                        </form>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <Button
+                          variant={researchView === "brief" ? "default" : "outline"}
+                          size="sm"
+                          className={researchView === "brief" ? "bg-zinc-800 text-zinc-100 hover:bg-zinc-700" : "border-zinc-800 text-zinc-400 hover:text-zinc-200 hover:bg-zinc-900"}
+                          onClick={() => setResearchView("brief")}
+                        >
+                          Brief
+                        </Button>
+                        <Button
+                          variant={researchView === "flow" ? "default" : "outline"}
+                          size="sm"
+                          className={researchView === "flow" ? "bg-zinc-800 text-zinc-100 hover:bg-zinc-700" : "border-zinc-800 text-zinc-400 hover:text-zinc-200 hover:bg-zinc-900"}
+                          onClick={() => setResearchView("flow")}
+                        >
+                          Flow
+                        </Button>
+                      </div>
+                    </div>
+                    {(isSearching || latestAssistantMessage?.isStreaming) && (
+                      <div className="mt-3 flex items-center gap-2 text-xs text-zinc-500">
+                        <Loader2 className="w-3.5 h-3.5 animate-spin text-zinc-400" />
+                        <span>{latestAssistantMessage?.streamingStatus || 'Running research...'}</span>
+                      </div>
+                    )}
+                 </section>
+
+                 <div className="grid gap-6 lg:grid-cols-[minmax(0,1.2fr)_minmax(0,0.8fr)]">
+                    <section className="space-y-6">
+                    <div className="rounded-xl border border-zinc-800 bg-[#0a0a0a] p-6">
                       <div className="flex items-start justify-between gap-4">
                         <div>
-                          <p className="text-[10px] font-mono uppercase tracking-[0.3em] text-muted-foreground">Current query</p>
-                          <h2 className="text-xl font-semibold mt-2">{latestUserMessage?.content || "Research Brief"}</h2>
-                          <p className="text-xs text-muted-foreground mt-2">
+                          <p className="text-[10px] font-mono uppercase tracking-[0.3em] text-zinc-500">Current query</p>
+                          <h2 className="text-xl font-semibold mt-2 text-zinc-100">{latestUserMessage?.content || "Research Brief"}</h2>
+                          <p className="text-xs text-zinc-500 mt-2">
                             {latestAssistantMessage?.articles_searched
                               ? `${latestAssistantMessage.articles_searched} sources searched`
                               : 'Evidence stream pending'}
                           </p>
                         </div>
-                        <div className="text-[10px] font-mono uppercase tracking-[0.3em] text-muted-foreground">
+                        <div className="text-[10px] font-mono uppercase tracking-[0.3em] text-zinc-500">
                           {researchView === "brief" ? "Brief" : "Flow"}
                         </div>
                       </div>
 
                       <div className="mt-5">
                         {!latestAssistantMessage ? (
-                          <p className="text-sm text-muted-foreground">Submit a query to generate a brief.</p>
+                          <p className="text-sm text-zinc-500">Submit a query to generate a brief.</p>
                         ) : latestAssistantMessage.error ? (
                           <div className="rounded-lg border border-rose-500/30 bg-rose-500/10 p-4 text-sm text-rose-200 flex items-start gap-3">
                             <AlertCircle className="w-5 h-5 flex-shrink-0" />
@@ -934,25 +971,25 @@ export default function NewsResearchPage() {
                         ) : researchView === "flow" ? (
                           <div className="space-y-4">
                             {thinkingSteps.length === 0 && (
-                              <p className="text-sm text-muted-foreground">Waiting on reasoning steps from the research agent.</p>
+                              <p className="text-sm text-zinc-500">Waiting on reasoning steps from the research agent.</p>
                             )}
                             {thinkingSteps.map((step, idx) => (
                               <div key={`${step.type}-${idx}`} className="relative pl-6">
-                                <div className="absolute left-0 top-2 h-2 w-2 rounded-full bg-primary" />
+                                <div className="absolute left-0 top-2 h-2 w-2 rounded-full bg-zinc-600" />
                                 {idx < thinkingSteps.length - 1 && (
-                                  <div className="absolute left-1 top-4 h-full w-px bg-border/60" />
+                                  <div className="absolute left-1 top-4 h-full w-px bg-zinc-800" />
                                 )}
-                                <div className="rounded-lg border border-border/50 bg-[var(--news-bg-primary)]/40 p-4">
-                                  <div className="text-[10px] font-mono uppercase tracking-[0.3em] text-muted-foreground">
+                                <div className="rounded-lg border border-zinc-800 bg-zinc-900/30 p-4">
+                                  <div className="text-[10px] font-mono uppercase tracking-[0.3em] text-zinc-500">
                                     Step {idx + 1}: {step.type.replace('_', ' ')}
                                   </div>
-                                  <p className="mt-2 text-sm text-foreground/80">{step.content}</p>
+                                  <p className="mt-2 text-sm text-zinc-300">{step.content}</p>
                                 </div>
                               </div>
                             ))}
                             {latestAssistantMessage.content && !latestAssistantMessage.isStreaming && (
-                              <div className="rounded-lg border border-border/60 bg-[var(--news-bg-primary)]/40 p-4">
-                                <div className="text-[10px] font-mono uppercase tracking-[0.3em] text-muted-foreground">Final brief</div>
+                              <div className="rounded-lg border border-zinc-800 bg-zinc-900/30 p-4">
+                                <div className="text-[10px] font-mono uppercase tracking-[0.3em] text-zinc-500">Final brief</div>
                                 <div className="mt-3">
                                   {renderContentWithEmbeds(latestAssistantMessage.content, relatedArticles)}
                                 </div>
@@ -960,8 +997,8 @@ export default function NewsResearchPage() {
                             )}
                           </div>
                         ) : latestAssistantMessage.isStreaming ? (
-                          <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                            <Loader2 className="w-4 h-4 animate-spin text-primary" />
+                          <div className="flex items-center gap-2 text-sm text-zinc-500">
+                            <Loader2 className="w-4 h-4 animate-spin text-zinc-400" />
                             <span>{latestAssistantMessage.streamingStatus || 'Analyzing...'}</span>
                           </div>
                         ) : (
@@ -972,30 +1009,30 @@ export default function NewsResearchPage() {
                   </section>
 
                   <aside className="space-y-6">
-                    <div className="rounded-xl border border-border/60 bg-[var(--news-bg-secondary)] p-5">
+                    <div className="rounded-xl border border-zinc-800 bg-[#0a0a0a] p-5">
                       <div className="flex items-center justify-between">
-                        <h3 className="text-[10px] font-mono uppercase tracking-[0.3em] text-muted-foreground">Research Log</h3>
-                        <span className="text-xs text-muted-foreground">{thinkingSteps.length} steps</span>
+                        <h3 className="text-[10px] font-mono uppercase tracking-[0.3em] text-zinc-500">Research Log</h3>
+                        <span className="text-xs text-zinc-500">{thinkingSteps.length} steps</span>
                       </div>
                       <div className="mt-3 space-y-3 text-sm">
                         {thinkingSteps.length > 0 ? (
                           thinkingSteps.slice(-6).map((step, idx) => (
-                            <div key={`${step.type}-${idx}`} className="rounded-lg border border-border/50 bg-[var(--news-bg-primary)]/40 p-3">
-                              <div className="text-[10px] font-mono uppercase tracking-[0.3em] text-muted-foreground">
+                            <div key={`${step.type}-${idx}`} className="rounded-lg border border-zinc-800 bg-zinc-900/30 p-3">
+                              <div className="text-[10px] font-mono uppercase tracking-[0.3em] text-zinc-500">
                                 {step.type.replace('_', ' ')}
                               </div>
-                              <p className="mt-2 text-xs text-foreground/75 line-clamp-3">{step.content}</p>
+                              <p className="mt-2 text-xs text-zinc-400 line-clamp-3">{step.content}</p>
                             </div>
                           ))
                         ) : (
-                          <p className="text-xs text-muted-foreground">Reasoning steps will appear as the agent works.</p>
+                          <p className="text-xs text-zinc-500">Reasoning steps will appear as the agent works.</p>
                         )}
                       </div>
                     </div>
 
                     {latestSemanticMessage?.semanticResults && latestSemanticMessage.semanticResults.length > 0 && (
-                      <div className="rounded-xl border border-border/60 bg-[var(--news-bg-secondary)] p-5">
-                        <h3 className="text-[10px] font-mono uppercase tracking-[0.3em] text-muted-foreground">Related Coverage</h3>
+                      <div className="rounded-xl border border-zinc-800 bg-[#0a0a0a] p-5">
+                        <h3 className="text-[10px] font-mono uppercase tracking-[0.3em] text-zinc-500">Related Coverage</h3>
                         <div className="mt-3 space-y-2">
                           {latestSemanticMessage.semanticResults.map(({ article, similarityScore }) => (
                             <button
@@ -1004,13 +1041,13 @@ export default function NewsResearchPage() {
                                 setSelectedArticle(article)
                                 setIsArticleModalOpen(true)
                               }}
-                              className="w-full text-left rounded-lg border border-border/50 bg-[var(--news-bg-primary)]/40 p-3 hover:border-primary/60 transition-colors"
+                              className="w-full text-left rounded-lg border border-zinc-800 bg-zinc-900/30 p-3 hover:border-zinc-600 transition-colors"
                             >
-                              <div className="text-sm font-medium text-foreground line-clamp-2">{article.title}</div>
-                              <div className="mt-2 flex items-center justify-between text-xs text-muted-foreground">
+                              <div className="text-sm font-medium text-zinc-200 line-clamp-2">{article.title}</div>
+                              <div className="mt-2 flex items-center justify-between text-xs text-zinc-500">
                                 <span>{article.source}</span>
                                 {typeof similarityScore === 'number' && (
-                                  <span className="text-[10px] px-2 py-0.5 rounded-full bg-primary/10 text-primary border border-primary/30">
+                                  <span className="text-[10px] px-2 py-0.5 rounded-full bg-zinc-800 text-zinc-300 border border-zinc-700">
                                     {Math.round(similarityScore * 100)}% match
                                   </span>
                                 )}
@@ -1022,8 +1059,8 @@ export default function NewsResearchPage() {
                     )}
 
                     {relatedArticles.length > 0 && (
-                      <div className="rounded-xl border border-border/60 bg-[var(--news-bg-secondary)] p-5">
-                        <h3 className="text-[10px] font-mono uppercase tracking-[0.3em] text-muted-foreground">Sources Used</h3>
+                      <div className="rounded-xl border border-zinc-800 bg-[#0a0a0a] p-5">
+                        <h3 className="text-[10px] font-mono uppercase tracking-[0.3em] text-zinc-500">Sources Used</h3>
                         <div className="mt-3">
                           <HorizontalArticleEmbed
                             articles={relatedArticles.slice(0, 6)}
@@ -1036,28 +1073,28 @@ export default function NewsResearchPage() {
                       </div>
                     )}
 
-                    <div className="rounded-xl border border-border/60 bg-[var(--news-bg-secondary)] p-5">
-                      <h3 className="text-[10px] font-mono uppercase tracking-[0.3em] text-muted-foreground">Recent Queries</h3>
+                    <div className="rounded-xl border border-zinc-800 bg-[#0a0a0a] p-5">
+                      <h3 className="text-[10px] font-mono uppercase tracking-[0.3em] text-zinc-500">Recent Queries</h3>
                       <div className="mt-3 space-y-2">
                         {recentQueries.length > 0 ? (
                           recentQueries.map((message) => (
                             <button
                               key={message.id}
                               onClick={() => handleSampleQuery(message.content)}
-                              className="w-full text-left rounded-lg border border-border/50 bg-[var(--news-bg-primary)]/40 px-3 py-2 text-xs text-muted-foreground hover:border-primary/60 hover:text-foreground transition-colors"
+                              className="w-full text-left rounded-lg border border-zinc-800 bg-zinc-900/30 px-3 py-2 text-xs text-zinc-500 hover:border-zinc-600 hover:text-zinc-300 transition-colors"
                             >
                               {message.content}
                             </button>
                           ))
                         ) : (
-                          <p className="text-xs text-muted-foreground">Run a query to build a history.</p>
+                          <p className="text-xs text-zinc-500">Run a query to build a history.</p>
                         )}
                       </div>
                     </div>
                   </aside>
-                </div>
-              )}
-            </div>
+                 </div>
+              </div>
+            )}
           </main>
         </div>
       </div>
