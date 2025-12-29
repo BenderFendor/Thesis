@@ -33,6 +33,8 @@ const VERIFICATION_LABEL_MAP: Record<FactCheckStatus, string> = {
 
 const STATUS_FILTERS: FactCheckStatusFilter[] = ["all", "verified", "partially-verified", "unverified", "false"]
 
+const fullArticleCache = new Map<string, string | null>()
+
 interface ArticleDetailModalProps {
   article: NewsArticle | null
   isOpen: boolean
@@ -96,21 +98,37 @@ export function ArticleDetailModal({ article, isOpen, onClose, initialIsBookmark
 
   // Load full article text immediately when modal opens
   useEffect(() => {
+    const abortController = new AbortController()
     const loadFullArticle = async () => {
       if (!article) return
 
+      const cached = fullArticleCache.get(article.url)
+      if (cached !== undefined) {
+        setFullArticleText(cached)
+        setArticleLoading(false)
+        return
+      }
+
       setArticleLoading(true)
-      setFullArticleText(null)
+      setFullArticleText(article.content || article.summary || null)
 
       try {
         // Use the newspaper library endpoint to get full article text
-        const response = await fetch(`${API_BASE_URL}/article/extract?url=${encodeURIComponent(article.url)}`)
+        const response = await fetch(`${API_BASE_URL}/article/extract?url=${encodeURIComponent(article.url)}`, {
+          signal: abortController.signal
+        })
         if (response.ok) {
           const data = await response.json()
-          setFullArticleText(data.text || data.full_text || null)
+          const extractedText = data.text || data.full_text || null
+          if (extractedText) {
+            fullArticleCache.set(article.url, extractedText)
+          }
+          setFullArticleText(extractedText || article.content || article.summary || null)
         }
       } catch (e) {
-        console.error('Failed to fetch full article:', e)
+        if ((e as Error).name !== "AbortError") {
+          console.error('Failed to fetch full article:', e)
+        }
       } finally {
         setArticleLoading(false)
       }
@@ -118,6 +136,7 @@ export function ArticleDetailModal({ article, isOpen, onClose, initialIsBookmark
 
     if (isOpen && article) {
       loadFullArticle()
+      return () => abortController.abort()
     }
   }, [article?.url, isOpen])
 
@@ -327,17 +346,17 @@ export function ArticleDetailModal({ article, isOpen, onClose, initialIsBookmark
         setOpen={setInlineOpen}
         anchorRef={inlineAnchorRef}
       />
-      <div className={`bg-black border border-gray-800 rounded-lg transition-all duration-300 ${isExpanded
+      <div className={`bg-[var(--news-bg-primary)] border border-border/60 rounded-xl shadow-2xl shadow-black/40 transition-all duration-300 ${isExpanded
         ? 'w-full h-full max-w-none max-h-none overflow-y-auto'
         : 'max-w-4xl w-full max-h-[90vh] overflow-hidden'
         }`}>
         {/* Header Controls */}
-        <div className="flex items-center justify-end gap-2 p-4 border-b border-gray-800 sticky top-0 bg-black z-10">
+        <div className="flex items-center justify-end gap-2 p-4 border-b border-border/60 sticky top-0 bg-[var(--news-bg-primary)]/95 backdrop-blur z-10">
           <Button
             variant="ghost"
             size="sm"
             onClick={() => setIsExpanded(!isExpanded)}
-            className="bg-black/50 hover:bg-black/70 backdrop-blur-sm border border-gray-800"
+            className="bg-[var(--news-bg-secondary)]/70 hover:bg-[var(--news-bg-secondary)] border border-border/60"
           >
             {isExpanded ? <Minimize2 className="h-4 w-4" /> : <Maximize2 className="h-4 w-4" />}
           </Button>
@@ -345,7 +364,7 @@ export function ArticleDetailModal({ article, isOpen, onClose, initialIsBookmark
             variant="ghost"
             size="sm"
             onClick={onClose}
-            className="bg-black/50 hover:bg-black/70 backdrop-blur-sm border border-gray-800"
+            className="bg-[var(--news-bg-secondary)]/70 hover:bg-[var(--news-bg-secondary)] border border-border/60"
           >
             <X className="h-5 w-5" />
           </Button>
@@ -354,14 +373,14 @@ export function ArticleDetailModal({ article, isOpen, onClose, initialIsBookmark
         {/* Content Wrapper */}
         <div className={isExpanded ? "" : "overflow-y-auto max-h-[calc(90vh-80px)]"}>
           {/* Hero Image Section */}
-          <div className={`relative bg-gradient-to-b from-gray-900 to-black overflow-hidden ${isExpanded ? 'h-[60vh] min-h-[400px]' : 'h-48'
+          <div className={`relative bg-[var(--news-bg-secondary)] overflow-hidden ${isExpanded ? 'h-[60vh] min-h-[400px]' : 'h-48'
             }`}>
             <img
               src={article.image || "/placeholder.svg"}
               alt={article.title}
               className="w-full h-full object-cover opacity-60"
             />
-            <div className="absolute inset-0 bg-gradient-to-t from-black via-black/60 to-transparent" />
+            <div className="absolute inset-0 bg-gradient-to-t from-[var(--news-bg-primary)] via-[var(--news-bg-primary)]/70 to-transparent" />
 
             {/* Hero Content */}
             <div className="absolute inset-0 flex flex-col justify-end">
@@ -375,13 +394,13 @@ export function ArticleDetailModal({ article, isOpen, onClose, initialIsBookmark
                 </div>
 
                 {/* Title */}
-                <h1 className={`font-bold text-white mb-6 leading-tight font-serif ${isExpanded ? 'text-5xl md:text-6xl' : 'text-2xl md:text-3xl'
+                <h1 className={`font-bold text-foreground mb-6 leading-tight font-serif ${isExpanded ? 'text-5xl md:text-6xl' : 'text-2xl md:text-3xl'
                   }`}>
                   {article.title}
                 </h1>
 
                 {/* Meta */}
-                <div className="flex items-center gap-4 text-sm text-gray-300">
+                <div className="flex items-center gap-4 text-sm text-muted-foreground">
                   <span className="font-medium">{article.source}</span>
                   <span>•</span>
                   <span>{article.publishedAt}</span>
@@ -404,7 +423,7 @@ export function ArticleDetailModal({ article, isOpen, onClose, initialIsBookmark
           <div className={isExpanded ? "max-w-5xl mx-auto px-8 py-12" : "px-6 py-6"}>
             {/* Summary Quote */}
             <div className={isExpanded ? "mb-12 border-l-4 border-primary pl-6 py-2" : "mb-6 border-l-4 border-primary pl-4 py-2"}>
-              <p className={`text-gray-200 leading-relaxed font-light italic ${isExpanded ? 'text-2xl' : 'text-lg'
+              <p className={`text-foreground/80 leading-relaxed font-light italic ${isExpanded ? 'text-2xl' : 'text-lg'
                 }`}>
                 "{article.summary}"
               </p>
@@ -417,21 +436,32 @@ export function ArticleDetailModal({ article, isOpen, onClose, initialIsBookmark
               <div className={isExpanded ? "lg:col-span-2 space-y-8" : "space-y-6"}>
                 {/* Full Article Content - Show immediately */}
                 <div className={isExpanded ? "prose prose-invert prose-lg max-w-none" : "prose prose-invert max-w-none"}>
-                  <h2 className={`font-bold text-white mb-6 font-serif ${isExpanded ? 'text-3xl' : 'text-xl'
+                  <h2 className={`font-bold text-foreground mb-6 font-serif ${isExpanded ? 'text-3xl' : 'text-xl'
                     }`}>Full Article</h2>
 
-                  {articleLoading ? (
-                    <div className="flex items-center gap-3 p-6 bg-gray-900/50 rounded-lg border border-gray-800">
+                  {articleLoading && fullArticleText ? (
+                    <div className="space-y-4">
+                      <div className="flex items-center gap-3 p-4 bg-[var(--news-bg-secondary)]/60 rounded-lg border border-border/60">
+                        <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-primary"></div>
+                        <p className="text-muted-foreground text-sm">Updating full article text...</p>
+                      </div>
+                      <div className={`text-foreground/80 leading-relaxed whitespace-pre-wrap ${isExpanded ? 'text-lg space-y-6' : 'text-base space-y-4'
+                        }`}>
+                        {fullArticleText}
+                      </div>
+                    </div>
+                  ) : articleLoading ? (
+                    <div className="flex items-center gap-3 p-6 bg-[var(--news-bg-secondary)]/60 rounded-lg border border-border/60">
                       <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-primary"></div>
-                      <p className="text-gray-400">Loading full article text...</p>
+                      <p className="text-muted-foreground">Loading full article text...</p>
                     </div>
                   ) : fullArticleText ? (
-                    <div className={`text-gray-300 leading-relaxed whitespace-pre-wrap ${isExpanded ? 'text-lg space-y-6' : 'text-base space-y-4'
+                    <div className={`text-foreground/80 leading-relaxed whitespace-pre-wrap ${isExpanded ? 'text-lg space-y-6' : 'text-base space-y-4'
                       }`}>
                       {fullArticleText}
                     </div>
                   ) : (
-                    <div className={`text-gray-300 leading-relaxed space-y-4 ${isExpanded ? 'text-lg space-y-6' : 'text-base'
+                    <div className={`text-foreground/80 leading-relaxed space-y-4 ${isExpanded ? 'text-lg space-y-6' : 'text-base'
                       }`}>
                       {article.content || article.summary}
                     </div>

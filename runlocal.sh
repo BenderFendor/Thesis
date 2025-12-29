@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-# Script to run the backend and frontend locally for development without Docker for the backend and frontend still using it for databases.
+# Script to run the backend and frontend locally without Docker.
 
 set -euo pipefail
 
@@ -10,9 +10,17 @@ FRONTEND_DIR="$ROOT_DIR/frontend"
 
 BACKEND_PORT="${BACKEND_PORT:-8000}"
 FRONTEND_PORT="${FRONTEND_PORT:-3000}"
-DATABASE_URL="${DATABASE_URL:-postgresql+asyncpg://newsuser:newspass@localhost:6543/newsdb}"
+POSTGRES_HOST="${POSTGRES_HOST:-localhost}"
+POSTGRES_PORT="${POSTGRES_PORT:-5432}"
+POSTGRES_USER="${POSTGRES_USER:-newsuser}"
+POSTGRES_PASSWORD="${POSTGRES_PASSWORD:-newspass}"
+POSTGRES_DB="${POSTGRES_DB:-newsdb}"
+DATABASE_URL="${DATABASE_URL:-postgresql+asyncpg://${POSTGRES_USER}:${POSTGRES_PASSWORD}@${POSTGRES_HOST}:${POSTGRES_PORT}/${POSTGRES_DB}}"
 CHROMA_HOST="${CHROMA_HOST:-localhost}"
 CHROMA_PORT="${CHROMA_PORT:-8001}"
+CHROMA_DATA_DIR="${CHROMA_DATA_DIR:-$ROOT_DIR/.chroma}"
+CHROMA_LOG_FILE="${CHROMA_LOG_FILE:-$CHROMA_DATA_DIR/chroma.log}"
+AUTO_INSTALL="${AUTO_INSTALL:-1}"
 NEXT_PUBLIC_API_URL="${NEXT_PUBLIC_API_URL:-http://localhost:${BACKEND_PORT}}"
 NEXT_PUBLIC_DOCKER_API_URL="${NEXT_PUBLIC_DOCKER_API_URL:-$NEXT_PUBLIC_API_URL}"
 
@@ -26,21 +34,31 @@ log() {
 
 usage() {
 	cat <<'USAGE'
-Usage: ./runlocal.sh [backend|frontend|all|help]
+Usage: ./runlocal.sh [setup|services|backend|frontend|all|help]
 
+  setup     Install local Postgres + Chroma dependencies and prep defaults
+  services  Start Postgres + Chroma locally (no Docker)
   backend   Create/refresh the Python venv, install deps, start FastAPI (uvicorn)
-  frontend  Install npm deps if needed and start Next.js dev server
+  frontend  Install npm deps if needed and start Next.js dev server (also starts Postgres + Chroma)
   all       Run backend and frontend together (default)
   help      Show this message
 
 Environment overrides:
   BACKEND_PORT   Port for uvicorn (default 8000)
   FRONTEND_PORT  Port for Next.js dev server (default 3000)
-	DATABASE_URL   Override Postgres connection string for the backend
-	CHROMA_HOST    Hostname for ChromaDB (default localhost)
-	CHROMA_PORT    Port for ChromaDB (default 8001)
-	NEXT_PUBLIC_API_URL        Frontend base URL for local backend (default http://localhost:<BACKEND_PORT>)
-	NEXT_PUBLIC_DOCKER_API_URL Overrides API URL when frontend runs in Docker (default matches NEXT_PUBLIC_API_URL)
+  POSTGRES_HOST  Postgres hostname (default localhost)
+  POSTGRES_PORT  Postgres port (default 5432)
+  POSTGRES_USER  Postgres user (default newsuser)
+  POSTGRES_PASSWORD Postgres password (default newspass)
+  POSTGRES_DB    Postgres database (default newsdb)
+  DATABASE_URL   Override Postgres connection string for the backend
+  CHROMA_HOST    Hostname for ChromaDB (default localhost)
+  CHROMA_PORT    Port for ChromaDB (default 8001)
+  CHROMA_DATA_DIR Persistent directory for Chroma data (default ./.chroma)
+  CHROMA_LOG_FILE Log file for Chroma server (default ./.chroma/chroma.log)
+  AUTO_INSTALL   Set to 1 to auto-install Postgres if missing (default 1)
+  NEXT_PUBLIC_API_URL        Frontend base URL for local backend (default http://localhost:<BACKEND_PORT>)
+  NEXT_PUBLIC_DOCKER_API_URL Overrides API URL when frontend runs in Docker (default matches NEXT_PUBLIC_API_URL)
 USAGE
 }
 
@@ -54,7 +72,6 @@ cleanup() {
 	PIDS=()
 
 	stop_backend_processes
-	stop_data_services
 }
 
 stop_backend_processes() {
@@ -81,22 +98,6 @@ free_port() {
 	fi
 }
 
-stop_data_services() {
-	if command -v docker >/dev/null 2>&1 && docker compose version >/dev/null 2>&1; then
-		log "Stopping Postgres and ChromaDB containers..."
-		docker compose stop postgres chromadb
-		return
-	fi
-
-	if command -v docker-compose >/dev/null 2>&1; then
-		log "Stopping Postgres and ChromaDB containers..."
-		docker-compose stop postgres chromadb
-		return
-	fi
-
-	log "Docker Compose is not available; skipping container shutdown"
-}
-
 handle_signal() {
 	local signal="$1"
 	log "Received ${signal}. Cleaning up..."
@@ -117,34 +118,235 @@ require_cmd() {
 	fi
 }
 
-start_data_services() {
-	if command -v docker >/dev/null 2>&1 && docker compose version >/dev/null 2>&1; then
-		log "Ensuring Postgres and ChromaDB containers are running via docker compose..."
-		docker compose up -d postgres chromadb
-		return
+detect_package_manager() {
+	if command -v brew >/dev/null 2>&1; then
+		echo "brew"
+	elif command -v pacman >/dev/null 2>&1; then
+		echo "pacman"
+	elif command -v apt-get >/dev/null 2>&1; then
+		echo "apt-get"
+	elif command -v dnf >/dev/null 2>&1; then
+		echo "dnf"
+	else
+		echo ""
+	fi
+}
+
+ensure_postgres_initialized() {
+	local pkg_mgr="$1"
+	if [[ "$pkg_mgr" != "pacman" ]]; then
+		return 0
 	fi
 
-	if command -v docker-compose >/dev/null 2>&1; then
-		log "Ensuring Postgres and ChromaDB containers are running via docker-compose..."
-		docker-compose up -d postgres chromadb
-		return
+	local data_dir="/var/lib/postgres/data"
+	if [[ -d "$data_dir/base" ]]; then
+		return 0
 	fi
 
-	log "Docker Compose is not available; skipping Postgres/Chroma startup"
+	if command -v initdb >/dev/null 2>&1 && id postgres >/dev/null 2>&1; then
+		log "Initializing Postgres data directory at ${data_dir}..."
+		sudo -iu postgres initdb -D "$data_dir"
+		return $?
+	fi
+
+	log "Postgres data directory is not initialized. Run:"
+	log "  sudo -iu postgres initdb -D ${data_dir}"
+	return 1
+}
+
+install_postgres() {
+	local pkg_mgr
+	pkg_mgr="$(detect_package_manager)"
+	if [[ -z "$pkg_mgr" ]]; then
+		log "No supported package manager found. Install Postgres manually."
+		return 1
+	fi
+
+	log "Installing Postgres using ${pkg_mgr}..."
+	case "$pkg_mgr" in
+		brew)
+			brew install postgresql
+			;;
+		apt-get)
+			sudo apt-get update
+			sudo apt-get install -y postgresql postgresql-contrib
+			;;
+		dnf)
+			sudo dnf install -y postgresql-server postgresql-contrib
+			;;
+		pacman)
+			sudo pacman -S --noconfirm postgresql
+			ensure_postgres_initialized "$pkg_mgr"
+			;;
+		*)
+			log "Package manager ${pkg_mgr} not supported in this script."
+			return 1
+			;;
+	esac
+}
+
+ensure_backend_venv() {
+	if [[ ! -d "$BACKEND_DIR/.venv" ]]; then
+		log "Creating backend virtual environment..."
+		python -m venv "$BACKEND_DIR/.venv"
+	fi
+}
+
+install_backend_deps() {
+	# shellcheck disable=SC1091
+	source "$BACKEND_DIR/.venv/bin/activate"
+	log "Installing backend dependencies..."
+	uv pip install -r "$BACKEND_DIR/requirements.txt"
+	deactivate || true
+}
+
+install_chroma() {
+	ensure_backend_venv
+	install_backend_deps
+}
+
+postgres_ready() {
+	if command -v pg_isready >/dev/null 2>&1; then
+		pg_isready -h "$POSTGRES_HOST" -p "$POSTGRES_PORT" >/dev/null 2>&1
+		return $?
+	fi
+
+	if command -v psql >/dev/null 2>&1; then
+		PGPASSWORD="$POSTGRES_PASSWORD" psql "$DATABASE_URL" -c "SELECT 1" >/dev/null 2>&1
+		return $?
+	fi
+
+	return 1
+}
+
+start_postgres_service() {
+	if postgres_ready; then
+		return 0
+	fi
+
+	if command -v systemctl >/dev/null 2>&1; then
+		log "Starting Postgres with systemctl..."
+		sudo systemctl start postgresql || true
+	fi
+
+	if command -v brew >/dev/null 2>&1; then
+		log "Starting Postgres with brew services..."
+		brew services start postgresql || true
+	fi
+
+	if postgres_ready; then
+		return 0
+	fi
+
+	if [[ "$POSTGRES_PORT" != "5432" ]] && command -v pg_isready >/dev/null 2>&1; then
+		if pg_isready -h "$POSTGRES_HOST" -p 5432 >/dev/null 2>&1; then
+			log "Postgres is responding on port 5432. Set POSTGRES_PORT=5432 or update DATABASE_URL."
+		fi
+	fi
+
+	log "Postgres is not running at ${POSTGRES_HOST}:${POSTGRES_PORT}."
+	return 1
+}
+
+ensure_postgres_setup() {
+	if command -v psql >/dev/null 2>&1; then
+		return 0
+	fi
+
+	if [[ "$AUTO_INSTALL" == "1" ]]; then
+		install_postgres || return 1
+		return 0
+	fi
+
+	log "Postgres is not installed. Run ./runlocal.sh setup or set AUTO_INSTALL=1."
+	return 1
+}
+
+ensure_postgres_user_db() {
+	if ! command -v psql >/dev/null 2>&1; then
+		return 1
+	fi
+
+	if PGPASSWORD="$POSTGRES_PASSWORD" psql "$DATABASE_URL" -c "SELECT 1" >/dev/null 2>&1; then
+		return 0
+	fi
+
+	if command -v sudo >/dev/null 2>&1 && id postgres >/dev/null 2>&1; then
+		log "Creating Postgres user/database defaults if missing..."
+		if ! sudo -u postgres psql -d postgres -tAc "SELECT 1 FROM pg_roles WHERE rolname='${POSTGRES_USER}'" | grep -q 1; then
+			sudo -u postgres psql -d postgres -v ON_ERROR_STOP=1 -c "CREATE ROLE ${POSTGRES_USER} LOGIN PASSWORD '${POSTGRES_PASSWORD}'" || true
+		fi
+
+		if ! sudo -u postgres psql -d postgres -tAc "SELECT 1 FROM pg_database WHERE datname='${POSTGRES_DB}'" | grep -q 1; then
+			sudo -u postgres psql -d postgres -v ON_ERROR_STOP=1 -c "CREATE DATABASE ${POSTGRES_DB} OWNER ${POSTGRES_USER}" || true
+		fi
+
+		return 0
+	fi
+
+	log "Postgres is running, but ${POSTGRES_DB} or ${POSTGRES_USER} may be missing."
+	log "Create them manually if needed:"
+	log "  createuser -s ${POSTGRES_USER}"
+	log "  createdb -O ${POSTGRES_USER} ${POSTGRES_DB}"
+	return 0
+}
+
+chroma_ready() {
+	if command -v curl >/dev/null 2>&1; then
+		curl -fsS "http://${CHROMA_HOST}:${CHROMA_PORT}/api/v1/heartbeat" >/dev/null 2>&1
+		return $?
+	fi
+
+	return 1
+}
+
+start_chroma() {
+	mkdir -p "$CHROMA_DATA_DIR"
+
+	if chroma_ready; then
+		return 0
+	fi
+
+	local chroma_bin="$BACKEND_DIR/.venv/bin/chroma"
+	if [[ ! -x "$chroma_bin" ]]; then
+		if [[ "$AUTO_INSTALL" == "1" ]]; then
+			install_chroma
+		else
+			log "Chroma CLI not found. Run ./runlocal.sh setup or set AUTO_INSTALL=1."
+			return 1
+		fi
+	fi
+
+	log "Starting Chroma server on ${CHROMA_HOST}:${CHROMA_PORT}"
+	log "Chroma logs: ${CHROMA_LOG_FILE}"
+	"$chroma_bin" run --host "$CHROMA_HOST" --port "$CHROMA_PORT" --path "$CHROMA_DATA_DIR" >>"$CHROMA_LOG_FILE" 2>&1 &
+	PIDS+=($!)
+}
+
+start_services() {
+	ensure_postgres_setup || return 1
+	start_postgres_service || return 1
+	ensure_postgres_user_db || true
+	start_chroma || return 1
+}
+
+setup_services() {
+	log "Setting up local Postgres and Chroma..."
+	AUTO_INSTALL=1 ensure_postgres_setup || return 1
+	start_postgres_service || true
+	ensure_postgres_user_db || true
+	install_chroma
+	log "Setup complete."
 }
 
 run_backend() {
 	require_cmd python
-	require_cmd uv pip
-	start_data_services
+	require_cmd uv
 	free_port "$BACKEND_PORT"
 
 	pushd "$BACKEND_DIR" >/dev/null
 
-	if [[ ! -d .venv ]]; then
-		log "Creating backend virtual environment..."
-		python -m venv .venv
-	fi
+	ensure_backend_venv
 
 	# shellcheck disable=SC1091
 	source .venv/bin/activate
@@ -182,13 +384,22 @@ main() {
 	local target="${1:-all}"
 
 	case "$target" in
+		setup)
+			setup_services
+			;;
+		services)
+			start_services
+			;;
 		backend)
+			start_services
 			run_backend
 			;;
 		frontend)
+			start_services
 			run_frontend
 			;;
 		all)
+			start_services
 			run_backend
 			run_frontend
 			;;

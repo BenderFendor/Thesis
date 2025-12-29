@@ -633,8 +633,6 @@ export function GridView({
                         }}
                       >
                         {row.map((article, colIndex) => {
-                          const articleNumber =
-                            rowIndex * safeRowSize + colIndex + 1
                           const showImage = hasRealImage(article.image)
 
                           return (
@@ -660,16 +658,8 @@ export function GridView({
                                   <>
                                     <div className="absolute inset-0 bg-gradient-to-br from-primary/5 via-muted/20 to-background" />
                                     <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_0%,rgba(255,255,255,0.05),transparent_60%)]" />
-                                    <div className="absolute left-2 top-2">
-                                      <Badge
-                                        variant="outline"
-                                        className="text-[10px] font-semibold px-2 py-0.5 bg-background/20 backdrop-blur-sm border-white/10 text-muted-foreground"
-                                      >
-                                        {articleNumber}#
-                                      </Badge>
-                                    </div>
                                     <div className="absolute inset-0 p-6 flex flex-col items-center justify-center text-center">
-                                      <h3 className="text-base font-bold text-foreground/90 leading-relaxed line-clamp-4 font-serif tracking-tight drop-shadow-sm">
+                                      <h3 className="text-lg md:text-xl font-semibold text-foreground/90 leading-snug line-clamp-5 font-serif tracking-tight drop-shadow-sm">
                                         {article.title}
                                       </h3>
                                     </div>
@@ -727,7 +717,7 @@ export function GridView({
                               <CardContent className="flex-1 flex flex-col p-2">
                                 {/* Title - Only show here if image is present */}
                                 {showImage && (
-                                  <h3 className="text-sm font-semibold text-foreground leading-snug line-clamp-3 mb-2 font-serif">
+                                  <h3 className="text-base font-semibold text-foreground leading-snug line-clamp-3 mb-2 font-serif">
                                     {article.title}
                                   </h3>
                                 )}

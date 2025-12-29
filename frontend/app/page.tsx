@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect, useRef, useCallback, useMemo, type KeyboardEvent } from "react"
+import { useState, useEffect, useRef, useCallback, useMemo, type KeyboardEvent, type ReactNode } from "react"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
@@ -24,7 +24,6 @@ import {
   Laptop,
   Trophy,
   Newspaper,
-  Brain,
 } from "lucide-react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
@@ -70,6 +69,15 @@ const HalftoneOverlay = () => (
   </svg>
 );
 
+const HeaderHint = ({ label, children }: { label: string; children: ReactNode }) => (
+  <div className="relative group">
+    {children}
+    <div className="pointer-events-none absolute left-1/2 top-full z-50 mt-2 -translate-x-1/2 whitespace-nowrap rounded border border-border/60 bg-[var(--news-bg-secondary)] px-2 py-1 text-[10px] font-mono uppercase tracking-[0.24em] text-muted-foreground opacity-0 transition-opacity duration-200 group-hover:opacity-100 group-focus-within:opacity-100">
+      {label}
+    </div>
+  </div>
+);
+
 function NewsPage() {
   const [currentView, setCurrentView] = useState<ViewMode>("grid")
   const [categories, setCategories] = useState<{ id: string; label: string; icon: React.ElementType }[]>([]);
@@ -82,7 +90,7 @@ function NewsPage() {
   const [leadArticle, setLeadArticle] = useState<NewsArticle | null>(null);
   const [leadModalOpen, setLeadModalOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
-  const [deskOpen, setDeskOpen] = useState(false);
+  const [deskOpen] = useState(true);
 
   // New: State for articles per category to avoid reloading on view switches
   const [articlesByCategory, setArticlesByCategory] = useState<Record<string, NewsArticle[]>>({})
@@ -406,50 +414,56 @@ function NewsPage() {
                 <List className="w-4 h-4" />
               </Button>
             </div>
-            <div className="relative hidden lg:block">
+            <div className="relative hidden lg:block group">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" size={14} />
               <input
                 type="text"
-                placeholder="Search research..."
+                placeholder="Search the research desk..."
                 value={searchQuery}
                 onChange={(event) => setSearchQuery(event.target.value)}
                 onKeyDown={handleSearchSubmit}
                 className="bg-[var(--news-bg-secondary)] border border-border/60 rounded-lg pl-9 pr-4 py-2 text-xs w-60 focus:outline-none focus:border-primary transition-colors text-foreground placeholder:text-muted-foreground/70"
               />
+              <div className="pointer-events-none absolute left-0 top-full mt-2 rounded border border-border/60 bg-[var(--news-bg-secondary)] px-2 py-1 text-[10px] font-mono uppercase tracking-[0.24em] text-muted-foreground opacity-0 transition-opacity duration-200 group-hover:opacity-100 group-focus-within:opacity-100">
+                Press Enter to open research workspace
+              </div>
             </div>
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => setSidebarOpen(true)}
-              className="h-9 w-9 p-0 border border-border/60"
-              title="Filter sources"
-            >
-              <Menu className="w-4 h-4" />
-            </Button>
-            <Link href="/search">
-              <Button variant="ghost" size="sm" className="h-9 w-9 p-0 border border-border/60" title="Research">
-                <Brain className="w-4 h-4" />
+            <HeaderHint label="Filter sources">
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => setSidebarOpen(true)}
+                className="h-9 w-9 p-0 border border-border/60"
+                title="Filter sources"
+              >
+                <Menu className="w-4 h-4" />
               </Button>
-            </Link>
-            <Button variant="ghost" size="sm" className="relative h-9 w-9 p-0 border border-border/60" onClick={() => setShowNotifications(!showNotifications)}>
-              <Bell className="w-4 h-4" />
-              {notifications.length > 0 && (
-                <Badge className="absolute -top-1 -right-1 w-4 h-4 p-0 flex items-center justify-center text-[10px] bg-destructive">
-                  {notifications.length}
-                </Badge>
-              )}
-            </Button>
+            </HeaderHint>
+            <HeaderHint label="Alerts">
+              <Button variant="ghost" size="sm" className="relative h-9 w-9 p-0 border border-border/60" onClick={() => setShowNotifications(!showNotifications)}>
+                <Bell className="w-4 h-4" />
+                {notifications.length > 0 && (
+                  <Badge className="absolute -top-1 -right-1 w-4 h-4 p-0 flex items-center justify-center text-[10px] bg-destructive">
+                    {notifications.length}
+                  </Badge>
+                )}
+              </Button>
+            </HeaderHint>
             {showNotifications && <NotificationsPopup notifications={notifications} onClear={handleClearNotification} onClearAll={handleClearAllNotifications} onRetry={handleRetryNotification} />}
-            <Link href="/settings">
-              <Button variant="ghost" size="sm" className="h-9 w-9 p-0 border border-border/60" title="Settings">
-                <Settings className="w-4 h-4" />
-              </Button>
-            </Link>
-            <Link href="/profile">
-              <Button variant="ghost" size="sm" className="h-9 w-9 p-0 border border-border/60" title="Profile">
-                <User className="w-4 h-4" />
-              </Button>
-            </Link>
+            <HeaderHint label="Settings">
+              <Link href="/settings">
+                <Button variant="ghost" size="sm" className="h-9 w-9 p-0 border border-border/60" title="Settings">
+                  <Settings className="w-4 h-4" />
+                </Button>
+              </Link>
+            </HeaderHint>
+            <HeaderHint label="Profile">
+              <Link href="/profile">
+                <Button variant="ghost" size="sm" className="h-9 w-9 p-0 border border-border/60" title="Profile">
+                  <User className="w-4 h-4" />
+                </Button>
+              </Link>
+            </HeaderHint>
           </div>
         </div>
       </header>
@@ -562,15 +576,11 @@ function NewsPage() {
                       {articleCount} articles
                     </span>
                   </div>
+                </div>
+                <div className="mb-4 flex flex-wrap items-center justify-between gap-2 text-[10px] font-mono uppercase tracking-[0.3em] text-muted-foreground">
+                  <span>Category filters</span>
                   {!isGlobeView && (
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => setDeskOpen(!deskOpen)}
-                      className={`h-8 px-3 text-[10px] uppercase tracking-widest font-mono border ${deskOpen ? 'bg-primary text-primary-foreground border-primary' : 'border-border/60'}`}
-                    >
-                      {deskOpen ? 'Hide Desk' : 'Show Desk'}
-                    </Button>
+                    <span className="text-muted-foreground/70">Hover the Desk tab on the right for context and verification</span>
                   )}
                 </div>
                 <TabsList className="flex flex-wrap gap-2 bg-transparent p-0 h-auto">
