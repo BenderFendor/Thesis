@@ -23,6 +23,8 @@ CHROMA_LOG_FILE="${CHROMA_LOG_FILE:-$CHROMA_DATA_DIR/chroma.log}"
 AUTO_INSTALL="${AUTO_INSTALL:-1}"
 NEXT_PUBLIC_API_URL="${NEXT_PUBLIC_API_URL:-http://localhost:${BACKEND_PORT}}"
 NEXT_PUBLIC_DOCKER_API_URL="${NEXT_PUBLIC_DOCKER_API_URL:-$NEXT_PUBLIC_API_URL}"
+RUNLOCAL_STATE_DIR="${RUNLOCAL_STATE_DIR:-$ROOT_DIR/.runlocal}"
+RUNLOCAL_PID_FILE="${RUNLOCAL_PID_FILE:-$RUNLOCAL_STATE_DIR/pids}"
 
 export DATABASE_URL CHROMA_HOST CHROMA_PORT NEXT_PUBLIC_API_URL NEXT_PUBLIC_DOCKER_API_URL
 
@@ -34,13 +36,14 @@ log() {
 
 usage() {
 	cat <<'USAGE'
-Usage: ./runlocal.sh [setup|services|backend|frontend|all|help]
+Usage: ./runlocal.sh [setup|services|backend|frontend|all|killall|help]
 
   setup     Install local Postgres + Chroma dependencies and prep defaults
   services  Start Postgres + Chroma locally (no Docker)
   backend   Create/refresh the Python venv, install deps, start FastAPI (uvicorn)
   frontend  Install npm deps if needed and start Next.js dev server (also starts Postgres + Chroma)
   all       Run backend and frontend together (default)
+  killall   Stop processes spawned by previous runlocal.sh runs
   help      Show this message
 
 Environment overrides:
@@ -69,6 +72,7 @@ cleanup() {
 			kill "$pid" >/dev/null 2>&1 || true
 		fi
 	done
+	remove_pids_from_file
 	PIDS=()
 
 	stop_backend_processes
@@ -77,6 +81,108 @@ cleanup() {
 stop_backend_processes() {
 	# Ensure uvicorn launched from the backend venv does not linger after shutdown.
 	pkill -9 -f "$BACKEND_DIR/.venv/bin/python3 $BACKEND_DIR/.venv/bin/uvicorn app.main" >/dev/null 2>&1 || true
+}
+
+ensure_runlocal_state_dir() {
+	mkdir -p "$RUNLOCAL_STATE_DIR"
+}
+
+record_pid() {
+	local pid="$1"
+	local label="$2"
+	local timestamp
+
+	if [[ -z "$pid" ]]; then
+		return 0
+	fi
+
+	ensure_runlocal_state_dir
+	timestamp="$(date -u +"%Y-%m-%dT%H:%M:%SZ")"
+	printf "%s|%s|%s\n" "$timestamp" "$pid" "$label" >>"$RUNLOCAL_PID_FILE"
+}
+
+remove_pids_from_file() {
+	if [[ ! -f "$RUNLOCAL_PID_FILE" ]] || [[ ${#PIDS[@]} -eq 0 ]]; then
+		return 0
+	fi
+
+	local tmp_file="${RUNLOCAL_PID_FILE}.tmp"
+	: >"$tmp_file"
+
+	while IFS= read -r line; do
+		local pid
+		pid="$(printf "%s" "$line" | cut -d'|' -f2)"
+		if [[ -z "$pid" ]]; then
+			continue
+		fi
+		local keep=1
+		for target_pid in "${PIDS[@]}"; do
+			if [[ "$pid" == "$target_pid" ]]; then
+				keep=0
+				break
+			fi
+		done
+		if [[ "$keep" -eq 1 ]]; then
+			printf "%s\n" "$line" >>"$tmp_file"
+		fi
+	done <"$RUNLOCAL_PID_FILE"
+
+	mv "$tmp_file" "$RUNLOCAL_PID_FILE"
+}
+
+prune_pid_file() {
+	if [[ ! -f "$RUNLOCAL_PID_FILE" ]]; then
+		return 0
+	fi
+
+	local tmp_file="${RUNLOCAL_PID_FILE}.tmp"
+	: >"$tmp_file"
+
+	while IFS='|' read -r timestamp pid label; do
+		if [[ -z "$pid" ]]; then
+			continue
+		fi
+		if kill -0 "$pid" >/dev/null 2>&1; then
+			printf "%s|%s|%s\n" "$timestamp" "$pid" "$label" >>"$tmp_file"
+		fi
+	done <"$RUNLOCAL_PID_FILE"
+
+	mv "$tmp_file" "$RUNLOCAL_PID_FILE"
+}
+
+killall_services() {
+	if [[ ! -f "$RUNLOCAL_PID_FILE" ]]; then
+		log "No runlocal PID file found."
+		return 0
+	fi
+
+	prune_pid_file
+
+	if [[ ! -s "$RUNLOCAL_PID_FILE" ]]; then
+		log "No active runlocal processes found."
+		rm -f "$RUNLOCAL_PID_FILE"
+		return 0
+	fi
+
+	log "Stopping recorded runlocal processes..."
+	while IFS='|' read -r _ pid label; do
+		if [[ -n "$pid" ]] && kill -0 "$pid" >/dev/null 2>&1; then
+			log "Stopping ${label:-process} (pid ${pid})"
+			kill "$pid" >/dev/null 2>&1 || true
+		fi
+	done <"$RUNLOCAL_PID_FILE"
+
+	sleep 0.3
+
+	while IFS='|' read -r _ pid label; do
+		if [[ -n "$pid" ]] && kill -0 "$pid" >/dev/null 2>&1; then
+			log "Force-stopping ${label:-process} (pid ${pid})"
+			kill -9 "$pid" >/dev/null 2>&1 || true
+		fi
+	done <"$RUNLOCAL_PID_FILE"
+
+	rm -f "$RUNLOCAL_PID_FILE"
+	stop_backend_processes
 }
 
 free_port() {
@@ -320,7 +426,9 @@ start_chroma() {
 	log "Starting Chroma server on ${CHROMA_HOST}:${CHROMA_PORT}"
 	log "Chroma logs: ${CHROMA_LOG_FILE}"
 	"$chroma_bin" run --host "$CHROMA_HOST" --port "$CHROMA_PORT" --path "$CHROMA_DATA_DIR" >>"$CHROMA_LOG_FILE" 2>&1 &
-	PIDS+=($!)
+	local chroma_pid=$!
+	PIDS+=("$chroma_pid")
+	record_pid "$chroma_pid" "chroma"
 }
 
 start_services() {
@@ -357,7 +465,9 @@ run_backend() {
 
 	log "Starting FastAPI dev server on port $BACKEND_PORT"
 	uvicorn app.main:app --reload --port "$BACKEND_PORT" &
-	PIDS+=($!)
+	local backend_pid=$!
+	PIDS+=("$backend_pid")
+	record_pid "$backend_pid" "backend"
 
 	deactivate || true
 	popd >/dev/null
@@ -375,7 +485,9 @@ run_frontend() {
 
 	log "Starting Next.js dev server on port $FRONTEND_PORT"
 	npm run dev -- --port "$FRONTEND_PORT" &
-	PIDS+=($!)
+	local frontend_pid=$!
+	PIDS+=("$frontend_pid")
+	record_pid "$frontend_pid" "frontend"
 
 	popd >/dev/null
 }
@@ -402,6 +514,10 @@ main() {
 			start_services
 			run_backend
 			run_frontend
+			;;
+		killall)
+			killall_services
+			exit 0
 			;;
 		help|--help|-h)
 			usage
