@@ -637,7 +637,7 @@ export function GridView({
 
                           return (
                           <button
-                            key={article.id}
+                            key={article.url ? `url:${article.url}` : `id:${article.id}`}
                             onClick={() => handleArticleClick(article)}
                             className="w-full text-left transition-all duration-200"
                           >

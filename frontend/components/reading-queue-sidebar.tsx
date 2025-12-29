@@ -882,9 +882,14 @@ export function ReadingQueueSidebar() {
                 style={{ borderColor: "var(--border)" }}
               >
                 <div className="flex items-center justify-between">
-                  <SheetTitle className="text-4xl font-bold font-serif">
-                    Reading Digest
-                  </SheetTitle>
+                  <div>
+                    <SheetTitle className="text-3xl font-semibold font-serif">
+                      Reading Digest
+                    </SheetTitle>
+                    <p className="text-sm text-muted-foreground mt-1">
+                      {queuedArticles.length} articles summarized for quick review
+                    </p>
+                  </div>
                   <Button
                     size="sm"
                     variant="ghost"
@@ -907,21 +912,21 @@ export function ReadingQueueSidebar() {
                   </div>
                 ) : queueDigest ? (
                   <div
-                    className="p-6 prose prose-invert max-w-none"
+                    className="px-6 py-8 prose prose-invert max-w-none"
                     style={{ color: "var(--foreground)" }}
                   >
                     <ReactMarkdown
                       components={{
                         h1: ({ node, ...props }) => (
                           <h1
-                            className="font-bold font-serif text-2xl mt-6 mb-3"
+                            className="font-semibold font-serif text-2xl mt-6 mb-3"
                             style={{ color: "var(--foreground)" }}
                             {...props}
                           />
                         ),
                         h2: ({ node, ...props }) => (
                           <h2
-                            className="font-bold font-serif text-xl mt-5 mb-2"
+                            className="font-semibold font-serif text-xl mt-5 mb-2"
                             style={{ color: "var(--foreground)" }}
                             {...props}
                           />
@@ -935,7 +940,7 @@ export function ReadingQueueSidebar() {
                         ),
                         p: ({ node, ...props }) => (
                           <p
-                            className="mb-3 leading-relaxed"
+                            className="mb-3 leading-relaxed text-base"
                             style={{ color: "var(--foreground)" }}
                             {...props}
                           />
@@ -1073,10 +1078,10 @@ export function ReadingQueueSidebar() {
                         generateQueueDigest();
                       }}
                       disabled={queuedArticles.length === 0}
-                      title="Generate AI digest of all articles"
+                      title="Generate a digest of all articles"
                     >
                       <Sparkles className="h-4 w-4 mr-1" />
-                      Digest
+                      Reading digest
                     </Button>
                     <span
                       className="text-sm font-medium px-3 py-1 rounded-full"

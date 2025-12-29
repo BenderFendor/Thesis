@@ -56,45 +56,48 @@ export function DigestCard({ onRefresh }: DigestCardProps) {
   }
 
   return (
-    <Card className="p-4 space-y-3 bg-gradient-to-br from-primary/10 to-amber-500/10 dark:from-gray-900 dark:to-gray-800 border-primary/30 dark:border-gray-700">
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-2">
-          <BookMarked className="h-5 w-5 text-primary" />
-          <h3 className="font-semibold text-gray-900 dark:text-white">
-            Today's Digest
-          </h3>
+    <Card className="p-4 space-y-4 border border-border/60 bg-[var(--news-bg-secondary)]/80">
+      <div className="flex items-start justify-between gap-3">
+        <div>
+          <div className="text-[10px] uppercase tracking-[0.24em] text-muted-foreground">
+            Reading Digest
+          </div>
+          <div className="mt-1 flex items-center gap-2">
+            <BookMarked className="h-4 w-4 text-primary" />
+            <h3 className="font-semibold text-base text-foreground">
+              Daily Digest
+            </h3>
+          </div>
         </div>
-        <span className="text-xs text-gray-500 dark:text-gray-400">
+        <span className="text-[11px] text-muted-foreground">
           {digest.digest_items.length} items
         </span>
       </div>
 
-      {/* Digest Items Preview */}
       <div className="space-y-2">
         {digest.digest_items.length > 0 ? (
           digest.digest_items.slice(0, 3).map((item) => (
             <Link
               key={item.id}
               href={`/reader/${item.id}`}
-              className="block p-2 bg-white dark:bg-slate-900 rounded-lg hover:bg-primary/10 dark:hover:bg-primary/20 transition-colors border border-primary/20 dark:border-primary/40"
+              className="block rounded-md border border-border/50 bg-background/40 px-3 py-2 hover:border-primary/50"
             >
-              <div className="text-sm font-medium text-gray-900 dark:text-white truncate">
+              <div className="text-sm font-medium text-foreground truncate">
                 {item.article_title}
               </div>
-              <div className="text-xs text-gray-500 dark:text-gray-400">
+              <div className="text-[11px] text-muted-foreground">
                 {item.article_source}
               </div>
             </Link>
           ))
         ) : (
-          <p className="text-sm text-gray-600 dark:text-gray-400">
+          <p className="text-sm text-muted-foreground">
             No articles in digest today
           </p>
         )}
       </div>
 
-      {/* Summary Stats */}
-      <div className="flex items-center justify-between text-xs text-gray-600 dark:text-gray-400 bg-white dark:bg-slate-900 rounded-lg p-2">
+      <div className="flex items-center justify-between text-xs text-muted-foreground rounded-md border border-border/40 bg-background/30 px-3 py-2">
         <div className="flex items-center gap-1">
           <Clock className="h-3 w-3" />
           <span>{digest.estimated_read_time_minutes} min read</span>
@@ -105,19 +108,18 @@ export function DigestCard({ onRefresh }: DigestCardProps) {
         </div>
       </div>
 
-      {/* Scheduling Section */}
-      <div className="pt-2 border-t border-primary/30 dark:border-primary/40">
+      <div className="pt-3 border-t border-border/60">
         {showSchedule ? (
           <div className="space-y-2">
-            <label className="block text-xs font-medium text-gray-700 dark:text-gray-300">
-              Daily digest time:
+            <label className="block text-xs font-medium text-muted-foreground">
+              Daily digest time
             </label>
             <div className="flex gap-2">
               <input
                 type="time"
                 value={scheduleTime}
                 onChange={(e) => setScheduleTime(e.target.value)}
-                className="flex-1 px-2 py-1 text-xs rounded border border-primary/30 dark:border-primary/50 bg-white dark:bg-slate-800 text-gray-900 dark:text-white"
+                className="flex-1 px-2 py-1 text-xs rounded border border-border/60 bg-background text-foreground"
               />
               <Button
                 size="sm"
@@ -136,7 +138,7 @@ export function DigestCard({ onRefresh }: DigestCardProps) {
             className="w-full text-xs"
           >
             <Calendar className="h-3 w-3 mr-1" />
-            Schedule Digest
+            Schedule digest
           </Button>
         )}
       </div>

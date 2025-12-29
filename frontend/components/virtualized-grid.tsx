@@ -24,6 +24,12 @@ interface VirtualizedGridProps {
   totalCount: number;
 }
 
+const getArticleKey = (article: NewsArticle, fallbackIndex: number) => {
+  if (article.url) return `url:${article.url}`;
+  if (typeof article.id === "number") return `id:${article.id}`;
+  return `idx:${fallbackIndex}`;
+};
+
 // Memoized article card component
 const ArticleCard = memo(function ArticleCard({
   article,
@@ -332,7 +338,7 @@ export function VirtualizedGrid({
               >
                 {rowArticles.map((article, colIndex) => (
                   <ArticleCard
-                    key={article.id}
+                    key={getArticleKey(article, startIndex + colIndex)}
                     article={article}
                     onClick={() => onArticleClick(article)}
                     articleNumber={startIndex + colIndex + 1}

@@ -1552,24 +1552,34 @@ export function streamNews(options: StreamOptions = {}): {
 // A simple in-memory cache for API responses
 const apiCache = new Map<string, { data: any; timestamp: number }>();
 
+const hashStringToInt = (value: string) => {
+  let hash = 0;
+  for (let i = 0; i < value.length; i += 1) {
+    hash = (hash << 5) - hash + value.charCodeAt(i);
+    hash |= 0;
+  }
+  return Math.abs(hash);
+};
+
 // Helper function to map backend articles to frontend format
 function mapBackendArticles(backendArticles: any[]): NewsArticle[] {
   console.log(`[mapBackendArticles] Mapping ${backendArticles.length} articles from backend format to frontend format.`);
-  return backendArticles.map((article: any, index: number) => {
+  return backendArticles.map((article: any) => {
     const sourceName = article.source || article.source_name || 'Unknown';
-
-    const resolvedId = typeof article.id === 'number'
-      ? article.id
-      : typeof article.article_id === 'number'
-        ? article.article_id
-        : Date.now() + index;
 
     const summary = article.summary || article.description || '';
     const content = article.content || summary;
     const image = article.image || article.image_url || "/placeholder.svg";
     const published = article.published_at || article.publishedAt || article.published || new Date().toISOString();
     const category = article.category || 'general';
-    const url = article.url || article.link || '';
+    const rawUrl = article.url || article.link || article.article_url || article.original_url || '';
+    const stableKey = rawUrl || `${sourceName}|${article.title || ''}|${published}`;
+    const resolvedId = typeof article.id === 'number'
+      ? article.id
+      : typeof article.article_id === 'number'
+        ? article.article_id
+        : hashStringToInt(stableKey);
+    const url = rawUrl;
 
     const country = article.country || getCountryFromSource(sourceName);
     const credibilityValue = typeof article.credibility === 'string' ? article.credibility.toLowerCase() : undefined;
@@ -1634,6 +1644,36 @@ export async function fetchStreamStatus(): Promise<any> {
   } catch (error) {
     console.error('Failed to fetch stream status:', error);
     return null;
+  }
+}
+
+export interface FrontendDebugReportPayload {
+  session_id: string;
+  summary: Record<string, unknown>;
+  recent_events: Record<string, unknown>[];
+  slow_operations: Record<string, unknown>[];
+  errors: Record<string, unknown>[];
+  dom_stats?: Record<string, unknown>;
+  location?: string;
+  user_agent?: string;
+  generated_at?: string;
+}
+
+export async function sendFrontendDebugReport(
+  payload: FrontendDebugReportPayload
+): Promise<void> {
+  try {
+    const response = await fetch(`${API_BASE_URL}/debug/logs/frontend`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    });
+
+    if (!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status}`);
+    }
+  } catch (error) {
+    console.error('Failed to send frontend debug report:', error);
   }
 }
 

@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter
 
 from app.models.article_analysis import ArticleAnalysisRequest, ArticleAnalysisResponse
 from app.services.article_analysis import analyze_with_gemini, extract_article_content
@@ -12,9 +12,11 @@ router = APIRouter(tags=["article-analysis"])
 async def extract_article_text(url: str):
     data = await extract_article_content(url)
     if not data.get("success"):
-        raise HTTPException(
-            status_code=400, detail=data.get("error", "Failed to extract article")
-        )
+        return {
+            "success": False,
+            "url": url,
+            "error": data.get("error", "Failed to extract article"),
+        }
 
     return {
         "success": True,

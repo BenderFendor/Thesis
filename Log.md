@@ -1,5 +1,17 @@
 # Log
 
+## 2025-12-29: Reader Annotation Export, Digest UI, and Debug Logs
+
+### Overview
+Refined the reader UI for focus, added markdown export for annotations, improved digest presentation, stabilized article identity, and wired frontend debug payloads into the backend log file.
+
+### Completed Features
+- Reader annotations now export to markdown with italicized notes for Obsidian.
+- Reader page layout is simpler with an annotations panel and selection toolbar.
+- Digest UI refreshed in the home card and queue overview.
+- Article identity stabilized for grid selection to reduce mismatch issues.
+- Frontend performance reports are posted to `/debug/logs/frontend` and stored in the debug log.
+
 ## 2025-11-24: Article Pagination & Performance Optimization
 
 ### Overview

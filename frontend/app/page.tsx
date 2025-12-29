@@ -38,7 +38,7 @@ import { useFavorites } from "@/hooks/useFavorites"
 import { useSourceFilter } from "@/hooks/useSourceFilter"
 import { fetchCategories, NewsArticle } from "@/lib/api"
 import { ErrorBoundary } from '@/components/ErrorBoundary';
-import { NotificationsPopup, Notification } from '@/components/notification-popup';
+import { NotificationsPopup, Notification, type NotificationActionType } from '@/components/notification-popup';
 import { SourceSidebar } from "@/components/source-sidebar";
 
 type ViewMode = "globe" | "grid" | "scroll" | "list"
@@ -84,7 +84,6 @@ function NewsPage() {
   const [activeCategory, setActiveCategory] = useState<string>("all")
   const [articleCount, setArticleCount] = useState<number>(0)
   const [showNotifications, setShowNotifications] = useState(false);
-  const [notifications, setNotifications] = useState<Notification[]>([]);
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [bioView, setBioView] = useState<"brief" | "depth">("brief");
   const [leadArticle, setLeadArticle] = useState<NewsArticle | null>(null);
@@ -211,19 +210,10 @@ function NewsPage() {
     }
   }, [streamHook.apiUrl]);
 
-  useEffect(() => {
-    const errorNotifications: Notification[] = streamHook.errors.map((error, index) => ({
-      id: `error-${index}`,
-      title: error === 'Stream was cancelled' ? 'Stream Status' : 'Stream Error',
-      description: error,
-      type: 'error',
-    }));
-    setNotifications(errorNotifications);
-  }, [streamHook.errors]);
 
   const handleClearNotification = (id: string) => {
     const notificationToClear = notifications.find(n => n.id === id);
-    if (notificationToClear) {
+    if (notificationToClear?.type === "error") {
       streamHook.removeError(notificationToClear.description);
     }
   };
@@ -232,15 +222,133 @@ function NewsPage() {
     streamHook.clearErrors();
   };
 
-  const handleRetryNotification = (error: string) => {
-    streamHook.clearErrors();
-    handleRetry();
-    setShowNotifications(false);
+  const handleNotificationAction = (
+    actionType: NotificationActionType,
+    notification?: Notification
+  ) => {
+    if (actionType === "open-debug") {
+      router.push("/debug");
+      setShowNotifications(false);
+      return;
+    }
+
+    if (actionType === "retry") {
+      if (notification?.type === "error") {
+        streamHook.removeError(notification.description);
+      }
+      streamHook.clearErrors();
+      handleRetry();
+      setShowNotifications(false);
+    }
   };
 
   const filteredArticles = useMemo(() => {
     return filterAndSortArticles(articlesByCategory[activeCategory] || [])
   }, [articlesByCategory, activeCategory, filterAndSortArticles])
+
+  const notifications = useMemo(() => {
+    const items: Notification[] = [];
+    const now = new Date().toISOString();
+    const categoryLabel = activeCategory === "all" ? "All" : activeCategory;
+
+    if (streamHook.status === "starting" || streamHook.status === "loading") {
+      items.push({
+        id: "stream-progress",
+        title: "Stream in progress",
+        description: streamHook.currentMessage || "Loading sources and articles.",
+        type: "info",
+        timestamp: now,
+        meta: {
+          category: categoryLabel,
+          sources: `${streamHook.progress.completed}/${streamHook.progress.total}`,
+        },
+      });
+    }
+
+    if (streamHook.status === "complete") {
+      items.push({
+        id: "stream-complete",
+        title: "Stream complete",
+        description: streamHook.currentMessage || "Articles are ready to read.",
+        type: "success",
+        timestamp: now,
+        meta: {
+          articles: streamHook.articles.length,
+          sources: streamHook.sources.length,
+        },
+      });
+    }
+
+    if (streamHook.status === "cancelled") {
+      items.push({
+        id: "stream-cancelled",
+        title: "Stream paused",
+        description: "Stream cancelled. Restart to refresh the feed.",
+        type: "warning",
+        timestamp: now,
+        action: { label: "Retry", type: "retry" },
+      });
+    }
+
+    streamHook.errors.forEach((error, index) => {
+      items.push({
+        id: `error-${index}`,
+        title: error === "Stream was cancelled" ? "Stream status" : "Stream error",
+        description: error,
+        type: "error",
+        timestamp: now,
+        action: { label: "Retry", type: "retry" },
+      });
+    });
+
+    if (isFilterActive()) {
+      items.push({
+        id: "filter-active",
+        title: "Source filter active",
+        description: "Only selected sources are visible.",
+        type: "info",
+        timestamp: now,
+        meta: {
+          sources: selectedSources.length,
+        },
+        action: { label: "Debug", type: "open-debug" },
+      });
+    }
+
+    if (!loading && filteredArticles.length === 0) {
+      items.push({
+        id: "empty-feed",
+        title: "No articles found",
+        description: "Try changing filters or refreshing the stream.",
+        type: "warning",
+        timestamp: now,
+        action: { label: "Retry", type: "retry" },
+      });
+    }
+
+    return items;
+  }, [
+    streamHook.status,
+    streamHook.currentMessage,
+    streamHook.progress.completed,
+    streamHook.progress.total,
+    streamHook.errors,
+    streamHook.articles.length,
+    streamHook.sources.length,
+    activeCategory,
+    isFilterActive,
+    selectedSources.length,
+    loading,
+    filteredArticles.length,
+  ]);
+
+  const actionableNotificationCount = useMemo(
+    () =>
+      notifications.filter(
+        (item) => item.type === "error" || item.type === "warning"
+      ).length,
+    [notifications]
+  );
 
   useEffect(() => {
     if (filteredArticles.length > 0) {
@@ -442,14 +550,21 @@ function NewsPage() {
             <HeaderHint label="Alerts">
               <Button variant="ghost" size="sm" className="relative h-9 w-9 p-0 border border-border/60" onClick={() => setShowNotifications(!showNotifications)}>
                 <Bell className="w-4 h-4" />
-                {notifications.length > 0 && (
+                {actionableNotificationCount > 0 && (
                   <Badge className="absolute -top-1 -right-1 w-4 h-4 p-0 flex items-center justify-center text-[10px] bg-destructive">
-                    {notifications.length}
+                    {actionableNotificationCount}
                   </Badge>
                 )}
               </Button>
             </HeaderHint>
-            {showNotifications && <NotificationsPopup notifications={notifications} onClear={handleClearNotification} onClearAll={handleClearAllNotifications} onRetry={handleRetryNotification} />}
+            {showNotifications && (
+              <NotificationsPopup
+                notifications={notifications}
+                onClear={handleClearNotification}
+                onClearAll={handleClearAllNotifications}
+                onAction={handleNotificationAction}
+              />
+            )}
             <HeaderHint label="Settings">
               <Link href="/settings">
                 <Button variant="ghost" size="sm" className="h-9 w-9 p-0 border border-border/60" title="Settings">

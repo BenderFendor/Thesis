@@ -5,12 +5,19 @@
  * Designed to provide data that correlates with backend debug logs.
  */
 
-import { API_BASE_URL } from "./api";
+import { sendFrontendDebugReport } from "./api";
 
 // Configuration
 const MAX_EVENTS = 500;
 const FLUSH_INTERVAL_MS = 30000; // 30 seconds
 const SLOW_THRESHOLD_MS = 3000; // 3 seconds
+const ENABLE_AGENTIC_LOGGING =
+  process.env.NEXT_PUBLIC_ENABLE_AGENTIC_LOGGING === "true" ||
+  process.env.NODE_ENV === "development";
+const IGNORED_ERROR_MESSAGES = [
+  "ResizeObserver loop completed with undelivered notifications.",
+  "ResizeObserver loop limit exceeded",
+];
 
 export type EventType =
   | "page_load"
@@ -89,6 +96,7 @@ class FrontendPerformanceLogger {
   private activeStreams: Map<string, StreamMetrics> = new Map();
   private componentTimings: Map<string, number[]> = new Map();
   private flushInterval: NodeJS.Timeout | null = null;
+  private lastFlushedEventIndex = 0;
 
   constructor() {
     this.sessionId = `fe_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
@@ -209,7 +217,18 @@ class FrontendPerformanceLogger {
   }
 
   logError(component: string, operation: string, error: Error | string): PerformanceEvent {
+    const message = error instanceof Error ? error.message : String(error);
+    if (this.shouldIgnoreError(message)) {
+      return this.logEvent("performance_warning", component, operation, {
+        message: "Ignored noisy browser error",
+        details: { error: message },
+      });
+    }
     return this.logEvent("error", component, operation, { error });
+  }
+
+  private shouldIgnoreError(message: string): boolean {
+    return IGNORED_ERROR_MESSAGES.some((pattern) => message.includes(pattern));
   }
 
   // --- Stream Tracking ---
@@ -473,8 +492,47 @@ class FrontendPerformanceLogger {
   // Flush events (could send to backend in the future)
   private flush(): void {
     if (process.env.NODE_ENV === "development" && this.events.length > 0) {
-      console.debug(`[PerfLog] Session ${this.sessionId}: ${this.events.length} events captured`);
+      console.debug(
+        `[PerfLog] Session ${this.sessionId}: ${this.events.length} events captured`
+      );
     }
+
+    if (!ENABLE_AGENTIC_LOGGING || typeof window === "undefined") {
+      return;
+    }
+
+    const startIndex = Math.min(
+      this.lastFlushedEventIndex,
+      this.events.length
+    );
+    const recentEvents = this.events.slice(startIndex);
+    this.lastFlushedEventIndex = this.events.length;
+
+    if (recentEvents.length === 0) {
+      return;
+    }
+
+    const report = {
+      session_id: this.sessionId,
+      summary: this.getSummary(),
+      recent_events: recentEvents,
+      slow_operations: this.getSlowOperations(),
+      errors: this.getErrors(),
+      dom_stats: {
+        node_count: document.querySelectorAll("*").length,
+        body_text_length: document.body?.innerText?.length ?? 0,
+        viewport: {
+          width: window.innerWidth,
+          height: window.innerHeight,
+        },
+        title: document.title,
+      },
+      location: window.location?.pathname,
+      user_agent: navigator.userAgent,
+      generated_at: new Date().toISOString(),
+    };
+
+    sendFrontendDebugReport(report);
   }
 
   // Cleanup

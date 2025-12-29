@@ -1,23 +1,46 @@
-import { Bell, XCircle } from 'lucide-react';
+import { Bell, XCircle, AlertTriangle, Info, CheckCircle2 } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
+
+export type NotificationActionType = 'retry' | 'open-debug' | 'refresh';
 
 export interface Notification {
   id: string;
   title: string;
   description: string;
-  type: 'error' | 'info' | 'success';
+  type: 'error' | 'warning' | 'info' | 'success';
+  timestamp?: string;
+  meta?: Record<string, string | number>;
+  action?: {
+    label: string;
+    type: NotificationActionType;
+  };
 }
 
 interface NotificationsPopupProps {
   notifications: Notification[];
   onClear: (id: string) => void;
   onClearAll: () => void;
-  onRetry: (error: string) => void;
+  onAction?: (type: NotificationActionType, notification: Notification) => void;
 }
 
-export function NotificationsPopup({ notifications, onClear, onClearAll, onRetry }: NotificationsPopupProps) {
-  const unreadCount = notifications.length;
+const getTypeIcon = (type: Notification['type']) => {
+  switch (type) {
+    case 'error':
+      return <XCircle className="w-4 h-4 text-destructive" />;
+    case 'warning':
+      return <AlertTriangle className="w-4 h-4 text-amber-400" />;
+    case 'success':
+      return <CheckCircle2 className="w-4 h-4 text-emerald-400" />;
+    default:
+      return <Info className="w-4 h-4 text-muted-foreground" />;
+  }
+};
+
+export function NotificationsPopup({ notifications, onClear, onClearAll, onAction }: NotificationsPopupProps) {
+  const unreadCount = notifications.filter(
+    (item) => item.type === "error" || item.type === "warning"
+  ).length;
 
   return (
     <Card className="absolute top-16 right-0 w-96 rounded-xl shadow-2xl z-50 border-2 backdrop-blur-xl" style={{ backgroundColor: 'rgba(var(--card-rgb), 0.8)', borderColor: 'var(--border)' }}>
@@ -35,18 +58,43 @@ export function NotificationsPopup({ notifications, onClear, onClearAll, onRetry
           <div className="flex flex-col max-h-96 overflow-y-auto">
             {notifications.map(notification => (
               <div key={notification.id} className="group relative">
-                <button onClick={() => onRetry(notification.description)} className="w-full text-left">
-                  <div className="flex items-start gap-4 p-4 border-b hover:bg-muted/50 transition-colors" style={{ borderColor: 'var(--border)' }}>
-                    <div className="mt-1">
-                      <XCircle className="w-5 h-5 text-destructive" />
-                    </div>
-                    <div className="flex-1">
-                      <div className="font-semibold text-sm">{notification.title}</div>
-                      <p className="text-xs whitespace-pre-wrap break-words max-h-24 overflow-y-auto" style={{ color: 'var(--muted-foreground)' }}>{notification.description}</p>
-                    </div>
+                <div className="flex items-start gap-3 p-4 border-b hover:bg-muted/50 transition-colors" style={{ borderColor: 'var(--border)' }}>
+                  <div className="mt-0.5">
+                    {getTypeIcon(notification.type)}
                   </div>
-                </button>
-                <button onClick={(e) => { e.stopPropagation(); onClear(notification.id); }} className="absolute top-1/2 right-4 transform -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors opacity-0 group-hover:opacity-100">
+                  <div className="flex-1 space-y-2">
+                    <div className="flex items-start justify-between gap-3">
+                      <div>
+                        <div className="font-semibold text-sm">{notification.title}</div>
+                        {notification.timestamp && (
+                          <div className="text-[10px] uppercase tracking-wide text-muted-foreground">
+                            {new Date(notification.timestamp).toLocaleTimeString()}
+                          </div>
+                        )}
+                      </div>
+                      {notification.action && (
+                        <button
+                          onClick={() => onAction?.(notification.action!.type, notification)}
+                          className="text-[11px] font-semibold uppercase tracking-wide text-primary hover:underline"
+                        >
+                          {notification.action.label}
+                        </button>
+                      )}
+                    </div>
+                    <p className="text-xs whitespace-pre-wrap break-words max-h-24 overflow-y-auto" style={{ color: 'var(--muted-foreground)' }}>{notification.description}</p>
+                    {notification.meta && (
+                      <div className="grid grid-cols-2 gap-2 text-[11px] text-muted-foreground">
+                        {Object.entries(notification.meta).map(([label, value]) => (
+                          <div key={label} className="flex items-center justify-between gap-2">
+                            <span className="uppercase tracking-wide text-[10px]">{label}</span>
+                            <span className="font-mono text-[11px]">{String(value)}</span>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                </div>
+                <button onClick={(e) => { e.stopPropagation(); onClear(notification.id); }} className="absolute top-4 right-4 text-muted-foreground hover:text-foreground transition-colors opacity-0 group-hover:opacity-100">
                   <XCircle className="w-4 h-4" />
                 </button>
               </div>

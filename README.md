@@ -1,30 +1,31 @@
 # Thesis News Platform
 
-A full-stack news aggregation platform that blends curated RSS feeds with AI-assisted research, analysis, and fact-checking. The project consists of a FastAPI backend and a Next.js 14 frontend, orchestrated through Docker Compose, and is optimized for rapid experimentation with Google Gemini-powered features.
+A full-stack news aggregation platform that blends curated RSS feeds with AI-assisted research, analysis, and fact-checking. The project consists of a FastAPI backend and a Next.js 14 frontend, with local Postgres and Chroma services for storage and retrieval.
 
 ## Architecture & Tech Stack
 - **Backend**: FastAPI (Python 3.11+), `backend/app/main.py`
 - **Frontend**: Next.js 14 (TypeScript, Tailwind CSS, shadcn/ui), `frontend/app`
-- **Data**: RSS ingestion with optional PostgreSQL & ChromaDB roadmap
+- **Data**: RSS ingestion with PostgreSQL + ChromaDB for storage and search
 - **State Management**: Zustand for client-side state
 - **AI/LLM**: Google Gemini 2.0 Flash via LangChain
-- **Containerization**: `docker-compose.yml` launches backend and frontend together
+- **Local Services**: `runlocal.sh` starts Postgres, Chroma, backend, and frontend without Docker
 - **3D/Interactive Visuals**: Three.js globe (future milestones)
 
 ## Quick Start
-### All Services (Recommended)
+### Local Services (Recommended)
 ```bash
-docker compose up --build
+./runlocal.sh services
+./runlocal.sh all
 ```
 Frontend: http://localhost:3000  
-Backend docs: http://localhost:8001/docs
+Backend docs: http://localhost:8000/docs
 
 ### Manual Backend Setup
 ```bash
 cd backend
 python -m venv .venv && source .venv/bin/activate
-pip install -r requirements.txt
-uvicorn app.main:app --reload --port 8001
+uv pip install -r requirements.txt
+uvicorn app.main:app --reload --port 8000
 ```
 
 ### Manual Frontend Setup
@@ -32,6 +33,13 @@ uvicorn app.main:app --reload --port 8001
 cd frontend
 npm install
 npm run dev
+```
+
+### Arch or Manjaro Postgres Setup
+```bash
+sudo pacman -S postgresql
+sudo -iu postgres initdb -D /var/lib/postgres/data
+sudo systemctl enable --now postgresql
 ```
 
 ### Required Environment Variables
@@ -54,6 +62,8 @@ The backend uses this for Gemini-powered analysis, agentic search, and fact-chec
 - **News Research Agent** – Searches cached articles, compares sources, exposes chain-of-thought, and falls back to web search when needed.
 - **Structured Research Responses** – SSE streaming that delivers markdown answers plus JSON article payloads for UI embeds.
 - **Fact-Checking Pipeline** – Single-call Gemini workflow with Google Search grounding that verifies claims and returns confidence, evidence, and sources.
+- **Reader Annotations** – Select text, add notes, and export markdown for Obsidian.
+- **Agentic Debug Logs** – JSONL log files with backend traces and frontend performance payloads.
 
 ---
 
@@ -79,7 +89,7 @@ Adapted from `AI_ANALYSIS_SETUP.md` and `QUICK_START_AI.md`.
 
 ### Setup Checklist
 - Obtain Gemini API key and place in `backend/.env`.
-- Install dependencies (`pip install -r requirements.txt`).
+- Install dependencies (`uv pip install -r requirements.txt`).
 - Start backend and verify `/api/article/analyze` in Swagger docs.
 - Trigger analysis from UI and confirm results populate.
 
@@ -118,7 +128,7 @@ The script first demos a population query, then enters interactive mode (`quit` 
 - Enable chat history via LangChain memory.
 
 ### Troubleshooting
-- **Missing LangChain**: re-run `pip install -r requirements.txt`.
+- **Missing LangChain**: re-run `uv pip install -r requirements.txt`.
 - **Empty search results**: DuckDuckGo may not cover niche queries; swap providers if needed.
 - **Slow responses**: consider caching or lowering tool usage via prompt tweaks.
 
@@ -127,7 +137,7 @@ The script first demos a population query, then enters interactive mode (`quit` 
 ## News Research Agent
 Derived from `NEWS_RESEARCH_AGENT.md`, `SEARCH_PAGE_REDESIGN.md`, and `SEARCH_STRUCTURED_RESPONSE.md`.
 
-### Highlights
+### Summary
 - Searches cached articles first, comparing source coverage before falling back to DuckDuckGo.
 - Chain-of-thought visualization streams via SSE with action/tool/observation labels.
 - Structured article payload (`json:articles`) powers inline grids beneath markdown responses.
@@ -164,7 +174,7 @@ Summarized from `FACT_CHECK_IMPLEMENTATION.md` and `SEARCH_STRUCTURED_RESPONSE.m
 ### Fact-Checking Pipeline
 - Single Gemini call (`gemini-2.0-flash-exp`) performs summary, bias, reporter analysis, fact-check suggestions, and **fact verification** with Google Search grounding.
 - Response augments `ArticleAnalysisResponse` with `fact_check_results` (claim, verification status, evidence, sources, confidence, notes) and `grounding_metadata`.
-- Frontend highlights verification results with colored badges (verified, partially verified, unverified, false) and evidence links.
+- Frontend shows verification results with colored badges (verified, partially verified, unverified, false) and evidence links.
 - Performance gains: ~80% token reduction and ~70% latency improvement compared to multi-call approach.
 
 ### Structured Research Response
@@ -176,6 +186,19 @@ Summarized from `FACT_CHECK_IMPLEMENTATION.md` and `SEARCH_STRUCTURED_RESPONSE.m
 - Ensure Gemini credentials allow Google Search grounding.
 - Inspect SSE event order when debugging UI rendering.
 - Fallback to cached article info if structured block parsing fails.
+
+---
+
+## Agentic Debug Logs
+Backend writes structured JSONL logs to `/tmp/scoop_debug_logs`. Frontend performance reports are posted to `/debug/logs/frontend` and stored in the same session log.
+
+To force frontend uploads outside development, set `NEXT_PUBLIC_ENABLE_AGENTIC_LOGGING=true`.
+
+### Debug Entry Points
+- `GET /debug/logs/report` for a full agentic debug report
+- `GET /debug/logs/files` to list JSONL log files
+- `GET /debug/logs/file/{filename}` to read events
+- `GET /debug/logs/frontend` to review recent frontend payloads
 
 ---
 

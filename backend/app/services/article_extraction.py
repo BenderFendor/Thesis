@@ -7,9 +7,10 @@ for the reading queue and reader mode.
 
 from typing import Dict, Any, Optional
 import asyncio
-from newspaper import Article  # type: ignore[import-unresolved]
+from newspaper import Article, Config  # type: ignore[import-unresolved]
 
 from app.core.logging import get_logger
+from app.services.debug_logger import debug_logger, EventType
 
 logger = get_logger("article_extraction")
 
@@ -45,7 +46,13 @@ def _extract_sync(url: str) -> Dict[str, Any]:
     parse the article.
     """
     try:
-        article = Article(url)
+        config = Config()
+        config.browser_user_agent = (
+            "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 "
+            "(KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+        )
+        config.request_timeout = 12
+        article = Article(url, config=config)
         article.download()
         article.parse()
 
@@ -63,6 +70,14 @@ def _extract_sync(url: str) -> Dict[str, Any]:
         }
     except Exception as e:
         logger.error("Sync extraction failed for %s: %s", url, e)
+        debug_logger.log_event(
+            EventType.REQUEST_ERROR,
+            component="article_extraction",
+            operation="extract",
+            message="Article extraction failed",
+            details={"url": url},
+            error=e,
+        )
         return {
             "success": False,
             "error": str(e),

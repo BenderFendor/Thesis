@@ -34,7 +34,7 @@ export const useNewsStream = (options: UseNewsStreamOptions = {}) => {
   const abortControllerRef = useRef<AbortController | null>(null)
   const isMountedRef = useRef<boolean>(true)
   const startingRef = useRef<boolean>(false)
-  const seenArticleIdsRef = useRef<Set<number>>(new Set())
+  const seenArticleIdsRef = useRef<Set<string>>(new Set())
 
   const startStream = useCallback(async (streamOptions?: Partial<StreamOptions>) => {
     if (startingRef.current || isStreaming) {
@@ -102,10 +102,11 @@ export const useNewsStream = (options: UseNewsStreamOptions = {}) => {
 
           // Filter out duplicates using a Set of article IDs
           const newArticles = sourceArticles.filter(article => {
-            if (seenArticleIdsRef.current.has(article.id)) {
+            const key = article.url ? `url:${article.url}` : `id:${article.id}`;
+            if (seenArticleIdsRef.current.has(key)) {
               return false; // Skip duplicate
             }
-            seenArticleIdsRef.current.add(article.id);
+            seenArticleIdsRef.current.add(key);
             return true; // Include new article
           });
 

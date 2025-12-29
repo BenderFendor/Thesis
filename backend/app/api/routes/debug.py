@@ -2,11 +2,12 @@ from __future__ import annotations
 
 import re
 from datetime import datetime, timezone
-from typing import Dict, List
+from typing import Dict, List, Any
 
 import feedparser  # type: ignore[import-unresolved]
 from fastapi import APIRouter, HTTPException, Query
 from fastapi.concurrency import run_in_threadpool
+from pydantic import BaseModel, Field
 from sqlalchemy import func, select  # type: ignore[import-unresolved]
 
 from app.core.config import settings
@@ -623,6 +624,36 @@ async def get_updates_subscribers() -> Dict[str, object]:
 
 
 # --- Debug Logger Endpoints ---
+
+
+class FrontendDebugReport(BaseModel):
+    session_id: str = Field(..., description="Frontend performance session ID")
+    summary: Dict[str, Any]
+    recent_events: List[Dict[str, Any]] = []
+    slow_operations: List[Dict[str, Any]] = []
+    errors: List[Dict[str, Any]] = []
+    dom_stats: Dict[str, Any] | None = None
+    location: str | None = None
+    user_agent: str | None = None
+    generated_at: str | None = None
+
+
+@router.post("/logs/frontend")
+async def ingest_frontend_debug_report(report: FrontendDebugReport) -> Dict[str, object]:
+    """
+    Store a frontend debug payload for agentic debugging.
+    """
+    debug_logger.log_frontend_report(report.model_dump())
+    return {"status": "ok"}
+
+
+@router.get("/logs/frontend")
+async def get_frontend_debug_reports() -> Dict[str, object]:
+    """
+    Return recent frontend debug payloads.
+    """
+    reports = debug_logger.get_frontend_reports()
+    return {"count": len(reports), "reports": reports}
 
 
 @router.get("/logs/report")

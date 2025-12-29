@@ -1,11 +1,12 @@
 "use client"
 
 import { useState, useEffect, useMemo } from "react"
-import { X, ExternalLink, Heart, Bookmark, AlertTriangle, DollarSign, Bug, Link as LinkIcon, Rss, Sparkles, Maximize2, Minimize2, Loader2, Search, RefreshCw, CheckCircle2, XCircle, Copy, PlusCircle, MinusCircle, Star } from "lucide-react"
+import { useRouter } from "next/navigation"
+import { X, ExternalLink, Heart, Bookmark, AlertTriangle, DollarSign, Bug, Link as LinkIcon, Rss, Sparkles, Maximize2, Minimize2, Loader2, Search, RefreshCw, CheckCircle2, XCircle, Copy, PlusCircle, MinusCircle, Star, BookOpen } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
-import { type NewsArticle, getSourceById, type NewsSource, fetchSourceDebugData, type SourceDebugData, analyzeArticle, type ArticleAnalysis, API_BASE_URL, createBookmark, deleteBookmark, performAgenticSearch, type FactCheckResult } from "@/lib/api"
+import { type NewsArticle, getSourceById, type NewsSource, fetchSourceDebugData, type SourceDebugData, analyzeArticle, type ArticleAnalysis, API_BASE_URL, createBookmark, deleteBookmark, performAgenticSearch, type FactCheckResult, addToReadingQueue, ENABLE_READER_MODE } from "@/lib/api"
 import { useReadingQueue } from "@/hooks/useReadingQueue"
 import { useFavorites } from "@/hooks/useFavorites"
 import { useInlineDefinition } from "@/hooks/useInlineDefinition"
@@ -13,6 +14,7 @@ import InlineDefinition from "@/components/inline-definition"
 import { ReporterProfilePanel } from "@/components/reporter-profile"
 import { OrganizationPanel } from "@/components/organization-panel"
 import { MaterialContextPanel } from "@/components/material-context-panel"
+import { toast } from "sonner"
 
 type FactCheckStatus = FactCheckResult["verification_status"]
 type FactCheckStatusFilter = FactCheckStatus | "all"
@@ -35,6 +37,18 @@ const STATUS_FILTERS: FactCheckStatusFilter[] = ["all", "verified", "partially-v
 
 const fullArticleCache = new Map<string, string | null>()
 
+const isExtractableUrl = (url?: string | null) => {
+  if (!url) return false
+  return /^https?:\/\//i.test(url)
+}
+
+const getArticleCacheKey = (article: NewsArticle) => {
+  if (isExtractableUrl(article.url)) {
+    return article.url
+  }
+  return `article_${article.id}`
+}
+
 interface ArticleDetailModalProps {
   article: NewsArticle | null
   isOpen: boolean
@@ -44,6 +58,7 @@ interface ArticleDetailModalProps {
 }
 
 export function ArticleDetailModal({ article, isOpen, onClose, initialIsBookmarked = false, onBookmarkChange }: ArticleDetailModalProps) {
+  const router = useRouter()
   const [isLiked, setIsLiked] = useState(false)
   const [isBookmarked, setIsBookmarked] = useState(initialIsBookmarked)
   const { addArticleToQueue, removeArticleFromQueue, isArticleInQueue } = useReadingQueue()
@@ -68,6 +83,7 @@ export function ArticleDetailModal({ article, isOpen, onClose, initialIsBookmark
   const [agenticAnswer, setAgenticAnswer] = useState<string | null>(null)
   const [agenticError, setAgenticError] = useState<string | null>(null)
   const [agenticHistory, setAgenticHistory] = useState<Array<{ claim: string; answer: string; timestamp: number }>>([])
+  const [openReaderLoading, setOpenReaderLoading] = useState(false)
 
   useEffect(() => {
     const loadSource = async () => {
@@ -102,7 +118,8 @@ export function ArticleDetailModal({ article, isOpen, onClose, initialIsBookmark
     const loadFullArticle = async () => {
       if (!article) return
 
-      const cached = fullArticleCache.get(article.url)
+      const cacheKey = getArticleCacheKey(article)
+      const cached = fullArticleCache.get(cacheKey)
       if (cached !== undefined) {
         setFullArticleText(cached)
         setArticleLoading(false)
@@ -113,17 +130,24 @@ export function ArticleDetailModal({ article, isOpen, onClose, initialIsBookmark
       setFullArticleText(article.content || article.summary || null)
 
       try {
-        // Use the newspaper library endpoint to get full article text
-        const response = await fetch(`${API_BASE_URL}/article/extract?url=${encodeURIComponent(article.url)}`, {
-          signal: abortController.signal
-        })
-        if (response.ok) {
-          const data = await response.json()
-          const extractedText = data.text || data.full_text || null
-          if (extractedText) {
-            fullArticleCache.set(article.url, extractedText)
+        if (!isExtractableUrl(article.url)) {
+          fullArticleCache.set(cacheKey, article.content || article.summary || null)
+          setArticleLoading(false)
+          return
+        }
+        if (isExtractableUrl(article.url)) {
+          // Use the newspaper library endpoint to get full article text
+          const response = await fetch(`${API_BASE_URL}/article/extract?url=${encodeURIComponent(article.url)}`, {
+            signal: abortController.signal
+          })
+          if (response.ok) {
+            const data = await response.json()
+            const extractedText = data.text || data.full_text || null
+            if (extractedText) {
+              fullArticleCache.set(cacheKey, extractedText)
+            }
+            setFullArticleText(extractedText || article.content || article.summary || null)
           }
-          setFullArticleText(extractedText || article.content || article.summary || null)
         }
       } catch (e) {
         if ((e as Error).name !== "AbortError") {
@@ -250,6 +274,25 @@ export function ArticleDetailModal({ article, isOpen, onClose, initialIsBookmark
     }
   }
 
+  const handleOpenInReader = async () => {
+    if (!article) return
+
+    try {
+      setOpenReaderLoading(true)
+      const queueItem = await addToReadingQueue(article)
+      if (!isArticleInQueue(article.url)) {
+        addArticleToQueue(article)
+      }
+      onClose()
+      router.push(`/reader/${queueItem.id}`)
+    } catch (error) {
+      console.error("Failed to open in reader:", error)
+      toast.error("Failed to open in reader")
+    } finally {
+      setOpenReaderLoading(false)
+    }
+  }
+
   const handleBookmarkToggle = async () => {
     if (!article?.id) return
 
@@ -338,7 +381,7 @@ export function ArticleDetailModal({ article, isOpen, onClose, initialIsBookmark
   if (!isOpen || !article) return null
 
   return (
-    <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+    <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4 animate-in fade-in-0 duration-200">
       {/* Inline Definition Popover */}
       <InlineDefinition
         result={inlineResult}
@@ -346,7 +389,7 @@ export function ArticleDetailModal({ article, isOpen, onClose, initialIsBookmark
         setOpen={setInlineOpen}
         anchorRef={inlineAnchorRef}
       />
-      <div className={`bg-[var(--news-bg-primary)] border border-border/60 rounded-xl shadow-2xl shadow-black/40 transition-all duration-300 ${isExpanded
+      <div className={`bg-[var(--news-bg-primary)] border border-border/60 rounded-xl shadow-2xl shadow-black/40 transition-all duration-300 animate-in zoom-in-95 fade-in-0 duration-200 ${isExpanded
         ? 'w-full h-full max-w-none max-h-none overflow-y-auto'
         : 'max-w-4xl w-full max-h-[90vh] overflow-hidden'
         }`}>
@@ -547,6 +590,20 @@ export function ArticleDetailModal({ article, isOpen, onClose, initialIsBookmark
                         <PlusCircle className="h-4 w-4 mr-2" />
                       )}
                       {article && isArticleInQueue(article.url) ? "Remove from Queue" : "Add to Queue"}
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={handleOpenInReader}
+                      disabled={!ENABLE_READER_MODE || openReaderLoading}
+                      title={ENABLE_READER_MODE ? "Open in Reader" : "Reader mode is disabled"}
+                    >
+                      {openReaderLoading ? (
+                        <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                      ) : (
+                        <BookOpen className="h-4 w-4 mr-2" />
+                      )}
+                      Open in Reader
                     </Button>
                   </div>
                   <Button variant="outline" size="sm" asChild>

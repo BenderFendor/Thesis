@@ -203,6 +203,7 @@ class DebugLoggerService:
         self._log_file: Optional[Path] = None
         self._session_id = datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S")
         self._event_counter = 0
+        self._frontend_reports: Deque[Dict[str, Any]] = deque(maxlen=20)
         
         # Performance tracking
         self._bottleneck_counts: Dict[str, int] = {}
@@ -665,8 +666,10 @@ class DebugLoggerService:
         - Slow operations
         - Potential issues detected
         """
+        generated_at = datetime.now(timezone.utc).isoformat()
         return {
-            "timestamp": datetime.now(timezone.utc).isoformat(),
+            "timestamp": generated_at,
+            "generated_at": generated_at,
             "session_id": self._session_id,
             "performance_summary": self.get_performance_summary(),
             "active_streams": self.get_active_streams(),
@@ -676,6 +679,7 @@ class DebugLoggerService:
                 e.to_dict() for e in self._events
                 if e.error is not None
             ][-20:],
+            "frontend_reports": list(self._frontend_reports),
             "hang_suspects": [
                 stream_info
                 for stream_info in self.get_active_streams().values()
@@ -683,6 +687,23 @@ class DebugLoggerService:
             ],
             "recommendations": self._generate_recommendations(),
         }
+
+    def log_frontend_report(self, report: Dict[str, Any]) -> DebugEvent:
+        """Store a frontend debug payload and write it into the session log."""
+        with self._lock:
+            self._frontend_reports.append(report)
+
+        return self.log_event(
+            EventType.CUSTOM,
+            component="frontend",
+            operation="debug_report",
+            message="Frontend debug report received",
+            details=report,
+        )
+
+    def get_frontend_reports(self) -> List[Dict[str, Any]]:
+        """Return recent frontend debug payloads."""
+        return list(self._frontend_reports)
     
     def _generate_recommendations(self) -> List[str]:
         """Generate debugging recommendations based on current state."""
