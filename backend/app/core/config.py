@@ -20,7 +20,7 @@ class Settings:
     app_version: str = "1.0.0"
     gemini_api_key: Optional[str] = os.getenv("GEMINI_API_KEY")
     open_router_api_key: Optional[str] = os.getenv("OPEN_ROUTER_API_KEY")
-    open_router_model: str = os.getenv("OPEN_ROUTER_MODEL", "google/gemini-2.0-flash-exp:free")
+    open_router_model: str = os.getenv("OPEN_ROUTER_MODEL", "google/gemini-3-flash-preview")
     frontend_origins: tuple[str, ...] = (
         "http://localhost:3000",
         "http://localhost:3001",

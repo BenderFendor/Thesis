@@ -84,6 +84,8 @@ export function ArticleDetailModal({ article, isOpen, onClose, initialIsBookmark
   const [agenticError, setAgenticError] = useState<string | null>(null)
   const [agenticHistory, setAgenticHistory] = useState<Array<{ claim: string; answer: string; timestamp: number }>>([])
   const [openReaderLoading, setOpenReaderLoading] = useState(false)
+  const [aiAnalysisRequested, setAiAnalysisRequested] = useState(false)
+  const [researchPanelsEnabled, setResearchPanelsEnabled] = useState(false)
 
   useEffect(() => {
     const loadSource = async () => {
@@ -164,7 +166,7 @@ export function ArticleDetailModal({ article, isOpen, onClose, initialIsBookmark
     }
   }, [article?.url, isOpen])
 
-  // Auto-load AI analysis when modal opens (background)
+  // Reset AI state when modal opens
   useEffect(() => {
     setDebugOpen(false)
     setDebugData(null)
@@ -176,10 +178,8 @@ export function ArticleDetailModal({ article, isOpen, onClose, initialIsBookmark
     setAgenticError(null)
     setAgenticHistory([])
     setActiveStatusFilter("all")
-
-    if (isOpen && article) {
-      loadAiAnalysis()
-    }
+    setAiAnalysisRequested(false)
+    setResearchPanelsEnabled(false)
   }, [article?.url, isOpen])
 
   useEffect(() => {
@@ -226,6 +226,7 @@ export function ArticleDetailModal({ article, isOpen, onClose, initialIsBookmark
   const loadAiAnalysis = async () => {
     if (!article) return
     try {
+      setAiAnalysisRequested(true)
       setAiAnalysisLoading(true)
       const analysis = await analyzeArticle(article.url, article.source)
       setAiAnalysis(analysis)
@@ -315,6 +316,13 @@ export function ArticleDetailModal({ article, isOpen, onClose, initialIsBookmark
   }
 
   const factCheckResults = !isOpen || !article ? [] : (aiAnalysis?.fact_check_results ?? [])
+  const canRequestAiAnalysis = !aiAnalysisRequested || Boolean(aiAnalysis?.error)
+  const aiActionLabel = (() => {
+    if (!aiAnalysisRequested) return "Run AI Analysis"
+    if (aiAnalysisLoading) return "Running AI Analysis"
+    if (aiAnalysis?.error) return "Retry AI Analysis"
+    return "AI Analysis Ready"
+  })()
 
   const statusCounts = useMemo(() => {
     return factCheckResults.reduce(
@@ -380,6 +388,35 @@ export function ArticleDetailModal({ article, isOpen, onClose, initialIsBookmark
 
   if (!isOpen || !article) return null
 
+  const hasRealImage = (src?: string | null) => {
+    if (!src) return false
+    const trimmed = src.trim()
+    if (!trimmed) return false
+    const lower = trimmed.toLowerCase()
+    return !lower.includes("/placeholder.svg") && !lower.includes("/placeholder.jpg")
+  }
+
+  const formatDate = (date: string) => {
+    const parsed = new Date(date)
+    if (Number.isNaN(parsed.getTime())) return date
+    return parsed.toLocaleDateString("en-US", {
+      month: "short",
+      day: "numeric",
+      year: "numeric",
+    })
+  }
+
+  const heroImage = hasRealImage(article.image) ? article.image : null
+  const summaryText = (article.summary || "").trim()
+  const contentText = (article.content || "").trim()
+  const fullText = (fullArticleText || "").trim()
+  const showSummary = Boolean(
+    summaryText &&
+      summaryText !== fullText &&
+      summaryText !== contentText
+  )
+  const articleHost = isExtractableUrl(article.url) ? new URL(article.url).hostname : undefined
+
   return (
     <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4 animate-in fade-in-0 duration-200">
       {/* Inline Definition Popover */}
@@ -415,25 +452,35 @@ export function ArticleDetailModal({ article, isOpen, onClose, initialIsBookmark
 
         {/* Content Wrapper */}
         <div className={isExpanded ? "" : "overflow-y-auto max-h-[calc(90vh-80px)]"}>
-          {/* Hero Image Section */}
-          <div className={`relative bg-[var(--news-bg-secondary)] overflow-hidden ${isExpanded ? 'h-[60vh] min-h-[400px]' : 'h-48'
-            }`}>
-            <img
-              src={article.image || "/placeholder.svg"}
-              alt={article.title}
-              className="w-full h-full object-cover opacity-60"
-            />
-            <div className="absolute inset-0 bg-gradient-to-t from-[var(--news-bg-primary)] via-[var(--news-bg-primary)]/70 to-transparent" />
+          {/* Hero Section */}
+          <div className={`relative overflow-hidden ${isExpanded ? 'h-[60vh] min-h-[400px]' : 'h-48'} ${heroImage ? "bg-[var(--news-bg-secondary)]" : "bg-[var(--news-bg-primary)]"}`}>
+            {heroImage ? (
+              <>
+                <img
+                  src={heroImage}
+                  alt={article.title}
+                  className="w-full h-full object-cover opacity-60"
+                />
+                <div className="absolute inset-0 bg-gradient-to-t from-[var(--news-bg-primary)] via-[var(--news-bg-primary)]/70 to-transparent" />
+              </>
+            ) : (
+              <div className="absolute inset-0 bg-[radial-gradient(circle_at_top,_rgba(255,255,255,0.08),_transparent_60%)]" />
+            )}
 
             {/* Hero Content */}
             <div className="absolute inset-0 flex flex-col justify-end">
               <div className="max-w-5xl mx-auto w-full px-8 pb-12">
                 {/* Badges */}
-                <div className="flex items-center gap-3 mb-6">
+                <div className="flex flex-wrap items-center gap-3 mb-6">
                   <Badge className={getCredibilityColor(article.credibility)}>
                     {article.credibility.toUpperCase()} CREDIBILITY
                   </Badge>
                   <Badge className={getBiasColor(article.bias)}>{article.bias.toUpperCase()} BIAS</Badge>
+                  {article.category && (
+                    <Badge variant="outline" className="text-xs uppercase">
+                      {article.category}
+                    </Badge>
+                  )}
                 </div>
 
                 {/* Title */}
@@ -443,10 +490,16 @@ export function ArticleDetailModal({ article, isOpen, onClose, initialIsBookmark
                 </h1>
 
                 {/* Meta */}
-                <div className="flex items-center gap-4 text-sm text-muted-foreground">
+                <div className="flex flex-wrap items-center gap-3 text-sm text-muted-foreground">
                   <span className="font-medium">{article.source}</span>
+                  {article.author && (
+                    <>
+                      <span>•</span>
+                      <span>Reporter: {article.author}</span>
+                    </>
+                  )}
                   <span>•</span>
-                  <span>{article.publishedAt}</span>
+                  <span>{formatDate(article.publishedAt)}</span>
                   <span>•</span>
                   <span>{article.country}</span>
                   {article.translated && (
@@ -465,12 +518,14 @@ export function ArticleDetailModal({ article, isOpen, onClose, initialIsBookmark
           {/* Main Content Area */}
           <div className={isExpanded ? "max-w-5xl mx-auto px-8 py-12" : "px-6 py-6"}>
             {/* Summary Quote */}
-            <div className={isExpanded ? "mb-12 border-l-4 border-primary pl-6 py-2" : "mb-6 border-l-4 border-primary pl-4 py-2"}>
-              <p className={`text-foreground/80 leading-relaxed font-light italic ${isExpanded ? 'text-2xl' : 'text-lg'
-                }`}>
-                "{article.summary}"
-              </p>
-            </div>
+            {showSummary && (
+              <div className={isExpanded ? "mb-12 border-l-4 border-primary pl-6 py-2" : "mb-6 border-l-4 border-primary pl-4 py-2"}>
+                <p className={`text-foreground/80 leading-relaxed font-light italic ${isExpanded ? 'text-2xl' : 'text-lg'
+                  }`}>
+                  {article.summary}
+                </p>
+              </div>
+            )}
 
             {/* Two Column Layout */}
             <div className={`grid gap-8 ${isExpanded ? 'grid-cols-1 lg:grid-cols-3 gap-12' : 'grid-cols-1'
@@ -575,6 +630,21 @@ export function ArticleDetailModal({ article, isOpen, onClose, initialIsBookmark
                     <Button
                       variant="ghost"
                       size="sm"
+                      onClick={loadAiAnalysis}
+                      disabled={!canRequestAiAnalysis || aiAnalysisLoading}
+                      className={aiAnalysisRequested && !aiAnalysis?.error ? "text-emerald-400" : "text-gray-400"}
+                      title="AI analysis is opt-in to reduce API calls"
+                    >
+                      {aiAnalysisLoading ? (
+                        <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                      ) : (
+                        <Sparkles className="h-4 w-4 mr-2" />
+                      )}
+                      {aiActionLabel}
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="sm"
                       onClick={() => {
                         if (article && isArticleInQueue(article.url)) {
                           removeArticleFromQueue(article.url)
@@ -618,6 +688,44 @@ export function ArticleDetailModal({ article, isOpen, onClose, initialIsBookmark
               {/* Sidebar - 1/3 width - Only show in expanded mode */}
               {isExpanded && (
                 <div className="lg:col-span-1 space-y-6">
+                  {!aiAnalysisRequested && (
+                    <div className="rounded-lg border border-border/60 bg-[var(--news-bg-secondary)]/70 p-5 text-sm text-muted-foreground">
+                      <p className="font-mono text-[10px] uppercase tracking-[0.3em] text-muted-foreground">AI Analysis</p>
+                      <p className="mt-2 text-foreground/80">
+                        AI analysis is off by default to reduce API calls. Use the “Run AI Analysis” button when you need it.
+                      </p>
+                    </div>
+                  )}
+
+                  <div className="rounded-lg border border-border/60 bg-[var(--news-bg-secondary)]/70 p-5">
+                    <div className="flex items-center justify-between">
+                      <p className="font-mono text-[10px] uppercase tracking-[0.3em] text-muted-foreground">Source Research</p>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => setResearchPanelsEnabled((prev) => !prev)}
+                        className="border-border/60"
+                      >
+                        {researchPanelsEnabled ? "Disable" : "Enable"}
+                      </Button>
+                    </div>
+                    <p className="mt-2 text-xs text-muted-foreground">
+                      Runs reporter, organization, and material-context research on demand.
+                    </p>
+                  </div>
+
+                  {aiAnalysisRequested && aiAnalysisLoading && (
+                    <div className="rounded-lg border border-border/60 bg-[var(--news-bg-secondary)]/70 p-5 text-sm text-muted-foreground">
+                      Running AI analysis…
+                    </div>
+                  )}
+
+                  {aiAnalysisRequested && aiAnalysis && aiAnalysis.error && (
+                    <div className="rounded-lg border border-rose-500/40 bg-rose-500/10 p-5 text-sm text-rose-200">
+                      {aiAnalysis.error}
+                    </div>
+                  )}
+
                   {/* AI Analysis - Integrated */}
                   {aiAnalysis && aiAnalysis.success && (
                     <div className="sticky top-6 space-y-6">
@@ -673,39 +781,6 @@ export function ArticleDetailModal({ article, isOpen, onClose, initialIsBookmark
                               <p className="text-white mt-1">{aiAnalysis.source_analysis.political_leaning}</p>
                             </div>
                           </div>
-                        </div>
-                      )}
-
-                      {/* Phase 5B: Organization Research Panel */}
-                      <div className="space-y-4">
-                        <OrganizationPanel
-                          organizationName={article.source}
-                          website={new URL(article.url).hostname}
-                          compact={true}
-                        />
-                      </div>
-
-                      {/* Phase 5B: Reporter Profile (if author exists) */}
-                      {article.author && (
-                        <div className="space-y-4">
-                          <ReporterProfilePanel
-                            reporterName={article.author}
-                            organization={article.source}
-                            compact={true}
-                          />
-                        </div>
-                      )}
-
-                      {/* Phase 5C: Material Context Analysis */}
-                      {(article.source_country || (article.mentioned_countries && article.mentioned_countries.length > 0)) && (
-                        <div className="space-y-4">
-                          <MaterialContextPanel
-                            source={article.source}
-                            sourceCountry={article.source_country || "US"}
-                            mentionedCountries={article.mentioned_countries || []}
-                            articleText={fullArticleText || article.content || article.summary}
-                            compact={true}
-                          />
                         </div>
                       )}
 
@@ -985,10 +1060,38 @@ export function ArticleDetailModal({ article, isOpen, onClose, initialIsBookmark
                               </li>
                             ))}
                           </ul>
-                        </div>
+                    </div>
+                  )}
+
+                  {researchPanelsEnabled && (
+                    <div className="space-y-4">
+                      <OrganizationPanel
+                        organizationName={article.source}
+                        website={articleHost}
+                        compact={true}
+                      />
+
+                      {article.author && (
+                        <ReporterProfilePanel
+                          reporterName={article.author}
+                          organization={article.source}
+                          compact={true}
+                        />
+                      )}
+
+                      {(article.source_country || (article.mentioned_countries && article.mentioned_countries.length > 0)) && (
+                        <MaterialContextPanel
+                          source={article.source}
+                          sourceCountry={article.source_country || "US"}
+                          mentionedCountries={article.mentioned_countries || []}
+                          articleText={fullArticleText || article.content || article.summary}
+                          compact={true}
+                        />
                       )}
                     </div>
                   )}
+                </div>
+              )}
 
                   {/* Source Transparency */}
                   <div className="bg-gray-900/50 rounded-lg p-6 border border-gray-800">
@@ -1013,6 +1116,16 @@ export function ArticleDetailModal({ article, isOpen, onClose, initialIsBookmark
                           <span className="text-gray-400">Funding:</span>
                           <span className="text-white text-xs">{source.funding?.join(", ") || "N/A"}</span>
                         </div>
+                        <div className="flex items-center gap-2 text-sm">
+                          <span className="text-gray-400">Published:</span>
+                          <span className="text-white text-xs">{formatDate(article.publishedAt)}</span>
+                        </div>
+                        {article.author && (
+                          <div className="flex items-center gap-2 text-sm">
+                            <span className="text-gray-400">Reporter:</span>
+                            <span className="text-white text-xs">{article.author}</span>
+                          </div>
+                        )}
 
                         {showSourceDetails && (
                           <div className="space-y-3 pt-3 border-t border-gray-700 text-sm">

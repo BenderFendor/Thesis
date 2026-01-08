@@ -1,5 +1,19 @@
 # Log
 
+## 2026-01-08: UI Cleanup, AI Call Reduction, and Docs Refresh
+
+### Overview
+Reworked the home and research UIs for clarity, reduced default AI calls, polished the globe flow, and updated model defaults and documentation.
+
+### Completed Features
+- Removed the desk sidebar and moved Research/Source Debug actions into the header.
+- Replaced the loading overlay, fixed opaque notifications, and removed placeholder hero images in article modals.
+- Added opt-in AI analysis and gated research panels to reduce background calls.
+- Improved article metadata display (reporter + human-readable date) and avoided duplicate summary/full text.
+- Globe view now animates focus on country select with a clearer focus panel.
+- Research workspace now matches the main UI, adds a canvas view, and shows a session timeline for multi-turn work.
+- Removed Vercel analytics and v0 references; updated Gemini/OpenRouter model defaults in docs and backend.
+
 ## 2025-12-29: Reader Annotation Export, Digest UI, and Debug Logs
 
 ### Overview

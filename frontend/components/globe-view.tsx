@@ -73,6 +73,14 @@ export function GlobeView({ articles, loading }: GlobeViewProps) {
       .sort((a, b) => b.count - a.count)
   }, [filteredArticles])
 
+  const hasRealImage = (src?: string | null) => {
+    if (!src) return false
+    const trimmed = src.trim()
+    if (!trimmed) return false
+    const lower = trimmed.toLowerCase()
+    return !lower.includes("/placeholder.svg") && !lower.includes("/placeholder.jpg")
+  }
+
   const verificationStats = useMemo(() => {
     const total = filteredArticles.length
     if (total === 0) return { high: 0, medium: 0, low: 0, highPct: 0 }
@@ -84,6 +92,7 @@ export function GlobeView({ articles, loading }: GlobeViewProps) {
 
   const focusLabel = selectedCountryName || "Global Focus"
   const leadArticle = filteredArticles[0]
+  const topSources = sourceSummary.slice(0, 5)
 
   return (
     <div className="relative h-[calc(100vh-60px)] w-full overflow-hidden bg-[var(--news-bg-primary)] flex">
@@ -145,7 +154,30 @@ export function GlobeView({ articles, loading }: GlobeViewProps) {
 
       {/* Persistent Right Sidebar */}
       <div className="w-[420px] shrink-0 border-l border-border/60 bg-[var(--news-bg-secondary)]/95 backdrop-blur-xl flex flex-col z-50 shadow-2xl relative">
-        <div className="p-4 border-b border-border/60">
+        <div className="p-4 border-b border-border/60 space-y-3">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-[10px] font-mono uppercase tracking-[0.3em] text-muted-foreground">Focus</p>
+              <h3 className="font-serif text-2xl text-foreground">{focusLabel}</h3>
+              <p className="text-xs text-muted-foreground">
+                {filteredArticles.length} articles · {sourceSummary.length} sources
+              </p>
+            </div>
+            {selectedCountry && (
+              <Button variant="outline" size="sm" onClick={() => handleCountrySelect(null)}>
+                Reset
+              </Button>
+            )}
+          </div>
+          {topSources.length > 0 && (
+            <div className="flex flex-wrap gap-2">
+              {topSources.map((source) => (
+                <Badge key={source.name} variant="outline" className="text-[10px] uppercase tracking-wide">
+                  {source.name} · {source.count}
+                </Badge>
+              ))}
+            </div>
+          )}
           <Tabs value={sidebarTab} onValueChange={setSidebarTab} className="w-full">
             <TabsList className="w-full grid grid-cols-3 bg-black/20 p-1">
               <TabsTrigger value="briefing" className="text-[10px] uppercase tracking-widest">Briefing</TabsTrigger>
@@ -196,7 +228,7 @@ export function GlobeView({ articles, loading }: GlobeViewProps) {
                              {article.summary}
                            </p>
                          </div>
-                         {article.image && (
+                         {hasRealImage(article.image) && (
                            <div className="w-16 h-16 shrink-0 rounded bg-muted overflow-hidden">
                              <img src={article.image} alt="" className="w-full h-full object-cover opacity-70 group-hover:opacity-100 transition-opacity" />
                            </div>
@@ -226,15 +258,17 @@ export function GlobeView({ articles, loading }: GlobeViewProps) {
                   </div>
                   {leadArticle ? (
                     <div className="p-4">
-                       <div className="relative aspect-video w-full overflow-hidden rounded border border-border/40 mb-3">
-                         <img src={leadArticle.image || "/placeholder.jpg"} className="object-cover w-full h-full opacity-80" alt="Lead" />
-                         <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent" />
-                         <div className="absolute bottom-2 left-2 right-2">
-                           <h4 className="font-serif text-sm font-medium text-white leading-tight drop-shadow-md">
-                             {leadArticle.title}
-                           </h4>
+                       {hasRealImage(leadArticle.image) && (
+                         <div className="relative aspect-video w-full overflow-hidden rounded border border-border/40 mb-3">
+                           <img src={leadArticle.image} className="object-cover w-full h-full opacity-80" alt="Lead" />
+                           <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent" />
+                           <div className="absolute bottom-2 left-2 right-2">
+                             <h4 className="font-serif text-sm font-medium text-white leading-tight drop-shadow-md">
+                               {leadArticle.title}
+                             </h4>
+                           </div>
                          </div>
-                       </div>
+                       )}
                        <p className="text-xs text-muted-foreground leading-relaxed line-clamp-3 mb-3">
                          {leadArticle.summary}
                        </p>
@@ -318,5 +352,3 @@ export function GlobeView({ articles, loading }: GlobeViewProps) {
     </div>
   )
 }
-
-

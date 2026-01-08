@@ -2,10 +2,7 @@
 
 import { useEffect, useState, useMemo, useRef } from "react"
 import dynamic from "next/dynamic"
-import { scaleSequential } from "d3-scale"
-import { interpolateBuGn } from "d3-scale-chromatic"
 import { NewsArticle } from "@/lib/api"
-import { useTheme } from "next-themes"
 
 // Dynamically import Globe with no SSR
 const Globe = dynamic(() => import("react-globe.gl"), {
@@ -29,8 +26,40 @@ export function InteractiveGlobe({ articles, onCountrySelect, selectedCountry }:
   const [dimensions, setDimensions] = useState({ width: 0, height: 0 })
   const [countries, setCountries] = useState({ features: [] })
   const [hoverD, setHoverD] = useState<any | null>(null)
-  const { theme } = useTheme()
-  const isDark = theme === "dark"
+
+  const getFeatureCenter = (geometry: any) => {
+    if (!geometry || !geometry.coordinates) return null
+    const coords: Array<[number, number]> = []
+
+    const collect = (input: any) => {
+      if (!Array.isArray(input)) return
+      if (typeof input[0] === "number" && typeof input[1] === "number") {
+        coords.push([input[0], input[1]])
+        return
+      }
+      input.forEach(collect)
+    }
+
+    collect(geometry.coordinates)
+
+    if (coords.length === 0) return null
+    let minLng = coords[0][0]
+    let maxLng = coords[0][0]
+    let minLat = coords[0][1]
+    let maxLat = coords[0][1]
+
+    coords.forEach(([lng, lat]) => {
+      minLng = Math.min(minLng, lng)
+      maxLng = Math.max(maxLng, lng)
+      minLat = Math.min(minLat, lat)
+      maxLat = Math.max(maxLat, lat)
+    })
+
+    return {
+      lng: (minLng + maxLng) / 2,
+      lat: (minLat + maxLat) / 2,
+    }
+  }
 
   // Fetch countries GeoJSON
   useEffect(() => {
@@ -50,11 +79,18 @@ export function InteractiveGlobe({ articles, onCountrySelect, selectedCountry }:
     return counts
   }, [articles])
 
-  // Color scale for heatmap - Blue/Green scale is friendlier than Red
-  const colorScale = useMemo(() => {
-    const maxCount = Math.max(...Object.values(countryCounts), 0)
-    return scaleSequential(interpolateBuGn).domain([0, maxCount || 1]) 
-  }, [countryCounts])
+  const countryCenters = useMemo(() => {
+    const centers: Record<string, { lat: number; lng: number }> = {}
+    countries.features.forEach((feature: any) => {
+      const iso = feature?.properties?.ISO_A2
+      if (!iso) return
+      const center = getFeatureCenter(feature.geometry)
+      if (center) {
+        centers[iso] = center
+      }
+    })
+    return centers
+  }, [countries])
 
   // Auto-rotate
   useEffect(() => {
@@ -64,6 +100,24 @@ export function InteractiveGlobe({ articles, onCountrySelect, selectedCountry }:
       globeEl.current.pointOfView({ altitude: 2.5 })
     }
   }, [])
+
+  useEffect(() => {
+    if (!globeEl.current) return
+    const controls = globeEl.current.controls()
+    if (!selectedCountry) {
+      controls.autoRotate = true
+      globeEl.current.pointOfView({ altitude: 2.5 }, 900)
+      return
+    }
+    const center = countryCenters[selectedCountry]
+    controls.autoRotate = false
+    if (center) {
+      globeEl.current.pointOfView(
+        { lat: center.lat, lng: center.lng, altitude: 1.6 },
+        900
+      )
+    }
+  }, [selectedCountry, countryCenters])
 
   useEffect(() => {
     if (!containerRef.current) return

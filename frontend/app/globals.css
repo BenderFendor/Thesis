@@ -139,6 +139,15 @@
   }
 }
 
+@keyframes shimmer {
+  0% {
+    transform: translateX(-60%);
+  }
+  100% {
+    transform: translateX(60%);
+  }
+}
+
 /* Scroll Snap Styles for Modern Grid View */
 @layer components {
   .scroll-snap-container {

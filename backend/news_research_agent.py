@@ -228,7 +228,7 @@ if settings.open_router_api_key:
     )
 else:
     llm = ChatGoogleGenerativeAI(
-        model=os.getenv("NEWS_RESEARCH_GEMINI_MODEL", "gemini-2.0-flash"),
+        model=os.getenv("NEWS_RESEARCH_GEMINI_MODEL", "gemini-3-flash-preview"),
         temperature=0.2,
         max_retries=2,
     )

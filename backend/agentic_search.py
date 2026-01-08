@@ -7,7 +7,7 @@ This script demonstrates how to create an intelligent agent that can:
 3. Answer queries using real-time web information
 
 Required installations:
-pip install langchain langchain-google-genai python-dotenv requests
+uv pip install langchain langchain-google-genai python-dotenv requests
 
 Make sure to set GOOGLE_API_KEY in your .env file.
 """
@@ -103,14 +103,14 @@ def create_agent_executor():
     # Initialize the LLM
     if os.getenv("OPEN_ROUTER_API_KEY"):
         llm = ChatOpenAI(
-            model=os.getenv("OPEN_ROUTER_MODEL", "google/gemini-2.0-flash-exp:free"),
+            model=os.getenv("OPEN_ROUTER_MODEL", "google/gemini-3-flash-preview"),
             temperature=0.7,
             api_key=os.getenv("OPEN_ROUTER_API_KEY"),
             base_url="https://openrouter.ai/api/v1",
         )
     else:
         llm = ChatGoogleGenerativeAI(
-            model="gemini-2.0-flash",
+            model="gemini-3-flash-preview",
             temperature=0.7,
             google_api_key=os.getenv("GEMINI_API_KEY"),
         )
@@ -166,7 +166,7 @@ def main():
         return
 
     print("=" * 80)
-    print("Agentic Search Tool - Powered by Gemini 2.0 Flash or OpenRouter")
+    print("Agentic Search Tool - Powered by Gemini 3 Flash or OpenRouter")
     print("=" * 80)
     print()
 

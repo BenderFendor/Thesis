@@ -447,7 +447,7 @@ Respond in JSON:
 }}"""
 
             response = self.client.chat.completions.create(
-                model="google/gemini-2.0-flash-001",
+                model="google/gemini-3-flash-preview",
                 messages=[{"role": "user", "content": prompt}],
                 max_tokens=400,
                 temperature=0.3

@@ -43,8 +43,8 @@ export function NotificationsPopup({ notifications, onClear, onClearAll, onActio
   ).length;
 
   return (
-    <Card className="absolute top-16 right-0 w-96 rounded-xl shadow-2xl z-50 border-2 backdrop-blur-xl" style={{ backgroundColor: 'rgba(var(--card-rgb), 0.8)', borderColor: 'var(--border)' }}>
-      <CardHeader className="flex flex-row items-center justify-between p-4 border-b" style={{ borderColor: 'var(--border)' }}>
+    <Card className="absolute top-16 right-0 w-96 rounded-xl shadow-2xl z-50 border border-border/60 bg-[var(--news-bg-secondary)]">
+      <CardHeader className="flex flex-row items-center justify-between p-4 border-b border-border/60">
         <div className="flex items-center gap-2">
           <Bell className="w-5 h-5" />
           <CardTitle className="text-lg font-semibold">Notifications</CardTitle>
@@ -58,7 +58,7 @@ export function NotificationsPopup({ notifications, onClear, onClearAll, onActio
           <div className="flex flex-col max-h-96 overflow-y-auto">
             {notifications.map(notification => (
               <div key={notification.id} className="group relative">
-                <div className="flex items-start gap-3 p-4 border-b hover:bg-muted/50 transition-colors" style={{ borderColor: 'var(--border)' }}>
+                <div className="flex items-start gap-3 p-4 border-b border-border/60 hover:bg-muted/50 transition-colors">
                   <div className="mt-0.5">
                     {getTypeIcon(notification.type)}
                   </div>
@@ -99,7 +99,7 @@ export function NotificationsPopup({ notifications, onClear, onClearAll, onActio
                 </button>
               </div>
             ))}
-            <div className="p-2 text-center border-t" style={{ borderColor: 'var(--border)' }}>
+            <div className="p-2 text-center border-t border-border/60">
                 <button onClick={onClearAll} className="text-sm font-medium text-primary hover:underline">
                     Clear all notifications
                 </button>

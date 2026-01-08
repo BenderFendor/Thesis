@@ -16,7 +16,7 @@ const DOCKER_API_BASE_URL = resolveBaseUrl(process.env.NEXT_PUBLIC_DOCKER_API_UR
 // (In production, both frontend and backend would be served from the same origin)
 
 // --- Feature Gates ---
-export const ENABLE_READER_MODE = process.env.NEXT_PUBLIC_ENABLE_READER_MODE === "true"
+export const ENABLE_READER_MODE = process.env.NEXT_PUBLIC_ENABLE_READER_MODE !== "false"
 export const ENABLE_DIGEST = process.env.NEXT_PUBLIC_ENABLE_DIGEST === "true"
 export const ENABLE_HIGHLIGHTS = process.env.NEXT_PUBLIC_ENABLE_HIGHLIGHTS === "true"
 

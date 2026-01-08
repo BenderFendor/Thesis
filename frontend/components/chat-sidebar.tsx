@@ -2,7 +2,6 @@ import React, { useMemo, useState } from 'react'
 import { Button } from './ui/button'
 import {
   CheckSquare,
-  ChevronRight,
   PanelLeftClose,
   PanelLeftOpen,
   PenLine,
@@ -102,15 +101,15 @@ export function ChatSidebar({ chats, onSelect, onNewChat, onRename, onDelete, on
   if (collapsed) {
     // Compact vertical bar
     return (
-  <aside className="w-16 h-full bg-neutral-950/95 border-r border-neutral-900 flex flex-col items-center py-3 space-y-4 backdrop-blur">
-        <button onClick={onNewChat} title="New chat" className="p-2 rounded-md hover:bg-neutral-800/60 transition" aria-label="New chat">
-          <Plus className="w-4 h-4 text-neutral-200" />
+  <aside className="w-16 h-full bg-[var(--news-bg-primary)] border-r border-border/60 flex flex-col items-center py-3 space-y-4 backdrop-blur">
+        <button onClick={onNewChat} title="New chat" className="p-2 rounded-md hover:bg-[var(--news-bg-secondary)]/70 transition" aria-label="New chat">
+          <Plus className="w-4 h-4 text-foreground" />
         </button>
         <nav className="flex-1 w-full space-y-2 flex flex-col items-center px-1 overflow-y-auto">
           {chats.map(c => {
             const isActive = activeId === c.id
             return (
-              <button key={c.id} onClick={() => onSelect(c.id)} title={c.title} className={`w-10 h-10 rounded-md flex items-center justify-center ${isActive ? 'bg-primary/20 ring-1 ring-primary/30 translate-x-0' : 'bg-neutral-800/30 hover:bg-neutral-800/60'} transition-all`}>
+              <button key={c.id} onClick={() => onSelect(c.id)} title={c.title} className={`w-10 h-10 rounded-md flex items-center justify-center ${isActive ? 'bg-primary/20 ring-1 ring-primary/30 translate-x-0' : 'bg-[var(--news-bg-secondary)]/60 hover:bg-[var(--news-bg-secondary)]'} transition-all`}>
                 <span className="text-xs font-semibold text-primary">{c.title?.charAt(0)?.toUpperCase() || '?'}</span>
               </button>
             )
@@ -119,41 +118,41 @@ export function ChatSidebar({ chats, onSelect, onNewChat, onRename, onDelete, on
         <button
           onClick={onToggle}
           title="Expand"
-          className="p-2 rounded-md hover:bg-neutral-800/60 transition"
+          className="p-2 rounded-md hover:bg-[var(--news-bg-secondary)]/70 transition"
           aria-label="Expand sidebar"
         >
-          <PanelLeftOpen className="w-4 h-4 text-neutral-200" />
+          <PanelLeftOpen className="w-4 h-4 text-foreground" />
         </button>
       </aside>
     )
   }
 
   return (
-    <aside className="w-72 min-w-[18rem] bg-neutral-950/95 text-neutral-100 border-r border-neutral-900 h-full flex flex-col shadow-2xl shadow-black/40 backdrop-blur-md">
-      <div className="px-4 pt-4 pb-3 border-b border-neutral-900">
+    <aside className="w-72 min-w-[18rem] bg-[var(--news-bg-primary)] text-foreground border-r border-border/60 h-full flex flex-col shadow-2xl shadow-black/40 backdrop-blur-md">
+      <div className="px-4 pt-4 pb-3 border-b border-border/60">
         {!isSelectionMode ? (
           <div className="flex gap-2">
             <Button
               onClick={onNewChat}
               variant="ghost"
-              className="flex-1 justify-start gap-3 rounded-xl border border-neutral-800 bg-neutral-900/60 hover:bg-neutral-800/80 hover:border-neutral-700 transition-all duration-200 font-semibold font-serif text-sm"
+              className="flex-1 justify-start gap-3 rounded-xl border border-border/60 bg-[var(--news-bg-secondary)]/70 hover:bg-[var(--news-bg-secondary)] hover:border-primary/30 transition-all duration-200 font-semibold font-serif text-sm"
             >
               <Plus className="w-4 h-4" />
-              New research chat
+              New research session
             </Button>
             <Button
               onClick={toggleSelectionMode}
               variant="ghost"
               size="icon"
               title="Select chats"
-              className="rounded-xl border border-neutral-800 bg-neutral-900/60 hover:bg-neutral-800/80 hover:border-neutral-700 transition-all duration-200"
+              className="rounded-xl border border-border/60 bg-[var(--news-bg-secondary)]/70 hover:bg-[var(--news-bg-secondary)] hover:border-primary/30 transition-all duration-200"
             >
-              <CheckSquare className="w-4 h-4 text-neutral-400" />
+              <CheckSquare className="w-4 h-4 text-muted-foreground" />
             </Button>
           </div>
         ) : (
           <div className="flex items-center justify-between h-10">
-            <span className="text-sm font-medium text-neutral-300 pl-1">
+            <span className="text-sm font-medium text-muted-foreground pl-1">
               {selectedIds.size} selected
             </span>
             <div className="flex gap-1">
@@ -171,7 +170,7 @@ export function ChatSidebar({ chats, onSelect, onNewChat, onRename, onDelete, on
                 onClick={toggleSelectionMode}
                 variant="ghost"
                 size="sm"
-                className="text-neutral-400 hover:text-neutral-200 h-8 px-2"
+                className="text-muted-foreground hover:text-foreground h-8 px-2"
               >
                 <X className="w-4 h-4 mr-1" />
                 Cancel
@@ -181,20 +180,20 @@ export function ChatSidebar({ chats, onSelect, onNewChat, onRename, onDelete, on
         )}
         
         <div className="mt-4 relative">
-          <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-neutral-500" />
+          <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
           <input
             value={searchTerm}
             onChange={(event) => setSearchTerm(event.target.value)}
             placeholder="Search conversations"
             aria-label="Search chats"
-            className="w-full h-10 pl-10 pr-3 rounded-lg border border-neutral-800 bg-neutral-900/70 text-sm placeholder:text-neutral-500 focus:outline-none focus:ring-2 focus:ring-primary/40 focus:border-primary/40 transition-all"
+            className="w-full h-10 pl-10 pr-3 rounded-lg border border-border/60 bg-[var(--news-bg-secondary)]/70 text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/40 focus:border-primary/40 transition-all"
           />
         </div>
       </div>
 
       <div className="flex-1 overflow-y-auto py-3 px-3 space-y-2">
         {filteredChats.length === 0 ? (
-          <div className="px-3 py-6 text-sm text-neutral-500 font-serif">
+          <div className="px-3 py-6 text-sm text-muted-foreground font-serif">
             No chats match your search.
           </div>
         ) : (
@@ -219,10 +218,10 @@ export function ChatSidebar({ chats, onSelect, onNewChat, onRename, onDelete, on
                         isSelectionMode 
                           ? isSelected 
                             ? 'border-primary/50 bg-primary/10' 
-                            : 'border-transparent hover:bg-neutral-900/60 cursor-pointer'
+                            : 'border-transparent hover:bg-[var(--news-bg-secondary)]/70 cursor-pointer'
                           : isActive 
                             ? 'border-primary/50 bg-primary/10 shadow-lg shadow-primary/10' 
-                            : 'border-transparent hover:border-neutral-800 hover:bg-neutral-900/60'
+                            : 'border-transparent hover:border-border/60 hover:bg-[var(--news-bg-secondary)]/70'
                       }`}
                       onClick={() => {
                         if (isSelectionMode) {
@@ -231,7 +230,7 @@ export function ChatSidebar({ chats, onSelect, onNewChat, onRename, onDelete, on
                       }}
                     >
                       {isSelectionMode && (
-                        <div className={`w-4 h-4 rounded border flex items-center justify-center transition-colors ${isSelected ? 'bg-primary border-primary' : 'border-neutral-600 bg-transparent'}`}>
+                        <div className={`w-4 h-4 rounded border flex items-center justify-center transition-colors ${isSelected ? 'bg-primary border-primary' : 'border-border/60 bg-transparent'}`}>
                           {isSelected && <CheckSquare className="w-3 h-3 text-primary-foreground" />}
                         </div>
                       )}
@@ -256,7 +255,7 @@ export function ChatSidebar({ chats, onSelect, onNewChat, onRename, onDelete, on
                               }
                             }}
                             autoFocus
-                            className="w-full bg-neutral-900/80 border border-neutral-700 rounded-md px-2 py-1 text-sm font-serif focus:outline-none focus:ring-2 focus:ring-primary/40"
+                            className="w-full bg-[var(--news-bg-secondary)]/70 border border-border/60 rounded-md px-2 py-1 text-sm font-serif focus:outline-none focus:ring-2 focus:ring-primary/40"
                           />
                         </form>
                       ) : (
@@ -274,11 +273,11 @@ export function ChatSidebar({ chats, onSelect, onNewChat, onRename, onDelete, on
                           disabled={isSelectionMode} // Disable button behavior in selection mode, handled by parent div
                         >
                           <div>
-                            <div className="font-medium font-serif text-sm text-neutral-100 truncate">
+                            <div className="font-medium font-serif text-sm text-foreground truncate">
                               {chat.title}
                             </div>
                             {chat.lastMessage && (
-                              <div className="text-xs text-neutral-500 truncate mt-1">
+                              <div className="text-xs text-muted-foreground truncate mt-1">
                                 {chat.lastMessage}
                               </div>
                             )}
@@ -298,10 +297,10 @@ export function ChatSidebar({ chats, onSelect, onNewChat, onRename, onDelete, on
                                 startRename(chat)
                               }
                             }}
-                            className="p-1 rounded-md hover:bg-neutral-800/70 transition"
+                            className="p-1 rounded-md hover:bg-[var(--news-bg-secondary)]/70 transition"
                             aria-label="Rename chat"
                           >
-                            <PenLine className="w-4 h-4 text-neutral-300" />
+                            <PenLine className="w-4 h-4 text-muted-foreground" />
                           </button>
                           <button
                             type="button"
@@ -327,14 +326,14 @@ export function ChatSidebar({ chats, onSelect, onNewChat, onRename, onDelete, on
         )}
       </div>
 
-      <div className="px-4 py-3 border-t border-neutral-900 flex items-center justify-between text-xs text-neutral-500">
+      <div className="px-4 py-3 border-t border-border/60 flex items-center justify-between text-xs text-muted-foreground">
         <span className="font-serif tracking-wide">News Research</span>
         {onToggle && (
           <button
             onClick={onToggle}
-            className="px-3 py-2 rounded-lg border border-neutral-800 hover:border-neutral-600 hover:bg-neutral-900/70 transition"
+            className="px-3 py-2 rounded-lg border border-border/60 hover:border-primary/40 hover:bg-[var(--news-bg-secondary)]/70 transition"
           >
-            <div className="flex items-center gap-2 text-neutral-300">
+            <div className="flex items-center gap-2 text-muted-foreground">
               <PanelLeftClose className="w-4 h-4" />
               <span className="text-xs font-medium">Collapse</span>
             </div>

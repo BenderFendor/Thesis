@@ -11,12 +11,8 @@ import {
   List,
   Search,
   Menu,
-  ChevronRight,
-  AlertCircle,
-  ExternalLink,
-  Settings,
   Bell,
-  User,
+  Bug,
   Building2,
   Gamepad2,
   Shirt,
@@ -85,11 +81,9 @@ function NewsPage() {
   const [articleCount, setArticleCount] = useState<number>(0)
   const [showNotifications, setShowNotifications] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(false);
-  const [bioView, setBioView] = useState<"brief" | "depth">("brief");
   const [leadArticle, setLeadArticle] = useState<NewsArticle | null>(null);
   const [leadModalOpen, setLeadModalOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
-  const [deskOpen] = useState(true);
 
   // New: State for articles per category to avoid reloading on view switches
   const [articlesByCategory, setArticlesByCategory] = useState<Record<string, NewsArticle[]>>({})
@@ -397,34 +391,32 @@ function NewsPage() {
   return (
     <div className="min-h-screen flex flex-col bg-[var(--news-bg-primary)] text-foreground">
       <HalftoneOverlay />
-      {/* Enhanced Loading state */}
+      {/* Loading state */}
       {(loading || (streamHook.isStreaming && articlesByCategory[activeCategory]?.length === 0)) && (
-        <div className="fixed inset-0 flex items-center justify-center z-50" style={{ backgroundColor: 'var(--news-bg-primary)' }}>
-          <div className="relative before:absolute before:inset-0 before:bg-gradient-to-r before:from-primary/20 before:to-transparent before:animate-[shimmer_2s_infinite] before:rounded-full after:absolute after:inset-0 after:bg-gradient-to-r after:from-primary/10 after:via-primary/20 after:to-primary/10 after:animate-[shimmer_2s_infinite] after:rounded-full after:blur-xl before:blur-xl">
-            <div className="relative z-10 p-8 rounded-2xl border shadow-2xl backdrop-blur-sm" style={{ backgroundColor: 'var(--news-bg-secondary)', borderColor: 'var(--border)' }}>
-              <div className="flex flex-col items-center">
-                <div className="relative">
-                  <div className="w-16 h-16 border-4 rounded-full" style={{ borderColor: 'var(--muted)' }}></div>
-                  <div className="absolute top-0 left-0 w-16 h-16 border-t-4 border-primary rounded-full animate-spin"></div>
-                  <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 text-primary">
-                    <Newspaper className="w-6 h-6" />
-                  </div>
-                </div>
-                <h3 className="mt-6 text-xl font-semibold text-white">Fetching the latest news</h3>
-                <p className="mt-2 text-sm max-w-xs text-center" style={{ color: 'var(--muted-foreground)' }}>
-                  {streamHook.currentMessage || 'Scanning global sources...'}
-                </p>
-                {streamHook.retryCount > 0 && (
-                  <div className="mt-4 px-4 py-2 rounded-full border" style={{ backgroundColor: 'var(--news-bg-secondary)', borderColor: 'var(--ring)', color: 'var(--ring)' }}>
-                    <p className="text-sm">
-                      Retry attempt {streamHook.retryCount}/{streamHook.maxRetries}
-                    </p>
-                  </div>
-                )}
-                <div className="mt-6 w-48 h-1 rounded-full overflow-hidden" style={{ backgroundColor: 'var(--muted)' }}>
-                  <div className="h-full bg-gradient-to-r from-primary to-amber-300 animate-pulse"></div>
-                </div>
+        <div className="fixed inset-0 z-50 grid place-items-center bg-[var(--news-bg-primary)]/95 backdrop-blur">
+          <div className="relative w-[min(420px,90vw)] overflow-hidden rounded-2xl border border-border/60 bg-[var(--news-bg-secondary)] p-8 shadow-2xl">
+            <div className="absolute inset-0 bg-[radial-gradient(circle_at_top,_rgba(255,255,255,0.08),_transparent_60%)]" />
+            <div className="relative">
+              <div className="flex items-center justify-between">
+                <span className="rounded-full border border-primary/30 bg-primary/15 px-3 py-1 text-[10px] font-mono uppercase tracking-[0.3em] text-primary">
+                  Live ingest
+                </span>
+                <span className="text-[10px] uppercase tracking-[0.3em] text-muted-foreground">
+                  {streamHook.progress.completed}/{streamHook.progress.total}
+                </span>
               </div>
+              <h3 className="mt-6 font-serif text-2xl text-foreground">Refreshing the news index</h3>
+              <p className="mt-2 text-sm text-muted-foreground">
+                {streamHook.currentMessage || "Scanning global sources and clustering coverage."}
+              </p>
+              <div className="mt-6 h-2 w-full overflow-hidden rounded-full bg-muted/40">
+                <div className="h-full w-1/2 animate-[shimmer_2s_infinite] bg-gradient-to-r from-primary/20 via-primary/60 to-primary/20" />
+              </div>
+              {streamHook.retryCount > 0 && (
+                <div className="mt-4 rounded-lg border border-border/60 bg-[var(--news-bg-primary)]/50 px-3 py-2 text-xs text-muted-foreground">
+                  Retry attempt {streamHook.retryCount}/{streamHook.maxRetries}
+                </div>
+              )}
             </div>
           </div>
         </div>
@@ -536,6 +528,32 @@ function NewsPage() {
                 Press Enter to open research workspace
               </div>
             </div>
+            <div className="flex items-center gap-1 lg:hidden">
+              <Link href="/search">
+                <Button variant="ghost" size="sm" className="h-9 w-9 p-0 border border-border/60" title="Research">
+                  <Search className="w-4 h-4" />
+                </Button>
+              </Link>
+              <Link href="/sources/debug">
+                <Button variant="ghost" size="sm" className="h-9 w-9 p-0 border border-border/60" title="Source Debug">
+                  <Bug className="w-4 h-4" />
+                </Button>
+              </Link>
+            </div>
+            <div className="hidden lg:flex items-center gap-2">
+              <Button asChild variant="outline" size="sm" className="border-border/60 bg-transparent text-xs">
+                <Link href="/search">
+                  <Search className="w-3.5 h-3.5 mr-2" />
+                  Research
+                </Link>
+              </Button>
+              <Button asChild variant="outline" size="sm" className="border-border/60 bg-transparent text-xs">
+                <Link href="/sources/debug">
+                  <Bug className="w-3.5 h-3.5 mr-2" />
+                  Source Debug
+                </Link>
+              </Button>
+            </div>
             <HeaderHint label="Filter sources">
               <Button
                 variant="ghost"
@@ -565,20 +583,6 @@ function NewsPage() {
                 onAction={handleNotificationAction}
               />
             )}
-            <HeaderHint label="Settings">
-              <Link href="/settings">
-                <Button variant="ghost" size="sm" className="h-9 w-9 p-0 border border-border/60" title="Settings">
-                  <Settings className="w-4 h-4" />
-                </Button>
-              </Link>
-            </HeaderHint>
-            <HeaderHint label="Profile">
-              <Link href="/profile">
-                <Button variant="ghost" size="sm" className="h-9 w-9 p-0 border border-border/60" title="Profile">
-                  <User className="w-4 h-4" />
-                </Button>
-              </Link>
-            </HeaderHint>
           </div>
         </div>
       </header>
@@ -709,24 +713,6 @@ function NewsPage() {
                     </TabsTrigger>
                   ))}
                 </TabsList>
-                {isGlobeView && (
-                  <div className="mt-6 flex flex-wrap items-center justify-between gap-3">
-                    <span className="text-[10px] font-mono uppercase tracking-[0.3em] text-muted-foreground">
-                      Desk Actions
-                    </span>
-                    <div className="flex flex-wrap gap-2 text-xs">
-                      <Button asChild variant="outline" size="sm" className="border-border/60 bg-transparent text-xs">
-                        <Link href="/search">Research</Link>
-                      </Button>
-                      <Button asChild variant="outline" size="sm" className="border-border/60 bg-transparent text-xs">
-                        <Link href="/sources/debug">Source Debug</Link>
-                      </Button>
-                      <Button asChild variant="outline" size="sm" className="border-border/60 bg-transparent text-xs">
-                        <Link href="/settings">Settings</Link>
-                      </Button>
-                    </div>
-                  </div>
-                )}
               </div>
               {categories.map((category) => (
                 <TabsContent key={category.id} value={category.id} className="mt-0 flex-1 overflow-hidden flex flex-col">
@@ -751,125 +737,6 @@ function NewsPage() {
               ))}
             </Tabs>
           </section>
-
-          {!isGlobeView && deskOpen && (
-            <aside className="fixed right-0 top-24 bottom-6 z-40 w-[320px] group">
-              <div className="flex h-full translate-x-[calc(100%-2.5rem)] group-hover:translate-x-0 group-focus-within:translate-x-0 transition-transform duration-300 ease-out">
-                <div className="w-10 flex items-center justify-center bg-[var(--news-bg-secondary)] border-l border-border/60">
-                  <span className="text-[10px] font-mono uppercase tracking-[0.3em] rotate-90 whitespace-nowrap text-muted-foreground">
-                    Desk
-                  </span>
-                </div>
-                <div className="flex-1 h-full overflow-y-auto p-6 space-y-6 bg-[var(--news-bg-primary)] border-l border-border/60 shadow-xl">
-                <div className="group rounded-lg border border-border/60 bg-[var(--news-bg-secondary)] overflow-hidden transition-all duration-500 ease-out">
-                  <div className="p-5 flex items-center justify-between">
-                    <div>
-                      <h3 className="font-serif italic text-lg text-primary">Desk Summary</h3>
-                      <p className="text-[10px] font-mono uppercase tracking-[0.3em] text-muted-foreground mt-1">
-                        Context and verification
-                      </p>
-                    </div>
-                    <div className="flex gap-2">
-                      <button
-                        onClick={() => setBioView("brief")}
-                        className={`text-[9px] font-mono uppercase px-2 py-0.5 border ${
-                          bioView === "brief"
-                            ? "bg-primary text-primary-foreground border-primary"
-                            : "border-border/60 text-muted-foreground"
-                        }`}
-                      >
-                        Brief
-                      </button>
-                      <button
-                        onClick={() => setBioView("depth")}
-                        className={`text-[9px] font-mono uppercase px-2 py-0.5 border ${
-                          bioView === "depth"
-                            ? "bg-primary text-primary-foreground border-primary"
-                            : "border-border/60 text-muted-foreground"
-                        }`}
-                      >
-                        Depth
-                      </button>
-                    </div>
-                  </div>
-                  <div className="px-5 pb-5 transition-all duration-500 ease-out max-h-0 opacity-0 translate-y-2 group-hover:max-h-[460px] group-hover:opacity-100 group-hover:translate-y-0 group-focus-within:max-h-[460px] group-focus-within:opacity-100 group-focus-within:translate-y-0">
-                    <p className="text-sm text-foreground/75 leading-relaxed line-clamp-4">
-                      {bioView === "brief"
-                        ? "Scoop is a multi-perspective news desk focused on global context, evidence, and transparency. We synthesize sources and surface the signals that matter."
-                        : "Scoop combines curated RSS feeds with AI-assisted research to map bias, credibility, and claims across sources. The goal is a newsroom-grade interface that treats context as the headline and makes verification visible."}
-                    </p>
-                    <div className="mt-4 grid grid-cols-2 gap-3 text-xs">
-                      <div className="rounded border border-border/50 bg-[var(--news-bg-primary)]/40 px-3 py-2">
-                        <div className="text-[10px] uppercase text-muted-foreground">Articles</div>
-                        <div className="text-sm font-semibold">{articleCount}</div>
-                      </div>
-                      <div className="rounded border border-border/50 bg-[var(--news-bg-primary)]/40 px-3 py-2">
-                        <div className="text-[10px] uppercase text-muted-foreground">Sources</div>
-                        <div className="text-sm font-semibold">
-                          {selectedSources.size > 0 ? selectedSources.size : "All"}
-                        </div>
-                      </div>
-                      <div className="rounded border border-border/50 bg-[var(--news-bg-primary)]/40 px-3 py-2">
-                        <div className="text-[10px] uppercase text-muted-foreground">Confidence</div>
-                        <div className="text-sm font-semibold text-primary">{leadCredibility}</div>
-                      </div>
-                      <div className="rounded border border-border/50 bg-[var(--news-bg-primary)]/40 px-3 py-2">
-                        <div className="text-[10px] uppercase text-muted-foreground">Bias</div>
-                        <div className="text-sm font-semibold">{leadBias}</div>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-
-                <div className={`group rounded-lg border overflow-hidden transition-all duration-500 ease-out ${leadArticle?.credibility === "low" ? "border-rose-500/40 bg-rose-500/10" : "border-border/60 bg-[var(--news-bg-secondary)]"}`}>
-                  <div className="p-5 flex items-center justify-between">
-                    <div className="flex items-center gap-2 text-primary">
-                      <AlertCircle size={16} className={leadArticle?.credibility === "low" ? "text-rose-400" : "text-primary"} />
-                      <h4 className="font-mono text-[10px] uppercase tracking-[0.3em]">Verification</h4>
-                    </div>
-                    <span className="text-[10px] uppercase text-muted-foreground">Status</span>
-                  </div>
-                  <div className="px-5 pb-5 transition-all duration-500 ease-out max-h-0 opacity-0 translate-y-2 group-hover:max-h-[360px] group-hover:opacity-100 group-hover:translate-y-0 group-focus-within:max-h-[360px] group-focus-within:opacity-100 group-focus-within:translate-y-0">
-                    <p className="text-xs text-foreground/70 leading-relaxed">
-                      {leadArticle?.credibility === "low"
-                        ? "Variances detected across low-credibility sources. Confirm before sharing."
-                        : "Story cross-referenced with cached sources and live feeds. Review evidence for full context."}
-                    </p>
-                    {leadArticle?.url && (
-                      <a
-                        href={leadArticle.url}
-                        target="_blank"
-                        rel="noreferrer"
-                        className="mt-4 w-full inline-flex items-center justify-center gap-2 py-2 border border-border/60 rounded font-mono text-[10px] uppercase hover:bg-foreground hover:text-primary-foreground transition-colors text-foreground"
-                      >
-                        Check evidence
-                        <ExternalLink className="w-3 h-3" />
-                      </a>
-                    )}
-                  </div>
-                </div>
-
-                <div className="rounded-lg border border-border/60 bg-[var(--news-bg-secondary)] p-4">
-                  <h5 className="text-[10px] font-mono uppercase tracking-[0.3em] text-muted-foreground">Desk Actions</h5>
-                  <div className="mt-3 grid gap-2 text-xs">
-                    <Link href="/search" className="flex items-center justify-between rounded border border-border/50 px-3 py-2 hover:border-primary hover:text-primary">
-                      <span>Research</span>
-                      <ChevronRight size={12} />
-                    </Link>
-                    <Link href="/sources/debug" className="flex items-center justify-between rounded border border-border/50 px-3 py-2 hover:border-primary hover:text-primary">
-                      <span>Source Debug</span>
-                      <ChevronRight size={12} />
-                    </Link>
-                    <Link href="/settings" className="flex items-center justify-between rounded border border-border/50 px-3 py-2 hover:border-primary hover:text-primary">
-                      <span>Settings</span>
-                      <ChevronRight size={12} />
-                    </Link>
-                  </div>
-                </div>
-                </div>
-              </div>
-            </aside>
-          )}
         </div>
       </main>
 
