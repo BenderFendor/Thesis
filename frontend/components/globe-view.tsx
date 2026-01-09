@@ -308,7 +308,7 @@ export function GlobeView({ articles, loading }: GlobeViewProps) {
                   </div>
                 </div>
 
-                {/* Desk Summary Stats */}
+                {/* Summary Stats */}
                 <div className="grid grid-cols-2 gap-3">
                   <div className="p-3 rounded border border-border/60 bg-[var(--news-bg-primary)]/40 text-center">
                     <div className="text-xl font-bold">{filteredArticles.length}</div>

@@ -278,7 +278,7 @@ def _build_initial_messages(
     )
     history_messages: List[BaseMessage] = []
     if chat_history:
-        for entry in chat_history[-6:]:
+        for entry in chat_history:
             role = entry.get("type")
             content = entry.get("content", "")
             if role == "user":

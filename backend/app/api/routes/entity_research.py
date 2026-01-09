@@ -9,7 +9,11 @@ Provides endpoints for:
 
 from __future__ import annotations
 
+import asyncio
 from typing import Any, Dict, List, Optional
+from urllib.parse import parse_qs, quote, unquote, urlparse
+
+import httpx
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel
@@ -23,6 +27,110 @@ from app.services.funding_researcher import get_funding_researcher
 
 router = APIRouter(prefix="/research/entity", tags=["entity-research"])
 logger = get_logger("entity_research_routes")
+
+_WIKIPEDIA_URL_CACHE: Dict[str, str] = {}
+
+
+def _extract_wikipedia_lang_and_title(url: str) -> tuple[Optional[str], Optional[str]]:
+    parsed = urlparse(url)
+    host = parsed.netloc.lower()
+    if not host.endswith("wikipedia.org"):
+        return None, None
+
+    host_parts = host.split(".")
+    if len(host_parts) < 3:
+        return None, None
+
+    lang = host_parts[0]
+    if len(host_parts) > 3 and host_parts[1] == "m":
+        lang = host_parts[0]
+
+    title = None
+    if parsed.path.startswith("/wiki/"):
+        title = parsed.path[len("/wiki/") :]
+    else:
+        query = parse_qs(parsed.query)
+        if "title" in query:
+            title = query["title"][0]
+
+    if not title:
+        return lang, None
+
+    title = unquote(title)
+    if "#" in title:
+        title = title.split("#", 1)[0]
+
+    return lang, title
+
+
+async def _resolve_english_wikipedia_url(
+    url: str, client: httpx.AsyncClient
+) -> str:
+    cached = _WIKIPEDIA_URL_CACHE.get(url)
+    if cached:
+        return cached
+
+    lang, title = _extract_wikipedia_lang_and_title(url)
+    if not lang or not title or lang == "en":
+        _WIKIPEDIA_URL_CACHE[url] = url
+        return url
+
+    try:
+        params = {
+            "action": "query",
+            "prop": "langlinks",
+            "lllang": "en",
+            "titles": title,
+            "format": "json",
+        }
+        response = await client.get(
+            f"https://{lang}.wikipedia.org/w/api.php", params=params
+        )
+        if response.status_code != 200:
+            _WIKIPEDIA_URL_CACHE[url] = url
+            return url
+
+        data = response.json()
+        pages = data.get("query", {}).get("pages", {})
+        for page in pages.values():
+            langlinks = page.get("langlinks") or []
+            for link in langlinks:
+                if link.get("lang") == "en":
+                    en_title = link.get("*") or link.get("title")
+                    if en_title:
+                        normalized = f"https://en.wikipedia.org/wiki/{quote(en_title.replace(' ', '_'))}"
+                        _WIKIPEDIA_URL_CACHE[url] = normalized
+                        return normalized
+    except Exception as exc:
+        logger.debug("Wikipedia normalization failed for %s: %s", url, exc)
+
+    _WIKIPEDIA_URL_CACHE[url] = url
+    return url
+
+
+async def _normalize_wikipedia_urls(
+    urls: List[Optional[str]],
+) -> List[Optional[str]]:
+    unique_urls = [url for url in {u for u in urls if u}]
+    if not unique_urls:
+        return urls
+
+    async with httpx.AsyncClient(timeout=10.0) as client:
+        tasks = [
+            _resolve_english_wikipedia_url(url, client) for url in unique_urls
+        ]
+        results = await asyncio.gather(*tasks)
+
+    normalized_map = dict(zip(unique_urls, results))
+    return [normalized_map.get(url) if url else None for url in urls]
+
+
+async def _ensure_english_wikipedia_url(
+    url: Optional[str],
+) -> Optional[str]:
+    if not url:
+        return None
+    return (await _normalize_wikipedia_urls([url]))[0]
 
 
 # Request/Response Models
@@ -104,6 +212,9 @@ async def profile_reporter(
         
         if cached:
             logger.info(f"Returning cached profile for {request.name}")
+            normalized_wikipedia_url = await _ensure_english_wikipedia_url(
+                cached.wikipedia_url
+            )
             return ReporterProfileResponse(
                 id=cached.id,
                 name=cached.name,
@@ -115,7 +226,7 @@ async def profile_reporter(
                 leaning_confidence=cached.leaning_confidence,
                 twitter_handle=cached.twitter_handle,
                 linkedin_url=cached.linkedin_url,
-                wikipedia_url=cached.wikipedia_url,
+                wikipedia_url=normalized_wikipedia_url,
                 research_sources=cached.research_sources,
                 research_confidence=cached.research_confidence,
                 cached=True
@@ -127,6 +238,10 @@ async def profile_reporter(
         name=request.name,
         organization=request.organization,
         article_context=request.article_context
+    )
+
+    profile_data["wikipedia_url"] = await _ensure_english_wikipedia_url(
+        profile_data.get("wikipedia_url")
     )
     
     # Save to database
@@ -180,7 +295,10 @@ async def get_reporter(
     
     if not reporter:
         raise HTTPException(status_code=404, detail="Reporter not found")
-    
+
+    normalized_wikipedia_url = await _ensure_english_wikipedia_url(
+        reporter.wikipedia_url
+    )
     return ReporterProfileResponse(
         id=reporter.id,
         name=reporter.name,
@@ -192,7 +310,7 @@ async def get_reporter(
         leaning_confidence=reporter.leaning_confidence,
         twitter_handle=reporter.twitter_handle,
         linkedin_url=reporter.linkedin_url,
-        wikipedia_url=reporter.wikipedia_url,
+        wikipedia_url=normalized_wikipedia_url,
         research_sources=reporter.research_sources,
         research_confidence=reporter.research_confidence,
         cached=True
@@ -220,6 +338,9 @@ async def research_organization(
         
         if cached:
             logger.info(f"Returning cached org data for {request.name}")
+            normalized_wikipedia_url = await _ensure_english_wikipedia_url(
+                cached.wikipedia_url
+            )
             return OrganizationResearchResponse(
                 id=cached.id,
                 name=cached.name,
@@ -232,7 +353,7 @@ async def research_organization(
                 annual_revenue=cached.annual_revenue,
                 media_bias_rating=cached.media_bias_rating,
                 factual_reporting=cached.factual_reporting,
-                wikipedia_url=cached.wikipedia_url,
+                wikipedia_url=normalized_wikipedia_url,
                 research_sources=cached.research_sources,
                 research_confidence=cached.research_confidence,
                 cached=True
@@ -243,6 +364,10 @@ async def research_organization(
     org_data = await researcher.research_organization(
         name=request.name,
         website=request.website
+    )
+
+    org_data["wikipedia_url"] = await _ensure_english_wikipedia_url(
+        org_data.get("wikipedia_url")
     )
     
     # Save to database
@@ -297,7 +422,8 @@ async def get_organization(
     
     if not org:
         raise HTTPException(status_code=404, detail="Organization not found")
-    
+
+    normalized_wikipedia_url = await _ensure_english_wikipedia_url(org.wikipedia_url)
     return OrganizationResearchResponse(
         id=org.id,
         name=org.name,
@@ -310,7 +436,7 @@ async def get_organization(
         annual_revenue=org.annual_revenue,
         media_bias_rating=org.media_bias_rating,
         factual_reporting=org.factual_reporting,
-        wikipedia_url=org.wikipedia_url,
+        wikipedia_url=normalized_wikipedia_url,
         research_sources=org.research_sources,
         research_confidence=org.research_confidence,
         cached=True
@@ -343,7 +469,9 @@ async def list_reporters(
     stmt = select(Reporter).limit(limit).offset(offset)
     result = await db.execute(stmt)
     reporters = result.scalars().all()
-    
+    normalized_wikipedia_urls = await _normalize_wikipedia_urls(
+        [r.wikipedia_url for r in reporters]
+    )
     return [
         ReporterProfileResponse(
             id=r.id,
@@ -356,12 +484,12 @@ async def list_reporters(
             leaning_confidence=r.leaning_confidence,
             twitter_handle=r.twitter_handle,
             linkedin_url=r.linkedin_url,
-            wikipedia_url=r.wikipedia_url,
+            wikipedia_url=normalized_wikipedia_urls[idx],
             research_sources=r.research_sources,
             research_confidence=r.research_confidence,
             cached=True
         )
-        for r in reporters
+        for idx, r in enumerate(reporters)
     ]
 
 
@@ -375,7 +503,9 @@ async def list_organizations(
     stmt = select(Organization).limit(limit).offset(offset)
     result = await db.execute(stmt)
     orgs = result.scalars().all()
-    
+    normalized_wikipedia_urls = await _normalize_wikipedia_urls(
+        [o.wikipedia_url for o in orgs]
+    )
     return [
         OrganizationResearchResponse(
             id=o.id,
@@ -389,12 +519,12 @@ async def list_organizations(
             annual_revenue=o.annual_revenue,
             media_bias_rating=o.media_bias_rating,
             factual_reporting=o.factual_reporting,
-            wikipedia_url=o.wikipedia_url,
+            wikipedia_url=normalized_wikipedia_urls[idx],
             research_sources=o.research_sources,
             research_confidence=o.research_confidence,
             cached=True
         )
-        for o in orgs
+        for idx, o in enumerate(orgs)
     ]
 
 
@@ -468,4 +598,3 @@ async def get_country_economic_profile(country_code: str):
         "country_code": country_code.upper(),
         "profile": profile
     }
-

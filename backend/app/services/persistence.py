@@ -179,7 +179,7 @@ async def _persist_articles_async(
                         if row.chroma_id:
                             vector_deletes.append(row.chroma_id)
                         chroma_updates.append(
-                            {"id": row.id, "chroma_id": desired_chroma_id}
+                            {"b_id": row.id, "b_chroma_id": desired_chroma_id}
                         )
 
                     if needs_embedding:
@@ -211,13 +211,16 @@ async def _persist_articles_async(
                 if chroma_updates:
                     update_stmt = (
                         update(ArticleRecord)
-                        .where(ArticleRecord.id == bindparam("id"))
+                        .where(ArticleRecord.id == bindparam("b_id"))
                         .values(
-                            chroma_id=bindparam("chroma_id"),
+                            chroma_id=bindparam("b_chroma_id"),
                             embedding_generated=False,
                         )
                     )
-                    await session.execute(update_stmt, chroma_updates)
+                    await session.execute(
+                        update_stmt.execution_options(synchronize_session=False),
+                        chroma_updates,
+                    )
 
             await session.commit()
 

@@ -518,7 +518,7 @@ function NewsPage() {
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" size={14} />
               <input
                 type="text"
-                placeholder="Search the research desk..."
+                placeholder="Search the research workspace..."
                 value={searchQuery}
                 onChange={(event) => setSearchQuery(event.target.value)}
                 onKeyDown={handleSearchSubmit}
@@ -645,7 +645,7 @@ function NewsPage() {
                 <div className="space-y-4">
                   <div className="rounded-lg border border-border/60 bg-[var(--news-bg-secondary)] p-4">
                     <div className="flex items-center justify-between text-[10px] font-mono uppercase tracking-[0.3em] text-muted-foreground">
-                      <span>Desk Snapshot</span>
+                      <span>Coverage Snapshot</span>
                       <span className="text-primary">{viewLabel}</span>
                     </div>
                     <div className="mt-3 grid grid-cols-2 gap-3 text-xs">
@@ -699,7 +699,7 @@ function NewsPage() {
                 <div className="mb-4 flex flex-wrap items-center justify-between gap-2 text-[10px] font-mono uppercase tracking-[0.3em] text-muted-foreground">
                   <span>Category filters</span>
                   {!isGlobeView && (
-                    <span className="text-muted-foreground/70">Hover the Desk tab on the right for context and verification</span>
+                    <span className="text-muted-foreground/70">Use category filters to compare coverage.</span>
                   )}
                 </div>
                 <TabsList className="flex flex-wrap gap-2 bg-transparent p-0 h-auto">

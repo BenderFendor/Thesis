@@ -47,6 +47,7 @@ export function ChatSidebar({ chats, onSelect, onNewChat, onRename, onDelete, on
       return inTitle || inMessage
     })
   }, [chats, searchTerm])
+  const allFilteredSelected = filteredChats.length > 0 && selectedIds.size === filteredChats.length
 
   const startRename = (chat: ChatSummary) => {
     setEditingId(chat.id)
@@ -95,6 +96,28 @@ export function ChatSidebar({ chats, onSelect, onNewChat, onRename, onDelete, on
       }
       setIsSelectionMode(false)
       setSelectedIds(new Set())
+    }
+  }
+
+  const handleDeleteAll = () => {
+    if (chats.length === 0) return
+    if (window.confirm(`Delete all ${chats.length} chats? This action cannot be undone.`)) {
+      const ids = chats.map((chat) => chat.id)
+      if (onDeleteMultiple) {
+        onDeleteMultiple(ids)
+      } else {
+        ids.forEach((id) => onDelete(id))
+      }
+      setIsSelectionMode(false)
+      setSelectedIds(new Set())
+    }
+  }
+
+  const toggleSelectAll = () => {
+    if (allFilteredSelected) {
+      setSelectedIds(new Set())
+    } else {
+      setSelectedIds(new Set(filteredChats.map((chat) => chat.id)))
     }
   }
 
@@ -149,6 +172,16 @@ export function ChatSidebar({ chats, onSelect, onNewChat, onRename, onDelete, on
             >
               <CheckSquare className="w-4 h-4 text-muted-foreground" />
             </Button>
+            <Button
+              onClick={handleDeleteAll}
+              variant="ghost"
+              size="icon"
+              title="Delete all chats"
+              disabled={chats.length === 0}
+              className="rounded-xl border border-border/60 bg-[var(--news-bg-secondary)]/70 hover:bg-[var(--news-bg-secondary)] hover:border-destructive/40 transition-all duration-200 disabled:opacity-50"
+            >
+              <Trash2 className="w-4 h-4 text-destructive" />
+            </Button>
           </div>
         ) : (
           <div className="flex items-center justify-between h-10">
@@ -156,6 +189,14 @@ export function ChatSidebar({ chats, onSelect, onNewChat, onRename, onDelete, on
               {selectedIds.size} selected
             </span>
             <div className="flex gap-1">
+              <Button
+                onClick={toggleSelectAll}
+                variant="ghost"
+                size="sm"
+                className="text-muted-foreground hover:text-foreground h-8 px-2"
+              >
+                {allFilteredSelected ? "Clear" : "Select all"}
+              </Button>
               <Button
                 onClick={handleDeleteSelected}
                 variant="ghost"

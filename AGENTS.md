@@ -18,6 +18,11 @@
 - Clarify unclear requests, then proceed autonomously.
 - Ask for help only when scripts time out (>2 min), sudo is needed, or genuine blockers arise.
 
+## Constraints
+- Keep Canvas separate from memory/context.
+- Include all prior messages in prompts (no truncation).
+- Prefer English Wikipedia links when an English page exists.
+
 ## Abstractions
 Consciously constrained, pragmatically parameterised, doggedly documented.
 

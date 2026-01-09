@@ -208,6 +208,8 @@ class FundingResearcher:
             # Get the first matching organization
             org = organizations[0]
             ein = org.get("ein")
+            if ein is not None:
+                ein = str(ein)
             
             if not ein:
                 return {}
@@ -405,7 +407,8 @@ class FundingResearcher:
         
         # Merge ProPublica nonprofit data
         if nonprofit:
-            org["ein"] = nonprofit.get("ein")
+            nonprofit_ein = nonprofit.get("ein")
+            org["ein"] = str(nonprofit_ein) if nonprofit_ein is not None else None
             org["annual_revenue"] = nonprofit.get("annual_revenue")
             org["funding_type"] = nonprofit.get("funding_type") or org["funding_type"]
             org["research_sources"].append("propublica")

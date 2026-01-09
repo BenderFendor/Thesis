@@ -4,10 +4,11 @@ import { useState, useRef, useEffect, useMemo } from "react"
 import {
   Search,
   Loader2,
-  AlertCircle,
   Home,
   ChevronLeft, 
   ChevronRight,
+  ChevronDown,
+  ChevronUp,
   ArrowRight,
   Cpu,
   Filter,
@@ -16,7 +17,6 @@ import {
 import { API_BASE_URL, ThinkingStep, type NewsArticle, semanticSearch, type SemanticSearchResult } from "@/lib/api"
 import { Button } from "@/components/ui/button"
 import { ArticleDetailModal } from "@/components/article-detail-modal"
-import HorizontalArticleEmbed from "@/components/horizontal-article-embed"
 import ChatSidebar, { ChatSummary } from '@/components/chat-sidebar'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
@@ -125,7 +125,9 @@ export default function NewsResearchPage() {
   const [chatMessagesMap, setChatMessagesMap] = useState<Record<string, Message[]>>({})
   const [activeChatId, setActiveChatId] = useState<string | null>(null)
   const [sidebarCollapsed, setSidebarCollapsed] = useState(true)
-  const [researchView, setResearchView] = useState<"brief" | "flow" | "canvas">("brief")
+  const [researchView, setResearchView] = useState<"chat" | "canvas">("chat")
+  const [expandedStepMessageIds, setExpandedStepMessageIds] = useState<Set<string>>(new Set())
+  const [expandedSourceIds, setExpandedSourceIds] = useState<Set<string>>(new Set())
   const inputRef = useRef<HTMLInputElement>(null)
   const isHydratingRef = useRef(true)
 
@@ -185,6 +187,30 @@ export default function NewsResearchPage() {
       setActiveChatId(nextChatId || null)
       setMessages(nextChatId ? (newChatMessagesMap[nextChatId] || []) : [])
     }
+  }
+
+  const toggleStepVisibility = (messageId: string) => {
+    setExpandedStepMessageIds((prev) => {
+      const next = new Set(prev)
+      if (next.has(messageId)) {
+        next.delete(messageId)
+      } else {
+        next.add(messageId)
+      }
+      return next
+    })
+  }
+
+  const toggleSourceVisibility = (sourceId: string) => {
+    setExpandedSourceIds((prev) => {
+      const next = new Set(prev)
+      if (next.has(sourceId)) {
+        next.delete(sourceId)
+      } else {
+        next.add(sourceId)
+      }
+      return next
+    })
   }
 
   // Hydrate chats from localStorage on first load
@@ -270,12 +296,27 @@ export default function NewsResearchPage() {
     }
   }, [chats, chatMessagesMap, activeChatId])
 
+  const buildChatHistoryPayload = (items: Message[]) =>
+    items
+      .filter((message) =>
+        (message.type === "user" || message.type === "assistant") &&
+        !message.toolType &&
+        !message.isStreaming
+      )
+      .map((message) => ({
+        type: message.type,
+        content: message.content
+      }))
+      .filter((entry) => entry.content && entry.content.trim().length > 0)
+
 
   const handleSearch = async (e: React.FormEvent) => {
     e.preventDefault()
 
     const trimmedQuery = query.trim()
     if (!trimmedQuery) return
+
+    const historyPayload = buildChatHistoryPayload(messages)
 
   // If there's no active chat, create one automatically and name it from the prompt.
   let newChatTitle: string | undefined = undefined
@@ -374,6 +415,9 @@ export default function NewsResearchPage() {
       const streamUrl = new URL(`${API_BASE_URL}/api/news/research/stream`)
       streamUrl.searchParams.set('query', trimmedQuery)
       streamUrl.searchParams.set('include_thinking', 'true')
+      if (historyPayload.length > 0) {
+        streamUrl.searchParams.set('history', JSON.stringify(historyPayload))
+      }
 
       const eventSource = new EventSource(streamUrl.toString())
       const stallTimeout = window.setTimeout(() => {
@@ -619,6 +663,12 @@ export default function NewsResearchPage() {
     return Array.from(new Set(matches.map(url => url.replace(/[,\.]$/, ''))))
   }
 
+  const formatShortDate = (date: string) => {
+    const parsed = new Date(date)
+    if (Number.isNaN(parsed.getTime())) return date
+    return parsed.toLocaleDateString("en-US", { month: "short", day: "numeric" })
+  }
+
   const renderContentWithEmbeds = (content: string, articles: NewsArticle[]) => {
     // Remove parentheses around standalone URLs (not markdown links)
     // Match patterns like " (https://...)" or "(https://...)" but not "[text](url)"
@@ -777,6 +827,29 @@ export default function NewsResearchPage() {
     () => buildArticleEmbeds(latestAssistantMessage),
     [latestAssistantMessage]
   )
+  const sourcePreviewLimit = 5
+  const groupedSources = useMemo(() => {
+    const groups = new Map<string, { sourceId: string; sourceName: string; articles: NewsArticle[] }>()
+    const seenKeys = new Set<string>()
+
+    relatedArticles.forEach((article) => {
+      const urlKey = article.url || String(article.id)
+      if (seenKeys.has(urlKey)) return
+      seenKeys.add(urlKey)
+
+      const sourceId = article.sourceId || article.source || "unknown"
+      if (!groups.has(sourceId)) {
+        groups.set(sourceId, {
+          sourceId,
+          sourceName: article.source || "Unknown",
+          articles: []
+        })
+      }
+      groups.get(sourceId)!.articles.push(article)
+    })
+
+    return Array.from(groups.values()).sort((a, b) => b.articles.length - a.articles.length)
+  }, [relatedArticles])
   const thinkingSteps = latestAssistantMessage?.thinking_steps ?? []
   const conversationMessages = useMemo(
     () => messages.filter((message) => message.type === "user" || (message.type === "assistant" && !message.toolType)),
@@ -842,7 +915,7 @@ export default function NewsResearchPage() {
                       <Cpu className="w-8 h-8 text-muted-foreground" />
                     </div>
                     <h1 className="text-3xl font-serif tracking-tight text-foreground mb-3">Research Workspace</h1>
-                    <p className="text-muted-foreground text-lg">Ask a focused question, then review the brief, flow, or canvas.</p>
+                    <p className="text-muted-foreground text-lg">Ask a focused question, then chat with the agent or open the canvas.</p>
                   </div>
 
                   <div className="relative group w-full">
@@ -921,20 +994,12 @@ export default function NewsResearchPage() {
                       </div>
                       <div className="flex items-center gap-2">
                         <Button
-                          variant={researchView === "brief" ? "default" : "outline"}
+                          variant={researchView === "chat" ? "default" : "outline"}
                           size="sm"
-                          className={researchView === "brief" ? "bg-[var(--news-bg-primary)] text-foreground hover:bg-[var(--news-bg-primary)]/80" : "border-border/60 text-muted-foreground hover:text-foreground hover:bg-[var(--news-bg-primary)]/50"}
-                          onClick={() => setResearchView("brief")}
+                          className={researchView === "chat" ? "bg-[var(--news-bg-primary)] text-foreground hover:bg-[var(--news-bg-primary)]/80" : "border-border/60 text-muted-foreground hover:text-foreground hover:bg-[var(--news-bg-primary)]/50"}
+                          onClick={() => setResearchView("chat")}
                         >
-                          Brief
-                        </Button>
-                        <Button
-                          variant={researchView === "flow" ? "default" : "outline"}
-                          size="sm"
-                          className={researchView === "flow" ? "bg-[var(--news-bg-primary)] text-foreground hover:bg-[var(--news-bg-primary)]/80" : "border-border/60 text-muted-foreground hover:text-foreground hover:bg-[var(--news-bg-primary)]/50"}
-                          onClick={() => setResearchView("flow")}
-                        >
-                          Flow
+                          Chat
                         </Button>
                         <Button
                           variant={researchView === "canvas" ? "default" : "outline"}
@@ -956,76 +1021,42 @@ export default function NewsResearchPage() {
 
                  <div className="grid gap-6 lg:grid-cols-[minmax(0,1.2fr)_minmax(0,0.8fr)]">
                     <section className="space-y-6">
-                    <div className="rounded-xl border border-border/60 bg-[var(--news-bg-secondary)]/70 p-6">
-                      <div className="flex items-start justify-between gap-4">
-                        <div>
-                          <p className="text-[10px] font-mono uppercase tracking-[0.3em] text-muted-foreground">Current query</p>
-                          <h2 className="text-xl font-semibold mt-2 text-foreground">{latestUserMessage?.content || "Research Brief"}</h2>
-                          <p className="text-xs text-muted-foreground mt-2">
-                            {latestAssistantMessage?.articles_searched
-                              ? `${latestAssistantMessage.articles_searched} sources searched`
-                              : 'Evidence stream pending'}
-                          </p>
-                        </div>
-                        <div className="text-[10px] font-mono uppercase tracking-[0.3em] text-muted-foreground">
-                          {researchView === "brief" ? "Brief" : researchView === "flow" ? "Flow" : "Canvas"}
-                        </div>
-                      </div>
+                      {researchView === "canvas" ? (
+                        <div className="rounded-xl border border-border/60 bg-[var(--news-bg-secondary)]/70 p-6">
+                          <div className="flex items-start justify-between gap-4">
+                            <div>
+                              <p className="text-[10px] font-mono uppercase tracking-[0.3em] text-muted-foreground">Canvas</p>
+                              <h2 className="text-xl font-semibold mt-2 text-foreground">{latestUserMessage?.content || "Canvas exploration"}</h2>
+                              <p className="text-xs text-muted-foreground mt-2">
+                                {latestAssistantMessage?.articles_searched
+                                  ? `${latestAssistantMessage.articles_searched} sources searched`
+                                  : 'Evidence stream pending'}
+                              </p>
+                            </div>
+                            <div className="text-[10px] font-mono uppercase tracking-[0.3em] text-muted-foreground">
+                              Nodes: {thinkingSteps.length}
+                            </div>
+                          </div>
 
-                      <div className="mt-5">
-                        {!latestAssistantMessage ? (
-                          <p className="text-sm text-muted-foreground">Submit a query to generate a brief.</p>
-                        ) : latestAssistantMessage.error ? (
-                          <div className="rounded-lg border border-rose-500/30 bg-rose-500/10 p-4 text-sm text-rose-200 flex items-start gap-3">
-                            <AlertCircle className="w-5 h-5 flex-shrink-0" />
-                            <p>{latestAssistantMessage.content}</p>
-                          </div>
-                        ) : researchView === "flow" ? (
-                          <div className="space-y-4">
-                            {thinkingSteps.length === 0 && (
-                              <p className="text-sm text-muted-foreground">Waiting on reasoning steps from the research agent.</p>
-                            )}
-                            {thinkingSteps.map((step, idx) => (
-                              <div key={`${step.type}-${idx}`} className="relative pl-6">
-                                <div className="absolute left-0 top-2 h-2 w-2 rounded-full bg-muted-foreground" />
-                                {idx < thinkingSteps.length - 1 && (
-                                  <div className="absolute left-1 top-4 h-full w-px bg-border/60" />
-                                )}
-                                <div className="rounded-lg border border-border/60 bg-[var(--news-bg-primary)]/50 p-4">
-                                  <div className="text-[10px] font-mono uppercase tracking-[0.3em] text-muted-foreground">
-                                    Step {idx + 1}: {step.type.replace('_', ' ')}
-                                  </div>
-                                  <p className="mt-2 text-sm text-foreground/80">{step.content}</p>
-                                </div>
-                              </div>
-                            ))}
-                            {latestAssistantMessage.content && !latestAssistantMessage.isStreaming && (
-                              <div className="rounded-lg border border-border/60 bg-[var(--news-bg-primary)]/50 p-4">
-                                <div className="text-[10px] font-mono uppercase tracking-[0.3em] text-muted-foreground">Final brief</div>
-                                <div className="mt-3">
-                                  {renderContentWithEmbeds(latestAssistantMessage.content, relatedArticles)}
-                                </div>
-                              </div>
-                            )}
-                          </div>
-                        ) : researchView === "canvas" ? (
-                          <div className="grid gap-4 md:grid-cols-2">
+                          <div className="mt-5">
                             {thinkingSteps.length === 0 ? (
                               <div className="rounded-lg border border-border/60 bg-[var(--news-bg-primary)]/50 p-4 text-sm text-muted-foreground">
                                 No nodes yet. Run a query to generate reasoning steps.
                               </div>
                             ) : (
-                              thinkingSteps.map((step, idx) => (
-                                <div key={`${step.type}-${idx}`} className="rounded-xl border border-border/60 bg-[var(--news-bg-primary)]/50 p-4 shadow-lg shadow-black/20">
-                                  <div className="text-[10px] font-mono uppercase tracking-[0.3em] text-muted-foreground">
-                                    Node {idx + 1}: {step.type.replace('_', ' ')}
+                              <div className="grid gap-4 md:grid-cols-2">
+                                {thinkingSteps.map((step, idx) => (
+                                  <div key={`${step.type}-${idx}`} className="rounded-xl border border-border/60 bg-[var(--news-bg-primary)]/50 p-4 shadow-lg shadow-black/20">
+                                    <div className="text-[10px] font-mono uppercase tracking-[0.3em] text-muted-foreground">
+                                      Node {idx + 1}: {step.type.replace('_', ' ')}
+                                    </div>
+                                    <p className="mt-3 text-sm text-foreground/80">{step.content}</p>
                                   </div>
-                                  <p className="mt-3 text-sm text-foreground/80">{step.content}</p>
-                                </div>
-                              ))
+                                ))}
+                              </div>
                             )}
-                            {latestAssistantMessage.content && !latestAssistantMessage.isStreaming && (
-                              <div className="rounded-xl border border-border/60 bg-[var(--news-bg-primary)]/50 p-4 md:col-span-2">
+                            {latestAssistantMessage?.content && !latestAssistantMessage.isStreaming && (
+                              <div className="mt-4 rounded-xl border border-border/60 bg-[var(--news-bg-primary)]/50 p-4">
                                 <div className="text-[10px] font-mono uppercase tracking-[0.3em] text-muted-foreground">Synthesis</div>
                                 <div className="mt-3">
                                   {renderContentWithEmbeds(latestAssistantMessage.content, relatedArticles)}
@@ -1033,58 +1064,93 @@ export default function NewsResearchPage() {
                               </div>
                             )}
                           </div>
-                        ) : latestAssistantMessage.isStreaming ? (
-                          <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                            <Loader2 className="w-4 h-4 animate-spin text-muted-foreground" />
-                            <span>{latestAssistantMessage.streamingStatus || 'Analyzing...'}</span>
-                          </div>
-                        ) : (
-                          renderContentWithEmbeds(latestAssistantMessage.content, relatedArticles)
-                        )}
-                      </div>
-                    </div>
-
-                    <div className="rounded-xl border border-border/60 bg-[var(--news-bg-secondary)]/70 p-6">
-                      <div className="flex items-center justify-between">
-                        <h3 className="text-[10px] font-mono uppercase tracking-[0.3em] text-muted-foreground">Session Timeline</h3>
-                        <span className="text-xs text-muted-foreground">{conversationMessages.length} messages</span>
-                      </div>
-                      <div className="mt-4 space-y-4">
-                        {conversationMessages.length === 0 ? (
-                          <p className="text-sm text-muted-foreground">Start a query to build a multi-turn session.</p>
-                        ) : (
-                          conversationMessages.map((message) => (
-                            <div
-                              key={message.id}
-                              className={`rounded-lg border px-4 py-3 ${
-                                message.type === "user"
-                                  ? "border-primary/40 bg-primary/10"
-                                  : "border-border/60 bg-[var(--news-bg-primary)]/50"
-                              }`}
-                            >
-                              <div className="flex items-center justify-between text-[10px] font-mono uppercase tracking-[0.3em] text-muted-foreground">
-                                <span>{message.type === "user" ? "Prompt" : "Response"}</span>
-                                <span>{message.timestamp.toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit" })}</span>
-                              </div>
-                              <div className="mt-2 text-sm text-foreground/80">
-                                {message.type === "assistant" ? (
-                                  message.isStreaming ? (
-                                    <div className="flex items-center gap-2 text-muted-foreground">
-                                      <Loader2 className="h-4 w-4 animate-spin" />
-                                      <span>{message.streamingStatus || "Working..."}</span>
-                                    </div>
-                                  ) : (
-                                    renderContentWithEmbeds(message.content, buildArticleEmbeds(message))
-                                  )
-                                ) : (
-                                  <p>{message.content}</p>
-                                )}
-                              </div>
+                        </div>
+                      ) : (
+                        <div className="rounded-xl border border-border/60 bg-[var(--news-bg-secondary)]/70 p-6">
+                          <div className="flex items-start justify-between gap-4">
+                            <div>
+                              <p className="text-[10px] font-mono uppercase tracking-[0.3em] text-muted-foreground">Conversation</p>
+                              <h2 className="text-xl font-semibold mt-2 text-foreground">{latestUserMessage?.content || "Research conversation"}</h2>
+                              <p className="text-xs text-muted-foreground mt-2">
+                                {latestAssistantMessage?.articles_searched
+                                  ? `${latestAssistantMessage.articles_searched} sources searched`
+                                  : 'Evidence stream pending'}
+                              </p>
                             </div>
-                          ))
-                        )}
-                      </div>
-                    </div>
+                            <div className="text-[10px] font-mono uppercase tracking-[0.3em] text-muted-foreground">
+                              {conversationMessages.length} messages
+                            </div>
+                          </div>
+
+                          <div className="mt-5 space-y-4">
+                            {conversationMessages.length === 0 ? (
+                              <p className="text-sm text-muted-foreground">Start a query to build a multi-turn session.</p>
+                            ) : (
+                              conversationMessages.map((message) => {
+                                const isAssistant = message.type === "assistant"
+                                const stepCount = message.thinking_steps?.length ?? 0
+                                const stepsExpanded = expandedStepMessageIds.has(message.id)
+                                const messageClass = message.type === "user"
+                                  ? "border-primary/40 bg-primary/10"
+                                  : message.error
+                                    ? "border-rose-500/40 bg-rose-500/10"
+                                    : "border-border/60 bg-[var(--news-bg-primary)]/50"
+
+                                return (
+                                  <div
+                                    key={message.id}
+                                    className={`rounded-xl border px-4 py-3 ${messageClass}`}
+                                  >
+                                    <div className="flex items-center justify-between text-[10px] font-mono uppercase tracking-[0.3em] text-muted-foreground">
+                                      <span>{isAssistant ? "Assistant" : "You"}</span>
+                                      <span>{message.timestamp.toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit" })}</span>
+                                    </div>
+                                    <div className="mt-2 text-sm text-foreground/80">
+                                      {isAssistant ? (
+                                        message.isStreaming ? (
+                                          <div className="flex items-center gap-2 text-muted-foreground">
+                                            <Loader2 className="h-4 w-4 animate-spin" />
+                                            <span>{message.streamingStatus || "Working..."}</span>
+                                          </div>
+                                        ) : (
+                                          renderContentWithEmbeds(message.content, buildArticleEmbeds(message))
+                                        )
+                                      ) : (
+                                        <p>{message.content}</p>
+                                      )}
+                                    </div>
+
+                                    {isAssistant && !message.isStreaming && stepCount > 0 && (
+                                      <div className="mt-3">
+                                        <button
+                                          type="button"
+                                          onClick={() => toggleStepVisibility(message.id)}
+                                          className="inline-flex items-center gap-2 text-xs font-medium text-muted-foreground hover:text-foreground transition-colors"
+                                        >
+                                          {stepsExpanded ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+                                          {stepsExpanded ? "Hide steps" : `Show steps (${stepCount})`}
+                                        </button>
+                                        {stepsExpanded && (
+                                          <div className="mt-3 space-y-2">
+                                            {message.thinking_steps?.map((step, idx) => (
+                                              <div key={`${message.id}-step-${idx}`} className="rounded-lg border border-border/60 bg-[var(--news-bg-primary)]/40 p-3">
+                                                <div className="text-[10px] font-mono uppercase tracking-[0.3em] text-muted-foreground">
+                                                  Step {idx + 1}: {step.type.replace('_', ' ')}
+                                                </div>
+                                                <p className="mt-2 text-xs text-muted-foreground">{step.content}</p>
+                                              </div>
+                                            ))}
+                                          </div>
+                                        )}
+                                      </div>
+                                    )}
+                                  </div>
+                                )
+                              })
+                            )}
+                          </div>
+                        </div>
+                      )}
                   </section>
 
                   <aside className="space-y-6">
@@ -1137,17 +1203,56 @@ export default function NewsResearchPage() {
                       </div>
                     )}
 
-                    {relatedArticles.length > 0 && (
+                    {groupedSources.length > 0 && (
                       <div className="rounded-xl border border-border/60 bg-[var(--news-bg-secondary)]/70 p-5">
                         <h3 className="text-[10px] font-mono uppercase tracking-[0.3em] text-muted-foreground">Sources Used</h3>
-                        <div className="mt-3">
-                          <HorizontalArticleEmbed
-                            articles={relatedArticles.slice(0, 6)}
-                            onArticleClick={(article) => {
-                              setSelectedArticle(article)
-                              setIsArticleModalOpen(true)
-                            }}
-                          />
+                        <div className="mt-3 space-y-4">
+                          {groupedSources.map((group) => {
+                            const isExpanded = expandedSourceIds.has(group.sourceId)
+                            const visibleArticles = isExpanded
+                              ? group.articles
+                              : group.articles.slice(0, sourcePreviewLimit)
+
+                            return (
+                              <div key={group.sourceId} className="rounded-lg border border-border/60 bg-[var(--news-bg-primary)]/50 p-3">
+                                <div className="flex items-start justify-between gap-3">
+                                  <div>
+                                    <div className="text-sm font-medium text-foreground">{group.sourceName}</div>
+                                    <div className="text-[10px] font-mono uppercase tracking-[0.2em] text-muted-foreground mt-1">
+                                      {group.articles.length} articles
+                                    </div>
+                                  </div>
+                                  {group.articles.length > sourcePreviewLimit && (
+                                    <button
+                                      type="button"
+                                      onClick={() => toggleSourceVisibility(group.sourceId)}
+                                      className="text-[10px] font-mono uppercase tracking-[0.2em] text-primary hover:underline"
+                                    >
+                                      {isExpanded ? "Collapse" : `Show all (${group.articles.length})`}
+                                    </button>
+                                  )}
+                                </div>
+                                <div className="mt-3 space-y-2">
+                                  {visibleArticles.map((article) => (
+                                    <button
+                                      key={`${group.sourceId}-${article.url || article.id}`}
+                                      onClick={() => {
+                                        setSelectedArticle(article)
+                                        setIsArticleModalOpen(true)
+                                      }}
+                                      className="w-full text-left rounded-md border border-border/60 bg-[var(--news-bg-primary)]/60 px-3 py-2 text-xs hover:border-primary/40 transition-colors"
+                                    >
+                                      <div className="text-sm font-medium text-foreground line-clamp-2">{article.title}</div>
+                                      <div className="mt-2 flex items-center justify-between text-[10px] uppercase tracking-[0.2em] text-muted-foreground">
+                                        <span>{article.source}</span>
+                                        <span>{formatShortDate(article.publishedAt)}</span>
+                                      </div>
+                                    </button>
+                                  ))}
+                                </div>
+                              </div>
+                            )
+                          })}
                         </div>
                       </div>
                     )}
