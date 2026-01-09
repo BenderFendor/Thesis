@@ -12,7 +12,7 @@ import { useReadingQueue } from "@/hooks/useReadingQueue";
 // Configuration constants
 const CARD_HEIGHT = 380; // Height of each article card
 const CARD_MIN_WIDTH = 280; // Minimum width of each article card
-const GAP = 16; // Gap between cards
+const GAP = 0; // Gap between cards
 const OVERSCAN = 3; // Number of rows to render outside viewport
 
 interface VirtualizedGridProps {
@@ -77,22 +77,22 @@ const ArticleCard = memo(function ArticleCard({
   }, [article.image]);
 
   return (
-    <div style={style} className="p-2">
+    <div style={style} className="p-0">
       <Card
-        className="h-full cursor-pointer hover:border-primary hover:shadow-lg transition-all duration-200 bg-card/70 hover:bg-card border-border/60 overflow-hidden flex flex-col"
+        className="group h-full cursor-pointer border border-white/10 bg-[var(--news-bg-secondary)] overflow-hidden flex flex-col transition-colors duration-200 hover:border-primary/60 rounded-none shadow-none"
         onClick={onClick}
       >
         {/* Image */}
-        <div className="relative h-40 overflow-hidden bg-muted/40 flex-shrink-0">
+        <div className="relative aspect-video overflow-hidden bg-[var(--news-bg-primary)]/40 flex-shrink-0">
           {hasRealImage ? (
             <>
               <img
                 src={article.image}
                 alt={article.title}
-                className="w-full h-full object-cover hover:scale-110 transition-transform duration-300"
+                className="w-full h-full object-cover grayscale group-hover:grayscale-0 transition duration-300"
                 loading="lazy"
               />
-              <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent" />
+              <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-transparent to-transparent" />
             </>
           ) : (
             <>
@@ -123,9 +123,9 @@ const ArticleCard = memo(function ArticleCard({
               className="h-6 w-6 p-0 bg-black/50 hover:bg-black/70"
             >
               {inQueue ? (
-                <MinusCircle className="w-3 h-3 text-blue-400" />
+                <MinusCircle className="w-3 h-3 text-foreground/70" />
               ) : (
-                <PlusCircle className="w-3 h-3 text-white" />
+                <PlusCircle className="w-3 h-3 text-foreground" />
               )}
             </Button>
             <Button
@@ -135,7 +135,7 @@ const ArticleCard = memo(function ArticleCard({
               className="h-6 w-6 p-0 bg-black/50 hover:bg-black/70"
             >
               <Heart
-                className={`w-3 h-3 ${liked ? "fill-red-500 text-red-500" : "text-white"}`}
+                className={`w-3 h-3 ${liked ? "fill-current text-foreground" : "text-muted-foreground"}`}
               />
             </Button>
           </div>
@@ -144,7 +144,7 @@ const ArticleCard = memo(function ArticleCard({
           <div className="absolute bottom-1 left-1">
             <Badge
               variant="outline"
-              className="text-[8px] font-semibold px-1.5 py-0 bg-black/70 text-white border-white/20"
+              className="text-[8px] font-semibold px-1.5 py-0 bg-black/70 text-foreground border-white/20"
             >
               {article.category}
             </Badge>
@@ -152,26 +152,26 @@ const ArticleCard = memo(function ArticleCard({
         </div>
 
         {/* Content */}
-        <CardContent className="flex-1 flex flex-col p-3">
+        <CardContent className="flex-1 flex flex-col p-6">
           {/* Source */}
-          <div className="text-xs text-primary font-medium mb-1 truncate">
+          <div className="text-xs text-muted-foreground/70 uppercase tracking-widest mb-2 truncate">
             {article.source}
           </div>
 
           {/* Title */}
           {hasRealImage && (
-            <h3 className="text-sm font-semibold text-foreground leading-snug line-clamp-3 mb-2 font-serif">
+            <h3 className="text-sm font-bold text-foreground leading-snug line-clamp-3 mb-2 font-serif">
               {article.title}
             </h3>
           )}
 
           {/* Summary */}
-          <p className={`text-xs text-muted-foreground flex-1 ${hasRealImage ? "line-clamp-2" : "line-clamp-6 mt-1"}`}>
+          <p className={`text-xs text-muted-foreground/70 leading-relaxed flex-1 ${hasRealImage ? "line-clamp-2" : "line-clamp-6 mt-1"}`}>
             {article.summary}
           </p>
 
           {/* Meta Info */}
-          <div className="flex items-center gap-1 text-xs text-muted-foreground mt-2 pt-2 border-t border-border/50">
+          <div className="flex items-center gap-1 text-xs text-muted-foreground/70 mt-3 pt-3 border-t border-white/10">
             <Clock className="w-3 h-3" />
             <span>
               {new Date(article.publishedAt).toLocaleDateString("en-US", {

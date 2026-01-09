@@ -95,8 +95,11 @@ export function InteractiveGlobe({ articles, onCountrySelect, selectedCountry }:
   // Auto-rotate
   useEffect(() => {
     if (globeEl.current) {
-      globeEl.current.controls().autoRotate = true
-      globeEl.current.controls().autoRotateSpeed = 0.5
+      const controls = globeEl.current.controls()
+      controls.autoRotate = true
+      controls.autoRotateSpeed = 0.5
+      controls.enableZoom = false
+      controls.enablePan = false
       globeEl.current.pointOfView({ altitude: 2.5 })
     }
   }, [])

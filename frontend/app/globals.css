@@ -5,80 +5,80 @@
 
 :root {
   /* Editorial dark theme with warm accent */
-  --background: #0c0c0c;
-  --foreground: #ebe1d1;
-  --card: #1a1a1a;
-  --card-foreground: #ebe1d1;
-  --popover: #0c0c0c;
-  --popover-foreground: #ebe1d1;
-  --primary: #e9762b;
-  --primary-foreground: #0c0c0c;
-  --secondary: #141414;
-  --secondary-foreground: #ebe1d1;
-  --muted: #121212;
-  --muted-foreground: #a79e91;
-  --accent: #1a1a1a;
-  --accent-foreground: #ebe1d1;
-  --destructive: #c8563f;
-  --destructive-foreground: #0c0c0c;
-  --border: #2a2a2a;
-  --input: #1a1a1a;
-  --ring: #e9762b;
-  --chart-1: #e9762b;
-  --chart-2: #f1a85a;
-  --chart-3: #d46a3a;
-  --chart-4: #a8522f;
-  --chart-5: #e0c09a;
+  --background: #050505;
+  --foreground: #eaeaea;
+  --card: #121212;
+  --card-foreground: #eaeaea;
+  --popover: #050505;
+  --popover-foreground: #eaeaea;
+  --primary: #ff3b30;
+  --primary-foreground: #050505;
+  --secondary: #121212;
+  --secondary-foreground: #eaeaea;
+  --muted: #0f0f0f;
+  --muted-foreground: #a0a0a0;
+  --accent: #121212;
+  --accent-foreground: #eaeaea;
+  --destructive: #ff453a;
+  --destructive-foreground: #050505;
+  --border: #333333;
+  --input: #121212;
+  --ring: #ff3b30;
+  --chart-1: #ff3b30;
+  --chart-2: #ff6b61;
+  --chart-3: #ff8f86;
+  --chart-4: #ff3b30;
+  --chart-5: #a0a0a0;
   --radius: 0.5rem;
-  --sidebar: #141414;
-  --sidebar-foreground: #ebe1d1;
-  --sidebar-primary: #e9762b;
-  --sidebar-primary-foreground: #0c0c0c;
-  --sidebar-accent: #1a1a1a;
-  --sidebar-accent-foreground: #ebe1d1;
-  --sidebar-border: #2a2a2a;
-  --sidebar-ring: #e9762b;
+  --sidebar: #121212;
+  --sidebar-foreground: #eaeaea;
+  --sidebar-primary: #ff3b30;
+  --sidebar-primary-foreground: #050505;
+  --sidebar-accent: #121212;
+  --sidebar-accent-foreground: #eaeaea;
+  --sidebar-border: #333333;
+  --sidebar-ring: #ff3b30;
 
   /* Custom theme colors for news app */
-  --news-bg-primary: #0c0c0c;
-  --news-bg-secondary: #1a1a1a;
-  --news-card-bg: #1a1a1a;
+  --news-bg-primary: #050505;
+  --news-bg-secondary: #121212;
+  --news-card-bg: #121212;
 }
 
 .dark {
   /* Dark mode uses the editorial palette */
-  --background: #0c0c0c;
-  --foreground: #ebe1d1;
-  --card: #1a1a1a;
-  --card-foreground: #ebe1d1;
-  --popover: #0c0c0c;
-  --popover-foreground: #ebe1d1;
-  --primary: #e9762b;
-  --primary-foreground: #0c0c0c;
-  --secondary: #141414;
-  --secondary-foreground: #ebe1d1;
-  --muted: #121212;
-  --muted-foreground: #a79e91;
-  --accent: #1a1a1a;
-  --accent-foreground: #ebe1d1;
-  --destructive: #c8563f;
-  --destructive-foreground: #0c0c0c;
-  --border: #2a2a2a;
-  --input: #1a1a1a;
-  --ring: #e9762b;
-  --chart-1: #e9762b;
-  --chart-2: #f1a85a;
-  --chart-3: #d46a3a;
-  --chart-4: #a8522f;
-  --chart-5: #e0c09a;
-  --sidebar: #141414;
-  --sidebar-foreground: #ebe1d1;
-  --sidebar-primary: #e9762b;
-  --sidebar-primary-foreground: #0c0c0c;
-  --sidebar-accent: #1a1a1a;
-  --sidebar-accent-foreground: #ebe1d1;
-  --sidebar-border: #2a2a2a;
-  --sidebar-ring: #e9762b;
+  --background: #050505;
+  --foreground: #eaeaea;
+  --card: #121212;
+  --card-foreground: #eaeaea;
+  --popover: #050505;
+  --popover-foreground: #eaeaea;
+  --primary: #ff3b30;
+  --primary-foreground: #050505;
+  --secondary: #121212;
+  --secondary-foreground: #eaeaea;
+  --muted: #0f0f0f;
+  --muted-foreground: #a0a0a0;
+  --accent: #121212;
+  --accent-foreground: #eaeaea;
+  --destructive: #ff453a;
+  --destructive-foreground: #050505;
+  --border: #333333;
+  --input: #121212;
+  --ring: #ff3b30;
+  --chart-1: #ff3b30;
+  --chart-2: #ff6b61;
+  --chart-3: #ff8f86;
+  --chart-4: #ff3b30;
+  --chart-5: #a0a0a0;
+  --sidebar: #121212;
+  --sidebar-foreground: #eaeaea;
+  --sidebar-primary: #ff3b30;
+  --sidebar-primary-foreground: #050505;
+  --sidebar-accent: #121212;
+  --sidebar-accent-foreground: #eaeaea;
+  --sidebar-border: #333333;
+  --sidebar-ring: #ff3b30;
 }
 
 @theme inline {
@@ -134,8 +134,8 @@
   }
 
   ::selection {
-    background-color: #e9762b;
-    color: #0c0c0c;
+    background-color: #ff3b30;
+    color: #050505;
   }
 }
 

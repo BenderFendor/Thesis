@@ -103,6 +103,8 @@ export function GlobeView({ articles, loading }: GlobeViewProps) {
           onCountrySelect={handleCountrySelect} 
           selectedCountry={selectedCountry} 
         />
+
+        <div className="absolute inset-0 bg-black/20 z-[1] pointer-events-none" />
         
         {/* Top Left Overlay: Breadcrumbs / Status */}
         <div className="absolute top-8 left-8 z-10 pointer-events-none">
@@ -132,12 +134,12 @@ export function GlobeView({ articles, loading }: GlobeViewProps) {
 
         {/* Legend */}
         <div className="absolute bottom-8 left-8 z-10">
-          <div className="px-4 py-3 rounded-lg border border-border/60 bg-[var(--news-bg-secondary)]/80 backdrop-blur-md shadow-xl flex items-center gap-6">
+          <div className="px-4 py-3 rounded-none border border-white/10 bg-[var(--news-bg-secondary)]/80 backdrop-blur-md shadow-xl flex items-center gap-6">
             <div className="flex items-center gap-2">
               <div className="h-2 w-2 rounded-full bg-primary shadow-[0_0_8px_var(--primary)]" />
               <span className="text-[10px] font-mono uppercase tracking-[0.2em] text-foreground/80">Active Pulse</span>
             </div>
-            <div className="h-4 w-px bg-border/60" />
+            <div className="h-4 w-px bg-white/10" />
             <div className="flex items-center gap-3">
                <span className="text-[9px] font-mono uppercase tracking-widest text-muted-foreground">Intensity</span>
                <div className="flex gap-1">
@@ -153,8 +155,8 @@ export function GlobeView({ articles, loading }: GlobeViewProps) {
       </div>
 
       {/* Persistent Right Sidebar */}
-      <div className="w-[420px] shrink-0 border-l border-border/60 bg-[var(--news-bg-secondary)]/95 backdrop-blur-xl flex flex-col z-50 shadow-2xl relative">
-        <div className="p-4 border-b border-border/60 space-y-3">
+      <div className="w-[420px] shrink-0 border-l border-white/10 bg-[var(--news-bg-secondary)]/95 backdrop-blur-xl flex flex-col z-50 shadow-2xl relative">
+        <div className="p-4 border-b border-white/10 space-y-3">
           <div className="flex items-center justify-between">
             <div>
               <p className="text-[10px] font-mono uppercase tracking-[0.3em] text-muted-foreground">Focus</p>
@@ -172,14 +174,14 @@ export function GlobeView({ articles, loading }: GlobeViewProps) {
           {topSources.length > 0 && (
             <div className="flex flex-wrap gap-2">
               {topSources.map((source) => (
-                <Badge key={source.name} variant="outline" className="text-[10px] uppercase tracking-wide">
+                <Badge key={source.name} variant="outline" className="text-[10px] uppercase tracking-wide border-white/10 bg-white/5">
                   {source.name} · {source.count}
                 </Badge>
               ))}
             </div>
           )}
           <Tabs value={sidebarTab} onValueChange={setSidebarTab} className="w-full">
-            <TabsList className="w-full grid grid-cols-3 bg-black/20 p-1">
+            <TabsList className="w-full grid grid-cols-3 bg-transparent border border-white/10 p-1 rounded-none">
               <TabsTrigger value="briefing" className="text-[10px] uppercase tracking-widest">Briefing</TabsTrigger>
               <TabsTrigger value="intelligence" className="text-[10px] uppercase tracking-widest">Intel</TabsTrigger>
               <TabsTrigger value="sources" className="text-[10px] uppercase tracking-widest">Sources</TabsTrigger>
@@ -192,10 +194,10 @@ export function GlobeView({ articles, loading }: GlobeViewProps) {
           {/* --- BRIEFING TAB --- */}
           {sidebarTab === 'briefing' && (
             <div className="h-full flex flex-col">
-              <div className="px-4 py-3 border-b border-border/60 bg-[var(--news-bg-primary)]/30">
+              <div className="px-4 py-3 border-b border-white/10 bg-[var(--news-bg-primary)]/30">
                 <Tabs value={viewMode} onValueChange={(v) => setViewMode(v as any)} className="w-full">
-                  <TabsList className="w-full bg-transparent border border-border/40 h-8 p-0">
-                    <TabsTrigger value="internal" className="flex-1 text-[9px] uppercase tracking-widest data-[state=active]:bg-primary/20 data-[state=active]:text-primary h-full rounded-none border-r border-border/40">
+                  <TabsList className="w-full bg-transparent border border-white/10 h-8 p-0 rounded-none">
+                    <TabsTrigger value="internal" className="flex-1 text-[9px] uppercase tracking-widest data-[state=active]:bg-primary/20 data-[state=active]:text-primary h-full rounded-none border-r border-white/10">
                       Local Signal
                     </TabsTrigger>
                     <TabsTrigger value="external" className="flex-1 text-[9px] uppercase tracking-widest data-[state=active]:bg-primary/20 data-[state=active]:text-primary h-full rounded-none">
@@ -211,17 +213,17 @@ export function GlobeView({ articles, loading }: GlobeViewProps) {
                     <div 
                       key={article.id}
                       onClick={() => handleArticleSelect(article)}
-                      className="group p-4 rounded-lg border border-border/40 bg-[var(--news-bg-primary)]/40 hover:bg-[var(--news-bg-primary)] hover:border-primary/40 transition-all cursor-pointer"
+                      className="group p-4 rounded-none border border-white/10 bg-[var(--news-bg-primary)]/40 hover:bg-[var(--news-bg-primary)] hover:border-white/40 transition-all cursor-pointer"
                     >
                       <div className="flex justify-between items-start gap-3">
                          <div className="flex-1">
                            <div className="flex items-center gap-2 mb-2">
-                             <Badge variant="outline" className="text-[8px] uppercase tracking-wider py-0 h-4 border-border/60 text-muted-foreground group-hover:border-primary/40 group-hover:text-primary">
+                             <Badge variant="outline" className="text-[8px] uppercase tracking-wider py-0 h-4 border-white/10 text-muted-foreground group-hover:border-white/40 group-hover:text-foreground">
                                {article.source}
                              </Badge>
                              <span className="text-[9px] text-muted-foreground">{new Date(article.publishedAt).toLocaleDateString()}</span>
                            </div>
-                           <h4 className="font-serif text-sm font-medium leading-snug group-hover:text-primary transition-colors">
+                           <h4 className="font-serif text-sm font-medium leading-snug group-hover:text-foreground transition-colors">
                              {article.title}
                            </h4>
                            <p className="mt-2 text-xs text-muted-foreground line-clamp-2 leading-relaxed">
@@ -229,7 +231,7 @@ export function GlobeView({ articles, loading }: GlobeViewProps) {
                            </p>
                          </div>
                          {hasRealImage(article.image) && (
-                           <div className="w-16 h-16 shrink-0 rounded bg-muted overflow-hidden">
+                           <div className="w-16 h-16 shrink-0 rounded-none bg-[var(--news-bg-primary)]/40 border border-white/10 overflow-hidden">
                              <img src={article.image} alt="" className="w-full h-full object-cover opacity-70 group-hover:opacity-100 transition-opacity" />
                            </div>
                          )}
@@ -251,19 +253,19 @@ export function GlobeView({ articles, loading }: GlobeViewProps) {
              <div className="h-full overflow-y-auto custom-scrollbar p-4 space-y-6">
                 
                 {/* Lead Story Card */}
-                <div className="rounded-lg border border-border/60 bg-[var(--news-bg-primary)]/40 overflow-hidden">
-                  <div className="p-3 border-b border-border/60 flex items-center gap-2 bg-black/20">
+                <div className="rounded-none border border-white/10 bg-[var(--news-bg-primary)]/40 overflow-hidden">
+                  <div className="p-3 border-b border-white/10 flex items-center gap-2 bg-[var(--news-bg-primary)]/40">
                     <Newspaper size={14} className="text-primary" />
                     <span className="text-[10px] font-mono uppercase tracking-widest text-muted-foreground">Spotlight Story</span>
                   </div>
                   {leadArticle ? (
-                    <div className="p-4">
+                    <div className="p-4 cursor-pointer" onClick={() => handleArticleSelect(leadArticle)}>
                        {hasRealImage(leadArticle.image) && (
-                         <div className="relative aspect-video w-full overflow-hidden rounded border border-border/40 mb-3">
+                         <div className="relative aspect-video w-full overflow-hidden rounded-none border border-white/10 mb-3">
                            <img src={leadArticle.image} className="object-cover w-full h-full opacity-80" alt="Lead" />
                            <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent" />
                            <div className="absolute bottom-2 left-2 right-2">
-                             <h4 className="font-serif text-sm font-medium text-white leading-tight drop-shadow-md">
+                             <h4 className="font-serif text-sm font-medium text-foreground leading-tight drop-shadow-md">
                                {leadArticle.title}
                              </h4>
                            </div>
@@ -272,9 +274,6 @@ export function GlobeView({ articles, loading }: GlobeViewProps) {
                        <p className="text-xs text-muted-foreground leading-relaxed line-clamp-3 mb-3">
                          {leadArticle.summary}
                        </p>
-                       <Button size="sm" variant="outline" className="w-full text-xs h-8 border-border/60" onClick={() => handleArticleSelect(leadArticle)}>
-                         Read Analysis
-                       </Button>
                     </div>
                   ) : (
                     <div className="p-8 text-center text-xs text-muted-foreground">
@@ -284,21 +283,21 @@ export function GlobeView({ articles, loading }: GlobeViewProps) {
                 </div>
 
                 {/* Verification Stats */}
-                <div className="rounded-lg border border-border/60 bg-[var(--news-bg-primary)]/40 overflow-hidden">
-                  <div className="p-3 border-b border-border/60 flex items-center gap-2 bg-black/20">
-                    <ShieldCheck size={14} className="text-emerald-400" />
+                <div className="rounded-none border border-white/10 bg-[var(--news-bg-primary)]/40 overflow-hidden">
+                  <div className="p-3 border-b border-white/10 flex items-center gap-2 bg-[var(--news-bg-primary)]/40">
+                    <ShieldCheck size={14} className="text-foreground/70" />
                     <span className="text-[10px] font-mono uppercase tracking-widest text-muted-foreground">Verification Signal</span>
                   </div>
                   <div className="p-4 space-y-4">
                     <div className="flex items-end justify-between">
-                      <div className="text-3xl font-bold text-primary">{verificationStats.highPct}%</div>
+                      <div className="text-3xl font-bold text-foreground">{verificationStats.highPct}%</div>
                       <div className="text-[10px] text-muted-foreground text-right mb-1">
                         High Credibility<br/>Sources
                       </div>
                     </div>
-                    <div className="h-1.5 w-full bg-border/40 rounded-full overflow-hidden">
+                    <div className="h-1.5 w-full bg-white/10 rounded-none overflow-hidden">
                       <div 
-                        className="h-full bg-emerald-500 shadow-[0_0_10px_rgba(16,185,129,0.5)]" 
+                        className="h-full bg-white/40" 
                         style={{ width: `${verificationStats.highPct}%` }} 
                       />
                     </div>
@@ -310,11 +309,11 @@ export function GlobeView({ articles, loading }: GlobeViewProps) {
 
                 {/* Summary Stats */}
                 <div className="grid grid-cols-2 gap-3">
-                  <div className="p-3 rounded border border-border/60 bg-[var(--news-bg-primary)]/40 text-center">
+                  <div className="p-3 rounded-none border border-white/10 bg-[var(--news-bg-primary)]/40 text-center">
                     <div className="text-xl font-bold">{filteredArticles.length}</div>
                     <div className="text-[9px] uppercase tracking-widest text-muted-foreground mt-1">Total Briefs</div>
                   </div>
-                  <div className="p-3 rounded border border-border/60 bg-[var(--news-bg-primary)]/40 text-center">
+                  <div className="p-3 rounded-none border border-white/10 bg-[var(--news-bg-primary)]/40 text-center">
                     <div className="text-xl font-bold">{sourceSummary.length}</div>
                     <div className="text-[9px] uppercase tracking-widest text-muted-foreground mt-1">Active Feeds</div>
                   </div>
@@ -328,9 +327,9 @@ export function GlobeView({ articles, loading }: GlobeViewProps) {
             <div className="h-full overflow-y-auto custom-scrollbar p-4">
                <div className="space-y-2">
                  {sourceSummary.map((source) => (
-                   <div key={source.name} className="flex items-center justify-between p-3 rounded border border-border/40 bg-[var(--news-bg-primary)]/40 hover:border-primary/40 transition-colors">
+                   <div key={source.name} className="flex items-center justify-between p-3 rounded-none border border-white/10 bg-[var(--news-bg-primary)]/40 hover:border-white/40 transition-colors">
                      <div className="flex items-center gap-3">
-                       <div className="h-8 w-8 rounded bg-primary/10 flex items-center justify-center text-primary">
+                       <div className="h-8 w-8 rounded-none bg-white/10 flex items-center justify-center text-foreground">
                          <Signal size={14} />
                        </div>
                        <div>
@@ -338,7 +337,7 @@ export function GlobeView({ articles, loading }: GlobeViewProps) {
                          <div className="text-[10px] text-muted-foreground uppercase tracking-wider">Verified Source</div>
                        </div>
                      </div>
-                     <Badge variant="secondary" className="bg-black/20 text-muted-foreground border-0">{source.count}</Badge>
+                     <Badge variant="outline" className="bg-white/5 text-muted-foreground border-white/10">{source.count}</Badge>
                    </div>
                  ))}
                </div>

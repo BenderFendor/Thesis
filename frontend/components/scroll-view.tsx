@@ -14,7 +14,6 @@ import {
   ChevronDown,
   Bookmark,
   Info,
-  Eye,
   Play,
   Square,
   RefreshCw,
@@ -208,29 +207,20 @@ export function ScrollView({ articles, loading }: { articles: NewsArticle[], loa
   const currentArticle = articles[currentIndex]
 
   const getCredibilityColor = (credibility: string) => {
-    switch (credibility) {
-      case "high":
-        return "default"
-      case "medium":
-        return "secondary"
-      case "low":
-        return "destructive"
-      default:
-        return "outline"
-    }
+    return "outline"
   }
 
   const getBiasIndicator = (bias: string) => {
     const baseClass = "inline-flex h-2 w-2 rounded-full"
     switch (bias) {
       case "left":
-        return <span className={`${baseClass} bg-blue-400`} />
+        return <span className={`${baseClass} bg-white/40`} />
       case "right":
-        return <span className={`${baseClass} bg-red-400`} />
+        return <span className={`${baseClass} bg-white/70`} />
       case "center":
-        return <span className={`${baseClass} bg-neutral-300`} />
+        return <span className={`${baseClass} bg-white/20`} />
       default:
-        return <span className={`${baseClass} bg-neutral-600`} />
+        return <span className={`${baseClass} bg-white/10`} />
     }
   }
 
@@ -259,23 +249,23 @@ export function ScrollView({ articles, loading }: { articles: NewsArticle[], loa
   return (
     <div className="space-y-4 h-full flex flex-col">
       {/* Stream Controls - Simplified */}
-      <div className="flex items-center justify-between px-4 py-2 border-b bg-background/50 backdrop-blur-sm shrink-0">
+      <div className="flex items-center justify-between px-4 py-2 border-b border-white/10 bg-[var(--news-bg-secondary)]/80 backdrop-blur-sm shrink-0">
         <div className="flex items-center gap-2">
             <div className="flex items-center gap-1.5">
                 <span className="relative flex h-2 w-2">
-                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75"></span>
-                  <span className="relative inline-flex rounded-full h-2 w-2 bg-green-500"></span>
+                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-primary/70 opacity-75"></span>
+                  <span className="relative inline-flex rounded-full h-2 w-2 bg-primary"></span>
                 </span>
                 <span className="text-xs font-medium text-muted-foreground">Live</span>
             </div>
         </div>
         
-        <Badge variant="outline" className="text-xs font-normal bg-transparent border-border/50">
+        <Badge variant="outline" className="text-xs font-normal bg-transparent border-white/10">
           {articles.length} articles
         </Badge>
       </div>
 
-      <div className="relative flex-1 overflow-hidden rounded-lg mx-4 mb-4 border border-border/50 shadow-sm" ref={containerRef}>
+      <div className="relative flex-1 overflow-hidden rounded-none mx-4 mb-4 border border-white/10 shadow-sm" ref={containerRef}>
         {/* Navigation Arrows */}
       <div className="absolute right-4 top-1/2 transform -translate-y-1/2 z-20 flex flex-col gap-2">
         <Button
@@ -283,7 +273,7 @@ export function ScrollView({ articles, loading }: { articles: NewsArticle[], loa
           size="sm"
           onClick={() => handleScroll("up")}
           disabled={currentIndex === 0}
-          className="w-10 h-10 p-0 bg-background/80 backdrop-blur-sm border-border"
+          className="w-10 h-10 p-0 bg-[var(--news-bg-secondary)]/80 backdrop-blur-sm border-white/10"
         >
           <ChevronUp className="w-4 h-4" />
         </Button>
@@ -292,7 +282,7 @@ export function ScrollView({ articles, loading }: { articles: NewsArticle[], loa
           size="sm"
           onClick={() => handleScroll("down")}
           disabled={currentIndex === articles.length - 1}
-          className="w-10 h-10 p-0 bg-background/80 backdrop-blur-sm border-border"
+          className="w-10 h-10 p-0 bg-[var(--news-bg-secondary)]/80 backdrop-blur-sm border-white/10"
         >
           <ChevronDown className="w-4 h-4" />
         </Button>
@@ -312,7 +302,10 @@ export function ScrollView({ articles, loading }: { articles: NewsArticle[], loa
 
       {/* Article Content */}
       <div className="relative h-full">
-        <Card className="h-full flex flex-col overflow-hidden bg-card border-border">
+        <Card
+          className="h-full flex flex-col overflow-hidden bg-[var(--news-bg-secondary)] border border-white/10 rounded-none cursor-pointer"
+          onClick={() => handleViewArticle(currentArticle)}
+        >
           {/* Article Image */}
           <div className="relative h-3/5 overflow-hidden">
             <img
@@ -325,21 +318,21 @@ export function ScrollView({ articles, loading }: { articles: NewsArticle[], loa
             {/* Top Badges */}
             <div className="absolute top-4 left-4 flex gap-2">
               <Badge variant={getCredibilityColor(currentArticle.credibility)}>{currentArticle.credibility}</Badge>
-              <span className="text-white text-sm" title={`${currentArticle.bias} bias`}>
+              <span className="text-foreground text-sm" title={`${currentArticle.bias} bias`}>
                 {getBiasIndicator(currentArticle.bias)}
               </span>
-              <Badge variant="outline" className="bg-background/80 backdrop-blur-sm border-border">
+              <Badge variant="outline" className="bg-[var(--news-bg-secondary)]/80 backdrop-blur-sm border-white/10">
                 {currentArticle.category}
               </Badge>
               {currentArticle.translated && (
-                <Badge variant="outline" className="bg-background/80 backdrop-blur-sm border-border">
+                <Badge variant="outline" className="bg-[var(--news-bg-secondary)]/80 backdrop-blur-sm border-white/10">
                   Translated
                 </Badge>
               )}
             </div>
 
             {/* Article Meta */}
-            <div className="absolute bottom-0 left-0 right-0 p-6 text-white">
+            <div className="absolute bottom-0 left-0 right-0 p-6 text-foreground">
               <div className="flex items-center gap-2 text-sm mb-3">
                 <MapPin className="w-4 h-4" />
                 <span>{currentArticle.country}</span>
@@ -348,46 +341,42 @@ export function ScrollView({ articles, loading }: { articles: NewsArticle[], loa
                 <span>{currentArticle.publishedAt}</span>
               </div>
               <h2 className="text-2xl font-bold mb-3 text-balance leading-tight">{currentArticle.title}</h2>
-              <p className="text-sm text-white/90 mb-3 line-clamp-2">{currentArticle.summary}</p>
+              <p className="text-sm text-foreground/80 mb-3 line-clamp-2">{currentArticle.summary}</p>
               <div className="flex items-center justify-between">
                 <SourceInfoModal sourceId={currentArticle.sourceId}>
-                  <Button variant="ghost" size="sm" className="text-primary-foreground p-0 h-auto">
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="text-foreground p-0 h-auto"
+                    onClick={(event) => event.stopPropagation()}
+                  >
                     <Info className="w-4 h-4 mr-1" />
                     {currentArticle.source}
                   </Button>
                 </SourceInfoModal>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => handleViewArticle(currentArticle)}
-                  className="bg-background/20 backdrop-blur-sm border-white/20 text-white hover:bg-background/30"
-                >
-                  <Eye className="w-4 h-4 mr-2" />
-                  View Article
-                </Button>
               </div>
             </div>
           </div>
 
           {/* Article Content */}
-          <CardContent className="flex-1 p-6 overflow-y-auto bg-card">
+          <CardContent className="flex-1 p-6 overflow-y-auto bg-[var(--news-bg-secondary)]">
             <div className="space-y-4">
               <p className="text-sm leading-relaxed text-muted-foreground">{currentArticle.content}</p>
 
               {/* Source Funding Information */}
                             {currentSource?.funding && (
-                <div className="p-3 bg-muted/50 rounded-lg border border-border">
+                <div className="p-3 bg-[var(--news-bg-secondary)]/60 border border-white/10">
                   <h4 className="text-sm font-medium mb-2 text-foreground">Source Funding</h4>
                   <div className="space-y-1">
                     {currentSource.funding.map((fund: string, index: number) => (
                       <div key={index} className="flex items-center gap-2 text-sm text-muted-foreground">
-                        <div className="w-2 h-2 bg-primary rounded-full" />
+                        <div className="w-2 h-2 bg-white/40 rounded-full" />
                         <span>{fund}</span>
                       </div>
                     ))}
                   </div>
                   {currentSource.funding.some((f: string) => f.includes("Government") || f.includes("State")) && (
-                    <Badge variant="secondary" className="mt-2 text-xs">
+                    <Badge variant="outline" className="mt-2 text-xs border-white/10 bg-white/5">
                       Government Funded
                     </Badge>
                   )}
@@ -395,13 +384,16 @@ export function ScrollView({ articles, loading }: { articles: NewsArticle[], loa
               )}
 
               {/* Interaction Buttons */}
-              <div className="flex items-center justify-between pt-4 border-t border-border">
+              <div className="flex items-center justify-between pt-4 border-t border-white/10">
                 <div className="flex items-center gap-6">
                   <Button
                     variant="ghost"
                     size="sm"
-                    onClick={() => handleLike(currentArticle.id)}
-                    className={`gap-2 ${likedArticles.has(currentArticle.id) ? "text-red-500" : ""}`}
+                    onClick={(event) => {
+                      event.stopPropagation()
+                      handleLike(currentArticle.id)
+                    }}
+                    className={`gap-2 ${likedArticles.has(currentArticle.id) ? "text-foreground" : "text-muted-foreground"}`}
                   >
                     <Heart className={`w-4 h-4 ${likedArticles.has(currentArticle.id) ? "fill-current" : ""}`} />
                     <span className="text-sm">Like</span>
@@ -412,15 +404,25 @@ export function ScrollView({ articles, loading }: { articles: NewsArticle[], loa
                   <Button
                     variant="ghost"
                     size="sm"
-                    onClick={() => handleBookmark(currentArticle.id)}
-                    className={bookmarkedArticles.has(currentArticle.id) ? "text-primary" : ""}
+                    onClick={(event) => {
+                      event.stopPropagation()
+                      handleBookmark(currentArticle.id)
+                    }}
+                    className={bookmarkedArticles.has(currentArticle.id) ? "text-foreground" : "text-muted-foreground"}
                   >
                     <Bookmark
                       className={`w-4 h-4 ${bookmarkedArticles.has(currentArticle.id) ? "fill-current" : ""}`}
                     />
                   </Button>
 
-                  <Button variant="ghost" size="sm" onClick={() => window.open(currentArticle.url, "_blank")}>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={(event) => {
+                      event.stopPropagation()
+                      window.open(currentArticle.url, "_blank")
+                    }}
+                  >
                     <ExternalLink className="w-4 h-4" />
                   </Button>
                 </div>
@@ -431,8 +433,8 @@ export function ScrollView({ articles, loading }: { articles: NewsArticle[], loa
       </div>
 
       {/* Instructions */}
-      <div className="absolute bottom-4 right-4 text-xs text-muted-foreground bg-background/80 backdrop-blur-sm rounded-lg px-3 py-2 border border-border">
-        Use ↑↓ keys, scroll wheel, or swipe to navigate • Click "View Article" for details
+      <div className="absolute bottom-4 right-4 text-xs text-muted-foreground bg-[var(--news-bg-secondary)]/80 backdrop-blur-sm rounded-none px-3 py-2 border border-white/10">
+        Use ↑↓ keys, scroll wheel, or swipe to navigate • Click a card for details
       </div>
 
       {/* Article Detail Modal */}

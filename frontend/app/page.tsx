@@ -1,18 +1,18 @@
 "use client"
 
-import { useState, useEffect, useRef, useCallback, useMemo, type KeyboardEvent, type ReactNode } from "react"
+import { useState, useEffect, useRef, useCallback, useMemo, type KeyboardEvent } from "react"
 import { Button } from "@/components/ui/button"
-import { Badge } from "@/components/ui/badge"
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { Tabs, TabsContent } from "@/components/ui/tabs"
 import {
   Globe,
   Grid3X3,
   Scroll,
   List,
   Search,
-  Menu,
   Bell,
   Bug,
+  SlidersHorizontal,
+  UserCircle,
   Building2,
   Gamepad2,
   Shirt,
@@ -63,15 +63,6 @@ const HalftoneOverlay = () => (
       <feComposite operator="in" in="SourceGraphic" in2="dots" />
     </filter>
   </svg>
-);
-
-const HeaderHint = ({ label, children }: { label: string; children: ReactNode }) => (
-  <div className="relative group">
-    {children}
-    <div className="pointer-events-none absolute left-1/2 top-full z-50 mt-2 -translate-x-1/2 whitespace-nowrap rounded border border-border/60 bg-[var(--news-bg-secondary)] px-2 py-1 text-[10px] font-mono uppercase tracking-[0.24em] text-muted-foreground opacity-0 transition-opacity duration-200 group-hover:opacity-100 group-focus-within:opacity-100">
-      {label}
-    </div>
-  </div>
 );
 
 function NewsPage() {
@@ -389,12 +380,12 @@ function NewsPage() {
   const isGlobeView = currentView === "globe"
 
   return (
-    <div className="min-h-screen flex flex-col bg-[var(--news-bg-primary)] text-foreground">
+    <div className="min-h-screen flex bg-[var(--news-bg-primary)] text-foreground">
       <HalftoneOverlay />
       {/* Loading state */}
       {(loading || (streamHook.isStreaming && articlesByCategory[activeCategory]?.length === 0)) && (
         <div className="fixed inset-0 z-50 grid place-items-center bg-[var(--news-bg-primary)]/95 backdrop-blur">
-          <div className="relative w-[min(420px,90vw)] overflow-hidden rounded-2xl border border-border/60 bg-[var(--news-bg-secondary)] p-8 shadow-2xl">
+          <div className="relative w-[min(420px,90vw)] overflow-hidden rounded-none border border-white/10 bg-[var(--news-bg-secondary)] p-8 shadow-2xl">
             <div className="absolute inset-0 bg-[radial-gradient(circle_at_top,_rgba(255,255,255,0.08),_transparent_60%)]" />
             <div className="relative">
               <div className="flex items-center justify-between">
@@ -413,7 +404,7 @@ function NewsPage() {
                 <div className="h-full w-1/2 animate-[shimmer_2s_infinite] bg-gradient-to-r from-primary/20 via-primary/60 to-primary/20" />
               </div>
               {streamHook.retryCount > 0 && (
-                <div className="mt-4 rounded-lg border border-border/60 bg-[var(--news-bg-primary)]/50 px-3 py-2 text-xs text-muted-foreground">
+                <div className="mt-4 rounded-none border border-white/10 bg-[var(--news-bg-primary)]/50 px-3 py-2 text-xs text-muted-foreground">
                   Retry attempt {streamHook.retryCount}/{streamHook.maxRetries}
                 </div>
               )}
@@ -423,185 +414,145 @@ function NewsPage() {
       )}
 
 
-      <header className="sticky top-0 z-50 border-b border-border/60 bg-[var(--news-bg-primary)]/90 backdrop-blur-md">
-        <div className="max-w-[1600px] mx-auto flex flex-wrap items-center justify-between gap-6 px-6 py-4">
-          <div className="flex items-center gap-8">
-            <Link href="/" className="flex items-center gap-3 group">
-              <div className="relative">
-                <Globe className="w-6 h-6 text-primary transition-transform duration-500 group-hover:rotate-12" strokeWidth={1.5} />
-                <div className="absolute inset-0 border border-primary/30 rounded-full scale-150 animate-ping opacity-20 pointer-events-none" />
-              </div>
-              <div>
-                <h1 className="font-serif text-2xl font-semibold tracking-tight">Scoop</h1>
-                <p className="font-mono text-[9px] uppercase tracking-[0.35em] text-muted-foreground mt-1">
-                  Multi-perspective news
-                </p>
-              </div>
-            </Link>
-
-            <nav className="hidden md:flex items-center gap-6 font-mono text-[10px] uppercase tracking-[0.3em] text-muted-foreground">
-              <button
-                className={`flex items-center gap-2 pb-1 border-b ${
-                  currentView === "globe" ? "text-primary border-primary" : "border-transparent hover:text-foreground"
-                }`}
-                onClick={() => setCurrentView("globe")}
-              >
-                <Globe className="w-3 h-3" />
-                Globe
-              </button>
-              <button
-                className={`flex items-center gap-2 pb-1 border-b ${
-                  currentView === "grid" ? "text-primary border-primary" : "border-transparent hover:text-foreground"
-                }`}
-                onClick={() => setCurrentView("grid")}
-              >
-                <Grid3X3 className="w-3 h-3" />
-                Grid
-              </button>
-              <button
-                className={`flex items-center gap-2 pb-1 border-b ${
-                  currentView === "scroll" ? "text-primary border-primary" : "border-transparent hover:text-foreground"
-                }`}
-                onClick={() => setCurrentView("scroll")}
-              >
-                <Scroll className="w-3 h-3" />
-                Scroll
-              </button>
-              <button
-                className={`flex items-center gap-2 pb-1 border-b ${
-                  currentView === "list" ? "text-primary border-primary" : "border-transparent hover:text-foreground"
-                }`}
-                onClick={() => setCurrentView("list")}
-              >
-                <List className="w-3 h-3" />
-                List
-              </button>
-            </nav>
+      <aside className="hidden lg:flex w-60 shrink-0 border-r border-white/10 bg-[var(--news-bg-secondary)] sticky top-0 h-screen flex-col">
+        <div className="px-4 py-5 border-b border-white/10">
+          <div className="flex items-center gap-3">
+            <Globe className="w-5 h-5 text-primary" strokeWidth={1.4} />
+            <div>
+              <div className="text-[9px] font-mono uppercase tracking-[0.35em] text-muted-foreground">Scoop</div>
+              <div className="font-serif text-lg font-semibold tracking-tight">Dashboard</div>
+            </div>
           </div>
-
-          <div className="flex items-center gap-4">
-            <div className="flex items-center gap-1 md:hidden">
-              <Button
-                variant={currentView === "globe" ? "default" : "ghost"}
-                size="sm"
-                onClick={() => setCurrentView("globe")}
-                className="h-8 w-8 p-0"
-              >
-                <Globe className="w-4 h-4" />
-              </Button>
-              <Button
-                variant={currentView === "grid" ? "default" : "ghost"}
-                size="sm"
-                onClick={() => setCurrentView("grid")}
-                className="h-8 w-8 p-0"
-              >
-                <Grid3X3 className="w-4 h-4" />
-              </Button>
-              <Button
-                variant={currentView === "scroll" ? "default" : "ghost"}
-                size="sm"
-                onClick={() => setCurrentView("scroll")}
-                className="h-8 w-8 p-0"
-              >
-                <Scroll className="w-4 h-4" />
-              </Button>
-              <Button
-                variant={currentView === "list" ? "default" : "ghost"}
-                size="sm"
-                onClick={() => setCurrentView("list")}
-                className="h-8 w-8 p-0"
-              >
-                <List className="w-4 h-4" />
-              </Button>
+        </div>
+        <div className="px-4 py-4 border-b border-white/10">
+          <div className="text-[10px] font-mono uppercase tracking-[0.3em] text-muted-foreground">Search</div>
+          <div className="relative mt-2">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+            <input
+              type="text"
+              placeholder="Search research workspace..."
+              value={searchQuery}
+              onChange={(event) => setSearchQuery(event.target.value)}
+              onKeyDown={handleSearchSubmit}
+              className="w-full bg-[var(--news-bg-primary)] border border-white/10 px-9 py-2 text-xs text-foreground placeholder:text-muted-foreground/70 focus:outline-none focus:border-primary"
+            />
+          </div>
+        </div>
+        <div className="flex-1 overflow-y-auto px-4 py-4 space-y-6">
+          <div>
+            <div className="text-[10px] font-mono uppercase tracking-[0.3em] text-muted-foreground">Views</div>
+            <div className="mt-3 space-y-2">
+              {[
+                { key: "globe", label: "Globe", Icon: Globe },
+                { key: "grid", label: "Grid", Icon: Grid3X3 },
+                { key: "scroll", label: "Scroll", Icon: Scroll },
+                { key: "list", label: "List", Icon: List },
+              ].map(({ key, label, Icon }) => (
+                <button
+                  key={key}
+                  onClick={() => setCurrentView(key as ViewMode)}
+                  className={`w-full flex items-center gap-3 px-3 py-2 border border-white/10 text-[10px] font-mono uppercase tracking-[0.32em] transition-colors ${
+                    currentView === key
+                      ? "bg-primary/15 text-primary border-primary/40"
+                      : "text-muted-foreground hover:text-foreground hover:border-white/30"
+                  }`}
+                >
+                  <Icon className="w-4 h-4" />
+                  {label}
+                </button>
+              ))}
             </div>
-            <div className="relative hidden lg:block group">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" size={14} />
-              <input
-                type="text"
-                placeholder="Search the research workspace..."
-                value={searchQuery}
-                onChange={(event) => setSearchQuery(event.target.value)}
-                onKeyDown={handleSearchSubmit}
-                className="bg-[var(--news-bg-secondary)] border border-border/60 rounded-lg pl-9 pr-4 py-2 text-xs w-60 focus:outline-none focus:border-primary transition-colors text-foreground placeholder:text-muted-foreground/70"
-              />
-              <div className="pointer-events-none absolute left-0 top-full mt-2 rounded border border-border/60 bg-[var(--news-bg-secondary)] px-2 py-1 text-[10px] font-mono uppercase tracking-[0.24em] text-muted-foreground opacity-0 transition-opacity duration-200 group-hover:opacity-100 group-focus-within:opacity-100">
-                Press Enter to open research workspace
-              </div>
-            </div>
-            <div className="flex items-center gap-1 lg:hidden">
-              <Link href="/search">
-                <Button variant="ghost" size="sm" className="h-9 w-9 p-0 border border-border/60" title="Research">
-                  <Search className="w-4 h-4" />
-                </Button>
-              </Link>
-              <Link href="/sources/debug">
-                <Button variant="ghost" size="sm" className="h-9 w-9 p-0 border border-border/60" title="Source Debug">
-                  <Bug className="w-4 h-4" />
-                </Button>
-              </Link>
-            </div>
-            <div className="hidden lg:flex items-center gap-2">
-              <Button asChild variant="outline" size="sm" className="border-border/60 bg-transparent text-xs">
-                <Link href="/search">
-                  <Search className="w-3.5 h-3.5 mr-2" />
-                  Research
-                </Link>
-              </Button>
-              <Button asChild variant="outline" size="sm" className="border-border/60 bg-transparent text-xs">
-                <Link href="/sources/debug">
-                  <Bug className="w-3.5 h-3.5 mr-2" />
-                  Source Debug
-                </Link>
-              </Button>
-            </div>
-            <HeaderHint label="Filter sources">
-              <Button
-                variant="ghost"
-                size="sm"
+          </div>
+          <div>
+            <div className="text-[10px] font-mono uppercase tracking-[0.3em] text-muted-foreground">Filters</div>
+            <div className="mt-3 space-y-2">
+              <button
                 onClick={() => setSidebarOpen(true)}
-                className="h-9 w-9 p-0 border border-border/60"
-                title="Filter sources"
+                className="w-full flex items-center gap-3 px-3 py-2 border border-white/10 text-[10px] font-mono uppercase tracking-[0.32em] text-muted-foreground hover:text-foreground hover:border-white/30 transition-colors"
               >
-                <Menu className="w-4 h-4" />
-              </Button>
-            </HeaderHint>
-            <HeaderHint label="Alerts">
-              <Button variant="ghost" size="sm" className="relative h-9 w-9 p-0 border border-border/60" onClick={() => setShowNotifications(!showNotifications)}>
-                <Bell className="w-4 h-4" />
-                {actionableNotificationCount > 0 && (
-                  <Badge className="absolute -top-1 -right-1 w-4 h-4 p-0 flex items-center justify-center text-[10px] bg-destructive">
-                    {actionableNotificationCount}
-                  </Badge>
-                )}
-              </Button>
-            </HeaderHint>
-            {showNotifications && (
-              <NotificationsPopup
-                notifications={notifications}
-                onClear={handleClearNotification}
-                onClearAll={handleClearAllNotifications}
-                onAction={handleNotificationAction}
-              />
-            )}
+                <SlidersHorizontal className="w-4 h-4" />
+                Sources
+              </button>
+            </div>
           </div>
+          <div>
+            <div className="text-[10px] font-mono uppercase tracking-[0.3em] text-muted-foreground">Workspace</div>
+            <div className="mt-3 space-y-2">
+              <Link
+                href="/search"
+                className="w-full flex items-center gap-3 px-3 py-2 border border-white/10 text-[10px] font-mono uppercase tracking-[0.32em] text-muted-foreground hover:text-foreground hover:border-white/30 transition-colors"
+              >
+                <Search className="w-4 h-4" />
+                Research
+              </Link>
+              <Link
+                href="/sources/debug"
+                className="w-full flex items-center gap-3 px-3 py-2 border border-white/10 text-[10px] font-mono uppercase tracking-[0.32em] text-muted-foreground hover:text-foreground hover:border-white/30 transition-colors"
+              >
+                <Bug className="w-4 h-4" />
+                Source Debug
+              </Link>
+            </div>
+          </div>
+        </div>
+        <div className="px-4 py-4 border-t border-white/10 relative">
+          <button
+            type="button"
+            onClick={() => setShowNotifications(!showNotifications)}
+            className="w-full flex items-center gap-3 px-3 py-2 border border-white/10 text-[10px] font-mono uppercase tracking-[0.32em] text-muted-foreground hover:text-foreground hover:border-white/30 transition-colors"
+          >
+            <div className="relative">
+              <Bell className="w-4 h-4" />
+              {actionableNotificationCount > 0 && (
+                <span className="absolute -top-2 -right-2 flex h-4 w-4 items-center justify-center rounded-full bg-primary text-[9px] text-primary-foreground">
+                  {actionableNotificationCount}
+                </span>
+              )}
+            </div>
+            Alerts
+          </button>
+          {showNotifications && (
+            <NotificationsPopup
+              notifications={notifications}
+              onClear={handleClearNotification}
+              onClearAll={handleClearAllNotifications}
+              onAction={handleNotificationAction}
+            />
+          )}
+        </div>
+      </aside>
+
+      <div className="flex-1 flex flex-col min-w-0">
+      <header className="sticky top-0 z-40 border-b border-white/10 bg-[var(--news-bg-primary)]/95 backdrop-blur">
+        <div className="flex items-center justify-end px-6 py-3 gap-2">
+          <Button asChild variant="outline" size="sm" className="border-white/10 bg-transparent text-[10px] font-mono uppercase tracking-[0.32em]">
+            <Link href="/search">
+              <Search className="w-3.5 h-3.5 mr-2" />
+              Search
+            </Link>
+          </Button>
+          <Button variant="outline" size="sm" className="border-white/10 bg-transparent text-[10px] font-mono uppercase tracking-[0.32em]">
+            <UserCircle className="w-3.5 h-3.5 mr-2" />
+            User Profile
+          </Button>
         </div>
       </header>
 
-      <main className="flex-1">
-        <div className="max-w-[1600px] mx-auto grid grid-cols-1 lg:grid-cols-12 gap-px bg-border/40">
-          <section className="lg:col-span-12 bg-[var(--news-bg-primary)] flex flex-col min-h-[calc(100vh-80px)]">
+      <main className="flex-1 bg-[var(--news-bg-primary)]">
+        <div className="max-w-[1600px] mx-auto grid grid-cols-1 lg:grid-cols-12 gap-0">
+          <section className="lg:col-span-12 bg-[var(--news-bg-primary)] flex flex-col min-h-[calc(100vh-80px)] border-x border-white/10">
             {!isGlobeView && (
-              <div className="relative p-8 border-b border-border/60">
+              <div className="relative p-6 border-b border-white/10">
               <div
                 className="pointer-events-none absolute inset-0 opacity-[0.04] bg-primary"
                 style={{ filter: "url(#halftone-pattern)" }}
               />
               <div className="flex items-center justify-between mb-6">
                 <div className="flex items-center gap-2">
-                  <span className="px-2 py-0.5 rounded-sm border font-mono text-[9px] uppercase tracking-[0.2em] bg-primary/10 text-primary border-primary/20">
+                  <span className="px-2 py-0.5 border font-mono text-[9px] uppercase tracking-[0.32em] bg-primary/10 text-primary border-primary/40">
                     Lead Story
                   </span>
-                  <span className="px-2 py-0.5 rounded-sm border font-mono text-[9px] uppercase tracking-[0.2em] text-muted-foreground border-border/60">
+                  <span className="px-2 py-0.5 border font-mono text-[9px] uppercase tracking-[0.32em] text-muted-foreground border-white/10">
                     {leadCategoryLabel}
                   </span>
                 </div>
@@ -612,10 +563,10 @@ function NewsPage() {
 
               <div className="grid gap-6 lg:grid-cols-[minmax(0,2.1fr)_minmax(0,1fr)]">
                 <div className="min-w-0">
-                  <h2 className="font-serif text-3xl md:text-5xl font-semibold tracking-tight leading-[0.98] mb-4 line-clamp-3">
+                  <h2 className="font-serif text-3xl md:text-5xl font-semibold tracking-tight leading-[1.05] mb-4 line-clamp-3">
                     {leadArticle?.title || "Loading coverage..."}
                   </h2>
-                  <p className="text-base md:text-lg text-foreground/80 leading-snug font-serif italic line-clamp-3">
+                  <p className="text-base md:text-lg text-foreground/80 leading-relaxed font-serif italic line-clamp-3">
                     {leadSummary}
                   </p>
                   <div className="mt-4 flex flex-wrap gap-2">
@@ -623,12 +574,12 @@ function NewsPage() {
                       variant="outline"
                       size="sm"
                       onClick={() => leadArticle && setLeadModalOpen(true)}
-                      className="border-border/60 bg-transparent text-xs"
+                      className="border-white/10 bg-transparent text-[10px] font-mono uppercase tracking-[0.32em]"
                     >
                       Open analysis
                     </Button>
                     <Link href="/search">
-                      <Button variant="outline" size="sm" className="border-border/60 bg-transparent text-xs">
+                      <Button variant="outline" size="sm" className="border-white/10 bg-transparent text-[10px] font-mono uppercase tracking-[0.32em]">
                         Research workspace
                       </Button>
                     </Link>
@@ -636,41 +587,41 @@ function NewsPage() {
                       variant="outline"
                       size="sm"
                       onClick={() => setSidebarOpen(true)}
-                      className="border-border/60 bg-transparent text-xs"
+                      className="border-white/10 bg-transparent text-[10px] font-mono uppercase tracking-[0.32em]"
                     >
                       Filter sources
                     </Button>
                   </div>
                 </div>
                 <div className="space-y-4">
-                  <div className="rounded-lg border border-border/60 bg-[var(--news-bg-secondary)] p-4">
-                    <div className="flex items-center justify-between text-[10px] font-mono uppercase tracking-[0.3em] text-muted-foreground">
+                  <div className="border border-white/10 bg-[var(--news-bg-secondary)] p-4">
+                    <div className="flex items-center justify-between text-[10px] font-mono uppercase tracking-[0.32em] text-muted-foreground">
                       <span>Coverage Snapshot</span>
                       <span className="text-primary">{viewLabel}</span>
                     </div>
                     <div className="mt-3 grid grid-cols-2 gap-3 text-xs">
-                      <div className="rounded border border-border/40 bg-[var(--news-bg-primary)]/40 px-3 py-2">
-                        <div className="text-[10px] uppercase text-muted-foreground">Articles</div>
+                      <div className="border border-white/10 bg-[var(--news-bg-primary)] px-3 py-2">
+                        <div className="text-[10px] uppercase tracking-widest text-muted-foreground">Articles</div>
                         <div className="text-sm font-semibold">{articleCount}</div>
                       </div>
-                      <div className="rounded border border-border/40 bg-[var(--news-bg-primary)]/40 px-3 py-2">
-                        <div className="text-[10px] uppercase text-muted-foreground">Sources</div>
+                      <div className="border border-white/10 bg-[var(--news-bg-primary)] px-3 py-2">
+                        <div className="text-[10px] uppercase tracking-widest text-muted-foreground">Sources</div>
                         <div className="text-sm font-semibold">
                           {selectedSources.size > 0 ? selectedSources.size : "All"}
                         </div>
                       </div>
-                      <div className="rounded border border-border/40 bg-[var(--news-bg-primary)]/40 px-3 py-2">
-                        <div className="text-[10px] uppercase text-muted-foreground">Favorites</div>
+                      <div className="border border-white/10 bg-[var(--news-bg-primary)] px-3 py-2">
+                        <div className="text-[10px] uppercase tracking-widest text-muted-foreground">Favorites</div>
                         <div className="text-sm font-semibold">{favorites.size}</div>
                       </div>
-                      <div className="rounded border border-border/40 bg-[var(--news-bg-primary)]/40 px-3 py-2">
-                        <div className="text-[10px] uppercase text-muted-foreground">Bias</div>
+                      <div className="border border-white/10 bg-[var(--news-bg-primary)] px-3 py-2">
+                        <div className="text-[10px] uppercase tracking-widest text-muted-foreground">Bias</div>
                         <div className="text-sm font-semibold">{leadBias}</div>
                       </div>
                     </div>
                   </div>
-                  <div className="rounded-lg border border-border/60 bg-[var(--news-bg-secondary)] p-4 text-xs text-muted-foreground">
-                    <div className="flex items-center justify-between font-mono uppercase tracking-[0.3em] text-[10px]">
+                  <div className="border border-white/10 bg-[var(--news-bg-secondary)] p-4 text-xs text-muted-foreground">
+                    <div className="flex items-center justify-between font-mono uppercase tracking-[0.32em] text-[10px]">
                       <span>Lead Signal</span>
                       <span className="text-primary">{leadCredibility}</span>
                     </div>
@@ -686,33 +637,59 @@ function NewsPage() {
             )}
 
             <Tabs value={activeCategory} onValueChange={(value) => setActiveCategory(value)} className="flex-1 flex flex-col overflow-hidden">
-              <div className="px-8 py-6 border-b border-border/60">
+              <div className="px-8 py-6 border-b border-white/10">
                 <div className="flex items-center justify-between mb-6">
                   <div className="flex items-center gap-4">
                     <h3 className="font-serif text-2xl uppercase font-black tracking-tight">The Index</h3>
-                    <div className="flex-1 h-px bg-border/60" />
+                    <div className="flex-1 h-px bg-white/10" />
                     <span className="font-mono text-[10px] uppercase tracking-[0.3em] text-muted-foreground">
                       {articleCount} articles
                     </span>
                   </div>
                 </div>
-                <div className="mb-4 flex flex-wrap items-center justify-between gap-2 text-[10px] font-mono uppercase tracking-[0.3em] text-muted-foreground">
-                  <span>Category filters</span>
+                <div className="mb-4 flex flex-wrap items-center justify-between gap-2 text-[10px] font-mono uppercase tracking-[0.32em] text-muted-foreground">
+                  <span>Category</span>
                   {!isGlobeView && (
                     <span className="text-muted-foreground/70">Use category filters to compare coverage.</span>
                   )}
                 </div>
-                <TabsList className="flex flex-wrap gap-2 bg-transparent p-0 h-auto">
-                  {categories.map((category) => (
-                    <TabsTrigger
-                      key={category.id}
-                      value={category.id}
-                      className="font-mono text-[10px] uppercase tracking-[0.3em] border border-border/60 data-[state=active]:border-primary data-[state=active]:text-primary data-[state=active]:bg-primary/10 px-3 py-2 rounded-sm"
+                <div className="flex flex-wrap items-center gap-3">
+                  <select
+                    value={activeCategory}
+                    onChange={(event) => setActiveCategory(event.target.value)}
+                    className="min-w-[220px] border border-white/10 bg-[var(--news-bg-secondary)] px-3 py-2 text-[10px] font-mono uppercase tracking-[0.32em] text-foreground focus:outline-none focus:border-primary"
+                    aria-label="Select category"
+                  >
+                    {categories.map((category) => (
+                      <option key={category.id} value={category.id}>
+                        {category.label}
+                      </option>
+                    ))}
+                  </select>
+                  <div className="flex items-center gap-2 lg:hidden">
+                    <span className="text-[10px] font-mono uppercase tracking-[0.32em] text-muted-foreground">View</span>
+                    <select
+                      value={currentView}
+                      onChange={(event) => setCurrentView(event.target.value as ViewMode)}
+                      className="border border-white/10 bg-[var(--news-bg-secondary)] px-3 py-2 text-[10px] font-mono uppercase tracking-[0.32em] text-foreground focus:outline-none focus:border-primary"
+                      aria-label="Select view"
                     >
-                      {category.label}
-                    </TabsTrigger>
-                  ))}
-                </TabsList>
+                      <option value="globe">Globe</option>
+                      <option value="grid">Grid</option>
+                      <option value="scroll">Scroll</option>
+                      <option value="list">List</option>
+                    </select>
+                  </div>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setSidebarOpen(true)}
+                    className="border-white/10 bg-transparent text-[10px] font-mono uppercase tracking-[0.32em]"
+                  >
+                    <SlidersHorizontal className="w-3.5 h-3.5 mr-2" />
+                    Sources
+                  </Button>
+                </div>
               </div>
               {categories.map((category) => (
                 <TabsContent key={category.id} value={category.id} className="mt-0 flex-1 overflow-hidden flex flex-col">
@@ -741,6 +718,7 @@ function NewsPage() {
       </main>
 
 
+      </div>
       {/* Source Sidebar */}
       <SourceSidebar isOpen={sidebarOpen} onClose={() => setSidebarOpen(false)} />
 

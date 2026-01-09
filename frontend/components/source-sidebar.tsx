@@ -97,15 +97,15 @@ export function SourceSidebar({ isOpen, onClose }: SourceSidebarProps) {
       />
 
       {/* Sidebar */}
-      <div className="relative w-80 bg-background border-r border-border overflow-hidden flex flex-col">
+      <div className="relative w-80 bg-[var(--news-bg-secondary)] border-r border-white/10 overflow-hidden flex flex-col">
         {/* Header */}
-        <div className="flex items-center justify-between p-4 border-b border-border">
-          <h2 className="text-lg font-semibold">Sources</h2>
+        <div className="flex items-center justify-between p-4 border-b border-white/10">
+          <h2 className="text-sm font-mono uppercase tracking-[0.3em] text-muted-foreground">Sources</h2>
           <Button
             variant="ghost"
             size="icon"
             onClick={onClose}
-            className="h-8 w-8"
+            className="h-8 w-8 rounded-none"
           >
             <X className="h-4 w-4" />
           </Button>
@@ -114,21 +114,21 @@ export function SourceSidebar({ isOpen, onClose }: SourceSidebarProps) {
         {/* Filter Badge */}
         {isFilterActive() && (
           <div className="px-4 pt-2 pb-1">
-            <Badge variant="secondary" className="cursor-pointer"
+            <Badge variant="outline" className="cursor-pointer border-white/10 bg-white/5 text-[10px] font-mono uppercase tracking-[0.3em] text-foreground/80"
               onClick={handleClearAll}>
               {getSelectionCount()} selected </Badge>
           </div>
         )}
 
         {/* Search Bar */}
-        <div className="px-4 py-3 border-b border-border">
+        <div className="px-4 py-3 border-b border-white/10">
           <div className="relative">
             <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
             <Input
               placeholder="Search sources..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="pl-8 h-9"
+              className="pl-8 h-9 rounded-none border-white/10 bg-[var(--news-bg-primary)] text-foreground"
             />
           </div>
         </div>
@@ -140,7 +140,7 @@ export function SourceSidebar({ isOpen, onClose }: SourceSidebarProps) {
               Loading sources...
             </div>
           ) : (
-            <div className="divide-y divide-border">
+            <div className="divide-y divide-white/10">
               {/* Favorites Section */}
               {favoriteSources.length > 0 && (
                 <div className="p-4">
@@ -153,8 +153,8 @@ export function SourceSidebar({ isOpen, onClose }: SourceSidebarProps) {
                         !expandedSections.favorites ? "-rotate-90" : ""
                       }`}
                     />
-                    <Star className="h-4 w-4 fill-yellow-500 text-yellow-500" />
-                    <span className="text-sm font-semibold">
+                    <Star className="h-4 w-4 text-foreground" />
+                    <span className="text-xs font-mono uppercase tracking-[0.2em] text-foreground">
                       Favorites ({favoriteSources.length})
                     </span>
                   </button>
@@ -190,7 +190,7 @@ export function SourceSidebar({ isOpen, onClose }: SourceSidebarProps) {
                         !expandedSections.allSources ? "-rotate-90" : ""
                       }`}
                     />
-                    <span className="text-sm font-semibold">
+                    <span className="text-xs font-mono uppercase tracking-[0.2em] text-foreground">
                       All Sources ({sources.length})
                     </span>
                   </button>
@@ -203,7 +203,7 @@ export function SourceSidebar({ isOpen, onClose }: SourceSidebarProps) {
                         variant="outline"
                         size="sm"
                         onClick={handleSelectAll}
-                        className="h-8 text-xs"
+                        className="h-8 text-[10px] font-mono uppercase tracking-[0.2em] border-white/10 rounded-none"
                       >
                         All
                       </Button>
@@ -211,7 +211,7 @@ export function SourceSidebar({ isOpen, onClose }: SourceSidebarProps) {
                         variant="outline"
                         size="sm"
                         onClick={handleClearAll}
-                        className="h-8 text-xs"
+                        className="h-8 text-[10px] font-mono uppercase tracking-[0.2em] border-white/10 rounded-none"
                       >
                         Clear
                       </Button>
@@ -268,10 +268,10 @@ function SourceItem({
 }) {
   return (
     <div
-      className={`flex items-center gap-2 p-2 rounded-md cursor-pointer transition-colors ${
+      className={`flex items-center gap-2 p-2 rounded-none cursor-pointer transition-colors border ${
         isSelected
-          ? "bg-primary/10 border border-primary/30"
-          : "hover:bg-muted border border-transparent"
+          ? "bg-white/5 border-white/20"
+          : "hover:bg-[var(--news-bg-primary)] border-white/10"
       }`}
       onClick={onToggleSelect}
     >
@@ -280,7 +280,7 @@ function SourceItem({
         type="checkbox"
         checked={isSelected}
         onChange={() => {}}
-        className="h-4 w-4 cursor-pointer rounded border-primary"
+        className="h-4 w-4 cursor-pointer rounded border-white/20"
       />
 
       {/* Source Info */}
@@ -294,14 +294,14 @@ function SourceItem({
       {/* Favorite Button */}
       <button
         onClick={onToggleFavorite}
-        className="flex-shrink-0 p-1 rounded hover:bg-muted transition-colors"
+        className="flex-shrink-0 p-1 rounded-none hover:bg-[var(--news-bg-primary)] transition-colors"
         title={isFavorite ? "Remove favorite" : "Add to favorites"}
       >
         <Star
           className={`h-4 w-4 transition-colors ${
             isFavorite
-              ? "fill-yellow-500 text-yellow-500"
-              : "text-muted-foreground hover:text-yellow-500"
+              ? "fill-current text-foreground"
+              : "text-muted-foreground hover:text-foreground"
           }`}
         />
       </button>

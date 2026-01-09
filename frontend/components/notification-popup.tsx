@@ -27,11 +27,11 @@ interface NotificationsPopupProps {
 const getTypeIcon = (type: Notification['type']) => {
   switch (type) {
     case 'error':
-      return <XCircle className="w-4 h-4 text-destructive" />;
+      return <XCircle className="w-4 h-4 text-primary" />;
     case 'warning':
-      return <AlertTriangle className="w-4 h-4 text-amber-400" />;
+      return <AlertTriangle className="w-4 h-4 text-primary/80" />;
     case 'success':
-      return <CheckCircle2 className="w-4 h-4 text-emerald-400" />;
+      return <CheckCircle2 className="w-4 h-4 text-foreground/70" />;
     default:
       return <Info className="w-4 h-4 text-muted-foreground" />;
   }
@@ -43,14 +43,14 @@ export function NotificationsPopup({ notifications, onClear, onClearAll, onActio
   ).length;
 
   return (
-    <Card className="absolute top-16 right-0 w-96 rounded-xl shadow-2xl z-50 border border-border/60 bg-[var(--news-bg-secondary)]">
-      <CardHeader className="flex flex-row items-center justify-between p-4 border-b border-border/60">
+    <Card className="absolute top-16 right-0 w-96 rounded-none shadow-2xl z-50 border border-white/10 bg-[var(--news-bg-secondary)]">
+      <CardHeader className="flex flex-row items-center justify-between p-4 border-b border-white/10">
         <div className="flex items-center gap-2">
           <Bell className="w-5 h-5" />
-          <CardTitle className="text-lg font-semibold">Notifications</CardTitle>
+          <CardTitle className="text-sm font-mono uppercase tracking-[0.3em] text-muted-foreground">Notifications</CardTitle>
         </div>
         {unreadCount > 0 && (
-          <Badge variant="destructive" className="px-2.5 py-1 text-xs font-bold rounded-full">{unreadCount}</Badge>
+          <Badge variant="outline" className="px-2.5 py-1 text-[10px] font-mono uppercase tracking-[0.2em] border-primary/40 bg-primary/15 text-primary">{unreadCount}</Badge>
         )}
       </CardHeader>
       <CardContent className="p-0">
@@ -58,7 +58,7 @@ export function NotificationsPopup({ notifications, onClear, onClearAll, onActio
           <div className="flex flex-col max-h-96 overflow-y-auto">
             {notifications.map(notification => (
               <div key={notification.id} className="group relative">
-                <div className="flex items-start gap-3 p-4 border-b border-border/60 hover:bg-muted/50 transition-colors">
+                <div className="flex items-start gap-3 p-4 border-b border-white/10 hover:bg-[var(--news-bg-primary)] transition-colors">
                   <div className="mt-0.5">
                     {getTypeIcon(notification.type)}
                   </div>
@@ -99,7 +99,7 @@ export function NotificationsPopup({ notifications, onClear, onClearAll, onActio
                 </button>
               </div>
             ))}
-            <div className="p-2 text-center border-t border-border/60">
+            <div className="p-2 text-center border-t border-white/10">
                 <button onClick={onClearAll} className="text-sm font-medium text-primary hover:underline">
                     Clear all notifications
                 </button>

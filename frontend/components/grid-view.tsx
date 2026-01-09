@@ -13,11 +13,7 @@ import {
   MinusCircle,
   Star,
   RefreshCw,
-  ExternalLink,
-  Info,
-  ChevronRight,
 } from "lucide-react"
-import { SourceInfoModal } from "./source-info-modal"
 import { ArticleDetailModal } from "./article-detail-modal"
 import { VirtualizedGrid } from "./virtualized-grid"
 import type { NewsArticle } from "@/lib/api"
@@ -31,9 +27,7 @@ const logger = get_logger("GridView")
 const isDev = process.env.NODE_ENV !== "production"
 
 // Virtual grid constants for optimization
-const COLUMN_WIDTH = 320
-const ROW_HEIGHT = 420
-const GAP = 12
+const GAP = 0
 const CARD_WIDTH = 280
 const NUM_OF_ARTICLES = 20
 
@@ -229,13 +223,13 @@ export function GridView({
   const getCredibilityColor = (credibility: string) => {
     switch (credibility?.toLowerCase()) {
       case "high":
-        return "bg-primary/15 text-primary border-primary/30"
+        return "bg-white/5 text-foreground border-white/20"
       case "medium":
-        return "bg-yellow-500/20 text-yellow-400 border-yellow-500/30"
+        return "bg-white/5 text-foreground/70 border-white/15"
       case "low":
-        return "bg-red-500/20 text-red-400 border-red-500/30"
+        return "bg-white/5 text-foreground/60 border-white/10"
       default:
-        return "bg-gray-500/20 text-gray-400 border-gray-500/30"
+        return "bg-white/5 text-muted-foreground border-white/10"
     }
   }
 
@@ -243,13 +237,13 @@ export function GridView({
     const baseClass = "inline-flex h-2 w-2 rounded-full"
     switch (bias) {
       case "left":
-        return <span className={`${baseClass} bg-blue-400`} />
+        return <span className={`${baseClass} bg-white/40`} />
       case "right":
-        return <span className={`${baseClass} bg-red-400`} />
+        return <span className={`${baseClass} bg-white/70`} />
       case "center":
-        return <span className={`${baseClass} bg-neutral-300`} />
+        return <span className={`${baseClass} bg-white/20`} />
       default:
-        return <span className={`${baseClass} bg-neutral-600`} />
+        return <span className={`${baseClass} bg-white/10`} />
     }
   }
 
@@ -381,7 +375,7 @@ export function GridView({
   if (isLoadingState && displayArticles.length === 0) {
     return (
       <div className="w-full h-full flex items-center justify-center">
-        <div className="bg-card/50 p-8 rounded-xl border border-border/50">
+        <div className="bg-[var(--news-bg-secondary)]/70 p-8 rounded-none border border-white/10">
           <div className="text-center">
             <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto mb-4" />
             <p className="text-muted-foreground">Loading news articles...</p>
@@ -394,9 +388,9 @@ export function GridView({
   // Virtualized Grid Mode - high performance for large datasets
   if (useVirtualization) {
     return (
-      <div className="w-full h-full flex flex-col overflow-hidden bg-background">
+      <div className="w-full h-full flex flex-col overflow-hidden bg-[var(--news-bg-primary)]">
         {/* Search Bar */}
-        <div className="flex-shrink-0 px-4 sm:px-6 lg:px-8 py-3 border-b border-border/30 bg-background/40 backdrop-blur-sm">
+        <div className="flex-shrink-0 px-4 sm:px-6 lg:px-8 py-3 border-b border-white/10 bg-[var(--news-bg-secondary)]/60 backdrop-blur-sm">
           <div className="relative">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-muted-foreground" />
             <input
@@ -404,7 +398,7 @@ export function GridView({
               placeholder="Search articles..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
-              className="w-full pl-12 pr-4 py-3 text-base rounded-lg bg-background/80 border border-border/50 text-foreground placeholder-muted-foreground focus:outline-none focus:ring-1 focus:ring-primary"
+              className="w-full pl-12 pr-4 py-3 text-base rounded-none bg-[var(--news-bg-primary)] border border-white/10 text-foreground placeholder-muted-foreground focus:outline-none focus:ring-1 focus:ring-primary"
             />
           </div>
         </div>
@@ -414,8 +408,8 @@ export function GridView({
           <div className="text-center py-16 flex-1 flex items-center justify-center">
             <div className="mx-auto">
               <div
-                className="mx-auto w-16 h-16 rounded-full flex items-center justify-center mb-4"
-                style={{ backgroundColor: "var(--background)" }}
+                className="mx-auto w-16 h-16 rounded-none flex items-center justify-center mb-4"
+                style={{ backgroundColor: "var(--news-bg-secondary)" }}
               >
                 <Newspaper
                   className="w-8 h-8"
@@ -429,7 +423,7 @@ export function GridView({
               </p>
               <Button
                 variant="outline"
-                className="mt-4"
+                className="mt-4 border-white/10"
                 onClick={() => {
                   setSearchTerm("")
                 }}
@@ -466,9 +460,9 @@ export function GridView({
   // Legacy source-grouped mode (default when virtualization is disabled)
 
   return (
-    <div className="w-full h-full flex flex-col overflow-hidden bg-background">
+    <div className="w-full h-full flex flex-col overflow-hidden bg-[var(--news-bg-primary)]">
       {/* Search Bar */}
-      <div className="flex-shrink-0 px-4 sm:px-6 lg:px-8 py-3 border-b border-border/30 bg-background/40 backdrop-blur-sm">
+      <div className="flex-shrink-0 px-4 sm:px-6 lg:px-8 py-3 border-b border-white/10 bg-[var(--news-bg-secondary)]/60 backdrop-blur-sm">
         <div className="relative">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-muted-foreground" />
           <input
@@ -476,7 +470,7 @@ export function GridView({
             placeholder="Search articles..."
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
-            className="w-full pl-12 pr-4 py-3 text-base rounded-lg bg-background/80 border border-border/50 text-foreground placeholder-muted-foreground focus:outline-none focus:ring-1 focus:ring-primary"
+            className="w-full pl-12 pr-4 py-3 text-base rounded-none bg-[var(--news-bg-primary)] border border-white/10 text-foreground placeholder-muted-foreground focus:outline-none focus:ring-1 focus:ring-primary"
           />
         </div>
       </div>
@@ -486,8 +480,8 @@ export function GridView({
         <div className="text-center py-16 flex-1 flex items-center justify-center">
           <div className="mx-auto">
             <div
-              className="mx-auto w-16 h-16 rounded-full flex items-center justify-center mb-4"
-              style={{ backgroundColor: "var(--background)" }}
+              className="mx-auto w-16 h-16 rounded-none flex items-center justify-center mb-4"
+              style={{ backgroundColor: "var(--news-bg-secondary)" }}
             >
               <Newspaper
                 className="w-8 h-8"
@@ -501,7 +495,7 @@ export function GridView({
             </p>
             <Button
               variant="outline"
-              className="mt-4"
+              className="mt-4 border-white/10"
               onClick={() => {
                 setSearchTerm("")
               }}
@@ -521,7 +515,7 @@ export function GridView({
             WebkitOverflowScrolling: "touch",
           }}
         >
-          <div className="space-y-6">
+          <div className="space-y-0">
             {sourceGroups.map((group, index) => {
               // Optimization: Only render groups near the viewport
               const shouldRender =
@@ -542,7 +536,7 @@ export function GridView({
               <div
                 key={group.sourceId}
                 data-source-id={group.sourceId}
-                className="grid-source-group bg-card/40 rounded-lg border border-border/50 overflow-hidden"
+                className="grid-source-group bg-[var(--news-bg-secondary)] border border-white/10 overflow-hidden"
                 style={{
                   scrollSnapAlign: "center",
                   scrollSnapStop: "always",
@@ -553,11 +547,11 @@ export function GridView({
                 }}
               >
                 {/* Source Header */}
-                <div className="bg-card/60 px-4 py-3 border-b border-border/50 flex items-center justify-between">
+                <div className="bg-[var(--news-bg-primary)] px-5 py-4 border-b border-white/10 flex items-center justify-between">
                   <div className="flex items-center gap-3">
                     <Newspaper className="w-5 h-5 text-primary" />
                     <div className="flex items-center gap-2">
-                      <h3 className="font-bold text-md">
+                      <h3 className="font-serif text-lg font-bold tracking-tight">
                         {group.sourceName}
                       </h3>
                       <Button
@@ -574,7 +568,7 @@ export function GridView({
                         <Star
                           className={`w-3.5 h-3.5 transition-colors ${
                             isFavorite(group.sourceId)
-                              ? "fill-yellow-500 text-yellow-500"
+                              ? "fill-current text-foreground"
                               : "text-muted-foreground"
                           }`}
                         />
@@ -606,7 +600,7 @@ export function GridView({
                 {shouldRender && (
                 <div className="p-3">
                   <div
-                    className="max-h-[520px] overflow-y-auto pr-1 space-y-4 snap-y snap-mandatory"
+                    className="max-h-[520px] overflow-y-auto pr-1 space-y-0 snap-y snap-mandatory"
                     style={{
                       scrollbarWidth: "thin",
                       WebkitOverflowScrolling: "touch",
@@ -626,7 +620,7 @@ export function GridView({
                     {rows.map((row, rowIndex) => (
                       <div
                         key={`${group.sourceId}-row-${rowIndex}`}
-                        className="grid gap-3 snap-start"
+                        className="grid gap-0 snap-start border-t border-white/10"
                         style={{
                           gridTemplateColumns: `repeat(${safeRowSize}, minmax(0, 1fr))`,
                           scrollSnapStop: "always",
@@ -639,27 +633,27 @@ export function GridView({
                           <button
                             key={article.url ? `url:${article.url}` : `id:${article.id}`}
                             onClick={() => handleArticleClick(article)}
-                            className="w-full text-left transition-all duration-200"
+                            className="group w-full text-left transition-colors duration-200"
                           >
-                            <Card className="h-full overflow-hidden flex flex-col hover:border-primary hover:shadow-lg transition-all duration-200 bg-card/70 hover:bg-card border-border/60 cursor-pointer">
+                            <Card className="h-full overflow-hidden flex flex-col border border-white/10 bg-[var(--news-bg-secondary)] transition-colors duration-200 group-hover:border-primary/60 cursor-pointer rounded-none shadow-none">
                               {/* Compact Image (or no-image fallback) */}
-                              <div className="relative h-40 overflow-hidden bg-muted/40 flex-shrink-0">
+                              <div className="relative aspect-video overflow-hidden bg-[var(--news-bg-primary)]/40 flex-shrink-0">
                                 {showImage ? (
                                   <>
                                     <img
                                       src={article.image}
                                       alt={article.title}
-                                      className="w-full h-full object-cover hover:scale-110 transition-transform duration-300"
+                                      className="w-full h-full object-cover grayscale group-hover:grayscale-0 transition duration-300"
                                       loading="lazy"
                                     />
-                                    <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent" />
+                                    <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-transparent to-transparent" />
                                   </>
                                 ) : (
                                   <>
                                     <div className="absolute inset-0 bg-gradient-to-br from-primary/5 via-muted/20 to-background" />
                                     <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_0%,rgba(255,255,255,0.05),transparent_60%)]" />
                                     <div className="absolute inset-0 p-6 flex flex-col items-center justify-center text-center">
-                                      <h3 className="text-lg md:text-xl font-semibold text-foreground/90 leading-snug line-clamp-5 font-serif tracking-tight drop-shadow-sm">
+                                      <h3 className="text-lg md:text-xl font-bold text-foreground/90 leading-snug line-clamp-5 font-serif tracking-tight drop-shadow-sm">
                                         {article.title}
                                       </h3>
                                     </div>
@@ -678,9 +672,9 @@ export function GridView({
                                     className="h-6 w-6 p-0 bg-black/50 hover:bg-black/70"
                                   >
                                     {isArticleInQueue(article.url) ? (
-                                      <MinusCircle className="w-3 h-3 text-blue-400" />
+                                      <MinusCircle className="w-3 h-3 text-foreground/70" />
                                     ) : (
-                                      <PlusCircle className="w-3 h-3 text-white" />
+                                      <PlusCircle className="w-3 h-3 text-foreground" />
                                     )}
                                   </Button>
                                   <Button
@@ -695,18 +689,18 @@ export function GridView({
                                     <Heart
                                       className={`w-3 h-3 ${
                                         likedArticles.has(article.id as number)
-                                          ? "fill-red-500 text-red-500"
-                                          : "text-white"
+                                          ? "fill-current text-foreground"
+                                          : "text-muted-foreground"
                                       }`}
                                     />
                                   </Button>
                                 </div>
 
                                 {/* Category Badge */}
-                                <div className="absolute bottom-1 left-1">
+                                <div className="absolute bottom-2 left-2">
                                   <Badge
                                     variant="outline"
-                                    className="text-[8px] font-semibold px-1.5 py-0 bg-black/70 text-white border-white/20"
+                                    className="text-[8px] font-semibold px-1.5 py-0 bg-black/70 text-foreground border-white/20 uppercase tracking-widest"
                                   >
                                     {article.category}
                                   </Badge>
@@ -714,23 +708,28 @@ export function GridView({
                               </div>
 
                               {/* Content */}
-                              <CardContent className="flex-1 flex flex-col p-2">
+                              <CardContent className="flex-1 flex flex-col p-6">
                                 {/* Title - Only show here if image is present */}
                                 {showImage && (
-                                  <h3 className="text-base font-semibold text-foreground leading-snug line-clamp-3 mb-2 font-serif">
-                                    {article.title}
-                                  </h3>
+                                  <>
+                                    <h3 className="text-base font-bold text-foreground leading-snug line-clamp-3 mb-2 font-serif">
+                                      {article.title}
+                                    </h3>
+                                    <p className="text-xs text-muted-foreground/70 leading-relaxed line-clamp-2 mb-3">
+                                      {article.summary}
+                                    </p>
+                                  </>
                                 )}
 
                                 {/* Extra context when there's no image */}
                                 {!showImage && (
-                                  <p className="text-xs text-muted-foreground line-clamp-6 mb-2 mt-1">
+                                  <p className="text-xs text-muted-foreground/70 leading-relaxed line-clamp-6 mb-2 mt-1">
                                     {article.summary}
                                   </p>
                                 )}
 
                                 {/* Meta Info */}
-                                <div className="flex items-center gap-1 text-xs text-muted-foreground mt-auto pt-1">
+                                <div className="flex items-center gap-1 text-xs text-muted-foreground/70 mt-auto pt-3 border-t border-white/10">
                                   <Clock className="w-3 h-3" />
                                   <span>
                                     {new Date(article.publishedAt).toLocaleDateString("en-US", {
@@ -755,7 +754,7 @@ export function GridView({
                         onClick={() =>
                           setExpandedSourceId(isExpanded ? null : group.sourceId)
                         }
-                        className="text-xs border-border/60 bg-transparent"
+                        className="text-xs border-white/10 bg-transparent"
                       >
                         {isExpanded
                           ? "Show fewer"

@@ -68,7 +68,7 @@ export function ListView({ articles, loading }: ListViewProps) {
 
   return (
     <div className="w-full bg-[var(--news-bg-primary)] overflow-y-auto p-6 lg:p-12">
-      <div className="flex flex-wrap items-end justify-between gap-4 mb-8 border-b border-border/60 pb-6">
+      <div className="flex flex-wrap items-end justify-between gap-4 mb-8 border-b border-white/10 pb-6">
         <div>
           <h2 className="font-serif text-2xl text-foreground mb-2">Records</h2>
           <p className="font-mono text-xs text-muted-foreground uppercase tracking-widest">
@@ -80,7 +80,7 @@ export function ListView({ articles, loading }: ListViewProps) {
           <select
             value={sortBy}
             onChange={(event) => setSortBy(event.target.value as typeof sortBy)}
-            className="rounded border border-border/60 bg-[var(--news-bg-secondary)] px-2 py-1 text-[10px] font-mono uppercase tracking-[0.24em] text-foreground"
+            className="border border-white/10 bg-[var(--news-bg-secondary)] px-2 py-1 text-[10px] font-mono uppercase tracking-[0.24em] text-foreground"
             aria-label="Sort records"
           >
             <option value="newest">Newest</option>
@@ -94,7 +94,7 @@ export function ListView({ articles, loading }: ListViewProps) {
 
       <div className="w-full">
         {/* Header */}
-        <div className="grid grid-cols-12 gap-4 py-3 border-b border-border/60 text-[10px] font-mono uppercase tracking-[0.2em] text-muted-foreground">
+        <div className="grid grid-cols-12 gap-4 py-3 border-b border-white/10 text-[10px] font-mono uppercase tracking-[0.2em] text-muted-foreground">
           <div className="col-span-2">Date</div>
           <div className="col-span-2">Source</div>
           <div className="col-span-6">Headline</div>
@@ -109,9 +109,9 @@ export function ListView({ articles, loading }: ListViewProps) {
               setSelectedArticle(article)
               setIsArticleModalOpen(true)
             }}
-            className="grid grid-cols-12 gap-4 py-4 border-b border-border/40 text-sm hover:bg-[var(--news-bg-secondary)] hover:text-foreground transition-[transform,background-color,border-color] duration-300 cursor-pointer group items-center"
+            className="grid grid-cols-12 gap-4 py-4 border-b border-white/10 text-sm hover:bg-[var(--news-bg-secondary)] hover:text-foreground transition-[transform,background-color,border-color] duration-300 cursor-pointer group items-center"
           >
-            <div className="col-span-2 font-mono text-xs text-muted-foreground group-hover:text-foreground/80">
+            <div className="col-span-2 font-mono text-xs text-muted-foreground/70 group-hover:text-foreground/80">
               {new Date(article.publishedAt).toLocaleDateString("en-US", {
                 year: "numeric",
                 month: "2-digit",
@@ -135,13 +135,7 @@ export function ListView({ articles, loading }: ListViewProps) {
               {article.credibility && (
                 <Badge
                   variant="outline"
-                  className={`text-[9px] uppercase font-mono border-border/60 ${
-                    article.credibility === "high"
-                      ? "text-emerald-500 border-emerald-500/20 bg-emerald-500/5"
-                      : article.credibility === "low"
-                      ? "text-rose-500 border-rose-500/20 bg-rose-500/5"
-                      : "text-amber-500 border-amber-500/20 bg-amber-500/5"
-                  }`}
+                  className="text-[9px] uppercase font-mono border-white/10 bg-white/5 text-foreground/70"
                 >
                   {article.credibility}
                 </Badge>
