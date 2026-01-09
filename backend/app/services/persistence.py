@@ -210,17 +210,14 @@ async def _persist_articles_async(
 
                 if chroma_updates:
                     update_stmt = (
-                        update(ArticleRecord)
-                        .where(ArticleRecord.id == bindparam("b_id"))
+                        update(ArticleRecord.__table__)
+                        .where(ArticleRecord.__table__.c.id == bindparam("b_id"))
                         .values(
                             chroma_id=bindparam("b_chroma_id"),
                             embedding_generated=False,
                         )
                     )
-                    await session.execute(
-                        update_stmt.execution_options(synchronize_session=False),
-                        chroma_updates,
-                    )
+                    await session.execute(update_stmt, chroma_updates)
 
             await session.commit()
 
