@@ -102,6 +102,7 @@ async def _build_source_profile(
     researcher = get_funding_researcher()
     org_data = await researcher.research_organization(source_name, website, use_ai=False)
     sources = _map_research_sources(org_data)
+    resolved_website = website or org_data.get("website")
 
     fields: Dict[str, List[Dict[str, Any]]] = {}
 
@@ -113,6 +114,77 @@ async def _build_source_profile(
     _append_field(fields, "political_bias", org_data.get("media_bias_rating"), sources)
     _append_field(fields, "factual_reporting", org_data.get("factual_reporting"), sources)
 
+    _add_wikidata_fields(fields, org_data)
+    _add_propublica_fields(fields, org_data)
+
+    for field_name in [
+        "editorial_stance",
+        "corrections_history",
+        "major_controversies",
+        "reach_traffic",
+        "affiliations",
+        "founded",
+        "headquarters",
+        "official_website",
+        "nonprofit_filings",
+    ]:
+        if field_name not in fields:
+            fields[field_name] = []
+
+    documents = await collect_source_documents(
+        source_name,
+        resolved_website,
+        use_llm_planner=False,
+    )
+    if documents:
+        _merge_extracted_fields(fields, build_fields_from_documents(documents))
+        missing = _missing_fields(fields)
+        if missing:
+            gap_queries = _build_gap_queries(missing, source_name, resolved_website)
+            if gap_queries:
+                existing_urls = {doc.url for doc in documents}
+                documents = await collect_source_documents(
+                    source_name,
+                    resolved_website,
+                    max_total_docs=MAX_DOCS,
+                    existing_documents=documents,
+                    extra_queries=gap_queries,
+                    use_llm_planner=False,
+                )
+                new_docs = [doc for doc in documents if doc.url not in existing_urls]
+                if new_docs:
+                    _merge_extracted_fields(fields, build_fields_from_documents(new_docs))
+        synthesized_fields = await synthesize_source_fields(source_name, documents, fields)
+        _merge_extracted_fields(fields, synthesized_fields)
+
+    profile = {
+        "name": source_name,
+        "website": resolved_website,
+        "fetched_at": datetime.now(timezone.utc).isoformat(),
+        "cached": False,
+        "fields": fields,
+        "key_reporters": _collect_key_reporters(source_name),
+    }
+
+    return profile
+
+
+def _merge_extracted_fields(
+    fields: Dict[str, List[Dict[str, Any]]],
+    extracted_fields: Dict[str, List[Dict[str, Any]]],
+) -> None:
+    for field_name, values in extracted_fields.items():
+        for entry in values:
+            _append_field(
+                fields,
+                field_name,
+                entry.get("value"),
+                entry.get("sources"),
+                entry.get("notes"),
+            )
+
+
+def _add_wikidata_fields(fields: Dict[str, List[Dict[str, Any]]], org_data: Dict[str, Any]) -> None:
     wikidata_url = org_data.get("wikidata_url")
     wikidata_sources = [wikidata_url] if wikidata_url else ["wikidata"]
     for owner in org_data.get("owned_by") or []:
@@ -134,125 +206,65 @@ async def _build_source_profile(
             "Wikidata P856 (official website)",
         )
 
+
+def _add_propublica_fields(fields: Dict[str, List[Dict[str, Any]]], org_data: Dict[str, Any]) -> None:
     propublica_url = _propublica_org_url(org_data.get("ein"))
     propublica_sources = [propublica_url] if propublica_url else ["propublica"]
-    if org_data.get("ein"):
+    ein = org_data.get("ein")
+    if ein:
         _append_field(
             fields,
             "nonprofit_filings",
-            f"EIN {org_data['ein']}",
+            f"EIN {ein}",
             propublica_sources,
             "IRS Form 990",
         )
-    if org_data.get("subsection"):
+    subsection = org_data.get("subsection")
+    if subsection:
         _append_field(
             fields,
             "nonprofit_filings",
-            f"IRS subsection {org_data['subsection']}",
+            f"IRS subsection {subsection}",
             propublica_sources,
             "IRS Form 990",
         )
-    if org_data.get("annual_revenue"):
-        tax_period = org_data.get("tax_period")
-        label = "Total revenue"
-        if tax_period:
-            label = f"Total revenue (tax year {tax_period})"
-        _append_field(
-            fields,
-            "nonprofit_filings",
-            f"{label}: {org_data['annual_revenue']}",
-            propublica_sources,
-            "IRS Form 990",
-        )
-    if org_data.get("total_assets"):
-        tax_period = org_data.get("tax_period")
-        label = "Total assets"
-        if tax_period:
-            label = f"Total assets (tax year {tax_period})"
-        _append_field(
-            fields,
-            "nonprofit_filings",
-            f"{label}: {org_data['total_assets']}",
-            propublica_sources,
-            "IRS Form 990",
-        )
-
-    for field_name in [
-        "editorial_stance",
-        "corrections_history",
-        "major_controversies",
-        "reach_traffic",
-        "affiliations",
-        "founded",
-        "headquarters",
-        "official_website",
-        "nonprofit_filings",
-    ]:
-        if field_name not in fields:
-            fields[field_name] = []
-
-    documents = await collect_source_documents(
-        source_name,
-        website or org_data.get("website"),
-        use_llm_planner=False,
+    _append_form_990_value(
+        fields,
+        org_data,
+        "annual_revenue",
+        "Total revenue",
+        propublica_sources,
     )
-    if documents:
-        extracted_fields = build_fields_from_documents(documents)
-        for field_name, values in extracted_fields.items():
-            for entry in values:
-                _append_field(
-                    fields,
-                    field_name,
-                    entry.get("value"),
-                    entry.get("sources"),
-                    entry.get("notes"),
-                )
-        missing = _missing_fields(fields)
-        if missing:
-            gap_queries = _build_gap_queries(missing, source_name, website or org_data.get("website"))
-            if gap_queries:
-                existing_urls = {doc.url for doc in documents}
-                documents = await collect_source_documents(
-                    source_name,
-                    website or org_data.get("website"),
-                    max_total_docs=MAX_DOCS,
-                    existing_documents=documents,
-                    extra_queries=gap_queries,
-                    use_llm_planner=False,
-                )
-                new_docs = [doc for doc in documents if doc.url not in existing_urls]
-                if new_docs:
-                    extracted_fields = build_fields_from_documents(new_docs)
-                    for field_name, values in extracted_fields.items():
-                        for entry in values:
-                            _append_field(
-                                fields,
-                                field_name,
-                                entry.get("value"),
-                                entry.get("sources"),
-                                entry.get("notes"),
-                            )
-        synthesized_fields = await synthesize_source_fields(source_name, documents, fields)
-        for field_name, values in synthesized_fields.items():
-            for entry in values:
-                _append_field(
-                    fields,
-                    field_name,
-                    entry.get("value"),
-                    entry.get("sources"),
-                    entry.get("notes"),
-                )
+    _append_form_990_value(
+        fields,
+        org_data,
+        "total_assets",
+        "Total assets",
+        propublica_sources,
+    )
 
-    profile = {
-        "name": source_name,
-        "website": website or org_data.get("website"),
-        "fetched_at": datetime.now(timezone.utc).isoformat(),
-        "cached": False,
-        "fields": fields,
-        "key_reporters": _collect_key_reporters(source_name),
-    }
 
-    return profile
+def _append_form_990_value(
+    fields: Dict[str, List[Dict[str, Any]]],
+    org_data: Dict[str, Any],
+    key: str,
+    label: str,
+    sources: List[str],
+) -> None:
+    value = org_data.get(key)
+    if not value:
+        return
+    tax_period = org_data.get("tax_period")
+    full_label = label
+    if tax_period:
+        full_label = f"{label} (tax year {tax_period})"
+    _append_field(
+        fields,
+        "nonprofit_filings",
+        f"{full_label}: {value}",
+        sources,
+        "IRS Form 990",
+    )
 
 
 def _missing_fields(fields: Dict[str, List[Dict[str, Any]]]) -> List[str]:
