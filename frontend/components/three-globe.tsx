@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react"
 import * as THREE from "three"
 import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js"
 import { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js"
+import { logger } from "@/lib/logger"
 
 interface CountryData {
   code: string
@@ -106,7 +107,7 @@ export function ThreeGlobe({
     loader.load(
       "/3dmodel/earth 2.glb", // Assuming the model is converted and placed in public/3dmodel
       (gltf) => {
-        console.log("GLTF model loaded:", gltf)
+        logger.debug("GLTF model loaded:", gltf)
         const globe = gltf.scene
         globe.traverse((child) => {
           if (child.name === "Background") {
@@ -114,15 +115,15 @@ export function ThreeGlobe({
           }
           if ((child as THREE.Mesh).isMesh) {
             const mesh = child as THREE.Mesh
-            console.log("Inspecting mesh:", mesh.name, mesh)
+            logger.debug("Inspecting mesh:", mesh.name, mesh)
             const materials = Array.isArray(mesh.material) ? mesh.material : [mesh.material]
             materials.forEach((material) => {
               if (material) {
-                console.log("Material:", material.name, material)
+                logger.debug("Material:", material.name, material)
                 if (material.map) {
-                  console.log("Texture found for material:", material.name, material.map)
+                  logger.debug("Texture found for material:", material.name, material.map)
                 } else {
-                  console.log("No texture map for material:", material.name)
+                  logger.debug("No texture map for material:", material.name)
                 }
                 material.side = THREE.DoubleSide
               }

@@ -61,7 +61,6 @@ jest.mock("@/lib/api", () => ({
   ),
   getHighlightsForArticle: jest.fn(() => Promise.resolve([])),
   createHighlight: jest.fn((highlight) => Promise.resolve(highlight)),
-  ENABLE_READER_MODE: true,
   ENABLE_DIGEST: true,
   ENABLE_HIGHLIGHTS: true,
 }));

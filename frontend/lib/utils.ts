@@ -11,14 +11,16 @@ let DEBUG_MODE = false
 export function setDebugMode(enabled: boolean) {
   DEBUG_MODE = enabled
   if (typeof window !== "undefined") {
-    localStorage.setItem("debug_mode", String(enabled))
+    localStorage.setItem("thesis_debug_mode", String(enabled))
   }
 }
 
 export function getDebugMode(): boolean {
   if (typeof window !== "undefined") {
-    const stored = localStorage.getItem("debug_mode")
-    return stored === "true"
+    const stored = localStorage.getItem("thesis_debug_mode")
+    if (stored !== null) {
+      return stored === "true"
+    }
   }
   return DEBUG_MODE
 }

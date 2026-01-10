@@ -2,7 +2,8 @@
 
 import { useState, useEffect } from "react"
 import { fetchSourceDebugData, SourceDebugData } from "@/lib/api"
-import { ArrowLeft, RefreshCw, Code, ExternalLink, AlertTriangle, CheckCircle, Image, FileText, Globe, Search } from "lucide-react"
+import { isDebugMode, setDebugMode } from "@/lib/logger"
+import { ArrowLeft, RefreshCw, Code, ExternalLink, AlertTriangle, CheckCircle, Image, FileText, Globe, Search, Settings } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
@@ -17,6 +18,7 @@ export default function SourceDebugPage({ params }: { params: { source: string }
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [searchQuery, setSearchQuery] = useState("")
+  const [debugMode, setDebugModeState] = useState(false)
 
   const loadDebugData = async () => {
     setLoading(true)
@@ -35,6 +37,23 @@ export default function SourceDebugPage({ params }: { params: { source: string }
   useEffect(() => {
     loadDebugData()
   }, [sourceName])
+
+  useEffect(() => {
+    setDebugModeState(isDebugMode())
+    const handleStorage = (event: StorageEvent) => {
+      if (event.key === "thesis_debug_mode") {
+        setDebugModeState(isDebugMode())
+      }
+    }
+    window.addEventListener("storage", handleStorage)
+    return () => window.removeEventListener("storage", handleStorage)
+  }, [])
+
+  const toggleDebugMode = () => {
+    const next = !debugMode
+    setDebugMode(next)
+    setDebugModeState(next)
+  }
 
   if (loading) {
     return (
@@ -133,6 +152,14 @@ export default function SourceDebugPage({ params }: { params: { source: string }
             >
               <ExternalLink className="w-4 h-4 mr-2" />
               Open RSS Feed
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={toggleDebugMode}
+            >
+              <Settings className="w-4 h-4 mr-2" />
+              Debug {debugMode ? "On" : "Off"}
             </Button>
             <Button onClick={loadDebugData} size="sm">
               <RefreshCw className={`w-4 h-4 mr-2 ${loading ? "animate-spin" : ""}`} />

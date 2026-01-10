@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect, useRef, useCallback, useMemo, type KeyboardEvent } from "react"
+import { useState, useEffect, useRef, useCallback, useMemo, type KeyboardEvent, type RefObject } from "react"
 import { Button } from "@/components/ui/button"
 import { Tabs, TabsContent } from "@/components/ui/tabs"
 import {
@@ -12,7 +12,6 @@ import {
   Bell,
   Bug,
   SlidersHorizontal,
-  UserCircle,
   Building2,
   Gamepad2,
   Shirt,
@@ -33,6 +32,7 @@ import { useNewsStream } from "@/hooks/useNewsStream"
 import { useFavorites } from "@/hooks/useFavorites"
 import { useSourceFilter } from "@/hooks/useSourceFilter"
 import { fetchCategories, NewsArticle } from "@/lib/api"
+import { isDebugMode, logger } from "@/lib/logger"
 import { ErrorBoundary } from '@/components/ErrorBoundary';
 import { NotificationsPopup, Notification, type NotificationActionType } from '@/components/notification-popup';
 import { SourceSidebar } from "@/components/source-sidebar";
@@ -72,9 +72,12 @@ function NewsPage() {
   const [articleCount, setArticleCount] = useState<number>(0)
   const [showNotifications, setShowNotifications] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const alertsButtonRef = useRef<HTMLButtonElement>(null);
   const [leadArticle, setLeadArticle] = useState<NewsArticle | null>(null);
   const [leadModalOpen, setLeadModalOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
+  const [debugMode, setDebugModeState] = useState(false);
+  const [sortMode, setSortMode] = useState<"favorites" | "newest" | "oldest" | "source-freshness">("favorites");
 
   // New: State for articles per category to avoid reloading on view switches
   const [articlesByCategory, setArticlesByCategory] = useState<Record<string, NewsArticle[]>>({})
@@ -102,11 +105,22 @@ function NewsPage() {
     getCategories();
   }, []);
 
+  useEffect(() => {
+    setDebugModeState(isDebugMode());
+    const handleStorage = (event: StorageEvent) => {
+      if (event.key === "thesis_debug_mode") {
+        setDebugModeState(isDebugMode());
+      }
+    };
+    window.addEventListener("storage", handleStorage);
+    return () => window.removeEventListener("storage", handleStorage);
+  }, []);
+
   const activeCategoryRef = useRef(activeCategory);
   activeCategoryRef.current = activeCategory;
 
   const onUpdate = useCallback((newArticles: NewsArticle[]) => {
-    console.log(`onUpdate called with ${newArticles.length} articles for category: ${activeCategoryRef.current}`);
+    logger.debug(`onUpdate called with ${newArticles.length} articles for category: ${activeCategoryRef.current}`);
     setArticlesByCategory(prev => ({
       ...prev,
       [activeCategoryRef.current]: newArticles
@@ -124,6 +138,20 @@ function NewsPage() {
     setLoading(false);
   }, []);
 
+  const sourceRecency = useMemo(() => {
+    const recency: Record<string, number> = {};
+    const articles = articlesByCategory[activeCategory] || [];
+    for (const article of articles) {
+      const sourceKey = article.sourceId || article.source;
+      if (!sourceKey) continue;
+      const ts = new Date(article.publishedAt).getTime();
+      if (!Number.isNaN(ts) && (!recency[sourceKey] || ts > recency[sourceKey])) {
+        recency[sourceKey] = ts;
+      }
+    }
+    return recency;
+  }, [articlesByCategory, activeCategory]);
+
   /**
    * Filter and sort articles by favorites and source selection
    */
@@ -137,23 +165,52 @@ function NewsPage() {
         );
       }
 
-      // Sort: favorites first, then by date (newest first)
-      filtered.sort((a, b) => {
-        const aIsFav = isFavorite(a.sourceId) ? 0 : 1;
-        const bIsFav = isFavorite(b.sourceId) ? 0 : 1;
+      const items = [...filtered];
+      const sourceFreshness = sortMode === "source-freshness";
+      const localRecency: Record<string, number> | null = sourceFreshness
+        ? items.reduce((acc, article) => {
+            const key = article.sourceId || article.source;
+            if (!key) return acc;
+            const ts = new Date(article.publishedAt).getTime();
+            if (!Number.isNaN(ts) && (!acc[key] || ts > acc[key])) {
+              acc[key] = ts;
+            }
+            return acc;
+          }, {} as Record<string, number>)
+        : null;
+      const getTime = (value: string) => {
+        const ts = new Date(value).getTime();
+        return Number.isNaN(ts) ? 0 : ts;
+      };
 
-        if (aIsFav !== bIsFav) return aIsFav - bIsFav;
+      items.sort((a, b) => {
+        if (sortMode === "favorites") {
+          const aIsFav = isFavorite(a.sourceId) ? 0 : 1;
+          const bIsFav = isFavorite(b.sourceId) ? 0 : 1;
+          if (aIsFav !== bIsFav) return aIsFav - bIsFav;
+        }
 
-        // Secondary sort: by published date (newest first)
-        return (
-          new Date(b.publishedAt).getTime() -
-          new Date(a.publishedAt).getTime()
-        );
+        if (sourceFreshness && localRecency) {
+          const aKey = a.sourceId || a.source;
+          const bKey = b.sourceId || b.source;
+          const aFresh = aKey ? localRecency[aKey] ?? 0 : 0;
+          const bFresh = bKey ? localRecency[bKey] ?? 0 : 0;
+          if (aFresh !== bFresh) return bFresh - aFresh;
+        }
+
+        const aTime = getTime(a.publishedAt);
+        const bTime = getTime(b.publishedAt);
+
+        if (sortMode === "oldest") {
+          return aTime - bTime;
+        }
+
+        return bTime - aTime;
       });
 
-      return filtered;
+      return items;
     },
-    [isFilterActive, isSelected, isFavorite]
+    [isFilterActive, isSelected, isFavorite, sortMode]
   );
 
   const streamHook = useNewsStream({
@@ -479,24 +536,18 @@ function NewsPage() {
             <div className="text-[10px] font-mono uppercase tracking-[0.3em] text-muted-foreground">Workspace</div>
             <div className="mt-3 space-y-2">
               <Link
-                href="/search"
+                href="/sources"
                 className="w-full flex items-center gap-3 px-3 py-2 border border-white/10 text-[10px] font-mono uppercase tracking-[0.32em] text-muted-foreground hover:text-foreground hover:border-white/30 transition-colors"
               >
-                <Search className="w-4 h-4" />
-                Research
-              </Link>
-              <Link
-                href="/sources/debug"
-                className="w-full flex items-center gap-3 px-3 py-2 border border-white/10 text-[10px] font-mono uppercase tracking-[0.32em] text-muted-foreground hover:text-foreground hover:border-white/30 transition-colors"
-              >
-                <Bug className="w-4 h-4" />
-                Source Debug
+                <Building2 className="w-4 h-4" />
+                Sources
               </Link>
             </div>
           </div>
         </div>
-        <div className="px-4 py-4 border-t border-white/10 relative">
+        <div className="px-4 py-4 border-t border-white/10">
           <button
+            ref={alertsButtonRef}
             type="button"
             onClick={() => setShowNotifications(!showNotifications)}
             className="w-full flex items-center gap-3 px-3 py-2 border border-white/10 text-[10px] font-mono uppercase tracking-[0.32em] text-muted-foreground hover:text-foreground hover:border-white/30 transition-colors"
@@ -511,16 +562,19 @@ function NewsPage() {
             </div>
             Alerts
           </button>
-          {showNotifications && (
-            <NotificationsPopup
-              notifications={notifications}
-              onClear={handleClearNotification}
-              onClearAll={handleClearAllNotifications}
-              onAction={handleNotificationAction}
-            />
-          )}
         </div>
       </aside>
+
+      {showNotifications && (
+        <NotificationsPopup
+          notifications={notifications}
+          onClear={handleClearNotification}
+          onClearAll={handleClearAllNotifications}
+          onAction={handleNotificationAction}
+          onClose={() => setShowNotifications(false)}
+          anchorRef={alertsButtonRef}
+        />
+      )}
 
       <div className="flex-1 flex flex-col min-w-0">
       <header className="sticky top-0 z-40 border-b border-white/10 bg-[var(--news-bg-primary)]/95 backdrop-blur">
@@ -528,13 +582,17 @@ function NewsPage() {
           <Button asChild variant="outline" size="sm" className="border-white/10 bg-transparent text-[10px] font-mono uppercase tracking-[0.32em]">
             <Link href="/search">
               <Search className="w-3.5 h-3.5 mr-2" />
-              Search
+              Research
             </Link>
           </Button>
-          <Button variant="outline" size="sm" className="border-white/10 bg-transparent text-[10px] font-mono uppercase tracking-[0.32em]">
-            <UserCircle className="w-3.5 h-3.5 mr-2" />
-            User Profile
-          </Button>
+          {debugMode && (
+            <Button asChild variant="outline" size="sm" className="border-white/10 bg-transparent text-[10px] font-mono uppercase tracking-[0.32em]">
+              <Link href="/sources/debug">
+                <Bug className="w-3.5 h-3.5 mr-2" />
+                Source Debug
+              </Link>
+            </Button>
+          )}
         </div>
       </header>
 
@@ -666,6 +724,17 @@ function NewsPage() {
                       </option>
                     ))}
                   </select>
+                  <select
+                    value={sortMode}
+                    onChange={(event) => setSortMode(event.target.value as typeof sortMode)}
+                    className="min-w-[220px] border border-white/10 bg-[var(--news-bg-secondary)] px-3 py-2 text-[10px] font-mono uppercase tracking-[0.32em] text-foreground focus:outline-none focus:border-primary"
+                    aria-label="Select sort order"
+                  >
+                    <option value="favorites">Favorites, newest</option>
+                    <option value="newest">Newest first</option>
+                    <option value="oldest">Oldest first</option>
+                    <option value="source-freshness">Sources by freshness</option>
+                  </select>
                   <div className="flex items-center gap-2 lg:hidden">
                     <span className="text-[10px] font-mono uppercase tracking-[0.32em] text-muted-foreground">View</span>
                     <select
@@ -720,7 +789,11 @@ function NewsPage() {
 
       </div>
       {/* Source Sidebar */}
-      <SourceSidebar isOpen={sidebarOpen} onClose={() => setSidebarOpen(false)} />
+      <SourceSidebar
+        isOpen={sidebarOpen}
+        onClose={() => setSidebarOpen(false)}
+        sourceRecency={sourceRecency}
+      />
 
       <ArticleDetailModal
         article={leadArticle}

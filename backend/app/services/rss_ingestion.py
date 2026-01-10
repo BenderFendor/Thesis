@@ -88,7 +88,14 @@ def parse_rss_feed(
                 continue
             seen_urls.add(article_link)
 
-            image_url = _extract_image_from_entry(entry)
+            base_url = source_info.get("url")
+            if isinstance(base_url, (list, tuple)):
+                base_url = base_url[0] if base_url else None
+            image_url = _extract_image_from_entry(
+                entry,
+                article_url=article_link,
+                base_url=base_url,
+            )
             if not image_url and channel_image_url:
                 image_url = channel_image_url
 
@@ -137,71 +144,33 @@ def _clean_text(value: str) -> str:
     return decoded.strip()
 
 
-def _extract_image_from_entry(entry: Any) -> str | None:
-    import re
+def _extract_image_from_entry(
+    entry: Any,
+    *,
+    article_url: str | None = None,
+    base_url: str | None = None,
+) -> str | None:
+    """
+    Extract a candidate image using the structured image extraction service.
 
-    image_url = None
+    Falls back to None if no candidates are found.
+    """
+    try:
+        from app.services.image_extraction import extract_image_from_entry
+    except Exception as exc:  # pragma: no cover - defensive fallback
+        logger.debug("Image extraction import failed: %s", exc)
+        return None
 
-    if hasattr(entry, "content") and entry.content:
-        content_text = (
-            entry.content[0].value
-            if isinstance(entry.content, list)
-            else str(entry.content)
+    result = extract_image_from_entry(entry, article_url=article_url, base_url=base_url)
+
+    if result.image_error:
+        logger.debug(
+            "Image extraction issue (%s): %s",
+            result.image_error.value,
+            result.image_error_details,
         )
-        match = re.search(r"<img[^>]+src=\"([^\"]+)\"", content_text)
-        if match:
-            image_url = match.group(1)
 
-    if not image_url and getattr(entry, "media_thumbnail", None):
-        thumb = entry.media_thumbnail
-        try:
-            if isinstance(thumb, list) and thumb:
-                first = thumb[0]
-                if isinstance(first, dict):
-                    url_field = first.get("url") or first.get("href")
-                    image_url = _flatten_thumbnail(url_field)
-            elif isinstance(thumb, dict):
-                url_field = thumb.get("url") or thumb.get("href")
-                image_url = _flatten_thumbnail(url_field)
-        except Exception:
-            pass
-
-    if not image_url and getattr(entry, "media_content", None):
-        for media in entry.media_content:
-            if media.get("type", "").startswith("image/"):
-                image_url = media.get("url")
-                break
-
-    if not image_url and getattr(entry, "enclosures", None):
-        for enclosure in entry.enclosures:
-            if enclosure.get("type", "").startswith("image/"):
-                image_url = enclosure.get("href")
-                break
-
-    if not image_url and getattr(entry, "links", None):
-        for link in entry.links:
-            if link.get("type", "").startswith("image/"):
-                image_url = link.get("href")
-                break
-
-    if not image_url and entry.get("description"):
-        match = re.search(r"<img[^>]+src=\"([^\"]+)\"", entry.description)
-        if match:
-            image_url = match.group(1)
-
-    if not image_url and getattr(entry, "content_encoded", None):
-        match = re.search(r"<img[^>]+src=\"([^\"]+)\"", entry.content_encoded)
-        if match:
-            image_url = match.group(1)
-
-    if not image_url and getattr(entry, "links", None):
-        for link in entry.links:
-            href = link.get("href", "")
-            if re.search(r"\.(jpg|jpeg|png|gif)$", href, re.IGNORECASE):
-                image_url = href
-                break
-
-    return image_url
+    return result.image_url
 
 
 def _flatten_thumbnail(url_field: Any) -> str | None:
@@ -1143,7 +1112,14 @@ def parse_rss_feed_entries(
             continue
         seen_urls.add(link)
 
-        image_url = _extract_image_from_entry(entry)
+        base_url = source_info.get("url")
+        if isinstance(base_url, (list, tuple)):
+            base_url = base_url[0] if base_url else None
+        image_url = _extract_image_from_entry(
+            entry,
+            article_url=link,
+            base_url=base_url,
+        )
 
         title = _clean_text(entry.get("title", "No title"))
         description = _clean_text(entry.get("description", "No description"))

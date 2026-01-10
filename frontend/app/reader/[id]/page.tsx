@@ -9,7 +9,6 @@ import {
   getQueueItemContent,
   updateHighlight,
   type Highlight,
-  ENABLE_READER_MODE,
 } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import {
@@ -129,14 +128,6 @@ export default function ReaderPage() {
   const [showHighlights, setShowHighlights] = useState(true);
   const [editingId, setEditingId] = useState<number | null>(null);
   const [editingNote, setEditingNote] = useState("");
-
-  if (!ENABLE_READER_MODE) {
-    return (
-      <div className="flex items-center justify-center h-screen">
-        <p className="text-muted-foreground">Reader mode is not enabled.</p>
-      </div>
-    );
-  }
 
   useEffect(() => {
     const loadContent = async () => {

@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react"
 import { fetchSourceStats, SourceStats, fetchCacheStatus, CacheStatus, refreshCache } from "@/lib/api"
+import { logger } from "@/lib/logger"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -80,7 +81,7 @@ export default function SourcesPage() {
     try {
       const success = await refreshCache((progress) => {
         setRefreshProgress(progress)
-        console.log("Refresh progress:", progress)
+        logger.debug("Refresh progress:", progress)
       })
       if (success) {
         // Wait a moment then reload data

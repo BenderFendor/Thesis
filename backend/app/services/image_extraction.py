@@ -233,6 +233,17 @@ def _extract_images_from_html(html: str) -> List[str]:
     matches = re.findall(img_pattern, html, re.IGNORECASE)
     urls.extend(matches)
 
+    # Common lazy-loading attributes
+    lazy_patterns = [
+        r'<img[^>]+data-src=["\']([^"\']+)["\']',
+        r'<img[^>]+data-original=["\']([^"\']+)["\']',
+        r'<img[^>]+data-lazy-src=["\']([^"\']+)["\']',
+        r'<img[^>]+data-srcset=["\']([^"\']+)["\']',
+    ]
+    for pattern in lazy_patterns:
+        lazy_matches = re.findall(pattern, html, re.IGNORECASE)
+        urls.extend(lazy_matches)
+
     # Also check for srcset
     srcset_pattern = r'<img[^>]+srcset=["\']([^"\']+)["\']'
     srcset_matches = re.findall(srcset_pattern, html, re.IGNORECASE)
@@ -242,7 +253,16 @@ def _extract_images_from_html(html: str) -> List[str]:
         if first_src:
             urls.append(first_src)
 
-    return urls
+    normalized: List[str] = []
+    for candidate in urls:
+        if "," in candidate:
+            first = candidate.split(",")[0].strip().split()[0]
+            if first:
+                normalized.append(first)
+                continue
+        normalized.append(candidate)
+
+    return normalized
 
 
 def _resolve_url(url: Any, base_url: Optional[str] = None) -> Optional[str]:
@@ -320,35 +340,49 @@ async def fetch_og_image(article_url: str, timeout: float = 10.0) -> ImageExtrac
             if not result.image_candidates:
                 soup = BeautifulSoup(response.content, "html.parser")
 
-                # Try og:image first
-                og_image = soup.find("meta", property="og:image")
-                if og_image and og_image.get("content"):
-                    url = og_image["content"]
-                    result.image_candidates.append(ImageCandidate(
-                        url=url,
-                        source="og:image",
-                        priority=1,
-                    ))
+                # Try og:image variants first
+                og_variants = [
+                    ("og:image", 1),
+                    ("og:image:secure_url", 2),
+                    ("og:image:url", 2),
+                ]
+                for prop, priority in og_variants:
+                    tag = soup.find("meta", property=prop)
+                    if tag and tag.get("content"):
+                        result.image_candidates.append(
+                            ImageCandidate(
+                                url=tag["content"],
+                                source=prop,
+                                priority=priority,
+                            )
+                        )
 
-                # Try twitter:image
-                twitter_image = soup.find("meta", attrs={"name": "twitter:image"})
-                if twitter_image and twitter_image.get("content"):
-                    url = twitter_image["content"]
-                    result.image_candidates.append(ImageCandidate(
-                        url=url,
-                        source="twitter:image",
-                        priority=2,
-                    ))
+                # Try twitter:image variants
+                twitter_variants = [
+                    ("twitter:image", 3),
+                    ("twitter:image:src", 3),
+                ]
+                for name, priority in twitter_variants:
+                    tag = soup.find("meta", attrs={"name": name})
+                    if tag and tag.get("content"):
+                        result.image_candidates.append(
+                            ImageCandidate(
+                                url=tag["content"],
+                                source=name,
+                                priority=priority,
+                            )
+                        )
 
                 # Try link rel="image_src"
                 image_src = soup.find("link", rel="image_src")
                 if image_src and image_src.get("href"):
-                    url = image_src["href"]
-                    result.image_candidates.append(ImageCandidate(
-                        url=url,
-                        source="link:image_src",
-                        priority=3,
-                    ))
+                    result.image_candidates.append(
+                        ImageCandidate(
+                            url=image_src["href"],
+                            source="link:image_src",
+                            priority=4,
+                        )
+                    )
 
             if result.image_candidates:
                 best = result.image_candidates[0]

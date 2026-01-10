@@ -85,6 +85,7 @@ class RequestTracingMiddleware(BaseHTTPMiddleware):
             if response is not None:
                 response.headers["X-Request-ID"] = request_id
                 response.headers["X-Response-Time"] = f"{duration_ms:.1f}ms"
+                response.headers["Server-Timing"] = f"app;dur={duration_ms:.1f}"
 
 
 def get_request_id(request: Request) -> str:

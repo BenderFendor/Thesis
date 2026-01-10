@@ -13,9 +13,10 @@ import { fetchSources, NewsSource } from "@/lib/api";
 interface SourceSidebarProps {
   isOpen: boolean;
   onClose: () => void;
+  sourceRecency?: Record<string, number>;
 }
 
-export function SourceSidebar({ isOpen, onClose }: SourceSidebarProps) {
+export function SourceSidebar({ isOpen, onClose, sourceRecency }: SourceSidebarProps) {
   const [sources, setSources] = useState<NewsSource[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
@@ -56,16 +57,34 @@ export function SourceSidebar({ isOpen, onClose }: SourceSidebarProps) {
 
   // Get favorite sources
   const favoriteSources = useMemo(() => {
-    return sources.filter((source) => isFavorite(source.id));
-  }, [sources, isFavorite]);
+    const favoritesList = sources.filter((source) => isFavorite(source.id));
+    if (!sourceRecency) {
+      return favoritesList;
+    }
+    return favoritesList.sort((a, b) => {
+      const aFresh = sourceRecency[a.id] ?? 0;
+      const bFresh = sourceRecency[b.id] ?? 0;
+      if (aFresh !== bFresh) return bFresh - aFresh;
+      return a.name.localeCompare(b.name);
+    });
+  }, [sources, isFavorite, sourceRecency]);
 
   // Filter sources based on search query
   const filteredSources = useMemo(() => {
-    return sources.filter((source) =>
+    const filtered = sources.filter((source) =>
       source.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
       source.country.toLowerCase().includes(searchQuery.toLowerCase())
     );
-  }, [sources, searchQuery]);
+    if (!sourceRecency) {
+      return filtered;
+    }
+    return filtered.sort((a, b) => {
+      const aFresh = sourceRecency[a.id] ?? 0;
+      const bFresh = sourceRecency[b.id] ?? 0;
+      if (aFresh !== bFresh) return bFresh - aFresh;
+      return a.name.localeCompare(b.name);
+    });
+  }, [sources, searchQuery, sourceRecency]);
 
   const toggleSection = (section: "favorites" | "allSources") => {
     setExpandedSections((prev) => ({

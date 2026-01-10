@@ -21,6 +21,7 @@ import {
 import { SourceInfoModal } from "./source-info-modal"
 import { ArticleDetailModal } from "./article-detail-modal"
 import { fetchNews, getSourceById, type NewsArticle } from "@/lib/api"
+import { logger } from "@/lib/logger"
 
 export function ScrollView({ articles, loading }: { articles: NewsArticle[], loading: boolean }) {
   const [currentIndex, setCurrentIndex] = useState(0)
@@ -36,10 +37,10 @@ export function ScrollView({ articles, loading }: { articles: NewsArticle[], loa
   //   onUpdate: useCallback((newArticles: NewsArticle[]) => {
   //     setScrollNews(newArticles)
   //     setLoading(false)
-  //     console.log(`Scroll View: Stream updated with ${newArticles.length} articles`)
+  //     logger.debug(`Scroll View: Stream updated with ${newArticles.length} articles`)
   //   }, []),
   //   onComplete: useCallback(() => {
-  //     console.log('Scroll View: Stream completed')
+  //     logger.debug('Scroll View: Stream completed')
   //     setLoading(false)
   //   }, []),
   //   onError: useCallback((error: string) => {
@@ -54,10 +55,10 @@ export function ScrollView({ articles, loading }: { articles: NewsArticle[], loa
   //   try {
   //     const articles = await fetchNews({ limit: 1000 }) // Get all articles
   //     setScrollNews(articles)
-  //     console.log(`Scroll View: Loaded ${articles.length} articles from API at ${new Date().toLocaleTimeString()}`)
+  //     logger.debug(`Scroll View: Loaded ${articles.length} articles from API at ${new Date().toLocaleTimeString()}`)
   //     
   //     if (articles.length === 0) {
-  //     console.log(`Scroll View: No articles loaded. This will show "No articles available" message.`)
+  //     logger.debug(`Scroll View: No articles loaded. This will show "No articles available" message.`)
   //     }
   //   } catch (error) {
   //     console.error('Failed to load news:', error)
@@ -72,7 +73,7 @@ export function ScrollView({ articles, loading }: { articles: NewsArticle[], loa
   //   streamHook.startStream()
   //   const fallbackTimer = setTimeout(async () => {
   //     if (scrollNews.length === 0) {
-  //       console.log('No streamed articles yet in ScrollView; falling back to REST fetch')
+  //       logger.debug('No streamed articles yet in ScrollView; falling back to REST fetch')
   //       await loadNewsFromAPI()
   //     }
   //   }, 7000)
@@ -236,7 +237,7 @@ export function ScrollView({ articles, loading }: { articles: NewsArticle[], loa
   }
 
   if (articles.length === 0) {
-    console.log(`Scroll View: Displaying "No articles available" message (loading: ${loading})`)
+    logger.debug(`Scroll View: Displaying "No articles available" message (loading: ${loading})`)
     return (
       <div className="relative h-[calc(100vh-140px)] overflow-hidden flex items-center justify-center">
         <div className="text-center">

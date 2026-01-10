@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react"
 import { fetchSourceStats, SourceStats, fetchCacheStatus, CacheStatus, refreshCache } from "@/lib/api"
+import { logger, isDebugMode, setDebugMode } from "@/lib/logger"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -56,6 +57,7 @@ export default function DebugSourcesPage() {
   const [filter, setFilter] = useState<"all" | "success" | "warning" | "error">("all")
   const [searchQuery, setSearchQuery] = useState("")
   const [sortBy, setSortBy] = useState<"name" | "status" | "articles" | "category">("name")
+  const [debugMode, setDebugModeState] = useState(false)
 
   const loadSourceStats = async () => {
     setLoading(true)
@@ -80,7 +82,7 @@ export default function DebugSourcesPage() {
     try {
       const success = await refreshCache((progress) => {
         setRefreshProgress(progress)
-        console.log("Refresh progress:", progress)
+        logger.debug("Refresh progress:", progress)
       })
       if (success) {
         // Wait a moment then reload data
@@ -99,6 +101,23 @@ export default function DebugSourcesPage() {
   useEffect(() => {
     loadSourceStats()
   }, [])
+
+  useEffect(() => {
+    setDebugModeState(isDebugMode())
+    const handleStorage = (event: StorageEvent) => {
+      if (event.key === "thesis_debug_mode") {
+        setDebugModeState(isDebugMode())
+      }
+    }
+    window.addEventListener("storage", handleStorage)
+    return () => window.removeEventListener("storage", handleStorage)
+  }, [])
+
+  const toggleDebugMode = () => {
+    const next = !debugMode
+    setDebugMode(next)
+    setDebugModeState(next)
+  }
 
   const filteredSources = sources
     .filter(source => {
@@ -204,6 +223,14 @@ export default function DebugSourcesPage() {
               >
                 <RefreshCw className={`w-4 h-4 mr-2 ${loading ? "animate-spin" : ""}`} />
                 Refresh
+              </Button>
+              <Button
+                onClick={toggleDebugMode}
+                variant="outline"
+                size="sm"
+              >
+                <Settings className="w-4 h-4 mr-2" />
+                Debug {debugMode ? "On" : "Off"}
               </Button>
             </div>
           </div>

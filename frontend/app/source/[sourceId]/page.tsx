@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useMemo, useCallback } from "react"
+import { useState, useMemo, useCallback, useEffect } from "react"
 import { useRouter } from "next/navigation"
 import Link from "next/link"
 import { useQuery } from "@tanstack/react-query"
@@ -12,6 +12,7 @@ import { Card, CardContent } from "@/components/ui/card"
 import { ArticleDetailModal } from "@/components/article-detail-modal"
 import { SourceResearchPanel } from "@/components/source-research-panel"
 import { type NewsSource, type NewsArticle, getSourceById } from "@/lib/api"
+import { isDebugMode } from "@/lib/logger"
 import { useFavorites } from "@/hooks/useFavorites"
 import { useNewsStream } from "@/hooks/useNewsStream"
 
@@ -25,6 +26,7 @@ export default function SourcePage({ params }: SourcePageProps) {
   const [selectedArticle, setSelectedArticle] = useState<NewsArticle | null>(null)
   const [modalOpen, setModalOpen] = useState(false)
   const [allArticles, setAllArticles] = useState<NewsArticle[]>([])
+  const [debugMode, setDebugModeState] = useState(false)
   const { isFavorite, toggleFavorite } = useFavorites()
 
   const { data: source, isLoading: sourceLoading, error: sourceError } = useQuery({
@@ -48,6 +50,17 @@ export default function SourcePage({ params }: SourcePageProps) {
   }, [allArticles, sourceId])
 
   const articlesLoading = isStreaming && allArticles.length === 0
+
+  useEffect(() => {
+    setDebugModeState(isDebugMode())
+    const handleStorage = (event: StorageEvent) => {
+      if (event.key === "thesis_debug_mode") {
+        setDebugModeState(isDebugMode())
+      }
+    }
+    window.addEventListener("storage", handleStorage)
+    return () => window.removeEventListener("storage", handleStorage)
+  }, [])
 
   const getBiasColor = (bias: string) => {
     switch (bias) {
@@ -214,12 +227,14 @@ export default function SourcePage({ params }: SourcePageProps) {
                     </a>
                   </Button>
                   
-                  <Button asChild variant="outline" size="sm" className="justify-center border-white/10 bg-transparent hover:bg-white/5 text-[9px] h-7">
-                    <Link href={`/sources/${encodeURIComponent(source.name)}/debug`}>
-                      <Bug className="w-3 h-3 mr-1" />
-                      Debug
-                    </Link>
-                  </Button>
+                  {debugMode && (
+                    <Button asChild variant="outline" size="sm" className="justify-center border-white/10 bg-transparent hover:bg-white/5 text-[9px] h-7">
+                      <Link href={`/sources/${encodeURIComponent(source.name)}/debug`}>
+                        <Bug className="w-3 h-3 mr-1" />
+                        Debug
+                      </Link>
+                    </Button>
+                  )}
                 </div>
               </div>
 

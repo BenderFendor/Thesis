@@ -1,3 +1,4 @@
+import { logger } from "@/lib/logger"
 // API utility for communicating with FastAPI backend
 
 // Default to localhost backend when env var is not set (makes dev easier)
@@ -16,7 +17,6 @@ const DOCKER_API_BASE_URL = resolveBaseUrl(process.env.NEXT_PUBLIC_DOCKER_API_UR
 // (In production, both frontend and backend would be served from the same origin)
 
 // --- Feature Gates ---
-export const ENABLE_READER_MODE = process.env.NEXT_PUBLIC_ENABLE_READER_MODE !== "false"
 export const ENABLE_DIGEST = process.env.NEXT_PUBLIC_ENABLE_DIGEST === "true"
 export const ENABLE_HIGHLIGHTS = process.env.NEXT_PUBLIC_ENABLE_HIGHLIGHTS === "true"
 
@@ -134,7 +134,7 @@ export async function fetchNews(params?: {
     if (params?.category) searchParams.append('category', params.category);
 
     const url = `${API_BASE_URL}/news/stream${searchParams.toString() ? '?' + searchParams.toString() : ''}`;
-    console.log(`Fetching news from unified endpoint: ${url}`);
+    logger.debug(`Fetching news from unified endpoint: ${url}`);
     const response = await fetch(url);
 
     if (!response.ok) {
@@ -142,15 +142,15 @@ export async function fetchNews(params?: {
     }
 
     const data = await response.json();
-    console.log(`Backend response:`, data);
+    logger.debug(`Backend response:`, data);
 
     // Backend returns { articles: [...], total: number, sources: [...], stream_id: string }
     let articles = data.articles || [];
 
     if (articles.length === 0) {
-      console.log(`No articles received from backend. Full response:`, JSON.stringify(data, null, 2));
+      logger.debug(`No articles received from backend. Full response:`, JSON.stringify(data, null, 2));
     } else {
-      console.log(`Received ${articles.length} articles from unified backend endpoint`);
+      logger.debug(`Received ${articles.length} articles from unified backend endpoint`);
     }
 
     // Convert backend format to frontend format
@@ -164,7 +164,7 @@ export async function fetchNews(params?: {
         article.title.toLowerCase().includes(searchTerm) ||
         article.summary.toLowerCase().includes(searchTerm)
       );
-      console.log(`Search filter applied: ${beforeFilterCount} -> ${articles.length} articles (search: "${params.search}")`);
+      logger.debug(`Search filter applied: ${beforeFilterCount} -> ${articles.length} articles (search: "${params.search}")`);
     }
 
     // Client-side category filtering if needed
@@ -173,11 +173,11 @@ export async function fetchNews(params?: {
       articles = articles.filter((article: NewsArticle) =>
         article.category.toLowerCase() === params.category!.toLowerCase()
       );
-      console.log(`Category filter applied: ${beforeFilterCount} -> ${articles.length} articles (category: "${params.category}")`);
+      logger.debug(`Category filter applied: ${beforeFilterCount} -> ${articles.length} articles (category: "${params.category}")`);
     }
 
     if (articles.length === 0) {
-      console.log(`No articles to return after processing. Params:`, params);
+      logger.debug(`No articles to return after processing. Params:`, params);
     }
 
     return articles;
@@ -725,10 +725,10 @@ export async function fetchSourceDebugData(sourceName: string): Promise<SourceDe
 
   // FIXED: Use correct endpoint path
   const url = `${API_BASE_URL}/debug/source/${encodedSourceName}`;
-  console.log(`� Fetching debug data for source: ${url}`);
+  logger.debug(`Fetching debug data for source: ${url}`);
   try {
     const response = await fetch(url);
-    console.log(`Debug response status for source ${sourceName}:`, response.status);
+    logger.debug(`Debug response status for source ${sourceName}:`, response.status);
     if (!response.ok) {
       return {
         source_name: sourceName,
@@ -762,7 +762,7 @@ export async function fetchSourceDebugData(sourceName: string): Promise<SourceDe
     }
 
     const debugData = await response.json();
-    console.log(`Debug data received for ${sourceName}:`, {
+    logger.debug(`Debug data received for ${sourceName}:`, {
       entriesCount: debugData.feed_status?.entries_count,
       cachedArticles: debugData.cached_articles?.length,
       hasError: !!debugData.error
@@ -1067,7 +1067,7 @@ export function streamNews(options: StreamOptions = {}): {
 } {
   const { useCache = true, category, onProgress, onSourceComplete, onError, signal } = options;
 
-  console.log(`Starting news stream with useCache=${useCache} and category=${category}`);
+  logger.debug(`Starting news stream with useCache=${useCache} and category=${category}`);
 
   // Build SSE URL with parameters
   const baseUrl = (
@@ -1095,7 +1095,7 @@ export function streamNews(options: StreamOptions = {}): {
     let settled = false;
     let abortController: AbortController | null = null;
 
-    console.log(`Connecting to unified stream endpoint: ${sseUrl}`);
+    logger.debug(`Connecting to unified stream endpoint: ${sseUrl}`);
 
     try {
       // Create abort controller for fetch
@@ -1146,7 +1146,7 @@ export function streamNews(options: StreamOptions = {}): {
         throw new Error("No response body received from stream");
       }
 
-      console.log("Stream connection opened, reading body...");
+      logger.debug("Stream connection opened, reading body...");
 
       const reader = response.body.getReader();
       const decoder = new TextDecoder();
@@ -1198,7 +1198,7 @@ export function streamNews(options: StreamOptions = {}): {
           const { done, value } = await reader.read();
 
           if (done) {
-            console.log("Stream reader completed");
+            logger.debug("Stream reader completed");
             clearInterval(timeoutInterval);
             clearInterval(stallInterval);
             if (!settled) {
@@ -1249,7 +1249,7 @@ export function streamNews(options: StreamOptions = {}): {
                   data = JSON.parse(JSON.parse(`"${eventData}"`));
                 }
 
-                console.log(`Stream event [${data.status}]:`, {
+                logger.debug(`Stream event [${data.status}]:`, {
                   streamId: data.stream_id,
                   source: data.source,
                   articlesCount: data.articles?.length,
@@ -1271,7 +1271,7 @@ export function streamNews(options: StreamOptions = {}): {
                       const BATCH_SIZE = 500;
                       const cacheAge = data.cache_age_seconds || 999;
 
-                      console.log(
+                      logger.debug(
                         `Stream ${streamId} INITIAL data: ${mappedArticles.length} articles (cache age: ${cacheAge}s)`
                       );
 
@@ -1324,7 +1324,7 @@ export function streamNews(options: StreamOptions = {}): {
                     break;
 
                   case "starting":
-                    console.log(`Stream ${streamId} starting: ${data.message}`);
+                    logger.debug(`Stream ${streamId} starting: ${data.message}`);
                     onProgress?.({
                       completed: 0,
                       total: 0,
@@ -1340,7 +1340,7 @@ export function streamNews(options: StreamOptions = {}): {
                       const BATCH_SIZE = 500;
                       const cacheAge = data.cache_age_seconds || 999;
 
-                      console.log(
+                      logger.debug(
                         `Stream ${streamId} cache data: ${mappedArticles.length} articles (cache age: ${cacheAge}s, fresh: ${cacheAge < 120})`
                       );
 
@@ -1386,12 +1386,12 @@ export function streamNews(options: StreamOptions = {}): {
 
                         // If cache is fresh (<120s), set a short timeout to auto-complete if server doesn't send complete event
                         if (cacheAge < 120) {
-                          console.log(
+                          logger.debug(
                             `Cache is fresh (${cacheAge}s), waiting for completion or timeout after 5s...`
                           );
                           setTimeout(() => {
                             if (!settled && hasReceivedData) {
-                              console.log(
+                              logger.debug(
                                 `Auto-completing stream after fresh cache timeout`
                               );
                               if (abortController) {
@@ -1416,7 +1416,7 @@ export function streamNews(options: StreamOptions = {}): {
                       articles.push(...mappedArticles);
                       sources.add(data.source);
 
-                      console.log(
+                      logger.debug(
                         `Stream ${streamId} source complete: ${data.source} (${mappedArticles.length} articles)`
                       );
 
@@ -1440,7 +1440,7 @@ export function streamNews(options: StreamOptions = {}): {
                     break;
 
                   case "complete":
-                    console.log(`Stream ${streamId} complete:`, {
+                    logger.debug(`Stream ${streamId} complete:`, {
                       totalArticles: data.total_articles,
                       successfulSources: data.successful_sources,
                       failedSources: data.failed_sources,
@@ -1485,7 +1485,7 @@ export function streamNews(options: StreamOptions = {}): {
                     break;
 
                   default:
-                    console.log(
+                    logger.debug(
                       `Stream ${streamId} unknown status: ${data.status}`
                     );
                 }
@@ -1570,7 +1570,7 @@ const hashStringToInt = (value: string) => {
 
 // Helper function to map backend articles to frontend format
 function mapBackendArticles(backendArticles: any[]): NewsArticle[] {
-  console.log(`[mapBackendArticles] Mapping ${backendArticles.length} articles from backend format to frontend format.`);
+  logger.debug(`[mapBackendArticles] Mapping ${backendArticles.length} articles from backend format to frontend format.`);
   return backendArticles.map((article: any) => {
     const sourceName = article.source || article.source_name || 'Unknown';
 
@@ -1650,7 +1650,7 @@ export async function fetchStreamStatus(): Promise<any> {
     }
 
     const data = await response.json();
-    console.log('Stream status:', data);
+    logger.debug('Stream status:', data);
     return data;
   } catch (error) {
     console.error('Failed to fetch stream status:', error);
@@ -1739,7 +1739,7 @@ export interface ArticleAnalysis {
 // Analyze article with AI
 export async function analyzeArticle(url: string, sourceName?: string): Promise<ArticleAnalysis> {
   try {
-    console.log(`Analyzing article: ${url}`);
+    logger.debug(`Analyzing article: ${url}`);
     const response = await fetch(`${API_BASE_URL}/api/article/analyze`, {
       method: 'POST',
       headers: {
@@ -1756,7 +1756,7 @@ export async function analyzeArticle(url: string, sourceName?: string): Promise<
     }
 
     const data = await response.json();
-    console.log('Article analysis complete:', data);
+    logger.debug('Article analysis complete:', data);
     return data;
   } catch (error) {
     console.error('Failed to analyze article:', error);
@@ -1787,7 +1787,7 @@ export async function performNewsResearch(
   includeThinking: boolean = true
 ): Promise<NewsResearchResponse> {
   try {
-    console.log(`Performing news research: ${query}`);
+    logger.debug(`Performing news research: ${query}`);
     const response = await fetch(`${API_BASE_URL}/api/news/research`, {
       method: 'POST',
       headers: {
@@ -1804,7 +1804,7 @@ export async function performNewsResearch(
     }
 
     const data = await response.json();
-    console.log('News research complete:', data);
+    logger.debug('News research complete:', data);
     return data;
   } catch (error) {
     console.error('Failed to perform news research:', error);
@@ -1893,7 +1893,7 @@ export async function addToReadingQueue(
     }
 
     const data = await response.json()
-    console.log('Article added to reading queue:', data)
+    logger.debug('Article added to reading queue:', data)
     return data
   } catch (error) {
     console.error('Failed to add article to reading queue:', error)
@@ -1911,7 +1911,7 @@ export async function removeFromReadingQueue(queueItemId: number): Promise<void>
       throw new Error(`HTTP error! status: ${response.status}`)
     }
 
-    console.log('Article removed from reading queue')
+    logger.debug('Article removed from reading queue')
   } catch (error) {
     console.error('Failed to remove article from reading queue:', error)
     throw error
@@ -1932,7 +1932,7 @@ export async function removeFromReadingQueueByUrl(
       throw new Error(`HTTP error! status: ${response.status}`)
     }
 
-    console.log('Article removed from reading queue by URL')
+    logger.debug('Article removed from reading queue by URL')
   } catch (error) {
     console.error('Failed to remove article from reading queue:', error)
     throw error
@@ -1951,7 +1951,7 @@ export async function getReadingQueue(): Promise<QueueResponse> {
     }
 
     const data = await response.json()
-    console.log('Reading queue retrieved:', data)
+    logger.debug('Reading queue retrieved:', data)
     return data
   } catch (error) {
     console.error('Failed to fetch reading queue:', error)
@@ -1982,7 +1982,7 @@ export async function updateReadingQueueItem(
     }
 
     const data = await response.json()
-    console.log('Queue item updated:', data)
+    logger.debug('Queue item updated:', data)
     return data
   } catch (error) {
     console.error('Failed to update queue item:', error)
@@ -2012,7 +2012,7 @@ export async function getQueueOverview(): Promise<QueueOverview> {
     }
 
     const data = await response.json()
-    console.log('Queue overview retrieved:', data)
+    logger.debug('Queue overview retrieved:', data)
     return data
   } catch (error) {
     console.error('Failed to fetch queue overview:', error)
@@ -2047,7 +2047,7 @@ export async function createHighlight(highlight: Highlight): Promise<Highlight> 
     }
 
     const data = await response.json()
-    console.log('Highlight created:', data)
+    logger.debug('Highlight created:', data)
     return data
   } catch (error) {
     console.error('Failed to create highlight:', error)
@@ -2070,7 +2070,7 @@ export async function getHighlightsForArticle(
     }
 
     const data = await response.json()
-    console.log('Highlights retrieved:', data)
+    logger.debug('Highlights retrieved:', data)
     return data
   } catch (error) {
     console.error('Failed to fetch highlights:', error)
@@ -2090,7 +2090,7 @@ export async function getAllHighlights(): Promise<Highlight[]> {
     }
 
     const data = await response.json()
-    console.log('All highlights retrieved:', data)
+    logger.debug('All highlights retrieved:', data)
     return data
   } catch (error) {
     console.error('Failed to fetch highlights:', error)
@@ -2114,7 +2114,7 @@ export async function updateHighlight(
     }
 
     const data = await response.json()
-    console.log('Highlight updated:', data)
+    logger.debug('Highlight updated:', data)
     return data
   } catch (error) {
     console.error('Failed to update highlight:', error)
@@ -2132,7 +2132,7 @@ export async function deleteHighlight(highlightId: number): Promise<void> {
       throw new Error(`HTTP error! status: ${response.status}`)
     }
 
-    console.log('Highlight deleted')
+    logger.debug('Highlight deleted')
   } catch (error) {
     console.error('Failed to delete highlight:', error)
     throw error
@@ -2171,7 +2171,7 @@ export async function getQueueItemContent(queueId: number): Promise<QueueItemCon
     }
 
     const data = await response.json()
-    console.log('Queue item content retrieved:', data)
+    logger.debug('Queue item content retrieved:', data)
     return data
   } catch (error) {
     console.error('Failed to fetch queue item content:', error)
@@ -2191,7 +2191,7 @@ export async function getDailyDigest(): Promise<QueueDigest> {
     }
 
     const data = await response.json()
-    console.log('Daily digest retrieved:', data)
+    logger.debug('Daily digest retrieved:', data)
     return data
   } catch (error) {
     console.error('Failed to fetch daily digest:', error)
@@ -2239,7 +2239,7 @@ export async function fetchNewsPaginated(
 
   const url = `${API_BASE_URL}/news/page${searchParams.toString() ? "?" + searchParams.toString() : ""}`;
 
-  console.log(`[Pagination] Fetching paginated news: ${url}`);
+  logger.debug(`[Pagination] Fetching paginated news: ${url}`);
 
   const response = await fetch(url);
 

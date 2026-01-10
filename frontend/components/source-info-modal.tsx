@@ -10,6 +10,7 @@ import { Card, CardContent } from "@/components/ui/card"
 import { ExternalLink, MapPin, DollarSign, Globe, AlertCircle } from "lucide-react"
 import { getSourceById, fetchSources, type NewsSource } from "@/lib/api"
 import SourceDebug from "@/components/source-debug"
+import { isDebugMode } from "@/lib/logger"
 
 interface SourceInfoModalProps {
   sourceId: string
@@ -22,6 +23,7 @@ export function SourceInfoModal({ sourceId, children }: SourceInfoModalProps) {
   const [loading, setLoading] = useState(false)
   const [debugSource, setDebugSource] = useState<NewsSource | null>(null)
   const [showDebug, setShowDebug] = useState(false)
+  const [debugMode, setDebugModeState] = useState(false)
 
   useEffect(() => {
     const loadSource = async () => {
@@ -39,6 +41,17 @@ export function SourceInfoModal({ sourceId, children }: SourceInfoModalProps) {
     }
     loadSource()
   }, [isOpen, sourceId])
+
+  useEffect(() => {
+    setDebugModeState(isDebugMode())
+    const handleStorage = (event: StorageEvent) => {
+      if (event.key === "thesis_debug_mode") {
+        setDebugModeState(isDebugMode())
+      }
+    }
+    window.addEventListener("storage", handleStorage)
+    return () => window.removeEventListener("storage", handleStorage)
+  }, [])
 
   // Debug: fetch all sources and show the raw object for this sourceId
   const handleDebugView = async () => {
@@ -154,9 +167,11 @@ export function SourceInfoModal({ sourceId, children }: SourceInfoModalProps) {
               <Button variant="outline" className="flex-1 bg-transparent">
                 Subscribe to RSS
               </Button>
-              <Button variant="secondary" className="flex-1" onClick={handleDebugView}>
-                View Detail (Debug)
-              </Button>
+              {debugMode && (
+                <Button variant="secondary" className="flex-1" onClick={handleDebugView}>
+                  View Detail (Debug)
+                </Button>
+              )}
             </div>
           </div>
         )}

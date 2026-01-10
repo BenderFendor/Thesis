@@ -7,7 +7,8 @@ import { X, ExternalLink, Heart, Bookmark, AlertTriangle, DollarSign, Bug, Link 
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
-import { type NewsArticle, getSourceById, type NewsSource, fetchSourceDebugData, type SourceDebugData, analyzeArticle, type ArticleAnalysis, API_BASE_URL, createBookmark, deleteBookmark, performAgenticSearch, type FactCheckResult, addToReadingQueue, ENABLE_READER_MODE, type Highlight, getHighlightsForArticle } from "@/lib/api"
+import { type NewsArticle, getSourceById, type NewsSource, fetchSourceDebugData, type SourceDebugData, analyzeArticle, type ArticleAnalysis, API_BASE_URL, createBookmark, deleteBookmark, performAgenticSearch, type FactCheckResult, addToReadingQueue, type Highlight, getHighlightsForArticle } from "@/lib/api"
+import { isDebugMode } from "@/lib/logger"
 import { useReadingQueue } from "@/hooks/useReadingQueue"
 import { useFavorites } from "@/hooks/useFavorites"
 import { useInlineDefinition } from "@/hooks/useInlineDefinition"
@@ -70,6 +71,7 @@ export function ArticleDetailModal({ article, isOpen, onClose, initialIsBookmark
   const [debugOpen, setDebugOpen] = useState(false)
   const [debugLoading, setDebugLoading] = useState(false)
   const [debugData, setDebugData] = useState<SourceDebugData | null>(null)
+  const [debugMode, setDebugModeState] = useState(false)
   const [matchedEntryIndex, setMatchedEntryIndex] = useState<number | null>(null)
   const [aiAnalysisLoading, setAiAnalysisLoading] = useState(false)
   const [aiAnalysis, setAiAnalysis] = useState<ArticleAnalysis | null>(null)
@@ -119,6 +121,17 @@ export function ArticleDetailModal({ article, isOpen, onClose, initialIsBookmark
       loadSource()
     }
   }, [isOpen, article])
+
+  useEffect(() => {
+    setDebugModeState(isDebugMode())
+    const handleStorage = (event: StorageEvent) => {
+      if (event.key === "thesis_debug_mode") {
+        setDebugModeState(isDebugMode())
+      }
+    }
+    window.addEventListener("storage", handleStorage)
+    return () => window.removeEventListener("storage", handleStorage)
+  }, [])
 
   useEffect(() => {
     if (article) {
@@ -692,8 +705,8 @@ export function ArticleDetailModal({ article, isOpen, onClose, initialIsBookmark
                       variant="ghost"
                       size="sm"
                       onClick={handleOpenInReader}
-                      disabled={!ENABLE_READER_MODE || openReaderLoading}
-                      title={ENABLE_READER_MODE ? "Open in Reader" : "Reader mode is disabled"}
+                      disabled={openReaderLoading}
+                      title="Open in Reader"
                     >
                       {openReaderLoading ? (
                         <Loader2 className="h-4 w-4 mr-2 animate-spin" />
@@ -1132,35 +1145,39 @@ export function ArticleDetailModal({ article, isOpen, onClose, initialIsBookmark
                       <p className="text-gray-400 text-sm">Source info unavailable</p>
                     )}
 
-                    {/* Debug Button */}
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => { setDebugOpen(!debugOpen); if (!debugOpen) loadDebug(); }}
-                      className="w-full mt-4"
-                    >
-                      <Bug className="h-4 w-4 mr-1" /> {debugOpen ? "Hide" : "Show"} Debug
-                    </Button>
+                    {debugMode && (
+                      <>
+                        {/* Debug Button */}
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => { setDebugOpen(!debugOpen); if (!debugOpen) loadDebug(); }}
+                          className="w-full mt-4"
+                        >
+                          <Bug className="h-4 w-4 mr-1" /> {debugOpen ? "Hide" : "Show"} Debug
+                        </Button>
 
-                    {/* Debug Panel */}
-                    {debugOpen && (
-                      <div className="mt-4 p-4 bg-black/40 rounded border border-gray-800">
-                        {debugLoading ? (
-                          <div className="flex items-center justify-center p-4">
-                            <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-primary"></div>
-                          </div>
-                        ) : debugData ? (
-                          <div className="space-y-2 text-xs">
-                            <div className="text-gray-400">Entries: {debugData.feed_status?.entries_count}</div>
-                            <div className="text-gray-400">Has Images: {debugData.image_analysis?.entries_with_images}/{debugData.image_analysis?.total_entries}</div>
-                            {matchedEntryIndex !== null && (
-                              <div className="text-primary">Matched at index: {matchedEntryIndex}</div>
+                        {/* Debug Panel */}
+                        {debugOpen && (
+                          <div className="mt-4 p-4 bg-black/40 rounded border border-gray-800">
+                            {debugLoading ? (
+                              <div className="flex items-center justify-center p-4">
+                                <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-primary"></div>
+                              </div>
+                            ) : debugData ? (
+                              <div className="space-y-2 text-xs">
+                                <div className="text-gray-400">Entries: {debugData.feed_status?.entries_count}</div>
+                                <div className="text-gray-400">Has Images: {debugData.image_analysis?.entries_with_images}/{debugData.image_analysis?.total_entries}</div>
+                                {matchedEntryIndex !== null && (
+                                  <div className="text-primary">Matched at index: {matchedEntryIndex}</div>
+                                )}
+                              </div>
+                            ) : (
+                              <div className="text-gray-400 text-xs">No debug data</div>
                             )}
                           </div>
-                        ) : (
-                          <div className="text-gray-400 text-xs">No debug data</div>
                         )}
-                      </div>
+                      </>
                     )}
                   </div>
                 </div>
