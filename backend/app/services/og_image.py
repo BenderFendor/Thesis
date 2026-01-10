@@ -22,6 +22,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.logging import get_logger
 from app.models.news import NewsArticle
+from app.services.cache import news_cache
 
 logger = get_logger("og_image")
 
@@ -59,6 +60,22 @@ def _get_domain(url: str) -> str:
         return urlparse(url).netloc.lower()
     except Exception:
         return "unknown"
+
+
+def _update_cache_images(found_images: Dict[int, str]) -> None:
+    """Update in-memory cache with newly fetched images."""
+    if not found_images:
+        return
+
+    with news_cache.lock:
+        for article in news_cache.articles:
+            if article.id in found_images:
+                article.image = found_images[article.id]
+
+        for source_articles in news_cache.articles_by_source.values():
+            for article in source_articles:
+                if article.id in found_images:
+                    article.image = found_images[article.id]
 
 
 def _extract_og_image_from_html(html: str) -> Optional[str]:
@@ -297,6 +314,9 @@ async def backfill_missing_images(
                 )
 
             await session.commit()
+
+            # Update in-memory cache so frontend sees new images immediately
+            _update_cache_images(found_images)
 
             # Safety: if we processed rows but none were updated, something is wrong - break to avoid infinite loop
             batch_updated = len(found_images) + len(failed_ids)

@@ -1576,7 +1576,8 @@ function mapBackendArticles(backendArticles: any[]): NewsArticle[] {
 
     const summary = article.summary || article.description || '';
     const content = article.content || summary;
-    const image = article.image || article.image_url || "/placeholder.svg";
+    const rawImage = article.image || article.image_url;
+    const image = (rawImage && rawImage !== "none") ? rawImage : "/placeholder.svg";
     const published = article.published_at || article.publishedAt || article.published || new Date().toISOString();
     const category = article.category || 'general';
     const rawUrl = article.url || article.link || article.article_url || article.original_url || '';

@@ -1,5 +1,53 @@
 # Log
 
+## 2026-01-10: OG Image Backfill and Frontend Image Fixes
+
+### Problem
+Grid view showed no images for many articles (especially Al Jazeera). Investigation revealed:
+- 5,545 articles had images, but 2,790 had NULL `image_url`
+- Backfill endpoint existed but hadn't been run
+- Frontend didn't handle the `"none"` marker correctly
+
+### Root Cause
+1. OG image fetching was added but backfill never executed
+2. SVG images (e.g., `Logo.svg`) were being saved, causing infinite backfill loops
+3. Frontend treated `"none"` string as a valid image URL
+
+### Fixes Applied
+
+#### Backend (`backend/app/services/og_image.py`)
+- Filter SVGs and placeholders at fetch time (lines 132-134)
+- Mark failed fetches as `"none"` to prevent re-trying (lines 309-314)
+- Safety break if no articles updated in a batch (lines 322-329)
+
+#### Frontend
+- `frontend/lib/api.ts`: Treat `"none"` as no image
+- `frontend/components/grid-view.tsx`: `hasRealImage()` returns false for `"none"`
+- `frontend/components/virtualized-grid.tsx`: Same fix
+
+### Backfill Results
+```
+Total articles: 8,734
+With real images: 7,103 (81%)
+No OG image available: 1,631 (19%, marked "none")
+Images added this session: 404
+```
+
+### Backfill Command
+```bash
+curl -X POST "http://localhost:8000/debug/backfill/images?batch_size=100&max_batches=50"
+```
+
+### Key Files
+| File | Purpose |
+|------|---------|
+| `backend/app/services/og_image.py` | OG image fetching and backfill logic |
+| `backend/app/api/routes/debug.py` | `/debug/backfill/images` endpoint |
+| `frontend/components/grid-view.tsx` | `hasRealImage()` helper |
+| `frontend/components/virtualized-grid.tsx` | Same helper |
+
+---
+
 ## 2026-01-08: UI Cleanup, AI Call Reduction, and Docs Refresh
 
 ### Overview
