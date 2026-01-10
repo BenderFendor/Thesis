@@ -3,7 +3,6 @@ from __future__ import annotations
 import re
 from dataclasses import dataclass
 from typing import Dict, List, Sequence
-from urllib.parse import urlparse
 
 FIELD_KEYS = [
     "funding",
@@ -114,41 +113,41 @@ def _append_field_unique(
 def _extract_funding_values(text: str) -> List[str]:
     values: List[str] = []
     if re.search(r"\bnon[- ]?profit\b|\bnot[- ]?for[- ]?profit\b|\b501\(c\)\(3\)\b", text, re.I):
-        values.append("non-profit")
+        _append_unique(values, "non-profit")
     if re.search(r"reader[- ]supported|supported by readers|supported by reader", text, re.I):
-        values.append("reader-supported")
+        _append_unique(values, "reader-supported")
     if re.search(r"reader donations", text, re.I):
-        values.append("reader-supported")
+        _append_unique(values, "reader-supported")
     if re.search(r"member[- ]supported", text, re.I):
-        values.append("member-supported")
+        _append_unique(values, "member-supported")
     if re.search(r"donations?", text, re.I):
-        values.append("donation-supported")
+        _append_unique(values, "donation-supported")
     if re.search(r"foundation(s)?|grant(s)?", text, re.I):
-        values.append("foundation funding")
+        _append_unique(values, "foundation funding")
     no_ads = re.search(r"no advertising|does not accept advertising", text, re.I)
     if no_ads:
-        values.append("no advertising")
+        _append_unique(values, "no advertising")
     if not no_ads and re.search(r"\badvertising\b", text, re.I):
-        values.append("advertising-supported")
+        _append_unique(values, "advertising-supported")
     if re.search(r"subscription(s)?", text, re.I):
-        values.append("subscription-supported")
+        _append_unique(values, "subscription-supported")
     if re.search(r"membership", text, re.I):
-        values.append("member-supported")
+        _append_unique(values, "member-supported")
     return values
 
 
 def _extract_editorial_stance_values(text: str) -> List[str]:
     values: List[str] = []
     if re.search(r"\bindependent\b", text, re.I):
-        values.append("independent")
+        _append_unique(values, "independent")
     if re.search(r"social justice", text, re.I):
-        values.append("social justice focus")
+        _append_unique(values, "social justice focus")
     if re.search(r"\bprogressive\b", text, re.I):
-        values.append("progressive")
+        _append_unique(values, "progressive")
     if re.search(r"\badvocacy\b", text, re.I):
-        values.append("advocacy journalism")
+        _append_unique(values, "advocacy journalism")
     if re.search(r"\bmission\b", text, re.I):
-        values.append("mission-led")
+        _append_unique(values, "mission-led")
     return values
 
 
@@ -170,16 +169,16 @@ def _extract_political_bias_values(text: str) -> List[str]:
     for pattern in patterns:
         match = re.search(pattern, text, re.I)
         if match:
-            values.append(match.group(1).lower().replace(" ", "-"))
+            _append_unique(values, match.group(1).lower().replace(" ", "-"))
             break
     if re.search(r"\bleft[- ]wing\b", text, re.I):
-        values.append("left-wing")
+        _append_unique(values, "left-wing")
     if re.search(r"\bright[- ]wing\b", text, re.I):
-        values.append("right-wing")
+        _append_unique(values, "right-wing")
     if re.search(r"\bcenter[- ]left\b", text, re.I):
-        values.append("center-left")
+        _append_unique(values, "center-left")
     if re.search(r"\bcenter[- ]right\b", text, re.I):
-        values.append("center-right")
+        _append_unique(values, "center-right")
     return values
 
 
@@ -191,7 +190,7 @@ def _extract_factual_reporting_values(text: str) -> List[str]:
         re.I,
     )
     if match:
-        values.append(_normalize_rating(match.group(1)))
+        _append_unique(values, _normalize_rating(match.group(1)))
         return values
     match = re.search(
         r"\breliability\s*:\s*(generally reliable|mixed reliability|low reliability|high reliability)\b",
@@ -199,7 +198,7 @@ def _extract_factual_reporting_values(text: str) -> List[str]:
         re.I,
     )
     if match:
-        values.append(match.group(1).lower().replace(" ", "-"))
+        _append_unique(values, match.group(1).lower().replace(" ", "-"))
     return values
 
 
@@ -214,7 +213,7 @@ def _extract_ownership_values(text: str) -> List[str]:
     for pattern in patterns:
         match = re.search(pattern, text, re.I)
         if match:
-            values.append(match.group(1).strip().rstrip("."))
+            _append_unique(values, match.group(1).strip().rstrip("."))
             break
     return values
 
@@ -227,7 +226,7 @@ def _extract_reach_traffic_values(text: str) -> List[str]:
         re.I,
     )
     if match:
-        values.append(match.group(1).lower())
+        _append_unique(values, match.group(1).lower())
     return values
 
 
@@ -241,7 +240,7 @@ def _extract_affiliations(text: str) -> List[str]:
     for pattern in patterns:
         match = re.search(pattern, text, re.I)
         if match:
-            values.append(match.group(1).strip().rstrip("."))
+            _append_unique(values, match.group(1).strip().rstrip("."))
     return values
 
 
@@ -272,6 +271,11 @@ def _trim_words(text: str, limit: int) -> str:
     if len(words) <= limit:
         return text
     return " ".join(words[:limit])
+
+
+def _append_unique(values: List[str], value: str) -> None:
+    if value not in values:
+        values.append(value)
 
 
 def _normalize_rating(value: str) -> str:

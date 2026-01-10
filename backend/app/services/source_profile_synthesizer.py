@@ -122,10 +122,7 @@ def _normalize_fields(fields_payload: Dict[str, Any]) -> Dict[str, List[Dict[str
             value = str(entry.get("value", "")).strip()
             if not value:
                 continue
-            sources = entry.get("sources") or []
-            if isinstance(sources, str):
-                sources = [sources]
-            sources_list = [str(source).strip() for source in sources if str(source).strip()]
+            sources_list = _normalize_sources(entry.get("sources"))
             notes = entry.get("notes")
             cleaned_entries.append(
                 {
@@ -137,3 +134,15 @@ def _normalize_fields(fields_payload: Dict[str, Any]) -> Dict[str, List[Dict[str
         if cleaned_entries:
             normalized[key] = cleaned_entries
     return normalized
+
+
+def _normalize_sources(raw_sources: Any) -> List[str]:
+    if not raw_sources:
+        return []
+    if isinstance(raw_sources, str):
+        sources = [raw_sources]
+    elif isinstance(raw_sources, list):
+        sources = raw_sources
+    else:
+        sources = [raw_sources]
+    return [str(source).strip() for source in sources if str(source).strip()]

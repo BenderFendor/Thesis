@@ -29,6 +29,99 @@ from app.core.logging import get_logger
 
 logger = get_logger("funding_researcher")
 
+KNOWN_ORGS: Dict[str, Dict[str, Any]] = {
+    "bbc": {
+        "name": "BBC",
+        "funding_type": "public",
+        "parent": None,
+        "description": "British Broadcasting Corporation, UK public broadcaster",
+        "media_bias_rating": "center",
+        "factual_reporting": "high",
+        "confidence": "high",
+    },
+    "cnn": {
+        "name": "CNN",
+        "funding_type": "commercial",
+        "parent": "Warner Bros. Discovery",
+        "description": "Cable News Network, American news channel",
+        "media_bias_rating": "center-left",
+        "factual_reporting": "mixed",
+        "confidence": "high",
+    },
+    "fox news": {
+        "name": "Fox News",
+        "funding_type": "commercial",
+        "parent": "Fox Corporation",
+        "description": "American conservative news channel",
+        "media_bias_rating": "right",
+        "factual_reporting": "mixed",
+        "confidence": "high",
+    },
+    "new york times": {
+        "name": "The New York Times",
+        "funding_type": "commercial",
+        "parent": "The New York Times Company",
+        "description": "American newspaper of record",
+        "media_bias_rating": "center-left",
+        "factual_reporting": "high",
+        "confidence": "high",
+    },
+    "washington post": {
+        "name": "The Washington Post",
+        "funding_type": "commercial",
+        "parent": "Nash Holdings (Jeff Bezos)",
+        "description": "American newspaper based in Washington D.C.",
+        "media_bias_rating": "center-left",
+        "factual_reporting": "high",
+        "confidence": "high",
+    },
+    "npr": {
+        "name": "NPR",
+        "funding_type": "non-profit",
+        "parent": None,
+        "description": "National Public Radio, American non-profit media organization",
+        "media_bias_rating": "center-left",
+        "factual_reporting": "very-high",
+        "confidence": "high",
+    },
+    "reuters": {
+        "name": "Reuters",
+        "funding_type": "commercial",
+        "parent": "Thomson Reuters",
+        "description": "International news organization",
+        "media_bias_rating": "center",
+        "factual_reporting": "very-high",
+        "confidence": "high",
+    },
+    "associated press": {
+        "name": "Associated Press",
+        "funding_type": "non-profit",
+        "parent": None,
+        "description": "American non-profit news agency",
+        "media_bias_rating": "center",
+        "factual_reporting": "very-high",
+        "confidence": "high",
+    },
+    "al jazeera": {
+        "name": "Al Jazeera",
+        "funding_type": "state-funded",
+        "parent": "Al Jazeera Media Network (Qatar)",
+        "description": "Qatari state-funded news network",
+        "media_bias_rating": "center-left",
+        "factual_reporting": "mixed",
+        "confidence": "high",
+    },
+    "rt": {
+        "name": "RT (Russia Today)",
+        "funding_type": "state-funded",
+        "parent": "Russian Government",
+        "description": "Russian state-controlled international news network",
+        "media_bias_rating": "right",
+        "factual_reporting": "very-low",
+        "confidence": "high",
+    },
+}
+
 
 class FundingResearcher:
     """Agent that researches news organization funding and ownership."""
@@ -167,6 +260,7 @@ class FundingResearcher:
     def _extract_ownership_from_text(self, text: str) -> Optional[Dict[str, Any]]:
         """Extract ownership information from Wikipedia text."""
         ownership = {}
+        lower_text = text.lower()
         
         # Common patterns for ownership
         patterns = [
@@ -183,11 +277,11 @@ class FundingResearcher:
                 break
         
         # Look for funding type indicators
-        if "non-profit" in text.lower() or "nonprofit" in text.lower():
+        if "non-profit" in lower_text or "nonprofit" in lower_text:
             ownership["funding_type"] = "non-profit"
-        elif "public broadcasting" in text.lower():
+        elif "public broadcasting" in lower_text:
             ownership["funding_type"] = "public"
-        elif "state-owned" in text.lower() or "government-funded" in text.lower():
+        elif "state-owned" in lower_text or "government-funded" in lower_text:
             ownership["funding_type"] = "state-funded"
             
         return ownership if ownership else None
@@ -332,104 +426,10 @@ class FundingResearcher:
     
     async def _get_known_org_data(self, name: str) -> Dict[str, Any]:
         """Return known data for major news organizations."""
-        # Hardcoded data for major outlets (would be a database in production)
-        known_orgs = {
-            "bbc": {
-                "name": "BBC",
-                "funding_type": "public",
-                "parent": None,
-                "description": "British Broadcasting Corporation, UK public broadcaster",
-                "media_bias_rating": "center",
-                "factual_reporting": "high",
-                "confidence": "high"
-            },
-            "cnn": {
-                "name": "CNN",
-                "funding_type": "commercial",
-                "parent": "Warner Bros. Discovery",
-                "description": "Cable News Network, American news channel",
-                "media_bias_rating": "center-left",
-                "factual_reporting": "mixed",
-                "confidence": "high"
-            },
-            "fox news": {
-                "name": "Fox News",
-                "funding_type": "commercial",
-                "parent": "Fox Corporation",
-                "description": "American conservative news channel",
-                "media_bias_rating": "right",
-                "factual_reporting": "mixed",
-                "confidence": "high"
-            },
-            "new york times": {
-                "name": "The New York Times",
-                "funding_type": "commercial",
-                "parent": "The New York Times Company",
-                "description": "American newspaper of record",
-                "media_bias_rating": "center-left",
-                "factual_reporting": "high",
-                "confidence": "high"
-            },
-            "washington post": {
-                "name": "The Washington Post",
-                "funding_type": "commercial",
-                "parent": "Nash Holdings (Jeff Bezos)",
-                "description": "American newspaper based in Washington D.C.",
-                "media_bias_rating": "center-left",
-                "factual_reporting": "high",
-                "confidence": "high"
-            },
-            "npr": {
-                "name": "NPR",
-                "funding_type": "non-profit",
-                "parent": None,
-                "description": "National Public Radio, American non-profit media organization",
-                "media_bias_rating": "center-left",
-                "factual_reporting": "very-high",
-                "confidence": "high"
-            },
-            "reuters": {
-                "name": "Reuters",
-                "funding_type": "commercial",
-                "parent": "Thomson Reuters",
-                "description": "International news organization",
-                "media_bias_rating": "center",
-                "factual_reporting": "very-high",
-                "confidence": "high"
-            },
-            "associated press": {
-                "name": "Associated Press",
-                "funding_type": "non-profit",
-                "parent": None,
-                "description": "American non-profit news agency",
-                "media_bias_rating": "center",
-                "factual_reporting": "very-high",
-                "confidence": "high"
-            },
-            "al jazeera": {
-                "name": "Al Jazeera",
-                "funding_type": "state-funded",
-                "parent": "Al Jazeera Media Network (Qatar)",
-                "description": "Qatari state-funded news network",
-                "media_bias_rating": "center-left",
-                "factual_reporting": "mixed",
-                "confidence": "high"
-            },
-            "rt": {
-                "name": "RT (Russia Today)",
-                "funding_type": "state-funded",
-                "parent": "Russian Government",
-                "description": "Russian state-controlled international news network",
-                "media_bias_rating": "right",
-                "factual_reporting": "very-low",
-                "confidence": "high"
-            }
-        }
-        
         normalized = self._normalize_name(name)
         
         # Check for exact or partial matches
-        for key, data in known_orgs.items():
+        for key, data in KNOWN_ORGS.items():
             if key in normalized or normalized in key:
                 return {"source": "known_data", **data}
                 
