@@ -360,3 +360,6 @@ volumes/
 .ruff_cache/
 
 dev-browser/
+
+.chroma/
+.agent/rules/
