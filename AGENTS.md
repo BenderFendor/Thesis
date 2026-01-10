@@ -8,6 +8,7 @@
 - If unsure about a library or project documentation, use web search to update knowledge.
 - Keep writing concise: avoid filler, keep sentences focused, avoid jargon when simpler terms work.
 - Add minimal, thoughtful debugging to support future troubleshooting.
+- Prefer a single LLM API call per feature flow when feasible to reduce rate-limit risk; consolidate prompts instead of chaining calls.
 
 ## Epistemology
 - Assumptions are the enemy.
@@ -22,6 +23,11 @@
 - Keep Canvas separate from memory/context.
 - Include all prior messages in prompts (no truncation).
 - Prefer English Wikipedia links when an English page exists.
+
+## Debugging
+- If multiple distinct articles show identical full text, validate `/article/extract` against at least two URLs from the same source before touching UI.
+- When extractor output is wrong, identify the publisher platform and add a site-specific extraction path before modifying front-end caching.
+- Log the extractor chosen and the requested URL when extraction succeeds or fails.
 
 ## Abstractions
 Consciously constrained, pragmatically parameterised, doggedly documented.

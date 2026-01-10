@@ -1,20 +1,20 @@
 "use client"
 
-import { useState, useEffect, useMemo } from "react"
+import { useState, useEffect, useMemo, useRef } from "react"
 import { useRouter } from "next/navigation"
 import { X, ExternalLink, Heart, Bookmark, AlertTriangle, DollarSign, Bug, Link as LinkIcon, Rss, Sparkles, Maximize2, Minimize2, Loader2, Search, RefreshCw, CheckCircle2, XCircle, Copy, PlusCircle, MinusCircle, Star, BookOpen } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
-import { type NewsArticle, getSourceById, type NewsSource, fetchSourceDebugData, type SourceDebugData, analyzeArticle, type ArticleAnalysis, API_BASE_URL, createBookmark, deleteBookmark, performAgenticSearch, type FactCheckResult, addToReadingQueue, ENABLE_READER_MODE } from "@/lib/api"
+import { type NewsArticle, getSourceById, type NewsSource, fetchSourceDebugData, type SourceDebugData, analyzeArticle, type ArticleAnalysis, API_BASE_URL, createBookmark, deleteBookmark, performAgenticSearch, type FactCheckResult, addToReadingQueue, ENABLE_READER_MODE, type Highlight, getHighlightsForArticle } from "@/lib/api"
 import { useReadingQueue } from "@/hooks/useReadingQueue"
 import { useFavorites } from "@/hooks/useFavorites"
 import { useInlineDefinition } from "@/hooks/useInlineDefinition"
 import InlineDefinition from "@/components/inline-definition"
-import { ReporterProfilePanel } from "@/components/reporter-profile"
-import { OrganizationPanel } from "@/components/organization-panel"
-import { MaterialContextPanel } from "@/components/material-context-panel"
+import { SourceResearchPanel } from "@/components/source-research-panel"
 import { toast } from "sonner"
+import { ArticleContent } from "@/components/article-content"
+import { HighlightToolbar } from "@/components/highlight-toolbar"
 
 type FactCheckStatus = FactCheckResult["verification_status"]
 type FactCheckStatusFilter = FactCheckStatus | "all"
@@ -85,7 +85,18 @@ export function ArticleDetailModal({ article, isOpen, onClose, initialIsBookmark
   const [agenticHistory, setAgenticHistory] = useState<Array<{ claim: string; answer: string; timestamp: number }>>([])
   const [openReaderLoading, setOpenReaderLoading] = useState(false)
   const [aiAnalysisRequested, setAiAnalysisRequested] = useState(false)
-  const [researchPanelsEnabled, setResearchPanelsEnabled] = useState(false)
+  const [highlights, setHighlights] = useState<Highlight[]>([])
+  const articleContentRef = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    if (article?.url) {
+      getHighlightsForArticle(article.url)
+        .then(setHighlights)
+        .catch((e) => console.error("Failed to load highlights", e))
+    } else {
+      setHighlights([])
+    }
+  }, [article?.url])
 
   useEffect(() => {
     const loadSource = async () => {
@@ -114,14 +125,23 @@ export function ArticleDetailModal({ article, isOpen, onClose, initialIsBookmark
     }
   }, [initialIsBookmarked, article?.id])
 
+  const articleCacheKey = useMemo(() => {
+    if (!article) return null
+    return getArticleCacheKey(article)
+  }, [article?.id, article?.url])
+
   // Load full article text immediately when modal opens
   useEffect(() => {
     const abortController = new AbortController()
-    const loadFullArticle = async () => {
-      if (!article) return
 
-      const cacheKey = getArticleCacheKey(article)
-      const cached = fullArticleCache.get(cacheKey)
+    if (!isOpen || !article || !articleCacheKey) {
+      setFullArticleText(null)
+      setArticleLoading(false)
+      return () => abortController.abort()
+    }
+
+    const loadFullArticle = async () => {
+      const cached = fullArticleCache.get(articleCacheKey)
       if (cached !== undefined) {
         setFullArticleText(cached)
         setArticleLoading(false)
@@ -133,23 +153,21 @@ export function ArticleDetailModal({ article, isOpen, onClose, initialIsBookmark
 
       try {
         if (!isExtractableUrl(article.url)) {
-          fullArticleCache.set(cacheKey, article.content || article.summary || null)
+          fullArticleCache.set(articleCacheKey, article.content || article.summary || null)
           setArticleLoading(false)
           return
         }
-        if (isExtractableUrl(article.url)) {
-          // Use the newspaper library endpoint to get full article text
-          const response = await fetch(`${API_BASE_URL}/article/extract?url=${encodeURIComponent(article.url)}`, {
-            signal: abortController.signal
-          })
-          if (response.ok) {
-            const data = await response.json()
-            const extractedText = data.text || data.full_text || null
-            if (extractedText) {
-              fullArticleCache.set(cacheKey, extractedText)
-            }
-            setFullArticleText(extractedText || article.content || article.summary || null)
+        // Use the newspaper library endpoint to get full article text
+        const response = await fetch(`${API_BASE_URL}/article/extract?url=${encodeURIComponent(article.url)}`, {
+          signal: abortController.signal
+        })
+        if (response.ok) {
+          const data = await response.json()
+          const extractedText = data.text || data.full_text || null
+          if (extractedText) {
+            fullArticleCache.set(articleCacheKey, extractedText)
           }
+          setFullArticleText(extractedText || article.content || article.summary || null)
         }
       } catch (e) {
         if ((e as Error).name !== "AbortError") {
@@ -160,11 +178,9 @@ export function ArticleDetailModal({ article, isOpen, onClose, initialIsBookmark
       }
     }
 
-    if (isOpen && article) {
-      loadFullArticle()
-      return () => abortController.abort()
-    }
-  }, [article?.url, isOpen])
+    loadFullArticle()
+    return () => abortController.abort()
+  }, [articleCacheKey, isOpen, article])
 
   // Reset AI state when modal opens
   useEffect(() => {
@@ -179,8 +195,7 @@ export function ArticleDetailModal({ article, isOpen, onClose, initialIsBookmark
     setAgenticHistory([])
     setActiveStatusFilter("all")
     setAiAnalysisRequested(false)
-    setResearchPanelsEnabled(false)
-  }, [article?.url, isOpen])
+  }, [article?.id, article?.url, isOpen])
 
   useEffect(() => {
     if (!claimsOpen) {
@@ -537,32 +552,33 @@ export function ArticleDetailModal({ article, isOpen, onClose, initialIsBookmark
                   <h2 className={`font-bold text-foreground mb-6 font-serif ${isExpanded ? 'text-3xl' : 'text-xl'
                     }`}>Full Article</h2>
 
-                  {articleLoading && fullArticleText ? (
-                    <div className="space-y-4">
-                      <div className="flex items-center gap-3 p-4 bg-[var(--news-bg-secondary)]/60 rounded-lg border border-border/60">
-                        <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-primary"></div>
-                        <p className="text-muted-foreground text-sm">Updating full article text...</p>
-                      </div>
-                      <div className={`text-foreground/80 leading-relaxed whitespace-pre-wrap ${isExpanded ? 'text-lg space-y-6' : 'text-base space-y-4'
-                        }`}>
-                        {fullArticleText}
-                      </div>
+                  {articleLoading && fullArticleText && (
+                    <div className="flex items-center gap-3 p-4 bg-[var(--news-bg-secondary)]/60 rounded-lg border border-border/60 mb-4">
+                      <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-primary"></div>
+                      <p className="text-muted-foreground text-sm">Updating full article text...</p>
                     </div>
-                  ) : articleLoading ? (
+                  )}
+
+                  {articleLoading && !fullArticleText ? (
                     <div className="flex items-center gap-3 p-6 bg-[var(--news-bg-secondary)]/60 rounded-lg border border-border/60">
                       <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-primary"></div>
                       <p className="text-muted-foreground">Loading full article text...</p>
                     </div>
-                  ) : fullArticleText ? (
-                    <div className={`text-foreground/80 leading-relaxed whitespace-pre-wrap ${isExpanded ? 'text-lg space-y-6' : 'text-base space-y-4'
-                      }`}>
-                      {fullArticleText}
-                    </div>
                   ) : (
-                    <div className={`text-foreground/80 leading-relaxed space-y-4 ${isExpanded ? 'text-lg space-y-6' : 'text-base'
-                      }`}>
-                      {article.content || article.summary}
-                    </div>
+                    <>
+                      <ArticleContent
+                        ref={articleContentRef}
+                        content={fullArticleText || article.content || article.summary || ""}
+                        highlights={highlights}
+                        className={isExpanded ? 'text-lg space-y-6' : 'text-base space-y-4'}
+                      />
+                      <HighlightToolbar
+                        articleUrl={article.url}
+                        containerRef={articleContentRef}
+                        highlights={highlights}
+                        onHighlightsChange={setHighlights}
+                      />
+                    </>
                   )}
                 </div>
 
@@ -697,22 +713,10 @@ export function ArticleDetailModal({ article, isOpen, onClose, initialIsBookmark
                     </div>
                   )}
 
-                  <div className="rounded-lg border border-border/60 bg-[var(--news-bg-secondary)]/70 p-5">
-                    <div className="flex items-center justify-between">
-                      <p className="font-mono text-[10px] uppercase tracking-[0.3em] text-muted-foreground">Source Research</p>
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => setResearchPanelsEnabled((prev) => !prev)}
-                        className="border-border/60"
-                      >
-                        {researchPanelsEnabled ? "Disable" : "Enable"}
-                      </Button>
-                    </div>
-                    <p className="mt-2 text-xs text-muted-foreground">
-                      Runs reporter, organization, and material-context research on demand.
-                    </p>
-                  </div>
+                  <SourceResearchPanel
+                    sourceName={article.source}
+                    website={articleHost}
+                  />
 
                   {aiAnalysisRequested && aiAnalysisLoading && (
                     <div className="rounded-lg border border-border/60 bg-[var(--news-bg-secondary)]/70 p-5 text-sm text-muted-foreground">
@@ -1063,33 +1067,6 @@ export function ArticleDetailModal({ article, isOpen, onClose, initialIsBookmark
                     </div>
                   )}
 
-                  {researchPanelsEnabled && (
-                    <div className="space-y-4">
-                      <OrganizationPanel
-                        organizationName={article.source}
-                        website={articleHost}
-                        compact={true}
-                      />
-
-                      {article.author && (
-                        <ReporterProfilePanel
-                          reporterName={article.author}
-                          organization={article.source}
-                          compact={true}
-                        />
-                      )}
-
-                      {(article.source_country || (article.mentioned_countries && article.mentioned_countries.length > 0)) && (
-                        <MaterialContextPanel
-                          source={article.source}
-                          sourceCountry={article.source_country || "US"}
-                          mentionedCountries={article.mentioned_countries || []}
-                          articleText={fullArticleText || article.content || article.summary}
-                          compact={true}
-                        />
-                      )}
-                    </div>
-                  )}
                 </div>
               )}
 

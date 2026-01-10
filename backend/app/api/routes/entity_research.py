@@ -24,6 +24,7 @@ from app.core.logging import get_logger
 from app.database import get_db, Reporter, Organization, ArticleAuthor
 from app.services.reporter_profiler import get_reporter_profiler
 from app.services.funding_researcher import get_funding_researcher
+from app.services.source_research import get_source_profile
 
 router = APIRouter(prefix="/research/entity", tags=["entity-research"])
 logger = get_logger("entity_research_routes")
@@ -179,6 +180,31 @@ class OrganizationResearchResponse(BaseModel):
     research_sources: Optional[List[str]] = None
     research_confidence: Optional[str] = None
     cached: bool = False
+
+
+class SourceResearchRequest(BaseModel):
+    name: str
+    website: Optional[str] = None
+
+
+class SourceResearchValue(BaseModel):
+    value: str
+    sources: Optional[List[str]] = None
+    notes: Optional[str] = None
+
+
+class SourceReporterSummary(BaseModel):
+    name: str
+    article_count: int
+
+
+class SourceResearchResponse(BaseModel):
+    name: str
+    website: Optional[str] = None
+    fetched_at: Optional[str] = None
+    cached: bool = False
+    fields: Dict[str, List[SourceResearchValue]]
+    key_reporters: List[SourceReporterSummary] = []
 
 
 class OwnershipChainResponse(BaseModel):
@@ -408,6 +434,27 @@ async def research_organization(
         research_confidence=organization.research_confidence,
         cached=False
     )
+
+
+@router.post("/source/profile", response_model=SourceResearchResponse)
+async def research_source_profile(
+    request: SourceResearchRequest,
+    force_refresh: bool = Query(False, description="Force refresh cached source profile"),
+):
+    """
+    Build a source profile with funding, ownership, bias, and related metadata.
+    Uses file-based caching unless force_refresh is requested.
+    """
+    if not request.name.strip():
+        raise HTTPException(status_code=400, detail="Source name is required")
+
+    logger.info("Source research request: %s", request.name)
+    profile = await get_source_profile(
+        source_name=request.name.strip(),
+        website=request.website,
+        force_refresh=force_refresh,
+    )
+    return SourceResearchResponse(**profile)
 
 
 @router.get("/organization/{org_id}", response_model=OrganizationResearchResponse)

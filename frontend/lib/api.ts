@@ -1580,6 +1580,8 @@ function mapBackendArticles(backendArticles: any[]): NewsArticle[] {
         ? article.article_id
         : hashStringToInt(stableKey);
     const url = rawUrl;
+    const author = article.author
+      || (Array.isArray(article.authors) ? article.authors[0] : undefined);
 
     const country = article.country || getCountryFromSource(sourceName);
     const credibilityValue = typeof article.credibility === 'string' ? article.credibility.toLowerCase() : undefined;
@@ -1609,7 +1611,8 @@ function mapBackendArticles(backendArticles: any[]): NewsArticle[] {
       url,
       tags: [category, sourceName].filter(Boolean),
       originalLanguage: article.original_language || 'en',
-      translated: article.translated ?? false
+      translated: article.translated ?? false,
+      author: author || undefined
     };
 
     return mappedArticle;
@@ -2435,6 +2438,26 @@ export interface OwnershipChain {
   depth: number;
 }
 
+export interface SourceResearchValue {
+  value: string;
+  sources?: string[];
+  notes?: string;
+}
+
+export interface SourceReporterSummary {
+  name: string;
+  article_count: number;
+}
+
+export interface SourceResearchProfile {
+  name: string;
+  website?: string;
+  fetched_at?: string;
+  cached?: boolean;
+  fields: Record<string, SourceResearchValue[]>;
+  key_reporters?: SourceReporterSummary[];
+}
+
 /**
  * Profile a reporter/journalist
  */
@@ -2495,6 +2518,28 @@ export async function researchOrganization(
 ): Promise<OrganizationProfile> {
   const params = forceRefresh ? "?force_refresh=true" : "";
   const response = await fetch(`${API_BASE_URL}/research/entity/organization/research${params}`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ name, website }),
+  });
+
+  if (!response.ok) {
+    throw new Error(`HTTP error! status: ${response.status}`);
+  }
+
+  return response.json();
+}
+
+/**
+ * Build or fetch a cached source research profile
+ */
+export async function researchSourceProfile(
+  name: string,
+  website?: string,
+  forceRefresh: boolean = false
+): Promise<SourceResearchProfile> {
+  const params = forceRefresh ? "?force_refresh=true" : "";
+  const response = await fetch(`${API_BASE_URL}/research/entity/source/profile${params}`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ name, website }),

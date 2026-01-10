@@ -1160,6 +1160,7 @@ def parse_rss_feed_entries(
             description=description,
             published=entry.get("published", str(datetime.now(timezone.utc))),
             source=source_name,
+            author=entry.get("author") or None,
             country=source_info.get("country"),
             category=source_info.get("category", "general"),
             image=image_url,

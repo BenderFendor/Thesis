@@ -17,7 +17,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 async def test_postgresql():
     """Test PostgreSQL connection"""
     if not settings.enable_database:
-        print("ℹPostgreSQL test skipped (ENABLE_DATABASE=0)\n")
+        print("INFO: PostgreSQL test skipped (ENABLE_DATABASE=0)\n")
         return True
     try:
         from app.database import engine, AsyncSessionLocal
@@ -50,7 +50,7 @@ def test_chromadb():
     from app.vector_store import get_vector_store
 
     if not settings.enable_vector_store:
-        print("ℹChromaDB test skipped (ENABLE_VECTOR_STORE=0)\n")
+        print("INFO: ChromaDB test skipped (ENABLE_VECTOR_STORE=0)\n")
         return True
 
     try:
@@ -84,7 +84,7 @@ def test_chromadb():
 async def test_dual_write():
     """Test writing to both databases"""
     if not settings.enable_database:
-        print("ℹDual-write test skipped (ENABLE_DATABASE=0)\n")
+        print("INFO: Dual-write test skipped (ENABLE_DATABASE=0)\n")
         return True
     try:
         from app.database import AsyncSessionLocal, Article
@@ -93,7 +93,7 @@ async def test_dual_write():
 
         vector_store = get_vector_store()
         if vector_store is None:
-            print("ℹDual-write test skipped (vector store unavailable)\n")
+            print("INFO: Dual-write test skipped (vector store unavailable)\n")
             return True
 
         print("Testing dual-write pattern...")

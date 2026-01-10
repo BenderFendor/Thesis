@@ -43,7 +43,8 @@ class FundingResearcher:
     async def research_organization(
         self, 
         name: str,
-        website: Optional[str] = None
+        website: Optional[str] = None,
+        use_ai: bool = True
     ) -> Dict[str, Any]:
         """
         Research an organization's funding and ownership.
@@ -70,6 +71,7 @@ class FundingResearcher:
         wikipedia_data = results[0] if not isinstance(results[0], Exception) else {}
         nonprofit_data = results[1] if not isinstance(results[1], Exception) else {}
         known_data = results[2] if not isinstance(results[2], Exception) else {}
+        wikidata_data = await self._fetch_wikidata(wikipedia_data.get("page_title") or name)
         
         # Merge with priority
         org_data = self._merge_org_data(
@@ -77,12 +79,13 @@ class FundingResearcher:
             normalized_name=normalized_name,
             website=website,
             wikipedia=wikipedia_data,
+            wikidata=wikidata_data,
             nonprofit=nonprofit_data,
             known=known_data
         )
         
         # Use AI to synthesize
-        if self.client:
+        if self.client and use_ai:
             org_data = await self._ai_enhance_org_data(org_data)
         
         org_data["last_researched_at"] = datetime.now(timezone.utc).isoformat()
@@ -151,6 +154,7 @@ class FundingResearcher:
                     "description": extract[:500],
                     "url": page_info.get("fullurl"),
                     "ownership": ownership_info,
+                    "page_title": page_info.get("title"),
                     "confidence": "high"
                 }
                 
@@ -247,6 +251,84 @@ class FundingResearcher:
         except Exception as e:
             logger.error(f"ProPublica search failed for {name}: {e}")
             return {}
+
+    async def _fetch_wikidata(self, page_title: str) -> Dict[str, Any]:
+        """Fetch structured ownership and metadata from Wikidata."""
+        try:
+            params = {
+                "action": "wbgetentities",
+                "sites": "enwiki",
+                "titles": page_title,
+                "props": "claims|labels|descriptions|sitelinks",
+                "format": "json",
+                "formatversion": 2,
+                "languages": "en",
+            }
+            response = await self.http_client.get(
+                "https://www.wikidata.org/w/api.php", params=params
+            )
+            if response.status_code != 200:
+                return {}
+            data = response.json()
+            entities = data.get("entities") or []
+            if not entities:
+                return {}
+            entity = entities[0]
+            qid = entity.get("id")
+            claims = entity.get("claims") or {}
+
+            item_ids: List[str] = []
+            ownership_ids = _extract_wikidata_item_ids(claims, "P127")
+            parent_ids = _extract_wikidata_item_ids(claims, "P749")
+            part_of_ids = _extract_wikidata_item_ids(claims, "P361")
+            headquarters_ids = _extract_wikidata_item_ids(claims, "P159")
+            item_ids.extend(ownership_ids + parent_ids + part_of_ids + headquarters_ids)
+
+            labels = await self._resolve_wikidata_labels(item_ids)
+
+            return {
+                "source": "wikidata",
+                "qid": qid,
+                "wikidata_url": f"https://www.wikidata.org/wiki/{qid}" if qid else None,
+                "owned_by": [labels.get(item_id) for item_id in ownership_ids if labels.get(item_id)],
+                "parent_orgs": [labels.get(item_id) for item_id in parent_ids if labels.get(item_id)],
+                "part_of": [labels.get(item_id) for item_id in part_of_ids if labels.get(item_id)],
+                "headquarters": [labels.get(item_id) for item_id in headquarters_ids if labels.get(item_id)],
+                "inception": _extract_wikidata_time(claims, "P571"),
+                "official_website": _extract_wikidata_url(claims, "P856"),
+                "confidence": "medium",
+            }
+        except Exception as exc:
+            logger.warning("Wikidata fetch failed for %s: %s", name, exc)
+            return {}
+
+    async def _resolve_wikidata_labels(self, item_ids: List[str]) -> Dict[str, str]:
+        if not item_ids:
+            return {}
+        unique_ids = sorted({item_id for item_id in item_ids if item_id})
+        if not unique_ids:
+            return {}
+        params = {
+            "action": "wbgetentities",
+            "ids": "|".join(unique_ids),
+            "props": "labels",
+            "format": "json",
+            "languages": "en",
+            "formatversion": 2,
+        }
+        response = await self.http_client.get(
+            "https://www.wikidata.org/w/api.php", params=params
+        )
+        if response.status_code != 200:
+            return {}
+        data = response.json()
+        labels: Dict[str, str] = {}
+        for entity in data.get("entities") or []:
+            entity_id = entity.get("id")
+            label = (entity.get("labels") or {}).get("en", {}).get("value")
+            if entity_id and label:
+                labels[entity_id] = label
+        return labels
     
     async def _get_known_org_data(self, name: str) -> Dict[str, Any]:
         """Return known data for major news organizations."""
@@ -359,6 +441,7 @@ class FundingResearcher:
         normalized_name: str,
         website: Optional[str],
         wikipedia: Dict[str, Any],
+        wikidata: Dict[str, Any],
         nonprofit: Dict[str, Any],
         known: Dict[str, Any]
     ) -> Dict[str, Any]:
@@ -378,6 +461,14 @@ class FundingResearcher:
             "media_bias_rating": None,
             "factual_reporting": None,
             "website": website,
+            "wikidata_url": None,
+            "wikidata_qid": None,
+            "owned_by": [],
+            "parent_orgs": [],
+            "part_of": [],
+            "headquarters": [],
+            "inception": None,
+            "official_website": None,
             "wikipedia_url": None,
             "littlesis_url": None,
             "opensecrets_url": None,
@@ -404,7 +495,24 @@ class FundingResearcher:
             org["research_sources"].append("wikipedia")
             if org["research_confidence"] == "low":
                 org["research_confidence"] = "medium"
-        
+
+        if wikidata:
+            org["wikidata_url"] = wikidata.get("wikidata_url")
+            org["wikidata_qid"] = wikidata.get("qid")
+            org["owned_by"] = wikidata.get("owned_by") or []
+            org["parent_orgs"] = wikidata.get("parent_orgs") or []
+            org["part_of"] = wikidata.get("part_of") or []
+            org["headquarters"] = wikidata.get("headquarters") or []
+            org["inception"] = wikidata.get("inception")
+            org["official_website"] = wikidata.get("official_website")
+            if not org["parent_org"] and org["parent_orgs"]:
+                org["parent_org"] = org["parent_orgs"][0]
+            if not org["website"] and org["official_website"]:
+                org["website"] = org["official_website"]
+            org["research_sources"].append("wikidata")
+            if org["research_confidence"] == "low":
+                org["research_confidence"] = "medium"
+
         # Merge ProPublica nonprofit data
         if nonprofit:
             nonprofit_ein = nonprofit.get("ein")
@@ -518,3 +626,38 @@ def get_funding_researcher() -> FundingResearcher:
     if _researcher is None:
         _researcher = FundingResearcher()
     return _researcher
+
+
+def _extract_wikidata_item_ids(claims: Dict[str, Any], prop: str) -> List[str]:
+    items: List[str] = []
+    for claim in claims.get(prop, []):
+        mainsnak = claim.get("mainsnak") or {}
+        datavalue = mainsnak.get("datavalue") or {}
+        value = datavalue.get("value") or {}
+        if isinstance(value, dict):
+            item_id = value.get("id")
+            if item_id:
+                items.append(item_id)
+    return items
+
+
+def _extract_wikidata_time(claims: Dict[str, Any], prop: str) -> Optional[str]:
+    for claim in claims.get(prop, []):
+        mainsnak = claim.get("mainsnak") or {}
+        datavalue = mainsnak.get("datavalue") or {}
+        value = datavalue.get("value") or {}
+        if isinstance(value, dict):
+            time_value = value.get("time")
+            if time_value:
+                return time_value
+    return None
+
+
+def _extract_wikidata_url(claims: Dict[str, Any], prop: str) -> Optional[str]:
+    for claim in claims.get(prop, []):
+        mainsnak = claim.get("mainsnak") or {}
+        datavalue = mainsnak.get("datavalue") or {}
+        value = datavalue.get("value")
+        if isinstance(value, str):
+            return value
+    return None

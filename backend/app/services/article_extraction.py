@@ -7,6 +7,12 @@ for the reading queue and reader mode.
 
 from typing import Dict, Any, Optional
 import asyncio
+import re
+from html import unescape
+from urllib.parse import urljoin
+
+import requests
+from bs4 import BeautifulSoup
 from newspaper import Article, Config  # type: ignore[import-unresolved]
 
 from app.core.logging import get_logger
@@ -54,6 +60,10 @@ def _extract_sync(url: str) -> Dict[str, Any]:
         config.request_timeout = 12
         article = Article(url, config=config)
         article.download()
+        rebelmouse_payload = _extract_rebelmouse_article(url, article.html or "")
+        if rebelmouse_payload:
+            logger.info("RebelMouse extraction used for %s", url)
+            return rebelmouse_payload
         article.parse()
 
         return {
@@ -88,6 +98,68 @@ def _extract_sync(url: str) -> Dict[str, Any]:
 def extract_article_content(url: str) -> Dict[str, Any]:
     """Blocking helper for contexts that cannot await coroutines."""
     return _extract_sync(url)
+
+
+def _extract_rebelmouse_article(url: str, html: str) -> Optional[Dict[str, Any]]:
+    if not html:
+        return None
+    match = re.search(r'"fullBootstrapUrl"\s*:\s*"([^"]+)"', html)
+    if not match:
+        logger.debug("RebelMouse bootstrap URL not found for %s", url)
+        return None
+
+    try:
+        bootstrap_path = match.group(1).encode("utf-8").decode("unicode_escape")
+        bootstrap_url = urljoin(url, bootstrap_path)
+        response = requests.get(
+            bootstrap_url,
+            headers={"User-Agent": "Mozilla/5.0"},
+            timeout=12,
+        )
+        if response.status_code != 200:
+            logger.debug(
+                "RebelMouse bootstrap request failed for %s (status %s)",
+                url,
+                response.status_code,
+            )
+            return None
+        data = response.json()
+    except Exception as exc:
+        logger.debug("RebelMouse bootstrap parse failed for %s: %s", url, exc)
+        return None
+
+    post = data.get("post", {})
+    body_html = post.get("body")
+    if not isinstance(body_html, str) or not body_html.strip():
+        logger.debug("RebelMouse body missing for %s", url)
+        return None
+
+    soup = BeautifulSoup(body_html, "html.parser")
+    text = soup.get_text("\n")
+    text = unescape(text)
+    text = re.sub(r"[ \t\r\f\v]+", " ", text)
+    text = re.sub(r"\n\s*\n+", "\n\n", text)
+    text = text.strip()
+
+    if not text:
+        logger.debug("RebelMouse body extracted empty for %s", url)
+        return None
+
+    author = post.get("author_name")
+    publish_date = (
+        post.get("last_published_date")
+        or post.get("created_date")
+        or post.get("formated_created_ts")
+    )
+
+    return {
+        "success": True,
+        "text": text,
+        "title": post.get("headline") or post.get("title"),
+        "authors": [author] if author else [],
+        "publish_date": publish_date,
+        "top_image": post.get("image") or post.get("image_external"),
+    }
 
 
 def calculate_word_count(text: Optional[str]) -> Optional[int]:
