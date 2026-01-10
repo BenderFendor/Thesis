@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useMemo, useRef } from "react"
 import { useRouter } from "next/navigation"
+import Link from "next/link"
 import { X, ExternalLink, Heart, Bookmark, AlertTriangle, DollarSign, Bug, Link as LinkIcon, Rss, Sparkles, Maximize2, Minimize2, Loader2, Search, RefreshCw, CheckCircle2, XCircle, Copy, PlusCircle, MinusCircle, Star, BookOpen } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
@@ -182,8 +183,9 @@ export function ArticleDetailModal({ article, isOpen, onClose, initialIsBookmark
     return () => abortController.abort()
   }, [articleCacheKey, isOpen, article])
 
-  // Reset AI state when modal opens
+  // Reset state when article changes or modal opens
   useEffect(() => {
+    setIsLiked(false)
     setDebugOpen(false)
     setDebugData(null)
     setMatchedEntryIndex(null)
@@ -506,7 +508,16 @@ export function ArticleDetailModal({ article, isOpen, onClose, initialIsBookmark
 
                 {/* Meta */}
                 <div className="flex flex-wrap items-center gap-3 text-sm text-muted-foreground">
-                  <span className="font-medium">{article.source}</span>
+                  <Link
+                    href={`/source/${encodeURIComponent(article.sourceId)}`}
+                    className="font-medium hover:text-primary hover:underline transition-colors"
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      onClose()
+                    }}
+                  >
+                    {article.source}
+                  </Link>
                   {article.author && (
                     <>
                       <span>•</span>
@@ -701,14 +712,14 @@ export function ArticleDetailModal({ article, isOpen, onClose, initialIsBookmark
                 </div>
               </div>
 
-              {/* Sidebar - 1/3 width - Only show in expanded mode */}
+                  {/* Sidebar - 1/3 width - Only show in expanded mode */}
               {isExpanded && (
                 <div className="lg:col-span-1 space-y-6">
                   {!aiAnalysisRequested && (
-                    <div className="rounded-lg border border-border/60 bg-[var(--news-bg-secondary)]/70 p-5 text-sm text-muted-foreground">
+                    <div className="rounded-sm border border-white/10 bg-white/5 p-5 text-sm text-muted-foreground">
                       <p className="font-mono text-[10px] uppercase tracking-[0.3em] text-muted-foreground">AI Analysis</p>
-                      <p className="mt-2 text-foreground/80">
-                        AI analysis is off by default to reduce API calls. Use the “Run AI Analysis” button when you need it.
+                      <p className="mt-2 text-foreground/80 font-serif">
+                        AI analysis is off by default. Use the “Run Analysis” button when you need it.
                       </p>
                     </div>
                   )}

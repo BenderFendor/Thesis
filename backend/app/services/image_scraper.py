@@ -1,3 +1,13 @@
+"""
+DEPRECATED: This module has been replaced by og_image.py
+
+The old background scraper ran every 60 seconds and caused excessive
+network traffic. The new approach (og_image.enrich_articles_with_og_images)
+runs once during RSS ingestion, fetching OG images inline before persistence.
+
+This file is retained for reference but is not imported anywhere.
+"""
+
 from __future__ import annotations
 
 import asyncio

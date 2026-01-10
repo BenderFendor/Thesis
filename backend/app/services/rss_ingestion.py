@@ -22,6 +22,7 @@ from app.data.rss_sources import get_rss_sources
 from app.models.news import NewsArticle
 from app.services.cache import news_cache
 from app.services.metrics import get_metrics, reset_metrics
+from app.services.og_image import enrich_articles_with_og_images
 from app.services.persistence import persist_articles_dual_write
 from app.services.websocket_manager import manager
 
@@ -608,7 +609,9 @@ async def _parse_worker(
 
                 metrics.parse_count += 1
 
-                # Queue for persistence
+                if articles:
+                    await enrich_articles_with_og_images(articles)
+
                 await persist_queue.put((articles, stat))
 
             except Exception as e:
@@ -986,19 +989,22 @@ async def _broadcast_cache_update(total_articles: int, source_count: int) -> Non
         )
     except Exception as exc:
         logger.error("Failed to notify clients via WebSocket: %s", exc)
-    
+
     # Also broadcast to lightweight SSE updates stream
     try:
         from app.api.routes.updates import broadcast_update
         import asyncio
-        asyncio.create_task(broadcast_update(
-            "invalidate",
-            {
-                "reason": "cache_refresh_complete",
-                "total_articles": total_articles,
-                "sources_processed": source_count,
-            }
-        ))
+
+        asyncio.create_task(
+            broadcast_update(
+                "invalidate",
+                {
+                    "reason": "cache_refresh_complete",
+                    "total_articles": total_articles,
+                    "sources_processed": source_count,
+                },
+            )
+        )
     except Exception as exc:
         logger.error("Failed to notify updates stream: %s", exc)
 
@@ -1186,5 +1192,6 @@ def start_cache_refresh_scheduler(interval_seconds: int = 600) -> None:
     thread = threading.Thread(target=cache_scheduler, daemon=True)
     thread.start()
     logger.info(
-        "Cache refresh scheduler started (every %s s, delayed first run)", interval_seconds
+        "Cache refresh scheduler started (every %s s, delayed first run)",
+        interval_seconds,
     )

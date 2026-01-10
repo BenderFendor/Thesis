@@ -64,9 +64,7 @@ def _extract_wikipedia_lang_and_title(url: str) -> tuple[Optional[str], Optional
     return lang, title
 
 
-async def _resolve_english_wikipedia_url(
-    url: str, client: httpx.AsyncClient
-) -> str:
+async def _resolve_english_wikipedia_url(url: str, client: httpx.AsyncClient) -> str:
     cached = _WIKIPEDIA_URL_CACHE.get(url)
     if cached:
         return cached
@@ -117,9 +115,7 @@ async def _normalize_wikipedia_urls(
         return urls
 
     async with httpx.AsyncClient(timeout=10.0) as client:
-        tasks = [
-            _resolve_english_wikipedia_url(url, client) for url in unique_urls
-        ]
+        tasks = [_resolve_english_wikipedia_url(url, client) for url in unique_urls]
         results = await asyncio.gather(*tasks)
 
     normalized_map = dict(zip(unique_urls, results))
@@ -135,6 +131,7 @@ async def _ensure_english_wikipedia_url(
 
 
 # Request/Response Models
+
 
 class ReporterProfileRequest(BaseModel):
     name: str
@@ -215,19 +212,20 @@ class OwnershipChainResponse(BaseModel):
 
 # Endpoints
 
+
 @router.post("/reporter/profile", response_model=ReporterProfileResponse)
 async def profile_reporter(
     request: ReporterProfileRequest,
     db: AsyncSession = Depends(get_db),
-    force_refresh: bool = Query(False, description="Force re-research even if cached")
+    force_refresh: bool = Query(False, description="Force re-research even if cached"),
 ):
     """
     Profile a reporter/journalist.
-    
+
     First checks the database for cached data, then researches if needed.
     """
     logger.info(f"Reporter profile request: {request.name}")
-    
+
     # Check cache first
     if not force_refresh:
         stmt = select(Reporter).where(
@@ -235,7 +233,7 @@ async def profile_reporter(
         )
         result = await db.execute(stmt)
         cached = result.scalar_one_or_none()
-        
+
         if cached:
             logger.info(f"Returning cached profile for {request.name}")
             normalized_wikipedia_url = await _ensure_english_wikipedia_url(
@@ -255,21 +253,21 @@ async def profile_reporter(
                 wikipedia_url=normalized_wikipedia_url,
                 research_sources=cached.research_sources,
                 research_confidence=cached.research_confidence,
-                cached=True
+                cached=True,
             )
-    
+
     # Research the reporter
     profiler = get_reporter_profiler()
     profile_data = await profiler.profile_reporter(
         name=request.name,
         organization=request.organization,
-        article_context=request.article_context
+        article_context=request.article_context,
     )
 
     profile_data["wikipedia_url"] = await _ensure_english_wikipedia_url(
         profile_data.get("wikipedia_url")
     )
-    
+
     # Save to database
     reporter = Reporter(
         name=profile_data.get("name"),
@@ -284,13 +282,13 @@ async def profile_reporter(
         linkedin_url=profile_data.get("linkedin_url"),
         wikipedia_url=profile_data.get("wikipedia_url"),
         research_sources=profile_data.get("research_sources"),
-        research_confidence=profile_data.get("research_confidence")
+        research_confidence=profile_data.get("research_confidence"),
     )
-    
+
     db.add(reporter)
     await db.commit()
     await db.refresh(reporter)
-    
+
     return ReporterProfileResponse(
         id=reporter.id,
         name=reporter.name,
@@ -305,20 +303,17 @@ async def profile_reporter(
         wikipedia_url=reporter.wikipedia_url,
         research_sources=reporter.research_sources,
         research_confidence=reporter.research_confidence,
-        cached=False
+        cached=False,
     )
 
 
 @router.get("/reporter/{reporter_id}", response_model=ReporterProfileResponse)
-async def get_reporter(
-    reporter_id: int,
-    db: AsyncSession = Depends(get_db)
-):
+async def get_reporter(reporter_id: int, db: AsyncSession = Depends(get_db)):
     """Get a reporter by ID."""
     stmt = select(Reporter).where(Reporter.id == reporter_id)
     result = await db.execute(stmt)
     reporter = result.scalar_one_or_none()
-    
+
     if not reporter:
         raise HTTPException(status_code=404, detail="Reporter not found")
 
@@ -339,7 +334,7 @@ async def get_reporter(
         wikipedia_url=normalized_wikipedia_url,
         research_sources=reporter.research_sources,
         research_confidence=reporter.research_confidence,
-        cached=True
+        cached=True,
     )
 
 
@@ -347,13 +342,13 @@ async def get_reporter(
 async def research_organization(
     request: OrganizationResearchRequest,
     db: AsyncSession = Depends(get_db),
-    force_refresh: bool = Query(False, description="Force re-research even if cached")
+    force_refresh: bool = Query(False, description="Force re-research even if cached"),
 ):
     """
     Research a news organization's funding and ownership.
     """
     logger.info(f"Organization research request: {request.name}")
-    
+
     # Check cache first
     if not force_refresh:
         stmt = select(Organization).where(
@@ -361,7 +356,7 @@ async def research_organization(
         )
         result = await db.execute(stmt)
         cached = result.scalar_one_or_none()
-        
+
         if cached:
             logger.info(f"Returning cached org data for {request.name}")
             normalized_wikipedia_url = await _ensure_english_wikipedia_url(
@@ -382,20 +377,19 @@ async def research_organization(
                 wikipedia_url=normalized_wikipedia_url,
                 research_sources=cached.research_sources,
                 research_confidence=cached.research_confidence,
-                cached=True
+                cached=True,
             )
-    
+
     # Research the organization
     researcher = get_funding_researcher()
     org_data = await researcher.research_organization(
-        name=request.name,
-        website=request.website
+        name=request.name, website=request.website
     )
 
     org_data["wikipedia_url"] = await _ensure_english_wikipedia_url(
         org_data.get("wikipedia_url")
     )
-    
+
     # Save to database
     organization = Organization(
         name=org_data.get("name"),
@@ -410,13 +404,13 @@ async def research_organization(
         website=org_data.get("website"),
         wikipedia_url=org_data.get("wikipedia_url"),
         research_sources=org_data.get("research_sources"),
-        research_confidence=org_data.get("research_confidence")
+        research_confidence=org_data.get("research_confidence"),
     )
-    
+
     db.add(organization)
     await db.commit()
     await db.refresh(organization)
-    
+
     return OrganizationResearchResponse(
         id=organization.id,
         name=organization.name,
@@ -432,41 +426,47 @@ async def research_organization(
         wikipedia_url=organization.wikipedia_url,
         research_sources=organization.research_sources,
         research_confidence=organization.research_confidence,
-        cached=False
+        cached=False,
     )
 
 
 @router.post("/source/profile", response_model=SourceResearchResponse)
 async def research_source_profile(
     request: SourceResearchRequest,
-    force_refresh: bool = Query(False, description="Force refresh cached source profile"),
+    force_refresh: bool = Query(
+        False, description="Force refresh cached source profile"
+    ),
+    cache_only: bool = Query(
+        False, description="Only return cached data, 404 if not cached"
+    ),
 ):
     """
     Build a source profile with funding, ownership, bias, and related metadata.
     Uses file-based caching unless force_refresh is requested.
+    If cache_only=true, returns cached data or 404 without triggering research.
     """
     if not request.name.strip():
         raise HTTPException(status_code=400, detail="Source name is required")
 
-    logger.info("Source research request: %s", request.name)
+    logger.info("Source research request: %s (cache_only=%s)", request.name, cache_only)
     profile = await get_source_profile(
         source_name=request.name.strip(),
         website=request.website,
         force_refresh=force_refresh,
+        cache_only=cache_only,
     )
+    if profile is None:
+        raise HTTPException(status_code=404, detail="No cached profile available")
     return SourceResearchResponse(**profile)
 
 
 @router.get("/organization/{org_id}", response_model=OrganizationResearchResponse)
-async def get_organization(
-    org_id: int,
-    db: AsyncSession = Depends(get_db)
-):
+async def get_organization(org_id: int, db: AsyncSession = Depends(get_db)):
     """Get an organization by ID."""
     stmt = select(Organization).where(Organization.id == org_id)
     result = await db.execute(stmt)
     org = result.scalar_one_or_none()
-    
+
     if not org:
         raise HTTPException(status_code=404, detail="Organization not found")
 
@@ -486,31 +486,26 @@ async def get_organization(
         wikipedia_url=normalized_wikipedia_url,
         research_sources=org.research_sources,
         research_confidence=org.research_confidence,
-        cached=True
+        cached=True,
     )
 
 
-@router.get("/organization/{org_name}/ownership-chain", response_model=OwnershipChainResponse)
-async def get_ownership_chain(
-    org_name: str,
-    max_depth: int = Query(5, ge=1, le=10)
-):
+@router.get(
+    "/organization/{org_name}/ownership-chain", response_model=OwnershipChainResponse
+)
+async def get_ownership_chain(org_name: str, max_depth: int = Query(5, ge=1, le=10)):
     """Get the ownership chain for an organization."""
     researcher = get_funding_researcher()
     chain = await researcher.get_ownership_chain(org_name, max_depth)
-    
-    return OwnershipChainResponse(
-        organization=org_name,
-        chain=chain,
-        depth=len(chain)
-    )
+
+    return OwnershipChainResponse(organization=org_name, chain=chain, depth=len(chain))
 
 
 @router.get("/reporters", response_model=List[ReporterProfileResponse])
 async def list_reporters(
     db: AsyncSession = Depends(get_db),
     limit: int = Query(50, ge=1, le=200),
-    offset: int = Query(0, ge=0)
+    offset: int = Query(0, ge=0),
 ):
     """List all cached reporters."""
     stmt = select(Reporter).limit(limit).offset(offset)
@@ -534,7 +529,7 @@ async def list_reporters(
             wikipedia_url=normalized_wikipedia_urls[idx],
             research_sources=r.research_sources,
             research_confidence=r.research_confidence,
-            cached=True
+            cached=True,
         )
         for idx, r in enumerate(reporters)
     ]
@@ -544,7 +539,7 @@ async def list_reporters(
 async def list_organizations(
     db: AsyncSession = Depends(get_db),
     limit: int = Query(50, ge=1, le=200),
-    offset: int = Query(0, ge=0)
+    offset: int = Query(0, ge=0),
 ):
     """List all cached organizations."""
     stmt = select(Organization).limit(limit).offset(offset)
@@ -569,13 +564,14 @@ async def list_organizations(
             wikipedia_url=normalized_wikipedia_urls[idx],
             research_sources=o.research_sources,
             research_confidence=o.research_confidence,
-            cached=True
+            cached=True,
         )
         for idx, o in enumerate(orgs)
     ]
 
 
 # Phase 5C: Material Interest Analysis
+
 
 class MaterialContextRequest(BaseModel):
     source: str
@@ -602,34 +598,38 @@ class MaterialContextResponse(BaseModel):
 async def analyze_material_context(request: MaterialContextRequest):
     """
     Analyze material interests that may affect news coverage.
-    
+
     Examines trade relationships, ownership interests, and potential
     conflicts of interest for a given news source and story.
     """
     from app.services.material_interest import get_material_interest_agent
-    
-    logger.info(f"Material context analysis: {request.source} on {request.mentioned_countries}")
-    
+
+    logger.info(
+        f"Material context analysis: {request.source} on {request.mentioned_countries}"
+    )
+
     agent = get_material_interest_agent()
     analysis = await agent.analyze_material_context(
         article_source=request.source,
         source_country=request.source_country,
         mentioned_countries=request.mentioned_countries,
         topics=request.topics,
-        article_text=request.article_text
+        article_text=request.article_text,
     )
-    
+
     return MaterialContextResponse(
         source=analysis.get("source", request.source),
         source_country=analysis.get("source_country", request.source_country),
-        mentioned_countries=analysis.get("mentioned_countries", request.mentioned_countries),
+        mentioned_countries=analysis.get(
+            "mentioned_countries", request.mentioned_countries
+        ),
         trade_relationships=analysis.get("trade_relationships", []),
         known_interests=analysis.get("known_interests", {}),
         potential_conflicts=analysis.get("potential_conflicts", []),
         analysis_summary=analysis.get("analysis_summary"),
         reader_warnings=analysis.get("reader_warnings"),
         confidence=analysis.get("confidence"),
-        analyzed_at=analysis.get("analyzed_at")
+        analyzed_at=analysis.get("analyzed_at"),
     )
 
 
@@ -637,11 +637,8 @@ async def analyze_material_context(request: MaterialContextRequest):
 async def get_country_economic_profile(country_code: str):
     """Get economic profile for a country."""
     from app.services.material_interest import get_material_interest_agent
-    
+
     agent = get_material_interest_agent()
     profile = await agent.get_country_economic_profile(country_code.upper())
-    
-    return {
-        "country_code": country_code.upper(),
-        "profile": profile
-    }
+
+    return {"country_code": country_code.upper(), "profile": profile}

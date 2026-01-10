@@ -2,6 +2,7 @@
 
 import { useRef, useCallback, useEffect, useMemo, memo, useState } from "react";
 import { useVirtualizer } from "@tanstack/react-virtual";
+import Link from "next/link";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -154,9 +155,13 @@ const ArticleCard = memo(function ArticleCard({
         {/* Content */}
         <CardContent className="flex-1 flex flex-col p-6">
           {/* Source */}
-          <div className="text-xs text-muted-foreground/70 uppercase tracking-widest mb-2 truncate">
+          <Link
+            href={`/source/${encodeURIComponent(article.sourceId)}`}
+            onClick={(e) => e.stopPropagation()}
+            className="text-xs text-muted-foreground/70 uppercase tracking-widest mb-2 truncate hover:text-primary transition-colors"
+          >
             {article.source}
-          </div>
+          </Link>
 
           {/* Title */}
           {hasRealImage && (

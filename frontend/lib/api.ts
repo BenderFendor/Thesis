@@ -622,6 +622,13 @@ export async function getArticlesByCountry(country: string): Promise<NewsArticle
   );
 }
 
+export async function fetchArticlesBySource(sourceId: string): Promise<NewsArticle[]> {
+  if (cachedArticles.length === 0) {
+    cachedArticles = await fetchNews({ limit: 3000 });
+  }
+  return cachedArticles.filter(article => article.sourceId === sourceId);
+}
+
 // Initialize data on module load
 export async function initializeData() {
   try {
@@ -2544,6 +2551,31 @@ export async function researchSourceProfile(
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ name, website }),
   });
+
+  if (!response.ok) {
+    throw new Error(`HTTP error! status: ${response.status}`);
+  }
+
+  return response.json();
+}
+
+/**
+ * Check if a cached source research profile exists (no research triggered)
+ * Returns the cached profile or null if not cached
+ */
+export async function checkSourceProfileCache(
+  name: string,
+  website?: string
+): Promise<SourceResearchProfile | null> {
+  const response = await fetch(`${API_BASE_URL}/research/entity/source/profile?cache_only=true`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ name, website }),
+  });
+
+  if (response.status === 404) {
+    return null;
+  }
 
   if (!response.ok) {
     throw new Error(`HTTP error! status: ${response.status}`);

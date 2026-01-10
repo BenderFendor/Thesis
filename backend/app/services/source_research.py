@@ -12,7 +12,10 @@ from app.core.logging import get_logger
 from app.services.cache import news_cache
 from app.services.funding_researcher import get_funding_researcher
 from app.services.source_document_collector import MAX_DOCS, collect_source_documents
-from app.services.source_profile_extractor import FIELD_KEYS, build_fields_from_documents
+from app.services.source_profile_extractor import (
+    FIELD_KEYS,
+    build_fields_from_documents,
+)
 from app.services.source_profile_synthesizer import synthesize_source_fields
 
 logger = get_logger("source_research")
@@ -39,7 +42,9 @@ def _load_cached_profile(source_name: str) -> Optional[Dict[str, Any]]:
         with path.open("r", encoding="utf-8") as handle:
             return json.load(handle)
     except Exception as exc:
-        logger.warning("Failed to read source research cache for %s: %s", source_name, exc)
+        logger.warning(
+            "Failed to read source research cache for %s: %s", source_name, exc
+        )
         return None
 
 
@@ -50,7 +55,9 @@ def _save_cached_profile(source_name: str, payload: Dict[str, Any]) -> None:
         with path.open("w", encoding="utf-8") as handle:
             json.dump(payload, handle, ensure_ascii=True, indent=2)
     except Exception as exc:
-        logger.warning("Failed to write source research cache for %s: %s", source_name, exc)
+        logger.warning(
+            "Failed to write source research cache for %s: %s", source_name, exc
+        )
 
 
 def _append_field(
@@ -100,7 +107,9 @@ async def _build_source_profile(
     website: Optional[str],
 ) -> Dict[str, Any]:
     researcher = get_funding_researcher()
-    org_data = await researcher.research_organization(source_name, website, use_ai=False)
+    org_data = await researcher.research_organization(
+        source_name, website, use_ai=False
+    )
     sources = _map_research_sources(org_data)
     resolved_website = website or org_data.get("website")
 
@@ -112,7 +121,9 @@ async def _build_source_profile(
 
     _append_field(fields, "ownership", org_data.get("parent_org"), sources)
     _append_field(fields, "political_bias", org_data.get("media_bias_rating"), sources)
-    _append_field(fields, "factual_reporting", org_data.get("factual_reporting"), sources)
+    _append_field(
+        fields, "factual_reporting", org_data.get("factual_reporting"), sources
+    )
 
     _add_wikidata_fields(fields, org_data)
     _add_propublica_fields(fields, org_data)
@@ -153,8 +164,12 @@ async def _build_source_profile(
                 )
                 new_docs = [doc for doc in documents if doc.url not in existing_urls]
                 if new_docs:
-                    _merge_extracted_fields(fields, build_fields_from_documents(new_docs))
-        synthesized_fields = await synthesize_source_fields(source_name, documents, fields)
+                    _merge_extracted_fields(
+                        fields, build_fields_from_documents(new_docs)
+                    )
+        synthesized_fields = await synthesize_source_fields(
+            source_name, documents, fields
+        )
         _merge_extracted_fields(fields, synthesized_fields)
 
     profile = {
@@ -184,19 +199,43 @@ def _merge_extracted_fields(
             )
 
 
-def _add_wikidata_fields(fields: Dict[str, List[Dict[str, Any]]], org_data: Dict[str, Any]) -> None:
+def _add_wikidata_fields(
+    fields: Dict[str, List[Dict[str, Any]]], org_data: Dict[str, Any]
+) -> None:
     wikidata_url = org_data.get("wikidata_url")
     wikidata_sources = [wikidata_url] if wikidata_url else ["wikidata"]
     for owner in org_data.get("owned_by") or []:
-        _append_field(fields, "ownership", owner, wikidata_sources, "Wikidata P127 (owned by)")
+        _append_field(
+            fields, "ownership", owner, wikidata_sources, "Wikidata P127 (owned by)"
+        )
     for parent in org_data.get("parent_orgs") or []:
-        _append_field(fields, "ownership", parent, wikidata_sources, "Wikidata P749 (parent organization)")
+        _append_field(
+            fields,
+            "ownership",
+            parent,
+            wikidata_sources,
+            "Wikidata P749 (parent organization)",
+        )
     for affiliation in org_data.get("part_of") or []:
-        _append_field(fields, "affiliations", affiliation, wikidata_sources, "Wikidata P361 (part of)")
+        _append_field(
+            fields,
+            "affiliations",
+            affiliation,
+            wikidata_sources,
+            "Wikidata P361 (part of)",
+        )
     for hq in org_data.get("headquarters") or []:
-        _append_field(fields, "headquarters", hq, wikidata_sources, "Wikidata P159 (headquarters)")
+        _append_field(
+            fields, "headquarters", hq, wikidata_sources, "Wikidata P159 (headquarters)"
+        )
     if org_data.get("inception"):
-        _append_field(fields, "founded", org_data["inception"], wikidata_sources, "Wikidata P571 (inception)")
+        _append_field(
+            fields,
+            "founded",
+            org_data["inception"],
+            wikidata_sources,
+            "Wikidata P571 (inception)",
+        )
     if org_data.get("official_website"):
         _append_field(
             fields,
@@ -207,7 +246,9 @@ def _add_wikidata_fields(fields: Dict[str, List[Dict[str, Any]]], org_data: Dict
         )
 
 
-def _add_propublica_fields(fields: Dict[str, List[Dict[str, Any]]], org_data: Dict[str, Any]) -> None:
+def _add_propublica_fields(
+    fields: Dict[str, List[Dict[str, Any]]], org_data: Dict[str, Any]
+) -> None:
     propublica_url = _propublica_org_url(org_data.get("ein"))
     propublica_sources = [propublica_url] if propublica_url else ["propublica"]
     ein = org_data.get("ein")
@@ -378,12 +419,16 @@ async def get_source_profile(
     source_name: str,
     website: Optional[str] = None,
     force_refresh: bool = False,
-) -> Dict[str, Any]:
+    cache_only: bool = False,
+) -> Optional[Dict[str, Any]]:
     if not force_refresh:
         cached = _load_cached_profile(source_name)
         if cached:
             cached["cached"] = True
             return cached
+
+    if cache_only:
+        return None
 
     profile = await _build_source_profile(source_name, website)
     _save_cached_profile(source_name, profile)

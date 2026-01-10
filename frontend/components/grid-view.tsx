@@ -1,6 +1,7 @@
 "use client"
 
 import { useState, useEffect, useCallback, useMemo, useRef } from "react"
+import Link from "next/link"
 import { Card, CardContent } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -551,9 +552,12 @@ export function GridView({
                   <div className="flex items-center gap-3">
                     <Newspaper className="w-5 h-5 text-primary" />
                     <div className="flex items-center gap-2">
-                      <h3 className="font-serif text-lg font-bold tracking-tight">
+                      <Link
+                        href={`/source/${encodeURIComponent(group.sourceId)}`}
+                        className="font-serif text-lg font-bold tracking-tight hover:text-primary transition-colors"
+                      >
                         {group.sourceName}
-                      </h3>
+                      </Link>
                       <Button
                         variant="ghost"
                         size="sm"

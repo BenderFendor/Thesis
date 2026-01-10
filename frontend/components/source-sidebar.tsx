@@ -1,10 +1,11 @@
 "use client";
 
 import { useState, useEffect, useMemo } from "react";
+import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
-import { X, Star, Search, ChevronDown } from "lucide-react";
+import { X, Star, Search, ChevronDown, ExternalLink } from "lucide-react";
 import { useFavorites } from "@/hooks/useFavorites";
 import { useSourceFilter } from "@/hooks/useSourceFilter";
 import { fetchSources, NewsSource } from "@/lib/api";
@@ -171,6 +172,7 @@ export function SourceSidebar({ isOpen, onClose }: SourceSidebarProps) {
                             handleFavoriteToggle(e, source.id)
                           }
                           onToggleSelect={() => toggleSource(source.id)}
+                          onClose={onClose}
                         />
                       ))}
                     </div>
@@ -232,6 +234,7 @@ export function SourceSidebar({ isOpen, onClose }: SourceSidebarProps) {
                             handleFavoriteToggle(e, source.id)
                           }
                           onToggleSelect={() => toggleSource(source.id)}
+                          onClose={onClose}
                         />
                       ))
                     ) : (
@@ -259,37 +262,44 @@ function SourceItem({
   isSelected,
   onToggleFavorite,
   onToggleSelect,
+  onClose,
 }: {
   source: NewsSource;
   isFavorite: boolean;
   isSelected: boolean;
   onToggleFavorite: (e: React.MouseEvent) => void;
   onToggleSelect: () => void;
+  onClose?: () => void;
 }) {
   return (
     <div
-      className={`flex items-center gap-2 p-2 rounded-none cursor-pointer transition-colors border ${
+      className={`flex items-center gap-2 p-2 rounded-none transition-colors border ${
         isSelected
           ? "bg-white/5 border-white/20"
           : "hover:bg-[var(--news-bg-primary)] border-white/10"
       }`}
-      onClick={onToggleSelect}
     >
       {/* Checkbox */}
       <input
         type="checkbox"
         checked={isSelected}
-        onChange={() => {}}
+        onChange={onToggleSelect}
         className="h-4 w-4 cursor-pointer rounded border-white/20"
       />
 
-      {/* Source Info */}
-      <div className="flex-1 min-w-0">
-        <p className="text-sm font-medium truncate">{source.name}</p>
+      {/* Source Info - Clickable link to source page */}
+      <Link
+        href={`/source/${encodeURIComponent(source.id)}`}
+        className="flex-1 min-w-0 group"
+        onClick={onClose}
+      >
+        <p className="text-sm font-medium truncate group-hover:text-primary transition-colors">
+          {source.name}
+        </p>
         <p className="text-xs text-muted-foreground truncate">
           {source.country}
         </p>
-      </div>
+      </Link>
 
       {/* Favorite Button */}
       <button

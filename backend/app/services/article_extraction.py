@@ -21,6 +21,13 @@ from app.services.debug_logger import debug_logger, EventType
 logger = get_logger("article_extraction")
 DEFAULT_REQUEST_TIMEOUT = 12
 
+try:  # Optional Rust HTML extraction
+    import rss_parser_rust  # type: ignore
+
+    RUST_HTML_AVAILABLE = True
+except ImportError:  # pragma: no cover - optional dependency
+    RUST_HTML_AVAILABLE = False
+
 
 async def extract_article_full_text(url: str) -> Dict[str, Any]:
     """
@@ -61,10 +68,17 @@ def _extract_sync(url: str) -> Dict[str, Any]:
         config.request_timeout = DEFAULT_REQUEST_TIMEOUT
         article = Article(url, config=config)
         article.download()
-        rebelmouse_payload = _extract_rebelmouse_article(url, article.html or "")
+        html = article.html or ""
+        rebelmouse_payload = _extract_rebelmouse_article(url, html)
         if rebelmouse_payload:
             logger.info("RebelMouse extraction used for %s", url)
             return rebelmouse_payload
+        if RUST_HTML_AVAILABLE and html:
+            rust_payload = _extract_with_rust(html)
+            if rust_payload.get("text"):
+                rust_payload["html"] = html
+                return {"success": True, **rust_payload}
+
         article.parse()
 
         return {
@@ -77,7 +91,7 @@ def _extract_sync(url: str) -> Dict[str, Any]:
             "images": list(article.images),
             "keywords": getattr(article, "keywords", []),
             "meta_description": getattr(article, "meta_description", None),
-            "html": article.html,
+            "html": html,
         }
     except Exception as e:
         logger.error("Sync extraction failed for %s: %s", url, e)
@@ -99,6 +113,26 @@ def _extract_sync(url: str) -> Dict[str, Any]:
 def extract_article_content(url: str) -> Dict[str, Any]:
     """Blocking helper for contexts that cannot await coroutines."""
     return _extract_sync(url)
+
+
+def _extract_with_rust(html: str) -> Dict[str, Any]:
+    """Extract article content via Rust HTML parser."""
+    try:
+        payload = rss_parser_rust.extract_article_html(html)
+    except Exception as exc:  # pragma: no cover - optional dependency
+        logger.debug("Rust HTML extraction failed: %s", exc)
+        return {}
+
+    return {
+        "text": payload.get("text"),
+        "title": payload.get("title"),
+        "authors": payload.get("authors") or [],
+        "publish_date": payload.get("publish_date"),
+        "top_image": payload.get("top_image"),
+        "images": payload.get("images") or [],
+        "keywords": [],
+        "meta_description": payload.get("meta_description"),
+    }
 
 
 def _extract_rebelmouse_article(url: str, html: str) -> Optional[Dict[str, Any]]:

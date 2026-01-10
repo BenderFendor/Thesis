@@ -19,6 +19,13 @@ from app.core.logging import get_logger
 
 logger = get_logger("image_extraction")
 
+try:  # Optional Rust HTML extraction
+    import rss_parser_rust  # type: ignore
+
+    RUST_HTML_AVAILABLE = True
+except ImportError:  # pragma: no cover - optional dependency
+    RUST_HTML_AVAILABLE = False
+
 
 class ImageErrorType(str, Enum):
     """Structured error types for image extraction failures."""
@@ -306,37 +313,42 @@ async def fetch_og_image(article_url: str, timeout: float = 10.0) -> ImageExtrac
             response = await client.get(article_url)
             response.raise_for_status()
 
-            soup = BeautifulSoup(response.content, "html.parser")
+            html = response.text
+            if RUST_HTML_AVAILABLE:
+                _populate_candidates_from_rust(result, html)
 
-            # Try og:image first
-            og_image = soup.find("meta", property="og:image")
-            if og_image and og_image.get("content"):
-                url = og_image["content"]
-                result.image_candidates.append(ImageCandidate(
-                    url=url,
-                    source="og:image",
-                    priority=1,
-                ))
+            if not result.image_candidates:
+                soup = BeautifulSoup(response.content, "html.parser")
 
-            # Try twitter:image
-            twitter_image = soup.find("meta", attrs={"name": "twitter:image"})
-            if twitter_image and twitter_image.get("content"):
-                url = twitter_image["content"]
-                result.image_candidates.append(ImageCandidate(
-                    url=url,
-                    source="twitter:image",
-                    priority=2,
-                ))
+                # Try og:image first
+                og_image = soup.find("meta", property="og:image")
+                if og_image and og_image.get("content"):
+                    url = og_image["content"]
+                    result.image_candidates.append(ImageCandidate(
+                        url=url,
+                        source="og:image",
+                        priority=1,
+                    ))
 
-            # Try link rel="image_src"
-            image_src = soup.find("link", rel="image_src")
-            if image_src and image_src.get("href"):
-                url = image_src["href"]
-                result.image_candidates.append(ImageCandidate(
-                    url=url,
-                    source="link:image_src",
-                    priority=3,
-                ))
+                # Try twitter:image
+                twitter_image = soup.find("meta", attrs={"name": "twitter:image"})
+                if twitter_image and twitter_image.get("content"):
+                    url = twitter_image["content"]
+                    result.image_candidates.append(ImageCandidate(
+                        url=url,
+                        source="twitter:image",
+                        priority=2,
+                    ))
+
+                # Try link rel="image_src"
+                image_src = soup.find("link", rel="image_src")
+                if image_src and image_src.get("href"):
+                    url = image_src["href"]
+                    result.image_candidates.append(ImageCandidate(
+                        url=url,
+                        source="link:image_src",
+                        priority=3,
+                    ))
 
             if result.image_candidates:
                 best = result.image_candidates[0]
@@ -362,3 +374,25 @@ async def fetch_og_image(article_url: str, timeout: float = 10.0) -> ImageExtrac
         logger.error("Error fetching og:image from %s: %s", article_url[:50], e)
 
     return result
+
+
+def _populate_candidates_from_rust(result: ImageExtractionResult, html: str) -> None:
+    try:
+        payload = rss_parser_rust.extract_og_image_html(html)
+    except Exception as exc:  # pragma: no cover - optional dependency
+        logger.debug("Rust og:image extraction failed: %s", exc)
+        return
+
+    for item in payload.get("candidates", []) or []:
+        url = item.get("url")
+        source = item.get("source")
+        priority = item.get("priority")
+        if not url:
+            continue
+        result.image_candidates.append(
+            ImageCandidate(
+                url=url,
+                source=source or "og:image",
+                priority=int(priority) if priority is not None else 1,
+            )
+        )

@@ -245,7 +245,9 @@ async def list_database_articles(
 ) -> Dict[str, object]:
     sort_normalized = sort_direction.lower()
     if sort_normalized not in {"asc", "desc"}:
-        raise HTTPException(status_code=422, detail="sort_direction must be 'asc' or 'desc'")
+        raise HTTPException(
+            status_code=422, detail="sort_direction must be 'asc' or 'desc'"
+        )
 
     if not settings.enable_database or AsyncSessionLocal is None:
         raise HTTPException(status_code=503, detail="Database unavailable")
@@ -369,9 +371,7 @@ async def get_storage_drift(
     chroma_ids = set(await run_in_threadpool(vector_store.list_all_ids))
 
     missing_in_chroma = [
-        m
-        for m in mappings
-        if m["chroma_id"] and m["chroma_id"] not in chroma_ids
+        m for m in mappings if m["chroma_id"] and m["chroma_id"] not in chroma_ids
     ]
     dangling_in_chroma = list(chroma_ids - db_chroma_ids)
 
@@ -396,13 +396,13 @@ async def get_storage_drift(
 async def get_system_status() -> Dict[str, object]:
     """
     Comprehensive system status for debug page.
-    
+
     Returns startup metrics, component health, and runtime info.
     """
     import os
     import sys
     import platform
-    
+
     startup_data = startup_metrics.to_dict()
     cache_stats = news_cache.get_source_stats()
     cache_last_updated = news_cache.last_updated
@@ -411,7 +411,7 @@ async def get_system_status() -> Dict[str, object]:
         cache_age_seconds = (
             datetime.now(timezone.utc) - cache_last_updated
         ).total_seconds()
-    
+
     # Component health checks
     components = {
         "cache": {
@@ -440,7 +440,7 @@ async def get_system_status() -> Dict[str, object]:
             "max_per_minute": settings.embedding_max_per_minute,
         },
     }
-    
+
     return {
         "startup": startup_data,
         "components": components,
@@ -472,34 +472,44 @@ async def get_log_level() -> Dict[str, str]:
 
 
 @router.post("/loglevel")
-async def set_log_level(level: str = Query(..., description="Log level: DEBUG, INFO, WARNING, ERROR")) -> Dict[str, str]:
+async def set_log_level(
+    level: str = Query(..., description="Log level: DEBUG, INFO, WARNING, ERROR"),
+) -> Dict[str, str]:
     """
     Set runtime log level for all loggers.
-    
+
     Valid levels: DEBUG, INFO, WARNING, ERROR, CRITICAL
     """
     import logging
+
     global _current_log_level
-    
+
     level_upper = level.upper()
     valid_levels = {"DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"}
-    
+
     if level_upper not in valid_levels:
         raise HTTPException(
-            status_code=400, 
-            detail=f"Invalid log level. Must be one of: {', '.join(valid_levels)}"
+            status_code=400,
+            detail=f"Invalid log level. Must be one of: {', '.join(valid_levels)}",
         )
-    
+
     # Set level on root logger
     logging.getLogger().setLevel(getattr(logging, level_upper))
-    
+
     # Set level on our app loggers
-    for logger_name in ["rss_ingestion", "news_stream", "image_proxy", "jobs", "updates", "cache"]:
+    for logger_name in [
+        "rss_ingestion",
+        "news_stream",
+        "image_proxy",
+        "jobs",
+        "updates",
+        "cache",
+    ]:
         logger = logging.getLogger(logger_name)
         logger.setLevel(getattr(logging, level_upper))
-    
+
     _current_log_level = level_upper
-    
+
     return {
         "message": f"Log level set to {level_upper}",
         "level": _current_log_level,
@@ -513,17 +523,17 @@ async def test_rss_parser(
 ) -> Dict[str, object]:
     """
     Test RSS parser on an arbitrary URL.
-    
+
     Returns parsed feed metadata and sample entries for debugging.
     """
     import time
-    
+
     start_time = time.time()
-    
+
     try:
         feed = feedparser.parse(url, agent="NewsAggregator/1.0 (Debug Parser Test)")
         parse_time = time.time() - start_time
-        
+
         result = {
             "url": url,
             "parse_time_seconds": round(parse_time, 3),
@@ -542,22 +552,25 @@ async def test_rss_parser(
             },
             "sample_entries": [],
         }
-        
+
         for i, entry in enumerate(feed.entries[:max_entries]):
             # Extract image using new extraction service
             from app.services.image_extraction import extract_image_from_entry
+
             image_result = extract_image_from_entry(entry, base_url=url)
-            
-            result["sample_entries"].append({
-                "index": i,
-                "title": entry.get("title", ""),
-                "link": entry.get("link", ""),
-                "published": entry.get("published", ""),
-                "image_extraction": image_result.to_dict(),
-            })
-        
+
+            result["sample_entries"].append(
+                {
+                    "index": i,
+                    "title": entry.get("title", ""),
+                    "link": entry.get("link", ""),
+                    "published": entry.get("published", ""),
+                    "image_extraction": image_result.to_dict(),
+                }
+            )
+
         return result
-        
+
     except Exception as e:
         return {
             "url": url,
@@ -573,13 +586,13 @@ async def test_article_parser(
 ) -> Dict[str, object]:
     """
     Test article page parser for og:image extraction.
-    
+
     Fetches the page and attempts to extract og:image, twitter:image, etc.
     """
     from app.services.image_extraction import fetch_og_image
-    
+
     result = await fetch_og_image(url)
-    
+
     return {
         "url": url,
         "success": result.image_url is not None,
@@ -597,7 +610,7 @@ async def test_article_parser(
 async def list_active_jobs() -> Dict[str, object]:
     """List all active ingestion jobs."""
     from app.api.routes.jobs import _active_jobs
-    
+
     return {
         "active_jobs": len(_active_jobs),
         "jobs": {
@@ -616,7 +629,7 @@ async def list_active_jobs() -> Dict[str, object]:
 async def get_updates_subscribers() -> Dict[str, object]:
     """Get updates stream subscriber info."""
     from app.api.routes.updates import _update_subscribers, _event_counter
-    
+
     return {
         "subscriber_count": len(_update_subscribers),
         "total_events_sent": _event_counter,
@@ -639,7 +652,9 @@ class FrontendDebugReport(BaseModel):
 
 
 @router.post("/logs/frontend")
-async def ingest_frontend_debug_report(report: FrontendDebugReport) -> Dict[str, object]:
+async def ingest_frontend_debug_report(
+    report: FrontendDebugReport,
+) -> Dict[str, object]:
     """
     Store a frontend debug payload for agentic debugging.
     """
@@ -660,7 +675,7 @@ async def get_frontend_debug_reports() -> Dict[str, object]:
 async def get_debug_report() -> Dict[str, object]:
     """
     Get comprehensive debug report for agentic debugging tools.
-    
+
     This endpoint returns everything needed to diagnose issues:
     - Performance summary with component stats
     - Active streams and their state
@@ -668,7 +683,7 @@ async def get_debug_report() -> Dict[str, object]:
     - Slow operations detected
     - Hang suspects
     - AI-generated recommendations
-    
+
     Use this as the primary entry point for debugging sessions.
     """
     return debug_logger.get_debug_report()
@@ -681,7 +696,7 @@ async def get_debug_events(
 ) -> Dict[str, object]:
     """
     Get recent debug events.
-    
+
     Event types include:
     - request_start, request_end, request_error
     - stream_start, stream_event, stream_end, stream_error
@@ -691,7 +706,7 @@ async def get_debug_events(
     - performance_warning, bottleneck_detected, hang_suspected
     """
     from app.services.debug_logger import EventType
-    
+
     filter_type = None
     if event_type:
         try:
@@ -700,9 +715,9 @@ async def get_debug_events(
             valid_types = [e.value for e in EventType]
             raise HTTPException(
                 status_code=400,
-                detail=f"Invalid event_type. Must be one of: {', '.join(valid_types)}"
+                detail=f"Invalid event_type. Must be one of: {', '.join(valid_types)}",
             )
-    
+
     events = debug_logger.get_recent_events(limit=limit, event_type=filter_type)
     return {
         "count": len(events),
@@ -716,7 +731,7 @@ async def get_debug_events(
 async def get_active_debug_streams() -> Dict[str, object]:
     """
     Get detailed info about active streams being traced.
-    
+
     Includes timing, event gaps, potential hang detection.
     """
     return {
@@ -740,7 +755,7 @@ async def get_active_debug_streams() -> Dict[str, object]:
 async def get_slow_operations() -> Dict[str, object]:
     """
     Get list of slow operations detected.
-    
+
     These are operations that exceeded their performance thresholds.
     """
     slow_ops = debug_logger.get_slow_operations()
@@ -768,21 +783,27 @@ async def get_performance_summary() -> Dict[str, object]:
 async def list_debug_log_files() -> Dict[str, object]:
     """
     List available debug log files.
-    
+
     Debug logs are stored as JSON Lines (.jsonl) files.
     """
     log_files = []
     if DEBUG_LOG_DIR.exists():
         for log_file in sorted(DEBUG_LOG_DIR.glob("debug_*.jsonl"), reverse=True):
             stat = log_file.stat()
-            log_files.append({
-                "filename": log_file.name,
-                "size_bytes": stat.st_size,
-                "size_kb": round(stat.st_size / 1024, 2),
-                "modified": datetime.fromtimestamp(stat.st_mtime, tz=timezone.utc).isoformat(),
-                "created": datetime.fromtimestamp(stat.st_ctime, tz=timezone.utc).isoformat(),
-            })
-    
+            log_files.append(
+                {
+                    "filename": log_file.name,
+                    "size_bytes": stat.st_size,
+                    "size_kb": round(stat.st_size / 1024, 2),
+                    "modified": datetime.fromtimestamp(
+                        stat.st_mtime, tz=timezone.utc
+                    ).isoformat(),
+                    "created": datetime.fromtimestamp(
+                        stat.st_ctime, tz=timezone.utc
+                    ).isoformat(),
+                }
+            )
+
     return {
         "log_directory": str(DEBUG_LOG_DIR),
         "file_count": len(log_files),
@@ -799,33 +820,33 @@ async def read_debug_log_file(
 ) -> Dict[str, object]:
     """
     Read events from a specific debug log file.
-    
+
     Supports pagination and filtering by event type.
     """
     import json
-    
+
     log_file = DEBUG_LOG_DIR / filename
     if not log_file.exists():
         raise HTTPException(status_code=404, detail=f"Log file not found: {filename}")
-    
+
     if not log_file.name.startswith("debug_") or not log_file.suffix == ".jsonl":
         raise HTTPException(status_code=400, detail="Invalid log file name")
-    
+
     events = []
     total_lines = 0
-    
+
     try:
         with open(log_file, "r") as f:
             for i, line in enumerate(f):
                 if not line.strip():
                     continue
                 total_lines += 1
-                
+
                 if i < offset:
                     continue
                 if len(events) >= limit:
                     continue
-                
+
                 try:
                     event = json.loads(line)
                     if event_type and event.get("event_type") != event_type:
@@ -835,7 +856,7 @@ async def read_debug_log_file(
                     continue
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to read log file: {e}")
-    
+
     return {
         "filename": filename,
         "total_lines": total_lines,
@@ -849,17 +870,19 @@ async def read_debug_log_file(
 
 @router.delete("/logs/files")
 async def clear_old_log_files(
-    keep_recent: int = Query(5, ge=1, le=20, description="Number of recent files to keep"),
+    keep_recent: int = Query(
+        5, ge=1, le=20, description="Number of recent files to keep"
+    ),
 ) -> Dict[str, object]:
     """
     Delete old debug log files, keeping the most recent ones.
     """
     if not DEBUG_LOG_DIR.exists():
         return {"message": "No log directory exists", "deleted": 0}
-    
+
     log_files = sorted(DEBUG_LOG_DIR.glob("debug_*.jsonl"), reverse=True)
     files_to_delete = log_files[keep_recent:]
-    
+
     deleted = []
     for log_file in files_to_delete:
         try:
@@ -868,9 +891,38 @@ async def clear_old_log_files(
             deleted.append({"filename": log_file.name, "size_bytes": size})
         except Exception as e:
             deleted.append({"filename": log_file.name, "error": str(e)})
-    
+
     return {
         "message": f"Deleted {len(deleted)} old log files",
         "kept": keep_recent,
         "deleted": deleted,
+    }
+
+
+@router.post("/backfill/images")
+async def backfill_article_images(
+    batch_size: int = Query(100, ge=10, le=500, description="Articles per batch"),
+    max_batches: int | None = Query(None, ge=1, description="Max batches (None = all)"),
+) -> Dict[str, object]:
+    """
+    Backfill OG images for existing articles missing images.
+
+    Fetches og:image from article URLs and updates the database.
+    Uses per-domain concurrency limiting to be polite to servers.
+    """
+    from app.services.og_image import backfill_missing_images
+
+    if not settings.enable_database or AsyncSessionLocal is None:
+        raise HTTPException(status_code=503, detail="Database unavailable")
+
+    async with AsyncSessionLocal() as session:
+        stats = await backfill_missing_images(
+            session=session,
+            batch_size=batch_size,
+            max_batches=max_batches,
+        )
+
+    return {
+        "message": "Image backfill completed",
+        **stats,
     }

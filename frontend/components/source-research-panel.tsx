@@ -1,11 +1,11 @@
 "use client"
 
-import { useEffect, useMemo, useState } from "react"
+import { useMemo, useState } from "react"
 import { useQuery } from "@tanstack/react-query"
-import { AlertTriangle, Loader2, RefreshCw } from "lucide-react"
+import { Loader2, RefreshCw } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
-import { researchSourceProfile } from "@/lib/api"
+import { researchSourceProfile, checkSourceProfileCache } from "@/lib/api"
 
 interface SourceResearchPanelProps {
   sourceName: string
@@ -19,21 +19,19 @@ const FIELD_LABELS: Array<{ key: string; label: string }> = [
   { key: "political_bias", label: "Political Bias" },
   { key: "factual_reporting", label: "Factual Reporting" },
   { key: "editorial_stance", label: "Editorial Stance" },
-  { key: "corrections_history", label: "Corrections History" },
-  { key: "major_controversies", label: "Major Controversies" },
-  { key: "reach_traffic", label: "Reach / Traffic" },
+  { key: "corrections_history", label: "Corrections" },
+  { key: "major_controversies", label: "Controversies" },
+  { key: "reach_traffic", label: "Reach" },
   { key: "affiliations", label: "Affiliations" },
   { key: "founded", label: "Founded" },
-  { key: "headquarters", label: "Headquarters" },
-  { key: "official_website", label: "Official Website" },
-  { key: "nonprofit_filings", label: "Nonprofit Filings" },
+  { key: "headquarters", label: "HQ" },
 ]
 
 const formatTimestamp = (value?: string) => {
   if (!value) return "Unknown"
   const parsed = new Date(value)
   if (Number.isNaN(parsed.getTime())) return value
-  return parsed.toLocaleString()
+  return parsed.toLocaleDateString("en-US", { month: "short", day: "numeric" })
 }
 
 const isUrl = (value: string) => /^https?:\/\//i.test(value)
@@ -42,30 +40,35 @@ const formatSourceLabel = (value: string) => {
   if (!isUrl(value)) return value
   try {
     const parsed = new URL(value)
-    const path = parsed.pathname.replace(/\/$/, "")
-    return `${parsed.hostname}${path}`
+    return parsed.hostname.replace("www.", "")
   } catch {
     return value
   }
 }
 
 export function SourceResearchPanel({ sourceName, website, autoRun = false }: SourceResearchPanelProps) {
-  const [requested, setRequested] = useState(autoRun)
+  const [runFullResearch, setRunFullResearch] = useState(autoRun)
   const [refreshCounter, setRefreshCounter] = useState(0)
 
-  useEffect(() => {
-    if (autoRun) {
-      setRequested(true)
-    }
-  }, [autoRun])
+  const { data: cachedData, isFetching: isCheckingCache } = useQuery({
+    queryKey: ["source-research-cache-check", sourceName],
+    queryFn: () => checkSourceProfileCache(sourceName, website),
+    enabled: sourceName.length > 0 && !runFullResearch,
+    retry: false,
+    staleTime: 1000 * 60 * 60,
+  })
 
-  const { data, error, isFetching } = useQuery({
+  const { data: researchData, error, isFetching: isResearching } = useQuery({
     queryKey: ["source-research", sourceName, refreshCounter],
     queryFn: () => researchSourceProfile(sourceName, website, refreshCounter > 0),
-    enabled: requested && sourceName.length > 0,
+    enabled: runFullResearch && sourceName.length > 0,
     retry: 1,
     staleTime: 1000 * 60 * 60,
   })
+
+  const data = cachedData || researchData
+  const isFetching = isCheckingCache || isResearching
+  const hasData = !!data
 
   const hasResults = useMemo(() => {
     if (!data) return false
@@ -99,222 +102,167 @@ export function SourceResearchPanel({ sourceName, website, autoRun = false }: So
       .filter((value): value is number => typeof value === "number")
     if (!indices.length) return null
     const label = indices.map((value) => `[${value}]`).join("")
-    return <span className="ml-1 align-super text-[10px] text-muted-foreground">{label}</span>
+    return <span className="ml-1 align-super text-[9px] text-muted-foreground">{label}</span>
   }
 
-  const infoboxRows = useMemo(() => {
-    if (!data) return []
-    const fallbackWebsite = data.website || website
-    return [
-      { key: "official_website", label: "Website", fallback: fallbackWebsite },
-      { key: "founded", label: "Founded" },
-      { key: "headquarters", label: "Headquarters" },
-      { key: "ownership", label: "Ownership" },
-      { key: "funding", label: "Funding" },
-      { key: "political_bias", label: "Bias" },
-      { key: "factual_reporting", label: "Factual" },
-      { key: "nonprofit_filings", label: "Nonprofit Filings" },
-    ]
-  }, [data, website])
-
-  const handleRun = () => {
-    setRequested(true)
-  }
-
+  const handleRun = () => setRunFullResearch(true)
   const handleRefresh = () => {
-    setRequested(true)
+    setRunFullResearch(true)
     setRefreshCounter((count) => count + 1)
   }
 
+  const showRunButton = !hasData && !runFullResearch && !isCheckingCache
+
   return (
-    <div className="rounded-lg border border-border/60 bg-[var(--news-bg-secondary)]/70 p-5">
-      <div className="flex items-center justify-between">
-        <div>
-          <p className="font-mono text-[10px] uppercase tracking-[0.3em] text-muted-foreground">Source Research</p>
-          <p className="mt-2 text-xs text-muted-foreground">
-            Funding, ownership, bias, corrections history, and source metadata.
-          </p>
+    <div className="flex flex-col h-full">
+      {/* Header - Fixed */}
+      <div className="p-4 border-b border-white/10 shrink-0">
+        <div className="flex items-center justify-between gap-2">
+          <p className="font-mono text-[10px] uppercase tracking-[0.2em] text-muted-foreground">Source Research</p>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={hasData ? handleRefresh : handleRun}
+            className="border-white/10 bg-transparent hover:bg-white/5 text-[9px] font-mono uppercase h-6 px-2"
+          >
+            {isFetching ? (
+              <Loader2 className="h-3 w-3 animate-spin" />
+            ) : (
+              <>
+                <RefreshCw className="h-3 w-3 mr-1" />
+                {hasData ? "Refresh" : "Run"}
+              </>
+            )}
+          </Button>
         </div>
-        <Button
-          variant="outline"
-          size="sm"
-          onClick={requested ? handleRefresh : handleRun}
-          className="border-border/60"
-        >
-          {isFetching ? (
-            <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-          ) : (
-            <RefreshCw className="h-4 w-4 mr-2" />
-          )}
-          {requested ? "Update" : "Run Source Research"}
-        </Button>
       </div>
 
-      {!requested && (
-        <p className="mt-3 text-xs text-muted-foreground">
-          Run source research to fetch a source profile with citations and metadata.
-        </p>
-      )}
+      {/* Scrollable Content */}
+      <div className="flex-1 overflow-y-auto">
+        <div className="p-4 space-y-4">
+          {showRunButton && (
+            <p className="text-[11px] text-muted-foreground border-l-2 border-primary/30 pl-2">
+              Run research to fetch funding, ownership, bias data.
+            </p>
+          )}
 
-      {requested && isFetching && (
-        <div className="mt-4 rounded-lg border border-border/60 bg-[var(--news-bg-primary)]/60 p-4 text-xs text-muted-foreground">
-          Running source research in the background...
-        </div>
-      )}
-
-      {requested && error && (
-        <div className="mt-4 rounded-lg border border-rose-500/40 bg-rose-500/10 p-4 text-xs text-rose-200">
-          Failed to run source research. Try again.
-        </div>
-      )}
-
-      {requested && data && (
-        <div className="mt-4 space-y-4 text-xs text-muted-foreground">
-          <div className="flex flex-wrap items-center gap-2">
-            <Badge variant="outline" className="border-border/60 text-[10px] uppercase tracking-[0.2em]">
-              {data.cached ? "Cached" : "Fresh"}
-            </Badge>
-            <span>Fetched: {formatTimestamp(data.fetched_at)}</span>
-          </div>
-
-          <div className="grid gap-4 md:grid-cols-[220px_minmax(0,1fr)]">
-            <div className="rounded-lg border border-border/60 bg-[var(--news-bg-primary)]/70">
-              <div className="border-b border-border/60 px-3 py-2 text-[10px] font-mono uppercase tracking-[0.3em] text-muted-foreground">
-                Source
-              </div>
-              <div className="px-3 py-3">
-                <div className="text-sm font-semibold text-foreground">{data.name}</div>
-                {data.website && (
-                  <div className="mt-1 text-[11px] text-muted-foreground">{formatSourceLabel(data.website)}</div>
-                )}
-              </div>
-              <div className="divide-y divide-border/60 border-t border-border/60">
-                {infoboxRows.map((row) => {
-                  const entries = data.fields?.[row.key] || []
-                  const displayed = entries.slice(0, 2)
-                  const fallback = row.fallback ? [{ value: row.fallback, sources: [] }] : []
-                  const values = displayed.length > 0 ? displayed : fallback
-                  const sourceList = values.flatMap((entry) => entry.sources || [])
-                  return (
-                    <div key={row.key} className="px-3 py-2">
-                      <div className="text-[10px] uppercase tracking-[0.2em] text-muted-foreground">{row.label}</div>
-                      <div className="mt-1 space-y-1 text-foreground">
-                        {values.length > 0 ? (
-                          values.map((entry, index) => (
-                            <div key={`${row.key}-${index}`}>
-                              {isUrl(entry.value) ? (
-                                <a
-                                  className="text-foreground hover:underline"
-                                  href={entry.value}
-                                  target="_blank"
-                                  rel="noreferrer"
-                                >
-                                  {formatSourceLabel(entry.value)}
-                                </a>
-                              ) : (
-                                <span>{entry.value}</span>
-                              )}
-                              {renderCitations(entry.sources)}
-                            </div>
-                          ))
-                        ) : (
-                          <span className="text-muted-foreground">N/A</span>
-                        )}
-                      </div>
-                      {sourceList.length === 0 && row.key === "official_website" && data.website && (
-                        <div className="mt-1 text-[10px] text-muted-foreground">No citations yet</div>
-                      )}
-                    </div>
-                  )
-                })}
-              </div>
+          {isCheckingCache && !hasData && (
+            <div className="rounded-lg border border-white/10 bg-white/5 p-3 text-[10px] font-mono text-muted-foreground animate-pulse">
+              Checking cache...
             </div>
+          )}
 
+          {runFullResearch && isResearching && !hasData && (
+            <div className="rounded-lg border border-white/10 bg-white/5 p-3 text-[10px] font-mono text-muted-foreground animate-pulse">
+              Running research...
+            </div>
+          )}
+
+          {runFullResearch && error && (
+            <div className="rounded-lg border border-red-500/20 bg-red-500/5 p-3 text-[10px] font-mono text-red-400">
+              Research failed. Retry.
+            </div>
+          )}
+
+          {hasData && (
             <div className="space-y-3">
+              {/* Status Badge */}
+              <div className="flex items-center gap-2">
+                <Badge variant="outline" className="border-white/10 text-[9px] font-mono uppercase text-muted-foreground rounded-sm px-1.5 py-0">
+                  {data.cached ? "Cached" : "Live"}
+                </Badge>
+                <span className="text-[9px] text-muted-foreground">
+                  {formatTimestamp(data.fetched_at)}
+                </span>
+              </div>
+
+              {/* Identity Card */}
+              <div className="rounded-lg border border-white/10 bg-[var(--news-bg-primary)] overflow-hidden">
+                <div className="px-3 py-2 border-b border-white/10 bg-white/5">
+                  <div className="font-serif text-sm font-medium text-foreground">{data.name}</div>
+                  {data.website && (
+                    <div className="text-[10px] font-mono text-muted-foreground truncate">{formatSourceLabel(data.website)}</div>
+                  )}
+                </div>
+              </div>
+
+              {/* Field Cards */}
               {FIELD_LABELS.map((field) => {
                 const values = data.fields?.[field.key] || []
-                const hasValues = values.length > 0
+                if (values.length === 0) return null
+
                 return (
-                  <div key={field.key} className="rounded-lg border border-border/60 bg-[var(--news-bg-primary)]/70 p-3">
-                    <div className="flex items-center justify-between">
-                      <span className="text-[11px] uppercase tracking-[0.2em] text-muted-foreground">{field.label}</span>
+                  <div key={field.key} className="rounded-lg border border-white/10 bg-[var(--news-bg-primary)] p-3">
+                    <div className="flex items-center justify-between mb-2">
+                      <span className="text-[9px] font-mono uppercase tracking-wider text-primary/70">{field.label}</span>
                       {values.length > 1 && (
-                        <Badge variant="outline" className="text-[10px] uppercase tracking-[0.2em]">
-                          Conflicting
-                        </Badge>
+                        <span className="text-[8px] font-mono text-amber-500/70 bg-amber-500/10 px-1 rounded">
+                          {values.length} sources
+                        </span>
                       )}
                     </div>
-                    <div className="mt-2 space-y-2">
-                      {hasValues ? (
-                        values.map((entry, index) => (
-                          <div key={`${field.key}-${index}`} className="space-y-1">
-                            <div className="text-foreground">
-                              {entry.value}
-                              {renderCitations(entry.sources)}
-                            </div>
-                            {entry.notes && (
-                              <div className="text-[10px] text-muted-foreground">{entry.notes}</div>
-                            )}
-                          </div>
-                        ))
-                      ) : (
-                        <div className="text-muted-foreground">N/A</div>
-                      )}
+                    <div className="space-y-2">
+                      {values.slice(0, 2).map((entry, index) => (
+                        <div key={`${field.key}-${index}`} className="text-[11px] text-foreground/90 leading-relaxed">
+                          {entry.value}
+                          {renderCitations(entry.sources)}
+                        </div>
+                      ))}
                     </div>
                   </div>
                 )
               })}
-            </div>
-          </div>
 
-          <div className="rounded-lg border border-border/60 bg-[var(--news-bg-primary)]/70 p-3">
-            <div className="flex items-center justify-between">
-              <span className="text-[11px] uppercase tracking-[0.2em] text-muted-foreground">Key Reporters</span>
-              {data.key_reporters && data.key_reporters.length === 0 && (
-                <AlertTriangle className="h-3 w-3 text-muted-foreground" />
-              )}
-            </div>
-            <div className="mt-2 space-y-2">
-              {data.key_reporters && data.key_reporters.length > 0 ? (
-                data.key_reporters.map((reporter) => (
-                  <div key={reporter.name} className="flex items-center justify-between text-foreground">
-                    <span>{reporter.name}</span>
-                    <span className="text-[10px] text-muted-foreground">{reporter.article_count} articles</span>
+              {/* Key Reporters */}
+              {data.key_reporters && data.key_reporters.length > 0 && (
+                <div className="rounded-lg border border-white/10 bg-[var(--news-bg-primary)] p-3">
+                  <span className="text-[9px] font-mono uppercase tracking-wider text-primary/70 block mb-2">Key Reporters</span>
+                  <div className="space-y-1">
+                    {data.key_reporters.slice(0, 4).map((reporter) => (
+                      <div key={reporter.name} className="flex items-center justify-between text-[11px]">
+                        <span className="text-foreground/90 truncate">{reporter.name}</span>
+                        <span className="text-[9px] font-mono text-muted-foreground ml-2">{reporter.article_count}</span>
+                      </div>
+                    ))}
                   </div>
-                ))
-              ) : (
-                <div className="text-muted-foreground">N/A</div>
+                </div>
               )}
-            </div>
-          </div>
 
-          {citations.order.length > 0 && (
-            <div className="rounded-lg border border-border/60 bg-[var(--news-bg-primary)]/70 p-3">
-              <div className="text-[11px] uppercase tracking-[0.2em] text-muted-foreground">References</div>
-              <div className="mt-2 space-y-2 text-[11px] text-muted-foreground">
-                {citations.order.map((source, index) => (
-                  <div key={source} className="flex gap-2">
-                    <span className="text-foreground">[{index + 1}]</span>
-                    {isUrl(source) ? (
-                      <a className="hover:underline" href={source} target="_blank" rel="noreferrer">
-                        {formatSourceLabel(source)}
-                      </a>
-                    ) : (
-                      <span>{source}</span>
+              {/* Citations */}
+              {citations.order.length > 0 && (
+                <div className="pt-3 border-t border-white/10">
+                  <span className="text-[9px] font-mono uppercase tracking-wider text-muted-foreground block mb-2">Citations</span>
+                  <div className="space-y-1">
+                    {citations.order.slice(0, 5).map((source, index) => (
+                      <div key={source} className="flex gap-2 text-[9px] text-muted-foreground/70">
+                        <span className="font-mono text-white/30">[{index + 1}]</span>
+                        {isUrl(source) ? (
+                          <a className="hover:text-primary truncate" href={source} target="_blank" rel="noreferrer">
+                            {formatSourceLabel(source)}
+                          </a>
+                        ) : (
+                          <span className="truncate">{source}</span>
+                        )}
+                      </div>
+                    ))}
+                    {citations.order.length > 5 && (
+                      <div className="text-[9px] text-muted-foreground/50">
+                        +{citations.order.length - 5} more
+                      </div>
                     )}
                   </div>
-                ))}
-              </div>
-            </div>
-          )}
+                </div>
+              )}
 
-          {!hasResults && (
-            <div className="rounded-lg border border-border/60 bg-[var(--news-bg-primary)]/70 p-3 text-muted-foreground">
-              No source research data found yet.
+              {!hasResults && (
+                <div className="py-6 text-center text-[11px] text-muted-foreground italic">
+                  Limited public data found.
+                </div>
+              )}
             </div>
           )}
         </div>
-      )}
+      </div>
     </div>
   )
 }

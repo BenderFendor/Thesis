@@ -9,7 +9,7 @@ import { Badge } from "@/components/ui/badge"
 import { Input } from "@/components/ui/input"
 import Link from "next/link"
 import JsonView from 'react18-json-view'
-import 'react18-json-view/dist/style.css'
+import 'react18-json-view/src/style.css'
 
 export default function SourceDebugPage({ params }: { params: { source: string } }) {
   const sourceName = decodeURIComponent(params.source)
