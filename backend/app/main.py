@@ -4,6 +4,7 @@ import asyncio
 import signal
 import threading
 import time
+from datetime import datetime, timezone
 from typing import Any
 
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
@@ -83,7 +84,7 @@ def _register_background_task(task: asyncio.Task[Any]) -> None:
     task.add_done_callback(_cleanup)
 
 
-def _handle_shutdown_signal(signum, frame):
+def _handle_shutdown_signal(signum, frame) -> None:
     """Handle SIGTERM/SIGINT for graceful shutdown."""
     logger.info("Received shutdown signal %s", signum)
 
@@ -165,9 +166,72 @@ async def _initial_cache_load() -> None:
         )
 
 
+def _parse_published_at(article: NewsArticle) -> datetime:
+    try:
+        published = article.published.replace("Z", "+00:00")
+        return datetime.fromisoformat(published)
+    except Exception:
+        return datetime.now(timezone.utc)
+
+
+async def _start_initial_rss_refresh() -> None:
+    await asyncio.sleep(2)
+    refresh_start = time.time()
+    logger.info("Starting initial async RSS refresh...")
+    try:
+        await refresh_news_cache_async()
+        duration = time.time() - refresh_start
+        logger.info("Initial async RSS refresh complete (%.2fs)", duration)
+        startup_metrics.record_event(
+            "initial_rss_refresh",
+            refresh_start,
+            metadata={"cache_size": len(news_cache.get_articles())},
+        )
+    except Exception as exc:  # pragma: no cover
+        logger.error("Background RSS refresh failed: %s", exc, exc_info=True)
+        startup_metrics.add_note("initial_rss_refresh_error", str(exc))
+
+
+async def _maybe_migrate_cached_articles() -> None:
+    await asyncio.sleep(3)
+    articles = news_cache.get_articles()
+    if not articles:
+        logger.info("Cache empty, skipping migration")
+        startup_metrics.add_note("cache_preload_articles", 0)
+        return
+
+    try:
+        oldest = min(articles, key=_parse_published_at)
+        oldest_dt = _parse_published_at(oldest)
+        age_hours = (datetime.now(timezone.utc) - oldest_dt).total_seconds() / 3600
+        if age_hours > 6:
+            logger.info(
+                "Cache has stale articles (%.1fh old), starting migration...",
+                age_hours,
+            )
+            migration_start = time.time()
+            await migrate_cached_articles_on_startup()
+            startup_metrics.record_event(
+                "cached_article_migration",
+                migration_start,
+                metadata={
+                    "article_count": len(articles),
+                    "oldest_article_hours": age_hours,
+                },
+            )
+        else:
+            logger.info("Cache is fresh (%.1fh old), skipping migration", age_hours)
+            startup_metrics.add_note(
+                "cache_freshness_hours",
+                round(age_hours, 2),
+            )
+    except Exception as exc:
+        logger.warning("Could not determine cache age: %s; skipping migration", exc)
+        startup_metrics.add_note("cache_age_error", str(exc))
+
+
 @app.on_event("startup")
 async def on_startup() -> None:
-    from datetime import datetime, timezone
 
     startup_start = time.time()
     startup_metrics.mark_app_started()
@@ -215,27 +279,7 @@ async def on_startup() -> None:
     _register_background_task(scheduler_task)
     startup_metrics.add_note("rss_scheduler_task", scheduler_task.get_name())
 
-    # Start initial background RSS refresh without blocking startup
-    async def start_background_rss_refresh_async() -> None:
-        await asyncio.sleep(2)  # Give DB load a head start
-        refresh_start = time.time()
-        logger.info("Starting initial async RSS refresh...")
-        try:
-            await refresh_news_cache_async()
-            duration = time.time() - refresh_start
-            logger.info("Initial async RSS refresh complete (%.2fs)", duration)
-            startup_metrics.record_event(
-                "initial_rss_refresh",
-                refresh_start,
-                metadata={"cache_size": len(news_cache.get_articles())},
-            )
-        except Exception as exc:  # pragma: no cover
-            logger.error("Background RSS refresh failed: %s", exc, exc_info=True)
-            startup_metrics.add_note("initial_rss_refresh_error", str(exc))
-
-    refresh_task = asyncio.create_task(
-        start_background_rss_refresh_async(), name="initial_rss_refresh"
-    )
+    refresh_task = asyncio.create_task(_start_initial_rss_refresh(), name="initial_rss_refresh")
     _register_background_task(refresh_task)
 
     if settings.enable_database:
@@ -251,61 +295,8 @@ async def on_startup() -> None:
 
     # Only migrate if cache has stale articles (> 6 hours old)
     if settings.enable_database:
-        async def conditional_migration() -> None:
-            await asyncio.sleep(3)  # Wait for initial preload
-            articles = news_cache.get_articles()
-            if articles:
-                try:
-                    # Parse ISO format dates and find oldest
-                    def parse_published(article):
-                        try:
-                            # Handle ISO format with/without timezone
-                            pub = article.published.replace('Z', '+00:00')
-                            return datetime.fromisoformat(pub)
-                        except Exception:
-                            # Fallback to current time if parse fails
-                            return datetime.now(timezone.utc)
-
-                    oldest = min(articles, key=parse_published)
-                    oldest_dt = parse_published(oldest)
-                    age_hours = (
-                        (datetime.now(timezone.utc) - oldest_dt).total_seconds()
-                        / 3600
-                    )
-                    if age_hours > 6:
-                        logger.info(
-                            "Cache has stale articles (%.1fh old), starting migration...",
-                            age_hours,
-                        )
-                        migration_start = time.time()
-                        await migrate_cached_articles_on_startup()
-                        startup_metrics.record_event(
-                            "cached_article_migration",
-                            migration_start,
-                            metadata={
-                                "article_count": len(articles),
-                                "oldest_article_hours": age_hours,
-                            },
-                        )
-                    else:
-                        logger.info(
-                            "Cache is fresh (%.1fh old), skipping migration", age_hours
-                        )
-                        startup_metrics.add_note(
-                            "cache_freshness_hours",
-                            round(age_hours, 2),
-                        )
-                except Exception as exc:
-                    logger.warning(
-                        "Could not determine cache age: %s; skipping migration", exc
-                    )
-                    startup_metrics.add_note("cache_age_error", str(exc))
-            else:
-                logger.info("Cache empty, skipping migration")
-                startup_metrics.add_note("cache_preload_articles", 0)
-
         migration_task = asyncio.create_task(
-            conditional_migration(), name="conditional_migration"
+            _maybe_migrate_cached_articles(), name="conditional_migration"
         )
         _register_background_task(migration_task)
 
