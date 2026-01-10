@@ -3,7 +3,7 @@ News by country endpoints for globe visualization and Local Lens feature.
 """
 import json
 from pathlib import Path
-from typing import Dict, Optional
+from typing import Dict
 from fastapi import APIRouter, Query, Depends
 from sqlalchemy import select, func
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -21,7 +21,7 @@ try:
     with _COUNTRIES_PATH.open("r", encoding="utf-8") as f:
         _COUNTRIES_DATA: Dict[str, Dict] = json.load(f)
 except Exception as e:
-    logger.warning(f"Failed to load countries.json: {e}")
+    logger.warning("Failed to load countries.json: %s", e)
     _COUNTRIES_DATA = {}
 
 

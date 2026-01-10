@@ -38,6 +38,7 @@ async def load_articles_for_research(
     keyword_articles_raw: List[Dict[str, Any]] = []
     recent_articles_raw: List[Dict[str, Any]] = []
     fetched_lookup: Dict[int, Dict[str, Any]] = {}
+    keyword_floor = max(10, keyword_limit // 2)
 
     if db_enabled:
         async with AsyncSessionLocal() as session:
@@ -55,7 +56,7 @@ async def load_articles_for_research(
                 fetched_articles = await fetch_articles_by_ids(session, article_ids)
                 fetched_lookup = {article["id"]: article for article in fetched_articles}
 
-            need_recent = len(keyword_articles_raw) < max(10, keyword_limit // 2)
+            need_recent = len(keyword_articles_raw) < keyword_floor
             if need_recent:
                 recent_articles_raw = await fetch_recent_articles(
                     session, limit=recent_limit
@@ -105,11 +106,15 @@ async def load_articles_for_research(
 
     semantic_count = len(semantic_articles)
 
-    need_recent = len(keyword_articles) < max(10, keyword_limit // 2)
-    recent_articles = [
-        {**article, "retrieval_method": "recent_postgres"}
-        for article in recent_articles_raw
-    ] if need_recent and recent_articles_raw else []
+    need_recent = len(keyword_articles) < keyword_floor
+    recent_articles = (
+        [
+            {**article, "retrieval_method": "recent_postgres"}
+            for article in recent_articles_raw
+        ]
+        if need_recent and recent_articles_raw
+        else []
+    )
 
     combined: List[Dict[str, Any]] = []
     seen_ids: set[str] = set()
@@ -148,11 +153,10 @@ async def load_articles_for_research(
             if len(combined) >= max_total:
                 return
 
-    _add_articles(semantic_articles)
-    if len(combined) < max_total:
-        _add_articles(keyword_articles)
-    if len(combined) < max_total:
-        _add_articles(recent_articles)
+    for bucket in (semantic_articles, keyword_articles, recent_articles):
+        if len(combined) >= max_total:
+            break
+        _add_articles(bucket)
 
     summary = {
         "keyword_count": len(keyword_articles),

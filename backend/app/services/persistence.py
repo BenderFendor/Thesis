@@ -30,6 +30,10 @@ embedding_generation_queue: asyncio.Queue[
 _main_event_loop: Optional[asyncio.AbstractEventLoop] = None
 
 
+def _database_enabled() -> bool:
+    return settings.enable_database and AsyncSessionLocal is not None
+
+
 def set_main_event_loop(loop: asyncio.AbstractEventLoop) -> None:
     global _main_event_loop
     _main_event_loop = loop
@@ -105,7 +109,7 @@ async def _persist_articles_async(
 ) -> None:
     if not articles:
         return
-    if not settings.enable_database or AsyncSessionLocal is None:
+    if not _database_enabled():
         logger.info("Database disabled; skipping persistence for %s", source_info)
         return
     vector_store = get_vector_store()
@@ -246,7 +250,7 @@ def persist_articles_dual_write(
 ) -> None:
     if not articles:
         return
-    if not settings.enable_database or AsyncSessionLocal is None:
+    if not _database_enabled():
         logger.info("Database disabled; dropping persistence batch for %s", source_info)
         return
     try:
@@ -276,7 +280,7 @@ def persist_articles_dual_write(
 
 
 async def article_persistence_worker() -> None:
-    if not settings.enable_database or AsyncSessionLocal is None:
+    if not _database_enabled():
         logger.info("Persistence worker exiting; ENABLE_DATABASE=0")
         return
     while True:
@@ -295,7 +299,7 @@ async def article_persistence_worker() -> None:
 
 
 async def embedding_generation_worker() -> None:
-    if not settings.enable_database or AsyncSessionLocal is None:
+    if not _database_enabled():
         logger.info("Embedding worker exiting; ENABLE_DATABASE=0")
         return
     while True:
@@ -358,7 +362,7 @@ async def embedding_generation_worker() -> None:
 
 
 async def migrate_cached_articles_on_startup(delay_seconds: int = 5) -> None:
-    if not settings.enable_database or AsyncSessionLocal is None:
+    if not _database_enabled():
         logger.info("Database disabled; skipping cached article migration")
         return
     from app.data.rss_sources import get_rss_sources

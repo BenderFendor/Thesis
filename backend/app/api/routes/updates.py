@@ -25,7 +25,14 @@ _update_subscribers: list[asyncio.Queue] = []
 _event_counter = 0
 
 
-async def broadcast_update(event_type: str, data: Dict[str, Any] = None) -> None:
+def _remove_subscriber(queue: asyncio.Queue) -> None:
+    try:
+        _update_subscribers.remove(queue)
+    except ValueError:
+        return
+
+
+async def broadcast_update(event_type: str, data: Dict[str, Any] | None = None) -> None:
     """
     Broadcast an update event to all connected subscribers.
     
@@ -42,19 +49,16 @@ async def broadcast_update(event_type: str, data: Dict[str, Any] = None) -> None
     }
     
     # Send to all subscribers
-    dead_queues = []
+    dead_queues: list[asyncio.Queue] = []
     for queue in _update_subscribers:
         try:
             queue.put_nowait(event)
         except asyncio.QueueFull:
             dead_queues.append(queue)
-    
+
     # Clean up dead/full queues
     for queue in dead_queues:
-        try:
-            _update_subscribers.remove(queue)
-        except ValueError:
-            pass
+        _remove_subscriber(queue)
     
     logger.debug("Broadcast %s event to %d subscribers", event_type, len(_update_subscribers))
 
@@ -97,10 +101,7 @@ async def updates_stream() -> StreamingResponse:
             raise
         finally:
             # Remove from subscribers
-            try:
-                _update_subscribers.remove(subscriber_queue)
-            except ValueError:
-                pass
+            _remove_subscriber(subscriber_queue)
             logger.info("Updates subscriber cleanup (remaining: %d)", len(_update_subscribers))
     
     return StreamingResponse(

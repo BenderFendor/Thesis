@@ -18,9 +18,10 @@ class ConnectionManager:
 
     async def broadcast(self, message: Dict[str, Any]) -> None:
         """Best-effort broadcast; disconnects clients that fail."""
+        payload = json.dumps(message)
         for connection in list(self.active_connections):
             try:
-                await connection.send_text(json.dumps(message))
+                await connection.send_text(payload)
             except Exception:
                 self.disconnect(connection)
 

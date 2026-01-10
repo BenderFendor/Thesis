@@ -1,6 +1,6 @@
 from datetime import datetime, timedelta, timezone
 from typing import List, Optional, Tuple
-from sqlalchemy import select, desc, and_
+from sqlalchemy import select, desc
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import ReadingQueueItem
@@ -15,6 +15,10 @@ DAILY_QUEUE_TTL_DAYS = 7
 
 # Average adult reading speed (words per minute)
 AVERAGE_READING_SPEED = 230
+
+
+def _naive_utc_now() -> datetime:
+    return datetime.now(timezone.utc).replace(tzinfo=None)
 
 
 def calculate_read_time(text: Optional[str]) -> Optional[int]:
@@ -103,7 +107,7 @@ async def add_to_queue(
         queue_type=request.queue_type or "daily",
         position=new_position,
         read_status="unread",
-        added_at=datetime.now(timezone.utc).replace(tzinfo=None),
+        added_at=_naive_utc_now(),
         full_text=full_text,
         word_count=word_count,
         estimated_read_time_minutes=estimated_read_time,
@@ -123,10 +127,8 @@ async def remove_from_queue(
     """Remove an item from the reading queue."""
     result = await session.execute(
         select(ReadingQueueItem).where(
-            and_(
-                ReadingQueueItem.id == queue_id,
-                ReadingQueueItem.user_id == user_id,
-            )
+            ReadingQueueItem.id == queue_id,
+            ReadingQueueItem.user_id == user_id,
         )
     )
     queue_item = result.scalar_one_or_none()
@@ -172,10 +174,8 @@ async def update_queue_item(
     """Update a queue item's status or move between queues."""
     result = await session.execute(
         select(ReadingQueueItem).where(
-            and_(
-                ReadingQueueItem.id == queue_id,
-                ReadingQueueItem.user_id == user_id,
-            )
+            ReadingQueueItem.id == queue_id,
+            ReadingQueueItem.user_id == user_id,
         )
     )
     queue_item = result.scalar_one_or_none()
@@ -193,7 +193,7 @@ async def update_queue_item(
     if request.archived_at:
         queue_item.archived_at = request.archived_at
 
-    queue_item.updated_at = datetime.now(timezone.utc).replace(tzinfo=None)
+    queue_item.updated_at = _naive_utc_now()
     await session.commit()
     await session.refresh(queue_item)
 
@@ -203,22 +203,20 @@ async def update_queue_item(
 
 async def move_expired_to_permanent(session: AsyncSession, user_id: int = 1) -> int:
     """Move daily queue items older than TTL to permanent queue."""
-    cutoff_date = datetime.now(timezone.utc).replace(tzinfo=None) - timedelta(days=DAILY_QUEUE_TTL_DAYS)
+    cutoff_date = _naive_utc_now() - timedelta(days=DAILY_QUEUE_TTL_DAYS)
 
     result = await session.execute(
         select(ReadingQueueItem).where(
-            and_(
-                ReadingQueueItem.user_id == user_id,
-                ReadingQueueItem.queue_type == "daily",
-                ReadingQueueItem.added_at < cutoff_date,
-            )
+            ReadingQueueItem.user_id == user_id,
+            ReadingQueueItem.queue_type == "daily",
+            ReadingQueueItem.added_at < cutoff_date,
         )
     )
     expired_items = result.scalars().all()
 
     for item in expired_items:
         item.queue_type = "permanent"
-        item.updated_at = datetime.now(timezone.utc).replace(tzinfo=None)
+        item.updated_at = _naive_utc_now()
 
     await session.commit()
 
@@ -228,22 +226,20 @@ async def move_expired_to_permanent(session: AsyncSession, user_id: int = 1) -> 
 
 async def archive_completed_items(session: AsyncSession, user_id: int = 1) -> int:
     """Archive completed items that are older than 30 days."""
-    cutoff_date = datetime.now(timezone.utc).replace(tzinfo=None) - timedelta(days=30)
+    cutoff_date = _naive_utc_now() - timedelta(days=30)
 
     result = await session.execute(
         select(ReadingQueueItem).where(
-            and_(
-                ReadingQueueItem.user_id == user_id,
-                ReadingQueueItem.read_status == "completed",
-                ReadingQueueItem.updated_at < cutoff_date,
-                ReadingQueueItem.archived_at.is_(None),
-            )
+            ReadingQueueItem.user_id == user_id,
+            ReadingQueueItem.read_status == "completed",
+            ReadingQueueItem.updated_at < cutoff_date,
+            ReadingQueueItem.archived_at.is_(None),
         )
     )
     archived_items = result.scalars().all()
 
     for item in archived_items:
-        item.archived_at = datetime.now(timezone.utc).replace(tzinfo=None)
+        item.archived_at = _naive_utc_now()
 
     await session.commit()
 
@@ -308,10 +304,8 @@ async def get_queue_item_by_id(
     """Get a single queue item by ID."""
     result = await session.execute(
         select(ReadingQueueItem).where(
-            and_(
-                ReadingQueueItem.id == queue_id,
-                ReadingQueueItem.user_id == user_id,
-            )
+            ReadingQueueItem.id == queue_id,
+            ReadingQueueItem.user_id == user_id,
         )
     )
     queue_item = result.scalar_one_or_none()
@@ -332,11 +326,9 @@ async def generate_daily_digest(session: AsyncSession, user_id: int = 1) -> dict
     result = await session.execute(
         select(ReadingQueueItem)
         .where(
-            and_(
-                ReadingQueueItem.user_id == user_id,
-                ReadingQueueItem.read_status == "unread",
-                ReadingQueueItem.queue_type == "daily",
-            )
+            ReadingQueueItem.user_id == user_id,
+            ReadingQueueItem.read_status == "unread",
+            ReadingQueueItem.queue_type == "daily",
         )
         .order_by(ReadingQueueItem.position.desc())
         .limit(5)  # Top 5 items for digest

@@ -499,13 +499,11 @@ async def fetch_articles_by_ids(
         record.id: article_record_to_dict(record) for record in result.scalars().all()
     }
 
-    ordered: List[Dict[str, Any]] = []
-    for article_id in article_ids:
-        article = articles.get(article_id)
-        if article:
-            ordered.append(article)
-
-    return ordered
+    return [
+        articles[article_id]
+        for article_id in article_ids
+        if article_id in articles
+    ]
 
 
 async def fetch_articles_page(
@@ -578,15 +576,11 @@ async def fetch_article_chroma_mappings(session: AsyncSession) -> List[Dict[str,
     stmt = select(Article.id, Article.chroma_id, Article.embedding_generated)
     result = await session.execute(stmt)
 
-    mappings = []
-    for row in result.all():
-        article_id, chroma_id, embedding_generated = row
-        mappings.append(
-            {
-                "id": article_id,
-                "chroma_id": chroma_id,
-                "embedding_generated": embedding_generated,
-            }
-        )
-
-    return mappings
+    return [
+        {
+            "id": article_id,
+            "chroma_id": chroma_id,
+            "embedding_generated": embedding_generated,
+        }
+        for article_id, chroma_id, embedding_generated in result.all()
+    ]

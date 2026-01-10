@@ -1,6 +1,6 @@
 from datetime import datetime, timezone
 from typing import List, Optional
-from sqlalchemy import select, and_
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import Highlight
@@ -42,7 +42,8 @@ async def delete_highlight(
     """Delete a highlight by ID."""
     result = await session.execute(
         select(Highlight).where(
-            and_(Highlight.id == highlight_id, Highlight.user_id == user_id)
+            Highlight.id == highlight_id,
+            Highlight.user_id == user_id,
         )
     )
     highlight = result.scalar_one_or_none()
@@ -64,7 +65,8 @@ async def get_highlights_for_article(
     """Get all highlights for a specific article."""
     result = await session.execute(
         select(Highlight).where(
-            and_(Highlight.user_id == user_id, Highlight.article_url == article_url)
+            Highlight.user_id == user_id,
+            Highlight.article_url == article_url,
         )
     )
     highlights = result.scalars().all()
@@ -93,7 +95,8 @@ async def update_highlight(
     """Update a highlight."""
     result = await session.execute(
         select(Highlight).where(
-            and_(Highlight.id == highlight_id, Highlight.user_id == user_id)
+            Highlight.id == highlight_id,
+            Highlight.user_id == user_id,
         )
     )
     highlight = result.scalar_one_or_none()

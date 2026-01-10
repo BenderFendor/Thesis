@@ -40,8 +40,7 @@ async def add_to_queue(
 ):
     """Add an article to the reading queue."""
     try:
-        item = await queue_service.add_to_queue(session, request)
-        return item
+        return await queue_service.add_to_queue(session, request)
     except Exception as e:
         logger.error("Error adding to queue: %s", e)
         raise HTTPException(status_code=500, detail="Failed to add article to queue")
@@ -121,8 +120,7 @@ async def move_expired_items(session: AsyncSession = Depends(get_db)):
 async def get_queue_overview(session: AsyncSession = Depends(get_db)):
     """Get queue statistics and overview."""
     try:
-        overview = await queue_service.get_queue_overview(session)
-        return overview
+        return await queue_service.get_queue_overview(session)
     except Exception as e:
         logger.error("Error fetching queue overview: %s", e)
         raise HTTPException(status_code=500, detail="Failed to fetch queue overview")
@@ -135,8 +133,7 @@ async def create_highlight(
 ):
     """Create a new highlight."""
     try:
-        highlight = await highlights_service.create_highlight(session, request)
-        return highlight
+        return await highlights_service.create_highlight(session, request)
     except Exception as e:
         logger.error("Error creating highlight: %s", e)
         raise HTTPException(status_code=500, detail="Failed to create highlight")
@@ -148,10 +145,9 @@ async def get_article_highlights(
 ):
     """Get all highlights for a specific article."""
     try:
-        highlights = await highlights_service.get_highlights_for_article(
+        return await highlights_service.get_highlights_for_article(
             session, article_url
         )
-        return highlights
     except Exception as e:
         logger.error("Error fetching highlights: %s", e)
         raise HTTPException(status_code=500, detail="Failed to fetch highlights")
@@ -161,8 +157,7 @@ async def get_article_highlights(
 async def get_all_highlights(session: AsyncSession = Depends(get_db)):
     """Get all highlights for the user."""
     try:
-        highlights = await highlights_service.get_all_highlights(session)
-        return highlights
+        return await highlights_service.get_all_highlights(session)
     except Exception as e:
         logger.error("Error fetching all highlights: %s", e)
         raise HTTPException(status_code=500, detail="Failed to fetch highlights")
@@ -242,8 +237,7 @@ async def get_queue_item_content(
 async def get_daily_digest(session: AsyncSession = Depends(get_db)):
     """Get a daily digest of top queue items."""
     try:
-        digest = await queue_service.generate_daily_digest(session)
-        return digest
+        return await queue_service.generate_daily_digest(session)
     except Exception as e:
         logger.error("Error generating daily digest: %s", e)
         raise HTTPException(status_code=500, detail="Failed to generate digest")
@@ -266,8 +260,7 @@ class QueueDigestResponse(BaseModel):
 async def generate_ai_digest(request: QueueDigestRequest):
     """Generate an AI-powered reading digest from queued articles."""
     try:
-        digest = await generate_queue_digest(request.articles, request.grouped)
-        return {"digest": digest}
+        return {"digest": await generate_queue_digest(request.articles, request.grouped)}
     except Exception as e:
         logger.error("Error generating AI digest: %s", e)
         raise HTTPException(

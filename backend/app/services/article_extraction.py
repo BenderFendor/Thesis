@@ -19,6 +19,7 @@ from app.core.logging import get_logger
 from app.services.debug_logger import debug_logger, EventType
 
 logger = get_logger("article_extraction")
+DEFAULT_REQUEST_TIMEOUT = 12
 
 
 async def extract_article_full_text(url: str) -> Dict[str, Any]:
@@ -36,12 +37,12 @@ async def extract_article_full_text(url: str) -> Dict[str, Any]:
     """
     try:
         # Run extraction in thread pool to avoid blocking
-        loop = asyncio.get_event_loop()
+        loop = asyncio.get_running_loop()
         result = await loop.run_in_executor(None, _extract_sync, url)
         return result
-    except Exception as e:  # pragma: no cover
-        logger.error("Error extracting article from %s: %s", url, e)
-        return {"success": False, "error": str(e), "text": None}
+    except Exception as exc:  # pragma: no cover
+        logger.error("Error extracting article from %s: %s", url, exc)
+        return {"success": False, "error": str(exc), "text": None}
 
 
 def _extract_sync(url: str) -> Dict[str, Any]:
@@ -57,7 +58,7 @@ def _extract_sync(url: str) -> Dict[str, Any]:
             "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 "
             "(KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
         )
-        config.request_timeout = 12
+        config.request_timeout = DEFAULT_REQUEST_TIMEOUT
         article = Article(url, config=config)
         article.download()
         rebelmouse_payload = _extract_rebelmouse_article(url, article.html or "")
@@ -114,7 +115,7 @@ def _extract_rebelmouse_article(url: str, html: str) -> Optional[Dict[str, Any]]
         response = requests.get(
             bootstrap_url,
             headers={"User-Agent": "Mozilla/5.0"},
-            timeout=12,
+            timeout=DEFAULT_REQUEST_TIMEOUT,
         )
         if response.status_code != 200:
             logger.debug(

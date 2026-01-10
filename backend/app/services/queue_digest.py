@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import json
-from typing import Any, Dict, List
+from typing import Any
 
 from app.core.config import create_openai_client, settings
 from app.core.logging import get_logger
@@ -138,7 +138,7 @@ REFERENCE LINKS:
 
 
 def _build_structured_articles_block(
-    articles: list[dict[str, Any]] | List[Dict[str, Any]]
+    articles: list[dict[str, Any]] | None
 ) -> str:
     """Build a fenced JSON block with normalized articles for frontend embedding.
 
@@ -147,7 +147,7 @@ def _build_structured_articles_block(
     reader UI can create inline cards.
     """
 
-    normalized: List[Dict[str, Any]] = []
+    normalized: list[dict[str, Any]] = []
 
     for a in articles or []:
         # Normalize common fields the frontend expects

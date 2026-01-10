@@ -6,12 +6,10 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy import select  # type: ignore[import-unresolved]
 from sqlalchemy.ext.asyncio import AsyncSession  # type: ignore[import-unresolved]
 
-from app.core.logging import get_logger
 from app.database import Article as ArticleRecord, SearchHistory, get_db
 from app.vector_store import get_vector_store
 
 router = APIRouter(prefix="/api/search", tags=["search"])
-logger = get_logger("semantic_search")
 
 
 @router.get("/semantic")
@@ -25,14 +23,17 @@ async def semantic_search(
     if vector_store is None:
         raise HTTPException(status_code=503, detail="Vector store is not available")
 
-    filter_metadata = {}
-    if category and category.lower() != "all":
-        filter_metadata["category"] = category.lower()
+    normalized_category = category.lower() if category else None
+    filter_metadata = (
+        {"category": normalized_category}
+        if normalized_category and normalized_category != "all"
+        else None
+    )
 
     chroma_results = vector_store.search_similar(
         query=query,
         limit=limit,
-        filter_metadata=filter_metadata if filter_metadata else None,
+        filter_metadata=filter_metadata,
     )
 
     if not chroma_results:
