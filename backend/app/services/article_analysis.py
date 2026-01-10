@@ -11,6 +11,7 @@ from tenacity import retry, stop_after_attempt, wait_exponential, retry_if_excep
 logger = get_logger("article_analysis")
 
 openai_client = create_openai_client(logger)
+SYSTEM_MESSAGE = "You are an expert news analyst. Return valid JSON."
 
 
 def _is_retryable_error(exception):
@@ -37,12 +38,6 @@ async def extract_article_content(url: str) -> Dict[str, Any]:
     return await extract_article_full_text(url)
 
 
-def _extract_grounding_metadata(response: Any) -> Optional[Dict[str, Any]]:
-    """Extract grounding metadata from Gemini response candidate."""
-    # Grounding is specific to Google's API and not available via standard OpenRouter chat completions
-    return None
-
-
 async def analyze_with_gemini(
     article_data: Dict[str, Any], source_name: Optional[str] = None
 ) -> Dict[str, Any]:
@@ -56,26 +51,19 @@ async def analyze_with_gemini(
             client=openai_client,
             model=settings.open_router_model,
             messages=[
-                {"role": "system", "content": "You are an expert news analyst. Return valid JSON."},
+                {"role": "system", "content": SYSTEM_MESSAGE},
                 {"role": "user", "content": prompt}
             ]
         )
-
-        try:
-            response_text = response.choices[0].message.content.strip()
-            if response_text.startswith("```"):
-                response_text = response_text.split("```")[1]
-                if response_text.startswith("json"):
-                    response_text = response_text[4:]
-
-            analysis = json.loads(response_text)
-            return analysis
-        except json.JSONDecodeError:
+        response_text = _extract_response_text(response)
+        analysis = _parse_response_json(response_text)
+        if analysis is None:
             logger.error("Failed to parse AI response as JSON: %s", response_text)
             return {
                 "error": "Failed to parse analysis results",
                 "raw_response": response_text,
             }
+        return analysis
 
     except Exception as e:
         logger.error("AI analysis failed: %s", e)
@@ -161,10 +149,28 @@ CRITICAL: For fact_check_results, verify ALL specific details including:
 Provide only the JSON response, no additional text.
 """
 
-def _extract_grounding_metadata(response: Any) -> Dict[str, Any]:
-    # Grounding is specific to Google's API and not available via standard OpenRouter chat completions
-    return {
-        "grounding_chunks": [],
-        "grounding_supports": [],
-        "web_search_queries": [],
-    }
+def _extract_response_text(response: Any) -> str:
+    message = response.choices[0].message.content or ""
+    return message.strip()
+
+
+def _parse_response_json(response_text: str) -> Optional[Dict[str, Any]]:
+    if not response_text:
+        return None
+    cleaned = _strip_code_fence(response_text)
+    try:
+        return json.loads(cleaned)
+    except json.JSONDecodeError:
+        return None
+
+
+def _strip_code_fence(response_text: str) -> str:
+    if not response_text.startswith("```"):
+        return response_text
+    parts = response_text.split("```")
+    if len(parts) < 2:
+        return response_text
+    cleaned = parts[1]
+    if cleaned.startswith("json"):
+        cleaned = cleaned[4:]
+    return cleaned.strip()
