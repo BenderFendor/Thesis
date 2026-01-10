@@ -23,6 +23,140 @@ from app.core.logging import get_logger
 
 logger = get_logger("material_interest")
 
+KNOWN_TRADE_RELATIONSHIPS: Dict[str, Dict[str, Any]] = {
+    "US-CN": {
+        "relationship": "major_trading_partner",
+        "exports_rank": 1,
+        "imports_rank": 1,
+        "key_sectors": ["electronics", "machinery", "agriculture"],
+        "tension_areas": ["tariffs", "technology", "IP"],
+        "trade_volume": "650B USD",
+    },
+    "US-MX": {
+        "relationship": "major_trading_partner",
+        "exports_rank": 2,
+        "imports_rank": 2,
+        "key_sectors": ["automotive", "agriculture", "manufacturing"],
+        "tension_areas": ["immigration", "USMCA"],
+        "trade_volume": "600B USD",
+    },
+    "US-CA": {
+        "relationship": "major_trading_partner",
+        "exports_rank": 1,
+        "imports_rank": 3,
+        "key_sectors": ["energy", "automotive", "agriculture"],
+        "tension_areas": ["lumber", "dairy"],
+        "trade_volume": "700B USD",
+    },
+    "US-RU": {
+        "relationship": "adversarial",
+        "key_sectors": ["energy", "defense"],
+        "tension_areas": ["sanctions", "Ukraine", "election interference"],
+        "trade_volume": "35B USD",
+    },
+    "GB-EU": {
+        "relationship": "post-brexit",
+        "key_sectors": ["financial services", "manufacturing"],
+        "tension_areas": ["Brexit", "Northern Ireland", "fishing"],
+        "trade_volume": "400B GBP",
+    },
+    "CN-TW": {
+        "relationship": "contested",
+        "key_sectors": ["semiconductors", "electronics"],
+        "tension_areas": ["sovereignty", "One China Policy"],
+        "trade_volume": "200B USD",
+    },
+    "IL-PS": {
+        "relationship": "conflict",
+        "key_sectors": [],
+        "tension_areas": ["occupation", "settlements", "security"],
+        "trade_volume": "minimal",
+    },
+    "SA-IR": {
+        "relationship": "adversarial",
+        "key_sectors": ["energy"],
+        "tension_areas": ["Yemen", "regional influence", "nuclear"],
+        "trade_volume": "minimal",
+    },
+}
+
+KNOWN_SOURCE_INTERESTS: Dict[str, Dict[str, Any]] = {
+    "cnn": {
+        "parent_company": "Warner Bros. Discovery",
+        "major_advertisers": ["AT&T", "pharmaceuticals", "financial services"],
+        "owner_interests": ["entertainment media", "streaming"],
+        "political_donations": "Democratic-leaning",
+        "notes": "Formerly owned by AT&T until 2022 spin-off",
+    },
+    "fox news": {
+        "parent_company": "Fox Corporation",
+        "owner": "Murdoch family",
+        "major_advertisers": ["MyPillow", "reverse mortgages", "pharmaceuticals"],
+        "owner_interests": ["media", "entertainment", "real estate (Australia)"],
+        "political_donations": "Republican-leaning",
+        "notes": "Murdoch family owns News Corp and Fox Corporation",
+    },
+    "washington post": {
+        "parent_company": "Nash Holdings",
+        "owner": "Jeff Bezos",
+        "owner_interests": ["Amazon", "e-commerce", "AWS", "space (Blue Origin)"],
+        "potential_conflicts": ["Amazon labor coverage", "AWS government contracts"],
+        "notes": "Purchased by Bezos in 2013 for $250M",
+    },
+    "new york times": {
+        "parent_company": "The New York Times Company",
+        "owner": "Sulzberger family (public company)",
+        "major_advertisers": ["luxury brands", "real estate", "financial services"],
+        "owner_interests": ["media", "podcasting", "games"],
+        "notes": "Publicly traded but family-controlled",
+    },
+    "al jazeera": {
+        "parent_company": "Al Jazeera Media Network",
+        "owner": "State of Qatar",
+        "owner_interests": ["natural gas", "World Cup hosting", "regional influence"],
+        "potential_conflicts": ["Qatar coverage", "Gulf politics", "World Cup labor"],
+        "notes": "Funded by Qatari government",
+    },
+    "rt": {
+        "parent_company": "TV-Novosti",
+        "owner": "Russian government",
+        "owner_interests": ["Russian state interests", "energy exports", "geopolitics"],
+        "potential_conflicts": ["All Russia coverage", "Ukraine", "NATO"],
+        "notes": "Registered as foreign agent in US",
+    },
+    "bbc": {
+        "parent_company": "BBC (public corporation)",
+        "owner": "UK Government (via license fee)",
+        "owner_interests": ["British soft power", "public education"],
+        "potential_conflicts": ["UK government policy", "monarchy coverage"],
+        "notes": "Funded by TV license fee, editorially independent",
+    },
+}
+
+COUNTRY_PROFILES: Dict[str, Dict[str, Any]] = {
+    "US": {
+        "gdp": "25.5T USD",
+        "gdp_rank": 1,
+        "top_exports": ["refined petroleum", "aircraft", "cars", "medical equipment"],
+        "top_imports": ["cars", "computers", "broadcasting equipment", "packaged medicines"],
+        "major_partners": ["China", "Canada", "Mexico", "Japan", "Germany"],
+    },
+    "CN": {
+        "gdp": "18.3T USD",
+        "gdp_rank": 2,
+        "top_exports": ["computers", "broadcasting equipment", "telephones", "integrated circuits"],
+        "top_imports": ["crude petroleum", "integrated circuits", "iron ore", "gold"],
+        "major_partners": ["United States", "Japan", "South Korea", "Germany", "Australia"],
+    },
+    "GB": {
+        "gdp": "3.1T USD",
+        "gdp_rank": 6,
+        "top_exports": ["gold", "cars", "gas turbines", "packaged medicines"],
+        "top_imports": ["gold", "cars", "crude petroleum", "packaged medicines"],
+        "major_partners": ["United States", "Germany", "Netherlands", "France", "China"],
+    },
+}
+
 
 class MaterialInterestAgent:
     """Agent that analyzes material interests affecting news coverage."""
@@ -99,15 +233,13 @@ class MaterialInterestAgent:
             # Note: OEC requires specific formatting, this is a simplified example
             # In production, you'd use their actual API params
             
-            # For now, return cached/known major relationships
-            known_relationships = self._get_known_trade_relationships()
             key = f"{country1}-{country2}"
             reverse_key = f"{country2}-{country1}"
             
-            if key in known_relationships:
-                return known_relationships[key]
-            elif reverse_key in known_relationships:
-                data = known_relationships[reverse_key].copy()
+            if key in KNOWN_TRADE_RELATIONSHIPS:
+                return KNOWN_TRADE_RELATIONSHIPS[key]
+            if reverse_key in KNOWN_TRADE_RELATIONSHIPS:
+                data = KNOWN_TRADE_RELATIONSHIPS[reverse_key].copy()
                 data["direction"] = "reversed"
                 return data
                 
@@ -117,123 +249,10 @@ class MaterialInterestAgent:
             logger.error(f"Failed to get trade data for {country1}-{country2}: {e}")
             return None
     
-    def _get_known_trade_relationships(self) -> Dict[str, Dict[str, Any]]:
-        """Return known major trade relationships."""
-        return {
-            "US-CN": {
-                "relationship": "major_trading_partner",
-                "exports_rank": 1,
-                "imports_rank": 1,
-                "key_sectors": ["electronics", "machinery", "agriculture"],
-                "tension_areas": ["tariffs", "technology", "IP"],
-                "trade_volume": "650B USD"
-            },
-            "US-MX": {
-                "relationship": "major_trading_partner",
-                "exports_rank": 2,
-                "imports_rank": 2,
-                "key_sectors": ["automotive", "agriculture", "manufacturing"],
-                "tension_areas": ["immigration", "USMCA"],
-                "trade_volume": "600B USD"
-            },
-            "US-CA": {
-                "relationship": "major_trading_partner",
-                "exports_rank": 1,
-                "imports_rank": 3,
-                "key_sectors": ["energy", "automotive", "agriculture"],
-                "tension_areas": ["lumber", "dairy"],
-                "trade_volume": "700B USD"
-            },
-            "US-RU": {
-                "relationship": "adversarial",
-                "key_sectors": ["energy", "defense"],
-                "tension_areas": ["sanctions", "Ukraine", "election interference"],
-                "trade_volume": "35B USD"
-            },
-            "GB-EU": {
-                "relationship": "post-brexit",
-                "key_sectors": ["financial services", "manufacturing"],
-                "tension_areas": ["Brexit", "Northern Ireland", "fishing"],
-                "trade_volume": "400B GBP"
-            },
-            "CN-TW": {
-                "relationship": "contested",
-                "key_sectors": ["semiconductors", "electronics"],
-                "tension_areas": ["sovereignty", "One China Policy"],
-                "trade_volume": "200B USD"
-            },
-            "IL-PS": {
-                "relationship": "conflict",
-                "key_sectors": [],
-                "tension_areas": ["occupation", "settlements", "security"],
-                "trade_volume": "minimal"
-            },
-            "SA-IR": {
-                "relationship": "adversarial",
-                "key_sectors": ["energy"],
-                "tension_areas": ["Yemen", "regional influence", "nuclear"],
-                "trade_volume": "minimal"
-            }
-        }
-    
     def _get_known_source_interests(self, source_name: str) -> Dict[str, Any]:
         """Return known material interests for major news sources."""
         normalized = source_name.lower()
-        
-        known_sources = {
-            "cnn": {
-                "parent_company": "Warner Bros. Discovery",
-                "major_advertisers": ["AT&T", "pharmaceuticals", "financial services"],
-                "owner_interests": ["entertainment media", "streaming"],
-                "political_donations": "Democratic-leaning",
-                "notes": "Formerly owned by AT&T until 2022 spin-off"
-            },
-            "fox news": {
-                "parent_company": "Fox Corporation",
-                "owner": "Murdoch family",
-                "major_advertisers": ["MyPillow", "reverse mortgages", "pharmaceuticals"],
-                "owner_interests": ["media", "entertainment", "real estate (Australia)"],
-                "political_donations": "Republican-leaning",
-                "notes": "Murdoch family owns News Corp and Fox Corporation"
-            },
-            "washington post": {
-                "parent_company": "Nash Holdings",
-                "owner": "Jeff Bezos",
-                "owner_interests": ["Amazon", "e-commerce", "AWS", "space (Blue Origin)"],
-                "potential_conflicts": ["Amazon labor coverage", "AWS government contracts"],
-                "notes": "Purchased by Bezos in 2013 for $250M"
-            },
-            "new york times": {
-                "parent_company": "The New York Times Company",
-                "owner": "Sulzberger family (public company)",
-                "major_advertisers": ["luxury brands", "real estate", "financial services"],
-                "owner_interests": ["media", "podcasting", "games"],
-                "notes": "Publicly traded but family-controlled"
-            },
-            "al jazeera": {
-                "parent_company": "Al Jazeera Media Network",
-                "owner": "State of Qatar",
-                "owner_interests": ["natural gas", "World Cup hosting", "regional influence"],
-                "potential_conflicts": ["Qatar coverage", "Gulf politics", "World Cup labor"],
-                "notes": "Funded by Qatari government"
-            },
-            "rt": {
-                "parent_company": "TV-Novosti",
-                "owner": "Russian government",
-                "owner_interests": ["Russian state interests", "energy exports", "geopolitics"],
-                "potential_conflicts": ["All Russia coverage", "Ukraine", "NATO"],
-                "notes": "Registered as foreign agent in US"
-            },
-            "bbc": {
-                "parent_company": "BBC (public corporation)",
-                "owner": "UK Government (via license fee)",
-                "owner_interests": ["British soft power", "public education"],
-                "potential_conflicts": ["UK government policy", "monarchy coverage"],
-                "notes": "Funded by TV license fee, editorially independent"
-            }
-        }
-        
-        for key, data in known_sources.items():
+        for key, data in KNOWN_SOURCE_INTERESTS.items():
             if key in normalized:
                 return data
                 
@@ -300,31 +319,10 @@ Respond in JSON:
     async def get_country_economic_profile(self, country_code: str) -> Dict[str, Any]:
         """Get economic profile for a country."""
         # Simplified - in production would call OEC API
-        profiles = {
-            "US": {
-                "gdp": "25.5T USD",
-                "gdp_rank": 1,
-                "top_exports": ["refined petroleum", "aircraft", "cars", "medical equipment"],
-                "top_imports": ["cars", "computers", "broadcasting equipment", "packaged medicines"],
-                "major_partners": ["China", "Canada", "Mexico", "Japan", "Germany"]
-            },
-            "CN": {
-                "gdp": "18.3T USD",
-                "gdp_rank": 2,
-                "top_exports": ["computers", "broadcasting equipment", "telephones", "integrated circuits"],
-                "top_imports": ["crude petroleum", "integrated circuits", "iron ore", "gold"],
-                "major_partners": ["United States", "Japan", "South Korea", "Germany", "Australia"]
-            },
-            "GB": {
-                "gdp": "3.1T USD",
-                "gdp_rank": 6,
-                "top_exports": ["gold", "cars", "gas turbines", "packaged medicines"],
-                "top_imports": ["gold", "cars", "crude petroleum", "packaged medicines"],
-                "major_partners": ["United States", "Germany", "Netherlands", "France", "China"]
-            }
-        }
-        
-        return profiles.get(country_code, {"note": "Economic data not available"})
+        return COUNTRY_PROFILES.get(
+            country_code,
+            {"note": "Economic data not available"},
+        )
     
     async def close(self):
         """Close HTTP client."""
