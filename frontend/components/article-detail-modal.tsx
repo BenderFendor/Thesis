@@ -11,9 +11,11 @@ import { type NewsArticle, getSourceById, type NewsSource, fetchSourceDebugData,
 import { isDebugMode } from "@/lib/logger"
 import { useReadingQueue } from "@/hooks/useReadingQueue"
 import { useFavorites } from "@/hooks/useFavorites"
+import { useReadingHistory } from "@/hooks/useReadingHistory"
 import { useInlineDefinition } from "@/hooks/useInlineDefinition"
 import InlineDefinition from "@/components/inline-definition"
 import { SourceResearchPanel } from "@/components/source-research-panel"
+import { RelatedArticles } from "@/components/related-articles"
 import { toast } from "sonner"
 import { ArticleContent } from "@/components/article-content"
 import { HighlightToolbar } from "@/components/highlight-toolbar"
@@ -65,6 +67,7 @@ export function ArticleDetailModal({ article, isOpen, onClose, initialIsBookmark
   const [isBookmarked, setIsBookmarked] = useState(initialIsBookmarked)
   const { addArticleToQueue, removeArticleFromQueue, isArticleInQueue } = useReadingQueue()
   const { isFavorite, toggleFavorite } = useFavorites()
+  const { markAsRead } = useReadingHistory()
   const [showSourceDetails, setShowSourceDetails] = useState(false)
   const [source, setSource] = useState<NewsSource | null>(null)
   const [sourceLoading, setSourceLoading] = useState(false)
@@ -138,6 +141,13 @@ export function ArticleDetailModal({ article, isOpen, onClose, initialIsBookmark
       setIsBookmarked(initialIsBookmarked)
     }
   }, [initialIsBookmarked, article?.id])
+
+  // Track reading history when article is opened
+  useEffect(() => {
+    if (isOpen && article && typeof article.id === "number") {
+      markAsRead(article.id, article.title, article.source)
+    }
+  }, [isOpen, article?.id, markAsRead])
 
   const articleCacheKey = useMemo(() => {
     if (!article) return null
@@ -740,6 +750,14 @@ export function ArticleDetailModal({ article, isOpen, onClose, initialIsBookmark
                   <SourceResearchPanel
                     sourceName={article.source}
                     website={articleHost}
+                  />
+
+                  <RelatedArticles
+                    articleId={article.id}
+                    onArticleClick={(relatedArticle) => {
+                      window.open(relatedArticle.url, "_blank", "noopener,noreferrer");
+                    }}
+                    limit={5}
                   />
 
                   {aiAnalysisRequested && aiAnalysisLoading && (

@@ -270,6 +270,157 @@ class VectorStore:
             logger.error("Failed to get stats: %s", e)
             return {"total_articles": 0, "error": str(e)}
 
+    def find_similar_by_id(
+        self,
+        article_id: int,
+        limit: int = 5,
+        exclude_same_source: bool = True,
+        source_id: Optional[str] = None,
+    ) -> List[Dict]:
+        """Find similar articles given an article ID (uses stored embedding)."""
+        try:
+            chroma_id = f"article_{article_id}"
+            result = self.collection.get(
+                ids=[chroma_id],
+                include=["embeddings", "metadatas"],
+            )
+
+            if not result["ids"] or not result["embeddings"]:
+                logger.warning(f"Article {article_id} not found in vector store")
+                return []
+
+            embedding = result["embeddings"][0]
+            where_clause = None
+            if exclude_same_source and source_id:
+                where_clause = {"source_id": {"$ne": source_id}}
+
+            results = self.collection.query(
+                query_embeddings=[embedding],
+                n_results=limit + 1,
+                where=where_clause,
+                include=["metadatas", "documents", "distances"],
+            )
+
+            articles = []
+            if results["ids"] and len(results["ids"][0]) > 0:
+                for i in range(len(results["ids"][0])):
+                    result_id = results["ids"][0][i]
+                    if result_id == chroma_id:
+                        continue
+                    articles.append(
+                        {
+                            "chroma_id": result_id,
+                            "article_id": int(result_id.replace("article_", "")),
+                            "distance": results["distances"][0][i],
+                            "similarity_score": 1 - results["distances"][0][i],
+                            "metadata": results["metadatas"][0][i],
+                            "preview": results["documents"][0][i][:200],
+                        }
+                    )
+                    if len(articles) >= limit:
+                        break
+
+            logger.debug(
+                f"Found {len(articles)} similar articles for article {article_id}"
+            )
+            return articles
+
+        except Exception as e:
+            logger.error("Find similar by ID failed: %s", e)
+            return []
+
+    def get_embedding_for_query(self, query: str) -> List[float]:
+        """Generate embedding for a text query (for search suggestions)."""
+        return self.embedding_model.encode(query).tolist()
+
+    def find_nearest_cluster_labels(
+        self, query: str, cluster_centroids: List[Dict], limit: int = 5
+    ) -> List[Dict]:
+        """Find cluster labels nearest to a query embedding."""
+        try:
+            query_embedding = self.embedding_model.encode(query)
+            import numpy as np
+
+            results = []
+            for cluster in cluster_centroids:
+                centroid = np.array(cluster["centroid"])
+                similarity = float(
+                    np.dot(query_embedding, centroid)
+                    / (np.linalg.norm(query_embedding) * np.linalg.norm(centroid))
+                )
+                results.append(
+                    {
+                        "cluster_id": cluster["id"],
+                        "label": cluster["label"],
+                        "similarity": similarity,
+                    }
+                )
+
+            results.sort(key=lambda x: x["similarity"], reverse=True)
+            return results[:limit]
+
+        except Exception as e:
+            logger.error("Find nearest cluster labels failed: %s", e)
+            return []
+
+    def compute_source_coverage(
+        self, source_ids: List[str], sample_size: int = 100
+    ) -> Dict[str, Any]:
+        """Compute embedding space coverage statistics per source."""
+        try:
+            import numpy as np
+
+            coverage_stats = {}
+            all_embeddings = []
+            source_embeddings: Dict[str, List] = {sid: [] for sid in source_ids}
+
+            for source_id in source_ids:
+                results = self.collection.get(
+                    where={"source_id": source_id},
+                    limit=sample_size,
+                    include=["embeddings"],
+                )
+                if results["embeddings"]:
+                    source_embeddings[source_id] = results["embeddings"]
+                    all_embeddings.extend(results["embeddings"])
+
+            if not all_embeddings:
+                return {"error": "No embeddings found for sources"}
+
+            all_embeddings_arr = np.array(all_embeddings)
+            global_centroid = np.mean(all_embeddings_arr, axis=0)
+            global_std = np.std(all_embeddings_arr, axis=0)
+
+            for source_id, embeddings in source_embeddings.items():
+                if not embeddings:
+                    coverage_stats[source_id] = {"article_count": 0}
+                    continue
+
+                emb_arr = np.array(embeddings)
+                source_centroid = np.mean(emb_arr, axis=0)
+                source_std = np.std(emb_arr, axis=0)
+                centroid_distance = float(
+                    np.linalg.norm(source_centroid - global_centroid)
+                )
+                spread = float(np.mean(source_std))
+                diversity_score = spread / (np.mean(global_std) + 1e-8)
+
+                coverage_stats[source_id] = {
+                    "article_count": len(embeddings),
+                    "centroid_distance": centroid_distance,
+                    "spread": spread,
+                    "diversity_score": float(diversity_score),
+                }
+
+            return {
+                "sources": coverage_stats,
+                "global_article_count": len(all_embeddings),
+            }
+
+        except Exception as e:
+            logger.error("Compute source coverage failed: %s", e)
+            return {"error": str(e)}
+
 
 def get_vector_store() -> Optional[VectorStore]:
     """Return a lazily initialised vector store (or None if disabled/unavailable)."""

@@ -1698,6 +1698,11 @@ export interface FactCheckResult {
   notes?: string;
 }
 
+// --- Trending & Breaking News ---
+// The interfaces and functions for fetching trending and breaking news
+// are now consolidated at the bottom of this file (Phase 6 section) to avoid duplication.
+
+
 export interface ArticleAnalysis {
   success: boolean;
   article_url: string;
@@ -2693,6 +2698,407 @@ export async function analyzeMaterialContext(
  */
 export async function getCountryEconomicProfile(countryCode: string): Promise<CountryEconomicProfile> {
   const response = await fetch(`${API_BASE_URL}/research/entity/country/${countryCode}/economic-profile`);
+  if (!response.ok) {
+    throw new Error(`HTTP error! status: ${response.status}`);
+  }
+  return response.json();
+}
+
+// ============================================
+// Phase 6: Trending & Breaking News Detection
+// ============================================
+
+export interface TrendingArticle {
+  id: number;
+  title: string;
+  source: string;
+  url: string;
+  image_url?: string;
+  published_at?: string;
+  summary?: string;
+}
+
+export interface TrendingCluster {
+  cluster_id: number;
+  label?: string;
+  keywords: string[];
+  article_count: number;
+  window_count: number;
+  source_diversity: number;
+  trending_score: number;
+  velocity: number;
+  representative_article?: TrendingArticle;
+}
+
+export interface BreakingCluster {
+  cluster_id: number;
+  label?: string;
+  keywords: string[];
+  article_count_3h: number;
+  source_count_3h: number;
+  spike_magnitude: number;
+  is_new_story: boolean;
+  representative_article?: TrendingArticle;
+}
+
+export interface TrendingResponse {
+  window: string;
+  clusters: TrendingCluster[];
+  total: number;
+}
+
+export interface BreakingResponse {
+  window_hours: number;
+  clusters: BreakingCluster[];
+  total: number;
+}
+
+export interface ClusterDetail {
+  id: number;
+  label?: string;
+  keywords: string[];
+  article_count: number;
+  first_seen?: string;
+  last_seen?: string;
+  is_active: boolean;
+  articles: Array<{
+    id: number;
+    title: string;
+    source: string;
+    url: string;
+    image_url?: string;
+    published_at?: string;
+    similarity: number;
+  }>;
+}
+
+export interface TrendingStats {
+  active_clusters: number;
+  total_article_assignments: number;
+  recent_spikes: number;
+  similarity_threshold: number;
+  baseline_days: number;
+  breaking_window_hours: number;
+}
+
+export interface AllCluster {
+  cluster_id: number;
+  label?: string;
+  keywords: string[];
+  article_count: number;
+  window_count: number;
+  source_diversity: number;
+  representative_article?: TrendingArticle;
+}
+
+export interface AllClustersResponse {
+  window: string;
+  clusters: AllCluster[];
+  total: number;
+}
+
+/**
+ * Get trending topic clusters
+ * @param window Time window: "1d", "1w", or "1m"
+ * @param limit Max clusters to return
+ */
+export async function fetchTrending(
+  window: "1d" | "1w" | "1m" = "1d",
+  limit: number = 10
+): Promise<TrendingResponse> {
+  const params = new URLSearchParams({
+    window,
+    limit: limit.toString(),
+  });
+
+  const response = await fetch(`${API_BASE_URL}/trending?${params}`);
+  if (!response.ok) {
+    throw new Error(`HTTP error! status: ${response.status}`);
+  }
+  return response.json();
+}
+
+/**
+ * Get breaking news clusters (3-hour spike detection)
+ * @param limit Max clusters to return
+ */
+export async function fetchBreaking(limit: number = 5): Promise<BreakingResponse> {
+  const params = new URLSearchParams({
+    limit: limit.toString(),
+  });
+
+  const response = await fetch(`${API_BASE_URL}/trending/breaking?${params}`);
+  if (!response.ok) {
+    throw new Error(`HTTP error! status: ${response.status}`);
+  }
+  return response.json();
+}
+
+/**
+ * Get all clusters for topic-based view
+ * @param window Time window: "1d", "1w", or "1m"
+ * @param minArticles Minimum articles per cluster
+ * @param limit Max clusters to return
+ */
+export async function fetchAllClusters(
+  window: "1d" | "1w" | "1m" = "1d",
+  minArticles: number = 2,
+  limit: number = 100
+): Promise<AllClustersResponse> {
+  const params = new URLSearchParams({
+    window,
+    min_articles: minArticles.toString(),
+    limit: limit.toString(),
+  });
+
+  const response = await fetch(`${API_BASE_URL}/trending/clusters?${params}`);
+  if (!response.ok) {
+    throw new Error(`HTTP error! status: ${response.status}`);
+  }
+  return response.json();
+}
+
+/**
+ * Get detailed info about a specific topic cluster
+ */
+export async function fetchClusterDetail(clusterId: number): Promise<ClusterDetail> {
+  const response = await fetch(`${API_BASE_URL}/trending/clusters/${clusterId}`);
+  if (!response.ok) {
+    throw new Error(`HTTP error! status: ${response.status}`);
+  }
+  return response.json();
+}
+
+/**
+ * Get trending system statistics
+ */
+export async function fetchTrendingStats(): Promise<TrendingStats> {
+  const response = await fetch(`${API_BASE_URL}/trending/stats`);
+  if (!response.ok) {
+    throw new Error(`HTTP error! status: ${response.status}`);
+  }
+  return response.json();
+}
+
+// ============================================================================
+// Similarity / Related Articles API
+// ============================================================================
+
+export interface RelatedArticle {
+  id: number;
+  title: string;
+  source: string;
+  sourceId: string;
+  summary?: string;
+  image?: string;
+  publishedAt?: string;
+  category?: string;
+  url: string;
+  similarity_score: number;
+}
+
+export interface RelatedArticlesResponse {
+  article_id: number;
+  related: RelatedArticle[];
+  total: number;
+}
+
+export interface SearchSuggestion {
+  cluster_id: number;
+  label: string;
+  relevance: number;
+}
+
+export interface SearchSuggestionsResponse {
+  query: string;
+  suggestions: SearchSuggestion[];
+}
+
+export interface SourceCoverageStats {
+  article_count: number;
+  centroid_distance?: number;
+  spread?: number;
+  diversity_score?: number;
+}
+
+export interface SourceCoverageResponse {
+  sources: Record<string, SourceCoverageStats>;
+  global_article_count: number;
+  error?: string;
+}
+
+export interface NoveltyScoreResponse {
+  article_id: number;
+  novelty_score: number;
+  max_similarity_to_history: number;
+  avg_similarity_to_history: number;
+  history_size: number;
+  reason?: string;
+}
+
+/**
+ * Get articles similar to a given article
+ * @param articleId The article to find similar articles for
+ * @param limit Max number of related articles to return
+ * @param excludeSameSource Whether to exclude articles from the same source
+ */
+export async function fetchRelatedArticles(
+  articleId: number,
+  limit: number = 5,
+  excludeSameSource: boolean = true
+): Promise<RelatedArticlesResponse> {
+  const params = new URLSearchParams({
+    limit: limit.toString(),
+    exclude_same_source: excludeSameSource.toString(),
+  });
+
+  const response = await fetch(
+    `${API_BASE_URL}/api/similarity/related/${articleId}?${params}`
+  );
+  if (response.status === 503) {
+    throw new Error("Similarity features unavailable - vector store offline");
+  }
+  if (!response.ok) {
+    throw new Error(`HTTP error! status: ${response.status}`);
+  }
+  return response.json();
+}
+
+/**
+ * Get search suggestions based on topic clusters
+ * @param query The search query to get suggestions for
+ * @param limit Max number of suggestions
+ */
+export async function fetchSearchSuggestions(
+  query: string,
+  limit: number = 5
+): Promise<SearchSuggestionsResponse> {
+  const params = new URLSearchParams({
+    query,
+    limit: limit.toString(),
+  });
+
+  const response = await fetch(
+    `${API_BASE_URL}/api/similarity/search-suggestions?${params}`
+  );
+  if (response.status === 503) {
+    throw new Error("Search suggestions unavailable");
+  }
+  if (!response.ok) {
+    throw new Error(`HTTP error! status: ${response.status}`);
+  }
+  return response.json();
+}
+
+/**
+ * Compare embedding coverage between sources
+ * @param sourceIds Array of source IDs to compare
+ * @param sampleSize Number of articles to sample per source
+ */
+export async function fetchSourceCoverage(
+  sourceIds: string[],
+  sampleSize: number = 100
+): Promise<SourceCoverageResponse> {
+  const params = new URLSearchParams({
+    source_ids: sourceIds.join(","),
+    sample_size: sampleSize.toString(),
+  });
+
+  const response = await fetch(
+    `${API_BASE_URL}/api/similarity/source-coverage?${params}`
+  );
+  if (response.status === 503) {
+    throw new Error("Source coverage unavailable");
+  }
+  if (!response.ok) {
+    throw new Error(`HTTP error! status: ${response.status}`);
+  }
+  return response.json();
+}
+
+/**
+ * Compute novelty score for an article compared to reading history
+ * @param articleId The article to score
+ * @param readingHistory Array of article IDs the user has read
+ */
+export async function fetchNoveltyScore(
+  articleId: number,
+  readingHistory: number[]
+): Promise<NoveltyScoreResponse> {
+  const response = await fetch(`${API_BASE_URL}/api/similarity/novelty-score`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      article_id: articleId,
+      reading_history: readingHistory,
+    }),
+  });
+  if (response.status === 503) {
+    throw new Error("Novelty scoring unavailable");
+  }
+  if (!response.ok) {
+    throw new Error(`HTTP error! status: ${response.status}`);
+  }
+  return response.json();
+}
+
+// ============================================================================
+// Article Topics / Semantic Tags API
+// ============================================================================
+
+export interface ArticleTopic {
+  cluster_id: number;
+  label: string;
+  similarity: number | null;
+  keywords?: string[];
+}
+
+export interface ArticleTopicsResponse {
+  article_id: number;
+  topics: ArticleTopic[];
+}
+
+export interface BulkArticleTopicsResponse {
+  articles: Record<number, Array<{ cluster_id: number; label: string; similarity: number | null }>>;
+}
+
+/**
+ * Get topic/cluster assignments for an article
+ * @param articleId The article to get topics for
+ */
+export async function fetchArticleTopics(
+  articleId: number
+): Promise<ArticleTopicsResponse> {
+  const response = await fetch(
+    `${API_BASE_URL}/api/similarity/article-topics/${articleId}`
+  );
+  if (response.status === 503) {
+    throw new Error("Topic lookup unavailable");
+  }
+  if (!response.ok) {
+    throw new Error(`HTTP error! status: ${response.status}`);
+  }
+  return response.json();
+}
+
+/**
+ * Get topic/cluster assignments for multiple articles
+ * @param articleIds Array of article IDs
+ */
+export async function fetchBulkArticleTopics(
+  articleIds: number[]
+): Promise<BulkArticleTopicsResponse> {
+  const response = await fetch(
+    `${API_BASE_URL}/api/similarity/bulk-article-topics`,
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(articleIds),
+    }
+  );
+  if (response.status === 503) {
+    throw new Error("Topic lookup unavailable");
+  }
   if (!response.ok) {
     throw new Error(`HTTP error! status: ${response.status}`);
   }

@@ -14,13 +14,14 @@ import {
   Filter,
   Clock,
 } from "lucide-react"
-import { API_BASE_URL, ThinkingStep, type NewsArticle, semanticSearch, type SemanticSearchResult } from "@/lib/api"
+import { API_BASE_URL, ThinkingStep, type NewsArticle, semanticSearch, type SemanticSearchResult, type SearchSuggestion } from "@/lib/api"
 import { Button } from "@/components/ui/button"
 import { ArticleDetailModal } from "@/components/article-detail-modal"
 import ChatSidebar, { ChatSummary } from '@/components/chat-sidebar'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import Link from "next/link"
+import { SearchSuggestions } from "@/components/search-suggestions"
 
 interface ReferencedArticlePayload {
   title?: string
@@ -935,6 +936,16 @@ export default function NewsResearchPage() {
                           placeholder="Ask a question about coverage, bias, or context..."
                           className="w-full bg-transparent text-foreground placeholder:text-muted-foreground resize-none focus:outline-none text-lg min-h-[120px]"
                         />
+                        {query.length >= 3 && (
+                          <SearchSuggestions
+                            query={query}
+                            onSuggestionClick={(suggestion) => {
+                              setQuery(suggestion.label);
+                              inputRef.current?.focus();
+                            }}
+                            className="mt-3 pt-3 border-t border-border/40"
+                          />
+                        )}
                         <div className="flex justify-between items-center mt-4 pt-4 border-t border-border/60">
                           <div className="flex gap-2">
                             <button type="button" className="p-2 hover:bg-[var(--news-bg-primary)] rounded-lg text-muted-foreground hover:text-foreground transition-colors">
@@ -975,21 +986,33 @@ export default function NewsResearchPage() {
                     <div className="flex flex-col gap-4 lg:flex-row lg:items-end">
                       <div className="flex-1">
                         <p className="text-[10px] font-mono uppercase tracking-[0.3em] text-muted-foreground">Research query</p>
-                        <form onSubmit={handleSearch} className="mt-2 flex items-center gap-2">
-                          <div className="relative flex-1">
-                            <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" size={16} />
-                            <input
-                              ref={inputRef}
-                              value={query}
-                              onChange={(e) => setQuery(e.target.value)}
-                              placeholder="Ask a question..."
-                              className="w-full bg-[var(--news-bg-primary)]/60 border border-border/60 rounded-lg pl-9 pr-4 py-2.5 text-sm focus:outline-none focus:border-primary text-foreground placeholder:text-muted-foreground"
-                              disabled={isSearching}
-                            />
+                        <form onSubmit={handleSearch} className="mt-2">
+                          <div className="flex items-center gap-2">
+                            <div className="relative flex-1">
+                              <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" size={16} />
+                              <input
+                                ref={inputRef}
+                                value={query}
+                                onChange={(e) => setQuery(e.target.value)}
+                                placeholder="Ask a question..."
+                                className="w-full bg-[var(--news-bg-primary)]/60 border border-border/60 rounded-lg pl-9 pr-4 py-2.5 text-sm focus:outline-none focus:border-primary text-foreground placeholder:text-muted-foreground"
+                                disabled={isSearching}
+                              />
+                            </div>
+                            <Button type="submit" size="sm" disabled={!query.trim() || isSearching} className="h-10 px-4 bg-primary text-primary-foreground hover:bg-primary/90">
+                              {isSearching ? <Loader2 className="w-4 h-4 animate-spin" /> : <ArrowRight className="w-4 h-4" />}
+                            </Button>
                           </div>
-                          <Button type="submit" size="sm" disabled={!query.trim() || isSearching} className="h-10 px-4 bg-primary text-primary-foreground hover:bg-primary/90">
-                            {isSearching ? <Loader2 className="w-4 h-4 animate-spin" /> : <ArrowRight className="w-4 h-4" />}
-                          </Button>
+                          {query.length >= 3 && (
+                            <SearchSuggestions
+                              query={query}
+                              onSuggestionClick={(suggestion) => {
+                                setQuery(suggestion.label);
+                                inputRef.current?.focus();
+                              }}
+                              className="mt-2"
+                            />
+                          )}
                         </form>
                       </div>
                       <div className="flex items-center gap-2">

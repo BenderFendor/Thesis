@@ -17,8 +17,10 @@ from . import (
     reading_queue,
     research,
     search,
+    similarity,
     sources,
     stream,
+    trending,
     updates,
 )
 
@@ -40,4 +42,5 @@ router.include_router(inline.router)
 router.include_router(jobs.router)
 router.include_router(updates.router)
 router.include_router(image_proxy.router)
-
+router.include_router(trending.router)
+router.include_router(similarity.router)

@@ -29,7 +29,11 @@ from app.services.rss_ingestion import (
     _shutdown_event,
     _process_pool,
 )
-from app.services.scheduler import periodic_rss_refresh
+from app.services.scheduler import (
+    periodic_rss_refresh,
+    periodic_cluster_update,
+    periodic_cluster_merge,
+)
 from app.services.startup_metrics import startup_metrics
 from app.services.websocket_manager import manager
 
@@ -232,7 +236,6 @@ async def _maybe_migrate_cached_articles() -> None:
 
 @app.on_event("startup")
 async def on_startup() -> None:
-
     startup_start = time.time()
     startup_metrics.mark_app_started()
     startup_metrics.add_note(
@@ -254,9 +257,7 @@ async def on_startup() -> None:
     if settings.enable_database:
         db_start = time.time()
         await init_db()
-        logger.info(
-            "Database initialisation complete (%.2fs)", time.time() - db_start
-        )
+        logger.info("Database initialisation complete (%.2fs)", time.time() - db_start)
         startup_metrics.record_event("database_initialised", db_start)
     else:
         logger.info("Database disabled; skipping initialisation and persistence")
@@ -279,7 +280,9 @@ async def on_startup() -> None:
     _register_background_task(scheduler_task)
     startup_metrics.add_note("rss_scheduler_task", scheduler_task.get_name())
 
-    refresh_task = asyncio.create_task(_start_initial_rss_refresh(), name="initial_rss_refresh")
+    refresh_task = asyncio.create_task(
+        _start_initial_rss_refresh(), name="initial_rss_refresh"
+    )
     _register_background_task(refresh_task)
 
     if settings.enable_database:
@@ -299,6 +302,22 @@ async def on_startup() -> None:
             _maybe_migrate_cached_articles(), name="conditional_migration"
         )
         _register_background_task(migration_task)
+
+    # Start periodic cluster update for trending/breaking detection
+    if settings.enable_database and settings.enable_vector_store:
+        cluster_task = asyncio.create_task(
+            periodic_cluster_update(interval_seconds=300),
+            name="cluster_update_scheduler",
+        )
+        _register_background_task(cluster_task)
+        startup_metrics.add_note("cluster_scheduler_task", cluster_task.get_name())
+
+        merge_task = asyncio.create_task(
+            periodic_cluster_merge(interval_seconds=1800),
+            name="cluster_merge_scheduler",
+        )
+        _register_background_task(merge_task)
+        startup_metrics.add_note("cluster_merge_task", merge_task.get_name())
 
     logger.info(
         "API startup complete (%.2fs) - cache ready with %d articles",

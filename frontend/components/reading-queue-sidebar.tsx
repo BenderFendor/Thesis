@@ -2,6 +2,7 @@
 
 import { useReadingQueue } from "@/hooks/useReadingQueue";
 import { useFavorites } from "@/hooks/useFavorites";
+import { useReadingHistory } from "@/hooks/useReadingHistory";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -25,7 +26,7 @@ import {
   DollarSign,
   Bug,
 } from "lucide-react";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import ReactMarkdown from "react-markdown";
 import { cn } from "@/lib/utils";
 import {
@@ -40,12 +41,16 @@ import {
 } from "@/lib/api";
 import { ArticleDetailModal } from "@/components/article-detail-modal";
 import { ArticleInlineEmbed } from "@/components/article-inline-embed";
+import { NoveltyBadge } from "@/components/novelty-badge";
+import { SemanticTags } from "@/components/semantic-tags";
 
 export function ReadingQueueSidebar() {
   const READ_SPEED_WPM = 230; // Average adult reading speed
   const { queuedArticles, removeArticleFromQueue, isLoaded } =
     useReadingQueue();
   const { isFavorite, toggleFavorite } = useFavorites();
+  const { getRecentIds: getReadingHistoryIds } = useReadingHistory();
+  const readingHistoryIds = useMemo(() => getReadingHistoryIds(50), [getReadingHistoryIds]);
   const [expandedIndex, setExpandedIndex] = useState<number | null>(null);
   const [selectedArticleUrl, setSelectedArticleUrl] = useState<string | null>(
     null
@@ -1207,6 +1212,12 @@ export function ReadingQueueSidebar() {
                                       {estimatedReadTimes[article.url]}m
                                     </span>
                                   )}
+                                  {typeof article.id === "number" && readingHistoryIds.length > 0 && (
+                                    <NoveltyBadge
+                                      articleId={article.id}
+                                      readingHistory={readingHistoryIds}
+                                    />
+                                  )}
                                   {!article._queueData?.preloadedAt && (
                                     <Badge
                                       className="text-xs flex items-center gap-1 animate-pulse"
@@ -1220,6 +1231,14 @@ export function ReadingQueueSidebar() {
                                     </Badge>
                                   )}
                                 </div>
+                                {/* Semantic Tags */}
+                                {typeof article.id === "number" && isExpanded && (
+                                  <SemanticTags
+                                    articleId={article.id}
+                                    maxTags={3}
+                                    className="mt-2"
+                                  />
+                                )}
                               </div>
 
                               {/* Image Thumbnail - Right Side */}

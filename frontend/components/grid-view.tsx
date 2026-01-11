@@ -14,15 +14,19 @@ import {
   MinusCircle,
   Star,
   RefreshCw,
+  List,
+  Layers,
 } from "lucide-react"
 import { ArticleDetailModal } from "./article-detail-modal"
 import { VirtualizedGrid } from "./virtualized-grid"
-import type { NewsArticle } from "@/lib/api"
+import { TrendingFeed } from "./trending-feed"
+import type { NewsArticle, AllCluster } from "@/lib/api"
 import { get_logger } from "@/lib/utils"
 import { useReadingQueue } from "@/hooks/useReadingQueue"
 import { useFavorites } from "@/hooks/useFavorites"
 import { usePaginatedNews } from "@/hooks/usePaginatedNews"
 import { FEATURE_FLAGS } from "@/lib/constants"
+import { fetchAllClusters } from "@/lib/api"
 
 const logger = get_logger("GridView")
 const isDev = process.env.NODE_ENV !== "production"
@@ -38,6 +42,7 @@ interface GridViewProps {
   onCountChange?: (count: number) => void
   apiUrl?: string | null
   useVirtualization?: boolean
+  showTrending?: boolean
 }
 
 interface SourceGroup {
@@ -54,6 +59,7 @@ export function GridView({
   onCountChange,
   apiUrl,
   useVirtualization = false,
+  showTrending = false,
 }: GridViewProps) {
   const hasRealImage = useCallback((src?: string | null) => {
     if (!src) return false
@@ -68,6 +74,10 @@ export function GridView({
   }, [])
 
   const [searchTerm, setSearchTerm] = useState("")
+  const [viewMode, setViewMode] = useState<"source" | "topic">("source")
+  const [clusters, setClusters] = useState<AllCluster[]>([])
+  const [clustersLoading, setClustersLoading] = useState(false)
+  const [expandedClusterId, setExpandedClusterId] = useState<number | null>(null)
   // Removed internal category state as it is handled by the parent
   const [selectedArticle, setSelectedArticle] = useState<NewsArticle | null>(
     null
@@ -353,6 +363,36 @@ export function GridView({
     return () => observer.disconnect()
   }, [sourceGroups])
 
+  // Load view mode from localStorage
+  useEffect(() => {
+    const saved = localStorage.getItem("viewMode") as "source" | "topic" | null
+    if (saved === "source" || saved === "topic") {
+      setViewMode(saved)
+    }
+  }, [])
+
+  // Persist view mode to localStorage
+  useEffect(() => {
+    localStorage.setItem("viewMode", viewMode)
+  }, [viewMode])
+
+  // Load clusters when in topic mode
+  useEffect(() => {
+    if (viewMode === "topic") {
+      setClustersLoading(true)
+      fetchAllClusters("1d", 2, 100)
+        .then((data) => {
+          setClusters(data.clusters)
+        })
+        .catch((err) => {
+          logger.error("Failed to load clusters:", err)
+        })
+        .finally(() => {
+          setClustersLoading(false)
+        })
+    }
+  }, [viewMode])
+
   // Determine which articles to display based on mode
   const displayArticles = useVirtualization ? paginatedArticles : filteredNews
   const isLoadingState = useVirtualization ? paginatedLoading : loading
@@ -465,15 +505,38 @@ export function GridView({
     <div className="w-full h-full flex flex-col overflow-hidden bg-[var(--news-bg-primary)]">
       {/* Search Bar */}
       <div className="flex-shrink-0 px-4 sm:px-6 lg:px-8 py-3 border-b border-white/10 bg-[var(--news-bg-secondary)]/60 backdrop-blur-sm">
-        <div className="relative">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-muted-foreground" />
-          <input
-            type="text"
-            placeholder="Search articles..."
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            className="w-full pl-12 pr-4 py-3 text-base rounded-none bg-[var(--news-bg-primary)] border border-white/10 text-foreground placeholder-muted-foreground focus:outline-none focus:ring-1 focus:ring-primary"
-          />
+        <div className="flex items-center gap-4 w-full">
+          <div className="relative flex-1">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-muted-foreground" />
+            <input
+              type="text"
+              placeholder="Search articles..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className="w-full pl-12 pr-4 py-3 text-base rounded-none bg-[var(--news-bg-primary)] border border-white/10 text-foreground placeholder-muted-foreground focus:outline-none focus:ring-1 focus:ring-primary"
+            />
+          </div>
+          {/* View Mode Toggle */}
+          <div className="flex items-center bg-[var(--news-bg-primary)] border border-white/10 rounded-lg p-1">
+            <Button
+              variant={viewMode === "source" ? "default" : "ghost"}
+              size="sm"
+              onClick={() => setViewMode("source")}
+              className={viewMode === "source" ? "" : "text-muted-foreground"}
+            >
+              <List className="w-4 h-4 mr-2" />
+              By Source
+            </Button>
+            <Button
+              variant={viewMode === "topic" ? "default" : "ghost"}
+              size="sm"
+              onClick={() => setViewMode("topic")}
+              className={viewMode === "topic" ? "" : "text-muted-foreground"}
+            >
+              <Layers className="w-4 h-4 mr-2" />
+              By Topic
+            </Button>
+          </div>
         </div>
       </div>
 
@@ -518,7 +581,12 @@ export function GridView({
           }}
         >
           <div className="space-y-0">
-            {sourceGroups.map((group, index) => {
+            {/* Trending Feed Section */}
+            {showTrending && (
+              <TrendingFeed />
+            )}
+            {viewMode === "source" ? (
+              sourceGroups.map((group, index) => {
               // Optimization: Only render groups near the viewport
               const shouldRender =
                 visibleGroupIds.size === 0
@@ -535,7 +603,7 @@ export function GridView({
               }
 
               return (
-              <div
+                <div
                 key={group.sourceId}
                 data-source-id={group.sourceId}
                 className="grid-source-group bg-[var(--news-bg-secondary)] border border-white/10 overflow-hidden"
@@ -769,8 +837,120 @@ export function GridView({
                   )}
                 </div>
                 )}
-              </div>
-            )})}
+                </div>
+              )
+            })
+            ) : (
+              clustersLoading ? (
+                <div className="text-center py-8 text-muted-foreground">
+                  Loading topics...
+                </div>
+              ) : clusters.length === 0 ? (
+                <div className="text-center py-8 text-muted-foreground">
+                  No topics found
+                </div>
+              ) : (
+                clusters.map((cluster) => {
+                  const representative = cluster.representative_article
+                  if (!representative) return null
+
+                  return (
+                    <div
+                      key={cluster.cluster_id}
+                      data-cluster-id={cluster.cluster_id.toString()}
+                      className="grid-cluster-group bg-[var(--news-bg-secondary)] border border-white/10 overflow-hidden mb-4"
+                      style={{
+                        scrollSnapAlign: "center",
+                        scrollSnapStop: "always",
+                        scrollMargin: "2rem",
+                      }}
+                    >
+                      {/* Cluster Header */}
+                      <div className="bg-[var(--news-bg-primary)] px-5 py-4 border-b border-white/10 flex items-center justify-between">
+                        <div className="flex items-center gap-3">
+                          <Layers className="w-5 h-5 text-primary" />
+                          <div className="flex items-center gap-2">
+                            <span className="font-serif text-lg font-bold tracking-tight">
+                              {cluster.label || cluster.keywords.slice(0, 3).join(", ")}
+                            </span>
+                            <Badge variant="outline" className="text-[10px] bg-[var(--news-bg-secondary)]">
+                              {cluster.source_diversity} sources
+                            </Badge>
+                          </div>
+                        </div>
+                        <Badge
+                          variant="outline"
+                          className="text-[10px] font-semibold px-2 py-0.5 bg-[var(--news-bg-secondary)]"
+                        >
+                          {cluster.article_count} articles
+                        </Badge>
+                      </div>
+
+                      {/* Cluster Content */}
+                      <div className="p-6 space-y-4">
+                        {representative.image_url && hasRealImage(representative.image_url) && (
+                          <div className="relative aspect-video max-h-[300px] overflow-hidden rounded-lg">
+                            <img
+                              src={representative.image_url}
+                              alt={representative.title}
+                              className="w-full h-full object-cover"
+                            />
+                            <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent" />
+                          </div>
+                        )}
+
+                        <h3 className="font-serif text-2xl font-bold">
+                          {representative.title}
+                        </h3>
+
+                        {representative.summary && (
+                          <p className="text-sm text-muted-foreground leading-relaxed line-clamp-3">
+                            {representative.summary}
+                          </p>
+                        )}
+
+                        {/* Keywords */}
+                        {cluster.keywords.length > 0 && (
+                          <div className="flex items-center gap-2 flex-wrap">
+                            {cluster.keywords.slice(0, 6).map((keyword) => (
+                              <Badge
+                                key={keyword}
+                                variant="outline"
+                                className="text-[10px] bg-[var(--news-bg-secondary)]"
+                              >
+                                {keyword}
+                              </Badge>
+                            ))}
+                          </div>
+                        )}
+
+                        {/* Actions */}
+                        <div className="flex items-center gap-3 pt-4 border-t border-white/10">
+                          {representative.url && (
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              asChild
+                            >
+                              <a
+                                href={representative.url}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                              >
+                                Read original
+                              </a>
+                            </Button>
+                          )}
+                          <span className="text-xs text-muted-foreground">
+                            {cluster.article_count} articles from {cluster.source_diversity} sources
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+                  )
+                })
+              )
+            )}
           </div>
         </div>
       )}
@@ -778,7 +958,15 @@ export function GridView({
       {/* Pager UI */}
       <div className="p-2 text-xs text-muted-foreground text-center">
         Use ↑/↓ keys, PageUp/PageDown, mouse wheel or swipe to move between
-        sources — {currentGroupIndex + 1} / {sourceGroups.length}
+        {viewMode === "source" ? (
+          <>
+            sources — {currentGroupIndex + 1} / {sourceGroups.length}
+          </>
+        ) : (
+          <>
+            topics — {clusters.length}
+          </>
+        )}
       </div>
 
       {/* Article Detail Modal */}

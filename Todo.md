@@ -2,6 +2,130 @@
 
 ---
 
+## Phase 6: Trending & Breaking News Detection (COMPLETE)
+
+Internal clustering + velocity-based trending/breaking detection using existing RSS data and embeddings.
+
+### 6.1 Database Schema
+- [x] Create `topic_clusters` table (id, label, centroid_embedding, first_seen, last_seen, article_count)
+- [x] Create `article_topics` junction table (article_id, cluster_id, similarity, assigned_at)
+- [x] Create `cluster_stats_daily` table (cluster_id, date, article_count, source_count)
+- [x] Create `cluster_stats_hourly` table (cluster_id, hour, article_count, source_count) for 3h breaking detection
+- [x] Add migration script for new tables (auto-created via SQLAlchemy)
+
+### 6.2 Clustering Engine (Backend)
+- [x] Implement article-to-cluster assignment using existing Chroma embeddings
+- [x] Cluster creation/merging logic (new cluster if no match > threshold, merge if centroids converge)
+- [x] Baseline calculation: trailing 7-day average per cluster
+- [x] Trending score formula: window_volume / baseline * source_diversity * recency_weight
+- [x] Breaking score formula: 3h_spike / baseline * (1 - prior_volume_factor) * recency_weight
+- [x] Background task to update cluster stats hourly/daily
+- [x] Measure thresholds from actual data (do not guess)
+
+### 6.3 API Endpoints
+- [x] GET `/api/trending?window=1d|1w|1m` - returns top clusters with scores + representative article
+- [x] GET `/api/trending/breaking` - returns clusters with spike detection + representative article
+- [x] GET `/api/trending/clusters/{id}` - cluster detail with member articles
+- [x] GET `/api/trending/stats` - system statistics
+
+### 6.4 Frontend UI
+- [x] Trending section component (shows top 5-10 trending topics with scores)
+- [x] Breaking news banner/section (shows 3h spikes if any)
+- [x] Cluster detail view (click to see all articles in cluster)
+- [x] Window selector UI (1d/1w/1m toggle for trending)
+- [x] Integrate into main feed (toggle via sidebar)
+
+### Phase 6B: GDELT Integration (FUTURE)
+- [ ] Match GDELT entries to clusters by URL or embedding similarity
+- [ ] Add `external_count` field to cluster scoring
+- [ ] Use as coverage breadth signal, not primary ranking
+
+---
+
+## Phase 7: Multi-Source Story Comparison
+
+Compare how different sources report the same story using the cluster detail modal.
+
+### 7.1 ClusterDetailModal Enhancements
+- [ ] Add "Compare Sources" tab alongside individual source tabs
+- [ ] Side-by-side view showing 2-3 sources simultaneously
+- [ ] Highlight differences in coverage (entities mentioned, framing, word choice)
+- [ ] Show omission detection (what Source A mentions that Source B omits)
+- [ ] Add tone/sentiment indicator per source (local sentiment analysis, no API)
+- [ ] Show publication time delta between sources
+
+### 7.2 Comparison Analysis (No LLM Required)
+- [ ] Entity extraction diff (NER on both articles, show unique entities per source)
+- [ ] Keyword frequency comparison (what terms each source emphasizes)
+- [ ] Quote attribution diff (who does each source quote)
+- [ ] Word count / depth comparison
+- [ ] Visual diff highlighting using diff-match-patch library
+
+### 7.3 UI for Comparison View
+- [ ] Split-pane layout (left source vs right source)
+- [ ] Middle column showing key differences summary
+- [ ] Toggle between "full text" and "highlights only" mode
+- [ ] Export comparison as markdown
+
+---
+
+## Phase 8: Dual View Organization (Source vs Topic)
+
+Reorganize the main feed to support two primary views: by source and by topic (clustered).
+
+### 8.1 View Toggle UI
+- [ ] Add view mode toggle to GridView header (tabs or segmented control)
+- [ ] "By Source" view (current behavior - articles grouped by source)
+- [ ] "By Topic" view (articles grouped by cluster/topic)
+- [ ] Persist view preference in localStorage
+
+### 8.2 Backend: All Clusters Endpoint
+- [ ] GET `/api/clusters?window=1d|1w` - returns all clusters (not just trending)
+- [ ] Include cluster label, article count, source diversity, representative article
+- [ ] Pagination support for large cluster counts
+- [ ] Filter by minimum article count (exclude single-article clusters)
+
+### 8.3 By Topic View Implementation
+- [ ] Fetch all clusters for current time window (not just trending)
+- [ ] Display clusters as expandable groups (like source groups)
+- [ ] Show cluster label, article count, source diversity per group
+- [ ] Expand cluster to show all member articles
+- [ ] Click article opens ClusterDetailModal (multi-source view)
+
+### 8.4 Trending/Breaking Integration
+- [ ] Trending & Breaking section stays at top in both views
+- [ ] In "By Topic" view, trending clusters are visually distinguished (badge/border)
+- [ ] Breaking clusters get priority placement with alert styling
+
+### 8.5 Cluster Card Design
+- [ ] Cluster card shows representative article image
+- [ ] Badge with source count (e.g., "5 sources")
+- [ ] Keywords/tags displayed on card
+- [ ] Recency indicator (newest article timestamp)
+- [ ] Quick actions: add all to queue, compare sources
+
+### 8.6 Blind Spots Analysis
+Identify which perspectives are NOT covering a story.
+
+- [ ] Add source metadata table (political_lean, region, type)
+  - Political: left, center-left, center, center-right, right
+  - Region: US, Europe, Asia, Middle East, Africa, Latin America, Oceania
+  - Type: mainstream, alternative, wire_service, state_run, nonprofit
+- [ ] Populate source metadata for existing sources in rss_sources.json
+- [ ] Backend: Calculate coverage gaps per cluster
+  - For each cluster, count sources by political lean and region
+  - Identify which categories have zero coverage
+  - Return as `blind_spots` array in cluster response
+- [ ] Frontend: Display "Not covered by" indicator on cluster cards
+  - Show missing political perspectives (e.g., "No right-leaning coverage")
+  - Show missing regional perspectives (e.g., "No Asian media coverage")
+  - Visual badge or expandable section
+- [ ] Add blind spots summary to ClusterDetailModal
+  - Full breakdown of coverage by category
+  - Highlight gaps prominently
+
+---
+
 ## Phase 5A: Globe + Country-Coded News (COMPLETE)
 
 - [x] ISO country codes in rss_sources.json (already done)
@@ -61,7 +185,7 @@
 - [x] Fix article mismatch in grid view (wrong article opens)
 - [x] Fix "Open in reader" action disabled (env var: NEXT_PUBLIC_ENABLE_READER_MODE)
 - [x] Alert button not clickable (portal fix)
-- [ ] Leading story detection using open-source trending data (Google Trends API, GDELT, or similar lightweight source)
+- [x] Leading story detection using open-source trending data (see Phase 6: internal clustering + velocity)
 
 ## Source & Article Views
 - [x] Update source page for new backend

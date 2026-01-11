@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect, useRef, useCallback, useMemo, type KeyboardEvent, type RefObject } from "react"
+import { useState, useEffect, useRef, useCallback, useMemo, type KeyboardEvent } from "react"
 import { Button } from "@/components/ui/button"
 import { Tabs, TabsContent } from "@/components/ui/tabs"
 import {
@@ -72,6 +72,8 @@ function NewsPage() {
   const [articleCount, setArticleCount] = useState<number>(0)
   const [showNotifications, setShowNotifications] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(false);
+// Remove trendingOpen state as it is no longer used
+// const [trendingOpen, setTrendingOpen] = useState(false);
   const alertsButtonRef = useRef<HTMLButtonElement>(null);
   const [leadArticle, setLeadArticle] = useState<NewsArticle | null>(null);
   const [leadModalOpen, setLeadModalOpen] = useState(false);
@@ -532,18 +534,7 @@ function NewsPage() {
               </button>
             </div>
           </div>
-          <div>
-            <div className="text-[10px] font-mono uppercase tracking-[0.3em] text-muted-foreground">Workspace</div>
-            <div className="mt-3 space-y-2">
-              <Link
-                href="/sources"
-                className="w-full flex items-center gap-3 px-3 py-2 border border-white/10 text-[10px] font-mono uppercase tracking-[0.32em] text-muted-foreground hover:text-foreground hover:border-white/30 transition-colors"
-              >
-                <Building2 className="w-4 h-4" />
-                Sources
-              </Link>
-            </div>
-          </div>
+
         </div>
         <div className="px-4 py-4 border-t border-white/10">
           <button
@@ -598,6 +589,7 @@ function NewsPage() {
 
       <main className="flex-1 bg-[var(--news-bg-primary)]">
         <div className="max-w-[1600px] mx-auto grid grid-cols-1 lg:grid-cols-12 gap-0">
+
           <section className="lg:col-span-12 bg-[var(--news-bg-primary)] flex flex-col min-h-[calc(100vh-80px)] border-x border-white/10">
             {!isGlobeView && (
               <div className="relative p-6 border-b border-white/10">
@@ -735,6 +727,7 @@ function NewsPage() {
                     <option value="oldest">Oldest first</option>
                     <option value="source-freshness">Sources by freshness</option>
                   </select>
+
                   <div className="flex items-center gap-2 lg:hidden">
                     <span className="text-[10px] font-mono uppercase tracking-[0.32em] text-muted-foreground">View</span>
                     <select
@@ -771,6 +764,7 @@ function NewsPage() {
                       loading={loading}
                       onCountChange={setArticleCount}
                       apiUrl={apiUrl}
+                      showTrending={true}
                     />
                   )}
                   {currentView === "scroll" && (

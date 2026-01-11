@@ -1,5 +1,6 @@
 from sqlalchemy import (
     Column,
+    Float,
     Index,
     Integer,
     String,
@@ -191,96 +192,206 @@ class Highlight(Base):
 
 class Reporter(Base):
     """Stores research data about journalists/reporters/authors."""
+
     __tablename__ = "reporters"
 
     id = Column(Integer, primary_key=True, index=True)
     name = Column(String, nullable=False, index=True)
     normalized_name = Column(String, index=True)  # lowercase, stripped for matching
-    
+
     # Profile data
     bio = Column(Text)  # Brief biography
     career_history = Column(JSON)  # List of past employers/positions
     topics = Column(TagListType(), default=list)  # Areas of expertise
     education = Column(JSON)  # Educational background
-    
+
     # Bias/leaning indicators
     political_leaning = Column(String)  # left, center-left, center, center-right, right
     leaning_confidence = Column(String)  # high, medium, low
     leaning_sources = Column(JSON)  # Sources used to determine leaning
-    
+
     # Social/external links
     twitter_handle = Column(String)
     linkedin_url = Column(String)
     wikipedia_url = Column(String)
-    
+
     # Research metadata
     research_sources = Column(JSON)  # Which APIs/sources were consulted
     last_researched_at = Column(DateTime)
     research_confidence = Column(String)  # overall confidence in data quality
-    
+
     created_at = Column(DateTime, default=get_utc_now)
     updated_at = Column(DateTime, default=get_utc_now, onupdate=get_utc_now)
 
 
 class Organization(Base):
     """Stores research data about news organizations and their ownership."""
+
     __tablename__ = "organizations"
 
     id = Column(Integer, primary_key=True, index=True)
     name = Column(String, nullable=False, index=True)
     normalized_name = Column(String, index=True)  # lowercase for matching
-    
+
     # Organization type
     org_type = Column(String)  # publisher, parent_company, owner, funder, advertiser
-    
+
     # Ownership structure
     parent_org_id = Column(Integer, index=True)  # Self-referential for ownership chain
     ownership_percentage = Column(String)  # If known
-    
+
     # Funding information
-    funding_type = Column(String)  # public, commercial, non-profit, state-funded, independent
+    funding_type = Column(
+        String
+    )  # public, commercial, non-profit, state-funded, independent
     funding_sources = Column(JSON)  # List of known funding sources
     major_advertisers = Column(JSON)  # Major advertising revenue sources
-    
+
     # 990 / Financial data (for non-profits)
     ein = Column(String)  # Tax ID for 990 lookup
     annual_revenue = Column(String)
     top_donors = Column(JSON)  # From 990 filings
-    
+
     # Bias indicators
     media_bias_rating = Column(String)  # From MBFC or similar
     factual_reporting = Column(String)  # From MBFC
-    
+
     # External links
     website = Column(String)
     wikipedia_url = Column(String)
     littlesis_url = Column(String)
     opensecrets_url = Column(String)
-    
+
     # Research metadata
     research_sources = Column(JSON)
     last_researched_at = Column(DateTime)
     research_confidence = Column(String)
-    
+
     created_at = Column(DateTime, default=get_utc_now)
     updated_at = Column(DateTime, default=get_utc_now, onupdate=get_utc_now)
 
 
 class ArticleAuthor(Base):
     """Junction table linking articles to their authors/reporters."""
+
     __tablename__ = "article_authors"
 
     id = Column(Integer, primary_key=True, index=True)
     article_id = Column(Integer, nullable=False, index=True)
     reporter_id = Column(Integer, nullable=False, index=True)
     author_role = Column(String, default="author")  # author, contributor, editor
-    
+
     created_at = Column(DateTime, default=get_utc_now)
 
     __table_args__ = (
-        Index("ix_article_authors_article_reporter", "article_id", "reporter_id", unique=True),
+        Index(
+            "ix_article_authors_article_reporter",
+            "article_id",
+            "reporter_id",
+            unique=True,
+        ),
     )
 
+
+# Phase 6: Trending & Breaking News Detection Tables
+
+
+class TopicCluster(Base):
+    """Groups of semantically similar articles representing a topic/story."""
+
+    __tablename__ = "topic_clusters"
+
+    id = Column(Integer, primary_key=True, index=True)
+    label = Column(String)  # Auto-generated or manually assigned topic label
+    keywords = Column(TagListType(), default=list)  # Representative keywords
+
+    # Centroid stored as reference to representative article's embedding
+    centroid_article_id = Column(
+        Integer, index=True
+    )  # Article closest to cluster center
+
+    # Lifecycle tracking
+    first_seen = Column(DateTime, default=get_utc_now, index=True)
+    last_seen = Column(DateTime, default=get_utc_now, index=True)
+    article_count = Column(Integer, default=0)
+
+    # Clustering metadata
+    is_active = Column(Boolean, default=True, index=True)  # False if merged or stale
+    merged_into_id = Column(
+        Integer, index=True
+    )  # If merged, points to surviving cluster
+
+    created_at = Column(DateTime, default=get_utc_now)
+    updated_at = Column(DateTime, default=get_utc_now, onupdate=get_utc_now)
+
+
+class ArticleTopic(Base):
+    """Junction table linking articles to their topic clusters."""
+
+    __tablename__ = "article_topics"
+
+    id = Column(Integer, primary_key=True, index=True)
+    article_id = Column(Integer, nullable=False, index=True)
+    cluster_id = Column(Integer, nullable=False, index=True)
+    similarity = Column(Float, nullable=False)  # Cosine similarity to centroid
+    assigned_at = Column(DateTime, default=get_utc_now)
+
+    __table_args__ = (
+        Index(
+            "ix_article_topics_article_cluster", "article_id", "cluster_id", unique=True
+        ),
+        Index("ix_article_topics_cluster_similarity", "cluster_id", "similarity"),
+    )
+
+
+class ClusterStatsDaily(Base):
+    """Daily aggregate statistics per cluster for trending detection."""
+
+    __tablename__ = "cluster_stats_daily"
+
+    id = Column(Integer, primary_key=True, index=True)
+    cluster_id = Column(Integer, nullable=False, index=True)
+    date = Column(DateTime, nullable=False, index=True)  # Truncated to day
+
+    article_count = Column(Integer, default=0)
+    source_count = Column(Integer, default=0)  # Distinct sources covering this topic
+
+    # Pre-computed scores (updated by background worker)
+    velocity_score = Column(Float, default=0.0)  # Rate of change vs baseline
+    diversity_score = Column(Float, default=0.0)  # Source diversity
+
+    created_at = Column(DateTime, default=get_utc_now)
+    updated_at = Column(DateTime, default=get_utc_now, onupdate=get_utc_now)
+
+    __table_args__ = (
+        Index("ix_cluster_stats_daily_cluster_date", "cluster_id", "date", unique=True),
+    )
+
+
+class ClusterStatsHourly(Base):
+    """Hourly aggregate statistics per cluster for breaking news detection."""
+
+    __tablename__ = "cluster_stats_hourly"
+
+    id = Column(Integer, primary_key=True, index=True)
+    cluster_id = Column(Integer, nullable=False, index=True)
+    hour = Column(DateTime, nullable=False, index=True)  # Truncated to hour
+
+    article_count = Column(Integer, default=0)
+    source_count = Column(Integer, default=0)
+
+    # Breaking detection
+    is_spike = Column(Boolean, default=False, index=True)  # Flagged as unusual activity
+    spike_magnitude = Column(Float, default=0.0)  # How much above baseline
+
+    created_at = Column(DateTime, default=get_utc_now)
+
+    __table_args__ = (
+        Index(
+            "ix_cluster_stats_hourly_cluster_hour", "cluster_id", "hour", unique=True
+        ),
+        Index("ix_cluster_stats_hourly_spike", "is_spike", "hour"),
+    )
 
 
 # Dependency for FastAPI
@@ -500,9 +611,7 @@ async def fetch_articles_by_ids(
     }
 
     return [
-        articles[article_id]
-        for article_id in article_ids
-        if article_id in articles
+        articles[article_id] for article_id in article_ids if article_id in articles
     ]
 
 

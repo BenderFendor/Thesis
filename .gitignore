@@ -363,3 +363,6 @@ dev-browser/
 
 .chroma/
 .agent/rules/
+
+# Backend logs
+backend/logs/

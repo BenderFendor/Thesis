@@ -1,5 +1,81 @@
 # Log
 
+## 2026-01-11: TrendingFeed Integration into GridView
+
+### Problem
+The TrendingFeed component was incorrectly positioned inside the category/sort dropdown area in page.tsx (lines 733-740), appearing in the wrong location and using a 3-column grid layout that didn't match the GridView source groups styling.
+
+### Solution
+1. **Relocated TrendingFeed** from page.tsx into GridView component
+   - Removed from wrong position in page.tsx
+   - Added `showTrending` prop to GridView
+   - TrendingFeed now renders after the search bar, before source groups
+
+2. **Converted layout** from 3-column grid to horizontal scroll row
+   - Cards now use `flex-shrink-0 w-[280px]` for fixed-width horizontal items
+   - Container uses `flex overflow-x-auto snap-x snap-mandatory` for smooth horizontal scrolling
+   - Matches the visual pattern of source groups
+
+### Files Changed
+| File | Changes |
+|------|---------|
+| `frontend/app/page.tsx` | Removed TrendingFeed from wrong location, removed unused import |
+| `frontend/components/grid-view.tsx` | Added TrendingFeed import, `showTrending` prop, renders before source groups |
+| `frontend/components/trending-feed.tsx` | Converted from grid to horizontal scroll, fixed-width cards |
+
+### Key Code Changes
+
+**grid-view.tsx** - Added prop and conditional render:
+```tsx
+interface GridViewProps {
+  // ...existing props
+  showTrending?: boolean
+}
+
+// Inside render, after search bar:
+{showTrending && (
+  <TrendingFeed onArticleClick={(url) => window.open(url, "_blank")} />
+)}
+```
+
+**trending-feed.tsx** - Horizontal scroll layout:
+```tsx
+// Container
+<div className="flex gap-0 overflow-x-auto pb-2 snap-x snap-mandatory">
+
+// Cards
+<button className="group flex-shrink-0 w-[280px] ... snap-start">
+```
+
+### Result
+TrendingFeed now appears as the first "group" in GridView, with trending/breaking stories displayed in a horizontally scrollable row that matches the source group visual pattern.
+
+---
+
+## 2026-01-10: Cluster Merge Backend Fixes
+
+### Problem
+Backend cluster merge was failing due to two bugs:
+1. Numpy array truth check failing in `merge_similar_clusters()`
+2. Unique constraint violations when merging clusters sharing articles
+
+### Solution
+- Fixed numpy embedding check: `emb[0] is not None` -> `emb is not None and len(emb) > 0`
+- Added deletion of duplicate article-cluster assignments before merge update
+- Added periodic merge task to scheduler (runs every 30 minutes)
+
+### Files Changed
+| File | Changes |
+|------|---------|
+| `backend/app/services/clustering.py` | Fixed numpy check, handle duplicate articles |
+| `backend/app/services/scheduler.py` | Added `periodic_cluster_merge()` task |
+| `backend/app/main.py` | Registered merge task in startup |
+
+### Result
+Successfully merged 589 duplicate clusters (e.g., 4 Bob Weir clusters -> 1).
+
+---
+
 ## 2026-01-10: OG Image Backfill and Frontend Image Fixes
 
 ### Problem

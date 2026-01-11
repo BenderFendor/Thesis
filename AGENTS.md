@@ -52,3 +52,9 @@ Consciously constrained, pragmatically parameterised, doggedly documented.
 
 ### Principle
 Code should be self-documenting. If you need a comment to explain WHAT the code does, consider refactoring to make it clearer.
+
+## UI Component Integration
+- Before adding a component to a page, verify its DOM position matches visual intent (not just that it renders).
+- New components should adopt existing styling patterns from sibling components (card sizes, scroll behavior, spacing).
+- Use props for feature toggling rather than conditional imports or wrapper components.
+- When converting layouts (grid to scroll, vertical to horizontal), update both the container and all child elements for consistent sizing.

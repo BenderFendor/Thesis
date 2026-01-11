@@ -9,6 +9,7 @@ import { X, Star, Search, ChevronDown, ExternalLink } from "lucide-react";
 import { useFavorites } from "@/hooks/useFavorites";
 import { useSourceFilter } from "@/hooks/useSourceFilter";
 import { fetchSources, NewsSource } from "@/lib/api";
+import { SourceCoverageComparison } from "@/components/source-coverage-comparison";
 
 interface SourceSidebarProps {
   isOpen: boolean;
@@ -86,6 +87,15 @@ export function SourceSidebar({ isOpen, onClose, sourceRecency }: SourceSidebarP
     });
   }, [sources, searchQuery, sourceRecency]);
 
+  // Create source name lookup for coverage comparison
+  const sourceNameLookup = useMemo(() => {
+    const lookup: Record<string, string> = {};
+    sources.forEach((source) => {
+      lookup[source.id] = source.name;
+    });
+    return lookup;
+  }, [sources]);
+
   const toggleSection = (section: "favorites" | "allSources") => {
     setExpandedSections((prev) => ({
       ...prev,
@@ -137,6 +147,16 @@ export function SourceSidebar({ isOpen, onClose, sourceRecency }: SourceSidebarP
             <Badge variant="outline" className="cursor-pointer border-white/10 bg-white/5 text-[10px] font-mono uppercase tracking-[0.3em] text-foreground/80"
               onClick={handleClearAll}>
               {getSelectionCount()} selected </Badge>
+          </div>
+        )}
+
+        {/* Coverage Comparison - Show when 2+ sources are selected */}
+        {selectedSources.length >= 2 && (
+          <div className="px-4 py-3 border-b border-white/10">
+            <SourceCoverageComparison
+              sourceIds={selectedSources}
+              sourceNames={sourceNameLookup}
+            />
           </div>
         )}
 
