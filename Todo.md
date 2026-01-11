@@ -279,6 +279,15 @@ Identify which perspectives are NOT covering a story.
 - [ ] Add favicon
 - [ ] Enforce no-emoji UI policy in frontend
 
+## Cluster Label Improvement
+- [ ] Improve auto-generated cluster labels (current labels like "Afridi Hold Rally", "Korea Drone Claims" are awkward)
+- [ ] Options to explore:
+  - Lightweight LLM (250M params) to generate readable titles from keywords + representative headline
+  - Rule-based approach: extract subject + verb + object from representative article title
+  - Use representative article title directly if label quality is low
+  - Backend: add `label_quality` score, regenerate low-scoring labels with LLM
+- [ ] Keep latency minimal - labels should generate during clustering, not on-demand
+
 ## Performance + Infra
 - [ ] Investigate slow startup; measure and add Server-Timing header
 - [ ] Migrate RSS ingestion to Rust (feed_rs + tokio + pyo3/maturin)

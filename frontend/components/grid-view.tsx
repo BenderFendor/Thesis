@@ -40,6 +40,11 @@ const INITIAL_ARTICLES_MOBILE = 4
 const INITIAL_ARTICLES_TABLET = 6
 const INITIAL_ARTICLES_DESKTOP = 8
 
+// Columns for cluster grid: mobile=2, tablet=3, desktop=4
+const CLUSTER_COLS_MOBILE = 2
+const CLUSTER_COLS_TABLET = 3
+const CLUSTER_COLS_DESKTOP = 4
+
 interface GridViewProps {
   articles: NewsArticle[]
   loading: boolean
@@ -93,6 +98,7 @@ export function GridView({
   const [likedArticles, setLikedArticles] = useState<Set<number>>(new Set())
   const [expandedSourceId, setExpandedSourceId] = useState<string | null>(null)
   const [visibleGroupIds, setVisibleGroupIds] = useState<Set<string>>(new Set())
+  const [clusterColsPerRow, setClusterColsPerRow] = useState(CLUSTER_COLS_DESKTOP)
   const { addArticleToQueue, removeArticleFromQueue, isArticleInQueue } =
     useReadingQueue()
   const { isFavorite, toggleFavorite } = useFavorites()
@@ -179,10 +185,13 @@ export function GridView({
       const width = window.innerWidth
       if (width < 640) {
         setInitialArticleCount(INITIAL_ARTICLES_MOBILE)
+        setClusterColsPerRow(CLUSTER_COLS_MOBILE)
       } else if (width < 1024) {
         setInitialArticleCount(INITIAL_ARTICLES_TABLET)
+        setClusterColsPerRow(CLUSTER_COLS_TABLET)
       } else {
         setInitialArticleCount(INITIAL_ARTICLES_DESKTOP)
+        setClusterColsPerRow(CLUSTER_COLS_DESKTOP)
       }
     }
 
@@ -424,6 +433,23 @@ export function GridView({
         })
     }
   }, [viewMode])
+
+  // Group clusters into rows based on current column count
+  const clusterRows = useMemo(() => {
+    const rows: AllCluster[][] = []
+    for (let i = 0; i < clusters.length; i += clusterColsPerRow) {
+      rows.push(clusters.slice(i, i + clusterColsPerRow))
+    }
+    return rows
+  }, [clusters, clusterColsPerRow])
+
+  // Find which row contains the expanded cluster
+  const expandedRowIndex = useMemo(() => {
+    if (expandedClusterId === null) return -1
+    return clusterRows.findIndex(row => 
+      row.some(cluster => cluster.cluster_id === expandedClusterId)
+    )
+  }, [clusterRows, expandedClusterId])
 
   // Determine which articles to display based on mode
   const displayArticles = useVirtualization ? paginatedArticles : filteredNews
@@ -848,239 +874,254 @@ export function GridView({
                   No topics found
                 </div>
               ) : (
-                clusters.map((cluster) => {
-                  const representative = cluster.representative_article
-                  if (!representative) return null
-                  
-                  const isExpanded = expandedClusterId === cluster.cluster_id
-                  const cachedArticles = clusterArticlesCache.get(cluster.cluster_id)
-                  const isLoadingArticles = clusterArticlesLoading === cluster.cluster_id
+                <div className="space-y-0">
+                  {clusterRows.map((row, rowIndex) => {
+                    const isExpandedRow = rowIndex === expandedRowIndex
+                    const expandedCluster = isExpandedRow 
+                      ? row.find(c => c.cluster_id === expandedClusterId)
+                      : null
+                    const cachedArticles = expandedCluster 
+                      ? clusterArticlesCache.get(expandedCluster.cluster_id)
+                      : null
+                    const isLoadingArticles = expandedCluster 
+                      ? clusterArticlesLoading === expandedCluster.cluster_id
+                      : false
 
-                  return (
-                    <div
-                      key={cluster.cluster_id}
-                      data-cluster-id={cluster.cluster_id.toString()}
-                      className="grid-cluster-group bg-[var(--news-bg-secondary)] border border-white/10 overflow-hidden"
-                      style={{
-                        scrollSnapAlign: "start",
-                        scrollSnapStop: "always",
-                      }}
-                    >
-                      {/* Cluster Header - Clickable to expand */}
-                      <button
-                        onClick={() => handleExpandCluster(cluster.cluster_id)}
-                        className="w-full bg-[var(--news-bg-primary)] px-5 py-4 border-b border-white/10 flex items-center justify-between hover:bg-[var(--news-bg-primary)]/80 transition-colors"
-                      >
-                        <div className="flex items-center gap-3">
-                          {isExpanded ? (
-                            <ChevronDown className="w-5 h-5 text-primary" />
-                          ) : (
-                            <ChevronRight className="w-5 h-5 text-primary" />
-                          )}
-                          <Layers className="w-5 h-5 text-muted-foreground" />
-                          <div className="flex items-center gap-2">
-                            <span className="font-serif text-lg font-bold tracking-tight text-left">
-                              {cluster.label || cluster.keywords.slice(0, 3).join(", ")}
-                            </span>
-                            <Badge variant="outline" className="text-[10px] bg-[var(--news-bg-secondary)]">
-                              {cluster.source_diversity} sources
-                            </Badge>
-                          </div>
+                    return (
+                      <div key={`row-${rowIndex}`}>
+                        {/* Cluster Cards Row */}
+                        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 p-3">
+                          {row.map((cluster) => {
+                            const representative = cluster.representative_article
+                            if (!representative) return null
+                            
+                            const isThisExpanded = expandedClusterId === cluster.cluster_id
+                            const showImage = hasRealImage(representative.image_url)
+
+                            return (
+                              <button
+                                key={cluster.cluster_id}
+                                onClick={() => handleExpandCluster(cluster.cluster_id)}
+                                className={`group w-full text-left transition-all duration-200 ${
+                                  isThisExpanded 
+                                    ? "ring-2 ring-primary" 
+                                    : ""
+                                }`}
+                              >
+                                <Card className={`h-full overflow-hidden flex flex-col border bg-[var(--news-bg-secondary)] transition-colors duration-200 cursor-pointer rounded-none shadow-none ${
+                                  isThisExpanded 
+                                    ? "border-primary" 
+                                    : "border-white/10 group-hover:border-primary/60"
+                                }`}>
+                                  {/* Hero Image */}
+                                  <div className="relative aspect-video overflow-hidden bg-[var(--news-bg-primary)]/40 flex-shrink-0">
+                                    {showImage ? (
+                                      <>
+                                        <img
+                                          src={representative.image_url!}
+                                          alt={representative.title}
+                                          className="w-full h-full object-cover grayscale group-hover:grayscale-0 transition duration-300"
+                                          loading="lazy"
+                                        />
+                                        <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent" />
+                                      </>
+                                    ) : (
+                                      <>
+                                        <div className="absolute inset-0 bg-gradient-to-br from-primary/5 via-muted/20 to-background" />
+                                        <div className="absolute inset-0 flex items-center justify-center">
+                                          <Layers className="w-12 h-12 text-muted-foreground/30" />
+                                        </div>
+                                      </>
+                                    )}
+                                    
+                                    {/* Expand indicator */}
+                                    <div className="absolute top-2 right-2">
+                                      {isThisExpanded ? (
+                                        <ChevronDown className="w-5 h-5 text-white drop-shadow-lg" />
+                                      ) : (
+                                        <ChevronRight className="w-5 h-5 text-white/70 group-hover:text-white drop-shadow-lg" />
+                                      )}
+                                    </div>
+
+                                    {/* Title overlay on image */}
+                                    <div className="absolute bottom-0 left-0 right-0 p-3">
+                                      <h3 className="font-serif text-sm font-bold text-white leading-snug line-clamp-2 drop-shadow-lg">
+                                        {cluster.label || representative.title}
+                                      </h3>
+                                    </div>
+                                  </div>
+
+                                  {/* Meta Info */}
+                                  <CardContent className="p-3 flex items-center justify-between gap-2">
+                                    <Badge variant="outline" className="text-[9px] bg-transparent border-white/20">
+                                      {cluster.source_diversity} sources
+                                    </Badge>
+                                    <Badge variant="outline" className="text-[9px] bg-transparent border-white/20">
+                                      {cluster.article_count} articles
+                                    </Badge>
+                                  </CardContent>
+                                </Card>
+                              </button>
+                            )
+                          })}
                         </div>
-                        <Badge
-                          variant="outline"
-                          className="text-[10px] font-semibold px-2 py-0.5 bg-[var(--news-bg-secondary)]"
-                        >
-                          {cluster.article_count} articles
-                        </Badge>
-                      </button>
 
-                      {/* Skim Mode - Compact overview */}
-                      {!isExpanded && (
-                        <div 
-                          className="p-4 flex gap-4 cursor-pointer hover:bg-[var(--news-bg-primary)]/30 transition-colors"
-                          onClick={() => handleExpandCluster(cluster.cluster_id)}
-                        >
-                          {/* Hero image */}
-                          {representative.image_url && hasRealImage(representative.image_url) && (
-                            <div className="flex-shrink-0 w-32 md:w-48 aspect-video overflow-hidden rounded-lg">
-                              <img
-                                src={representative.image_url}
-                                alt={representative.title}
-                                className="w-full h-full object-cover grayscale hover:grayscale-0 transition duration-300"
-                                loading="lazy"
-                              />
-                            </div>
-                          )}
-                          
-                          {/* Content */}
-                          <div className="flex-1 min-w-0">
-                            <h3 className="font-serif text-base md:text-lg font-bold leading-snug line-clamp-2 mb-2">
-                              {representative.title}
-                            </h3>
-                            
-                            {representative.summary && (
-                              <p className="text-xs text-muted-foreground leading-relaxed line-clamp-2 mb-3">
-                                {representative.summary}
-                              </p>
-                            )}
-                            
-                            {/* Source list and keywords */}
-                            <div className="flex items-center gap-2 flex-wrap">
-                              <span className="text-xs text-muted-foreground">
-                                {representative.source}
-                              </span>
-                              {cluster.source_diversity > 1 && (
-                                <span className="text-xs text-muted-foreground">
-                                  + {cluster.source_diversity - 1} more
+                        {/* Inline Expansion Panel - appears below the row */}
+                        {isExpandedRow && expandedCluster && (
+                          <div className="mx-3 mb-3 bg-[var(--news-bg-secondary)] border border-primary/50 overflow-hidden">
+                            {/* Expansion Header */}
+                            <div className="bg-[var(--news-bg-primary)] px-5 py-4 border-b border-white/10 flex items-center justify-between">
+                              <div className="flex items-center gap-3">
+                                <Layers className="w-5 h-5 text-primary" />
+                                <span className="font-serif text-lg font-bold tracking-tight">
+                                  {expandedCluster.label || expandedCluster.keywords.slice(0, 3).join(", ")}
                                 </span>
-                              )}
-                              <span className="text-muted-foreground">|</span>
-                              {cluster.keywords.slice(0, 3).map((keyword) => (
-                                <Badge
-                                  key={keyword}
-                                  variant="outline"
-                                  className="text-[9px] bg-transparent px-1.5 py-0"
-                                >
-                                  {keyword}
+                                <Badge variant="outline" className="text-[10px] bg-[var(--news-bg-secondary)]">
+                                  {expandedCluster.source_diversity} sources
                                 </Badge>
-                              ))}
+                              </div>
+                              <div className="flex items-center gap-3">
+                                <Badge variant="outline" className="text-[10px] bg-[var(--news-bg-secondary)]">
+                                  {expandedCluster.article_count} articles
+                                </Badge>
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  onClick={() => setExpandedClusterId(null)}
+                                  className="h-8 px-3 text-xs"
+                                >
+                                  Close
+                                </Button>
+                              </div>
                             </div>
-                          </div>
-                          
-                          {/* Expand indicator */}
-                          <div className="flex-shrink-0 self-center">
-                            <ChevronRight className="w-5 h-5 text-muted-foreground" />
-                          </div>
-                        </div>
-                      )}
 
-                      {/* Expanded Mode - Full article grid */}
-                      {isExpanded && (
-                        <div className="p-3">
-                          {isLoadingArticles ? (
-                            <div className="flex items-center justify-center py-8">
-                              <Loader2 className="w-6 h-6 animate-spin text-muted-foreground" />
-                              <span className="ml-2 text-sm text-muted-foreground">Loading articles...</span>
-                            </div>
-                          ) : cachedArticles && cachedArticles.length > 0 ? (
-                            <>
-                              <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
-                                {cachedArticles.slice(0, isExpanded ? cachedArticles.length : initialArticleCount).map((article) => {
-                                  const showImage = hasRealImage(article.image)
+                            {/* Articles Grid */}
+                            <div className="p-3">
+                              {isLoadingArticles ? (
+                                <div className="flex items-center justify-center py-8">
+                                  <Loader2 className="w-6 h-6 animate-spin text-muted-foreground" />
+                                  <span className="ml-2 text-sm text-muted-foreground">Loading articles...</span>
+                                </div>
+                              ) : cachedArticles && cachedArticles.length > 0 ? (
+                                <>
+                                  <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
+                                    {cachedArticles.map((article) => {
+                                      const showArticleImage = hasRealImage(article.image)
 
-                                  return (
-                                    <button
-                                      key={article.url ? `url:${article.url}` : `id:${article.id}`}
-                                      onClick={(e) => {
-                                        e.stopPropagation()
-                                        handleArticleClick(article)
-                                      }}
-                                      className="group w-full text-left transition-colors duration-200 snap-start"
-                                    >
-                                      <Card className="h-full overflow-hidden flex flex-col border border-white/10 bg-[var(--news-bg-secondary)] transition-colors duration-200 group-hover:border-primary/60 cursor-pointer rounded-none shadow-none">
-                                        {/* Image */}
-                                        <div className="relative aspect-video overflow-hidden bg-[var(--news-bg-primary)]/40 flex-shrink-0">
-                                          {showImage ? (
-                                            <>
-                                              <img
-                                                src={article.image}
-                                                alt={article.title}
-                                                className="w-full h-full object-cover grayscale group-hover:grayscale-0 transition duration-300"
-                                                loading="lazy"
-                                              />
-                                              <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-transparent to-transparent" />
-                                            </>
-                                          ) : (
-                                            <>
-                                              <div className="absolute inset-0 bg-gradient-to-br from-primary/5 via-muted/20 to-background" />
-                                              <div className="absolute inset-0 p-4 flex flex-col items-center justify-center text-center">
-                                                <h3 className="text-sm font-bold text-foreground/90 leading-snug line-clamp-4 font-serif">
+                                      return (
+                                        <button
+                                          key={article.url ? `url:${article.url}` : `id:${article.id}`}
+                                          onClick={(e) => {
+                                            e.stopPropagation()
+                                            handleArticleClick(article)
+                                          }}
+                                          className="group w-full text-left transition-colors duration-200"
+                                        >
+                                          <Card className="h-full overflow-hidden flex flex-col border border-white/10 bg-[var(--news-bg-secondary)] transition-colors duration-200 group-hover:border-primary/60 cursor-pointer rounded-none shadow-none">
+                                            {/* Image */}
+                                            <div className="relative aspect-video overflow-hidden bg-[var(--news-bg-primary)]/40 flex-shrink-0">
+                                              {showArticleImage ? (
+                                                <>
+                                                  <img
+                                                    src={article.image}
+                                                    alt={article.title}
+                                                    className="w-full h-full object-cover grayscale group-hover:grayscale-0 transition duration-300"
+                                                    loading="lazy"
+                                                  />
+                                                  <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-transparent to-transparent" />
+                                                </>
+                                              ) : (
+                                                <>
+                                                  <div className="absolute inset-0 bg-gradient-to-br from-primary/5 via-muted/20 to-background" />
+                                                  <div className="absolute inset-0 p-4 flex flex-col items-center justify-center text-center">
+                                                    <h3 className="text-sm font-bold text-foreground/90 leading-snug line-clamp-4 font-serif">
+                                                      {article.title}
+                                                    </h3>
+                                                  </div>
+                                                </>
+                                              )}
+
+                                              {/* Source Badge */}
+                                              <div className="absolute top-2 left-2">
+                                                <Badge
+                                                  variant="outline"
+                                                  className="text-[9px] font-semibold px-1.5 py-0 bg-black/70 text-foreground border-white/20"
+                                                >
+                                                  {article.source}
+                                                </Badge>
+                                              </div>
+
+                                              {/* Action Buttons */}
+                                              <div className="absolute top-1 right-1 flex gap-1">
+                                                <Button
+                                                  variant="ghost"
+                                                  size="sm"
+                                                  onClick={(e) => {
+                                                    e.stopPropagation()
+                                                    handleQueueToggle(article)
+                                                  }}
+                                                  className="h-6 w-6 p-0 bg-black/50 hover:bg-black/70"
+                                                >
+                                                  {isArticleInQueue(article.url) ? (
+                                                    <MinusCircle className="w-3 h-3 text-foreground/70" />
+                                                  ) : (
+                                                    <PlusCircle className="w-3 h-3 text-foreground" />
+                                                  )}
+                                                </Button>
+                                              </div>
+                                            </div>
+
+                                            {/* Content */}
+                                            <CardContent className="flex-1 flex flex-col p-3">
+                                              {showArticleImage && (
+                                                <h3 className="text-sm font-bold text-foreground leading-snug line-clamp-2 font-serif">
                                                   {article.title}
                                                 </h3>
-                                              </div>
-                                            </>
-                                          )}
-
-                                          {/* Source Badge - Important for topic view */}
-                                          <div className="absolute top-2 left-2">
-                                            <Badge
-                                              variant="outline"
-                                              className="text-[9px] font-semibold px-1.5 py-0 bg-black/70 text-foreground border-white/20"
-                                            >
-                                              {article.source}
-                                            </Badge>
-                                          </div>
-
-                                          {/* Action Buttons */}
-                                          <div className="absolute top-1 right-1 flex gap-1">
-                                            <Button
-                                              variant="ghost"
-                                              size="sm"
-                                              onClick={(e) => {
-                                                e.stopPropagation()
-                                                handleQueueToggle(article)
-                                              }}
-                                              className="h-6 w-6 p-0 bg-black/50 hover:bg-black/70"
-                                            >
-                                              {isArticleInQueue(article.url) ? (
-                                                <MinusCircle className="w-3 h-3 text-foreground/70" />
-                                              ) : (
-                                                <PlusCircle className="w-3 h-3 text-foreground" />
                                               )}
-                                            </Button>
-                                          </div>
-                                        </div>
-
-                                        {/* Content */}
-                                        <CardContent className="flex-1 flex flex-col p-3">
-                                          {showImage && (
-                                            <h3 className="text-sm font-bold text-foreground leading-snug line-clamp-2 font-serif">
-                                              {article.title}
-                                            </h3>
-                                          )}
-                                          <div className="flex items-center gap-1 text-xs text-muted-foreground/70 mt-auto pt-2">
-                                            <Clock className="w-3 h-3" />
-                                            <span>
-                                              {new Date(article.publishedAt).toLocaleDateString("en-US", {
-                                                month: "short",
-                                                day: "numeric",
-                                              })}
-                                            </span>
-                                          </div>
-                                        </CardContent>
-                                      </Card>
-                                    </button>
-                                  )
-                                })}
-                              </div>
-                              
-                              {/* Keywords at bottom of expanded view */}
-                              {cluster.keywords.length > 0 && (
-                                <div className="flex items-center gap-2 flex-wrap mt-4 pt-3 border-t border-white/10">
-                                  <span className="text-xs text-muted-foreground">Keywords:</span>
-                                  {cluster.keywords.slice(0, 8).map((keyword) => (
-                                    <Badge
-                                      key={keyword}
-                                      variant="outline"
-                                      className="text-[10px] bg-[var(--news-bg-secondary)]"
-                                    >
-                                      {keyword}
-                                    </Badge>
-                                  ))}
+                                              <div className="flex items-center gap-1 text-xs text-muted-foreground/70 mt-auto pt-2">
+                                                <Clock className="w-3 h-3" />
+                                                <span>
+                                                  {new Date(article.publishedAt).toLocaleDateString("en-US", {
+                                                    month: "short",
+                                                    day: "numeric",
+                                                  })}
+                                                </span>
+                                              </div>
+                                            </CardContent>
+                                          </Card>
+                                        </button>
+                                      )
+                                    })}
+                                  </div>
+                                  
+                                  {/* Keywords */}
+                                  {expandedCluster.keywords.length > 0 && (
+                                    <div className="flex items-center gap-2 flex-wrap mt-4 pt-3 border-t border-white/10">
+                                      <span className="text-xs text-muted-foreground">Keywords:</span>
+                                      {expandedCluster.keywords.slice(0, 8).map((keyword) => (
+                                        <Badge
+                                          key={keyword}
+                                          variant="outline"
+                                          className="text-[10px] bg-[var(--news-bg-secondary)]"
+                                        >
+                                          {keyword}
+                                        </Badge>
+                                      ))}
+                                    </div>
+                                  )}
+                                </>
+                              ) : (
+                                <div className="text-center py-8 text-muted-foreground">
+                                  No articles found for this topic
                                 </div>
                               )}
-                            </>
-                          ) : (
-                            <div className="text-center py-8 text-muted-foreground">
-                              No articles found for this topic
                             </div>
-                          )}
-                        </div>
-                      )}
-                    </div>
-                  )
-                })
+                          </div>
+                        )}
+                      </div>
+                    )
+                  })}
+                </div>
               )
             )}
           </div>
