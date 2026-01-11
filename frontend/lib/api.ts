@@ -2870,6 +2870,32 @@ export async function fetchClusterDetail(clusterId: number): Promise<ClusterDeta
 }
 
 /**
+ * Fetch all articles for a cluster and transform to NewsArticle format
+ * Used by topic view expansion
+ */
+export async function fetchClusterArticles(clusterId: number): Promise<NewsArticle[]> {
+  const detail = await fetchClusterDetail(clusterId);
+  
+  return detail.articles.map((article) => ({
+    id: article.id,
+    title: article.title,
+    source: article.source,
+    sourceId: article.source.toLowerCase().replace(/\s+/g, "-"),
+    country: "US",
+    credibility: "medium" as const,
+    bias: "center" as const,
+    summary: "",
+    image: article.image_url || "",
+    publishedAt: article.published_at || new Date().toISOString(),
+    category: "news",
+    url: article.url,
+    tags: [],
+    originalLanguage: "en",
+    translated: false,
+  }));
+}
+
+/**
  * Get trending system statistics
  */
 export async function fetchTrendingStats(): Promise<TrendingStats> {

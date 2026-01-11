@@ -58,3 +58,11 @@ Code should be self-documenting. If you need a comment to explain WHAT the code 
 - New components should adopt existing styling patterns from sibling components (card sizes, scroll behavior, spacing).
 - Use props for feature toggling rather than conditional imports or wrapper components.
 - When converting layouts (grid to scroll, vertical to horizontal), update both the container and all child elements for consistent sizing.
+
+## Grid View Patterns
+- Grid views use vertical scroll with CSS `scroll-snap-type: y mandatory`.
+- Each row of articles uses `scroll-snap-align: start` for snap-to-row behavior.
+- Responsive columns: 2 (mobile), 3 (tablet), 4 (desktop) using `grid-cols-2 md:grid-cols-3 lg:grid-cols-4`.
+- Groups (source/topic) show responsive initial articles: 4 (mobile), 6 (tablet), 8 (desktop) with "View all X" expansion.
+- Topic view has two modes: skim (hero image + title + source list) and expanded (full article grid).
+- No horizontal scroll in grid views; use vertical scroll throughout.

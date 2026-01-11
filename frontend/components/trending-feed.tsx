@@ -232,15 +232,9 @@ export function TrendingFeed() {
           </span>
         </div>
 
-        {/* Horizontal Scroll Row */}
+        {/* Vertical Grid */}
         <div className="p-3">
-          <div
-            className="flex gap-0 overflow-x-auto pb-2 snap-x snap-mandatory border-t border-white/10"
-            style={{
-              scrollbarWidth: "thin",
-              WebkitOverflowScrolling: "touch",
-            }}
-          >
+          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
             {/* Breaking stories first */}
             {breakingClusters.map((cluster) => (
               <BreakingCard
@@ -316,9 +310,9 @@ function BreakingCard({
   return (
     <button
       onClick={handleClick}
-      className="group flex-shrink-0 w-[280px] text-left transition-colors duration-200 border-r border-white/10 snap-start"
+      className="group w-full text-left transition-colors duration-200"
     >
-      <Card className="h-full overflow-hidden flex flex-col border-0 bg-[var(--news-bg-secondary)] transition-colors duration-200 group-hover:border-red-500/60 cursor-pointer rounded-none shadow-none relative">
+      <Card className="h-full overflow-hidden flex flex-col border border-white/10 bg-[var(--news-bg-secondary)] transition-colors duration-200 group-hover:border-red-500/60 cursor-pointer rounded-none shadow-none relative">
         {/* Red accent for breaking */}
         <div className="absolute top-0 left-0 w-1 h-full bg-red-500 z-10" />
         
@@ -455,9 +449,9 @@ function TrendingCard({
   return (
     <button
       onClick={handleClick}
-      className="group flex-shrink-0 w-[280px] text-left transition-colors duration-200 border-r border-white/10 snap-start"
+      className="group w-full text-left transition-colors duration-200"
     >
-      <Card className="h-full overflow-hidden flex flex-col border-0 bg-[var(--news-bg-secondary)] transition-colors duration-200 group-hover:border-primary/60 cursor-pointer rounded-none shadow-none">
+      <Card className="h-full overflow-hidden flex flex-col border border-white/10 bg-[var(--news-bg-secondary)] transition-colors duration-200 group-hover:border-primary/60 cursor-pointer rounded-none shadow-none">
         {/* Image or fallback */}
         <div className="relative aspect-video overflow-hidden bg-[var(--news-bg-primary)]/40 flex-shrink-0">
           {showImage ? (
@@ -570,11 +564,11 @@ function TrendingSkeleton() {
         <Skeleton className="h-6 w-40" />
       </div>
       <div className="p-3">
-        <div className="flex gap-0 overflow-x-auto border-t border-white/10">
-          {[1, 2, 3, 4, 5].map((i) => (
-            <div key={i} className="flex-shrink-0 w-[280px] border-r border-white/10 p-0">
+        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
+          {[1, 2, 3, 4, 5, 6, 7, 8].map((i) => (
+            <div key={i} className="border border-white/10">
               <div className="aspect-video bg-white/5" />
-              <div className="p-6 space-y-3">
+              <div className="p-4 space-y-3">
                 <Skeleton className="h-5 w-full" />
                 <Skeleton className="h-4 w-3/4" />
                 <Skeleton className="h-3 w-1/2" />
