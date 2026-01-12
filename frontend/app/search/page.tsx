@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useRef, useEffect, useMemo } from "react"
+import { useCallback, useState, useRef, useEffect, useMemo } from "react"
 import {
   Search,
   Loader2,
@@ -122,6 +122,26 @@ export default function NewsResearchPage() {
   const [messages, setMessages] = useState<Message[]>([])
   const [selectedArticle, setSelectedArticle] = useState<NewsArticle | null>(null)
   const [isArticleModalOpen, setIsArticleModalOpen] = useState(false)
+
+  const handleNavigateModalArticle = useCallback(
+    (direction: "prev" | "next") => {
+      if (!selectedArticle) return
+      const index = messages.findIndex(
+        (message) =>
+          message.type === "article" &&
+          message.article.url === selectedArticle.url,
+      )
+      if (index < 0) return
+
+      const delta = direction === "next" ? 1 : -1
+      const nextIndex = index + delta
+      const nextMessage = messages[nextIndex]
+      if (!nextMessage || nextMessage.type !== "article") return
+
+      setSelectedArticle(nextMessage.article)
+    },
+    [messages, selectedArticle],
+  )
   const [chats, setChats] = useState<ChatSummary[]>([])
   const [chatMessagesMap, setChatMessagesMap] = useState<Record<string, Message[]>>({})
   const [activeChatId, setActiveChatId] = useState<string | null>(null)
@@ -1313,6 +1333,7 @@ export default function NewsResearchPage() {
           setIsArticleModalOpen(false)
           setSelectedArticle(null)
         }}
+        onNavigate={handleNavigateModalArticle}
       />
     </div>
   )

@@ -2,7 +2,7 @@
 
 import { NewsArticle } from "@/lib/api"
 import { Badge } from "@/components/ui/badge"
-import { useMemo, useState } from "react"
+import { useCallback, useMemo, useState } from "react"
 import { ArticleDetailModal } from "./article-detail-modal"
 
 interface ListViewProps {
@@ -17,6 +17,8 @@ export function ListView({ articles, loading }: ListViewProps) {
 
   const sortedArticles = useMemo(() => {
     const sorted = [...articles]
+
+  
     const byDateDesc = (a: NewsArticle, b: NewsArticle) =>
       new Date(b.publishedAt).getTime() - new Date(a.publishedAt).getTime()
     const byDateAsc = (a: NewsArticle, b: NewsArticle) =>
@@ -58,6 +60,22 @@ export function ListView({ articles, loading }: ListViewProps) {
     }
   }, [articles, sortBy])
 
+  const handleNavigateModalArticle = useCallback(
+    (direction: "prev" | "next") => {
+      if (!selectedArticle) return
+      const currentIndex = sortedArticles.findIndex((item) => item.url === selectedArticle.url)
+      if (currentIndex < 0) return
+
+      const delta = direction === "next" ? 1 : -1
+      const nextIndex = currentIndex + delta
+      const nextArticle = sortedArticles[nextIndex]
+      if (!nextArticle) return
+
+      setSelectedArticle(nextArticle)
+    },
+    [selectedArticle, sortedArticles],
+  )
+ 
   if (loading) {
     return (
       <div className="w-full h-full flex items-center justify-center p-12">
@@ -158,6 +176,7 @@ export function ListView({ articles, loading }: ListViewProps) {
           setIsArticleModalOpen(false)
           setSelectedArticle(null)
         }}
+        onNavigate={handleNavigateModalArticle}
       />
     </div>
   )

@@ -132,9 +132,19 @@ class FrontendPerformanceLogger {
     if (typeof window === "undefined" || !window.performance) return;
 
     const timing = performance.timing;
-    const loadTime = timing.loadEventEnd - timing.navigationStart;
-    const domReady = timing.domContentLoadedEventEnd - timing.navigationStart;
-    const ttfb = timing.responseStart - timing.navigationStart;
+    if (!timing) return;
+
+    const navigationStart = timing.navigationStart ?? 0;
+    const loadEventEnd = timing.loadEventEnd ?? 0;
+    const domContentLoadedEventEnd = timing.domContentLoadedEventEnd ?? 0;
+    const responseStart = timing.responseStart ?? 0;
+    const domComplete = timing.domComplete ?? 0;
+
+    if (!navigationStart || !loadEventEnd || loadEventEnd < navigationStart) return;
+
+    const loadTime = loadEventEnd - navigationStart;
+    const domReady = domContentLoadedEventEnd ? domContentLoadedEventEnd - navigationStart : null;
+    const ttfb = responseStart ? responseStart - navigationStart : null;
 
     this.logEvent("page_load", "page", "load", {
       message: `Page loaded in ${loadTime}ms`,
@@ -142,8 +152,8 @@ class FrontendPerformanceLogger {
       details: {
         domReady,
         ttfb,
-        domComplete: timing.domComplete - timing.navigationStart,
-        resourceLoadTime: timing.loadEventEnd - timing.domContentLoadedEventEnd,
+        domComplete: domComplete ? domComplete - navigationStart : null,
+        resourceLoadTime: domContentLoadedEventEnd ? loadEventEnd - domContentLoadedEventEnd : null,
         url: window.location.pathname,
       },
     });

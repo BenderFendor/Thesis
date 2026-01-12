@@ -284,6 +284,22 @@ export function GridView({
     setIsArticleModalOpen(true)
   }, [])
 
+  const handleNavigateModalArticle = useCallback(
+    (direction: "prev" | "next") => {
+      if (!selectedArticle) return
+      const currentIndex = paginatedArticles.findIndex((item) => item.url === selectedArticle.url)
+      if (currentIndex < 0) return
+
+      const delta = direction === "next" ? 1 : -1
+      const nextIndex = currentIndex + delta
+      const nextArticle = paginatedArticles[nextIndex]
+      if (!nextArticle) return
+
+      setSelectedArticle(nextArticle)
+    },
+    [selectedArticle, paginatedArticles],
+  )
+
   const handleLike = useCallback((articleId: number) => {
     setLikedArticles((prev) => {
       const next = new Set(prev)
@@ -552,6 +568,7 @@ export function GridView({
             setIsArticleModalOpen(false)
             setSelectedArticle(null)
           }}
+          onNavigate={handleNavigateModalArticle}
         />
       </div>
     )

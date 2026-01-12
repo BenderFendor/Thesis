@@ -22,12 +22,11 @@ export interface Notification {
 }
 
 interface NotificationsPopupProps {
+  isOpen: boolean;
   notifications: Notification[];
-  onClear: (id: string) => void;
-  onClearAll: () => void;
-  onAction?: (type: NotificationActionType, notification: Notification) => void;
+  onAction?: (action: NotificationActionType, notification?: Notification) => void;
   onClose: () => void;
-  anchorRef: React.RefObject<HTMLButtonElement | null>;
+  anchorRef?: React.RefObject<HTMLButtonElement | null>;
 }
 
 const getTypeIcon = (type: Notification['type']) => {
@@ -43,10 +42,8 @@ const getTypeIcon = (type: Notification['type']) => {
   }
 };
 
-export function NotificationsPopup({ notifications, onClear, onClearAll, onAction, onClose, anchorRef }: NotificationsPopupProps) {
-  const unreadCount = notifications.filter(
-    (item) => item.type === "error" || item.type === "warning"
-  ).length;
+export function NotificationsPopup({ isOpen, notifications, onAction, onClose, anchorRef }: NotificationsPopupProps) {
+  const unreadCount = notifications.filter((item) => item.type === "error" || item.type === "warning").length;
   
   const popupRef = useRef<HTMLDivElement>(null);
   const [position, setPosition] = useState({ top: 0, left: 0 });
@@ -57,35 +54,36 @@ export function NotificationsPopup({ notifications, onClear, onClearAll, onActio
   }, []);
 
   useEffect(() => {
-    if (!anchorRef.current) return;
-    
+    const anchorEl = anchorRef?.current;
+    if (!anchorEl) return;
+
     const updatePosition = () => {
-      if (!anchorRef.current) return;
-      const rect = anchorRef.current.getBoundingClientRect();
+      const currentAnchor = anchorRef?.current;
+      if (!currentAnchor) return;
+      const rect = currentAnchor.getBoundingClientRect();
       setPosition({
         top: rect.top - 8,
         left: rect.right + 8,
       });
     };
-    
+
     updatePosition();
-    window.addEventListener('resize', updatePosition);
-    window.addEventListener('scroll', updatePosition, true);
-    
+    window.addEventListener("resize", updatePosition);
+    window.addEventListener("scroll", updatePosition, true);
+
     return () => {
-      window.removeEventListener('resize', updatePosition);
-      window.removeEventListener('scroll', updatePosition, true);
+      window.removeEventListener("resize", updatePosition);
+      window.removeEventListener("scroll", updatePosition, true);
     };
   }, [anchorRef]);
 
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
-      if (
-        popupRef.current &&
-        !popupRef.current.contains(event.target as Node) &&
-        anchorRef.current &&
-        !anchorRef.current.contains(event.target as Node)
-      ) {
+      const anchorEl = anchorRef?.current;
+      if (!popupRef.current) return;
+      if (!anchorEl) return;
+
+      if (!popupRef.current.contains(event.target as Node) && !anchorEl.contains(event.target as Node)) {
         onClose();
       }
     };
@@ -105,7 +103,7 @@ export function NotificationsPopup({ notifications, onClear, onClearAll, onActio
     };
   }, [onClose, anchorRef]);
 
-  if (!mounted) return null;
+  if (!mounted || !isOpen) return null;
 
   const popup = (
     <div
@@ -167,15 +165,24 @@ export function NotificationsPopup({ notifications, onClear, onClearAll, onActio
                       )}
                     </div>
                   </div>
-                  <button onClick={(e) => { e.stopPropagation(); onClear(notification.id); }} className="absolute top-4 right-4 text-muted-foreground hover:text-foreground transition-colors opacity-0 group-hover:opacity-100">
+                  <button
+                    onClick={(event) => {
+                      event.stopPropagation();
+                      onAction?.("refresh", notification);
+                    }}
+                    className="absolute top-4 right-4 text-muted-foreground hover:text-foreground transition-colors opacity-0 group-hover:opacity-100"
+                  >
                     <XCircle className="w-4 h-4" />
                   </button>
                 </div>
               ))}
               <div className="p-2 text-center border-t border-white/10">
-                  <button onClick={onClearAll} className="text-sm font-medium text-primary hover:underline">
-                      Clear all notifications
-                  </button>
+                <button
+                  onClick={() => onAction?.("refresh")}
+                  className="text-sm font-medium text-primary hover:underline"
+                >
+                  Refresh notifications
+                </button>
               </div>
             </div>
           ) : (

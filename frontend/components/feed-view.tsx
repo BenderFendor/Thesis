@@ -99,6 +99,22 @@ export function FeedView({ articles, loading }: FeedViewProps) {
     setIsArticleModalOpen(true);
   }, []);
 
+  const handleNavigateModalArticle = useCallback(
+    (direction: "prev" | "next") => {
+      if (!selectedArticle) return;
+      const currentIndex = articles.findIndex((item) => item.url === selectedArticle.url);
+      if (currentIndex < 0) return;
+
+      const delta = direction === "prev" ? -1 : 1;
+      const nextIndex = currentIndex + delta;
+      const nextArticle = articles[nextIndex];
+      if (!nextArticle) return;
+
+      setSelectedArticle(nextArticle);
+    },
+    [articles, selectedArticle],
+  );
+
   const scrollToIndex = useCallback(
     (index: number, smooth = true) => {
       if (!articles.length) {
@@ -345,6 +361,7 @@ export function FeedView({ articles, loading }: FeedViewProps) {
         onClose={() => setIsArticleModalOpen(false)}
         initialIsBookmarked={selectedArticle ? bookmarkedArticles.has(selectedArticle.id) : false}
         onBookmarkChange={handleModalBookmarkChange}
+        onNavigate={handleNavigateModalArticle}
       />
     </>
   );

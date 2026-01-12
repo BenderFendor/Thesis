@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useMemo } from "react"
+import { useCallback, useState, useMemo } from "react"
 import { InteractiveGlobe } from "./interactive-globe"
 import { ArticleDetailModal } from "./article-detail-modal"
 import { NewsArticle } from "@/lib/api"
@@ -46,6 +46,22 @@ export function GlobeView({ articles, loading }: GlobeViewProps) {
     setSelectedArticle(article)
     setIsArticleModalOpen(true)
   }
+
+  const handleNavigateModalArticle = useCallback(
+    (direction: "prev" | "next") => {
+      if (!selectedArticle) return
+      const currentIndex = filteredArticles.findIndex((item) => item.url === selectedArticle.url)
+      if (currentIndex < 0) return
+
+      const delta = direction === "next" ? 1 : -1
+      const nextIndex = currentIndex + delta
+      const nextArticle = filteredArticles[nextIndex]
+      if (!nextArticle) return
+
+      setSelectedArticle(nextArticle)
+    },
+    [filteredArticles, selectedArticle],
+  )
 
   const filteredArticles = useMemo(() => {
       if (!selectedCountry) return articles
@@ -347,7 +363,12 @@ export function GlobeView({ articles, loading }: GlobeViewProps) {
         </div>
       </div>
 
-      <ArticleDetailModal isOpen={isArticleModalOpen} onClose={() => setIsArticleModalOpen(false)} article={selectedArticle} />
+      <ArticleDetailModal
+        isOpen={isArticleModalOpen}
+        onClose={() => setIsArticleModalOpen(false)}
+        article={selectedArticle}
+        onNavigate={handleNavigateModalArticle}
+      />
     </div>
   )
 }

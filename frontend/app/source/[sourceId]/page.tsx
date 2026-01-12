@@ -39,6 +39,22 @@ export default function SourcePage({ params }: SourcePageProps) {
     setAllArticles(articles)
   }, [])
 
+  const handleNavigateModalArticle = useCallback(
+    (direction: "prev" | "next") => {
+      if (!selectedArticle) return
+      const currentIndex = allArticles.findIndex((item) => item.url === selectedArticle.url)
+      if (currentIndex < 0) return
+
+      const delta = direction === "next" ? 1 : -1
+      const nextIndex = currentIndex + delta
+      const nextArticle = allArticles[nextIndex]
+      if (!nextArticle) return
+
+      setSelectedArticle(nextArticle)
+    },
+    [allArticles, selectedArticle],
+  )
+
   const { isStreaming } = useNewsStream({
     onUpdate,
     autoStart: true,
@@ -341,6 +357,7 @@ export default function SourcePage({ params }: SourcePageProps) {
         article={selectedArticle}
         isOpen={modalOpen}
         onClose={() => setModalOpen(false)}
+        onNavigate={handleNavigateModalArticle}
       />
     </div>
   )
