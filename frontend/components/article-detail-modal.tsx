@@ -1,13 +1,13 @@
 "use client"
 
 import { useState, useEffect, useMemo, useRef } from "react"
-import { useRouter } from "next/navigation"
+import { logUserAction } from "@/lib/performance-logger"
 import Link from "next/link"
-import { X, ExternalLink, Heart, Bookmark, AlertTriangle, DollarSign, Bug, Link as LinkIcon, Rss, Sparkles, Maximize2, Minimize2, Loader2, Search, RefreshCw, CheckCircle2, XCircle, Copy, PlusCircle, MinusCircle, Star, BookOpen } from "lucide-react"
+import { X, ExternalLink, Heart, Bookmark, AlertTriangle, DollarSign, Bug, Link as LinkIcon, Rss, Sparkles, Maximize2, Minimize2, Loader2, Search, RefreshCw, CheckCircle2, XCircle, Copy, PlusCircle, MinusCircle, Star, Edit2, Trash2, Eye, EyeOff, Download } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
-import { type NewsArticle, getSourceById, type NewsSource, fetchSourceDebugData, type SourceDebugData, analyzeArticle, type ArticleAnalysis, API_BASE_URL, createBookmark, deleteBookmark, performAgenticSearch, type FactCheckResult, addToReadingQueue, type Highlight, getHighlightsForArticle, updateHighlight } from "@/lib/api"
+import { type NewsArticle, getSourceById, type NewsSource, fetchSourceDebugData, type SourceDebugData, analyzeArticle, type ArticleAnalysis, API_BASE_URL, createBookmark, deleteBookmark, performAgenticSearch, type FactCheckResult, type Highlight, getHighlightsForArticle, updateHighlight, deleteHighlight } from "@/lib/api"
 import { isDebugMode } from "@/lib/logger"
 import { useReadingQueue } from "@/hooks/useReadingQueue"
 import { useFavorites } from "@/hooks/useFavorites"
@@ -60,13 +60,13 @@ interface ArticleDetailModalProps {
   onClose: () => void
   initialIsBookmarked?: boolean
   onBookmarkChange?: (articleId: number, isBookmarked: boolean) => void
+  onNavigate?: (direction: "prev" | "next") => void
 }
 
-export function ArticleDetailModal({ article, isOpen, onClose, initialIsBookmarked = false, onBookmarkChange }: ArticleDetailModalProps) {
-  const router = useRouter()
+export function ArticleDetailModal({ article, isOpen, onClose, initialIsBookmarked = false, onBookmarkChange, onNavigate }: ArticleDetailModalProps) {
   const [isLiked, setIsLiked] = useState(false)
   const [isBookmarked, setIsBookmarked] = useState(initialIsBookmarked)
-  const { addArticleToQueue, removeArticleFromQueue, isArticleInQueue } = useReadingQueue()
+  const { addArticleToQueue, removeArticleFromQueue, isArticleInQueue, queuedArticles } = useReadingQueue()
   const { isFavorite, toggleFavorite } = useFavorites()
   const { markAsRead } = useReadingHistory()
   const [showSourceDetails, setShowSourceDetails] = useState(false)
@@ -80,6 +80,20 @@ export function ArticleDetailModal({ article, isOpen, onClose, initialIsBookmark
   const [aiAnalysisLoading, setAiAnalysisLoading] = useState(false)
   const [aiAnalysis, setAiAnalysis] = useState<ArticleAnalysis | null>(null)
   const [isExpanded, setIsExpanded] = useState(false)
+
+  const handleNavigate = (direction: "prev" | "next") => {
+    if (!onNavigate) return
+    onNavigate(direction)
+  }
+
+  const isTextInputFocused = () => {
+    const active = document.activeElement
+    if (!active) return false
+    if (active instanceof HTMLInputElement) return true
+    if (active instanceof HTMLTextAreaElement) return true
+    if (active instanceof HTMLElement && active.isContentEditable) return true
+    return false
+  }
   const [fullArticleText, setFullArticleText] = useState<string | null>(null)
   const [articleLoading, setArticleLoading] = useState(false)
   const [bookmarkLoading, setBookmarkLoading] = useState(false)
@@ -90,7 +104,10 @@ export function ArticleDetailModal({ article, isOpen, onClose, initialIsBookmark
   const [agenticAnswer, setAgenticAnswer] = useState<string | null>(null)
   const [agenticError, setAgenticError] = useState<string | null>(null)
   const [agenticHistory, setAgenticHistory] = useState<Array<{ claim: string; answer: string; timestamp: number }>>([])
-  const [openReaderLoading, setOpenReaderLoading] = useState(false)
+  const [showHighlights, setShowHighlights] = useState(true)
+  const [highlightColor, setHighlightColor] = useState<Highlight["color"]>("yellow")
+  const [sidebarEditingId, setSidebarEditingId] = useState<number | null>(null)
+  const [sidebarEditingNote, setSidebarEditingNote] = useState("")
   const [aiAnalysisRequested, setAiAnalysisRequested] = useState(false)
   const [highlights, setHighlights] = useState<Highlight[]>([])
   const articleContentRef = useRef<HTMLDivElement>(null)
@@ -153,6 +170,25 @@ export function ArticleDetailModal({ article, isOpen, onClose, initialIsBookmark
       markAsRead(article.id, article.title, article.source)
     }
   }, [isOpen, article?.id, markAsRead])
+
+  useEffect(() => {
+    if (!isOpen || !isExpanded) return
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (isTextInputFocused()) return
+
+      if (event.key === "ArrowRight" || event.key === "ArrowDown") {
+        event.preventDefault()
+        handleNavigate("next")
+      } else if (event.key === "ArrowLeft" || event.key === "ArrowUp") {
+        event.preventDefault()
+        handleNavigate("prev")
+      }
+    }
+
+    window.addEventListener("keydown", handleKeyDown)
+    return () => window.removeEventListener("keydown", handleKeyDown)
+  }, [isOpen, isExpanded, onNavigate])
 
   const articleCacheKey = useMemo(() => {
     if (!article) return null
@@ -320,24 +356,6 @@ export function ArticleDetailModal({ article, isOpen, onClose, initialIsBookmark
     }
   }
 
-  const handleOpenInReader = async () => {
-    if (!article) return
-
-    try {
-      setOpenReaderLoading(true)
-      const queueItem = await addToReadingQueue(article)
-      if (!isArticleInQueue(article.url)) {
-        addArticleToQueue(article)
-      }
-      onClose()
-      router.push(`/reader/${queueItem.id}`)
-    } catch (error) {
-      console.error("Failed to open in reader:", error)
-      toast.error("Failed to open in reader")
-    } finally {
-      setOpenReaderLoading(false)
-    }
-  }
 
   const handleBookmarkToggle = async () => {
     if (!article?.id) return
@@ -472,6 +490,9 @@ export function ArticleDetailModal({ article, isOpen, onClose, initialIsBookmark
   }
 
   const heroImage = hasRealImage(article.image) ? article.image : null
+  const articleTextForMetrics = (fullArticleText || article.content || article.summary || "").trim()
+  const wordCount = articleTextForMetrics ? articleTextForMetrics.split(/\s+/).filter(Boolean).length : 0
+  const estimatedReadMinutes = Math.max(1, Math.ceil(wordCount / 230))
   const summaryText = (article.summary || "").trim()
   const contentText = (article.content || "").trim()
   const fullText = (fullArticleText || "").trim()
@@ -504,7 +525,33 @@ export function ArticleDetailModal({ article, isOpen, onClose, initialIsBookmark
         : 'max-w-4xl w-full max-h-[90vh] overflow-hidden'
         }`}>
         {/* Header Controls */}
-        <div className="flex items-center justify-end gap-2 p-4 border-b border-border/60 sticky top-0 bg-[var(--news-bg-primary)]/95 backdrop-blur z-10">
+         <div className="flex items-center justify-between gap-2 p-4 border-b border-border/60 sticky top-0 bg-[var(--news-bg-primary)]/95 backdrop-blur z-10">
+          <div className="flex items-center gap-2">
+            {isExpanded && (
+              <>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => handleNavigate("prev")}
+                  disabled={!onNavigate}
+                  className="bg-[var(--news-bg-secondary)]/70 hover:bg-[var(--news-bg-secondary)] border border-border/60"
+                  title="Previous (ArrowLeft)"
+                >
+                  Prev
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => handleNavigate("next")}
+                  disabled={!onNavigate}
+                  className="bg-[var(--news-bg-secondary)]/70 hover:bg-[var(--news-bg-secondary)] border border-border/60"
+                  title="Next (ArrowRight)"
+                >
+                  Next
+                </Button>
+              </>
+            )}
+          </div>
           <Button
             variant="ghost"
             size="sm"
@@ -636,7 +683,7 @@ export function ArticleDetailModal({ article, isOpen, onClose, initialIsBookmark
                        <ArticleContent
                          ref={articleContentRef}
                          content={fullArticleText || article.content || article.summary || ""}
-                         highlights={highlights}
+                         highlights={showHighlights ? highlights : []}
                          activeHighlightId={activeHighlightId}
                          onHighlightClick={handleHighlightClick}
                          className={isExpanded ? 'text-lg space-y-6' : 'text-base space-y-4'}
@@ -746,20 +793,7 @@ export function ArticleDetailModal({ article, isOpen, onClose, initialIsBookmark
                       )}
                       {article && isArticleInQueue(article.url) ? "Remove from Queue" : "Add to Queue"}
                     </Button>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={handleOpenInReader}
-                      disabled={openReaderLoading}
-                      title="Open in Reader"
-                    >
-                      {openReaderLoading ? (
-                        <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                      ) : (
-                        <BookOpen className="h-4 w-4 mr-2" />
-                      )}
-                      Open in Reader
-                    </Button>
+
                   </div>
                   <Button variant="outline" size="sm" asChild>
                     <a href={article.url} target="_blank" rel="noopener noreferrer">
@@ -773,6 +807,275 @@ export function ArticleDetailModal({ article, isOpen, onClose, initialIsBookmark
                   {/* Sidebar - 1/3 width - Only show in expanded mode */}
               {isExpanded && (
                 <div className="lg:col-span-1 space-y-6">
+                  <div className="rounded-lg border border-border/60 bg-[var(--news-bg-secondary)]/70 p-4">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <div className="text-[10px] uppercase tracking-[0.24em] text-muted-foreground">Reader</div>
+                        <h2 className="text-lg font-semibold text-foreground">Annotations</h2>
+                      </div>
+                      <span className="text-xs text-muted-foreground">{highlights.length}</span>
+                    </div>
+
+                    <div className="mt-3 flex flex-wrap items-center gap-2">
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        onClick={() => setShowHighlights((prev) => !prev)}
+                        className="gap-2"
+                      >
+                        {showHighlights ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                        {showHighlights ? "Hide" : "Show"}
+                      </Button>
+                      <span className="text-xs text-muted-foreground">
+                        {wordCount > 0 ? `${wordCount} words • ${estimatedReadMinutes} min read` : `${estimatedReadMinutes} min read`}
+                      </span>
+                    </div>
+
+                    <div className="mt-3 flex flex-wrap gap-2">
+                      {(["yellow", "blue", "red"] as const).map((color) => (
+                        <button
+                          key={color}
+                          type="button"
+                          onClick={() => setHighlightColor(color)}
+                          className={`h-7 w-7 rounded border ${highlightColor === color ? "border-foreground" : "border-transparent"} ${
+                            color === "yellow"
+                              ? "bg-amber-200/80 text-amber-900"
+                              : color === "blue"
+                                ? "bg-sky-200/80 text-sky-900"
+                                : "bg-rose-200/80 text-rose-900"
+                          }`}
+                          aria-label={`Annotation color ${color}`}
+                        />
+                      ))}
+                    </div>
+
+                    <div className="mt-3 grid grid-cols-2 gap-2">
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        onClick={async () => {
+                          const created = new Date().toISOString().split("T")[0]
+                          const title = article.title.replace(/"/g, "'")
+                          const lines: string[] = [
+                            "---",
+                            `title: \"${title}\"`,
+                            `source: \"${article.url}\"`,
+                            `created: \"${created}\"`,
+                            `description: \"Annotations from Scoop Reader\"`,
+                            `tags: [clippings, annotations, scoop]`,
+                            "---",
+                            "",
+                            `# ${article.title}`,
+                            "",
+                            `Source: ${article.url}`,
+                            `Publisher: ${article.source}`,
+                            `Collected: ${created}`,
+                            "",
+                            "## Annotations",
+                          ]
+
+                          ;(highlights.length ? highlights : []).forEach((highlight) => {
+                            const text = highlight.highlighted_text.replace(/\s+/g, " ").trim()
+                            if (!text) return
+                            lines.push(`- ==${text}==`)
+                            if (highlight.note) {
+                              lines.push(`  - *${highlight.note.trim()}*`)
+                            }
+                          })
+
+                          const markdown =
+                            highlights.length === 0 ? [...lines, "No annotations yet."].join("\n") : lines.join("\n")
+
+                          await navigator.clipboard.writeText(markdown)
+                          toast.success("Markdown copied")
+                          logUserAction("highlight_markdown_copied", { url: article.url })
+                        }}
+                        className="gap-2"
+                      >
+                        <Copy className="h-4 w-4" />
+                        Copy
+                      </Button>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        onClick={() => {
+                          const created = new Date().toISOString().split("T")[0]
+                          const title = article.title.replace(/"/g, "'")
+                          const sanitizeFilename = (value: string) =>
+                            value
+                              .toLowerCase()
+                              .replace(/[^a-z0-9]+/g, "-")
+                              .replace(/(^-|-$)+/g, "")
+                              .slice(0, 80) || "annotations"
+
+                          const lines: string[] = [
+                            "---",
+                            `title: \"${title}\"`,
+                            `source: \"${article.url}\"`,
+                            `created: \"${created}\"`,
+                            `description: \"Annotations from Scoop Reader\"`,
+                            `tags: [clippings, annotations, scoop]`,
+                            "---",
+                            "",
+                            `# ${article.title}`,
+                            "",
+                            `Source: ${article.url}`,
+                            `Publisher: ${article.source}`,
+                            `Collected: ${created}`,
+                            "",
+                            "## Annotations",
+                          ]
+
+                          highlights.forEach((highlight) => {
+                            const text = highlight.highlighted_text.replace(/\s+/g, " ").trim()
+                            if (!text) return
+                            lines.push(`- ==${text}==`)
+                            if (highlight.note) {
+                              lines.push(`  - *${highlight.note.trim()}*`)
+                            }
+                          })
+
+                          if (highlights.length === 0) {
+                            lines.push("No annotations yet.")
+                          }
+
+                          const blob = new Blob([lines.join("\n")], { type: "text/markdown" })
+                          const fileName = `${sanitizeFilename(article.title)}.md`
+                          const link = document.createElement("a")
+                          link.href = URL.createObjectURL(blob)
+                          link.download = fileName
+                          link.click()
+                          URL.revokeObjectURL(link.href)
+                          logUserAction("highlight_markdown_downloaded", { url: article.url })
+                          toast.success("Markdown exported")
+                        }}
+                        className="gap-2"
+                      >
+                        <Download className="h-4 w-4" />
+                        Export
+                      </Button>
+                    </div>
+
+                    <p className="mt-2 text-xs text-muted-foreground">
+                      Select text to highlight. Click a highlight to add a note.
+                    </p>
+                  </div>
+
+                  <div className="space-y-3">
+                    {highlights.length === 0 ? (
+                      <div className="rounded-lg border border-border/60 bg-background/40 px-4 py-3 text-sm text-muted-foreground">
+                        No annotations yet.
+                      </div>
+                    ) : (
+                      highlights
+                        .slice()
+                        .sort((a, b) => a.character_start - b.character_start)
+                        .map((highlight) => (
+                          <div key={highlight.id} className="rounded-lg border border-border/60 bg-background/60 p-4 space-y-3">
+                            <button
+                              type="button"
+                              className="w-full text-left"
+                              onClick={() => {
+                                const el = articleContentRef.current?.querySelector(
+                                  `mark[data-highlight-id=\"${highlight.id}\"]`
+                                ) as HTMLElement | null
+                                if (el) {
+                                  el.scrollIntoView({ behavior: "smooth", block: "center" })
+                                  handleHighlightClick(highlight.id!, el)
+                                }
+                              }}
+                            >
+                              <div
+                                className={`rounded-md px-3 py-2 text-sm ${
+                                  highlight.color === "yellow"
+                                    ? "bg-amber-200/80 text-amber-900"
+                                    : highlight.color === "blue"
+                                      ? "bg-sky-200/80 text-sky-900"
+                                      : "bg-rose-200/80 text-rose-900"
+                                }`}
+                              >
+                                {highlight.highlighted_text}
+                              </div>
+                            </button>
+
+                            {sidebarEditingId === highlight.id ? (
+                              <div className="space-y-2">
+                                <textarea
+                                  value={sidebarEditingNote}
+                                  onChange={(event) => setSidebarEditingNote(event.target.value)}
+                                  placeholder="Add a note..."
+                                  rows={3}
+                                  className="w-full rounded border border-border/60 bg-background px-2 py-1 text-sm text-foreground"
+                                />
+                                <div className="flex gap-2">
+                                  <Button
+                                    size="sm"
+                                    onClick={async () => {
+                                      await handleSaveHighlightNote(highlight.id!, sidebarEditingNote)
+                                      setSidebarEditingId(null)
+                                      setSidebarEditingNote("")
+                                    }}
+                                  >
+                                    Save
+                                  </Button>
+                                  <Button
+                                    size="sm"
+                                    variant="outline"
+                                    onClick={() => {
+                                      setSidebarEditingId(null)
+                                      setSidebarEditingNote("")
+                                    }}
+                                  >
+                                    Cancel
+                                  </Button>
+                                </div>
+                              </div>
+                            ) : (
+                              <div className="flex items-center justify-between gap-3">
+                                <div className="text-xs text-muted-foreground line-clamp-2 whitespace-pre-wrap break-words">
+                                  {highlight.note?.trim() ? highlight.note : "No note"}
+                                </div>
+                                <div className="flex items-center gap-2">
+                                  <Button
+                                    type="button"
+                                    variant="ghost"
+                                    size="sm"
+                                    onClick={() => {
+                                      setSidebarEditingId(highlight.id!)
+                                      setSidebarEditingNote(highlight.note || "")
+                                    }}
+                                  >
+                                    <Edit2 className="h-4 w-4" />
+                                  </Button>
+                                  <Button
+                                    type="button"
+                                    variant="ghost"
+                                    size="sm"
+                                    onClick={async () => {
+                                      try {
+                                        await deleteHighlight(highlight.id!)
+                                        setHighlights((prev) => prev.filter((item) => item.id !== highlight.id))
+                                        toast.success("Annotation removed")
+                                      } catch (error) {
+                                        console.error("Failed to delete highlight", error)
+                                        toast.error("Failed to delete annotation")
+                                      }
+                                    }}
+                                    className="text-destructive hover:text-destructive"
+                                  >
+                                    <Trash2 className="h-4 w-4" />
+                                  </Button>
+                                </div>
+                              </div>
+                            )}
+                          </div>
+                        ))
+                    )}
+                  </div>
+
                   {!aiAnalysisRequested && (
                     <div className="rounded-sm border border-white/10 bg-white/5 p-5 text-sm text-muted-foreground">
                       <p className="font-mono text-[10px] uppercase tracking-[0.3em] text-muted-foreground">AI Analysis</p>

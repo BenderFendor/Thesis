@@ -15,7 +15,6 @@ import {
   Heart,
   Maximize2,
   Minimize2,
-  BookOpen,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -27,12 +26,10 @@ import {
   BreakingCluster,
   NewsArticle,
   API_BASE_URL,
-  addToReadingQueue,
 } from "@/lib/api";
 import { useReadingQueue } from "@/hooks/useReadingQueue";
 import { ArticleContent } from "@/components/article-content";
 import { toast } from "sonner";
-import { useRouter } from "next/navigation";
 
 interface ClusterArticle {
   id: number;
@@ -80,7 +77,6 @@ export function ClusterDetailModal({
   isOpen,
   onClose,
 }: ClusterDetailModalProps) {
-  const router = useRouter();
   const [clusterDetail, setClusterDetail] = useState<ClusterDetail | null>(null);
   const [loading, setLoading] = useState(false);
   const [activeArticleId, setActiveArticleId] = useState<string | null>(null);
@@ -88,7 +84,6 @@ export function ClusterDetailModal({
   const [loadingArticle, setLoadingArticle] = useState<number | null>(null);
   const [isExpanded, setIsExpanded] = useState(false);
   const [likedArticles, setLikedArticles] = useState<Set<number>>(new Set());
-  const [openReaderLoading, setOpenReaderLoading] = useState(false);
   const [comparisonMode, setComparisonMode] = useState(false);
   const articleContentRef = useRef<HTMLDivElement>(null);
 
@@ -194,40 +189,7 @@ export function ClusterDetailModal({
     [isArticleInQueue, removeArticleFromQueue, addArticleToQueue]
   );
 
-  const handleOpenInReader = async (article: ClusterArticle) => {
-    const newsArticle: NewsArticle = {
-      id: article.id,
-      title: article.title,
-      source: article.source,
-      sourceId: article.source.toLowerCase().replace(/\s+/g, "-"),
-      country: "US",
-      credibility: "medium",
-      bias: "center",
-      summary: "",
-      image: article.image_url || "",
-      publishedAt: article.published_at || new Date().toISOString(),
-      category: "trending",
-      url: article.url,
-      tags: [],
-      originalLanguage: "en",
-      translated: false,
-    };
 
-    try {
-      setOpenReaderLoading(true);
-      const queueItem = await addToReadingQueue(newsArticle);
-      if (!isArticleInQueue(article.url)) {
-        addArticleToQueue(newsArticle);
-      }
-      onClose();
-      router.push(`/reader/${queueItem.id}`);
-    } catch (error) {
-      console.error("Failed to open in reader:", error);
-      toast.error("Failed to open in reader");
-    } finally {
-      setOpenReaderLoading(false);
-    }
-  };
 
   if (!isOpen || !cluster) return null;
 
@@ -447,19 +409,7 @@ export function ClusterDetailModal({
                           )}
                           {isArticleInQueue(article.url) ? "Remove" : "Add to Queue"}
                         </Button>
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => handleOpenInReader(article)}
-                          disabled={openReaderLoading}
-                        >
-                          {openReaderLoading ? (
-                            <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                          ) : (
-                            <BookOpen className="h-4 w-4 mr-2" />
-                          )}
-                          Open in Reader
-                        </Button>
+
                       </div>
                       <Button variant="outline" size="sm" asChild>
                         <a
@@ -545,16 +495,6 @@ export function ClusterDetailModal({
 
                             {/* Actions */}
                             <div className="flex items-center gap-2 pt-2 border-t border-border/60">
-                              <Button
-                                variant="ghost"
-                                size="sm"
-                                onClick={() => handleOpenInReader(article)}
-                                disabled={openReaderLoading}
-                                className="text-xs"
-                              >
-                                <BookOpen className="h-4 w-4 mr-2" />
-                                Reader
-                              </Button>
                               <Button
                                 variant="outline"
                                 size="sm"

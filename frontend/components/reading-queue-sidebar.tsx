@@ -1046,11 +1046,18 @@ export function ReadingQueueSidebar() {
                     >
                       {queueDigest}
                     </ReactMarkdown>
-                    {embedModalArticle && (
+                      {embedModalArticle && (
                       <ArticleDetailModal
                         article={embedModalArticle}
                         isOpen={embedModalOpen}
                         onClose={() => setEmbedModalOpen(false)}
+                        onNavigate={(direction) => {
+                          if (direction === "next") {
+                            handleNavigateArticle("next")
+                          } else {
+                            handleNavigateArticle("previous")
+                          }
+                        }}
                       />
                     )}
                   </div>

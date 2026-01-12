@@ -79,7 +79,7 @@ export function DigestCard({ onRefresh }: DigestCardProps) {
           digest.digest_items.slice(0, 3).map((item) => (
             <Link
               key={item.id}
-              href={`/reader/${item.id}`}
+              href="/"
               className="block rounded-md border border-border/50 bg-background/40 px-3 py-2 hover:border-primary/50"
             >
               <div className="text-sm font-medium text-foreground truncate">
