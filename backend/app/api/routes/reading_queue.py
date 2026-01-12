@@ -58,7 +58,7 @@ async def remove_from_queue(queue_id: int, session: AsyncSession = Depends(get_d
         raise HTTPException(status_code=500, detail="Failed to remove from queue")
 
 
-@router.delete("/url/{article_url}", status_code=204)
+@router.delete("/url/{article_url:path}", status_code=204)
 async def remove_from_queue_by_url(
     article_url: str, session: AsyncSession = Depends(get_db)
 ):
@@ -139,15 +139,13 @@ async def create_highlight(
         raise HTTPException(status_code=500, detail="Failed to create highlight")
 
 
-@router.get("/highlights/article/{article_url}", response_model=list[Highlight])
+@router.get("/highlights/article/{article_url:path}", response_model=list[Highlight])
 async def get_article_highlights(
     article_url: str, session: AsyncSession = Depends(get_db)
 ):
     """Get all highlights for a specific article."""
     try:
-        return await highlights_service.get_highlights_for_article(
-            session, article_url
-        )
+        return await highlights_service.get_highlights_for_article(session, article_url)
     except Exception as e:
         logger.error("Error fetching highlights: %s", e)
         raise HTTPException(status_code=500, detail="Failed to fetch highlights")
@@ -260,9 +258,9 @@ class QueueDigestResponse(BaseModel):
 async def generate_ai_digest(request: QueueDigestRequest):
     """Generate an AI-powered reading digest from queued articles."""
     try:
-        return {"digest": await generate_queue_digest(request.articles, request.grouped)}
+        return {
+            "digest": await generate_queue_digest(request.articles, request.grouped)
+        }
     except Exception as e:
         logger.error("Error generating AI digest: %s", e)
-        raise HTTPException(
-            status_code=500, detail="Failed to generate digest"
-        )
+        raise HTTPException(status_code=500, detail="Failed to generate digest")

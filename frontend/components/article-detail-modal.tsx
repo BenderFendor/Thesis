@@ -114,10 +114,14 @@ export function ArticleDetailModal({ article, isOpen, onClose, initialIsBookmark
   const [highlightSyncStatus, setHighlightSyncStatus] = useState<"idle" | "syncing" | "failed" | "offline">("idle")
   const latestHighlightSyncRef = useRef(0)
   const articleContentRef = useRef<HTMLDivElement>(null)
-  const [activeHighlightId, setActiveHighlightId] = useState<number | null>(null)
+  const [activeHighlightId, setActiveHighlightId] = useState<string | null>(null)
   const [highlightPopoverOpen, setHighlightPopoverOpen] = useState(false)
   const [highlightPopoverAnchorEl, setHighlightPopoverAnchorEl] = useState<HTMLElement | null>(null)
   const [highlightPopoverHighlight, setHighlightPopoverHighlight] = useState<Highlight | null>(null)
+
+  const HIGHLIGHT_DEBUG =
+    typeof window !== "undefined" &&
+    window.localStorage.getItem("debug_highlights") === "1"
 
   useEffect(() => {
     if (!article?.url) {
@@ -129,18 +133,47 @@ export function ArticleDetailModal({ article, isOpen, onClose, initialIsBookmark
     const store = loadHighlightStore(article.url)
     setHighlights(store.highlights)
 
+    if (HIGHLIGHT_DEBUG) {
+      console.debug("[Highlights] loaded local store", {
+        url: article.url,
+        count: store.highlights.length,
+      })
+    }
+
     getHighlightsForArticle(article.url)
       .then((serverHighlights) => {
+        if (HIGHLIGHT_DEBUG) {
+          console.debug("[Highlights] fetched server highlights", {
+            url: article.url,
+            count: serverHighlights.length,
+          })
+        }
+
         const merged = mergeHighlights({
           articleUrl: article.url,
           local: store.highlights,
           server: serverHighlights,
         })
+
+        if (HIGHLIGHT_DEBUG) {
+          console.debug("[Highlights] merged highlights", {
+            url: article.url,
+            count: merged.length,
+          })
+        }
+
         setHighlights(merged)
         saveHighlightStore({ version: 1, article_url: article.url, highlights: merged })
       })
       .catch((e) => {
         console.error("Failed to load highlights", e)
+        if (HIGHLIGHT_DEBUG) {
+          console.debug("[Highlights] fetch failed", {
+            url: article.url,
+            online: navigator.onLine,
+            error: e instanceof Error ? e.message : String(e),
+          })
+        }
       })
   }, [article?.url])
 
@@ -522,23 +555,28 @@ export function ArticleDetailModal({ article, isOpen, onClose, initialIsBookmark
    // Inline definition hook (Alt+select)
    const { result: inlineResult, open: inlineOpen, setOpen: setInlineOpen, anchorRef: inlineAnchorRef } = useInlineDefinition()
 
-   const handleHighlightClick = (highlightId: number, element: HTMLElement) => {
-     const found = highlights.find((item) => item.id === highlightId) ?? null
-     setActiveHighlightId(highlightId)
-     setHighlightPopoverHighlight(found)
+   const handleHighlightClick = (highlightStableId: string, element: HTMLElement) => {
+     const found = highlights.find((item) => {
+       const stableId = item.id ? `server:${item.id}` : `client:${item.client_id}`
+       return stableId === highlightStableId
+     }) ?? null
+     setActiveHighlightId(highlightStableId)
+     setHighlightPopoverHighlight(found ? toRemoteHighlights([found])[0] ?? null : null)
      setHighlightPopoverAnchorEl(element)
      setHighlightPopoverOpen(true)
    }
 
    const handleSaveHighlightNote = async (highlightId: number, note: string) => {
-     try {
-       const updated = await updateHighlight(highlightId, { note })
-       setHighlights((prev) => prev.map((item) => (item.id === highlightId ? updated : item)))
-     } catch (error) {
-       console.error("Failed to save note", error)
-       toast.error("Failed to save note")
-       throw error
-     }
+     setHighlights((prev) => {
+       const updatedLocal = prev.map((item) => {
+         const id = item.server_id ?? item.id
+         if (id !== highlightId) return item
+         return markPending({ highlight: { ...item, note }, op: "update" })
+       })
+       saveHighlightStore({ version: 1, article_url: article.url, highlights: updatedLocal })
+       void syncHighlights(article.url, updatedLocal)
+       return updatedLocal
+     })
    }
 
 
@@ -769,7 +807,8 @@ export function ArticleDetailModal({ article, isOpen, onClose, initialIsBookmark
                        <ArticleContent
                          ref={articleContentRef}
                          content={fullArticleText || article.content || article.summary || ""}
-                         highlights={showHighlights ? highlights : []}
+                          highlights={showHighlights ? toRemoteHighlights(highlights.filter((h) => !h.deleted)) : []}
+
                          activeHighlightId={activeHighlightId}
                          onHighlightClick={handleHighlightClick}
                          className={isExpanded ? 'text-lg space-y-6' : 'text-base space-y-4'}
@@ -1134,18 +1173,20 @@ export function ArticleDetailModal({ article, isOpen, onClose, initialIsBookmark
                         .slice()
                         .sort((a, b) => a.character_start - b.character_start)
                         .map((highlight) => (
-                          <div key={highlight.id} className="rounded-lg border border-border/60 bg-background/60 p-4 space-y-3">
+                           <div key={highlight.id ? `server:${highlight.id}` : `client:${highlight.client_id}`} className="rounded-lg border border-border/60 bg-background/60 p-4 space-y-3">
                             <button
                               type="button"
                               className="w-full text-left"
                               onClick={() => {
-                                const el = articleContentRef.current?.querySelector(
-                                  `mark[data-highlight-id=\"${highlight.id}\"]`
-                                ) as HTMLElement | null
-                                if (el) {
-                                  el.scrollIntoView({ behavior: "smooth", block: "center" })
-                                  handleHighlightClick(highlight.id!, el)
-                                }
+                                 const stableId = highlight.id ? `server:${highlight.id}` : `client:${highlight.client_id}`
+                                 const el = articleContentRef.current?.querySelector(
+                                   `mark[data-highlight-stable-id=\"${stableId}\"]`
+                                 ) as HTMLElement | null
+                                 if (el) {
+                                   el.scrollIntoView({ behavior: "smooth", block: "center" })
+                                   handleHighlightClick(stableId, el)
+                                 }
+
                               }}
                             >
                               <div

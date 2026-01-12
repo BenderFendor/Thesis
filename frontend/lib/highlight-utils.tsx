@@ -63,11 +63,24 @@ export function getGlobalOffset(root: HTMLElement, node: Node, offset: number): 
  * Uses a simple non-overlapping approach. If highlights overlap, visual results might be mixed,
  * but this handles the basic case of sequential highlights.
  */
+export type HighlightStableId = string
+
+export function highlightStableId(highlight: Highlight): HighlightStableId {
+  if (highlight.id !== undefined && highlight.id !== null) {
+    return `server:${highlight.id}`
+  }
+  const anyHighlight = highlight as unknown as { client_id?: string }
+  if (anyHighlight.client_id) {
+    return `client:${anyHighlight.client_id}`
+  }
+  return `range:${highlight.character_start}:${highlight.character_end}:${(highlight.highlighted_text || '').slice(0, 32)}`
+}
+
 export function renderHighlightedContent(
   text: string,
   highlights: Highlight[],
-  onHighlightClick?: (id: number, element: HTMLElement) => void,
-  activeHighlightId?: number | null
+  onHighlightClick?: (id: HighlightStableId, element: HTMLElement) => void,
+  activeHighlightId?: HighlightStableId | null
 ): React.ReactNode[] {
   if (!text) return [];
   if (!highlights || highlights.length === 0) return [text];
@@ -79,38 +92,36 @@ export function renderHighlightedContent(
   let currentPosition = 0;
 
   sortedHighlights.forEach((highlight) => {
-    // If highlight starts before current position (overlap), skip or clip it for now.
-    // For robust handling, we'd need a more complex interval tree or segmenter.
-    const start = Math.max(highlight.character_start, currentPosition);
-    const end = highlight.character_end;
+    const start = Math.max(highlight.character_start, currentPosition)
+    const end = highlight.character_end
 
-    if (start >= text.length) return; // Out of bounds
-    if (end <= start) return; // Invalid or fully processed/overlapped
+    if (start >= text.length) return
+    if (end <= start) return
 
-    // Add non-highlighted text before this highlight
     if (start > currentPosition) {
-      nodes.push(text.slice(currentPosition, start));
+      nodes.push(text.slice(currentPosition, start))
     }
 
-    // Add highlighted text
-    const highlightedText = text.slice(start, Math.min(end, text.length));
+    const highlightedText = text.slice(start, Math.min(end, text.length))
+    const stableId = highlightStableId(highlight)
+
     nodes.push(
       <mark
-        key={highlight.id}
-        data-highlight-id={highlight.id}
-        className={`cursor-pointer transition-colors hover:opacity-80 rounded-sm px-0.5 mx-0.5 ${getHighlightColorClass(highlight.color)} ${highlight.id === activeHighlightId ? "ring-2 ring-primary/70" : ""}`}
+        key={stableId}
+        data-highlight-stable-id={stableId}
+        className={`cursor-pointer transition-colors hover:opacity-80 rounded-sm px-0.5 mx-0.5 ${getHighlightColorClass(highlight.color)} ${stableId === activeHighlightId ? "ring-2 ring-primary/70" : ""}`}
         onClick={(e) => {
-          e.stopPropagation();
-          onHighlightClick?.(highlight.id!, e.currentTarget);
+          e.stopPropagation()
+          onHighlightClick?.(stableId, e.currentTarget)
         }}
         title={highlight.note || "Click to edit"}
       >
         {highlightedText}
       </mark>
-    );
+    )
 
-    currentPosition = Math.min(end, text.length);
-  });
+    currentPosition = Math.min(end, text.length)
+  })
 
   // Add remaining text
   if (currentPosition < text.length) {

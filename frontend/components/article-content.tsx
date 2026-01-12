@@ -6,8 +6,8 @@ import { renderHighlightedContent } from "@/lib/highlight-utils";
 interface ArticleContentProps {
   content: string;
   highlights: Highlight[];
-  onHighlightClick?: (id: number, element: HTMLElement) => void;
-  activeHighlightId?: number | null;
+  onHighlightClick?: (id: string, element: HTMLElement) => void;
+  activeHighlightId?: string | null;
   className?: string;
 }
 
@@ -21,8 +21,9 @@ export const ArticleContent = forwardRef<HTMLDivElement, ArticleContentProps>(
       >
         {renderHighlightedContent(content, highlights, onHighlightClick, activeHighlightId)}
       </div>
-    );
+    )
   }
-);
+)
+
 
 ArticleContent.displayName = "ArticleContent";
