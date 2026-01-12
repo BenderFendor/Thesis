@@ -59,6 +59,20 @@ Code should be self-documenting. If you need a comment to explain WHAT the code 
 - Use props for feature toggling rather than conditional imports or wrapper components.
 - When converting layouts (grid to scroll, vertical to horizontal), update both the container and all child elements for consistent sizing.
 
+## Route Removal Checklist
+- When removing a route, search the repo for entry points: `rg -n "\"/route\"|/route\b"` and update links/actions.
+- Ensure removal doesn’t break Next.js routing: run relevant frontend tests after route deletion.
+
+## Local-First Sync Pattern
+- For offline-capable entities, store local records with:
+  - `client_id` (UUID), `server_id?`, `sync_status` (`synced|pending|failed`), `pending_op` (`create|update|delete`), `last_error?`, `local_updated_at` (ISO), and `deleted?` tombstones.
+- Avoid sync loops: mark failures as `failed` and retry on explicit user action or reconnection.
+- Keep UI components dumb: components that capture user intent should emit callbacks; containers/services own storage + network sync.
+
+## Test Gate For Shared Props
+- When changing component props, update all call sites via `rg -n "<ComponentName"`.
+- Update any Jest tests that mount the component, then run `npm test` in `frontend/`.
+
 ## Grid View Patterns
 - Grid views use vertical scroll with CSS `scroll-snap-type: y mandatory`.
 - Each row of articles uses `scroll-snap-align: start` for snap-to-row behavior.

@@ -13,6 +13,38 @@
 - [ ] Test reachability: `curl http://localhost:8000/api/v1/heartbeat` (adjust host/port as configured).
 - [ ] Fix log flooding: clustering loop continues after ConnectError for ~500 articles; add a preflight connectivity check and abort the batch early (or implement backoff + a single summarized error) to avoid massive repeated tracebacks.
 
+## Modal Reader Unification + Dual-Persistence Highlights
+
+### Decisions captured
+- [ ] Remove `/reader` routes entirely (no backwards compatibility).
+- [ ] Offline UX: queue + retry.
+- [ ] Conflict rule: merge + dedupe (robust, not overbuilt).
+
+### Proposed execution plan (next coding phase)
+1. [ ] Remove the `frontend/app/reader` route directory (and any `.bak` files sitting next to it).
+2. [ ] Add a local-first highlight store (new module):
+   - [ ] Storage key: `highlights:v1:${article_url}`.
+   - [ ] Local highlight record: `client_id`, `server_id?`, `sync_status` (`synced|pending|failed`), timestamps, plus `character_start/end`, `highlighted_text`, `color`, `note`.
+3. [ ] Implement sync engine for highlights (owned by the modal):
+   - [ ] On modal open: load local immediately → render.
+   - [ ] Fetch server highlights → merge/dedupe → persist locally.
+   - [ ] Sync background: create/update/delete for `pending/failed` locals.
+   - [ ] Record failures as `failed` + last error string; avoid tight retry loops.
+4. [ ] Refactor creation/update/delete flow:
+   - [ ] `HighlightToolbar` becomes UI-only: emits selection + callbacks, no direct API calls.
+5. [ ] Add minimal UI in `ArticleDetailModal`:
+   - [ ] Status indicator: Synced / Saving / Offline / Failed + “Retry sync”.
+6. [ ] Validation:
+   - [ ] Update/add unit tests for merge/dedupe + queue/retry behavior.
+
+### Merge + dedupe approach
+- [ ] Primary key for dedupe: `server_id` when present.
+- [ ] Otherwise use a deterministic fingerprint: `${character_start}:${character_end}:${normalized(highlighted_text)}`.
+- [ ] When merging:
+  - [ ] Prefer local note if local is newer; otherwise prefer server note.
+  - [ ] Preserve local `sync_status` and `client_id`.
+  - [ ] If server highlight exists but local has a pending delete marker, keep it deleted locally and retry delete.
+
 
 ---
 
