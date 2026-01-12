@@ -118,6 +118,7 @@ export function ArticleDetailModal({ article, isOpen, onClose, initialIsBookmark
   const [highlightPopoverOpen, setHighlightPopoverOpen] = useState(false)
   const [highlightPopoverAnchorEl, setHighlightPopoverAnchorEl] = useState<HTMLElement | null>(null)
   const [highlightPopoverHighlight, setHighlightPopoverHighlight] = useState<Highlight | null>(null)
+  const lastCreatedClientIdRef = useRef<string | null>(null)
 
   const HIGHLIGHT_DEBUG =
     typeof window !== "undefined" &&
@@ -816,11 +817,16 @@ export function ArticleDetailModal({ article, isOpen, onClose, initialIsBookmark
                       <HighlightToolbar
                         articleUrl={article.url}
                         containerRef={articleContentRef}
+                        highlightColor={highlightColor}
+                        autoCreate
                         highlights={toRemoteHighlights(highlights)}
                         onCreate={async ({ highlightedText, color, range }) => {
+                          const clientId = generateClientId()
+                          lastCreatedClientIdRef.current = clientId
+
                           const nextLocal: LocalHighlight = markPending({
                             highlight: {
-                              client_id: generateClientId(),
+                              client_id: clientId,
                               sync_status: "pending",
                               pending_op: "create",
                               local_updated_at: new Date().toISOString(),
@@ -838,6 +844,14 @@ export function ArticleDetailModal({ article, isOpen, onClose, initialIsBookmark
                             saveHighlightStore({ version: 1, article_url: article.url, highlights: updated })
                             return updated
                           })
+
+                          const anchor = articleContentRef.current?.querySelector(
+                            `mark[data-highlight-stable-id=\"client:${clientId}\"]`
+                          ) as HTMLElement | null
+
+                          setHighlightPopoverHighlight(toRemoteHighlights([nextLocal])[0] ?? null)
+                          setHighlightPopoverAnchorEl(anchor)
+                          setHighlightPopoverOpen(true)
 
                           await syncHighlights(article.url, [...highlights, nextLocal])
                         }}
@@ -1030,17 +1044,36 @@ export function ArticleDetailModal({ article, isOpen, onClose, initialIsBookmark
                     </div>
 
                     <div className="mt-3 flex flex-wrap gap-2">
-                      {(["yellow", "blue", "red"] as const).map((color) => (
+                      {(["yellow", "blue", "red", "green", "purple"] as const).map((color) => (
                         <button
                           key={color}
                           type="button"
-                          onClick={() => setHighlightColor(color)}
+                          onClick={() => {
+                            setHighlightColor(color)
+
+                            const lastClientId = lastCreatedClientIdRef.current
+                            if (!lastClientId) return
+
+                            setHighlights((prev) => {
+                              const updated = prev.map((item) => {
+                                if (item.client_id !== lastClientId) return item
+                                return markPending({ highlight: { ...item, color }, op: "update" })
+                              })
+                              saveHighlightStore({ version: 1, article_url: article.url, highlights: updated })
+                              void syncHighlights(article.url, updated)
+                              return updated
+                            })
+                          }}
                           className={`h-7 w-7 rounded border ${highlightColor === color ? "border-foreground" : "border-transparent"} ${
                             color === "yellow"
                               ? "bg-amber-200/80 text-amber-900"
                               : color === "blue"
                                 ? "bg-sky-200/80 text-sky-900"
-                                : "bg-rose-200/80 text-rose-900"
+                                : color === "red"
+                                  ? "bg-rose-200/80 text-rose-900"
+                                  : color === "green"
+                                    ? "bg-emerald-200/80 text-emerald-900"
+                                    : "bg-purple-200/80 text-purple-900"
                           }`}
                           aria-label={`Annotation color ${color}`}
                         />
@@ -1195,7 +1228,11 @@ export function ArticleDetailModal({ article, isOpen, onClose, initialIsBookmark
                                     ? "bg-amber-200/80 text-amber-900"
                                     : highlight.color === "blue"
                                       ? "bg-sky-200/80 text-sky-900"
-                                      : "bg-rose-200/80 text-rose-900"
+                                      : highlight.color === "red"
+                                        ? "bg-rose-200/80 text-rose-900"
+                                        : highlight.color === "green"
+                                          ? "bg-emerald-200/80 text-emerald-900"
+                                          : "bg-purple-200/80 text-purple-900"
                                 }`}
                               >
                                 {highlight.highlighted_text}
@@ -1257,9 +1294,42 @@ export function ArticleDetailModal({ article, isOpen, onClose, initialIsBookmark
                                     size="sm"
                                     onClick={async () => {
                                       try {
-                                        await deleteHighlight(highlight.id!)
-                                        setHighlights((prev) => prev.filter((item) => item.id !== highlight.id))
-                                        toast.success("Annotation removed")
+                                        const removed = highlight
+
+                                        setHighlights((prev) => {
+                                          const updated = prev.map((item) => {
+                                            const id = item.server_id ?? item.id
+                                            if (id !== removed.id) return item
+                                            return markPending({ highlight: item, op: "delete" })
+                                          })
+                                          saveHighlightStore({ version: 1, article_url: article.url, highlights: updated })
+                                          void syncHighlights(article.url, updated)
+                                          return updated
+                                        })
+
+                                        toast("Annotation removed", {
+                                          action: {
+                                            label: "Undo",
+                                            onClick: () => {
+                                              setHighlights((prev) => {
+                                                const updated = prev.map((item) => {
+                                                  if (item.client_id !== removed.client_id) return item
+                                                  return {
+                                                    ...item,
+                                                    deleted: false,
+                                                    sync_status: "pending",
+                                                    pending_op: undefined,
+                                                    local_updated_at: new Date().toISOString(),
+                                                    last_error: undefined,
+                                                  }
+                                                })
+                                                saveHighlightStore({ version: 1, article_url: article.url, highlights: updated })
+                                                void syncHighlights(article.url, updated)
+                                                return updated
+                                              })
+                                            },
+                                          },
+                                        })
                                       } catch (error) {
                                         console.error("Failed to delete highlight", error)
                                         toast.error("Failed to delete annotation")

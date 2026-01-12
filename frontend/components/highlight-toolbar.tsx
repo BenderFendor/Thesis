@@ -3,13 +3,15 @@
 import { useEffect, useRef, useState } from "react";
 import { ENABLE_HIGHLIGHTS, type Highlight } from "@/lib/api";
 import { Button } from "@/components/ui/button";
-import { Highlighter, X, Edit2, Trash2, Share2, Copy } from "lucide-react";
+import { Highlighter, X } from "lucide-react";
 import { toast } from "sonner";
-import { getGlobalOffset, getHighlightColorClass } from "@/lib/highlight-utils";
+import { getGlobalOffset } from "@/lib/highlight-utils";
 
 interface HighlightToolbarProps {
   articleUrl: string;
   containerRef: React.RefObject<HTMLElement>;
+  highlightColor: Highlight["color"]
+  autoCreate: boolean
   highlights: Highlight[];
   onCreate: (payload: {
     highlightedText: string
@@ -20,20 +22,18 @@ interface HighlightToolbarProps {
   onDelete: (payload: { highlightId: number }) => Promise<void> | void
 }
 
-const COLORS = ["yellow", "blue", "red", "green", "purple"] as const;
-
 const HIGHLIGHT_DEBUG = true
 
 export function HighlightToolbar({
   articleUrl: _articleUrl,
   containerRef,
+  highlightColor,
+  autoCreate,
   highlights,
   onCreate,
   onUpdate,
   onDelete,
 }: HighlightToolbarProps) {
-  const [selectedColor, setSelectedColor] = useState<Highlight["color"]>("yellow");
-  const [showHighlights, setShowHighlights] = useState(false);
   const toolbarRef = useRef<HTMLDivElement>(null);
   const [editingId, setEditingId] = useState<number | null>(null);
   const [editingNote, setEditingNote] = useState("");
@@ -82,12 +82,18 @@ export function HighlightToolbar({
         return
       }
 
-      const selectionText = selection.toString()
-      if (selection.isCollapsed || selectionText.trim().length === 0) {
-        if (HIGHLIGHT_DEBUG) console.debug("[HighlightToolbar] collapsed/empty selection")
-        hideToolbar()
-        return
-      }
+       const selectionText = selection.toString()
+       if (selection.isCollapsed || selectionText.trim().length === 0) {
+         if (HIGHLIGHT_DEBUG) console.debug("[HighlightToolbar] collapsed/empty selection")
+         hideToolbar()
+         return
+       }
+
+       if (autoCreate) {
+         void handleCreateHighlight()
+         hideToolbar()
+         return
+       }
 
       const range = selection.getRangeAt(0)
       const inside = selectionInsideContainer(selection, range)
@@ -204,7 +210,7 @@ export function HighlightToolbar({
 
       await onCreate({
         highlightedText,
-        color: selectedColor,
+        color: highlightColor,
         range: { start: finalStart, end: finalEnd },
       });
 
@@ -242,17 +248,6 @@ export function HighlightToolbar({
     }
   };
 
-  const handleShareHighlights = () => {
-    const text = highlights
-        .map(h => `"${h.highlighted_text}"
-${h.note ? `Note: ${h.note}
-` : ''}`)
-        .join("\n---\n");
-    
-    navigator.clipboard.writeText(text);
-    toast.success("Highlights copied to clipboard");
-  }
-
   return (
     <>
       {/* Floating Highlight Toolbar */}
@@ -277,175 +272,13 @@ ${h.note ? `Note: ${h.note}
                 <X className="h-3 w-3" />
               </Button>
         </div>
-        <div className="flex gap-1 mb-2 w-full justify-center">
-            {COLORS.map((color) => (
-              <button
-                key={color}
-                onClick={() => setSelectedColor(color)}
-                className={`h-6 w-6 rounded-full border-2 transition-all ${selectedColor === color
-                    ? "border-gray-900 dark:border-white scale-110"
-                    : "border-transparent hover:scale-105"
-                } ${getHighlightColorClass(color).split(" ")[0]}`} // Use just bg color for circle
-                title={color}
-              />
-            ))}
-        </div>
         <div className="flex gap-1 w-full">
-            <Button
-            size="sm"
-            onClick={handleCreateHighlight}
-            className="text-xs h-7 py-1 flex-1"
-            >
-            Save
-            </Button>
-            <Button
-            size="sm"
-            variant="outline"
-            onClick={() => {
-                setShowHighlights(!showHighlights);
-                if (toolbarRef.current) toolbarRef.current.style.display = "none";
-            }}
-            className="text-xs h-7 py-1"
-            >
-            List
-            </Button>
+          <Button size="sm" onClick={handleCreateHighlight} className="text-xs h-7 py-1 flex-1">
+            Highlight
+          </Button>
         </div>
       </div>
 
-      {/* Highlights List Panel */}
-      {showHighlights && (
-        <div className="fixed bottom-4 right-4 z-50 w-80 max-h-[500px] flex flex-col bg-white dark:bg-slate-800 rounded-lg shadow-xl border border-gray-200 dark:border-slate-700 animate-in slide-in-from-bottom-5 duration-200">
-          <div className="flex items-center justify-between p-3 border-b border-gray-100 dark:border-slate-700">
-            <h3 className="font-semibold text-gray-900 dark:text-white flex items-center gap-2">
-              <Highlighter className="h-4 w-4" />
-              Highlights ({highlights.length})
-            </h3>
-            <div className="flex gap-1">
-                {highlights.length > 0 && (
-                     <Button
-                     size="sm"
-                     variant="ghost"
-                     onClick={handleShareHighlights}
-                     className="h-8 w-8 p-0"
-                     title="Copy all highlights"
-                   >
-                     <Share2 className="h-4 w-4" />
-                   </Button>
-                )}
-                <Button
-                size="sm"
-                variant="ghost"
-                onClick={() => setShowHighlights(false)}
-                className="h-8 w-8 p-0"
-                >
-                <X className="h-4 w-4" />
-                </Button>
-            </div>
-          </div>
-
-          <div className="overflow-y-auto p-4 space-y-3 flex-1">
-            {highlights.length === 0 ? (
-                <div className="text-center text-gray-500 py-8 text-sm">
-                    No highlights yet. Select text to highlight.
-                </div>
-            ) : (
-                highlights.map((highlight) => (
-                <div
-                    key={highlight.id ?? `${highlight.character_start}-${highlight.character_end}-${highlight.highlighted_text.slice(0, 20)}`}
-                    className={`p-3 rounded-lg border transition-colors ${getHighlightColorClass(
-                    highlight.color
-                    )} border-opacity-50`}
-                >
-                    <p className="text-sm font-medium mb-2 leading-relaxed">
-                    &quot;{highlight.highlighted_text}&quot;
-                    </p>
-
-                    {editingId === highlight.id ? (
-                    <div className="space-y-2 mt-2">
-                        <textarea
-                        value={editingNote}
-                        onChange={(e) => setEditingNote(e.target.value)}
-                        placeholder="Add a note..."
-                        className="w-full text-xs p-2 rounded border border-gray-300 dark:border-slate-600 bg-white dark:bg-slate-900 focus:ring-1 focus:ring-primary"
-                        rows={2}
-                        autoFocus
-                        />
-                        <div className="flex gap-2">
-                        <Button
-                            size="sm"
-                            onClick={() => handleUpdateNote(highlight.id!)}
-                            className="text-xs h-7 py-0 flex-1"
-                        >
-                            Save
-                        </Button>
-                        <Button
-                            size="sm"
-                            variant="outline"
-                            onClick={() => {
-                            setEditingId(null);
-                            setEditingNote("");
-                            }}
-                            className="text-xs h-7 py-0 flex-1"
-                        >
-                            Cancel
-                        </Button>
-                        </div>
-                    </div>
-                    ) : (
-                    <>
-                        {highlight.note && (
-                        <div className="text-xs bg-black/5 dark:bg-black/20 p-2 rounded mb-2 italic">
-                            {highlight.note}
-                        </div>
-                        )}
-                        <div className="flex gap-1 justify-end opacity-0 group-hover:opacity-100 transition-opacity">
-                         {/* Hover handling in mobile might be tricky, so we might want them always visible or toggleable. 
-                             For now, let's make them always visible but subtle.
-                          */}
-                        </div>
-                        <div className="flex gap-2 mt-2 pt-2 border-t border-black/5 dark:border-white/10">
-                        <Button
-                            size="sm"
-                            variant="ghost"
-                            onClick={() => {
-                            setEditingId(highlight.id!);
-                            setEditingNote(highlight.note || "");
-                            }}
-                            className="text-xs h-6 px-2 hover:bg-black/5 dark:hover:bg-white/10"
-                        >
-                            <Edit2 className="h-3 w-3 mr-1" />
-                            {highlight.note ? "Edit Note" : "Add Note"}
-                        </Button>
-                        <Button
-                            size="sm"
-                            variant="ghost"
-                            onClick={() => {
-                                navigator.clipboard.writeText(`"${highlight.highlighted_text}"`);
-                                toast.success("Copied to clipboard");
-                            }}
-                            className="text-xs h-6 px-2 hover:bg-black/5 dark:hover:bg-white/10"
-                        >
-                             <Copy className="h-3 w-3 mr-1" />
-                             Copy
-                        </Button>
-                        <div className="flex-1" />
-                        <Button
-                            size="sm"
-                            variant="ghost"
-                            onClick={() => handleDeleteHighlight(highlight.id!)}
-                            className="text-xs h-6 px-2 text-red-500 hover:bg-red-100 dark:hover:bg-red-900/30 hover:text-red-600"
-                        >
-                            <Trash2 className="h-3 w-3" />
-                        </Button>
-                        </div>
-                    </>
-                    )}
-                </div>
-                ))
-            )}
-          </div>
-        </div>
-      )}
     </>
   );
 }
