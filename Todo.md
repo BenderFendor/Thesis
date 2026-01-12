@@ -1,6 +1,12 @@
 # Features to add
 
 ## Error Fixing: ChromaDB Connection Refused (Log Review)
+
+## Page.tsx Regression Workflow
+- [ ] Review commit `1eeee81` intent (what it tried to do)
+- [ ] Critique the approach (notes for code review)
+- [ ] `git checkout HEAD~1` (go one commit back)
+- [ ] Re-implement fix with a new commit
 - [ ] Primary error: `httpx.ConnectError: [Errno 111] Connection refused` when backend talks to ChromaDB (triggered in `app/services/clustering.py` at `assign_article_to_cluster` calling `self.vector_store.collection.get(...)`).
 - [ ] Check ChromaDB is running (Docker: `docker ps`; local: `chroma run`).
 - [ ] Verify host/port config (e.g., `CHROMA_SERVER_HOST`, `CHROMA_SERVER_HTTP_PORT`) matches where Chroma is actually listening.
