@@ -7,7 +7,7 @@ import { X, ExternalLink, Heart, Bookmark, AlertTriangle, DollarSign, Bug, Link 
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
-import { type NewsArticle, getSourceById, type NewsSource, fetchSourceDebugData, type SourceDebugData, analyzeArticle, type ArticleAnalysis, API_BASE_URL, createBookmark, deleteBookmark, performAgenticSearch, type FactCheckResult, addToReadingQueue, type Highlight, getHighlightsForArticle } from "@/lib/api"
+import { type NewsArticle, getSourceById, type NewsSource, fetchSourceDebugData, type SourceDebugData, analyzeArticle, type ArticleAnalysis, API_BASE_URL, createBookmark, deleteBookmark, performAgenticSearch, type FactCheckResult, addToReadingQueue, type Highlight, getHighlightsForArticle, updateHighlight } from "@/lib/api"
 import { isDebugMode } from "@/lib/logger"
 import { useReadingQueue } from "@/hooks/useReadingQueue"
 import { useFavorites } from "@/hooks/useFavorites"
@@ -19,6 +19,7 @@ import { RelatedArticles } from "@/components/related-articles"
 import { toast } from "sonner"
 import { ArticleContent } from "@/components/article-content"
 import { HighlightToolbar } from "@/components/highlight-toolbar"
+import { HighlightNotePopover } from "@/components/highlight-note-popover"
 
 type FactCheckStatus = FactCheckResult["verification_status"]
 type FactCheckStatusFilter = FactCheckStatus | "all"
@@ -93,6 +94,10 @@ export function ArticleDetailModal({ article, isOpen, onClose, initialIsBookmark
   const [aiAnalysisRequested, setAiAnalysisRequested] = useState(false)
   const [highlights, setHighlights] = useState<Highlight[]>([])
   const articleContentRef = useRef<HTMLDivElement>(null)
+  const [activeHighlightId, setActiveHighlightId] = useState<number | null>(null)
+  const [highlightPopoverOpen, setHighlightPopoverOpen] = useState(false)
+  const [highlightPopoverAnchorEl, setHighlightPopoverAnchorEl] = useState<HTMLElement | null>(null)
+  const [highlightPopoverHighlight, setHighlightPopoverHighlight] = useState<Highlight | null>(null)
 
   useEffect(() => {
     if (article?.url) {
@@ -410,8 +415,28 @@ export function ArticleDetailModal({ article, isOpen, onClose, initialIsBookmark
     }
   }
 
-  // Inline definition hook (highlight → popover)
-  const { result: inlineResult, open: inlineOpen, setOpen: setInlineOpen, anchorRef: inlineAnchorRef } = useInlineDefinition()
+   // Inline definition hook (Alt+select)
+   const { result: inlineResult, open: inlineOpen, setOpen: setInlineOpen, anchorRef: inlineAnchorRef } = useInlineDefinition()
+
+   const handleHighlightClick = (highlightId: number, element: HTMLElement) => {
+     const found = highlights.find((item) => item.id === highlightId) ?? null
+     setActiveHighlightId(highlightId)
+     setHighlightPopoverHighlight(found)
+     setHighlightPopoverAnchorEl(element)
+     setHighlightPopoverOpen(true)
+   }
+
+   const handleSaveHighlightNote = async (highlightId: number, note: string) => {
+     try {
+       const updated = await updateHighlight(highlightId, { note })
+       setHighlights((prev) => prev.map((item) => (item.id === highlightId ? updated : item)))
+     } catch (error) {
+       console.error("Failed to save note", error)
+       toast.error("Failed to save note")
+       throw error
+     }
+   }
+
 
   const getBiasColor = (bias: string) => {
     switch (bias) {
@@ -460,12 +485,20 @@ export function ArticleDetailModal({ article, isOpen, onClose, initialIsBookmark
   return (
     <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4 animate-in fade-in-0 duration-200">
       {/* Inline Definition Popover */}
-      <InlineDefinition
-        result={inlineResult}
-        open={inlineOpen}
-        setOpen={setInlineOpen}
-        anchorRef={inlineAnchorRef}
-      />
+       <InlineDefinition
+         result={inlineResult}
+         open={inlineOpen}
+         setOpen={setInlineOpen}
+         anchorRef={inlineAnchorRef}
+       />
+       <HighlightNotePopover
+         open={highlightPopoverOpen}
+         highlight={highlightPopoverHighlight}
+         anchorEl={highlightPopoverAnchorEl}
+         onClose={() => setHighlightPopoverOpen(false)}
+         onSave={handleSaveHighlightNote}
+       />
+
       <div className={`bg-[var(--news-bg-primary)] border border-border/60 rounded-xl shadow-2xl shadow-black/40 transition-all duration-300 animate-in zoom-in-95 fade-in-0 duration-200 ${isExpanded
         ? 'w-full h-full max-w-none max-h-none overflow-y-auto'
         : 'max-w-4xl w-full max-h-[90vh] overflow-hidden'
@@ -600,12 +633,14 @@ export function ArticleDetailModal({ article, isOpen, onClose, initialIsBookmark
                     </div>
                   ) : (
                     <>
-                      <ArticleContent
-                        ref={articleContentRef}
-                        content={fullArticleText || article.content || article.summary || ""}
-                        highlights={highlights}
-                        className={isExpanded ? 'text-lg space-y-6' : 'text-base space-y-4'}
-                      />
+                       <ArticleContent
+                         ref={articleContentRef}
+                         content={fullArticleText || article.content || article.summary || ""}
+                         highlights={highlights}
+                         activeHighlightId={activeHighlightId}
+                         onHighlightClick={handleHighlightClick}
+                         className={isExpanded ? 'text-lg space-y-6' : 'text-base space-y-4'}
+                       />
                       <HighlightToolbar
                         articleUrl={article.url}
                         containerRef={articleContentRef}

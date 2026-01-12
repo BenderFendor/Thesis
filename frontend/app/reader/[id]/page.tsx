@@ -11,6 +11,8 @@ import {
   type Highlight,
 } from "@/lib/api";
 import { Button } from "@/components/ui/button";
+import { ArticleContent } from "@/components/article-content";
+import { HighlightNotePopover } from "@/components/highlight-note-popover";
 import {
   ArrowLeft,
   ChevronLeft,
@@ -128,6 +130,10 @@ export default function ReaderPage() {
   const [showHighlights, setShowHighlights] = useState(true);
   const [editingId, setEditingId] = useState<number | null>(null);
   const [editingNote, setEditingNote] = useState("");
+  const [activeHighlightId, setActiveHighlightId] = useState<number | null>(null);
+  const [highlightPopoverOpen, setHighlightPopoverOpen] = useState(false);
+  const [highlightPopoverAnchorEl, setHighlightPopoverAnchorEl] = useState<HTMLElement | null>(null);
+  const [highlightPopoverHighlight, setHighlightPopoverHighlight] = useState<Highlight | null>(null);
 
   useEffect(() => {
     const loadContent = async () => {
@@ -282,6 +288,27 @@ export default function ReaderPage() {
     }
   };
 
+  const handleHighlightClick = (highlightId: number, element: HTMLElement) => {
+    const found = highlights.find((item) => item.id === highlightId) ?? null;
+    setActiveHighlightId(highlightId);
+    setHighlightPopoverHighlight(found);
+    setHighlightPopoverAnchorEl(element);
+    setHighlightPopoverOpen(true);
+  };
+
+  const handleSaveHighlightNote = async (highlightId: number, note: string) => {
+    try {
+      const updated = await updateHighlight(highlightId, { note });
+      setHighlights((prev) =>
+        prev.map((item) => (item.id === highlightId ? updated : item))
+      );
+    } catch (error) {
+      console.error("Failed to save note", error);
+      toast.error("Failed to save note");
+      throw error;
+    }
+  };
+
   const handleUpdateNote = async (highlightId: number) => {
     try {
       const updated = await updateHighlight(highlightId, {
@@ -390,6 +417,13 @@ export default function ReaderPage() {
 
   return (
     <div className="min-h-screen bg-background flex flex-col">
+      <HighlightNotePopover
+        open={highlightPopoverOpen}
+        highlight={highlightPopoverHighlight}
+        anchorEl={highlightPopoverAnchorEl}
+        onClose={() => setHighlightPopoverOpen(false)}
+        onSave={handleSaveHighlightNote}
+      />
       <div className="sticky top-0 z-20 border-b border-border/60 bg-background/95">
         <div className="mx-auto flex w-full max-w-6xl items-center justify-between gap-4 px-4 py-4">
           <div className="flex items-center gap-3">
@@ -448,12 +482,15 @@ export default function ReaderPage() {
               </div>
             </div>
 
-            <div
-              ref={articleBodyRef}
-              onMouseUp={handleSelection}
-              className="text-base leading-relaxed text-foreground whitespace-pre-wrap"
-            >
-              {content.full_text || "Full text not available yet."}
+            <div onMouseUp={handleSelection}>
+              <ArticleContent
+                ref={articleBodyRef}
+                content={content.full_text || "Full text not available yet."}
+                highlights={showHighlights ? highlights : []}
+                activeHighlightId={activeHighlightId}
+                onHighlightClick={handleHighlightClick}
+                className="text-base leading-relaxed text-foreground whitespace-pre-wrap"
+              />
             </div>
           </div>
 

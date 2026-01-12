@@ -64,9 +64,10 @@ export function getGlobalOffset(root: HTMLElement, node: Node, offset: number): 
  * but this handles the basic case of sequential highlights.
  */
 export function renderHighlightedContent(
-  text: string, 
-  highlights: Highlight[], 
-  onHighlightClick?: (id: number) => void
+  text: string,
+  highlights: Highlight[],
+  onHighlightClick?: (id: number, element: HTMLElement) => void,
+  activeHighlightId?: number | null
 ): React.ReactNode[] {
   if (!text) return [];
   if (!highlights || highlights.length === 0) return [text];
@@ -96,10 +97,11 @@ export function renderHighlightedContent(
     nodes.push(
       <mark
         key={highlight.id}
-        className={`cursor-pointer transition-colors hover:opacity-80 rounded-sm px-0.5 mx-0.5 ${getHighlightColorClass(highlight.color)}`}
+        data-highlight-id={highlight.id}
+        className={`cursor-pointer transition-colors hover:opacity-80 rounded-sm px-0.5 mx-0.5 ${getHighlightColorClass(highlight.color)} ${highlight.id === activeHighlightId ? "ring-2 ring-primary/70" : ""}`}
         onClick={(e) => {
           e.stopPropagation();
-          onHighlightClick?.(highlight.id!);
+          onHighlightClick?.(highlight.id!, e.currentTarget);
         }}
         title={highlight.note || "Click to edit"}
       >

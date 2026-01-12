@@ -14,6 +14,8 @@ export function useInlineDefinition() {
   const [open, setOpen] = useState(false);
   const anchorRef = useRef<{ x: number; y: number } | null>(null);
   const abortRef = useRef<AbortController | null>(null);
+  const lastTermRef = useRef<string | null>(null);
+  const lastRequestAtRef = useRef<number>(0);
 
   useEffect(() => {
     // Avoid installing selection listeners in jsdom/unit tests where
@@ -23,6 +25,8 @@ export function useInlineDefinition() {
     }
     const onMouseUp = async (e: MouseEvent) => {
       try {
+        if (!e.altKey) return;
+
         const selection = window.getSelection();
         if (!selection) return;
         const text = selection.toString().trim();
@@ -43,6 +47,19 @@ export function useInlineDefinition() {
           // Fallback to mouse coordinates if range rect is unavailable
           anchorRef.current = { x: e.clientX + window.scrollX, y: e.clientY + window.scrollY };
         }
+
+        const now = Date.now();
+        const normalized = text.toLowerCase();
+        const recentlyRequested =
+          lastTermRef.current === normalized && now - lastRequestAtRef.current < 4000;
+
+        if (recentlyRequested) {
+          setOpen(true);
+          return;
+        }
+
+        lastTermRef.current = normalized;
+        lastRequestAtRef.current = now;
 
         // Cancel previous
         if (abortRef.current) abortRef.current.abort();

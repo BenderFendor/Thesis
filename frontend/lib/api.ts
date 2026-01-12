@@ -2066,7 +2066,7 @@ export async function getHighlightsForArticle(
   try {
     const encodedUrl = encodeURIComponent(articleUrl)
     const response = await fetch(
-      `${API_BASE_URL}/api/queue/highlights/article/${encodedUrl}`,
+      `${API_BASE_URL}/api/queue/highlights/article/${encodeURIComponent(articleUrl)}`,
       { method: 'GET', headers: { 'Content-Type': 'application/json' } }
     )
 
