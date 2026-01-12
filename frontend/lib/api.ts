@@ -18,7 +18,7 @@ const DOCKER_API_BASE_URL = resolveBaseUrl(process.env.NEXT_PUBLIC_DOCKER_API_UR
 
 // --- Feature Gates ---
 export const ENABLE_DIGEST = process.env.NEXT_PUBLIC_ENABLE_DIGEST === "true"
-export const ENABLE_HIGHLIGHTS = process.env.NEXT_PUBLIC_ENABLE_HIGHLIGHTS === "true"
+export const ENABLE_HIGHLIGHTS = true
 
 // --- Data Types ---
 
@@ -2031,7 +2031,7 @@ export interface Highlight {
   user_id?: number
   article_url: string
   highlighted_text: string
-  color: 'yellow' | 'blue' | 'red'
+  color: 'yellow' | 'blue' | 'red' | 'green' | 'purple'
   note?: string
   character_start: number
   character_end: number
@@ -2065,10 +2065,16 @@ export async function getHighlightsForArticle(
 ): Promise<Highlight[]> {
   try {
     const encodedUrl = encodeURIComponent(articleUrl)
-    const response = await fetch(
-      `${API_BASE_URL}/api/queue/highlights/article/${encodeURIComponent(articleUrl)}`,
-      { method: 'GET', headers: { 'Content-Type': 'application/json' } }
-    )
+    const url = `${API_BASE_URL}/api/queue/highlights/article/${encodedUrl}`
+
+    if (process.env.NODE_ENV !== 'production') {
+      logger.debug(`[Highlights] GET ${url}`)
+    }
+
+    const response = await fetch(url, {
+      method: 'GET',
+      headers: { 'Content-Type': 'application/json' },
+    })
 
     if (!response.ok) {
       throw new Error(`HTTP error! status: ${response.status}`)

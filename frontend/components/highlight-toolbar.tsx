@@ -22,6 +22,8 @@ interface HighlightToolbarProps {
 
 const COLORS = ["yellow", "blue", "red", "green", "purple"] as const;
 
+const HIGHLIGHT_DEBUG = true
+
 export function HighlightToolbar({
   articleUrl: _articleUrl,
   containerRef,
@@ -30,99 +32,162 @@ export function HighlightToolbar({
   onUpdate,
   onDelete,
 }: HighlightToolbarProps) {
-  if (!ENABLE_HIGHLIGHTS) {
-    return null;
-  }
-
-  const [selectedColor, setSelectedColor] = useState<typeof COLORS[number]>("yellow");
+  const [selectedColor, setSelectedColor] = useState<Highlight["color"]>("yellow");
   const [showHighlights, setShowHighlights] = useState(false);
   const toolbarRef = useRef<HTMLDivElement>(null);
   const [editingId, setEditingId] = useState<number | null>(null);
   const [editingNote, setEditingNote] = useState("");
 
+  if (!ENABLE_HIGHLIGHTS) {
+    return null;
+  }
+
   // Handle text selection
   useEffect(() => {
-    const handleSelection = () => {
-      const selection = window.getSelection();
-      
-      // Basic check if selection exists
-      if (!selection || selection.toString().length === 0) {
-        if (toolbarRef.current) {
-            toolbarRef.current.style.display = "none";
-        }
-        return;
-      }
-
-      // Check if selection is inside containerRef
-      if (containerRef.current && !containerRef.current.contains(selection.anchorNode)) {
-          // If the selection started outside our article content, hide toolbar
-          if (toolbarRef.current) {
-            toolbarRef.current.style.display = "none";
-          }
-          return;
-      }
-
-      const range = selection.getRangeAt(0);
-      let rect: DOMRect | null = null;
-      try {
-        rect = (range as any).getBoundingClientRect?.() ?? null;
-      } catch (err) {
-        rect = null;
-      }
-
-      // Show toolbar near selected text
-      if (toolbarRef.current) {
-        const top = rect ? rect.top + window.scrollY - 50 : window.innerHeight / 2;
-        const left = rect ? rect.left + window.scrollX : window.innerWidth / 2 - 100;
-        toolbarRef.current.style.top = `${top}px`;
-        toolbarRef.current.style.left = `${left}px`;
-        toolbarRef.current.style.display = "flex";
-      }
-    };
-
-    const handleDeselection = (e: MouseEvent) => {
-       // Only hide if we click outside the toolbar
-       if (toolbarRef.current && !toolbarRef.current.contains(e.target as Node)) {
-          // Check if we are selecting text, if so, handleSelection will trigger mouseup
-          // This mousedown just ensures we clear if we click away.
-          // Actually, let's rely on selection change or mouseup mostly.
-       }
-    };
-    
-    // We can just rely on mouseup to re-evaluate selection
-    document.addEventListener("mouseup", handleSelection);
-    // If we click inside toolbar, we don't want to hide it, but if we click elsewhere and lose selection, it should hide.
-    // The selection clearing usually happens on mousedown.
-    
-    const handleSelectionChange = () => {
-        const selection = window.getSelection();
-        if (!selection || selection.rangeCount === 0 || selection.isCollapsed) {
-             if (toolbarRef.current) {
-                toolbarRef.current.style.display = "none";
-             }
-        }
+    if (HIGHLIGHT_DEBUG) {
+      console.debug("[HighlightToolbar] mounted", {
+        hasContainer: Boolean(containerRef.current),
+        containerNode: containerRef.current?.nodeName,
+      })
     }
-    document.addEventListener("selectionchange", handleSelectionChange);
+
+    const hideToolbar = () => {
+      if (toolbarRef.current) {
+        toolbarRef.current.style.display = "none"
+      }
+    }
+
+    const selectionInsideContainer = (selection: Selection, range: Range) => {
+      const container = containerRef.current
+      if (!container) return false
+
+      const anchor = selection.anchorNode
+      const focus = selection.focusNode
+      const commonAncestor = range.commonAncestorContainer
+
+      const anchorOk = anchor ? container.contains(anchor) : false
+      const focusOk = focus ? container.contains(focus) : false
+      const commonOk = container.contains(commonAncestor)
+
+      return anchorOk || focusOk || commonOk
+    }
+
+    const handleSelection = () => {
+      if (HIGHLIGHT_DEBUG) console.debug("[HighlightToolbar] handleSelection fired")
+      const selection = window.getSelection()
+
+      if (!selection || selection.rangeCount === 0) {
+        if (HIGHLIGHT_DEBUG) console.debug("[HighlightToolbar] no selection")
+        hideToolbar()
+        return
+      }
+
+      const selectionText = selection.toString()
+      if (selection.isCollapsed || selectionText.trim().length === 0) {
+        if (HIGHLIGHT_DEBUG) console.debug("[HighlightToolbar] collapsed/empty selection")
+        hideToolbar()
+        return
+      }
+
+      const range = selection.getRangeAt(0)
+      const inside = selectionInsideContainer(selection, range)
+      if (!inside) {
+        if (HIGHLIGHT_DEBUG) {
+          console.debug("[HighlightToolbar] selection outside container", {
+            selectionText: selectionText.slice(0, 80),
+            anchorNode: selection.anchorNode?.nodeName,
+            focusNode: selection.focusNode?.nodeName,
+            commonAncestor: range.commonAncestorContainer?.nodeName,
+            containerNode: containerRef.current?.nodeName,
+          })
+        }
+        hideToolbar()
+        return
+      }
+
+      if (HIGHLIGHT_DEBUG) {
+        console.debug("[HighlightToolbar] selection inside container", {
+          selectionText: selectionText.slice(0, 80),
+          startContainer: range.startContainer?.nodeName,
+          endContainer: range.endContainer?.nodeName,
+        })
+      }
+
+      let rect: DOMRect | null = null
+      try {
+        rect = range.getBoundingClientRect?.() ?? null
+      } catch {
+        rect = null
+      }
+
+      if (toolbarRef.current) {
+        const container = containerRef.current
+        const containerRect = container?.getBoundingClientRect?.()
+
+        if (HIGHLIGHT_DEBUG) {
+          console.debug("[HighlightToolbar] positioning", {
+            rectTop: rect?.top,
+            rectLeft: rect?.left,
+            containerTop: containerRect?.top,
+            containerLeft: containerRect?.left,
+            containerConnected: container?.isConnected,
+            containerClientHeight: container?.clientHeight,
+          })
+        }
+
+        // Use viewport-based positioning for a fixed element.
+        // Avoid mixing in window.scrollY because the modal often scrolls independently.
+        const top = rect ? rect.top - 50 : window.innerHeight / 2
+        const left = rect ? rect.left : window.innerWidth / 2 - 100
+
+        toolbarRef.current.style.top = `${Math.max(8, top)}px`
+        toolbarRef.current.style.left = `${Math.max(8, left)}px`
+        toolbarRef.current.style.display = "flex"
+      }
+    }
+
+    const handleSelectionChange = () => {
+      if (HIGHLIGHT_DEBUG) console.debug("[HighlightToolbar] selectionchange event")
+      const selection = window.getSelection()
+      if (!selection || selection.rangeCount === 0 || selection.isCollapsed) {
+        hideToolbar()
+      }
+    }
+
+    document.addEventListener("pointerup", handleSelection, { capture: true })
+    document.addEventListener("mouseup", handleSelection, { capture: true })
+    document.addEventListener("keyup", handleSelection, { capture: true })
+    document.addEventListener("selectionchange", handleSelectionChange, { capture: true })
 
     return () => {
-      document.removeEventListener("mouseup", handleSelection);
-      document.removeEventListener("selectionchange", handleSelectionChange);
-    };
-  }, [containerRef]);
+      document.removeEventListener("pointerup", handleSelection, { capture: true })
+      document.removeEventListener("mouseup", handleSelection, { capture: true })
+      document.removeEventListener("keyup", handleSelection, { capture: true })
+      document.removeEventListener("selectionchange", handleSelectionChange, { capture: true })
+    }
+  }, [containerRef])
 
   const handleCreateHighlight = async () => {
-    const selection = window.getSelection();
+    const selection = window.getSelection()
     if (!selection || selection.toString().length === 0 || !containerRef.current) {
-      toast.error("No text selected");
-      return;
+      toast.error("No text selected")
+      return
     }
 
     try {
       const range = selection.getRangeAt(0);
       const highlightedText = selection.toString();
 
-      const startOffset = getGlobalOffset(containerRef.current, range.startContainer, range.startOffset);
-      const endOffset = getGlobalOffset(containerRef.current, range.endContainer, range.endOffset);
+      const startOffset = getGlobalOffset(containerRef.current, range.startContainer, range.startOffset)
+      const endOffset = getGlobalOffset(containerRef.current, range.endContainer, range.endOffset)
+
+      if (HIGHLIGHT_DEBUG) {
+        console.debug("[HighlightToolbar] computed offsets", {
+          startOffset,
+          endOffset,
+          selectedText: highlightedText.slice(0, 80),
+        })
+      }
 
       if (startOffset === -1 || endOffset === -1) {
         toast.error("Selection outside of article content");
@@ -292,7 +357,7 @@ ${h.note ? `Note: ${h.note}
                     )} border-opacity-50`}
                 >
                     <p className="text-sm font-medium mb-2 leading-relaxed">
-                    "{highlight.highlighted_text}"
+                    &quot;{highlight.highlighted_text}&quot;
                     </p>
 
                     {editingId === highlight.id ? (
