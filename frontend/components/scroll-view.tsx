@@ -125,22 +125,6 @@ export function ScrollView({ articles, loading }: { articles: NewsArticle[], loa
     setIsArticleModalOpen(true)
   }
 
-  const handleNavigateModalArticle = useCallback(
-    (direction: "prev" | "next") => {
-      if (!selectedArticle) return
-      const currentIdx = articles.findIndex((item) => item.url === selectedArticle.url)
-      if (currentIdx < 0) return
-
-      const delta = direction === "prev" ? -1 : 1
-      const nextIdx = currentIdx + delta
-      const nextArticle = articles[nextIdx]
-      if (!nextArticle) return
-
-      setSelectedArticle(nextArticle)
-    },
-    [articles, selectedArticle],
-  )
-
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
       if (event.key === "ArrowUp") {
@@ -462,7 +446,6 @@ export function ScrollView({ articles, loading }: { articles: NewsArticle[], loa
           setIsArticleModalOpen(false)
           setSelectedArticle(null)
         }}
-        onNavigate={handleNavigateModalArticle}
       />
       </div>
     </div>
