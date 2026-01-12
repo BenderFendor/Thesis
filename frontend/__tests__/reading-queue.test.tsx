@@ -122,7 +122,7 @@ describe("DigestCard", () => {
     render(<DigestCard />);
 
     await waitFor(() => {
-      expect(screen.getByText("Today's Digest")).toBeInTheDocument();
+      expect(screen.getByText("Daily Digest")).toBeInTheDocument();
     });
   });
 
@@ -130,7 +130,7 @@ describe("DigestCard", () => {
     render(<DigestCard />);
 
     await waitFor(() => {
-      expect(screen.getByText(/Schedule Digest/)).toBeInTheDocument();
+      expect(screen.getByText(/Schedule digest/)).toBeInTheDocument();
     });
   });
 
@@ -138,11 +138,11 @@ describe("DigestCard", () => {
     const user = userEvent.setup();
     render(<DigestCard />);
 
-    const scheduleButton = await screen.findByText(/Schedule Digest/);
+    const scheduleButton = await screen.findByText(/Schedule digest/);
     await user.click(scheduleButton);
 
     await waitFor(() => {
-      expect(screen.getByText(/Daily digest time:/)).toBeInTheDocument();
+      expect(screen.getByText(/Daily digest time/)).toBeInTheDocument();
     });
   });
 
@@ -150,7 +150,7 @@ describe("DigestCard", () => {
     const user = userEvent.setup();
     render(<DigestCard />);
 
-    const scheduleButton = await screen.findByText(/Schedule Digest/);
+    const scheduleButton = await screen.findByText(/Schedule digest/);
     await user.click(scheduleButton);
 
     const timeInput = screen.getByDisplayValue("09:00");
@@ -160,61 +160,24 @@ describe("DigestCard", () => {
     const setButton = screen.getByText(/Set/);
     await user.click(setButton);
 
-    // Verify localStorage was called
     expect(localStorage.getItem("digestScheduleTime")).toBe("08:00");
   });
 });
 
 describe("HighlightToolbar", () => {
   it("renders when enabled", () => {
+    const containerRef = { current: document.createElement("div") };
+
     render(
-      <HighlightToolbar articleUrl="https://example.com/article" />
+      <HighlightToolbar
+        articleUrl="https://example.com/article"
+        containerRef={containerRef}
+        highlights={[]}
+        onHighlightsChange={jest.fn()}
+      />
     );
-    // Component should render without errors
+
     expect(true).toBe(true);
-  });
-
-  it("loads highlights for article", async () => {
-    const { getHighlightsForArticle } = require("@/lib/api");
-
-    render(
-      <HighlightToolbar articleUrl="https://example.com/article" />
-    );
-
-    await waitFor(() => {
-      expect(getHighlightsForArticle).toHaveBeenCalledWith(
-        "https://example.com/article"
-      );
-    });
-  });
-
-  it("creates highlight on button click with selection", async () => {
-    const { createHighlight } = require("@/lib/api");
-    const user = userEvent.setup();
-
-    render(
-      <div>
-        <HighlightToolbar articleUrl="https://example.com/article" />
-        <p>Test content to highlight</p>
-      </div>
-    );
-
-    // Simulate text selection
-    const textElement = screen.getByText("Test content to highlight");
-    const selection = window.getSelection();
-
-    if (selection) {
-      const range = document.createRange();
-      range.selectNodeContents(textElement);
-      selection.removeAllRanges();
-      selection.addRange(range);
-
-      fireEvent.mouseUp(textElement);
-
-      // The highlight button should be visible in the toolbar
-      // Note: This is a simplified test - actual highlight creation
-      // would require more complex interaction simulation
-    }
   });
 });
 

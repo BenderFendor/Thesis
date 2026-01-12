@@ -812,6 +812,7 @@ async def process_unassigned_articles(session: AsyncSession) -> int:
     """Assign all articles without cluster assignment."""
     service = ClusteringService()
     if not service.vector_store:
+        logger.warning("Vector store unavailable; skipping clustering")
         return 0
 
     unassigned = await session.execute(
@@ -831,6 +832,8 @@ async def process_unassigned_articles(session: AsyncSession) -> int:
     logger.info("Found %d unassigned articles with embeddings", len(articles))
     assigned = 0
 
+    chroma_error_logged = False
+
     for idx, article in enumerate(articles):
         if idx > 0 and idx % 50 == 0:
             logger.info(
@@ -839,7 +842,18 @@ async def process_unassigned_articles(session: AsyncSession) -> int:
                 len(articles),
                 assigned,
             )
-        cluster_id = await service.assign_article_to_cluster(session, article)
+        try:
+            cluster_id = await service.assign_article_to_cluster(session, article)
+        except Exception as e:
+            if not chroma_error_logged:
+                logger.error(
+                    "Aborting clustering run due to Chroma error: %s",
+                    e,
+                    exc_info=True,
+                )
+                chroma_error_logged = True
+            break
+
         if cluster_id:
             assigned += 1
 

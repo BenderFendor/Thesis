@@ -399,7 +399,7 @@ ensure_postgres_user_db() {
 
 chroma_ready() {
 	if command -v curl >/dev/null 2>&1; then
-		curl -fsS "http://${CHROMA_HOST}:${CHROMA_PORT}/api/v1/heartbeat" >/dev/null 2>&1
+		curl -fsS "http://${CHROMA_HOST}:${CHROMA_PORT}/api/v2/heartbeat" >/dev/null 2>&1
 		return $?
 	fi
 

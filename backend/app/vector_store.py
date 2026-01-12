@@ -16,7 +16,7 @@ from app.services.startup_metrics import startup_metrics
 logger = logging.getLogger(__name__)
 
 CHROMA_HOST = os.getenv("CHROMA_HOST", "localhost")
-CHROMA_PORT = int(os.getenv("CHROMA_PORT", "8000"))
+CHROMA_PORT = int(os.getenv("CHROMA_PORT", "8001"))
 
 _vector_store: Optional["VectorStore"] = None
 _vector_store_lock = threading.Lock()

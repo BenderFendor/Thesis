@@ -1,5 +1,13 @@
 # Features to add
 
+## Error Fixing: ChromaDB Connection Refused (Log Review)
+- [ ] Primary error: `httpx.ConnectError: [Errno 111] Connection refused` when backend talks to ChromaDB (triggered in `app/services/clustering.py` at `assign_article_to_cluster` calling `self.vector_store.collection.get(...)`).
+- [ ] Check ChromaDB is running (Docker: `docker ps`; local: `chroma run`).
+- [ ] Verify host/port config (e.g., `CHROMA_SERVER_HOST`, `CHROMA_SERVER_HTTP_PORT`) matches where Chroma is actually listening.
+- [ ] Test reachability: `curl http://localhost:8000/api/v1/heartbeat` (adjust host/port as configured).
+- [ ] Fix log flooding: clustering loop continues after ConnectError for ~500 articles; add a preflight connectivity check and abort the batch early (or implement backoff + a single summarized error) to avoid massive repeated tracebacks.
+
+
 ---
 
 ## Phase 6: Trending & Breaking News Detection (COMPLETE)
