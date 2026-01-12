@@ -7,7 +7,8 @@ import { X, ExternalLink, Heart, Bookmark, AlertTriangle, DollarSign, Bug, Link 
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
-import { type NewsArticle, getSourceById, type NewsSource, fetchSourceDebugData, type SourceDebugData, analyzeArticle, type ArticleAnalysis, API_BASE_URL, createBookmark, deleteBookmark, performAgenticSearch, type FactCheckResult, type Highlight, getHighlightsForArticle, updateHighlight, deleteHighlight } from "@/lib/api"
+import { type NewsArticle, getSourceById, type NewsSource, fetchSourceDebugData, type SourceDebugData, analyzeArticle, type ArticleAnalysis, API_BASE_URL, createBookmark, deleteBookmark, performAgenticSearch, type FactCheckResult, type Highlight, getHighlightsForArticle, createHighlight, updateHighlight, deleteHighlight } from "@/lib/api"
+import { loadHighlightStore, mergeHighlights, saveHighlightStore, toRemoteHighlights, type LocalHighlight, generateClientId, markFailed, markPending, markSynced } from "@/lib/highlight-store"
 import { isDebugMode } from "@/lib/logger"
 import { useReadingQueue } from "@/hooks/useReadingQueue"
 import { useFavorites } from "@/hooks/useFavorites"
@@ -109,7 +110,9 @@ export function ArticleDetailModal({ article, isOpen, onClose, initialIsBookmark
   const [sidebarEditingId, setSidebarEditingId] = useState<number | null>(null)
   const [sidebarEditingNote, setSidebarEditingNote] = useState("")
   const [aiAnalysisRequested, setAiAnalysisRequested] = useState(false)
-  const [highlights, setHighlights] = useState<Highlight[]>([])
+  const [highlights, setHighlights] = useState<LocalHighlight[]>([])
+  const [highlightSyncStatus, setHighlightSyncStatus] = useState<"idle" | "syncing" | "failed" | "offline">("idle")
+  const latestHighlightSyncRef = useRef(0)
   const articleContentRef = useRef<HTMLDivElement>(null)
   const [activeHighlightId, setActiveHighlightId] = useState<number | null>(null)
   const [highlightPopoverOpen, setHighlightPopoverOpen] = useState(false)
@@ -117,14 +120,97 @@ export function ArticleDetailModal({ article, isOpen, onClose, initialIsBookmark
   const [highlightPopoverHighlight, setHighlightPopoverHighlight] = useState<Highlight | null>(null)
 
   useEffect(() => {
-    if (article?.url) {
-      getHighlightsForArticle(article.url)
-        .then(setHighlights)
-        .catch((e) => console.error("Failed to load highlights", e))
-    } else {
+    if (!article?.url) {
       setHighlights([])
+      setHighlightSyncStatus("idle")
+      return
     }
+
+    const store = loadHighlightStore(article.url)
+    setHighlights(store.highlights)
+
+    getHighlightsForArticle(article.url)
+      .then((serverHighlights) => {
+        const merged = mergeHighlights({
+          articleUrl: article.url,
+          local: store.highlights,
+          server: serverHighlights,
+        })
+        setHighlights(merged)
+        saveHighlightStore({ version: 1, article_url: article.url, highlights: merged })
+      })
+      .catch((e) => {
+        console.error("Failed to load highlights", e)
+      })
   }, [article?.url])
+
+  const syncHighlights = async (articleUrl: string, current: LocalHighlight[]) => {
+    const syncToken = Date.now()
+    latestHighlightSyncRef.current = syncToken
+    setHighlightSyncStatus("syncing")
+
+    const actionable = current.filter((item) => item.pending_op)
+    if (actionable.length === 0) {
+      setHighlightSyncStatus(navigator.onLine ? "idle" : "offline")
+      return
+    }
+
+    let next = [...current]
+
+    for (const item of actionable) {
+      if (latestHighlightSyncRef.current !== syncToken) return
+
+      try {
+        if (item.pending_op === "create") {
+          const created = await createHighlight({
+            article_url: item.article_url,
+            highlighted_text: item.highlighted_text,
+            color: item.color,
+            note: item.note,
+            character_start: item.character_start,
+            character_end: item.character_end,
+          })
+          next = next.map((h) => (h.client_id === item.client_id ? markSynced({ highlight: h, server: created }) : h))
+        } else if (item.pending_op === "update") {
+          const id = item.server_id ?? item.id
+          if (!id) {
+            next = next.map((h) => (h.client_id === item.client_id ? markFailed({ highlight: h, error: "missing server id" }) : h))
+          } else {
+            const updated = await updateHighlight(id, {
+              note: item.note,
+              color: item.color,
+              character_start: item.character_start,
+              character_end: item.character_end,
+              highlighted_text: item.highlighted_text,
+            })
+            next = next.map((h) => (h.client_id === item.client_id ? markSynced({ highlight: h, server: updated }) : h))
+          }
+        } else if (item.pending_op === "delete") {
+          const id = item.server_id ?? item.id
+          if (id) {
+            await deleteHighlight(id)
+          }
+          next = next.filter((h) => h.client_id !== item.client_id)
+        }
+      } catch (error) {
+        if (!navigator.onLine) {
+          setHighlightSyncStatus("offline")
+        } else {
+          setHighlightSyncStatus("failed")
+        }
+        next = next.map((h) => (h.client_id === item.client_id ? markFailed({ highlight: h, error }) : h))
+      } finally {
+        if (articleUrl) {
+          saveHighlightStore({ version: 1, article_url: articleUrl, highlights: next })
+          setHighlights(next)
+        }
+      }
+    }
+
+    if (latestHighlightSyncRef.current === syncToken) {
+      setHighlightSyncStatus(navigator.onLine ? "idle" : "offline")
+    }
+  }
 
   useEffect(() => {
     const loadSource = async () => {
@@ -691,8 +777,55 @@ export function ArticleDetailModal({ article, isOpen, onClose, initialIsBookmark
                       <HighlightToolbar
                         articleUrl={article.url}
                         containerRef={articleContentRef}
-                        highlights={highlights}
-                        onHighlightsChange={setHighlights}
+                        highlights={toRemoteHighlights(highlights)}
+                        onCreate={async ({ highlightedText, color, range }) => {
+                          const nextLocal: LocalHighlight = markPending({
+                            highlight: {
+                              client_id: generateClientId(),
+                              sync_status: "pending",
+                              pending_op: "create",
+                              local_updated_at: new Date().toISOString(),
+                              article_url: article.url,
+                              highlighted_text: highlightedText,
+                              color,
+                              character_start: range.start,
+                              character_end: range.end,
+                            },
+                            op: "create",
+                          })
+
+                          setHighlights((prev) => {
+                            const updated = [...prev, nextLocal]
+                            saveHighlightStore({ version: 1, article_url: article.url, highlights: updated })
+                            return updated
+                          })
+
+                          await syncHighlights(article.url, [...highlights, nextLocal])
+                        }}
+                        onUpdate={async ({ highlightId, note }) => {
+                          setHighlights((prev) => {
+                            const updated = prev.map((item) => {
+                              const id = item.server_id ?? item.id
+                              if (id !== highlightId) return item
+                              return markPending({ highlight: { ...item, note }, op: "update" })
+                            })
+                            saveHighlightStore({ version: 1, article_url: article.url, highlights: updated })
+                            void syncHighlights(article.url, updated)
+                            return updated
+                          })
+                        }}
+                        onDelete={async ({ highlightId }) => {
+                          setHighlights((prev) => {
+                            const updated = prev.map((item) => {
+                              const id = item.server_id ?? item.id
+                              if (id !== highlightId) return item
+                              return markPending({ highlight: item, op: "delete" })
+                            })
+                            saveHighlightStore({ version: 1, article_url: article.url, highlights: updated })
+                            void syncHighlights(article.url, updated)
+                            return updated
+                          })
+                        }}
                       />
                     </>
                   )}
@@ -813,10 +946,35 @@ export function ArticleDetailModal({ article, isOpen, onClose, initialIsBookmark
                         <div className="text-[10px] uppercase tracking-[0.24em] text-muted-foreground">Reader</div>
                         <h2 className="text-lg font-semibold text-foreground">Annotations</h2>
                       </div>
-                      <span className="text-xs text-muted-foreground">{highlights.length}</span>
+                      <div className="flex flex-col items-end gap-1">
+                        <span className="text-xs text-muted-foreground">{highlights.length}</span>
+                        <div className="text-[10px] uppercase tracking-[0.24em] text-muted-foreground">
+                          {highlightSyncStatus === "syncing"
+                            ? "Saving"
+                            : highlightSyncStatus === "offline"
+                              ? "Offline"
+                              : highlightSyncStatus === "failed"
+                                ? "Failed"
+                                : "Synced"}
+                        </div>
+                      </div>
                     </div>
 
                     <div className="mt-3 flex flex-wrap items-center gap-2">
+                      {highlightSyncStatus === "failed" && (
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          onClick={() => {
+                            void syncHighlights(article.url, highlights)
+                          }}
+                          className="gap-2"
+                        >
+                          <RefreshCw className="h-4 w-4" />
+                          Retry sync
+                        </Button>
+                      )}
                       <Button
                         type="button"
                         variant="outline"
@@ -877,6 +1035,7 @@ export function ArticleDetailModal({ article, isOpen, onClose, initialIsBookmark
                           ]
 
                           ;(highlights.length ? highlights : []).forEach((highlight) => {
+                            if (highlight.deleted) return
                             const text = highlight.highlighted_text.replace(/\s+/g, " ").trim()
                             if (!text) return
                             lines.push(`- ==${text}==`)
@@ -930,6 +1089,7 @@ export function ArticleDetailModal({ article, isOpen, onClose, initialIsBookmark
                           ]
 
                           highlights.forEach((highlight) => {
+                            if (highlight.deleted) return
                             const text = highlight.highlighted_text.replace(/\s+/g, " ").trim()
                             if (!text) return
                             lines.push(`- ==${text}==`)

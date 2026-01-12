@@ -173,7 +173,9 @@ describe("HighlightToolbar", () => {
         articleUrl="https://example.com/article"
         containerRef={containerRef}
         highlights={[]}
-        onHighlightsChange={jest.fn()}
+        onCreate={jest.fn()}
+        onUpdate={jest.fn()}
+        onDelete={jest.fn()}
       />
     );
 

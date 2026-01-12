@@ -1,13 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import {
-  createHighlight,
-  deleteHighlight,
-  updateHighlight,
-  ENABLE_HIGHLIGHTS,
-  Highlight,
-} from "@/lib/api";
+import { ENABLE_HIGHLIGHTS, type Highlight } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import { Highlighter, X, Edit2, Trash2, Share2, Copy } from "lucide-react";
 import { toast } from "sonner";
@@ -17,16 +11,24 @@ interface HighlightToolbarProps {
   articleUrl: string;
   containerRef: React.RefObject<HTMLElement>;
   highlights: Highlight[];
-  onHighlightsChange: (highlights: Highlight[]) => void;
+  onCreate: (payload: {
+    highlightedText: string
+    color: Highlight["color"]
+    range: { start: number; end: number }
+  }) => Promise<void> | void
+  onUpdate: (payload: { highlightId: number; note: string }) => Promise<void> | void
+  onDelete: (payload: { highlightId: number }) => Promise<void> | void
 }
 
 const COLORS = ["yellow", "blue", "red", "green", "purple"] as const;
 
 export function HighlightToolbar({
-  articleUrl,
+  articleUrl: _articleUrl,
   containerRef,
   highlights,
-  onHighlightsChange,
+  onCreate,
+  onUpdate,
+  onDelete,
 }: HighlightToolbarProps) {
   if (!ENABLE_HIGHLIGHTS) {
     return null;
@@ -117,39 +119,32 @@ export function HighlightToolbar({
 
     try {
       const range = selection.getRangeAt(0);
-      const text = selection.toString();
+      const highlightedText = selection.toString();
 
-      // Calculate global offsets
-      // We need to find the start and end nodes relative to containerRef.current
       const startOffset = getGlobalOffset(containerRef.current, range.startContainer, range.startOffset);
       const endOffset = getGlobalOffset(containerRef.current, range.endContainer, range.endOffset);
 
       if (startOffset === -1 || endOffset === -1) {
-          toast.error("Selection outside of article content");
-          return;
+        toast.error("Selection outside of article content");
+        return;
       }
-      
-      // Ensure start < end
+
       const finalStart = Math.min(startOffset, endOffset);
       const finalEnd = Math.max(startOffset, endOffset);
 
       if (finalStart === finalEnd) {
-          toast.error("Empty selection");
-          return;
+        toast.error("Empty selection");
+        return;
       }
 
-      const highlight = await createHighlight({
-        article_url: articleUrl,
-        highlighted_text: text,
+      await onCreate({
+        highlightedText,
         color: selectedColor,
-        character_start: finalStart,
-        character_end: finalEnd,
+        range: { start: finalStart, end: finalEnd },
       });
 
-      onHighlightsChange([...highlights, highlight]);
       toast.success("Highlight created");
 
-      // Clear selection and hide toolbar
       selection.removeAllRanges();
       if (toolbarRef.current) {
         toolbarRef.current.style.display = "none";
@@ -162,8 +157,7 @@ export function HighlightToolbar({
 
   const handleDeleteHighlight = async (id: number) => {
     try {
-      await deleteHighlight(id);
-      onHighlightsChange(highlights.filter((h) => h.id !== id));
+      await onDelete({ highlightId: id });
       toast.success("Highlight deleted");
     } catch (error) {
       toast.error("Failed to delete highlight");
@@ -173,18 +167,10 @@ export function HighlightToolbar({
 
   const handleUpdateNote = async (id: number) => {
     try {
-      const highlight = highlights.find((h) => h.id === id);
-      if (highlight) {
-        await updateHighlight(id, { note: editingNote });
-        onHighlightsChange(
-          highlights.map((h) =>
-            h.id === id ? { ...h, note: editingNote } : h
-          )
-        );
-        setEditingId(null);
-        setEditingNote("");
-        toast.success("Note updated");
-      }
+      await onUpdate({ highlightId: id, note: editingNote });
+      setEditingId(null);
+      setEditingNote("");
+      toast.success("Note updated");
     } catch (error) {
       toast.error("Failed to update note");
       console.error(error);
@@ -300,7 +286,7 @@ ${h.note ? `Note: ${h.note}
             ) : (
                 highlights.map((highlight) => (
                 <div
-                    key={highlight.id}
+                    key={highlight.id ?? `${highlight.character_start}-${highlight.character_end}-${highlight.highlighted_text.slice(0, 20)}`}
                     className={`p-3 rounded-lg border transition-colors ${getHighlightColorClass(
                     highlight.color
                     )} border-opacity-50`}
