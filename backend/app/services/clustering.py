@@ -389,9 +389,9 @@ class ClusteringService:
             source_diversity = row[7]
 
             if baseline > 0:
-                velocity = window_count / baseline
+                velocity = float(window_count / baseline)
             else:
-                velocity = window_count * 2.0
+                velocity = float(window_count * 2.0)
 
             recency_bonus = 1.0
             first_seen = row[4]
@@ -1030,3 +1030,148 @@ async def _merge_cluster_into(
     await session.execute(
         delete(ClusterStatsHourly).where(ClusterStatsHourly.cluster_id == source_id)
     )
+
+
+async def find_duplicate_articles(
+    session: AsyncSession,
+    articles: List[Article],
+    similarity_threshold: float = 0.85,
+) -> Dict[int, Set[int]]:
+    """
+    Find near-duplicate articles using MinHash before clustering.
+
+    This reduces cluster noise from slightly different versions
+    of the same story (wire services, re-writes, etc.).
+
+    Args:
+        session: Database session
+        articles: List of articles to check
+        similarity_threshold: Jaccard similarity threshold (0.85 = 85%)
+
+    Returns:
+        Dict mapping representative article ID to set of duplicate IDs
+    """
+    try:
+        from app.services.minhash_dedup import MinHashDeduplicator
+
+        if len(articles) < 2:
+            return {}
+
+        deduplicator = MinHashDeduplicator(threshold=similarity_threshold)
+
+        for article in articles:
+            text = article.title or ""
+            if article.summary:
+                text += f" {article.summary}"
+            deduplicator.add_document(str(article.id), text)
+
+        duplicates = deduplicator.find_duplicates()
+
+        duplicate_groups: Dict[int, Set[int]] = {}
+
+        for id1, id2, sim in duplicates:
+            id1_int = int(id1)
+            id2_int = int(id2)
+
+            found = False
+            for rep, group in duplicate_groups.items():
+                if id1_int in group:
+                    group.add(id2_int)
+                    found = True
+                    break
+                if id2_int in group:
+                    group.add(id1_int)
+                    found = True
+                    break
+
+            if not found:
+                duplicate_groups[id1_int] = {id1_int, id2_int}
+
+        if duplicate_groups:
+            total_dupes = sum(len(v) - 1 for v in duplicate_groups.values())
+            logger.info(
+                f"Found {total_dupes} duplicate articles in {len(duplicate_groups)} groups"
+            )
+
+        return duplicate_groups
+
+    except ImportError:
+        logger.warning("MinHash deduplication not available")
+        return {}
+    except Exception as e:
+        logger.error(f"Duplicate detection failed: {e}")
+        return {}
+
+
+async def cluster_batch_hdbscan(
+    session: AsyncSession,
+    articles: List[Article],
+    min_cluster_size: int = 5,
+) -> Dict[int, int]:
+    """
+    Cluster a batch of articles using HDBSCAN algorithm.
+
+    Alternative to centroid-based clustering that automatically
+    handles outliers and doesn't require threshold tuning.
+
+    Args:
+        session: Database session
+        articles: Articles to cluster
+        min_cluster_size: Minimum cluster size
+
+    Returns:
+        Dict mapping article_id to cluster_id
+    """
+    from app.services.hdbscan_clustering import cluster_articles_hdbscan
+
+    if not articles:
+        return {}
+
+    vector_store = get_vector_store()
+    if not vector_store:
+        logger.warning("Vector store unavailable for HDBSCAN clustering")
+        return {}
+
+    embeddings = []
+    chroma_ids = []
+
+    for article in articles:
+        if not article.chroma_id:
+            continue
+        try:
+            result = vector_store.collection.get(
+                ids=[article.chroma_id],
+                include=["embeddings"],
+            )
+            if result["embeddings"]:
+                embeddings.append(result["embeddings"][0])
+                chroma_ids.append(article.chroma_id)
+        except Exception as e:
+            logger.debug(f"Failed to get embedding for article {article.id}: {e}")
+
+    if not embeddings:
+        logger.warning("No embeddings found for HDBSCAN clustering")
+        return {}
+
+    labels, cluster_info = cluster_articles_hdbscan(
+        embeddings=embeddings,
+        article_ids=chroma_ids,
+        min_cluster_size=min_cluster_size,
+    )
+
+    assignment: Dict[int, int] = {}
+    chroma_to_article = {a.chroma_id: a.id for a in articles if a.chroma_id}
+
+    for idx, (chroma_id, label) in enumerate(zip(chroma_ids, labels)):
+        if label == -1:
+            continue  # Skip noise
+        article_id = chroma_to_article.get(chroma_id)
+        if article_id:
+            assignment[article_id] = int(label)
+
+    logger.info(
+        f"HDBSCAN clustered {len(assignment)} articles into "
+        f"{len(cluster_info)} clusters ({sum(1 for l in labels if l == -1)} noise)"
+    )
+
+    return assignment

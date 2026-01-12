@@ -35,5 +35,10 @@ sentence-transformers>=2.7.0
 # Optional: System resource monitoring (improves RSS ingestion performance tuning)
 psutil>=5.9.0
 
+# Algorithm dependencies for Phase 1 lightweight improvements
+rank_bm25>=0.2.2  # BM25 keyword search (pure algorithm, CPU)
+hdbscan>=0.8.33   # Density-based clustering (C++ backend, fast)
+datasketch>=1.6.4 # MinHash deduplication (pure algorithm, CPU)
+
 # Build helpers for the Rust RSS parser
 maturin>=1.10.0

@@ -333,6 +333,122 @@ class VectorStore:
         """Generate embedding for a text query (for search suggestions)."""
         return self.embedding_model.encode(query).tolist()
 
+    def search_hybrid(
+        self,
+        query: str,
+        limit: int = 10,
+        bm25_weight: float = 0.5,
+        fusion_method: str = "rrf",
+        filter_metadata: Optional[Dict] = None,
+    ) -> List[Dict]:
+        """
+        Hybrid search combining BM25 (keyword) + Vector (semantic) with RRF fusion.
+
+        Benefits:
+        - BM25 handles exact keyword matches
+        - Vector handles synonyms and semantic similarity
+        - RRF fusion provides robust combination
+
+        Args:
+            query: Search query string
+            limit: Maximum results to return
+            bm25_weight: Weight for BM25 (0.5 = equal, 0.3 = more semantic)
+            fusion_method: 'rrf' (recommended) or 'weighted'
+            filter_metadata: Optional ChromaDB where clause filter
+
+        Returns:
+            List of result dicts with fused scores
+        """
+        try:
+            from app.services.hybrid_search import (
+                HybridSearch,
+                reciprocal_rank_fusion,
+                combine_scores,
+            )
+
+            if filter_metadata:
+                vector_results = self.search_similar(
+                    query, limit=limit * 2, filter_metadata=filter_metadata
+                )
+            else:
+                vector_results = self.search_similar(query, limit=limit * 2)
+
+            if not vector_results:
+                logger.info("No vector search results for hybrid search")
+                return []
+
+            vector_scores = {
+                r["chroma_id"]: r["similarity_score"] for r in vector_results
+            }
+            vector_ranking = sorted(
+                vector_scores.items(), key=lambda x: x[1], reverse=True
+            )
+
+            bm25_scores = {}
+            try:
+                from app.services.bm25_search import BM25Search
+
+                bm25_search = BM25Search()
+                bm25_docs = [
+                    {"chroma_id": r["chroma_id"], "text": r.get("preview", "")}
+                    for r in vector_results
+                ]
+                bm25_search.build_index(bm25_docs)
+                bm25_scores = bm25_search.get_scores_for_fusion(
+                    query, list(vector_scores.keys())
+                )
+            except Exception as e:
+                logger.debug(f"BM25 scoring failed, using vector-only: {e}")
+                bm25_scores = {}
+
+            bm25_ranking = sorted(bm25_scores.items(), key=lambda x: x[1], reverse=True)
+
+            if fusion_method == "rrf":
+                fused = reciprocal_rank_fusion([bm25_ranking, vector_ranking])
+            else:
+                combined = combine_scores(
+                    bm25_scores, vector_scores, bm25_weight=bm25_weight
+                )
+                fused = sorted(combined.items(), key=lambda x: x[1], reverse=True)
+
+            chroma_id_to_vector = {r["chroma_id"]: r for r in vector_results}
+
+            results = []
+            for chroma_id, fused_score in fused[:limit]:
+                if chroma_id not in chroma_id_to_vector:
+                    continue
+                vector_result = chroma_id_to_vector[chroma_id]
+                results.append(
+                    {
+                        "chroma_id": chroma_id,
+                        "article_id": int(chroma_id.replace("article_", "")),
+                        "fused_score": round(fused_score, 4),
+                        "bm25_score": round(bm25_scores.get(chroma_id, 0), 2),
+                        "vector_score": round(
+                            vector_result.get("similarity_score", 0), 4
+                        ),
+                        "distance": vector_result.get("distance"),
+                        "metadata": vector_result.get("metadata", {}),
+                        "preview": vector_result.get("preview", "")[:200],
+                    }
+                )
+
+            logger.info(
+                f"Hybrid search returned {len(results)} results for query: '{query[:50]}...'"
+            )
+            return results
+
+        except ImportError as e:
+            logger.warning(f"Hybrid search dependencies not available: {e}")
+            return self.search_similar(
+                query, limit=limit, filter_metadata=filter_metadata
+            )
+        except Exception as e:
+            logger.error(f"Hybrid search failed: {e}")
+            return self.search_similar(
+                query, limit=limit, filter_metadata=filter_metadata
+            )
+
     def find_nearest_cluster_labels(
         self, query: str, cluster_centroids: List[Dict], limit: int = 5
     ) -> List[Dict]:
