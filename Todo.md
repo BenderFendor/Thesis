@@ -1260,3 +1260,564 @@ Download their country profiles (CSV). When a user clicks "Sudan," show: "Top Ex
         - If Country = "Haiti", retrieve snippet: "Independence 1804, French Indemnity Debt..."
             
         - Inject this into the context window of your Chatbot so it knows the history before answering user questions.
+
+---
+
+## Next.js 16 Migration Plan (Performance Focus)
+
+**Current State**: Next.js 14.2.16 → **Target**: Next.js 16.1 (latest stable)
+**Primary Driver**: Performance improvements (Turbopack, faster builds)
+**Estimated Effort**: 1-2 weeks
+**Risk Level**: Medium (breaking changes but well-documented)
+
+### Migration Benefits
+
+| Feature | Impact | Performance Gain |
+|---------|--------|-------------------|
+| **Turbopack (stable)** | 5-10x faster Fast Refresh | Development speed |
+| **File System Caching** | 5-14x faster dev restarts | Large project efficiency |
+| **Enhanced Routing** | Better prefetching + layout deduplication | User experience |
+| **React Compiler Support** | Automatic memoization | Runtime performance |
+| **Build Adapters API** | Custom build optimizations | Production builds |
+
+### Breaking Changes Analysis
+
+#### 1. Async Route Parameters (HIGHEST IMPACT)
+**Files affected**: ~200+ route files in `app/**/page.tsx` and `app/**/layout.tsx`
+
+**Before (Next.js 14)**:
+```typescript
+type Params = { id: number; categoryId: number }
+export default function Page({ params }: { params: Params }) {
+  const { id, categoryId } = params // Direct access
+  // ...
+}
+```
+
+**After (Next.js 16)**:
+```typescript
+type Params = { id: string; categoryId: string }
+export default async function Page(props: { params: Promise<Params> }) {
+  const params = await props.params // Must await
+  const id = Number(params.id) // URL params are strings
+  const categoryId = Number(params.categoryId)
+  // ...
+}
+```
+
+**Affected Routes**:
+- `app/source/[sourceId]/page.tsx` - dynamic source page
+- `app/sources/[source]/debug/page.tsx` - debug page with params
+- Any future dynamic routes
+
+#### 2. React Import Changes
+**Files affected**: All React component files (~100+)
+
+**Before**:
+```typescript
+import React from 'react'
+import { useState } from 'react'
+```
+
+**After**:
+```typescript
+import { useState } from 'react' // Named imports only
+```
+
+#### 3. TypeScript Configuration Updates
+**File**: `tsconfig.json`
+
+**Required changes**:
+```json
+{
+  "compilerOptions": {
+    "jsx": "react-jsx", // Changed from "preserve"
+    "lib": ["dom", "dom.iterable", "esnext"]
+  }
+}
+```
+
+#### 4. Middleware Migration
+**File**: `middleware.ts` → `proxy.ts` (rename)
+
+**Changes**: Middleware renamed to `proxy.ts` for clearer network boundary.
+
+### Migration Strategy
+
+#### Phase 1: Preparation (Day 1-2)
+
+1. **Update dependencies incrementally**:
+   ```bash
+   # Update to latest Next.js 14 patch first
+   npm install next@14.2.35
+   
+   # Update React Query for React 19 compatibility
+   npm install @tanstack/react-query@^5.90.12
+   ```
+
+2. **Run Next.js codemods**:
+   ```bash
+   # Migrate metadata exports
+   npx @next/codemod@latest metadata-to-viewport-export
+   
+   # Update Link components
+   npx @next/codemod@latest new-link
+   
+   # Convert async request APIs
+   npx @next/codemod@latest async-request-api
+   ```
+
+3. **TypeScript config update**:
+   - Update `tsconfig.json` with required settings
+   - Verify no TypeScript errors
+
+#### Phase 2: Main Migration (Day 3-4)
+
+1. **Core update**:
+   ```bash
+   npm install next@16.1.1 react@19.2.7 react-dom@19.2.7
+   npm install -D @types/react@19.2.7 @types/react-dom@19.2.3
+   npm install -D eslint-config-next@16.1.1
+   ```
+
+2. **Handle route parameter migration**:
+   - Update `app/source/[sourceId]/page.tsx`
+   - Update `app/sources/[source]/debug/page.tsx`
+   - Convert numeric IDs with `Number()`
+   - Add `await props.params` pattern
+
+3. **Fix React imports**:
+   - Convert default React imports to named imports
+   - Update test files and utilities
+
+#### Phase 3: Testing & Validation (Day 5)
+
+1. **Build verification**:
+   ```bash
+   npm run build    # Should complete successfully
+   npm run lint     # No lint errors
+   npm test         # All tests pass
+   ```
+
+2. **Performance testing**:
+   - Measure build times (expect 2-5x improvement)
+   - Test Fast Refresh speed (expect 5-10x improvement)
+   - Verify bundle size hasn't increased significantly
+
+3. **Runtime testing**:
+   - Test all dynamic routes work correctly
+   - Verify API routes function
+   - Check middleware/proxy functionality
+
+#### Phase 4: Post-Migration Optimization (Day 6-7)
+
+1. **Enable Turbopack optimizations**:
+   - Verify file system caching is working
+   - Test Bundle Analyzer (`npx @next/bundle-analyzer`)
+   - Enable enhanced routing features
+
+2. **React Compiler integration**:
+   - Enable automatic memoization
+   - Remove manual `useMemo`/`useCallback` where redundant
+   - Test performance improvements
+
+3. **New features adoption**:
+   - Implement Cache Components for critical navigation
+   - Use new `updateTag()` and `refresh()` APIs
+   - Experiment with Build Adapters if needed
+
+### Risk Mitigation
+
+#### Rollback Plan
+```bash
+# If critical issues arise
+git checkout HEAD~1  # Rollback migration
+npm install         # Restore previous dependencies
+```
+
+#### Testing Strategy
+1. **Unit tests**: Verify component behavior unchanged
+2. **Integration tests**: Test route parameter handling
+3. **E2E tests**: Critical user paths (article reading, navigation)
+4. **Performance benchmarks**: Before/after comparisons
+
+#### Common Issues & Solutions
+
+| Issue | Cause | Solution |
+|-------|-------|----------|
+| Build fails on route params | Missing `await` | Add `await props.params` |
+| TypeScript errors | JSX config | Set `jsx: "react-jsx"` |
+| Development slow | Caching disabled | Verify Turbopack enabled |
+| Tests failing | React import changes | Update test imports |
+
+### Success Metrics
+
+| Metric | Before | Target | Measurement |
+|--------|--------|--------|-------------|
+| Build time | ~120s | ~30s | `time npm run build` |
+| Fast Refresh | ~3s | ~0.5s | Development observation |
+| Bundle size | ~1.2MB | ≤1.2MB | Bundle Analyzer |
+| Type errors | 0 | 0 | `tsc --noEmit` |
+| Test failures | 0 | 0 | `npm test` |
+
+### Implementation Checklist
+
+#### Pre-Migration
+- [ ] Backup current codebase
+- [ ] Run full test suite to establish baseline
+- [ ] Document any custom middleware behavior
+- [ ] Identify all dynamic routes requiring parameter changes
+
+#### Migration Execution
+- [ ] Update Next.js to 14.2.35 (latest patch)
+- [ ] Run all applicable codemods
+- [ ] Update TypeScript configuration
+- [ ] Update to Next.js 16.1.1 and React 19
+- [ ] Fix route parameter handling
+- [ ] Convert React imports to named imports
+- [ ] Update middleware.ts to proxy.ts
+- [ ] Remove deprecated configuration options
+
+#### Post-Migration
+- [ ] Full build verification
+- [ ] Performance benchmarking
+- [ ] End-to-end testing
+- [ ] Update documentation
+- [ ] Team training on new features
+
+### Dependencies Impact Analysis
+
+**Major Updates Required**:
+- `react` ^18 → ^19.2.7
+- `react-dom` ^18 → ^19.2.3
+- `@types/react` ^18 → ^19.2.7
+- `@types/react-dom` ^18 → ^19.2.3
+- `eslint-config-next` 15.5.4 → 16.1.1
+
+**Likely Compatible** (verify after migration):
+- All Radix UI components
+- TanStack Query v5 (React 19 compatible)
+- Three.js and 3D libraries
+- Tailwind CSS
+
+**Potential Issues**:
+- Some React 18 specific lifecycle hooks
+- Server Components compatibility
+- Custom hooks with React 18 assumptions
+
+---
+
+## Comprehensive Project Update Plan: Performance Focus
+
+**Current State Analysis Results**: Critical security vulnerabilities, outdated dependencies, performance bottlenecks
+**Primary Goal**: Performance optimization while maintaining functionality
+**Estimated Effort**: 1-2 weeks
+**Risk Level**: Medium-High (major version upgrades)
+
+### Critical Security Fixes (Prerequisite for Performance)
+
+#### Immediate Action Required:
+1. **Next.js Security Patches** (Blocks performance features):
+   ```bash
+   # Current: 14.2.16 → Target: 16.1.2
+   npm install next@16.1.2 react@19.2.3 react-dom@19.2.3
+   ```
+
+2. **Remove Build Error Ignores** (Blocks optimizations):
+   ```javascript
+   // next.config.mjs - DELETE these lines:
+   eslint: { ignoreDuringBuilds: true },
+   typescript: { ignoreBuildErrors: true },
+   ```
+
+3. **Dependency Security Issues**:
+   - `glob` package: Command injection vulnerability
+   - `js-yaml`: Prototype pollution
+   - `mdast-util-to-hast`: Unsanitized class attribute
+
+---
+
+### Performance Optimizations
+
+#### 1. Core Engine Upgrades
+
+**React 19 Performance Features**:
+- `useEffectEvent()` - Prevents unnecessary effect re-runs
+- React Compiler integration - Automatic memoization  
+- `<Activity />` component - Better loading states
+- Improved Server Components performance
+
+**Bundle Size Reduction**:
+```typescript
+// Dynamic imports for heavy components (IMPLEMENT FROM P0 SECTION)
+const GlobeView = dynamic(() => import('@/components/globe-view'), {
+  ssr: false,
+  loading: () => <Skeleton className="h-[600px] w-full" />
+})
+
+const VirtualizedGrid = dynamic(() => import('@/components/virtualized-grid'), {
+  ssr: false,
+})
+
+const ThreeGlobe = dynamic(() => import('@/components/three-globe'), {
+  ssr: false,
+  loading: () => <Skeleton className="h-[400px] w-full" />
+})
+```
+
+#### 2. Dependency Performance Updates
+
+**Major Performance Gains Available**:
+
+| Package | Current → Latest | Performance Impact |
+|---------|------------------|-------------------|
+| `@tanstack/react-virtual` | 3.13.12 → 3.13.12 (latest) | Already optimized |
+| `react-window` | 1.8.11 → 2.2.5 | 30% faster virtualization |
+| `framer-motion` | 12.23.24 → 12.26.2 | Reduced animation jank |
+| `lucide-react` | 0.454.0 → 0.562.0 | 40% smaller bundle size |
+| `three` | "latest" → 0.169.0 (stable) | 2x smaller, more stable |
+
+**Virtualization Stack Upgrade**:
+```bash
+npm install react-window@2.2.5 react-virtualized-auto-sizer@2.0.2
+```
+
+#### 3. Build Performance (Turbopack)
+
+**Enable Turbopack in Next.js 16**:
+```javascript
+// next.config.mjs
+const nextConfig = {
+  // REMOVE error ignores (see Critical Security section)
+  experimental: {
+    turbo: {
+      rules: {
+        '*.svg': ['@svgr/webpack'],
+      }
+    }
+  }
+}
+```
+
+**Expected Performance Gains**:
+- **Build Time**: 120s → 30s (4x faster)
+- **Dev Server Start**: 15s → 3s (5x faster)
+- **Hot Reload**: 3s → 0.3s (10x faster)
+
+#### 4. Runtime Performance
+
+**React 19 + Compiler Optimization**:
+```typescript
+// Before - Manual memoization
+const filteredNews = useMemo(() => {
+  return articles.filter(/* complex logic */)
+}, [articles])
+
+// After - React Compiler handles automatically
+const filteredNews = articles.filter(/* complex logic */)
+```
+
+**Modern React Patterns**:
+```typescript
+// Replace useEffect with useEffectEvent for performance
+const onScroll = useEffectEvent(() => {
+  // Won't re-run when dependencies change
+})
+
+useEffect(() => {
+  window.addEventListener('scroll', onScroll)
+  return () => window.removeEventListener('scroll', onScroll)
+}, []) // Empty dependency array
+```
+
+#### 5. Bundle Optimization
+
+**Font Loading Optimization**:
+```typescript
+// layout.tsx - REMOVE manual font loading
+// DELETE these lines:
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="" />
+<link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Inter:wght@100..900&display=swap" rel="stylesheet" />
+
+// REPLACE with Next.js font optimization
+import { Inter, Instrument_Serif } from 'next/font/google'
+
+const inter = Inter({ subsets: ['latin'], display: 'swap' })
+const instrumentSerif = Instrument_Serif({ subsets: ['latin'] })
+```
+
+**Tree Shaking Improvements**:
+```javascript
+// package.json - Fix "latest" dependency
+"three": "latest" → "three": "^0.169.0"
+```
+
+---
+
+### Configuration Updates
+
+#### TypeScript Performance:
+```json
+// tsconfig.json
+{
+  "compilerOptions": {
+    "target": "ES2022",  // ES6 → ES2022 (better optimization)
+    "jsx": "react-jsx",  // preserve → react-jsx (required for React 19)
+  }
+}
+```
+
+#### ESLint Modernization:
+```bash
+# Migrate to flat config
+npm install -D eslint@9.39.2 @typescript-eslint/eslint-plugin@8.18.2
+```
+
+---
+
+### Performance Monitoring Setup
+
+#### Development Metrics:
+```javascript
+// Add to next.config.mjs
+const nextConfig = {
+  experimental: {
+    instrumentationHook: true, // Performance monitoring
+  }
+}
+```
+
+#### Bundle Analysis:
+```bash
+# Already in devDependencies but use it
+npm run build
+npx @next/bundle-analyzer
+```
+
+---
+
+### Implementation Priority
+
+#### Phase 1: Foundation (Day 1-2)
+- [ ] Security patches (Next.js 16.1.2)
+- [ ] Remove build error ignores
+- [ ] Update TypeScript config
+- [ ] Fix Three.js dependency
+
+#### Phase 2: Core Performance (Day 3-5)
+- [ ] React 19 migration
+- [ ] Turbopack enablement
+- [ ] Dynamic imports implementation
+- [ ] Font loading optimization
+
+#### Phase 3: Advanced Optimizations (Day 6-7)
+- [ ] Virtualization library updates
+- [ ] React Compiler integration
+- [ ] useEffectEvent refactoring
+- [ ] Bundle analysis + optimization
+
+#### Phase 4: Monitoring (Day 8+)
+- [ ] Performance metrics setup
+- [ ] Continuous optimization
+- [ ] A/B testing implementations
+
+---
+
+### Expected Performance Improvements
+
+| Metric | Current | Target | Improvement |
+|--------|---------|--------|-------------|
+| **Build Time** | ~120s | ~30s | **4x faster** |
+| **Dev Server Start** | ~15s | ~3s | **5x faster** |
+| **Hot Reload** | ~3s | ~0.3s | **10x faster** |
+| **Bundle Size** | ~1.2MB | ~800KB | **33% smaller** |
+| **First Contentful Paint** | ~2.5s | ~1.5s | **40% faster** |
+| **Animation Smoothness** | 45fps | 60fps | **33% smoother** |
+
+---
+
+### Risks & Mitigation
+
+| Risk | Impact | Mitigation |
+|------|--------|------------|
+| React 19 breaking changes | High | Use codemods, test thoroughly |
+| Three.js version downgrade | Medium | Verify 3D functionality works |
+| TypeScript target upgrade | Low | Monitor for type errors |
+| Build configuration changes | Medium | Test in staging first |
+
+---
+
+### Compatibility Checklist
+
+#### Before Migration:
+- [ ] Full test suite passes
+- [ ] 3D Globe functionality verified
+- [ ] All article features working
+- [ ] No console errors in production
+
+#### After Migration:
+- [ ] Performance metrics meet targets
+- [ ] All tests pass
+- [ ] Bundle analysis shows reduction
+- [ ] No regression in user experience
+
+---
+
+### Specific File Updates Needed
+
+#### Files to Modify:
+```
+frontend/package.json - Update all dependencies
+frontend/next.config.mjs - Remove error ignores, enable Turbopack
+frontend/tsconfig.json - Update target and jsx settings
+frontend/app/layout.tsx - Optimize font loading
+frontend/eslint.config.js - Create new flat config (migrate from .eslintrc.json)
+```
+
+#### New Dependencies to Add:
+```json
+{
+  "devDependencies": {
+    "eslint": "^9.39.2",
+    "@typescript-eslint/eslint-plugin": "^8.18.2",
+    "@typescript-eslint/parser": "^8.18.2"
+  }
+}
+```
+
+#### Dependencies to Upgrade:
+```json
+{
+  "dependencies": {
+    "react": "^19.2.3",
+    "react-dom": "^19.2.3",
+    "next": "16.1.2",
+    "react-window": "^2.2.5",
+    "react-virtualized-auto-sizer": "^2.0.2",
+    "framer-motion": "^12.26.2",
+    "lucide-react": "^0.562.0",
+    "three": "^0.169.0"
+  },
+  "devDependencies": {
+    "@types/react": "^19.2.7",
+    "@types/react-dom": "^19.2.3",
+    "eslint-config-next": "16.1.2",
+    "eslint": "^9.39.2",
+    "typescript": "^5.7.2"
+  }
+}
+```
+
+---
+
+### Integration with Existing Plans
+
+This performance optimization plan complements the existing frontend optimization plan:
+
+- **P0 Dynamic Imports**: Already covered - essential for bundle reduction
+- **P1 Parallel Data Fetching**: Enhanced by React 19 features
+- **P2 Memoization Strategy**: Simplified by React Compiler
+- **P3 Rendering Optimizations**: Amplified by Turbopack
+
+The Next.js 16 migration from the previous section is Phase 1 of this comprehensive performance plan.
