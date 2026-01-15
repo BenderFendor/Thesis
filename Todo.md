@@ -1,4 +1,396 @@
-# Features to add
+# Frontend Optimization Plan (2026)
+
+Based on codebase analysis + Vercel best practices + current React 19 optimization research.
+
+---
+
+## Executive Summary
+
+| Category | Impact | Effort | Priority |
+|----------|--------|--------|----------|
+| Dynamic Imports (3D Globe) | CRITICAL | Low | P0 |
+| Server-Side Data Fetching | HIGH | Medium | P1 |
+| Bundle Size Reduction | HIGH | Medium | P1 |
+| React Compiler + Memoization | MEDIUM | Low | P2 |
+| Component Splitting | MEDIUM | High | P2 |
+| Rendering Optimizations | MEDIUM | Low | P3 |
+
+**User Decisions**:
+- Server Components: Unsure - will keep as client component with parallel fetching
+- React 19 Upgrade: No - keeping React 18
+- Testing: Yes - update tests for refactored components
+- React Query Refactor: Conservative approach (Option A) - keep custom streaming hook, add tests
+
+---
+
+## P0: CRITICAL - Dynamic Imports for Heavy Components
+
+**Files**: `app/page.tsx`, `components/globe-view.tsx`, `components/three-globe.tsx`
+
+**Problem**: Three.js (~600KB), React Globe, and virtualization libraries load immediately even when GlobeView is hidden behind a tab switch.
+
+**Solution**:
+```typescript
+// app/page.tsx - add at top
+import dynamic from 'next/dynamic'
+import { Skeleton } from '@/components/ui/skeleton'
+
+const GlobeView = dynamic(() => import('@/components/globe-view'), {
+  ssr: false,
+  loading: () => <Skeleton className="h-[600px] w-full" />
+})
+
+const VirtualizedGrid = dynamic(() => import('@/components/virtualized-grid'), {
+  ssr: false,
+})
+
+const ThreeGlobe = dynamic(() => import('@/components/three-globe'), {
+  ssr: false,
+  loading: () => <Skeleton className="h-[400px] w-full" />
+})
+```
+
+**Impact**: Reduces initial bundle by ~800KB+; first load only loads Grid/Scroll views.
+
+**Steps**:
+1. Import `dynamic` from 'next/dynamic'
+2. Create skeleton components for loading states
+3. Replace static imports with dynamic imports
+4. Add `ssr: false` for Three.js components (requires window/document)
+
+---
+
+## P1: HIGH - Parallel Data Fetching
+
+**File**: `app/page.tsx`
+
+**Current Problem**: Client-only data fetching creates waterfall:
+- `fetchCategories` → `useNewsStream` → render
+- Empty initial state / loading spinners
+- Layout shift
+
+**Solution** (using user's judgment - Option B):
+```typescript
+useEffect(() => {
+  const loadData = async () => {
+    setLoading(true)
+
+    // Start both fetches in parallel
+    const categoriesPromise = fetchCategories()
+    const streamPromise = streamHook.startStream({
+      category: activeCategory === 'all' ? undefined : activeCategory
+    })
+
+    const [categoriesData] = await Promise.all([
+      categoriesPromise.catch(e => {
+        console.error('Failed to fetch categories:', e)
+        return []
+      })
+      // Don't await streamPromise - let it stream
+    ])
+
+    // Handle categories
+    if (categoriesData.length > 0) {
+      const allCategories = ["all", ...categoriesData].map(cat => ({
+        id: cat,
+        label: cat.charAt(0).toUpperCase() + cat.slice(1),
+        icon: categoryIcons[cat] || Newspaper,
+      }))
+      setCategories(allCategories)
+      setArticlesByCategory(
+        allCategories.reduce((acc, cat) => ({ ...acc, [cat.id]: [] }), {})
+      )
+    }
+
+    // Stream continues independently
+    await streamPromise
+    setLoading(false)
+  }
+
+  loadData()
+}, [activeCategory])
+```
+
+**Impact**: Eliminates waterfall; faster initial load; categories appear immediately.
+
+**Steps**:
+1. Extract category fetching to parallel promise
+2. Handle categories immediately, don't wait for stream
+3. Stream continues independently with its own loading state
+
+---
+
+## P1: HIGH - Bundle Size Analysis & Optimization
+
+**Dependencies to Audit**:
+```
+react-globe.gl (2.37.0) - loads Three.js, only used in GlobeView
+react-window (1.8.11) - windowing library
+react-virtualized-auto-sizer (1.0.26) - companion to react-window
+three (latest) - heavyweight 3D library
+d3-scale, d3-scale-chromatic - could use lighter alternatives
+```
+
+**Commands**:
+```bash
+npm run build && npx @next/bundle-analyzer
+```
+
+**Recommendations**:
+1. Move `three`, `react-globe.gl` to dynamic imports (done in P0)
+2. Audit `d3` usage - may only need specific functions
+3. Consider `react-intersection-observer` instead of manual IntersectionObserver
+
+**Steps**:
+1. Run bundle analyzer
+2. Identify unused imports
+3. Remove or lazy-load unnecessary dependencies
+4. Verify build still works
+
+---
+
+## P2: MEDIUM - React Compiler + Memoization Strategy
+
+**Key Insight**: React 19's compiler automatically memoizes in many cases. Manual `useMemo`/`useCallback` should only be used when:
+1. **Expensive computations** (>1ms to calculate)
+2. **Referential equality** required by child `memo()` components
+3. **Stable callback signatures** for external systems
+
+**Current Over-Memoization**:
+
+| Location | Issue |
+|----------|-------|
+| `page.tsx:143-155` | `sourceRecency` - nested loop, recalculates on every article change |
+| `page.tsx:389-395` | `actionableNotificationCount` - simple filter, frequent recalc |
+| `grid-view.tsx:209-226` | `filteredNews` - could be optimized with early exit |
+| `grid-view.tsx:332-365` | `sourceGroups` - complex logic, benefits from memo |
+
+**Recommended Changes**:
+
+```typescript
+// BEFORE (page.tsx sourceRecency)
+const sourceRecency = useMemo(() => {
+  const recency: Record<string, number> = {};
+  const articles = articlesByCategory[activeCategory] || [];
+  for (const article of articles) {  // O(n) loop
+    // ...
+  }
+  return recency;
+}, [articlesByCategory, activeCategory]);
+
+// AFTER - Early exit for empty arrays
+const sourceRecency = useMemo(() => {
+  const articles = articlesByCategory[activeCategory];
+  if (!articles || articles.length === 0) return {};
+
+  const recency: Record<string, number> = {};
+  for (const article of articles) {
+    // ...
+  }
+  return recency;
+}, [articlesByCategory, activeCategory]);
+```
+
+**Remove unnecessary memoization**:
+- Simple derivations like `viewLabel` (line 438)
+- Stable computations that don't depend on changing values
+
+**Steps**:
+1. Add early exit to `sourceRecency` memo
+2. Optimize `filteredNews` filter with early return
+3. Keep memoization on `sourceGroups` (complex logic)
+4. Remove memo from simple derivations
+
+---
+
+## P2: MEDIUM - Component Splitting
+
+**Files to Extract**:
+
+| New Component | Extracted From | Lines |
+|--------------|----------------|-------|
+| `components/news-sidebar.tsx` | `page.tsx:476-557` | ~80 |
+| `components/lead-story.tsx` | `page.tsx:593-686` | ~90 |
+| `components/article-card.tsx` | `grid-view.tsx:725-845` | ~120 |
+| `components/article-card-utils.tsx` | `grid-view.tsx:73-283` | ~210 |
+
+**Pattern**:
+```typescript
+// components/article-card.tsx
+interface ArticleCardProps {
+  article: NewsArticle
+  onClick: (article: NewsArticle) => void
+  showImage: boolean
+}
+
+export function ArticleCard({ article, onClick, showImage }: ArticleCardProps) {
+  // ... extracted logic
+  return (
+    <Card>...</Card>
+  )
+}
+```
+
+**Steps**:
+1. Create `news-sidebar.tsx` with extracted sidebar logic
+2. Create `lead-story.tsx` with lead article display
+3. Create `article-card.tsx` with individual card rendering
+4. Create `article-card-utils.tsx` with helper functions
+5. Import new components in parent files
+6. Update props passing
+
+**Impact**: Smaller bundle chunks; better caching; easier maintenance.
+
+---
+
+## P3: LOW-MEDIUM - Rendering Optimizations
+
+**1. content-visibility for Long Lists** (`grid-view.tsx`)
+
+```typescript
+<div
+  className="grid-source-group"
+  style={{
+    contentVisibility: 'auto',
+    containIntrinsicSize: '360px'
+  }}
+/>
+```
+
+**2. Virtualization for Large Datasets**
+
+Your code already has `VirtualizedGrid` but it's gated behind a feature flag. Consider enabling by default for >50 articles.
+
+**3. IntersectionObserver Refactor** (`grid-view.tsx:367-405`)
+
+Replace manual observer with `react-intersection-observer`:
+```typescript
+import { useInView } from 'react-intersection-observer'
+
+// In map callback:
+const { ref, inView } = useInView({ threshold: 0.1 })
+return <div ref={ref}>...</div>
+```
+
+**Steps**:
+1. Add content-visibility CSS to grid groups
+2. Replace manual IntersectionObserver with library
+3. Test virtualization with large datasets
+
+---
+
+## Implementation Order
+
+```
+Phase 1: Immediate Wins (1-2 hours)
+├── 1.1 Dynamic imports for GlobeView, VirtualizedGrid, ThreeGlobe
+├── 1.2 content-visibility CSS
+└── 1.3 Remove unnecessary useMemo
+
+Phase 2: Core Performance (3-5 hours)
+├── 2.1 Parallel data fetching in page.tsx
+├── 2.2 Bundle analysis + optimization
+└── 2.3 Memoization fixes (early exits)
+
+Phase 3: Component Splitting + Tests (6-10 hours)
+├── 3.1 Extract news-sidebar.tsx
+├── 3.2 Extract lead-story.tsx
+├── 3.3 Extract article-card.tsx
+├── 3.4 Create article-card-utils.tsx
+├── 3.5 Create __tests__/article-card.test.tsx
+├── 3.6 Create __tests__/lead-story.test.tsx
+└── 3.7 Update __tests__/reading-queue.test.tsx
+
+Phase 4: Additional Optimizations (2-3 hours)
+├── 4.1 IntersectionObserver refactor
+└── 4.2 Virtualization default threshold tuning
+```
+
+---
+
+## Files to Modify
+
+```
+frontend/app/page.tsx
+frontend/components/grid-view.tsx
+frontend/components/globe-view.tsx
+frontend/components/three-globe.tsx
+frontend/components/virtualized-grid.tsx
+frontend/components/news-sidebar.tsx (NEW)
+frontend/components/lead-story.tsx (NEW)
+frontend/components/article-card.tsx (NEW)
+frontend/components/article-card-utils.tsx (NEW)
+frontend/__tests__/article-card.test.tsx (NEW)
+frontend/__tests__/lead-story.test.tsx (NEW)
+```
+
+## Commands to Run After
+
+```bash
+npm run build        # Verify production build
+npm run lint         # Check for lint errors
+npm test             # Run updated tests
+npm run test:watch   # Optional: verify tests pass
+```
+
+---
+
+## Why Not Full React Query Refactor
+
+**Current Setup: Custom `useNewsStream.ts`**
+
+**What it does now**:
+- Manages state: isStreaming, articles, progress, status, errors
+- Handles abort signal (canceling in-flight requests)
+- Progress percentage calculation
+- Error handling + retries (maxRetries = 3)
+- Memory cleanup on unmount
+
+**Pros**:
+- You control every detail
+- Tailored exactly to your streaming needs
+- No abstraction layer
+
+**Cons**:
+- 200+ lines of custom state management
+- You maintain all retry/caching/error logic
+- No DevTools to inspect
+- If another component needs similar data, you copy-paste
+
+**React Query Trade-offs**:
+- +40KB bundle size
+- Built-in caching, retries, DevTools
+- Designed for request-response, not streaming
+- For streaming, you'd still need custom wrapper
+
+**Decision**: Conservative approach - keep custom hook for streaming, extract pure functions for testability.
+
+**Testable Pattern**:
+```typescript
+// Extract the streaming logic into a pure function
+export async function streamNewsArticles(params) {
+  // All the fetch logic, extracted from the hook
+  // Makes it unit testable without React
+}
+
+// Hook just calls the pure function
+export function useNewsStream() {
+  // ... adapter layer
+}
+```
+
+---
+
+## Success Metrics
+
+| Metric | Before | Target |
+|--------|--------|--------|
+| Initial bundle size | ~1.2MB | ~400KB |
+| First Contentful Paint | ~2.5s | ~1.5s |
+| Time to Interactive | ~4s | ~2.5s |
+| Main thread work (3G) | TBD | 30% reduction |
+| Linting errors | TBD | 0 |
+| Test coverage (new components) | 0% | 80%+ |
 
 ## Error Fixing: ChromaDB Connection Refused (Log Review)
 

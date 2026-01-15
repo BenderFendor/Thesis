@@ -1,7 +1,9 @@
 "use client"
 
 import { useState, useEffect, useRef, useCallback, useMemo, type KeyboardEvent } from "react"
+import dynamic from "next/dynamic"
 import { Button } from "@/components/ui/button"
+import { Skeleton } from "@/components/ui/skeleton"
 import { Tabs, TabsContent } from "@/components/ui/tabs"
 import {
   Globe,
@@ -22,11 +24,15 @@ import {
 } from "lucide-react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
-import { GlobeView } from "@/components/globe-view"
 import { GridView } from "@/components/grid-view"
 import { FeedView } from "@/components/feed-view"
 import { ListView } from "@/components/list-view"
 import { ArticleDetailModal } from "@/components/article-detail-modal"
+
+const GlobeView = dynamic(() => import("@/components/globe-view"), {
+  ssr: false,
+  loading: () => <Skeleton className="h-[400px] w-full" />,
+})
 
 import { useNewsStream } from "@/hooks/useNewsStream"
 import { useFavorites } from "@/hooks/useFavorites"
@@ -82,8 +88,19 @@ function NewsPage() {
   const [sortMode, setSortMode] = useState<"favorites" | "newest" | "oldest" | "source-freshness">("favorites");
 
   // New: State for articles per category to avoid reloading on view switches
-  const [articlesByCategory, setArticlesByCategory] = useState<Record<string, NewsArticle[]>>({})
-  const [loading, setLoading] = useState(false)
+  // Initialize with default structure to enable parallel fetching
+  const [articlesByCategory, setArticlesByCategory] = useState<Record<string, NewsArticle[]>>({
+    all: [],
+    politics: [],
+    technology: [],
+    sports: [],
+    general: [],
+    business: [],
+    entertainment: [],
+    health: [],
+    science: [],
+  })
+  const [loading, setLoading] = useState(true)
   const [apiUrl, setApiUrl] = useState<string | null>(null)
   const router = useRouter()
 
@@ -91,18 +108,23 @@ function NewsPage() {
   const { favorites, isFavorite } = useFavorites()
   const { selectedSources, isFilterActive, isSelected } = useSourceFilter()
 
+  // Fetch categories in background, don't block stream
   useEffect(() => {
     const getCategories = async () => {
-      const backendCategories = await fetchCategories();
-      const allCategories = ["all", ...backendCategories].map(cat => ({
-        id: cat,
-        label: cat.charAt(0).toUpperCase() + cat.slice(1),
-        icon: categoryIcons[cat] || Newspaper,
-      }));
-      setCategories(allCategories);
-      setArticlesByCategory(
-        allCategories.reduce((acc, cat) => ({ ...acc, [cat.id]: [] }), {})
-      );
+      try {
+        const backendCategories = await fetchCategories();
+        const allCategories = ["all", ...backendCategories].map(cat => ({
+          id: cat,
+          label: cat.charAt(0).toUpperCase() + cat.slice(1),
+          icon: categoryIcons[cat] || Newspaper,
+        }));
+        setCategories(allCategories);
+        setArticlesByCategory(
+          allCategories.reduce((acc, cat) => ({ ...acc, [cat.id]: [] }), {})
+        );
+      } catch (error) {
+        console.error('Failed to fetch categories:', error);
+      }
     };
     getCategories();
   }, []);

@@ -1,10 +1,12 @@
 "use client"
 
 import { useState, useEffect, useCallback, useMemo, useRef } from "react"
+import dynamic from "next/dynamic"
 import Link from "next/link"
 import { Card, CardContent } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
+import { Skeleton } from "@/components/ui/skeleton"
 import {
   Clock,
   Newspaper,
@@ -21,7 +23,12 @@ import {
   Loader2,
 } from "lucide-react"
 import { ArticleDetailModal } from "./article-detail-modal"
-import { VirtualizedGrid } from "./virtualized-grid"
+
+const VirtualizedGrid = dynamic(() => import("./virtualized-grid"), {
+  ssr: false,
+  loading: () => <Skeleton className="h-[400px] w-full" />,
+})
+
 import { TrendingFeed } from "./trending-feed"
 import type { NewsArticle, AllCluster } from "@/lib/api"
 import { get_logger } from "@/lib/utils"
@@ -207,14 +214,15 @@ export function GridView({
 
   // Filter articles based on user selections
   const filteredNews = useMemo(() => {
+    if (!searchTerm) return articles
+
     const result = articles.filter((article: NewsArticle) => {
       const matchesSearch =
-        !searchTerm ||
         article.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
         article.summary?.toLowerCase().includes(searchTerm.toLowerCase())
-      
       return matchesSearch
     })
+
     if (isDev) {
       logger.debug("Filter results", {
         total: articles.length,

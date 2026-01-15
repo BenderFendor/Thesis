@@ -1,5 +1,6 @@
 {
   "devDependencies": {
+    "@next/bundle-analyzer": "^16.1.2",
     "@playwright/test": "^1.56.1",
     "@types/three": "^0.180.0"
   }
