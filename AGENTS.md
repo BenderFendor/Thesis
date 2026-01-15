@@ -10,6 +10,12 @@
 - Add minimal, thoughtful debugging to support future troubleshooting.
 - Prefer a single LLM API call per feature flow when feasible to reduce rate-limit risk; consolidate prompts instead of chaining calls.
 
+## Frontend Performance
+- When using `next/dynamic`, keep the loading component as a single React element. Complex JSX structures in the `loading` option can cause lazy element type errors.
+- Run `npm run build` and `npm test` before committing frontend changes to verify correctness.
+- Establish a bundle baseline (e.g., First Load JS) before optimizing to measure improvements.
+- Defer component splitting when it would require significant prop drilling or context setup - the risk outweighs the benefit.
+
 ## Epistemology
 - Assumptions are the enemy.
 - Never guess numerical values. Benchmark instead of estimating.
