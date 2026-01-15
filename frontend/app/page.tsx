@@ -29,10 +29,13 @@ import { FeedView } from "@/components/feed-view"
 import { ListView } from "@/components/list-view"
 import { ArticleDetailModal } from "@/components/article-detail-modal"
 
-const GlobeView = dynamic(() => import("@/components/globe-view"), {
-  ssr: false,
-  loading: () => <Skeleton className="h-[400px] w-full" />,
-})
+const GlobeView = dynamic(
+  () => import("@/components/globe-view").then((mod) => mod.GlobeView),
+  {
+    ssr: false,
+    loading: () => <Skeleton className="h-[400px] w-full" />,
+  }
+)
 
 import { useNewsStream } from "@/hooks/useNewsStream"
 import { useFavorites } from "@/hooks/useFavorites"

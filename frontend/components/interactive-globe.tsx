@@ -5,7 +5,7 @@ import dynamic from "next/dynamic"
 import { NewsArticle } from "@/lib/api"
 
 // Dynamically import Globe with no SSR
-const Globe = dynamic(() => import("react-globe.gl"), {
+const Globe = dynamic(() => import("react-globe.gl").then((mod) => mod.default), {
   ssr: false,
   loading: () => (
     <div className="flex items-center justify-center h-full">
