@@ -4,6 +4,7 @@ Image proxy endpoint to solve mixed content blocking.
 Fetches external images and serves them from the local origin,
 solving HTTP/HTTPS mixed content issues and adding proper caching.
 """
+
 from __future__ import annotations
 
 import hashlib
@@ -17,6 +18,7 @@ from fastapi import APIRouter, HTTPException, Query
 from fastapi.responses import Response
 
 from app.core.logging import get_logger
+from app.services.og_image import fetch_og_image
 
 router = APIRouter(prefix="/image", tags=["images"])
 logger = get_logger("image_proxy")
@@ -117,11 +119,15 @@ async def proxy_image(
             response = await client.get(url)
             response.raise_for_status()
 
-            content_type = response.headers.get("content-type", "").split(";")[0].strip()
+            content_type = (
+                response.headers.get("content-type", "").split(";")[0].strip()
+            )
 
             # Validate content type
             if content_type not in ALLOWED_CONTENT_TYPES:
-                logger.warning("Unsupported content type %s for %s", content_type, url[:50])
+                logger.warning(
+                    "Unsupported content type %s for %s", content_type, url[:50]
+                )
                 raise HTTPException(
                     status_code=400,
                     detail=f"IMAGE_UNSUPPORTED_TYPE: {content_type}",
@@ -157,7 +163,9 @@ async def proxy_image(
         raise HTTPException(status_code=504, detail="IMAGE_FETCH_TIMEOUT")
 
     except httpx.HTTPStatusError as e:
-        logger.error("HTTP error %s fetching image: %s", e.response.status_code, url[:50])
+        logger.error(
+            "HTTP error %s fetching image: %s", e.response.status_code, url[:50]
+        )
         raise HTTPException(
             status_code=502,
             detail=f"IMAGE_FETCH_FAILED: HTTP {e.response.status_code}",
@@ -202,3 +210,41 @@ async def clear_cache() -> dict:
         return {"cleared": count, "message": f"Cleared {count} cached files"}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/og")
+async def get_og_image(
+    url: str = Query(
+        ..., description="URL of the article to fetch OpenGraph image from"
+    ),
+) -> dict:
+    """
+    Fetch the OpenGraph image for a given article URL.
+
+    This endpoint fetches the og:image meta tag from the article URL
+    and returns the image URL if found.
+    """
+    if not url:
+        raise HTTPException(status_code=400, detail="URL is required")
+
+    if not url.startswith(("http://", "https://")):
+        raise HTTPException(status_code=400, detail="Invalid URL scheme")
+
+    logger.info("Fetching OG image for: %s", url[:80])
+
+    try:
+        async with httpx.AsyncClient(timeout=4.0) as client:
+            image_url = await fetch_og_image(url, client)
+
+            if image_url:
+                return {"image_url": image_url}
+            else:
+                raise HTTPException(status_code=404, detail="No OpenGraph image found")
+    except httpx.TimeoutException:
+        logger.error("Timeout fetching OG image: %s", url[:50])
+        raise HTTPException(status_code=504, detail="IMAGE_FETCH_TIMEOUT")
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error("Error fetching OG image %s: %s", url[:50], e)
+        raise HTTPException(status_code=502, detail=f"IMAGE_FETCH_FAILED: {str(e)}")

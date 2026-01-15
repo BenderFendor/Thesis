@@ -70,7 +70,9 @@ async def get_news_paginated(
     cursor: Optional[str] = Query(default=None),
     category: Optional[str] = Query(default=None),
     source: Optional[str] = Query(default=None),
-    sources: Optional[str] = Query(default=None, description="Comma-separated source names for multi-select"),
+    sources: Optional[str] = Query(
+        default=None, description="Comma-separated source names for multi-select"
+    ),
     search: Optional[str] = Query(default=None),
     sort_order: str = Query(default="desc"),
     db: AsyncSession = Depends(get_db),
@@ -238,20 +240,20 @@ async def get_cached_news_paginated(
             "id": a.id,
             "title": a.title,
             "source": a.source,
-            "source_id": a.source_id,
+            "source_id": a.source,
             "country": a.country,
-            "credibility": a.credibility,
-            "bias": a.bias,
-            "summary": a.summary,
-            "content": a.content,
+            "credibility": "UNKNOWN",
+            "bias": "UNKNOWN",
+            "summary": a.description,
+            "content": None,
             "image": a.image,
             "image_url": a.image,
             "published_at": a.published,
             "category": a.category,
-            "url": a.url,
-            "tags": a.tags,
-            "original_language": a.original_language,
-            "translated": a.translated,
+            "url": a.link,
+            "tags": None,
+            "original_language": None,
+            "translated": False,
         }
         for a in paginated
     ]
@@ -300,9 +302,10 @@ async def get_recent_news(
         )
 
     stmt = (
-        select(Article)
-        .where(*filters) if filters else select(Article)
-    ).order_by(desc(Article.published_at), desc(Article.id)).limit(limit + 1)
+        (select(Article).where(*filters) if filters else select(Article))
+        .order_by(desc(Article.published_at), desc(Article.id))
+        .limit(limit + 1)
+    )
 
     result = await db.execute(stmt)
     rows = list(result.scalars().all())

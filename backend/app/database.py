@@ -30,7 +30,7 @@ logger = logging.getLogger(__name__)
 
 # Database URL from environment
 DATABASE_URL = os.getenv(
-    "DATABASE_URL", "postgresql+asyncpg://newsuser:newspass@localhost:6543/newsdb"
+    "DATABASE_URL", "postgresql+asyncpg://newsuser:newspass@localhost:5432/newsdb"
 )
 
 # Async engine configuration

@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback, useRef } from "react";
-import { type NewsArticle, fetchBookmarks, createBookmark, deleteBookmark } from "@/lib/api";
+import { type NewsArticle, fetchBookmarks, createBookmark, deleteBookmark, fetchOGImage } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Heart, Bookmark, ExternalLink, Star } from "lucide-react";
@@ -10,6 +10,14 @@ import { get_logger } from "@/lib/utils";
 import { useFavorites } from "@/hooks/useFavorites";
 
 const logger = get_logger("FeedView")
+
+const hasRealImage = (image: string) => {
+  if (!image) return false;
+  const lower = image.toLowerCase();
+  if (lower.includes("placeholder") || lower.endsWith(".svg")) return false;
+  if (!image.trim().length > 0) return false;
+  return !lower.includes("logo") && !lower.includes("punch") && !lower.includes("header") && !lower.includes("icon");
+};
 
 interface FeedViewProps {
   articles: NewsArticle[];
@@ -28,6 +36,7 @@ export function FeedView({ articles, loading }: FeedViewProps) {
   const isAnimatingRef = useRef(false);
   const touchStartRef = useRef<number | null>(null);
   const scrollTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [ogImages, setOgImages] = useState<Record<number, string>>({});
 
   // Load bookmarks on mount
   useEffect(() => {
@@ -42,6 +51,29 @@ export function FeedView({ articles, loading }: FeedViewProps) {
 
     loadBookmarks();
   }, []);
+
+  // Fetch OG images for articles missing images
+  useEffect(() => {
+    const fetchImages = async () => {
+      const newImages: Record<number, string> = {};
+      const promises = articles
+        .filter(article => !hasRealImage(article.image) && article.url)
+        .map(async article => {
+          const imageUrl = await fetchOGImage(article.url);
+          if (imageUrl) {
+            newImages[article.id] = imageUrl;
+          }
+        });
+
+      await Promise.all(promises);
+
+      if (Object.keys(newImages).length > 0) {
+        setOgImages(prev => ({ ...prev, ...newImages }));
+      }
+    };
+
+    fetchImages();
+  }, [articles]);
 
   const handleLike = (articleId: number) => {
     setLikedArticles(prev => {
@@ -269,7 +301,19 @@ export function FeedView({ articles, loading }: FeedViewProps) {
             className="snap-start h-screen min-h-screen w-full relative cursor-pointer"
             onClick={() => handleArticlePreview(article)}
           >
-            <img src={article.image || '/placeholder.svg'} alt={article.title} className="absolute inset-0 w-full h-full object-cover opacity-40" />
+            <img
+              src={article.image || ogImages[article.id] || '/placeholder.svg'}
+              alt={article.title}
+              className="absolute inset-0 w-full h-full object-cover opacity-40"
+              onError={(e) => {
+                const target = e.target as HTMLImageElement;
+                if (target.src !== ogImages[article.id] && ogImages[article.id]) {
+                  target.src = ogImages[article.id];
+                } else if (target.src !== '/placeholder.svg') {
+                  target.src = '/placeholder.svg';
+                }
+              }}
+            />
             <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-black/20" />
             <div className="relative z-10 h-full flex flex-col justify-end p-6">
               <div className="absolute top-6 left-6 flex flex-wrap gap-2">

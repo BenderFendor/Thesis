@@ -3136,3 +3136,21 @@ export async function fetchBulkArticleTopics(
   }
   return response.json();
 }
+/**
+ * Fetch the OpenGraph image for a given article URL
+ * @param url The URL of the article
+ */
+export async function fetchOGImage(url: string): Promise<string | null> {
+  try {
+    const response = await fetch(`${API_BASE_URL}/image/og?url=${encodeURIComponent(url)}`);
+    if (!response.ok) {
+      if (response.status === 404) return null;
+      throw new Error(`HTTP error! status: ${response.status}`);
+    }
+    const data = await response.json();
+    return data.image_url || null;
+  } catch (error) {
+    console.error("Failed to fetch OG image:", error);
+    return null;
+  }
+}
