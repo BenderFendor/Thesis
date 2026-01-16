@@ -1,7 +1,9 @@
 from __future__ import annotations
 
 import asyncio
+import os
 import signal
+import tempfile
 import threading
 import time
 from datetime import datetime, timezone
@@ -9,10 +11,12 @@ from typing import Any
 
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.middleware.gzip import GZipMiddleware
 
 from app.api.routes import router as api_router
 from app.core.config import settings
 from app.core.logging import configure_logging, get_logger
+from app.core.profiling import ProfilingMiddleware
 from app.database import init_db, AsyncSessionLocal, fetch_all_articles
 from app.middleware.request_tracing import RequestTracingMiddleware
 from app.models.news import NewsArticle
@@ -44,6 +48,9 @@ app = FastAPI(
     title=settings.app_title,
     version=settings.app_version,
     description="A comprehensive news aggregation platform providing diverse global perspectives",
+    docs_url="/docs" if settings.debug else None,
+    redoc_url="/redoc" if settings.debug else None,
+    openapi_url="/openapi.json" if settings.debug else None,
 )
 
 app.add_middleware(
@@ -56,6 +63,12 @@ app.add_middleware(
 
 # Add request tracing middleware for debugging
 app.add_middleware(RequestTracingMiddleware)
+
+# Add profiling middleware for performance metrics
+app.add_middleware(ProfilingMiddleware)
+
+# Add GZip compression for responses over 1KB
+app.add_middleware(GZipMiddleware, minimum_size=1000)
 
 app.include_router(api_router)
 
@@ -266,38 +279,76 @@ async def on_startup() -> None:
     _start_schedulers_once()
     startup_metrics.add_note("schedulers_started_at", time.time())
 
+    # Use file-based lock to ensure startup tasks run only once across all workers
+    import os
+
+    startup_lock_dir = "/tmp/thesis_startup_lock"
+    is_leader = False
+    try:
+        os.makedirs(startup_lock_dir, exist_ok=True)
+        lock_file = os.path.join(startup_lock_dir, "leader.lock")
+        import tempfile
+
+        with tempfile.NamedTemporaryFile(
+            mode="w", dir=startup_lock_dir, delete=False
+        ) as f:
+            f.write(str(os.getpid()))
+            temp_path = f.name
+        os.rename(temp_path, lock_file)
+        is_leader = True
+        logger.info("This worker (PID %d) is the leader for startup tasks", os.getpid())
+    except FileExistsError:
+        logger.info("Another worker is handling startup tasks, skipping")
+        startup_metrics.add_note("startup_role", "follower")
+
     if settings.enable_database and AsyncSessionLocal is not None:
+        if is_leader:
+            await _load_cache_from_db_fast()
+            startup_metrics.add_note("cache_loaded_by_leader", True)
+        else:
+            logger.info("Following workers wait for cache to be ready...")
+            for _ in range(30):
+                await asyncio.sleep(1)
+                if len(news_cache.get_articles()) > 0:
+                    logger.info("Cache is ready from leader")
+                    break
+
+    # Only leader runs initial cache load and RSS refresh
+    if is_leader:
         cache_preload_task = asyncio.create_task(
             _initial_cache_load(), name="initial_cache_load"
         )
         _register_background_task(cache_preload_task)
         startup_metrics.add_note("cache_preload_task", cache_preload_task.get_name())
 
-    # Start async RSS refresh scheduler (delayed first run)
+    # Start async RSS refresh scheduler (delayed first run) - ALL workers
     scheduler_task = asyncio.create_task(
         periodic_rss_refresh(interval_seconds=600), name="rss_refresh_scheduler"
     )
     _register_background_task(scheduler_task)
     startup_metrics.add_note("rss_scheduler_task", scheduler_task.get_name())
 
-    refresh_task = asyncio.create_task(
-        _start_initial_rss_refresh(), name="initial_rss_refresh"
-    )
-    _register_background_task(refresh_task)
-
-    if settings.enable_database:
-        persistence_task = asyncio.create_task(
-            article_persistence_worker(), name="article_persistence_worker"
+    # Only leader runs initial RSS refresh
+    if is_leader:
+        refresh_task = asyncio.create_task(
+            _start_initial_rss_refresh(), name="initial_rss_refresh"
         )
-        _register_background_task(persistence_task)
-        if settings.enable_vector_store:
-            embedding_task = asyncio.create_task(
-                embedding_generation_worker(), name="embedding_generation_worker"
-            )
-            _register_background_task(embedding_task)
+        _register_background_task(refresh_task)
 
-    # Only migrate if cache has stale articles (> 6 hours old)
     if settings.enable_database:
+        if is_leader:
+            persistence_task = asyncio.create_task(
+                article_persistence_worker(), name="article_persistence_worker"
+            )
+            _register_background_task(persistence_task)
+            if settings.enable_vector_store:
+                embedding_task = asyncio.create_task(
+                    embedding_generation_worker(), name="embedding_generation_worker"
+                )
+                _register_background_task(embedding_task)
+
+    # Only migrate if cache has stale articles (> 6 hours old) - leader only
+    if settings.enable_database and is_leader:
         migration_task = asyncio.create_task(
             _maybe_migrate_cached_articles(), name="conditional_migration"
         )

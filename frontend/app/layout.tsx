@@ -19,7 +19,10 @@ const inter = Inter({
 
 export const metadata: Metadata = {
   title: 'Scoop - Multi-perspective News',
-  description: 'A multi-perspective news aggregation platform with global coverage'
+  description: 'A multi-perspective news aggregation platform with global coverage',
+  icons: {
+    icon: '/favicon.svg',
+  },
 }
 
 export default function RootLayout({

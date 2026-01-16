@@ -627,25 +627,25 @@ Identify which perspectives are NOT covering a story.
 
 ## Source & Article Views
 - [x] Update source page for new backend
-- [ ] Source modal shows reporter + human-readable date
+- [x] Source modal shows reporter + human-readable date
 - [x] Add Open Graph image fallback for unsupported sources
 - [x] Improve RSS + image parsing (http/https, fallbacks)
 - [ ] Fix image parsing for NYT and CNN
 - [ ] Redesign article modal to match app UI
 - [ ] Speed up full-article loading in modal/reader
-- [ ] Hide placeholder images in article modal
-- [ ] Avoid duplicate rendering when full article text already present
+- [x] Hide placeholder images in article modal
+- [x] Avoid duplicate rendering when full article text already present
 
 ## Debugging & Logging
 - [x] Add debug/user mode toggle on source/debug pages
 - [x] Debug mode shows verbose logs; user mode hides them
 - [x] Logger feature to toggle debug logs globally
-- [ ] Define image parsing error taxonomy (no image, parse fail, display fail)
-- [ ] Show image parsing errors in debug tooling
-- [ ] Add RSS/article URL debug page with parsing breakdown
-- [ ] Rename sources debug page to general debug page
+- [x] Define image parsing error taxonomy (no image, parse fail, display fail)
+- [x] Show image parsing errors in debug tooling
+- [x] Add RSS/article URL debug page with parsing breakdown
+- [x] Rename sources debug page to general debug page
 - [ ] Show all Postgres + Chroma articles in debug mode
-- [ ] Add startup timing breakdown (backend, RSS parser, Chroma init)
+- [x] Add startup timing breakdown (backend, RSS parser, Chroma init)
 - [ ] Add log file for agentic debug + performance metrics
 
 ## Reading Queue + Reader UX
@@ -655,6 +655,7 @@ Identify which perspectives are NOT covering a story.
 - [ ] Reading digest UI update (importance + breaking focus)
 - [ ] Inline term definitions on highlight
 - [ ] Highlights + notes with centralized highlights tab
+- [ ] Add annotated articles view (articles with notes)
 - [ ] Export highlights/notes to Obsidian markdown
 - [ ] Clean reader view (Readability.js or equivalent)
 - [ ] Speed reader mode
@@ -708,23 +709,21 @@ Identify which perspectives are NOT covering a story.
 - [ ] Redesign loading screen
 - [x] Fix notification panel transparency and make notifications useful
 - [ ] Replace icon pack / typography
-- [ ] Add tooltips/popovers to explain controls
-- [ ] Improve list typography + hover expand for descriptions
+- [x] Add tooltips/popovers to explain controls
+- [x] Improve list typography + hover expand for descriptions
 - [ ] Add smooth but minimal scroll/transition animations
 - [ ] Remove redundant UI (duplicate Index, hide/show deck, desk feature)
 - [x] Move source debug + research to header bar
 - [x] Remove or repurpose Settings/Profile for local-only app
-- [ ] Add favicon
+- [x] Add favicon
 - [ ] Enforce no-emoji UI policy in frontend
 
 ## Cluster Label Improvement
 - [ ] Improve auto-generated cluster labels (current labels like "Afridi Hold Rally", "Korea Drone Claims" are awkward)
 - [ ] Options to explore:
-  - Lightweight LLM (250M params) to generate readable titles from keywords + representative headline
-  - Rule-based approach: extract subject + verb + object from representative article title
-  - Use representative article title directly if label quality is low
-  - Backend: add `label_quality` score, regenerate low-scoring labels with LLM
+- [ ] Use representative article title directly if label quality is low
 - [ ] Keep latency minimal - labels should generate during clustering, not on-demand
+
 
 ## Performance + Infra
 - [ ] Investigate slow startup; measure and add Server-Timing header

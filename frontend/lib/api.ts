@@ -724,7 +724,7 @@ export async function fetchSourceDebugData(sourceName: string): Promise<SourceDe
   const encodedSourceName = encodeURIComponent(decodedSourceName);
 
   // FIXED: Use correct endpoint path
-  const url = `${API_BASE_URL}/debug/source/${encodedSourceName}`;
+  const url = `${API_BASE_URL}/debug/sources/${encodedSourceName}`;
   logger.debug(`Fetching debug data for source: ${url}`);
   try {
     const response = await fetch(url);

@@ -372,7 +372,7 @@ class ClusteringService:
             .where(
                 and_(
                     TopicCluster.is_active == True,
-                    Article.published_at >= window_start,
+                    TopicCluster.last_seen >= window_start,
                 )
             )
             .group_by(TopicCluster.id)
@@ -511,6 +511,7 @@ class ClusteringService:
                 TopicCluster.keywords,
                 TopicCluster.centroid_article_id,
                 TopicCluster.first_seen,
+                TopicCluster.last_seen,
                 TopicCluster.article_count,
                 func.count(ArticleTopic.id).label("window_count"),
                 func.count(func.distinct(Article.source)).label("source_diversity"),
@@ -521,7 +522,7 @@ class ClusteringService:
             .where(
                 and_(
                     TopicCluster.is_active == True,
-                    Article.published_at >= window_start,
+                    TopicCluster.last_seen >= window_start,
                 )
             )
             .group_by(TopicCluster.id)
@@ -530,22 +531,71 @@ class ClusteringService:
             .limit(limit)
         )
 
-        results = []
-        for row in clusters_query.all():
-            cluster_id = row[0]
-            representative = await self._get_representative_article(
-                session, cluster_id, window_start
+        cluster_rows = clusters_query.all()
+
+        if not cluster_rows:
+            return []
+
+        cluster_ids = [row[0] for row in cluster_rows]
+        centroid_ids = [row[3] for row in cluster_rows if row[3]]
+
+        articles_map: Dict[int, Dict[str, Any]] = {}
+        if centroid_ids:
+            centroid_query = await session.execute(
+                select(Article).where(Article.id.in_(centroid_ids))
             )
+            for article in centroid_query.scalars().all():
+                articles_map[article.id] = {
+                    "id": article.id,
+                    "title": article.title,
+                    "source": article.source,
+                    "url": article.url,
+                    "image_url": article.image_url,
+                    "published_at": article.published_at.isoformat()
+                    if article.published_at
+                    else None,
+                    "summary": article.summary[:200] if article.summary else None,
+                }
+
+        cluster_image_map: Dict[int, Optional[str]] = {}
+        if cluster_ids:
+            image_query = await session.execute(
+                select(
+                    ArticleTopic.cluster_id,
+                    func.max(Article.image_url).label("best_image"),
+                )
+                .select_from(Article)
+                .join(ArticleTopic, ArticleTopic.article_id == Article.id)
+                .where(
+                    and_(
+                        ArticleTopic.cluster_id.in_(cluster_ids),
+                        Article.image_url != None,
+                        Article.image_url != "",
+                    )
+                )
+                .group_by(ArticleTopic.cluster_id)
+            )
+            for row in image_query.all():
+                cluster_image_map[row[0]] = row[1]
+
+        results = []
+        for row in cluster_rows:
+            cluster_id = row[0]
+            centroid_id = row[3]
+            representative = articles_map.get(centroid_id) if centroid_id else None
+
+            if representative and cluster_id in cluster_image_map:
+                representative["image_url"] = cluster_image_map[cluster_id]
 
             results.append(
                 {
                     "cluster_id": cluster_id,
                     "label": row[1],
                     "keywords": row[2] or [],
-                    "article_count": row[5],
-                    "window_count": row[6],
-                    "source_diversity": row[7],
-                    "last_seen": row[4].isoformat() if row[4] else None,
+                    "article_count": row[6],
+                    "window_count": row[7],
+                    "source_diversity": row[8],
+                    "last_seen": row[5].isoformat() if row[5] else None,
                     "representative_article": representative,
                 }
             )

@@ -6,6 +6,13 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
   Clock,
   TrendingUp,
   Zap,
@@ -135,6 +142,7 @@ export function TrendingFeed() {
   const [isBreakingCluster, setIsBreakingCluster] = useState(false);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [likedArticles, setLikedArticles] = useState<Set<number>>(new Set());
+  const [trendingWindow, setTrendingWindow] = useState<"1d" | "1w" | "1m">("1d");
   
   const { addArticleToQueue, removeArticleFromQueue, isArticleInQueue } = useReadingQueue();
 
@@ -146,7 +154,7 @@ export function TrendingFeed() {
     setLoading(true);
     try {
       const [trending, breaking] = await Promise.all([
-        fetchTrending("1d", 10),
+        fetchTrending(trendingWindow, 10),
         fetchBreaking(5),
       ]);
       setTrendingData(trending);
@@ -156,7 +164,7 @@ export function TrendingFeed() {
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [trendingWindow]);
 
   useEffect(() => {
     if (mounted) {
@@ -227,9 +235,24 @@ export function TrendingFeed() {
               </Badge>
             )}
           </div>
-          <span className="text-xs text-muted-foreground">
-            {trendingClusters.length + breakingClusters.length} stories
-          </span>
+          <div className="flex items-center gap-3">
+            <Select value={trendingWindow} onValueChange={(value) => setTrendingWindow(value as "1d" | "1w" | "1m")}>
+              <SelectTrigger
+                className="h-8 px-2 text-xs bg-[var(--news-bg-primary)] border border-white/10 rounded-none"
+                title="Trending window"
+              >
+                <SelectValue placeholder="Window" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="1d">Last 24h</SelectItem>
+                <SelectItem value="1w">Last 7d</SelectItem>
+                <SelectItem value="1m">Last 30d</SelectItem>
+              </SelectContent>
+            </Select>
+            <span className="text-xs text-muted-foreground">
+              {trendingClusters.length + breakingClusters.length} stories
+            </span>
+          </div>
         </div>
 
         {/* Vertical Grid */}

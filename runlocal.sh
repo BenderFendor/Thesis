@@ -40,14 +40,14 @@ Usage: ./runlocal.sh [setup|services|backend|frontend|all|killall|help]
 
   setup     Install local Postgres + Chroma dependencies and prep defaults
   services  Start Postgres + Chroma locally (no Docker)
-  backend   Create/refresh the Python venv, install deps, start FastAPI (uvicorn)
+  backend   Create/refresh the Python venv, install deps, start FastAPI (gunicorn)
   frontend  Install npm deps if needed and start Next.js dev server (also starts Postgres + Chroma)
   all       Run backend and frontend together (default)
   killall   Stop processes spawned by previous runlocal.sh runs
   help      Show this message
 
-Environment overrides:
-  BACKEND_PORT   Port for uvicorn (default 8000)
+ Environment overrides:
+  BACKEND_PORT   Port for gunicorn (default 8000)
   FRONTEND_PORT  Port for Next.js dev server (default 3000)
   POSTGRES_HOST  Postgres hostname (default localhost)
   POSTGRES_PORT  Postgres port (default 5432)
@@ -79,7 +79,8 @@ cleanup() {
 }
 
 stop_backend_processes() {
-	# Ensure uvicorn launched from the backend venv does not linger after shutdown.
+	# Ensure gunicorn launched from the backend venv does not linger after shutdown.
+	pkill -9 -f "$BACKEND_DIR/.venv/bin/gunicorn" >/dev/null 2>&1 || true
 	pkill -9 -f "$BACKEND_DIR/.venv/bin/python3 $BACKEND_DIR/.venv/bin/uvicorn app.main" >/dev/null 2>&1 || true
 }
 
@@ -303,6 +304,7 @@ install_backend_deps() {
 	source "$BACKEND_DIR/.venv/bin/activate"
 	log "Installing backend dependencies..."
 	uv pip install -r "$BACKEND_DIR/requirements.txt"
+	uv pip install gunicorn
 	deactivate || true
 }
 
@@ -460,11 +462,12 @@ run_backend() {
 	source .venv/bin/activate
 	log "Installing backend dependencies..."
 	uv pip install -r requirements.txt
+	uv pip install gunicorn
 	log "Using DATABASE_URL=$DATABASE_URL"
 	log "Using Chroma at $CHROMA_HOST:$CHROMA_PORT"
 
-	log "Starting FastAPI dev server on port $BACKEND_PORT"
-	uvicorn app.main:app --reload --port "$BACKEND_PORT" &
+	log "Starting FastAPI with Gunicorn on port $BACKEND_PORT"
+	gunicorn -c gunicorn.conf.py app.main:app &
 	local backend_pid=$!
 	PIDS+=("$backend_pid")
 	record_pid "$backend_pid" "backend"

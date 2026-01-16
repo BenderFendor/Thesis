@@ -140,6 +140,14 @@ export function ListView({ articles, loading }: ListViewProps) {
                   {article.credibility}
                 </Badge>
               )}
+              {article.category && (
+                <Badge
+                  variant="outline"
+                  className="text-[9px] uppercase font-mono border-white/10 bg-white/5 text-foreground/60"
+                >
+                  {article.category}
+                </Badge>
+              )}
             </div>
           </div>
         ))}

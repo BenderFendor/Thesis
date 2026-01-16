@@ -167,9 +167,7 @@ async def get_all_clusters(
 
     Returns clusters ordered by recency (most recently seen first).
     """
-    response.headers["Cache-Control"] = (
-        "public, max-age=120, stale-while-revalidate=300"
-    )
+    response.headers["Cache-Control"] = "public, max-age=60, stale-while-revalidate=120"
 
     service = ClusteringService()
     if not service.vector_store:

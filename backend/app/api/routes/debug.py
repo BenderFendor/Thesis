@@ -24,12 +24,13 @@ from app.services.metrics import get_metrics
 from app.services.startup_metrics import startup_metrics
 from app.services.stream_manager import stream_manager
 from app.services.debug_logger import debug_logger, DEBUG_LOG_DIR
+from app.services.image_extraction import ImageErrorType
 from app.vector_store import get_vector_store
 
 router = APIRouter(prefix="/debug", tags=["debug"])
 
 
-@router.get("/source/{source_name}")
+@router.get("/sources/{source_name}")
 async def get_source_debug_data(source_name: str) -> Dict[str, object]:
     rss_sources = get_rss_sources()
     if source_name not in rss_sources:
@@ -105,19 +106,34 @@ async def get_source_debug_data(source_name: str) -> Dict[str, object]:
             if getattr(entry, "enclosures", None):
                 image_sources.append({"type": "enclosures", "data": entry.enclosures})
 
-            content_images = []
-            if getattr(entry, "content", None):
-                content_text = (
-                    entry.content[0].value
-                    if isinstance(entry.content, list)
-                    else str(entry.content)
-                )
-                content_images = re.findall(r"<img[^>]+src=\"([^\"]+)\"", content_text)
+            content_images: list[str] = []
+            content_data = getattr(entry, "content", None)
+            if content_data:
+                content_value: str | None = None
+                if isinstance(content_data, list) and content_data:
+                    entry_value = content_data[0]
+                    if isinstance(entry_value, dict):
+                        raw_value = entry_value.get("value")
+                        content_value = (
+                            raw_value if isinstance(raw_value, str) else None
+                        )
+                    else:
+                        raw_value = getattr(entry_value, "value", None)
+                        content_value = (
+                            raw_value if isinstance(raw_value, str) else None
+                        )
+                elif isinstance(content_data, str):
+                    content_value = content_data
+                if content_value:
+                    content_images = re.findall(
+                        r"<img[^>]+src=\"([^\"]+)\"", content_value
+                    )
 
-            desc_images = []
-            if entry.get("description"):
+            desc_images: list[str] = []
+            description_value = entry.get("description")
+            if isinstance(description_value, str) and description_value:
                 desc_images = re.findall(
-                    r"<img[^>]+src=\"([^\"]+)\"", entry.description
+                    r"<img[^>]+src=\"([^\"]+)\"", description_value
                 )
 
             has_images = bool(image_sources or content_images or desc_images)
@@ -128,9 +144,12 @@ async def get_source_debug_data(source_name: str) -> Dict[str, object]:
                 "index": i,
                 "title": entry.get("title", "No title"),
                 "link": entry.get("link", ""),
-                "description": (entry.get("description", "")[:200] + "...")
-                if entry.get("description") and len(entry.get("description", "")) > 200
-                else entry.get("description", "No description"),
+                "description": (
+                    description_value[:200] + "..."
+                    if isinstance(description_value, str)
+                    and len(description_value) > 200
+                    else description_value or "No description"
+                ),
                 "published": entry.get("published", "No date"),
                 "author": entry.get("author", "No author"),
                 "tags": entry.get("tags", []),
@@ -568,6 +587,13 @@ async def test_rss_parser(
                     "image_extraction": image_result.to_dict(),
                 }
             )
+
+        result["image_error_taxonomy"] = [
+            {
+                "code": error.value,
+            }
+            for error in ImageErrorType
+        ]
 
         return result
 

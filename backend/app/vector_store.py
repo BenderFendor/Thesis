@@ -21,10 +21,14 @@ CHROMA_PORT = int(os.getenv("CHROMA_PORT", "8001"))
 _vector_store: Optional["VectorStore"] = None
 _vector_store_lock = threading.Lock()
 
+EMBEDDING_MODEL_NAME = "all-MiniLM-L6-v2"
+
 
 class VectorStore:
     def __init__(self):
         init_start = time.time()
+        self._embedding_model = None
+        self._embedding_cache_dir = None
         try:
             # Use HTTP client for Docker setup
             self.client = chromadb.HttpClient(
@@ -46,9 +50,14 @@ class VectorStore:
                 metadata={"hnsw:space": "cosine"},  # Cosine similarity for text
             )
 
-            # Use lightweight embedding model
-            # Alternative: 'BAAI/bge-small-en-v1.5' (384 dims, better quality)
-            self.embedding_model = SentenceTransformer("all-MiniLM-L6-v2")
+            # Configure local cache for HuggingFace model
+            self._embedding_cache_dir = os.path.expanduser(
+                "~/.cache/sentence_transformers"
+            )
+            os.makedirs(self._embedding_cache_dir, exist_ok=True)
+
+            # Lazy load embedding model on first use (avoids startup blocking)
+            # Model will be loaded when first embedding request is made
 
             logger.info(f"Connected to ChromaDB at {CHROMA_HOST}:{CHROMA_PORT}")
             collection_count = self.collection.count()
@@ -76,6 +85,18 @@ class VectorStore:
             logger.error("Failed to connect to ChromaDB: %s", e)
             startup_metrics.add_note("vector_store_error", str(e))
             raise
+
+    @property
+    def embedding_model(self):
+        """Lazy load embedding model on first access."""
+        if self._embedding_model is None:
+            logger.info(
+                f"Loading embedding model ({EMBEDDING_MODEL_NAME}) on first use..."
+            )
+            self._embedding_model = SentenceTransformer(
+                EMBEDDING_MODEL_NAME, cache_folder=self._embedding_cache_dir
+            )
+        return self._embedding_model
 
     def add_article(
         self, article_id: str, title: str, summary: str, content: str, metadata: Dict

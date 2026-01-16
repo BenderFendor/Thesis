@@ -14,6 +14,7 @@ from . import (
     jobs,
     news,
     news_by_country,
+    profiling,
     reading_queue,
     research,
     search,
@@ -37,6 +38,7 @@ router.include_router(reading_queue.router)
 router.include_router(research.router)
 router.include_router(entity_research.router)
 router.include_router(search.router)
+router.include_router(profiling.router)
 router.include_router(sources.router)
 router.include_router(inline.router)
 router.include_router(jobs.router)

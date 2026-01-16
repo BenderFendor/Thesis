@@ -38,6 +38,11 @@ export function FeedView({ articles, loading }: FeedViewProps) {
   const scrollTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [ogImages, setOgImages] = useState<Record<number, string>>({});
 
+  const displaySource = useCallback((article: NewsArticle) => {
+    if (!article.source) return ""
+    return article.source.length > 24 ? `${article.source.slice(0, 24)}…` : article.source
+  }, [])
+
   // Load bookmarks on mount
   useEffect(() => {
     const loadBookmarks = async () => {
@@ -328,6 +333,10 @@ export function FeedView({ articles, loading }: FeedViewProps) {
                 <div className="flex-1 space-y-4">
                   <h1 className="text-3xl font-bold leading-tight text-balance drop-shadow-lg">{article.title}</h1>
                   <p className="text-base text-foreground/80 line-clamp-3 max-w-2xl drop-shadow">{article.summary}</p>
+                  <div className="flex flex-wrap items-center gap-3 text-xs text-muted-foreground">
+                    <span className="font-mono uppercase tracking-[0.3em]">{displaySource(article)}</span>
+                    <span className="font-mono uppercase tracking-[0.3em]">{new Date(article.publishedAt).toLocaleDateString("en-US", { month: "short", day: "numeric" })}</span>
+                  </div>
                   <div className="flex items-center gap-3">
                     <a
                       href={article.url}

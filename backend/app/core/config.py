@@ -20,7 +20,9 @@ class Settings:
     app_version: str = "1.0.0"
     gemini_api_key: Optional[str] = os.getenv("GEMINI_API_KEY")
     open_router_api_key: Optional[str] = os.getenv("OPEN_ROUTER_API_KEY")
-    open_router_model: str = os.getenv("OPEN_ROUTER_MODEL", "google/gemini-3-flash-preview")
+    open_router_model: str = os.getenv(
+        "OPEN_ROUTER_MODEL", "google/gemini-3-flash-preview"
+    )
     frontend_origins: tuple[str, ...] = (
         "http://localhost:3000",
         "http://localhost:3001",
@@ -31,6 +33,8 @@ class Settings:
     embedding_batch_size: int = int(os.getenv("EMBEDDING_BATCH_SIZE", "64"))
     embedding_max_per_minute: int = int(os.getenv("EMBEDDING_MAX_PER_MINUTE", "240"))
     embedding_queue_size: int = int(os.getenv("EMBEDDING_QUEUE_SIZE", "2000"))
+    debug: bool = _env_enabled("DEBUG", "0")
+    environment: str = os.getenv("ENVIRONMENT", "development")
 
 
 settings = Settings()
@@ -74,5 +78,6 @@ def create_openai_client(logger) -> Optional[OpenAI]:
 def get_openai_client() -> Optional[OpenAI]:
     """Helper to get OpenAI client with a default logger."""
     import logging
+
     logger = logging.getLogger("app.core.config")
     return create_openai_client(logger)

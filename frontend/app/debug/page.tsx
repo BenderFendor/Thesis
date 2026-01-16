@@ -48,6 +48,40 @@ function usePersistentNumber(initial: number, min: number, max: number): [number
   return [value, clampAndSet]
 }
 
+const IMAGE_ERROR_LABELS: Record<string, string> = {
+  NO_IMAGE_IN_FEED: "No image in RSS",
+  IMAGE_URL_INVALID: "Invalid image URL",
+  IMAGE_FETCH_FAILED: "Image fetch failed",
+  IMAGE_FETCH_TIMEOUT: "Image fetch timeout",
+  IMAGE_UNSUPPORTED_TYPE: "Unsupported image type",
+  MIXED_CONTENT_BLOCKED: "Mixed content blocked",
+  FRONTEND_RENDER_FAILED: "Frontend render failed",
+  OG_IMAGE_NOT_FOUND: "No og:image found",
+  ARTICLE_FETCH_FAILED: "Article fetch failed",
+}
+
+const IMAGE_ERROR_DETAILS: Record<string, string> = {
+  NO_IMAGE_IN_FEED: "No image candidates found in the RSS entry.",
+  IMAGE_URL_INVALID: "The article URL is malformed or missing.",
+  IMAGE_FETCH_FAILED: "Remote server rejected the image request.",
+  IMAGE_FETCH_TIMEOUT: "Fetching the image timed out.",
+  IMAGE_UNSUPPORTED_TYPE: "Image type is not supported by the extractor.",
+  MIXED_CONTENT_BLOCKED: "HTTPS page blocked an HTTP image URL.",
+  FRONTEND_RENDER_FAILED: "Browser could not render the image asset.",
+  OG_IMAGE_NOT_FOUND: "No og:image or twitter:image metadata found.",
+  ARTICLE_FETCH_FAILED: "Failed to download the article HTML.",
+}
+
+const getImageErrorLabel = (value?: string | null) => {
+  if (!value) return "None"
+  return IMAGE_ERROR_LABELS[value] || value
+}
+
+const getImageErrorDetails = (value?: string | null) => {
+  if (!value) return ""
+  return IMAGE_ERROR_DETAILS[value] || ""
+}
+
 export default function DebugDashboardPage() {
   const [chromaLimit, setChromaLimit] = usePersistentNumber(25, 5, 500)
   const [chromaOffset, setChromaOffset] = usePersistentNumber(0, 0, 5000)
@@ -1085,17 +1119,22 @@ export default function DebugDashboardPage() {
                     <div className="mt-2">
                       <h4 className="font-medium text-sm mb-2">Sample Entries</h4>
                       <div className="space-y-2">
-                        {rssTestResult.sample_entries.map((entry: any, idx: number) => (
-                          <div key={idx} className="text-xs p-2 bg-muted rounded">
-                            <p className="font-medium">{entry.title}</p>
-                            <p className="text-muted-foreground">
-                              Image: {entry.image_extraction?.image_url || entry.image_extraction?.image_error || "None"}
-                            </p>
-                            {entry.image_extraction?.selected_source && (
-                              <p className="text-muted-foreground">Source: {entry.image_extraction.selected_source}</p>
-                            )}
-                          </div>
-                        ))}
+                {rssTestResult.sample_entries.map((entry: any, idx: number) => (
+                  <div key={idx} className="text-xs p-2 bg-muted rounded">
+                    <p className="font-medium">{entry.title}</p>
+                    <p className="text-muted-foreground">
+                      Image: {entry.image_extraction?.image_url || getImageErrorLabel(entry.image_extraction?.image_error) || "None"}
+                    </p>
+                    {entry.image_extraction?.selected_source && (
+                      <p className="text-muted-foreground">Source: {entry.image_extraction.selected_source}</p>
+                    )}
+                    {entry.image_extraction?.image_error && (
+                      <p className="text-muted-foreground">
+                        Error detail: {getImageErrorDetails(entry.image_extraction?.image_error) || entry.image_extraction?.image_error_details}
+                      </p>
+                    )}
+                  </div>
+                ))}
                       </div>
                     </div>
                   )}
@@ -1156,11 +1195,29 @@ export default function DebugDashboardPage() {
                   )}
                   {articleTestResult.error && (
                     <p className="text-sm text-red-600">
-                      {articleTestResult.error}: {articleTestResult.error_details}
+                      {getImageErrorLabel(articleTestResult.error)}: {articleTestResult.error_details || getImageErrorDetails(articleTestResult.error)}
                     </p>
                   )}
                 </div>
               )}
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader>
+              <CardTitle>Image Error Taxonomy</CardTitle>
+              <CardDescription>Standardized error labels used by image extraction</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <ul className="grid gap-2 text-sm md:grid-cols-2">
+                {Object.entries(IMAGE_ERROR_LABELS).map(([key, label]) => (
+                  <li key={key} className="rounded border border-white/10 bg-[var(--news-bg-secondary)] px-3 py-2">
+                    <div className="font-mono text-xs text-muted-foreground">{key}</div>
+                    <div className="font-medium">{label}</div>
+                    <div className="text-xs text-muted-foreground">{IMAGE_ERROR_DETAILS[key]}</div>
+                  </li>
+                ))}
+              </ul>
             </CardContent>
           </Card>
         </TabsContent>

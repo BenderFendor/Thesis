@@ -7,6 +7,13 @@ import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Skeleton } from "@/components/ui/skeleton"
 import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select"
+import {
   Clock,
   Newspaper,
   Heart,
@@ -48,14 +55,18 @@ const CLUSTER_COLS_MOBILE = 2
 const CLUSTER_COLS_TABLET = 3
 const CLUSTER_COLS_DESKTOP = 4
 
-interface GridViewProps {
+  interface GridViewProps {
   articles: NewsArticle[]
   loading: boolean
   onCountChange?: (count: number) => void
   apiUrl?: string | null
   useVirtualization?: boolean
   showTrending?: boolean
+  topicSortMode?: "sources" | "articles" | "recent"
+  viewMode?: "source" | "topic"
+  onViewModeChange?: (mode: "source" | "topic") => void
 }
+
 
 interface SourceGroup {
   sourceId: string
@@ -72,6 +83,9 @@ export function GridView({
   apiUrl,
   useVirtualization = false,
   showTrending = false,
+  topicSortMode = "sources",
+  viewMode: controlledViewMode,
+  onViewModeChange,
 }: GridViewProps) {
   const hasRealImage = useCallback((src?: string | null) => {
     if (!src) return false
@@ -85,10 +99,48 @@ export function GridView({
     )
   }, [])
 
+  const formatKeywordLabel = useCallback((keywords?: string[]) => {
+    if (!keywords || keywords.length === 0) return null
+    return keywords
+      .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
+      .join(" ")
+  }, [])
+
+  const normalizeLabel = useCallback((value: string) => {
+    return value.toLowerCase().replace(/[^a-z0-9]+/g, " ").trim()
+  }, [])
+
+  const stripTitleSuffix = useCallback((value: string) => {
+    return value.split(/\s[-|–—]\s/)[0].trim()
+  }, [])
+
+  const getClusterDisplayLabel = useCallback(
+    (cluster: AllCluster) => {
+      const label = cluster.label?.trim() || ""
+      const keywordLabel = formatKeywordLabel(cluster.keywords)
+      const titleCandidate = cluster.representative_article?.title
+        ? stripTitleSuffix(cluster.representative_article.title)
+        : ""
+      const normalizedLabel = label ? normalizeLabel(label) : ""
+      const normalizedKeywords = keywordLabel ? normalizeLabel(keywordLabel) : ""
+      const useTitle =
+        titleCandidate &&
+        normalizedLabel &&
+        normalizedKeywords &&
+        normalizedLabel === normalizedKeywords
+      if (useTitle) return titleCandidate
+      return label || titleCandidate || keywordLabel || "Topic"
+    },
+    [formatKeywordLabel, normalizeLabel, stripTitleSuffix]
+  )
+
   const [searchTerm, setSearchTerm] = useState("")
-  const [viewMode, setViewMode] = useState<"source" | "topic">("source")
+  const [viewMode, setViewMode] = useState<"source" | "topic">(
+    controlledViewMode ?? "source"
+  )
   const [clusters, setClusters] = useState<AllCluster[]>([])
   const [clustersLoading, setClustersLoading] = useState(false)
+  const [clusterWindow, setClusterWindow] = useState<"1d" | "1w" | "1m">("1w")
   const [expandedClusterId, setExpandedClusterId] = useState<number | null>(null)
   const [clusterArticlesCache, setClusterArticlesCache] = useState<Map<number, NewsArticle[]>>(new Map())
   const [clusterArticlesLoading, setClusterArticlesLoading] = useState<number | null>(null)
@@ -410,24 +462,32 @@ export function GridView({
 
   // Load view mode from localStorage
   useEffect(() => {
+    if (controlledViewMode) return
     const saved = localStorage.getItem("viewMode") as "source" | "topic" | null
     if (saved === "source" || saved === "topic") {
       setViewMode(saved)
     }
-  }, [])
+  }, [controlledViewMode])
 
   // Persist view mode to localStorage
   useEffect(() => {
+    if (controlledViewMode) return
     localStorage.setItem("viewMode", viewMode)
-  }, [viewMode])
+  }, [viewMode, controlledViewMode])
+
+  useEffect(() => {
+    if (!controlledViewMode) return
+    setViewMode(controlledViewMode)
+  }, [controlledViewMode])
 
   // Load clusters when in topic mode
   useEffect(() => {
     if (viewMode === "topic") {
       setClustersLoading(true)
-      fetchAllClusters("1d", 2, 100)
+      fetchAllClusters(clusterWindow, 2, 100)
         .then((data) => {
           setClusters(data.clusters)
+          setExpandedClusterId(null)
         })
         .catch((err) => {
           logger.error("Failed to load clusters:", err)
@@ -436,16 +496,37 @@ export function GridView({
           setClustersLoading(false)
         })
     }
-  }, [viewMode])
+  }, [viewMode, clusterWindow])
+
+  const getClusterTime = useCallback((cluster: AllCluster) => {
+    const publishedAt = cluster.representative_article?.published_at
+    if (!publishedAt) return 0
+    const ts = new Date(publishedAt).getTime()
+    return Number.isNaN(ts) ? 0 : ts
+  }, [])
+
+  const sortedClusters = useMemo(() => {
+    const items = [...clusters]
+    items.sort((a, b) => {
+      if (topicSortMode === "articles") {
+        return b.article_count - a.article_count
+      }
+      if (topicSortMode === "recent") {
+        return getClusterTime(b) - getClusterTime(a)
+      }
+      return b.source_diversity - a.source_diversity
+    })
+    return items
+  }, [clusters, getClusterTime, topicSortMode])
 
   // Group clusters into rows based on current column count
   const clusterRows = useMemo(() => {
     const rows: AllCluster[][] = []
-    for (let i = 0; i < clusters.length; i += clusterColsPerRow) {
-      rows.push(clusters.slice(i, i + clusterColsPerRow))
+    for (let i = 0; i < sortedClusters.length; i += clusterColsPerRow) {
+      rows.push(sortedClusters.slice(i, i + clusterColsPerRow))
     }
     return rows
-  }, [clusters, clusterColsPerRow])
+  }, [sortedClusters, clusterColsPerRow])
 
   // Find which row contains the expanded cluster
   const expandedRowIndex = useMemo(() => {
@@ -581,25 +662,50 @@ export function GridView({
             />
           </div>
           {/* View Mode Toggle */}
-          <div className="flex items-center bg-[var(--news-bg-primary)] border border-white/10 rounded-lg p-1">
-            <Button
-              variant={viewMode === "source" ? "default" : "ghost"}
-              size="sm"
-              onClick={() => setViewMode("source")}
-              className={viewMode === "source" ? "" : "text-muted-foreground"}
-            >
-              <List className="w-4 h-4 mr-2" />
-              By Source
-            </Button>
-            <Button
-              variant={viewMode === "topic" ? "default" : "ghost"}
-              size="sm"
-              onClick={() => setViewMode("topic")}
-              className={viewMode === "topic" ? "" : "text-muted-foreground"}
-            >
-              <Layers className="w-4 h-4 mr-2" />
-              By Topic
-            </Button>
+          <div className="flex items-center gap-3">
+            <div className="flex items-center bg-[var(--news-bg-primary)] border border-white/10 rounded-lg p-1">
+              <Button
+                variant={viewMode === "source" ? "default" : "ghost"}
+                size="sm"
+                onClick={() => {
+                  setViewMode("source")
+                  onViewModeChange?.("source")
+                }}
+                title="Group by source"
+                className={viewMode === "source" ? "" : "text-muted-foreground"}
+              >
+                <List className="w-4 h-4 mr-2" />
+                By Source
+              </Button>
+              <Button
+                variant={viewMode === "topic" ? "default" : "ghost"}
+                size="sm"
+                onClick={() => {
+                  setViewMode("topic")
+                  onViewModeChange?.("topic")
+                }}
+                title="Group by topic"
+                className={viewMode === "topic" ? "" : "text-muted-foreground"}
+              >
+                <Layers className="w-4 h-4 mr-2" />
+                By Topic
+              </Button>
+            </div>
+            {viewMode === "topic" && (
+              <Select value={clusterWindow} onValueChange={(value) => setClusterWindow(value as "1d" | "1w" | "1m")}>
+                <SelectTrigger
+                  className="h-8 px-2 text-xs bg-[var(--news-bg-primary)] border border-white/10 rounded-none"
+                  title="Topic window"
+                >
+                  <SelectValue placeholder="Window" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="1d">Last 24h</SelectItem>
+                  <SelectItem value="1w">Last 7d</SelectItem>
+                  <SelectItem value="1m">Last 30d</SelectItem>
+                </SelectContent>
+              </Select>
+            )}
           </div>
         </div>
       </div>
@@ -903,6 +1009,7 @@ export function GridView({
                             
                             const isThisExpanded = expandedClusterId === cluster.cluster_id
                             const showImage = hasRealImage(representative.image_url)
+                            const displayLabel = getClusterDisplayLabel(cluster)
 
                             return (
                               <button
@@ -952,7 +1059,7 @@ export function GridView({
                                     {/* Title overlay on image */}
                                     <div className="absolute bottom-0 left-0 right-0 p-3">
                                       <h3 className="font-serif text-sm font-bold text-white leading-snug line-clamp-2 drop-shadow-lg">
-                                        {cluster.label || representative.title}
+                                        {displayLabel}
                                       </h3>
                                     </div>
                                   </div>
@@ -980,7 +1087,7 @@ export function GridView({
                               <div className="flex items-center gap-3">
                                 <Layers className="w-5 h-5 text-primary" />
                                 <span className="font-serif text-lg font-bold tracking-tight">
-                                  {expandedCluster.label || expandedCluster.keywords.slice(0, 3).join(", ")}
+                                  {getClusterDisplayLabel(expandedCluster)}
                                 </span>
                                 <Badge variant="outline" className="text-[10px] bg-[var(--news-bg-secondary)]">
                                   {expandedCluster.source_diversity} sources
@@ -1143,7 +1250,7 @@ export function GridView({
           </>
         ) : (
           <>
-            topics — {clusters.length}
+            topics — {sortedClusters.length}
           </>
         )}
       </div>
