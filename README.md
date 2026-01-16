@@ -279,3 +279,343 @@ For actionable tasks and follow-ups, see `Todo.md`. Historical context and relea
 
 # For this project
 I'm using docker so just use docker compose up to run the front and backend
+
+---
+
+## Package Installation & Dependencies
+
+### Frontend Dependencies (Next.js)
+
+#### Core Framework & UI
+```bash
+npm install next@14.2.16 react@18 react-dom@18
+npm install @types/react@18 @types/react-dom@18
+npm install typescript@5 eslint@8.57.1 eslint-config-next@15.5.4
+```
+
+#### UI Components & Styling
+```bash
+# Radix UI primitives (shadcn/ui components)
+npm install @radix-ui/react-accordion@1.2.2
+npm install @radix-ui/react-alert-dialog@1.1.4
+npm install @radix-ui/react-aspect-ratio@1.1.1
+npm install @radix-ui/react-avatar@1.1.2
+npm install @radix-ui/react-checkbox@1.1.3
+npm install @radix-ui/react-collapsible@1.1.2
+npm install @radix-ui/react-context-menu@2.2.4
+npm install @radix-ui/react-dialog@1.1.4
+npm install @radix-ui/react-dropdown-menu@2.1.4
+npm install @radix-ui/react-hover-card@1.1.4
+npm install @radix-ui/react-label@2.1.1
+npm install @radix-ui/react-menubar@1.1.4
+npm install @radix-ui/react-navigation-menu@1.2.3
+npm install @radix-ui/react-popover@1.1.4
+npm install @radix-ui/react-progress@1.1.1
+npm install @radix-ui/react-radio-group@1.2.2
+npm install @radix-ui/react-scroll-area@1.2.2
+npm install @radix-ui/react-select@2.1.4
+npm install @radix-ui/react-separator@1.1.1
+npm install @radix-ui/react-slider@1.2.2
+npm install @radix-ui/react-slot@1.1.1
+npm install @radix-ui/react-switch@1.1.2
+npm install @radix-ui/react-tabs@1.1.2
+npm install @radix-ui/react-toast@1.2.4
+npm install @radix-ui/react-toggle@1.1.1
+npm install @radix-ui/react-toggle-group@1.1.1
+npm install @radix-ui/react-tooltip@1.1.6
+
+# Styling utilities
+npm install tailwindcss@4.1.9 @tailwindcss/postcss@4.1.9
+npm install autoprefixer@10.4.20 postcss@8.5
+npm install tailwindcss-animate@1.0.7 tailwind-merge@2.5.5
+npm install class-variance-authority@0.7.1 clsx@2.1.1
+
+# Fonts
+npm install geist@1.3.1
+```
+
+#### State Management & Data Fetching
+```bash
+# Query and state
+npm install @tanstack/react-query@5.90.17
+npm install @tanstack/react-virtual@3.13.12
+
+# Forms
+npm install @hookform/resolvers@3.10.0
+npm install react-hook-form@7.60.0
+npm install zod@3.25.67
+```
+
+#### 3D & Visualization
+```bash
+# Three.js ecosystem
+npm install three@latest react-globe.gl@2.37.0
+
+# Data visualization
+npm install d3-scale@4.0.2 d3-scale-chromatic@3.1.0
+npm install recharts@2.15.4
+```
+
+#### Content & UI Components
+```bash
+# Markdown and content
+npm install react-markdown@10.1.0 remark-gfm@4.0.1 rehype-raw@7.0.0
+
+# Interactive components
+npm install framer-motion@12.23.24
+npm install embla-carousel-react@8.5.1
+npm install vaul@0.9.9
+npm install cmdk@1.0.4
+npm install input-otp@1.4.1
+npm install react-day-picker@9.8.0
+npm install sonner@1.7.4
+
+# Virtualization
+npm install react-window@1.8.11 react-virtualized-auto-sizer@1.0.26
+npm install @types/react-window@1.8.8
+npm install react-resizable-panels@2.1.7
+
+# Utilities
+npm install date-fns@4.1.0 lucide-react@0.454.0
+npm install next-themes@0.4.6
+npm install react18-json-view@0.2.9
+```
+
+#### Development & Testing
+```bash
+# Testing
+npm install jest@30.2.0 jest-environment-jsdom@30.2.0
+npm install @testing-library/jest-dom@6.9.1
+npm install @testing-library/react@16.3.0
+npm install @testing-library/user-event@14.6.1
+npm install @types/jest@30.0.0
+npm install ts-jest@29.4.5
+
+# Development tools
+npm install @next/bundle-analyzer@16.1.2
+npm install tw-animate-css@1.3.3
+```
+
+### Backend Dependencies (Python)
+
+#### Core Framework
+```bash
+pip install fastapi>=0.110.0 uvicorn>=0.27.0
+pip install pydantic>=2.8.0 python-multipart>=0.0.6
+pip install python-dotenv>=1.0.0
+```
+
+#### HTTP & Data Processing
+```bash
+pip install httpx>=0.25.2 requests>=2.31.0
+pip install beautifulsoup4>=4.12.0 lxml[html_clean]>=5.0.0
+pip install feedparser>=6.0.10 newspaper4k>=0.9.0
+pip install pillow>=10.0.0
+```
+
+#### AI/LLM Integration
+```bash
+# Direct API access
+pip install google-genai>=0.1.0 openai>=1.0.0
+
+# LangChain ecosystem for agentic features
+pip install langchain>=0.2.0 langchain-google-genai>=1.0.0
+pip install langchain-openai>=0.1.0 langchain-core>=0.2.0
+pip install langchain-classic>=1.0.0 langgraph>=1.0.2
+pip install ddgs>=9.9.1 tenacity>=8.2.0
+```
+
+#### Database & Storage
+```bash
+# PostgreSQL
+pip install asyncpg>=0.29.0 sqlalchemy>=2.0.35
+pip install psycopg2-binary>=2.9.9
+
+# Vector database
+pip install chromadb>=0.4.24 sentence-transformers>=2.7.0
+```
+
+#### Algorithms & Performance
+```bash
+# Search and clustering algorithms
+pip install rank_bm25>=0.2.2 hdbscan>=0.8.33
+pip install datasketch>=1.6.4
+
+# System monitoring
+pip install psutil>=5.9.0
+```
+
+#### Build Tools
+```bash
+# For Rust RSS parser (optional)
+pip install maturin>=1.10.0
+```
+
+### System Dependencies
+
+#### Manjaro/Arch Linux
+```bash
+# Core dependencies
+sudo pacman -S postgresql python python-pip nodejs npm
+
+# Build essentials
+sudo pacman -S base-devel git docker docker-compose
+
+# Optional: for local development
+sudo pacman -S chromium # For debugging/testing
+```
+
+#### Database Setup
+```bash
+# PostgreSQL
+sudo pacman -S postgresql
+sudo -iu postgres initdb -D /var/lib/postgres/data
+sudo systemctl enable --now postgresql
+
+# Create database user and database
+sudo -iu postgres createuser --interactive
+sudo -iu postgres createdb thesis_news
+```
+
+### Development Environment Setup
+
+#### Python Environment
+```bash
+# Using uv (recommended for performance)
+cd backend
+python -m venv .venv
+source .venv/bin/activate
+uv pip install -r requirements.txt
+
+# Alternative: traditional pip
+pip install -r requirements.txt
+```
+
+#### Node.js Environment
+```bash
+cd frontend
+npm install
+# or for specific package groups
+npm install next react react-dom typescript
+npm install @radix-ui/react-accordion @radix-ui/react-dialog  # etc.
+```
+
+### Optional Performance Dependencies
+
+#### For RSS Parsing Optimization
+```bash
+# Rust-based RSS parser (faster than Python alternatives)
+pip install feedparser-rust  # If available
+# Or build from source for maximum performance
+```
+
+#### For Advanced Clustering
+```bash
+# Additional clustering algorithms
+pip install scikit-learn  # For K-means, DBSCAN
+pip install umap-learn    # For dimensionality reduction
+pip install hdbscan       # Already in requirements, but can be upgraded
+```
+
+#### For Enhanced Text Processing
+```bash
+# Advanced NLP features
+pip install spacy          # For named entity recognition
+pip install nltk            # For text processing
+python -m spacy download en_core_web_sm
+```
+
+### Version Compatibility Matrix
+
+| Component | Minimum Version | Recommended Version | Notes |
+|------------|----------------|-------------------|---------|
+| Node.js | 18.0.0 | 20.x LTS | Use LTS for stability |
+| Python | 3.11 | 3.11+ | 3.12+ supported |
+| PostgreSQL | 13 | 15+ | For better performance |
+| npm | 8.0.0 | 10.x | Latest for security |
+| Docker | 20.0.0 | 24.x | For compose features |
+
+### Environment Variables Required
+
+#### Backend (.env)
+```env
+# Required: AI Provider
+OPEN_ROUTER_API_KEY=your_openrouter_key
+GEMINI_API_KEY=your_gemini_key
+
+# Database
+DATABASE_URL=postgresql://user:password@localhost/thesis_news
+CHROMA_PERSIST_DIRECTORY=./chroma_db
+
+# Optional: Performance
+RSS_PARALLEL_WORKERS=4
+CHROMA_BATCH_SIZE=100
+```
+
+#### Frontend (.env.local)
+```env
+NEXT_PUBLIC_API_URL=http://localhost:8000
+NEXT_PUBLIC_ENABLE_READER_MODE=true
+NEXT_PUBLIC_ENABLE_AGENTIC_LOGGING=false
+```
+
+### Quick Installation Commands
+
+#### Full System Setup (Manjaro/Arch)
+```bash
+# System packages
+sudo pacman -S postgresql python python-pip nodejs npm base-devel git docker
+
+# Database setup
+sudo -iu postgres initdb -D /var/lib/postgres/data
+sudo systemctl enable --now postgresql
+sudo -iu postgres createuser $USER
+sudo -iu postgres createdb thesis_news
+
+# Backend
+cd backend
+python -m venv .venv && source .venv/bin/activate
+uv pip install -r requirements.txt
+
+# Frontend
+cd frontend
+npm install
+
+# Start services
+./runlocal.sh services
+```
+
+#### Docker Alternative (Recommended)
+```bash
+# Single command setup
+docker-compose up -d
+
+# View logs
+docker-compose logs -f
+```
+
+### Package Maintenance
+
+#### Frontend Updates
+```bash
+# Check for outdated packages
+npm outdated
+
+# Update specific packages
+npm update next react react-dom
+npm update @radix-ui/react-*
+
+# Security audit
+npm audit fix
+```
+
+#### Backend Updates
+```bash
+# Update requirements
+pip install --upgrade -r requirements.txt
+
+# Check for security vulnerabilities
+pip audit
+```
+
+This comprehensive package list ensures all features work correctly, from basic RSS aggregation to advanced AI analysis and 3D visualization.
