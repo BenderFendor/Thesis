@@ -2,7 +2,6 @@
 
 import { useState, useRef, useEffect, useMemo } from "react"
 import {
-  Search,
   Loader2,
   Home,
   ChevronLeft, 
@@ -126,10 +125,10 @@ export default function NewsResearchPage() {
   const [chatMessagesMap, setChatMessagesMap] = useState<Record<string, Message[]>>({})
   const [activeChatId, setActiveChatId] = useState<string | null>(null)
   const [sidebarCollapsed, setSidebarCollapsed] = useState(true)
-  const [researchView, setResearchView] = useState<"chat" | "canvas">("chat")
   const [expandedStepMessageIds, setExpandedStepMessageIds] = useState<Set<string>>(new Set())
   const [expandedSourceIds, setExpandedSourceIds] = useState<Set<string>>(new Set())
-  const inputRef = useRef<HTMLInputElement>(null)
+  const inputRef = useRef<HTMLTextAreaElement>(null)
+  const chatScrollRef = useRef<HTMLDivElement>(null)
   const isHydratingRef = useRef(true)
 
   const handleNewChat = () => {
@@ -318,6 +317,7 @@ export default function NewsResearchPage() {
     if (!trimmedQuery) return
 
     const historyPayload = buildChatHistoryPayload(messages)
+  const promptQuery = `${trimmedQuery}\n\nProvide a concise answer, then list follow-up questions to explore next.`
 
   // If there's no active chat, create one automatically and name it from the prompt.
   let newChatTitle: string | undefined = undefined
@@ -414,7 +414,7 @@ export default function NewsResearchPage() {
 
     try {
       const streamUrl = new URL(`${API_BASE_URL}/api/news/research/stream`)
-      streamUrl.searchParams.set('query', trimmedQuery)
+      streamUrl.searchParams.set('query', promptQuery)
       streamUrl.searchParams.set('include_thinking', 'true')
       if (historyPayload.length > 0) {
         streamUrl.searchParams.set('history', JSON.stringify(historyPayload))
@@ -861,6 +861,11 @@ export default function NewsResearchPage() {
     [messages]
   )
 
+  useEffect(() => {
+    if (!chatScrollRef.current) return
+    chatScrollRef.current.scrollTop = chatScrollRef.current.scrollHeight
+  }, [conversationMessages.length, latestAssistantMessage?.isStreaming])
+
   return (
     <div className="min-h-screen bg-[var(--news-bg-primary)] text-foreground">
       <div className="flex min-h-screen">
@@ -916,7 +921,7 @@ export default function NewsResearchPage() {
                       <Cpu className="w-8 h-8 text-muted-foreground" />
                     </div>
                     <h1 className="text-3xl font-serif tracking-tight text-foreground mb-3">Research Workspace</h1>
-                    <p className="text-muted-foreground text-lg">Ask a focused question, then chat with the agent or open the canvas.</p>
+                    <p className="text-muted-foreground text-lg">Ask a focused question to start a research chat.</p>
                   </div>
 
                   <div className="relative group w-full">
@@ -924,7 +929,7 @@ export default function NewsResearchPage() {
                     <div className="relative rounded-xl border border-border/60 bg-[var(--news-bg-secondary)] p-4 shadow-2xl">
                       <form onSubmit={handleSearch}>
                         <textarea 
-                          ref={inputRef as any}
+                          ref={inputRef}
                           value={query}
                           onChange={(e) => setQuery(e.target.value)}
                           onKeyDown={(e) => {
@@ -980,340 +985,303 @@ export default function NewsResearchPage() {
                   </div>
                 </div>
               </div>
-            ) : (
-              <div className="max-w-[1400px] mx-auto px-6 py-6 space-y-6 w-full">
-                 <section className="rounded-xl border border-border/60 bg-[var(--news-bg-secondary)]/70 p-5">
-                    <div className="flex flex-col gap-4 lg:flex-row lg:items-end">
-                      <div className="flex-1">
-                        <p className="text-[10px] font-mono uppercase tracking-[0.3em] text-muted-foreground">Research query</p>
-                        <form onSubmit={handleSearch} className="mt-2">
-                          <div className="flex items-center gap-2">
-                            <div className="relative flex-1">
-                              <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" size={16} />
-                              <input
-                                ref={inputRef}
-                                value={query}
-                                onChange={(e) => setQuery(e.target.value)}
-                                placeholder="Ask a question..."
-                                className="w-full bg-[var(--news-bg-primary)]/60 border border-border/60 rounded-lg pl-9 pr-4 py-2.5 text-sm focus:outline-none focus:border-primary text-foreground placeholder:text-muted-foreground"
-                                disabled={isSearching}
-                              />
-                            </div>
-                            <Button type="submit" size="sm" disabled={!query.trim() || isSearching} className="h-10 px-4 bg-primary text-primary-foreground hover:bg-primary/90">
-                              {isSearching ? <Loader2 className="w-4 h-4 animate-spin" /> : <ArrowRight className="w-4 h-4" />}
-                            </Button>
-                          </div>
-                          {query.length >= 3 && (
-                            <SearchSuggestions
-                              query={query}
-                              onSuggestionClick={(suggestion) => {
-                                setQuery(suggestion.label);
-                                inputRef.current?.focus();
-                              }}
-                              className="mt-2"
-                            />
-                          )}
-                        </form>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <Button
-                          variant={researchView === "chat" ? "default" : "outline"}
-                          size="sm"
-                          className={researchView === "chat" ? "bg-[var(--news-bg-primary)] text-foreground hover:bg-[var(--news-bg-primary)]/80" : "border-border/60 text-muted-foreground hover:text-foreground hover:bg-[var(--news-bg-primary)]/50"}
-                          onClick={() => setResearchView("chat")}
-                        >
-                          Chat
-                        </Button>
-                        <Button
-                          variant={researchView === "canvas" ? "default" : "outline"}
-                          size="sm"
-                          className={researchView === "canvas" ? "bg-[var(--news-bg-primary)] text-foreground hover:bg-[var(--news-bg-primary)]/80" : "border-border/60 text-muted-foreground hover:text-foreground hover:bg-[var(--news-bg-primary)]/50"}
-                          onClick={() => setResearchView("canvas")}
-                        >
-                          Canvas
-                        </Button>
-                      </div>
-                    </div>
-                    {(isSearching || latestAssistantMessage?.isStreaming) && (
-                      <div className="mt-3 flex items-center gap-2 text-xs text-muted-foreground">
-                        <Loader2 className="w-3.5 h-3.5 animate-spin text-muted-foreground" />
-                        <span>{latestAssistantMessage?.streamingStatus || 'Running research...'}</span>
-                      </div>
-                    )}
+             ) : (
+               <div className="flex-1 flex flex-col lg:flex-row min-h-0">
+                 <section className="flex-1 min-w-0 flex flex-col">
+                   <div className="border-b border-border/60 bg-[var(--news-bg-secondary)]/70">
+                     <div className="max-w-[1200px] mx-auto px-6 py-5 flex flex-col gap-4">
+                       <div className="flex flex-wrap items-center justify-between gap-3">
+                         <div>
+                           <p className="text-[10px] font-mono uppercase tracking-[0.3em] text-muted-foreground">Active briefing</p>
+                           <h2 className="text-xl font-semibold text-foreground">{latestUserMessage?.content || "Research thread"}</h2>
+                           <p className="text-xs text-muted-foreground mt-1">
+                             {latestAssistantMessage?.articles_searched
+                               ? `${latestAssistantMessage.articles_searched} sources searched`
+                               : 'Evidence stream pending'}
+                           </p>
+                         </div>
+                         {(isSearching || latestAssistantMessage?.isStreaming) && (
+                           <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                             <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                             <span>{latestAssistantMessage?.streamingStatus || 'Running research...'}</span>
+                           </div>
+                         )}
+                       </div>
+                       <div className="flex flex-wrap gap-3">
+                         <div className="text-[10px] font-mono uppercase tracking-[0.3em] text-muted-foreground">
+                           {conversationMessages.length} messages
+                         </div>
+                         {latestAssistantMessage?.articles_searched && (
+                           <div className="text-[10px] font-mono uppercase tracking-[0.3em] text-muted-foreground">
+                             {latestAssistantMessage.articles_searched} sources searched
+                           </div>
+                         )}
+                       </div>
+                     </div>
+                   </div>
+
+                   <div className="flex-1 min-h-0">
+                     <div className="max-w-[1200px] mx-auto h-full flex flex-col px-6">
+                       <div ref={chatScrollRef} className="flex-1 min-h-0 overflow-y-auto py-6 space-y-4">
+                         {conversationMessages.length === 0 ? (
+                           <div className="rounded-xl border border-border/60 bg-[var(--news-bg-secondary)]/70 p-6 text-sm text-muted-foreground">
+                             Start a query to build a multi-turn session.
+                           </div>
+                         ) : (
+                           conversationMessages.map((message) => {
+                             const isAssistant = message.type === "assistant"
+                             const stepCount = message.thinking_steps?.length ?? 0
+                             const stepsExpanded = expandedStepMessageIds.has(message.id)
+                             const messageClass = message.type === "user"
+                               ? "border-primary/40 bg-primary/10"
+                               : message.error
+                                 ? "border-rose-500/40 bg-rose-500/10"
+                                 : "border-border/60 bg-[var(--news-bg-primary)]/50"
+
+                             return (
+                               <div key={message.id} className={`rounded-2xl border px-4 py-3 ${messageClass}`}>
+                                 <div className="flex items-center justify-between text-[10px] font-mono uppercase tracking-[0.3em] text-muted-foreground">
+                                   <span>{isAssistant ? "Assistant" : "You"}</span>
+                                   <span>{message.timestamp.toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit" })}</span>
+                                 </div>
+                                 <div className="mt-2 text-sm text-foreground/80">
+                                   {isAssistant ? (
+                                     message.isStreaming ? (
+                                       <div className="flex items-center gap-2 text-muted-foreground">
+                                         <Loader2 className="h-4 w-4 animate-spin" />
+                                         <span>{message.streamingStatus || "Working..."}</span>
+                                       </div>
+                                     ) : (
+                                       renderContentWithEmbeds(message.content, buildArticleEmbeds(message))
+                                     )
+                                   ) : (
+                                     <p>{message.content}</p>
+                                   )}
+                                 </div>
+
+                                 {isAssistant && !message.isStreaming && stepCount > 0 && (
+                                   <div className="mt-3">
+                                     <button
+                                       type="button"
+                                       onClick={() => toggleStepVisibility(message.id)}
+                                       className="inline-flex items-center gap-2 text-xs font-medium text-muted-foreground hover:text-foreground transition-colors"
+                                     >
+                                       {stepsExpanded ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+                                       {stepsExpanded ? "Hide steps" : `Show steps (${stepCount})`}
+                                     </button>
+                                     {stepsExpanded && (
+                                       <div className="mt-3 space-y-2">
+                                         {message.thinking_steps?.map((step, idx) => (
+                                           <div key={`${message.id}-step-${idx}`} className="rounded-lg border border-border/60 bg-[var(--news-bg-primary)]/40 p-3">
+                                             <div className="text-[10px] font-mono uppercase tracking-[0.3em] text-muted-foreground">
+                                               Step {idx + 1}: {step.type.replace('_', ' ')}
+                                             </div>
+                                             <p className="mt-2 text-xs text-muted-foreground">{step.content}</p>
+                                           </div>
+                                         ))}
+                                       </div>
+                                     )}
+                                   </div>
+                                 )}
+                               </div>
+                             )
+                           })
+                         )}
+                       </div>
+
+                       <div className="border-t border-border/60 bg-[var(--news-bg-primary)]/90 pb-6 pt-4">
+                         <form onSubmit={handleSearch} className="space-y-3">
+                           <div className="rounded-2xl border border-border/60 bg-[var(--news-bg-secondary)]/70 p-3 focus-within:border-primary/60 focus-within:shadow-[0_0_0_1px_rgba(233,118,43,0.35)]">
+                             <textarea
+                               ref={inputRef}
+                               value={query}
+                               onChange={(e) => setQuery(e.target.value)}
+                               onKeyDown={(e) => {
+                                 if (e.key === 'Enter' && !e.shiftKey) {
+                                   e.preventDefault()
+                                   handleSearch(e)
+                                 }
+                               }}
+                               placeholder="Ask a question and press Enter..."
+                               className="w-full min-h-[88px] bg-transparent text-sm text-foreground placeholder:text-muted-foreground resize-none focus:outline-none"
+                               disabled={isSearching}
+                             />
+                           </div>
+                           {query.length >= 3 && (
+                             <SearchSuggestions
+                               query={query}
+                               onSuggestionClick={(suggestion) => {
+                                 setQuery(suggestion.label)
+                                 inputRef.current?.focus()
+                               }}
+                               className="pt-2"
+                             />
+                           )}
+                           <div className="flex flex-wrap items-center justify-between gap-3">
+                             <div className="flex flex-wrap gap-2">
+                               {sampleQueries.slice(0, 3).map((sample) => (
+                                 <button
+                                   key={sample}
+                                   type="button"
+                                   onClick={() => handleSampleQuery(sample)}
+                                   className="rounded-full border border-border/60 bg-[var(--news-bg-secondary)]/70 px-3 py-1 text-[10px] font-mono uppercase tracking-[0.2em] text-muted-foreground hover:text-foreground hover:border-primary/40 transition-colors"
+                                 >
+                                   {sample}
+                                 </button>
+                               ))}
+                             </div>
+                             <Button type="submit" size="sm" disabled={!query.trim() || isSearching} className="h-9 px-4 bg-primary text-primary-foreground hover:bg-primary/90">
+                               {isSearching ? <Loader2 className="w-4 h-4 animate-spin" /> : <>Send <ArrowRight className="w-4 h-4 ml-1" /></>}
+                             </Button>
+                           </div>
+                         </form>
+                       </div>
+                     </div>
+                   </div>
                  </section>
 
-                 <div className="grid gap-6 lg:grid-cols-[minmax(0,1.2fr)_minmax(0,0.8fr)]">
-                    <section className="space-y-6">
-                      {researchView === "canvas" ? (
-                        <div className="rounded-xl border border-border/60 bg-[var(--news-bg-secondary)]/70 p-6">
-                          <div className="flex items-start justify-between gap-4">
-                            <div>
-                              <p className="text-[10px] font-mono uppercase tracking-[0.3em] text-muted-foreground">Canvas</p>
-                              <h2 className="text-xl font-semibold mt-2 text-foreground">{latestUserMessage?.content || "Canvas exploration"}</h2>
-                              <p className="text-xs text-muted-foreground mt-2">
-                                {latestAssistantMessage?.articles_searched
-                                  ? `${latestAssistantMessage.articles_searched} sources searched`
-                                  : 'Evidence stream pending'}
-                              </p>
-                            </div>
-                            <div className="text-[10px] font-mono uppercase tracking-[0.3em] text-muted-foreground">
-                              Nodes: {thinkingSteps.length}
-                            </div>
-                          </div>
+                 <aside className="w-full lg:w-[380px] border-t border-border/60 lg:border-l lg:border-t-0 bg-[var(--news-bg-primary)]/95">
+                   <div className="h-full max-h-[calc(100vh-120px)] overflow-y-auto">
+                     <div className="p-6 space-y-6">
+                       <div className="rounded-xl border border-border/60 bg-[var(--news-bg-secondary)]/70 p-5">
+                         <div className="flex items-center justify-between">
+                           <h3 className="text-[10px] font-mono uppercase tracking-[0.3em] text-muted-foreground">Research Log</h3>
+                           <span className="text-xs text-muted-foreground">{thinkingSteps.length} steps</span>
+                         </div>
+                         <div className="mt-3 space-y-3 text-sm">
+                           {thinkingSteps.length > 0 ? (
+                             thinkingSteps.slice(-6).map((step, idx) => (
+                               <div key={`${step.type}-${idx}`} className="rounded-lg border border-border/60 bg-[var(--news-bg-primary)]/50 p-3">
+                                 <div className="text-[10px] font-mono uppercase tracking-[0.3em] text-muted-foreground">
+                                   {step.type.replace('_', ' ')}
+                                 </div>
+                                 <p className="mt-2 text-xs text-muted-foreground line-clamp-3">{step.content}</p>
+                               </div>
+                             ))
+                           ) : (
+                             <p className="text-xs text-muted-foreground">Reasoning steps will appear as the agent works.</p>
+                           )}
+                         </div>
+                       </div>
 
-                          <div className="mt-5">
-                            {thinkingSteps.length === 0 ? (
-                              <div className="rounded-lg border border-border/60 bg-[var(--news-bg-primary)]/50 p-4 text-sm text-muted-foreground">
-                                No nodes yet. Run a query to generate reasoning steps.
-                              </div>
-                            ) : (
-                              <div className="grid gap-4 md:grid-cols-2">
-                                {thinkingSteps.map((step, idx) => (
-                                  <div key={`${step.type}-${idx}`} className="rounded-xl border border-border/60 bg-[var(--news-bg-primary)]/50 p-4 shadow-lg shadow-black/20">
-                                    <div className="text-[10px] font-mono uppercase tracking-[0.3em] text-muted-foreground">
-                                      Node {idx + 1}: {step.type.replace('_', ' ')}
-                                    </div>
-                                    <p className="mt-3 text-sm text-foreground/80">{step.content}</p>
-                                  </div>
-                                ))}
-                              </div>
-                            )}
-                            {latestAssistantMessage?.content && !latestAssistantMessage.isStreaming && (
-                              <div className="mt-4 rounded-xl border border-border/60 bg-[var(--news-bg-primary)]/50 p-4">
-                                <div className="text-[10px] font-mono uppercase tracking-[0.3em] text-muted-foreground">Synthesis</div>
-                                <div className="mt-3">
-                                  {renderContentWithEmbeds(latestAssistantMessage.content, relatedArticles)}
-                                </div>
-                              </div>
-                            )}
-                          </div>
-                        </div>
-                      ) : (
-                        <div className="rounded-xl border border-border/60 bg-[var(--news-bg-secondary)]/70 p-6">
-                          <div className="flex items-start justify-between gap-4">
-                            <div>
-                              <p className="text-[10px] font-mono uppercase tracking-[0.3em] text-muted-foreground">Conversation</p>
-                              <h2 className="text-xl font-semibold mt-2 text-foreground">{latestUserMessage?.content || "Research conversation"}</h2>
-                              <p className="text-xs text-muted-foreground mt-2">
-                                {latestAssistantMessage?.articles_searched
-                                  ? `${latestAssistantMessage.articles_searched} sources searched`
-                                  : 'Evidence stream pending'}
-                              </p>
-                            </div>
-                            <div className="text-[10px] font-mono uppercase tracking-[0.3em] text-muted-foreground">
-                              {conversationMessages.length} messages
-                            </div>
-                          </div>
+                       {latestSemanticMessage?.semanticResults && latestSemanticMessage.semanticResults.length > 0 && (
+                         <div className="rounded-xl border border-border/60 bg-[var(--news-bg-secondary)]/70 p-5">
+                           <h3 className="text-[10px] font-mono uppercase tracking-[0.3em] text-muted-foreground">Related Coverage</h3>
+                           <div className="mt-3 space-y-2">
+                             {latestSemanticMessage.semanticResults.map(({ article, similarityScore }) => (
+                               <button
+                                 key={`semantic-${article.url || article.id}`}
+                                 onClick={() => {
+                                   setSelectedArticle(article)
+                                   setIsArticleModalOpen(true)
+                                 }}
+                                 className="w-full text-left rounded-lg border border-border/60 bg-[var(--news-bg-primary)]/50 p-3 hover:border-primary/40 transition-colors"
+                               >
+                                 <div className="text-sm font-medium text-foreground line-clamp-2">{article.title}</div>
+                                 <div className="mt-2 flex items-center justify-between text-xs text-muted-foreground">
+                                   <span>{article.source}</span>
+                                   {typeof similarityScore === 'number' && (
+                                     <span className="text-[10px] px-2 py-0.5 rounded-full bg-[var(--news-bg-primary)] text-muted-foreground border border-border/60">
+                                       {Math.round(similarityScore * 100)}% match
+                                     </span>
+                                   )}
+                                 </div>
+                               </button>
+                             ))}
+                           </div>
+                         </div>
+                       )}
 
-                          <div className="mt-5 space-y-4">
-                            {conversationMessages.length === 0 ? (
-                              <p className="text-sm text-muted-foreground">Start a query to build a multi-turn session.</p>
-                            ) : (
-                              conversationMessages.map((message) => {
-                                const isAssistant = message.type === "assistant"
-                                const stepCount = message.thinking_steps?.length ?? 0
-                                const stepsExpanded = expandedStepMessageIds.has(message.id)
-                                const messageClass = message.type === "user"
-                                  ? "border-primary/40 bg-primary/10"
-                                  : message.error
-                                    ? "border-rose-500/40 bg-rose-500/10"
-                                    : "border-border/60 bg-[var(--news-bg-primary)]/50"
+                       {groupedSources.length > 0 && (
+                         <div className="rounded-xl border border-border/60 bg-[var(--news-bg-secondary)]/70 p-5">
+                           <h3 className="text-[10px] font-mono uppercase tracking-[0.3em] text-muted-foreground">Sources Used</h3>
+                           <div className="mt-3 space-y-4">
+                             {groupedSources.map((group) => {
+                               const isExpanded = expandedSourceIds.has(group.sourceId)
+                               const visibleArticles = isExpanded
+                                 ? group.articles
+                                 : group.articles.slice(0, sourcePreviewLimit)
 
-                                return (
-                                  <div
-                                    key={message.id}
-                                    className={`rounded-xl border px-4 py-3 ${messageClass}`}
-                                  >
-                                    <div className="flex items-center justify-between text-[10px] font-mono uppercase tracking-[0.3em] text-muted-foreground">
-                                      <span>{isAssistant ? "Assistant" : "You"}</span>
-                                      <span>{message.timestamp.toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit" })}</span>
-                                    </div>
-                                    <div className="mt-2 text-sm text-foreground/80">
-                                      {isAssistant ? (
-                                        message.isStreaming ? (
-                                          <div className="flex items-center gap-2 text-muted-foreground">
-                                            <Loader2 className="h-4 w-4 animate-spin" />
-                                            <span>{message.streamingStatus || "Working..."}</span>
-                                          </div>
-                                        ) : (
-                                          renderContentWithEmbeds(message.content, buildArticleEmbeds(message))
-                                        )
-                                      ) : (
-                                        <p>{message.content}</p>
-                                      )}
-                                    </div>
+                               return (
+                                 <div key={group.sourceId} className="rounded-lg border border-border/60 bg-[var(--news-bg-primary)]/50 p-3">
+                                   <div className="flex items-start justify-between gap-3">
+                                     <div>
+                                       <div className="text-sm font-medium text-foreground">{group.sourceName}</div>
+                                       <div className="text-[10px] font-mono uppercase tracking-[0.2em] text-muted-foreground mt-1">
+                                         {group.articles.length} articles
+                                       </div>
+                                     </div>
+                                     {group.articles.length > sourcePreviewLimit && (
+                                       <button
+                                         type="button"
+                                         onClick={() => toggleSourceVisibility(group.sourceId)}
+                                         className="text-[10px] font-mono uppercase tracking-[0.2em] text-primary hover:underline"
+                                       >
+                                         {isExpanded ? "Collapse" : `Show all (${group.articles.length})`}
+                                       </button>
+                                     )}
+                                   </div>
+                                   <div className="mt-3 space-y-2">
+                                     {visibleArticles.map((article) => (
+                                       <button
+                                         key={`${group.sourceId}-${article.url || article.id}`}
+                                         onClick={() => {
+                                           setSelectedArticle(article)
+                                           setIsArticleModalOpen(true)
+                                         }}
+                                         className="w-full text-left rounded-md border border-border/60 bg-[var(--news-bg-primary)]/60 px-3 py-2 text-xs hover:border-primary/40 transition-colors"
+                                       >
+                                         <div className="text-sm font-medium text-foreground line-clamp-2">{article.title}</div>
+                                         <div className="mt-2 flex items-center justify-between text-[10px] uppercase tracking-[0.2em] text-muted-foreground">
+                                           <span>{article.source}</span>
+                                           <span>{formatShortDate(article.publishedAt)}</span>
+                                         </div>
+                                       </button>
+                                     ))}
+                                   </div>
+                                 </div>
+                               )
+                             })}
+                           </div>
+                         </div>
+                       )}
 
-                                    {isAssistant && !message.isStreaming && stepCount > 0 && (
-                                      <div className="mt-3">
-                                        <button
-                                          type="button"
-                                          onClick={() => toggleStepVisibility(message.id)}
-                                          className="inline-flex items-center gap-2 text-xs font-medium text-muted-foreground hover:text-foreground transition-colors"
-                                        >
-                                          {stepsExpanded ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
-                                          {stepsExpanded ? "Hide steps" : `Show steps (${stepCount})`}
-                                        </button>
-                                        {stepsExpanded && (
-                                          <div className="mt-3 space-y-2">
-                                            {message.thinking_steps?.map((step, idx) => (
-                                              <div key={`${message.id}-step-${idx}`} className="rounded-lg border border-border/60 bg-[var(--news-bg-primary)]/40 p-3">
-                                                <div className="text-[10px] font-mono uppercase tracking-[0.3em] text-muted-foreground">
-                                                  Step {idx + 1}: {step.type.replace('_', ' ')}
-                                                </div>
-                                                <p className="mt-2 text-xs text-muted-foreground">{step.content}</p>
-                                              </div>
-                                            ))}
-                                          </div>
-                                        )}
-                                      </div>
-                                    )}
-                                  </div>
-                                )
-                              })
-                            )}
-                          </div>
-                        </div>
-                      )}
-                  </section>
+                       <div className="rounded-xl border border-border/60 bg-[var(--news-bg-secondary)]/70 p-5">
+                         <h3 className="text-[10px] font-mono uppercase tracking-[0.3em] text-muted-foreground">Recent Queries</h3>
+                         <div className="mt-3 space-y-2">
+                           {recentQueries.length > 0 ? (
+                             recentQueries.map((message) => (
+                               <button
+                                 key={message.id}
+                                 onClick={() => handleSampleQuery(message.content)}
+                                 className="w-full text-left rounded-lg border border-border/60 bg-[var(--news-bg-primary)]/50 px-3 py-2 text-xs text-muted-foreground hover:border-primary/40 hover:text-foreground transition-colors"
+                               >
+                                 {message.content}
+                               </button>
+                             ))
+                           ) : (
+                             <p className="text-xs text-muted-foreground">Run a query to build a history.</p>
+                           )}
+                         </div>
+                       </div>
+                     </div>
+                   </div>
+                 </aside>
+               </div>
+             )}
+           </main>
+         </div>
+       </div>
 
-                  <aside className="space-y-6">
-                    <div className="rounded-xl border border-border/60 bg-[var(--news-bg-secondary)]/70 p-5">
-                      <div className="flex items-center justify-between">
-                        <h3 className="text-[10px] font-mono uppercase tracking-[0.3em] text-muted-foreground">Research Log</h3>
-                        <span className="text-xs text-muted-foreground">{thinkingSteps.length} steps</span>
-                      </div>
-                      <div className="mt-3 space-y-3 text-sm">
-                        {thinkingSteps.length > 0 ? (
-                          thinkingSteps.slice(-6).map((step, idx) => (
-                            <div key={`${step.type}-${idx}`} className="rounded-lg border border-border/60 bg-[var(--news-bg-primary)]/50 p-3">
-                              <div className="text-[10px] font-mono uppercase tracking-[0.3em] text-muted-foreground">
-                                {step.type.replace('_', ' ')}
-                              </div>
-                              <p className="mt-2 text-xs text-muted-foreground line-clamp-3">{step.content}</p>
-                            </div>
-                          ))
-                        ) : (
-                          <p className="text-xs text-muted-foreground">Reasoning steps will appear as the agent works.</p>
-                        )}
-                      </div>
-                    </div>
+       <ArticleDetailModal
+         article={selectedArticle}
+         isOpen={isArticleModalOpen}
+         onClose={() => {
+           setIsArticleModalOpen(false)
+           setSelectedArticle(null)
+         }}
+       />
+     </div>
+   )
+ }
 
-                    {latestSemanticMessage?.semanticResults && latestSemanticMessage.semanticResults.length > 0 && (
-                      <div className="rounded-xl border border-border/60 bg-[var(--news-bg-secondary)]/70 p-5">
-                        <h3 className="text-[10px] font-mono uppercase tracking-[0.3em] text-muted-foreground">Related Coverage</h3>
-                        <div className="mt-3 space-y-2">
-                          {latestSemanticMessage.semanticResults.map(({ article, similarityScore }) => (
-                            <button
-                              key={`semantic-${article.url || article.id}`}
-                              onClick={() => {
-                                setSelectedArticle(article)
-                                setIsArticleModalOpen(true)
-                              }}
-                              className="w-full text-left rounded-lg border border-border/60 bg-[var(--news-bg-primary)]/50 p-3 hover:border-primary/40 transition-colors"
-                            >
-                              <div className="text-sm font-medium text-foreground line-clamp-2">{article.title}</div>
-                              <div className="mt-2 flex items-center justify-between text-xs text-muted-foreground">
-                                <span>{article.source}</span>
-                                {typeof similarityScore === 'number' && (
-                                  <span className="text-[10px] px-2 py-0.5 rounded-full bg-[var(--news-bg-primary)] text-muted-foreground border border-border/60">
-                                    {Math.round(similarityScore * 100)}% match
-                                  </span>
-                                )}
-                              </div>
-                            </button>
-                          ))}
-                        </div>
-                      </div>
-                    )}
-
-                    {groupedSources.length > 0 && (
-                      <div className="rounded-xl border border-border/60 bg-[var(--news-bg-secondary)]/70 p-5">
-                        <h3 className="text-[10px] font-mono uppercase tracking-[0.3em] text-muted-foreground">Sources Used</h3>
-                        <div className="mt-3 space-y-4">
-                          {groupedSources.map((group) => {
-                            const isExpanded = expandedSourceIds.has(group.sourceId)
-                            const visibleArticles = isExpanded
-                              ? group.articles
-                              : group.articles.slice(0, sourcePreviewLimit)
-
-                            return (
-                              <div key={group.sourceId} className="rounded-lg border border-border/60 bg-[var(--news-bg-primary)]/50 p-3">
-                                <div className="flex items-start justify-between gap-3">
-                                  <div>
-                                    <div className="text-sm font-medium text-foreground">{group.sourceName}</div>
-                                    <div className="text-[10px] font-mono uppercase tracking-[0.2em] text-muted-foreground mt-1">
-                                      {group.articles.length} articles
-                                    </div>
-                                  </div>
-                                  {group.articles.length > sourcePreviewLimit && (
-                                    <button
-                                      type="button"
-                                      onClick={() => toggleSourceVisibility(group.sourceId)}
-                                      className="text-[10px] font-mono uppercase tracking-[0.2em] text-primary hover:underline"
-                                    >
-                                      {isExpanded ? "Collapse" : `Show all (${group.articles.length})`}
-                                    </button>
-                                  )}
-                                </div>
-                                <div className="mt-3 space-y-2">
-                                  {visibleArticles.map((article) => (
-                                    <button
-                                      key={`${group.sourceId}-${article.url || article.id}`}
-                                      onClick={() => {
-                                        setSelectedArticle(article)
-                                        setIsArticleModalOpen(true)
-                                      }}
-                                      className="w-full text-left rounded-md border border-border/60 bg-[var(--news-bg-primary)]/60 px-3 py-2 text-xs hover:border-primary/40 transition-colors"
-                                    >
-                                      <div className="text-sm font-medium text-foreground line-clamp-2">{article.title}</div>
-                                      <div className="mt-2 flex items-center justify-between text-[10px] uppercase tracking-[0.2em] text-muted-foreground">
-                                        <span>{article.source}</span>
-                                        <span>{formatShortDate(article.publishedAt)}</span>
-                                      </div>
-                                    </button>
-                                  ))}
-                                </div>
-                              </div>
-                            )
-                          })}
-                        </div>
-                      </div>
-                    )}
-
-                    <div className="rounded-xl border border-border/60 bg-[var(--news-bg-secondary)]/70 p-5">
-                      <h3 className="text-[10px] font-mono uppercase tracking-[0.3em] text-muted-foreground">Recent Queries</h3>
-                      <div className="mt-3 space-y-2">
-                        {recentQueries.length > 0 ? (
-                          recentQueries.map((message) => (
-                            <button
-                              key={message.id}
-                              onClick={() => handleSampleQuery(message.content)}
-                              className="w-full text-left rounded-lg border border-border/60 bg-[var(--news-bg-primary)]/50 px-3 py-2 text-xs text-muted-foreground hover:border-primary/40 hover:text-foreground transition-colors"
-                            >
-                              {message.content}
-                            </button>
-                          ))
-                        ) : (
-                          <p className="text-xs text-muted-foreground">Run a query to build a history.</p>
-                        )}
-                      </div>
-                    </div>
-                  </aside>
-                 </div>
-              </div>
-            )}
-          </main>
-        </div>
-      </div>
-
-      <ArticleDetailModal
-        article={selectedArticle}
-        isOpen={isArticleModalOpen}
-        onClose={() => {
-          setIsArticleModalOpen(false)
-          setSelectedArticle(null)
-        }}
-      />
-    </div>
-  )
-}

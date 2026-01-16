@@ -9,6 +9,7 @@ from datetime import datetime, timezone
 from typing import Annotated, Any, Dict, Generator, List, Optional, Sequence
 
 from ddgs import DDGS
+from typing import cast
 from langchain_core.messages import AIMessage, BaseMessage, HumanMessage, SystemMessage
 from langchain_core.tools import tool
 from langchain_google_genai import ChatGoogleGenerativeAI
@@ -36,10 +37,13 @@ SYSTEM_PROMPT = (
     "Always begin with search_internal_news to ground yourself in cached coverage,\n"
     "then use web_search or news_search for fresh context. When you find useful\n"
     "articles that are missing from the archive, call rag_index_documents to update\n"
-    "the store. Cite sources with URLs, highlight differing viewpoints, and mention\n"
+    "the store. Avoid meta commentary about tools; focus on answering the user.\n"
+    "Respond with sections titled 'Answer' and 'Follow-up questions'.\n"
+    "Cite sources with URLs, highlight differing viewpoints, and mention\n"
     "bias or funding details when relevant. Current date: {date}."
 )
-MAX_ITERATIONS = 3
+MAX_ITERATIONS = 5
+MIN_FINAL_ANSWER_CHARS = 120
 
 _news_articles_cache: List[Dict[str, Any]] = []
 _referenced_articles_tracker: List[Dict[str, Any]] = []
@@ -84,8 +88,7 @@ def _track_reference(article: Dict[str, Any]) -> None:
     already_seen = False
     if article_id is not None:
         already_seen = any(
-            str(article_id)
-            == str(existing.get("id") or existing.get("article_id"))
+            str(article_id) == str(existing.get("id") or existing.get("article_id"))
             for existing in _referenced_articles_tracker
         )
     if not already_seen and url_key:
@@ -146,9 +149,14 @@ def search_internal_news(query: str, top_k: int = 5) -> str:
 def web_search(query: str, num_results: int = 10) -> str:
     """Perform general web search for recent context."""
     try:
-        ddgs = DDGS()
-        results = list(ddgs.text(query, max_results=num_results))
-        return json.dumps(results[:num_results], indent=2) if results else "No results found."
+        ddgs = cast(Any, DDGS())
+        text_search_fn = getattr(ddgs, "text")
+        results = list(text_search_fn(query, max_results=num_results))
+        return (
+            json.dumps(results[:num_results], indent=2)
+            if results
+            else "No results found."
+        )
     except Exception as exc:  # pragma: no cover - network errors
         logger.warning("Web search failed: %s", exc)
         return f"Web search failed: {exc}"
@@ -158,9 +166,14 @@ def web_search(query: str, num_results: int = 10) -> str:
 def news_search(keywords: str, max_results: int = 10, region: str = "wt-wt") -> str:
     """Use DuckDuckGo news vertical for near-real-time stories."""
     try:
-        ddgs = DDGS()
-        results = list(ddgs.news(keywords, max_results=max_results, region=region))
-        return json.dumps(results[:max_results], indent=2) if results else "No results found."
+        ddgs = cast(Any, DDGS())
+        news_search_fn = getattr(ddgs, "news")
+        results = list(news_search_fn(keywords, max_results=max_results, region=region))
+        return (
+            json.dumps(results[:max_results], indent=2)
+            if results
+            else "No results found."
+        )
     except Exception as exc:  # pragma: no cover - network errors
         logger.warning("News search failed: %s", exc)
         return f"News search failed: {exc}"
@@ -198,7 +211,10 @@ def rag_index_documents(documents: List[Dict[str, Any]]) -> str:
         metadata = document.get("metadata", {})
         title = metadata.get("title") or document.get("title") or "External Article"
         summary = content[:500]
-        unique_key = metadata.get("url") or f"rag_{int(datetime.now(timezone.utc).timestamp())}_{added}"
+        unique_key = (
+            metadata.get("url")
+            or f"rag_{int(datetime.now(timezone.utc).timestamp())}_{added}"
+        )
         success = store.add_article(
             article_id=str(unique_key),
             title=title,
@@ -208,7 +224,11 @@ def rag_index_documents(documents: List[Dict[str, Any]]) -> str:
         )
         if success:
             added += 1
-    return f"Successfully indexed {added} documents." if added else "No documents were indexed."
+    return (
+        f"Successfully indexed {added} documents."
+        if added
+        else "No documents were indexed."
+    )
 
 
 tools = [
@@ -246,13 +266,31 @@ def call_model(state: AgentState) -> Dict[str, Any]:
     return {"messages": [response], "iteration": state.get("iteration", 0) + 1}
 
 
+def _extract_text_from_message(message: BaseMessage) -> str:
+    if isinstance(message, AIMessage):
+        return _content_to_text(message.content)
+    if isinstance(message, HumanMessage):
+        return str(message.content)
+    return _content_to_text(getattr(message, "content", ""))
+
+
 def should_continue(state: AgentState) -> str:
     iteration = state.get("iteration", 0)
     if iteration >= MAX_ITERATIONS:
         return END
     last_message = state["messages"][-1]
-    if isinstance(last_message, AIMessage) and getattr(last_message, "tool_calls", None):
+    if isinstance(last_message, AIMessage) and getattr(
+        last_message, "tool_calls", None
+    ):
         return "tools"
+    if isinstance(last_message, AIMessage):
+        content = _extract_text_from_message(last_message)
+        lower_content = content.lower()
+        has_sections = "answer" in lower_content and "follow-up" in lower_content
+        if (
+            content.strip() and len(content.strip()) < MIN_FINAL_ANSWER_CHARS
+        ) or not has_sections:
+            return "agent"
     return END
 
 
@@ -274,7 +312,9 @@ def _build_initial_messages(
     query: str, chat_history: Optional[List[Dict[str, str]]] = None
 ) -> List[BaseMessage]:
     system_message = SystemMessage(
-        content=SYSTEM_PROMPT.format(date=datetime.now(timezone.utc).strftime("%Y-%m-%d"))
+        content=SYSTEM_PROMPT.format(
+            date=datetime.now(timezone.utc).strftime("%Y-%m-%d")
+        )
     )
     history_messages: List[BaseMessage] = []
     if chat_history:
@@ -372,9 +412,7 @@ def research_news(
             "query": query,
         }
         json_payload = json.dumps(payload)
-        structured_block = (
-            f"\n```json:articles\n{json.dumps(payload, indent=2)}\n```\n"
-        )
+        structured_block = f"\n```json:articles\n{json.dumps(payload, indent=2)}\n```\n"
 
     result = {
         "success": bool(final_answer),
@@ -410,34 +448,46 @@ def research_stream(
             content_text = _content_to_text(agent_message.content)
             if content_text:
                 final_answer = content_text
-                yield "data: " + json.dumps(
-                    {"type": "thinking", "content": content_text}
-                ) + "\n\n"
+                yield (
+                    "data: "
+                    + json.dumps({"type": "thinking", "content": content_text})
+                    + "\n\n"
+                )
 
             for tool_call in getattr(agent_message, "tool_calls", []) or []:
-                yield "data: " + json.dumps(
-                    {
-                        "type": "tool_start",
-                        "tool": tool_call.get("name"),
-                        "args": tool_call.get("args", {}),
-                    }
-                ) + "\n\n"
+                yield (
+                    "data: "
+                    + json.dumps(
+                        {
+                            "type": "tool_start",
+                            "tool": tool_call.get("name"),
+                            "args": tool_call.get("args", {}),
+                        }
+                    )
+                    + "\n\n"
+                )
         if "tools" in update:
             for tool_message in update["tools"]["messages"]:
-                yield "data: " + json.dumps(
-                    {
-                        "type": "tool_result",
-                        "content": _content_to_text(tool_message.content)[:2000],
-                    }
-                ) + "\n\n"
+                yield (
+                    "data: "
+                    + json.dumps(
+                        {
+                            "type": "tool_result",
+                            "content": _content_to_text(tool_message.content)[:2000],
+                        }
+                    )
+                    + "\n\n"
+                )
 
     referenced_articles = list(_referenced_articles_tracker)
     if not referenced_articles and final_answer:
         referenced_articles = _match_articles_in_text(final_answer)
 
-    yield "data: " + json.dumps(
-        {"type": "referenced_articles", "articles": referenced_articles}
-    ) + "\n\n"
+    yield (
+        "data: "
+        + json.dumps({"type": "referenced_articles", "articles": referenced_articles})
+        + "\n\n"
+    )
 
     structured_block = ""
     if referenced_articles:
@@ -447,12 +497,12 @@ def research_stream(
             "query": query,
         }
         json_payload = json.dumps(payload)
-        yield "data: " + json.dumps(
-            {"type": "articles_json", "data": json_payload}
-        ) + "\n\n"
-        structured_block = (
-            f"\n```json:articles\n{json.dumps(payload, indent=2)}\n```\n"
+        yield (
+            "data: "
+            + json.dumps({"type": "articles_json", "data": json_payload})
+            + "\n\n"
         )
+        structured_block = f"\n```json:articles\n{json.dumps(payload, indent=2)}\n```\n"
 
     result = {
         "success": True,
