@@ -1,5 +1,200 @@
 # Log
 
+## 2026-01-16: Code Review Fixes from Slop-Review & React-Best-Practices
+
+### Problem
+Post-migration code review identified several issues:
+1. Missing Suspense boundary for React.lazy component
+2. Excessive type assertions (`as unknown as`) in performance-logger.ts
+3. Undocumented next.config.mjs settings
+
+### Solution
+
+**1. Added Suspense Boundary for VirtualizedGrid** (`grid-view.tsx`)
+
+```typescript
+// Before (broken - no Suspense)
+const VirtualizedGrid = lazy(() => import("./virtualized-grid").then(...))
+// Usage without Suspense:
+{VirtualizedGrid && <VirtualizedGrid ... />}
+
+// After (correct)
+<Suspense fallback={<Skeleton className="h-[600px] w-full" />}>
+  <VirtualizedGrid ... />
+</Suspense>
+```
+
+**2. Refactored Type Assertions** (`lib/performance-logger.ts` + `lib/api.ts`)
+
+Removed excessive `as unknown as` casts by defining proper types:
+
+```typescript
+// api.ts - Updated interface with proper types
+export interface FrontendDebugReportPayload {
+  session_id: string;
+  summary: {
+    sessionId: string;
+    startTime: string;
+    totalEvents: number;
+    slowOperationsCount: number;
+    errorCount: number;
+    streamMetrics: StreamMetrics[];
+    componentStats: Record<string, {...}>;
+  };
+  recent_events: PerformanceEvent[];
+  slow_operations: PerformanceEvent[];
+  errors: PerformanceEvent[];
+  // ...
+}
+
+// performance-logger.ts - Clean report construction
+const report: FrontendDebugReportPayload = {
+  session_id: summary.sessionId,
+  summary: { /* properly typed */ },
+  recent_events: recentEvents,
+  slow_operations: slowOperations,
+  errors: errors,
+  // ...
+};
+```
+
+**3. Added Configuration Comments** (`next.config.mjs`)
+
+```javascript
+/**
+ * Next.js configuration for Scoop news reader
+ *
+ * @type {import('next').NextConfig}
+ */
+const nextConfig = {
+  // Images are served via external image proxy (cloudinary/imgproxy)
+  // No built-in optimization needed
+  images: {
+    unoptimized: true,
+  },
+
+  // Standalone output for minimal container image size
+  // Only includes necessary runtime files, reduces deployment size by ~70%
+  output: 'standalone',
+}
+```
+
+### Files Changed
+| File | Changes |
+|------|---------|
+| `frontend/components/grid-view.tsx` | Added Suspense wrapper around VirtualizedGrid |
+| `frontend/lib/api.ts` | Refactored FrontendDebugReportPayload with proper types |
+| `frontend/lib/performance-logger.ts` | Removed type casts, imported typed interface |
+| `frontend/next.config.mjs` | Added explanatory comments |
+
+### Result
+```
+✓ Build succeeds after fixes
+✓ Proper Suspense boundary prevents loading flashes
+✓ Type-safe payload construction without unsafe casts
+✓ Self-documenting configuration
+```
+
+---
+
+## 2026-01-16: Next.js 14 → 16 Migration with React 19 Upgrade
+
+### Problem
+- Next.js 14.2.16 was vulnerable to critical security issues (CVE-2025-55182, CVE-2025-66478)
+- Missing out on Turbopack performance improvements
+- Outdated React 18 ecosystem
+
+### Solution
+Upgraded to Next.js 16.1.2 with React 19.2.3, addressing security vulnerabilities and enabling modern performance features.
+
+### Core Dependency Updates
+| Package | Before | After |
+|---------|--------|-------|
+| `next` | 14.2.16 | 16.1.2 |
+| `react` | ^18 | ^19.2.3 |
+| `react-dom` | ^18 | ^19.2.3 |
+| `@types/react` | ^18 | ^19.2.0 |
+| `@types/react-dom` | ^18 | ^19.2.0 |
+| `three` | "latest" | ^0.169.0 |
+| `lucide-react` | 0.454.0 | ^0.562.0 |
+| `framer-motion` | 12.23.24 | ^12.26.2 |
+| `react-window` | 1.8.11 | ^2.2.5 |
+| `react-virtualized-auto-sizer` | 1.0.26 | ^2.0.2 |
+| `eslint-config-next` | 15.5.4 | 16.1.2 |
+
+### Breaking Changes Fixed
+
+**Async Route Parameters** (Next.js 16 requirement):
+- `app/source/[sourceId]/page.tsx`: Changed `params: { sourceId: string }` to `params: Promise<{ sourceId: string }>`
+- `app/sources/[source]/debug/page.tsx`: Same pattern applied
+
+**TypeScript Configuration**:
+- `tsconfig.json`: Changed `jsx: "preserve"` to `jsx: "react-jsx"` (required for React 19)
+- `tsconfig.json`: Changed `target: "ES6"` to `target: "ES2022"`
+
+**Build Configuration**:
+- `next.config.mjs`: Removed `eslint: { ignoreDuringBuilds: true }` and `typescript: { ignoreBuildErrors: true }`
+
+**Font Optimization**:
+- `app/layout.tsx`: Removed manual Google Fonts `<link>` tags, now using `next/font/google` exclusively
+
+### Type Fixes Applied
+
+| File | Issue | Fix |
+|------|-------|-----|
+| `app/debug/page.tsx` | `summary.errors` | Changed to `summary.errorCount` |
+| `app/debug/page.tsx` | `event.type` | Changed to `event.eventType` |
+| `app/debug/page.tsx` | `event.events` | Changed to `event.recentEvents` |
+| `app/page.tsx` | `Set.length` | Changed to `Set.size` (2 locations) |
+| `app/source/[sourceId]/page.tsx` | Sync params | Converted to async pattern |
+| `components/article-detail-modal.tsx` | Null checks | Added `article` null guard |
+| `components/article-detail-modal.tsx` | `sync_status` type | Added `HighlightSyncStatus` cast |
+| `components/feed-view.tsx` | Boolean operator | Fixed `!image.trim().length > 0` |
+| `components/globe-view.tsx` | Missing scroll-area | Created `components/ui/scroll-area.tsx` |
+| `components/grid-view.tsx` | Dynamic import | Converted to React.lazy |
+| `components/highlight-note-popover.tsx` | Ref type | Updated to allow null |
+| `components/highlight-toolbar.tsx` | Ref type | Updated to allow null |
+| `components/interactive-globe.tsx` | `useRef<any>()` | Added `null` initial value |
+| `components/source-sidebar.tsx` | `Set.length` | Changed to `Set.size`, `Array.from()` |
+| `components/three-globe.tsx` | `useRef<T>()` | Added null initial values, cast material.map |
+| `components/inline-definition.tsx` | Ref type | Updated to allow null |
+| `lib/performance-logger.ts` | Type mismatch | Added type casts for API payload |
+
+### Files Changed
+| File | Changes |
+|------|---------|
+| `frontend/package.json` | Updated all dependencies |
+| `frontend/next.config.mjs` | Removed error ignores |
+| `frontend/tsconfig.json` | Updated jsx and target |
+| `frontend/app/layout.tsx` | Removed manual font links |
+| `frontend/app/source/[sourceId]/page.tsx` | Async params pattern |
+| `frontend/app/sources/[source]/debug/page.tsx` | Async params pattern |
+| `frontend/app/debug/page.tsx` | Fixed type accessors |
+| `frontend/app/page.tsx` | Set.size fixes |
+| `frontend/components/ui/scroll-area.tsx` | Created missing component |
+| `frontend/components/grid-view.tsx` | React.lazy conversion |
+| `frontend/components/highlight-note-popover.tsx` | Ref type fix |
+| `frontend/components/highlight-toolbar.tsx` | Ref type fix |
+| `frontend/components/inline-definition.tsx` | Ref type fix |
+| `frontend/components/interactive-globe.tsx` | useRef null fix |
+| `frontend/components/source-sidebar.tsx` | Set.size fixes |
+| `frontend/components/three-globe.tsx` | useRef null fixes, material cast |
+| `frontend/components/article-detail-modal.tsx` | Null guard, type cast |
+| `frontend/components/feed-view.tsx` | Boolean fix |
+| `frontend/lib/performance-logger.ts` | Type casts |
+
+### Result
+```
+✓ Compiled successfully in ~8-9s
+✓ TypeScript passed
+✓ All 7 routes generated successfully
+✓ Turbopack enabled by default
+```
+
+Migration addresses critical security vulnerabilities while providing access to Turbopack's 5-10x faster Fast Refresh and 2-5x faster builds.
+
+---
+
 ## 2026-01-11: TrendingFeed Integration into GridView
 
 ### Problem

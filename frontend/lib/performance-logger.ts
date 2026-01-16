@@ -5,7 +5,7 @@
  * Designed to provide data that correlates with backend debug logs.
  */
 
-import { sendFrontendDebugReport } from "./api";
+import { sendFrontendDebugReport, type FrontendDebugReportPayload } from "./api";
 
 // Configuration
 const MAX_EVENTS = 500;
@@ -512,12 +512,23 @@ class FrontendPerformanceLogger {
       return;
     }
 
-    const report = {
-      session_id: this.sessionId,
-      summary: this.getSummary(),
+    const summary = this.getSummary()
+    const slowOperations = this.getSlowOperations()
+    const errors = this.getErrors()
+    const report: FrontendDebugReportPayload = {
+      session_id: summary.sessionId,
+      summary: {
+        sessionId: summary.sessionId,
+        startTime: summary.startTime,
+        totalEvents: summary.totalEvents,
+        slowOperationsCount: summary.slowOperationsCount,
+        errorCount: summary.errorCount,
+        streamMetrics: summary.streamMetrics,
+        componentStats: summary.componentStats,
+      },
       recent_events: recentEvents,
-      slow_operations: this.getSlowOperations(),
-      errors: this.getErrors(),
+      slow_operations: slowOperations,
+      errors: errors,
       dom_stats: {
         node_count: document.querySelectorAll("*").length,
         body_text_length: document.body?.innerText?.length ?? 0,

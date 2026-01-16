@@ -1660,11 +1660,78 @@ export async function fetchStreamStatus(): Promise<any> {
 
 export interface FrontendDebugReportPayload {
   session_id: string;
-  summary: Record<string, unknown>;
-  recent_events: Record<string, unknown>[];
-  slow_operations: Record<string, unknown>[];
-  errors: Record<string, unknown>[];
-  dom_stats?: Record<string, unknown>;
+  summary: {
+    sessionId: string;
+    startTime: string;
+    totalEvents: number;
+    slowOperationsCount: number;
+    errorCount: number;
+    streamMetrics: Array<{
+      streamId: string;
+      eventCount: number;
+      startTime: number;
+    }>;
+    componentStats: Record<string, {
+      count: number;
+      avgDurationMs: number;
+      maxDurationMs: number;
+      errorCount: number;
+    }>;
+  };
+  recent_events: Array<{
+    eventId: string;
+    eventType: string;
+    timestamp: string;
+    component: string;
+    operation: string;
+    message?: string;
+    durationMs?: number;
+    details?: Record<string, unknown>;
+    error?: string;
+    stackTrace?: string;
+    isSlow?: boolean;
+    streamId?: string;
+    requestId?: string;
+  }>;
+  slow_operations: Array<{
+    eventId: string;
+    eventType: string;
+    timestamp: string;
+    component: string;
+    operation: string;
+    message?: string;
+    durationMs?: number;
+    details?: Record<string, unknown>;
+    error?: string;
+    stackTrace?: string;
+    isSlow?: boolean;
+    streamId?: string;
+    requestId?: string;
+  }>;
+  errors: Array<{
+    eventId: string;
+    eventType: string;
+    timestamp: string;
+    component: string;
+    operation: string;
+    message?: string;
+    durationMs?: number;
+    details?: Record<string, unknown>;
+    error?: string;
+    stackTrace?: string;
+    isSlow?: boolean;
+    streamId?: string;
+    requestId?: string;
+  }>;
+  dom_stats?: {
+    node_count: number;
+    body_text_length: number;
+    viewport: {
+      width: number;
+      height: number;
+    };
+    title: string;
+  };
   location?: string;
   user_agent?: string;
   generated_at?: string;

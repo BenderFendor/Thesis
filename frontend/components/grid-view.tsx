@@ -1,7 +1,6 @@
 "use client"
 
-import { useState, useEffect, useCallback, useMemo, useRef } from "react"
-import dynamic from "next/dynamic"
+import { useState, useEffect, useCallback, useMemo, useRef, lazy, Suspense } from "react"
 import Link from "next/link"
 import { Card, CardContent } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
@@ -24,10 +23,7 @@ import {
 } from "lucide-react"
 import { ArticleDetailModal } from "./article-detail-modal"
 
-const VirtualizedGrid = dynamic(() => import("./virtualized-grid"), {
-  ssr: false,
-  loading: () => <Skeleton className="h-[400px] w-full" />,
-})
+const VirtualizedGrid = lazy(() => import("./virtualized-grid").then(module => ({ default: module.VirtualizedGrid })))
 
 import { TrendingFeed } from "./trending-feed"
 import type { NewsArticle, AllCluster } from "@/lib/api"
@@ -542,14 +538,16 @@ export function GridView({
             </div>
           </div>
         ) : (
-          <VirtualizedGrid
-            articles={paginatedArticles}
-            hasNextPage={hasNextPage}
-            isFetchingNextPage={isFetchingNextPage}
-            fetchNextPage={fetchNextPage}
-            onArticleClick={handleArticleClick}
-            totalCount={totalCount}
-          />
+          <Suspense fallback={<Skeleton className="h-[600px] w-full" />}>
+            <VirtualizedGrid
+              articles={paginatedArticles}
+              hasNextPage={hasNextPage}
+              isFetchingNextPage={isFetchingNextPage}
+              fetchNextPage={fetchNextPage}
+              onArticleClick={handleArticleClick}
+              totalCount={totalCount}
+            />
+          </Suspense>
         )}
 
         {/* Article Detail Modal */}
