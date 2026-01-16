@@ -397,6 +397,41 @@ class ClusterStatsHourly(Base):
     )
 
 
+# Verification Agent Tables
+
+
+class SourceCredibility(Base):
+    """Configurable source credibility scores for verification agent."""
+
+    __tablename__ = "source_credibility"
+
+    id = Column(Integer, primary_key=True, index=True)
+    domain = Column(String, unique=True, nullable=False, index=True)
+    credibility_score = Column(Float, nullable=False)  # 0.0 to 1.0
+    source_type = Column(String, default="unknown")  # wire, newspaper, blog, etc.
+    is_active = Column(Boolean, default=True, index=True)
+    notes = Column(Text, nullable=True)
+    created_at = Column(DateTime, default=get_utc_now)
+    updated_at = Column(DateTime, default=get_utc_now, onupdate=get_utc_now)
+
+
+class VerificationCache(Base):
+    """Cache verified claims to avoid re-checking."""
+
+    __tablename__ = "verification_cache"
+
+    id = Column(Integer, primary_key=True, index=True)
+    claim_hash = Column(String, unique=True, nullable=False, index=True)
+    claim_text = Column(Text, nullable=False)
+    confidence = Column(Float, nullable=False)
+    confidence_level = Column(String, nullable=False)
+    sources_json = Column(JSON)
+    verified_at = Column(DateTime, default=get_utc_now, index=True)
+    expires_at = Column(DateTime, index=True)
+
+    __table_args__ = (Index("ix_verification_cache_expires", "expires_at"),)
+
+
 # Dependency for FastAPI
 async def get_db():
     """Database session dependency for FastAPI endpoints"""

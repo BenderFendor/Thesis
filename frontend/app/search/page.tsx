@@ -21,6 +21,7 @@ import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import Link from "next/link"
 import { SearchSuggestions } from "@/components/search-suggestions"
+import { VerificationPanel } from "@/components/verification-panel"
 
 interface ReferencedArticlePayload {
   title?: string
@@ -1160,11 +1161,19 @@ export default function NewsResearchPage() {
                              ))
                            ) : (
                              <p className="text-xs text-muted-foreground">Reasoning steps will appear as the agent works.</p>
-                           )}
-                         </div>
-                       </div>
+                            )}
+                          </div>
+                        </div>
 
-                       {latestSemanticMessage?.semanticResults && latestSemanticMessage.semanticResults.length > 0 && (
+                        {latestAssistantMessage && !latestAssistantMessage.isStreaming && latestAssistantMessage.content && (
+                          <VerificationPanel
+                            query={latestUserMessage?.content || ""}
+                            mainAnswer={latestAssistantMessage.content}
+                            className="rounded-xl"
+                          />
+                        )}
+
+                        {latestSemanticMessage?.semanticResults && latestSemanticMessage.semanticResults.length > 0 && (
                          <div className="rounded-xl border border-border/60 bg-[var(--news-bg-secondary)]/70 p-5">
                            <h3 className="text-[10px] font-mono uppercase tracking-[0.3em] text-muted-foreground">Related Coverage</h3>
                            <div className="mt-3 space-y-2">

@@ -23,6 +23,7 @@ from . import (
     stream,
     trending,
     updates,
+    verification,
 )
 
 router = APIRouter()
@@ -46,3 +47,4 @@ router.include_router(updates.router)
 router.include_router(image_proxy.router)
 router.include_router(trending.router)
 router.include_router(similarity.router)
+router.include_router(verification.router)

@@ -102,3 +102,62 @@ FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 
 CREATE TRIGGER update_preferences_updated_at BEFORE UPDATE ON preferences
 FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+
+-- Verification Agent Tables
+
+CREATE TABLE IF NOT EXISTS source_credibility (
+  id SERIAL PRIMARY KEY,
+  domain TEXT UNIQUE NOT NULL,
+  credibility_score DECIMAL(3,2) NOT NULL CHECK (credibility_score >= 0 AND credibility_score <= 1),
+  source_type TEXT DEFAULT 'unknown',
+  is_active BOOLEAN DEFAULT true,
+  notes TEXT,
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_source_credibility_domain ON source_credibility(domain);
+CREATE INDEX IF NOT EXISTS idx_source_credibility_active ON source_credibility(is_active);
+
+CREATE TRIGGER update_source_credibility_updated_at BEFORE UPDATE ON source_credibility
+FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+
+-- Seed default high-credibility sources
+INSERT INTO source_credibility (domain, credibility_score, source_type, notes) VALUES
+  ('reuters.com', 0.95, 'wire', 'Major wire service'),
+  ('apnews.com', 0.95, 'wire', 'Associated Press'),
+  ('bbc.com', 0.90, 'broadcast', 'British Broadcasting Corporation'),
+  ('bbc.co.uk', 0.90, 'broadcast', 'British Broadcasting Corporation'),
+  ('npr.org', 0.88, 'broadcast', 'National Public Radio'),
+  ('pbs.org', 0.88, 'broadcast', 'Public Broadcasting Service'),
+  ('factcheck.org', 0.92, 'fact_checker', 'Annenberg Public Policy Center'),
+  ('snopes.com', 0.88, 'fact_checker', 'Fact-checking since 1994'),
+  ('politifact.com', 0.88, 'fact_checker', 'Pulitzer Prize-winning fact-checker'),
+  ('mediabiasfactcheck.com', 0.85, 'fact_checker', 'Media bias ratings'),
+  ('nytimes.com', 0.85, 'newspaper', 'New York Times'),
+  ('washingtonpost.com', 0.85, 'newspaper', 'Washington Post'),
+  ('theguardian.com', 0.83, 'newspaper', 'The Guardian'),
+  ('wsj.com', 0.85, 'newspaper', 'Wall Street Journal'),
+  ('economist.com', 0.87, 'magazine', 'The Economist'),
+  ('nature.com', 0.92, 'academic', 'Nature journal'),
+  ('science.org', 0.92, 'academic', 'Science journal'),
+  ('gov.uk', 0.85, 'government', 'UK Government'),
+  ('usa.gov', 0.85, 'government', 'US Government'),
+  ('who.int', 0.88, 'government', 'World Health Organization'),
+  ('un.org', 0.85, 'government', 'United Nations')
+ON CONFLICT (domain) DO NOTHING;
+
+-- Verification cache for avoiding redundant checks
+CREATE TABLE IF NOT EXISTS verification_cache (
+  id SERIAL PRIMARY KEY,
+  claim_hash TEXT UNIQUE NOT NULL,
+  claim_text TEXT NOT NULL,
+  confidence DECIMAL(3,2) NOT NULL,
+  confidence_level TEXT NOT NULL,
+  sources_json JSONB,
+  verified_at TIMESTAMPTZ DEFAULT NOW(),
+  expires_at TIMESTAMPTZ
+);
+
+CREATE INDEX IF NOT EXISTS idx_verification_cache_hash ON verification_cache(claim_hash);
+CREATE INDEX IF NOT EXISTS idx_verification_cache_expires ON verification_cache(expires_at);

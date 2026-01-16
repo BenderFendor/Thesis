@@ -1,6 +1,6 @@
 import os
 from dataclasses import dataclass
-from typing import Optional
+from typing import List, Optional, Tuple
 
 from dotenv import load_dotenv
 from google import genai
@@ -12,6 +12,23 @@ load_dotenv()
 def _env_enabled(name: str, default: str = "1") -> bool:
     raw = os.getenv(name, default)
     return raw not in {"0", "false", "False", ""}
+
+
+def _parse_domain_list(env_var: str, default: str = "") -> Tuple[str, ...]:
+    raw = os.getenv(env_var, default)
+    if not raw:
+        return ()
+    return tuple(d.strip() for d in raw.split(",") if d.strip())
+
+
+# Default high-credibility domains for verification
+_DEFAULT_VERIFICATION_DOMAINS = (
+    "reuters.com,apnews.com,bbc.com,bbc.co.uk,npr.org,pbs.org,"
+    "factcheck.org,snopes.com,politifact.com,mediabiasfactcheck.com,"
+    "nytimes.com,washingtonpost.com,theguardian.com,wsj.com,"
+    "economist.com,nature.com,science.org,gov.uk,usa.gov,who.int,un.org,"
+    "wikipedia.org,en.wikipedia.org"
+)
 
 
 @dataclass(frozen=True)
@@ -35,6 +52,28 @@ class Settings:
     embedding_queue_size: int = int(os.getenv("EMBEDDING_QUEUE_SIZE", "2000"))
     debug: bool = _env_enabled("DEBUG", "0")
     environment: str = os.getenv("ENVIRONMENT", "development")
+
+    # Verification Agent Settings
+    enable_verification: bool = _env_enabled("ENABLE_VERIFICATION", "1")
+    verification_max_duration_seconds: int = int(
+        os.getenv("VERIFICATION_MAX_DURATION_SECONDS", "15")
+    )
+    verification_max_claims: int = int(os.getenv("VERIFICATION_MAX_CLAIMS", "10"))
+    verification_max_sources_per_claim: int = int(
+        os.getenv("VERIFICATION_MAX_SOURCES_PER_CLAIM", "5")
+    )
+    verification_cache_ttl_hours: int = int(
+        os.getenv("VERIFICATION_CACHE_TTL_HOURS", "24")
+    )
+    verification_workspace_dir: str = os.getenv(
+        "VERIFICATION_WORKSPACE_DIR", "/tmp/thesis_verification"
+    )
+    verification_recheck_threshold: float = float(
+        os.getenv("VERIFICATION_RECHECK_THRESHOLD", "0.4")
+    )
+    verification_allowed_domains: Tuple[str, ...] = _parse_domain_list(
+        "VERIFICATION_ALLOWED_DOMAINS", _DEFAULT_VERIFICATION_DOMAINS
+    )
 
 
 settings = Settings()
