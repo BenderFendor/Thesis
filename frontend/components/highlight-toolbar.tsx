@@ -9,7 +9,7 @@ import { getGlobalOffset } from "@/lib/highlight-utils";
 
 interface HighlightToolbarProps {
   articleUrl: string;
-  containerRef: React.RefObject<HTMLElement>;
+  containerRef: React.RefObject<HTMLElement | null>;
   highlightColor: Highlight["color"]
   autoCreate: boolean
   highlights: Highlight[];

@@ -8,7 +8,7 @@ import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
 import { type NewsArticle, getSourceById, type NewsSource, fetchSourceDebugData, type SourceDebugData, analyzeArticle, type ArticleAnalysis, API_BASE_URL, createBookmark, deleteBookmark, performAgenticSearch, type FactCheckResult, type Highlight, getHighlightsForArticle, createHighlight, updateHighlight, deleteHighlight } from "@/lib/api"
-import { loadHighlightStore, mergeHighlights, saveHighlightStore, toRemoteHighlights, type LocalHighlight, generateClientId, markFailed, markPending, markSynced } from "@/lib/highlight-store"
+import { loadHighlightStore, mergeHighlights, saveHighlightStore, toRemoteHighlights, type LocalHighlight, type HighlightSyncStatus, generateClientId, markFailed, markPending, markSynced } from "@/lib/highlight-store"
 import { isDebugMode } from "@/lib/logger"
 import { useReadingQueue } from "@/hooks/useReadingQueue"
 import { useFavorites } from "@/hooks/useFavorites"
@@ -567,18 +567,19 @@ export function ArticleDetailModal({ article, isOpen, onClose, initialIsBookmark
      setHighlightPopoverOpen(true)
    }
 
-   const handleSaveHighlightNote = async (highlightId: number, note: string) => {
-     setHighlights((prev) => {
-       const updatedLocal = prev.map((item) => {
-         const id = item.server_id ?? item.id
-         if (id !== highlightId) return item
-         return markPending({ highlight: { ...item, note }, op: "update" })
-       })
-       saveHighlightStore({ version: 1, article_url: article.url, highlights: updatedLocal })
-       void syncHighlights(article.url, updatedLocal)
-       return updatedLocal
-     })
-   }
+    const handleSaveHighlightNote = async (highlightId: number, note: string) => {
+      if (!article) return
+      setHighlights((prev) => {
+        const updatedLocal = prev.map((item) => {
+          const id = item.server_id ?? item.id
+          if (id !== highlightId) return item
+          return markPending({ highlight: { ...item, note }, op: "update" })
+        })
+        saveHighlightStore({ version: 1, article_url: article.url, highlights: updatedLocal })
+        void syncHighlights(article.url, updatedLocal)
+        return updatedLocal
+      })
+    }
 
 
   const getBiasColor = (bias: string) => {
@@ -1317,7 +1318,7 @@ export function ArticleDetailModal({ article, isOpen, onClose, initialIsBookmark
                                                   return {
                                                     ...item,
                                                     deleted: false,
-                                                    sync_status: "pending",
+                                                    sync_status: "pending" as HighlightSyncStatus,
                                                     pending_op: undefined,
                                                     local_updated_at: new Date().toISOString(),
                                                     last_error: undefined,

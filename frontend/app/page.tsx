@@ -378,7 +378,7 @@ function NewsPage() {
         type: "info",
         timestamp: now,
         meta: {
-          sources: selectedSources.length,
+          sources: selectedSources.size,
         },
         action: { label: "Debug", type: "open-debug" },
       });
@@ -406,7 +406,7 @@ function NewsPage() {
     streamHook.sources.length,
     activeCategory,
     isFilterActive,
-    selectedSources.length,
+    selectedSources.size,
     loading,
     filteredArticles.length,
   ]);

@@ -12,7 +12,8 @@ import Link from "next/link"
 import JsonView from 'react18-json-view'
 import 'react18-json-view/src/style.css'
 
-export default function SourceDebugPage({ params }: { params: { source: string } }) {
+export default async function SourceDebugPage(props: { params: Promise<{ source: string }> }) {
+  const params = await props.params
   const sourceName = decodeURIComponent(params.source)
   const [debugData, setDebugData] = useState<SourceDebugData | null>(null)
   const [loading, setLoading] = useState(true)

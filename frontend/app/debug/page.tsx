@@ -1373,7 +1373,7 @@ export default function DebugDashboardPage() {
                     <p className="text-xs text-muted-foreground">Total Events</p>
                   </div>
                   <div className="text-center p-3 bg-muted rounded-lg">
-                    <p className="text-xl font-bold text-red-600">{frontendPerfData.summary.errors}</p>
+                    <p className="text-xl font-bold text-red-600">{frontendPerfData.summary.errorCount}</p>
                     <p className="text-xs text-muted-foreground">Errors</p>
                   </div>
                   <div className="text-center p-3 bg-muted rounded-lg">
@@ -1381,10 +1381,8 @@ export default function DebugDashboardPage() {
                     <p className="text-xs text-muted-foreground">Active Streams</p>
                   </div>
                   <div className="text-center p-3 bg-muted rounded-lg">
-                    <p className="text-xl font-bold">
-                      {frontendPerfData.summary.averageStreamDuration?.toFixed(1) || "0"}s
-                    </p>
-                    <p className="text-xs text-muted-foreground">Avg Stream Duration</p>
+                    <p className="text-xl font-bold">{frontendPerfData.summary.slowOperationsCount}</p>
+                    <p className="text-xs text-muted-foreground">Slow Operations</p>
                   </div>
                 </div>
 
@@ -1410,17 +1408,17 @@ export default function DebugDashboardPage() {
                 <div>
                   <h3 className="font-medium mb-2 text-sm">Recent Frontend Events</h3>
                   <div className="space-y-1 max-h-40 overflow-y-auto font-mono text-xs">
-                    {frontendPerfData.events.slice(-20).reverse().map((event, idx) => (
+                    {frontendPerfData.recentEvents.slice(-20).reverse().map((event, idx) => (
                       <div key={idx} className="flex items-start gap-2 p-1 hover:bg-muted rounded">
                         <span className="text-muted-foreground w-20 flex-shrink-0">
                           {new Date(event.timestamp).toLocaleTimeString()}
                         </span>
                         <span className={`px-1 rounded ${
-                          event.type === "error" ? "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400" :
-                          event.type === "stream_event" ? "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400" :
+                          event.eventType === "error" ? "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400" :
+                          event.eventType === "stream_event" ? "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400" :
                           "bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-300"
                         }`}>
-                          {event.type}
+                          {event.eventType}
                         </span>
                         <span className="flex-1 truncate">{event.message}</span>
                       </div>

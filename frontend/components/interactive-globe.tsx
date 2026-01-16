@@ -21,7 +21,7 @@ interface InteractiveGlobeProps {
 }
 
 export function InteractiveGlobe({ articles, onCountrySelect, selectedCountry }: InteractiveGlobeProps) {
-  const globeEl = useRef<any>()
+  const globeEl = useRef<any>(null)
   const containerRef = useRef<HTMLDivElement | null>(null)
   const [dimensions, setDimensions] = useState({ width: 0, height: 0 })
   const [countries, setCountries] = useState({ features: [] })

@@ -17,10 +17,11 @@ import { useFavorites } from "@/hooks/useFavorites"
 import { useNewsStream } from "@/hooks/useNewsStream"
 
 interface SourcePageProps {
-  params: { sourceId: string }
+  params: Promise<{ sourceId: string }>
 }
 
-export default function SourcePage({ params }: SourcePageProps) {
+export default async function SourcePage(props: SourcePageProps) {
+  const params = await props.params
   const sourceId = decodeURIComponent(params.sourceId)
   const router = useRouter()
   const [selectedArticle, setSelectedArticle] = useState<NewsArticle | null>(null)

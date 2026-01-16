@@ -68,10 +68,10 @@ export function ThreeGlobe({
   intensityData = {},
 }: ThreeGlobeProps) {
   const mountRef = useRef<HTMLDivElement>(null)
-  const sceneRef = useRef<THREE.Scene>()
-  const rendererRef = useRef<THREE.WebGLRenderer>()
-  const globeRef = useRef<THREE.Object3D>()
-  const markersRef = useRef<THREE.Group>()
+  const sceneRef = useRef<THREE.Scene>(null)
+  const rendererRef = useRef<THREE.WebGLRenderer>(null)
+  const globeRef = useRef<THREE.Object3D>(null)
+  const markersRef = useRef<THREE.Group>(null)
   const [isLoaded, setIsLoaded] = useState(false)
 
   // Use provided country data or fallback to defaults
@@ -120,8 +120,8 @@ export function ThreeGlobe({
             materials.forEach((material) => {
               if (material) {
                 logger.debug("Material:", material.name, material)
-                if (material.map) {
-                  logger.debug("Texture found for material:", material.name, material.map)
+                if ((material as any).map) {
+                  logger.debug("Texture found for material:", material.name, (material as any).map)
                 } else {
                   logger.debug("No texture map for material:", material.name)
                 }

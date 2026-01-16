@@ -151,10 +151,10 @@ export function SourceSidebar({ isOpen, onClose, sourceRecency }: SourceSidebarP
         )}
 
         {/* Coverage Comparison - Show when 2+ sources are selected */}
-        {selectedSources.length >= 2 && (
+        {selectedSources.size >= 2 && (
           <div className="px-4 py-3 border-b border-white/10">
             <SourceCoverageComparison
-              sourceIds={selectedSources}
+              sourceIds={Array.from(selectedSources)}
               sourceNames={sourceNameLookup}
             />
           </div>
