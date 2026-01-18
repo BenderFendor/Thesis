@@ -97,6 +97,7 @@ async def news_research_stream_endpoint(
                             status_msg = "Indexing new documents..."
 
                         yield f"data: {json.dumps({'type': 'status', 'message': status_msg, 'timestamp': timestamp})}\n\n"
+                        yield f"data: {json.dumps({'type': 'tool_start', 'tool': tool_name, 'args': args, 'timestamp': timestamp})}\n\n"
 
                         if include_thinking:
                             content = f"Calling {tool_name} with {json.dumps(args)}"
@@ -104,6 +105,7 @@ async def news_research_stream_endpoint(
 
                     elif event["type"] == "tool_result":
                         yield f"data: {json.dumps({'type': 'status', 'message': 'Processing tool results...', 'timestamp': timestamp})}\n\n"
+                        yield f"data: {json.dumps({'type': 'tool_result', 'content': event['content'], 'timestamp': timestamp})}\n\n"
                         if include_thinking:
                             yield f"data: {json.dumps({'type': 'thinking_step', 'step': {'type': 'observation', 'content': event['content'], 'timestamp': timestamp}, 'timestamp': timestamp})}\n\n"
 

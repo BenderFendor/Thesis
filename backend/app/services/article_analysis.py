@@ -3,33 +3,34 @@ from __future__ import annotations
 import json
 from typing import Any, Dict, Optional
 
-from app.core.config import create_openai_client, settings
+from app.core.config import get_openai_client, settings
 from app.core.logging import get_logger
 from app.services.article_extraction import extract_article_full_text
 from tenacity import retry, stop_after_attempt, wait_exponential, retry_if_exception
 
 logger = get_logger("article_analysis")
 
-openai_client = create_openai_client(logger)
 SYSTEM_MESSAGE = "You are an expert news analyst. Return valid JSON."
 
 
 def _is_retryable_error(exception):
     msg = str(exception)
-    return "429" in msg or "rate limit" in msg.lower() or "too many requests" in msg.lower()
+    return (
+        "429" in msg
+        or "rate limit" in msg.lower()
+        or "too many requests" in msg.lower()
+    )
 
 
 @retry(
     retry=retry_if_exception(_is_retryable_error),
     wait=wait_exponential(multiplier=2, min=4, max=60),
     stop=stop_after_attempt(5),
-    reraise=True
+    reraise=True,
 )
 def _generate_content_safe(client, model, messages):
     return client.chat.completions.create(
-        model=model,
-        messages=messages,
-        response_format={"type": "json_object"}
+        model=model, messages=messages, response_format={"type": "json_object"}
     )
 
 
@@ -41,6 +42,7 @@ async def extract_article_content(url: str) -> Dict[str, Any]:
 async def analyze_with_gemini(
     article_data: Dict[str, Any], source_name: Optional[str] = None
 ) -> Dict[str, Any]:
+    openai_client = get_openai_client()
     if not openai_client:
         return {"error": "OpenRouter API key not configured"}
 
@@ -52,8 +54,8 @@ async def analyze_with_gemini(
             model=settings.open_router_model,
             messages=[
                 {"role": "system", "content": SYSTEM_MESSAGE},
-                {"role": "user", "content": prompt}
-            ]
+                {"role": "user", "content": prompt},
+            ],
         )
         response_text = _extract_response_text(response)
         analysis = _parse_response_json(response_text)
@@ -148,6 +150,7 @@ CRITICAL: For fact_check_results, verify ALL specific details including:
 
 Provide only the JSON response, no additional text.
 """
+
 
 def _extract_response_text(response: Any) -> str:
     message = response.choices[0].message.content or ""

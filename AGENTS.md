@@ -86,3 +86,17 @@ Code should be self-documenting. If you need a comment to explain WHAT the code 
 - Groups (source/topic) show responsive initial articles: 4 (mobile), 6 (tablet), 8 (desktop) with "View all X" expansion.
 - Topic view has two modes: skim (hero image + title + source list) and expanded (full article grid).
 - No horizontal scroll in grid views; use vertical scroll throughout.
+
+## Resource Initialization
+- Avoid module-level client/factory instantiation (DB clients, API clients, connections).
+- These create new instances on every import, wasting resources.
+- Use singleton pattern with lazy initialization: cache instance at module level, create on first use.
+- Pattern:
+  ```python
+  _instance = None
+  def get_client():
+
+      if _instance is None:
+          _instance = create_client()
+      return _instance
+      global _instance  ```

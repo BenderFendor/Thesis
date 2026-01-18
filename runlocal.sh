@@ -478,6 +478,7 @@ run_backend() {
 
 run_frontend() {
 	require_cmd npm
+	free_port "$FRONTEND_PORT"
 
 	pushd "$FRONTEND_DIR" >/dev/null
 

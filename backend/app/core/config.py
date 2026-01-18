@@ -37,9 +37,7 @@ class Settings:
     app_version: str = "1.0.0"
     gemini_api_key: Optional[str] = os.getenv("GEMINI_API_KEY")
     open_router_api_key: Optional[str] = os.getenv("OPEN_ROUTER_API_KEY")
-    open_router_model: str = os.getenv(
-        "OPEN_ROUTER_MODEL", "google/gemini-3-flash-preview"
-    )
+    open_router_model: str = os.getenv("OPEN_ROUTER_MODEL", "z-ai/glm-4.5-air:free")
     frontend_origins: tuple[str, ...] = (
         "http://localhost:3000",
         "http://localhost:3001",
@@ -114,9 +112,15 @@ def create_openai_client(logger) -> Optional[OpenAI]:
         return None
 
 
-def get_openai_client() -> Optional[OpenAI]:
-    """Helper to get OpenAI client with a default logger."""
-    import logging
+_openai_client_instance: Optional[OpenAI] = None
 
-    logger = logging.getLogger("app.core.config")
-    return create_openai_client(logger)
+
+def get_openai_client() -> Optional[OpenAI]:
+    """Get singleton OpenAI client instance, created lazily on first use."""
+    global _openai_client_instance
+    if _openai_client_instance is None:
+        import logging
+
+        logger = logging.getLogger("app.core.config")
+        _openai_client_instance = create_openai_client(logger)
+    return _openai_client_instance

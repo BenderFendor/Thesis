@@ -211,6 +211,9 @@ next-env.d.ts
 logs
 *.log
 
+# Local research sessions
+backend/research_sessions.json
+
 # Runtime data
 pids
 *.pid
@@ -334,6 +337,7 @@ config.json
 secrets.json
 .env.local
 .env.production
+backend/research_sessions.json
 
 # Backup files
 *.bak
