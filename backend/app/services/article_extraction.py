@@ -59,6 +59,12 @@ def _extract_sync(url: str) -> Dict[str, Any]:
     This is a blocking operation that uses newspaper3k to download and
     parse the article.
     """
+    if _is_paywalled_source(url):
+        return {
+            "success": False,
+            "error": "Paywalled source blocked",
+            "text": None,
+        }
     try:
         config = Config()
         config.browser_user_agent = (
@@ -112,7 +118,28 @@ def _extract_sync(url: str) -> Dict[str, Any]:
 
 def extract_article_content(url: str) -> Dict[str, Any]:
     """Blocking helper for contexts that cannot await coroutines."""
+    if _is_paywalled_source(url):
+        return {
+            "success": False,
+            "error": "Paywalled source blocked",
+            "text": None,
+        }
     return _extract_sync(url)
+
+
+def _is_paywalled_source(url: str) -> bool:
+    if not url:
+        return False
+    lowered = url.lower()
+    blocked_domains = [
+        "nytimes.com",
+        "wsj.com",
+        "reuters.com",
+        "ft.com",
+        "bloomberg.com",
+        "economist.com",
+    ]
+    return any(domain in lowered for domain in blocked_domains)
 
 
 def _extract_with_rust(html: str) -> Dict[str, Any]:

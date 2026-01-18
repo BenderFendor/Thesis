@@ -574,7 +574,12 @@ class ResearchTUI(App):
         self.update_status("Cleared")
 
 
-async def run_cli_query(query: str, api_base: str) -> int:
+async def run_cli_query(
+    query: str,
+    api_base: str,
+    output_format: str,
+    save_session: bool,
+) -> int:
     params = {
         "query": query,
         "include_thinking": "true",
@@ -582,6 +587,9 @@ async def run_cli_query(query: str, api_base: str) -> int:
     start_time = time.time()
     first_event_time: Optional[float] = None
     tool_calls = 0
+    tool_log: List[str] = []
+    referenced_articles: List[Dict[str, Any]] = []
+    assistant_content = ""
 
     async with httpx.AsyncClient(timeout=None) as client:
         try:
@@ -607,42 +615,107 @@ async def run_cli_query(query: str, api_base: str) -> int:
                     event_type = event.get("type")
                     if event_type == "tool_start":
                         tool_calls += 1
-                    if event_type in {
-                        "status",
-                        "thinking",
-                        "tool_start",
-                        "tool_result",
-                    }:
-                        print(json.dumps(event))
+                        tool = event.get("tool", "unknown")
+                        args = event.get("args", {})
+                        tool_log.append(f"> {tool} {json.dumps(args)}")
+                    if event_type == "tool_result":
+                        content = event.get("content", "")
+                        snippet = str(content)[:400].replace("\n", " ")
+                        tool_log.append(f"< {snippet}")
+                    if event_type == "referenced_articles":
+                        referenced_articles = event.get("articles", []) or []
+                    if event_type == "thinking":
+                        assistant_content = event.get("content", "")
+                    if event_type == "complete":
+                        result = event.get("result", {})
+                        assistant_content = result.get("answer", assistant_content)
+                    if output_format == "json":
+                        if event_type in {
+                            "status",
+                            "thinking",
+                            "tool_start",
+                            "tool_result",
+                            "complete",
+                            "error",
+                        }:
+                            print(json.dumps(event))
+                    else:
+                        if event_type == "status":
+                            print(f"[status] {event.get('message', '')}")
+                        elif event_type == "tool_start":
+                            print(tool_log[-1])
+                        elif event_type == "tool_result":
+                            print(tool_log[-1])
+                        elif event_type == "complete":
+                            print("\n" + (assistant_content or ""))
+                        elif event_type == "error":
+                            print(f"[error] {event.get('message', '')}")
                     if event_type in {"complete", "error"}:
-                        print(json.dumps(event))
                         break
         except httpx.HTTPStatusError as exc:
-            print(
-                json.dumps(
-                    {
-                        "type": "error",
-                        "message": f"HTTP error {exc.response.status_code} for {exc.request.url}",
-                    }
-                )
-            )
+            message = f"HTTP error {exc.response.status_code} for {exc.request.url}"
+            if output_format == "json":
+                print(json.dumps({"type": "error", "message": message}))
+            else:
+                print(f"[error] {message}")
             return 1
         except httpx.HTTPError as exc:
-            print(json.dumps({"type": "error", "message": str(exc)}))
+            if output_format == "json":
+                print(json.dumps({"type": "error", "message": str(exc)}))
+            else:
+                print(f"[error] {exc}")
             return 1
 
     elapsed = time.time() - start_time
     ttf = (first_event_time - start_time) if first_event_time else 0.0
-    print(
-        json.dumps(
-            {
-                "type": "summary",
-                "elapsed_seconds": round(elapsed, 2),
-                "time_to_first_event": round(ttf, 2),
-                "tool_calls": tool_calls,
-            }
+    summary_payload = {
+        "type": "summary",
+        "elapsed_seconds": round(elapsed, 2),
+        "time_to_first_event": round(ttf, 2),
+        "tool_calls": tool_calls,
+    }
+    if output_format == "json":
+        print(json.dumps(summary_payload))
+    else:
+        print(
+            f"[summary] elapsed={summary_payload['elapsed_seconds']}s ttf={summary_payload['time_to_first_event']}s tools={summary_payload['tool_calls']}"
         )
-    )
+
+    if save_session:
+        sessions = _load_sessions()
+        now = _utc_now()
+        session = ResearchSession(
+            session_id=str(uuid.uuid4()),
+            title=query[:60] or "CLI Research",
+            created_at=now,
+            updated_at=now,
+            messages=[
+                {
+                    "id": str(uuid.uuid4()),
+                    "type": "user",
+                    "content": query,
+                    "timestamp": now,
+                },
+                {
+                    "id": str(uuid.uuid4()),
+                    "type": "assistant",
+                    "content": assistant_content,
+                    "timestamp": now,
+                    "tool_log": tool_log,
+                    "referenced_articles": referenced_articles,
+                },
+            ],
+            stats=SessionStats(
+                total_requests=1,
+                last_duration_seconds=elapsed,
+                avg_duration_seconds=elapsed,
+                time_to_first_event=ttf,
+                tool_calls=tool_calls,
+            ),
+        )
+        sessions.insert(0, session)
+        _save_sessions(sessions)
+
     return 0
 
 
@@ -660,6 +733,17 @@ def build_arg_parser() -> argparse.ArgumentParser:
         default=os.getenv("NEWS_RESEARCH_API_BASE", DEFAULT_API_BASE),
         help="Override API base URL",
     )
+    parser.add_argument(
+        "--format",
+        choices=["json", "text"],
+        default="json",
+        help="Output format for CLI mode",
+    )
+    parser.add_argument(
+        "--save-session",
+        action="store_true",
+        help="Persist CLI run to backend/research_sessions.json",
+    )
     return parser
 
 
@@ -667,7 +751,14 @@ def main() -> None:
     parser = build_arg_parser()
     args = parser.parse_args()
     if args.query:
-        asyncio.run(run_cli_query(args.query, args.api_base))
+        asyncio.run(
+            run_cli_query(
+                args.query,
+                args.api_base,
+                args.format,
+                args.save_session,
+            )
+        )
         return
     app = ResearchTUI()
     app.run()

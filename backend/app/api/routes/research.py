@@ -61,6 +61,8 @@ async def news_research_stream_endpoint(
                     chat_history = None
 
             # Stream the research agent events
+            final_result = None
+            last_thought = None
             async for event_raw in iterate_in_threadpool(
                 stream_research_agent(query, articles_dict, chat_history)
             ):
@@ -74,6 +76,7 @@ async def news_research_stream_endpoint(
                     timestamp = datetime.now(timezone.utc).isoformat()
 
                     if event["type"] == "thinking":
+                        last_thought = event.get("content")
                         yield f"data: {json.dumps({'type': 'thinking_step', 'step': {'type': 'thought', 'content': event['content'], 'timestamp': timestamp}, 'timestamp': timestamp})}\n\n"
 
                     elif event["type"] == "tool_start":
@@ -116,11 +119,24 @@ async def news_research_stream_endpoint(
                         yield f"data: {json.dumps({'type': 'referenced_articles', 'articles': event['articles'], 'timestamp': timestamp})}\n\n"
 
                     elif event["type"] == "complete":
+                        final_result = event.get("result")
                         yield f"data: {json.dumps({'type': 'complete', 'result': event['result'], 'timestamp': timestamp})}\n\n"
 
                 except Exception as e:
                     logger.error(f"Error processing stream event: {e}")
                     continue
+
+            if not final_result:
+                fallback = {
+                    "success": False,
+                    "query": query,
+                    "answer": last_thought
+                    or "Answer\nNo answer available.\n\nFollow-up questions\n- What details should I verify?",
+                    "structured_articles": "",
+                    "articles_searched": len(articles_dict),
+                    "referenced_articles": [],
+                }
+                yield f"data: {json.dumps({'type': 'complete', 'result': fallback, 'timestamp': datetime.now(timezone.utc).isoformat()})}\n\n"
 
         except Exception as exc:  # pragma: no cover - defensive logging
             message = str(exc)

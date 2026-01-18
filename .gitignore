@@ -213,6 +213,7 @@ logs
 
 # Local research sessions
 backend/research_sessions.json
+backend/lab_runs/
 
 # Runtime data
 pids

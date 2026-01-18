@@ -42,8 +42,14 @@ SYSTEM_PROMPT = (
     "Cite sources with URLs, highlight differing viewpoints, and mention\n"
     "bias or funding details when relevant. Current date: {date}."
 )
+FINALIZER_SYSTEM_PROMPT = (
+    "You are a careful news analyst. Produce the final response with sections titled "
+    "'Answer' and 'Follow-up questions'. Use the provided context only. "
+    "Include URLs in citations when possible. Keep the answer concise but complete."
+)
 MAX_ITERATIONS = 5
 MIN_FINAL_ANSWER_CHARS = 120
+MIN_FINAL_ANSWER_SECTIONS = ("answer", "follow-up questions")
 
 _news_articles_cache: List[Dict[str, Any]] = []
 _referenced_articles_tracker: List[Dict[str, Any]] = []
@@ -239,6 +245,14 @@ tools = [
     rag_index_documents,
 ]
 
+
+TOOL_ROUTER_SYSTEM_PROMPT = (
+    "Decide which tools to use for the query. "
+    "Always use search_internal_news first, then web_search or news_search. "
+    "If you need full text, call fetch_article_content on selected URLs. "
+    "After tool use, answer with sections titled 'Answer' and 'Follow-up questions'."
+)
+
 if settings.open_router_api_key:
     llm = ChatOpenAI(
         model=settings.open_router_model,
@@ -254,16 +268,76 @@ else:
     )
 
 model = llm.bind_tools(tools)
+tool_router = llm.bind_tools(tools, tool_choice="required")
 
 
 class AgentState(TypedDict):
     messages: Annotated[Sequence[BaseMessage], add_messages]
     iteration: int
+    mode: str
 
 
 def call_model(state: AgentState) -> Dict[str, Any]:
+    mode = state.get("mode", "research")
+    if mode == "final":
+        messages = list(state["messages"])
+        last_user = ""
+        for message in reversed(messages):
+            if isinstance(message, HumanMessage):
+                last_user = str(message.content)
+                break
+
+        snippets = []
+        for message in messages:
+            if isinstance(message, AIMessage):
+                content = _extract_text_from_message(message).strip()
+                if content:
+                    snippets.append(content)
+            elif isinstance(message, HumanMessage):
+                snippets.append(str(message.content))
+        context_blob = "\n\n".join(snippets[-6:])
+
+        messages = [
+            SystemMessage(content=FINALIZER_SYSTEM_PROMPT),
+            HumanMessage(
+                content=(
+                    "Return the final response with sections titled 'Answer' and "
+                    "'Follow-up questions'. Use the context provided.\n\n"
+                    f"Question: {last_user}\n\nContext:\n{context_blob}"
+                )
+            ),
+        ]
+        response = llm.invoke(messages)
+        return {
+            "messages": [response],
+            "iteration": state.get("iteration", 0),
+            "mode": mode,
+        }
+
+    if mode == "tool_router":
+        messages = [
+            SystemMessage(content=TOOL_ROUTER_SYSTEM_PROMPT),
+            *state["messages"],
+        ]
+        response = tool_router.invoke(messages)
+        return {
+            "messages": [response],
+            "iteration": state.get("iteration", 0) + 1,
+            "mode": "research",
+        }
+
     response = model.invoke(state["messages"])
-    return {"messages": [response], "iteration": state.get("iteration", 0) + 1}
+    iteration = state.get("iteration", 0) + 1
+    next_mode = "research"
+    if isinstance(response, AIMessage):
+        content = _extract_text_from_message(response)
+        if _needs_final_answer(content) and not getattr(response, "tool_calls", None):
+            next_mode = "tool_router"
+    return {
+        "messages": [response],
+        "iteration": iteration,
+        "mode": next_mode,
+    }
 
 
 def _extract_text_from_message(message: BaseMessage) -> str:
@@ -276,8 +350,13 @@ def _extract_text_from_message(message: BaseMessage) -> str:
 
 def should_continue(state: AgentState) -> str:
     iteration = state.get("iteration", 0)
-    if iteration >= MAX_ITERATIONS:
+    if state.get("mode") == "tool_router":
+        return "agent"
+    if state.get("mode") == "final":
         return END
+    if iteration >= MAX_ITERATIONS:
+        state["mode"] = "final"
+        return "agent"
     last_message = state["messages"][-1]
     if isinstance(last_message, AIMessage) and getattr(
         last_message, "tool_calls", None
@@ -285,11 +364,8 @@ def should_continue(state: AgentState) -> str:
         return "tools"
     if isinstance(last_message, AIMessage):
         content = _extract_text_from_message(last_message)
-        lower_content = content.lower()
-        has_sections = "answer" in lower_content and "follow-up" in lower_content
-        if (
-            content.strip() and len(content.strip()) < MIN_FINAL_ANSWER_CHARS
-        ) or not has_sections:
+        if _needs_final_answer(content):
+            state["mode"] = "final"
             return "agent"
     return END
 
@@ -302,7 +378,7 @@ graph_builder.add_edge("tools", "agent")
 graph_builder.add_conditional_edges(
     "agent",
     should_continue,
-    {"tools": "tools", END: END},
+    {"tools": "tools", "agent": "agent", END: END},
 )
 
 graph = graph_builder.compile()
@@ -356,6 +432,72 @@ def _match_articles_in_text(answer_text: str) -> List[Dict[str, Any]]:
     return resolved
 
 
+def _has_required_sections(answer_text: str) -> bool:
+    lower_content = answer_text.lower()
+    return all(section in lower_content for section in MIN_FINAL_ANSWER_SECTIONS)
+
+
+def _needs_final_answer(answer_text: str) -> bool:
+    content = answer_text.strip()
+    if not content:
+        return True
+    if len(content) < MIN_FINAL_ANSWER_CHARS:
+        return True
+    return not _has_required_sections(content)
+
+
+def _build_context_snippet(referenced_articles: List[Dict[str, Any]]) -> str:
+    lines: List[str] = []
+    for article in referenced_articles[:8]:
+        title = article.get("title") or "Untitled"
+        source = article.get("source") or "Unknown"
+        url = article.get("url") or article.get("link") or ""
+        summary = article.get("summary") or article.get("description") or ""
+        published = article.get("published") or ""
+        lines.append(f"- {title} ({source}) {published}\n  {url}\n  {summary}")
+    return "\n".join(lines)
+
+
+def _finalize_answer(
+    query: str,
+    referenced_articles: List[Dict[str, Any]],
+    tool_snippets: List[str],
+) -> str:
+    context = _build_context_snippet(referenced_articles)
+    tool_context = "\n".join(tool_snippets[:6]) if tool_snippets else ""
+    prompt_parts = [
+        f"Question: {query}",
+        "Context:",
+        context or "No article context available.",
+    ]
+    if tool_context:
+        prompt_parts.extend(["Tool notes:", tool_context])
+    prompt_parts.append("Return the final response.")
+    finalizer_messages = [
+        SystemMessage(content=FINALIZER_SYSTEM_PROMPT),
+        HumanMessage(content="\n\n".join(prompt_parts)),
+    ]
+    try:
+        response = llm.invoke(finalizer_messages)
+        return _content_to_text(response.content).strip()
+    except Exception as exc:  # pragma: no cover - defensive fallback
+        logger.warning("Finalizer failed: %s", exc)
+        return ""
+
+
+def _sanitize_final_answer(answer_text: str) -> str:
+    content = answer_text.strip()
+    if _has_required_sections(content):
+        return content
+    if not content:
+        content = "No answer available."
+    return (
+        "Answer\n"
+        + content
+        + "\n\nFollow-up questions\n- What details should I verify?\n"
+    )
+
+
 def research_news(
     query: str,
     articles: Optional[List[Dict[str, Any]]] = None,
@@ -366,10 +508,12 @@ def research_news(
     initial_state: AgentState = {
         "messages": _build_initial_messages(query, chat_history),
         "iteration": 0,
+        "mode": "research",
     }
 
     thinking_steps: List[Dict[str, Any]] = []
     final_answer = ""
+    tool_snippets: List[str] = []
 
     for update in graph.stream(initial_state, stream_mode="updates"):
         if "agent" in update:
@@ -392,17 +536,27 @@ def research_news(
                 )
         if "tools" in update:
             for tool_message in update["tools"]["messages"]:
+                snippet = _content_to_text(tool_message.content)[:2000]
                 thinking_steps.append(
                     {
                         "type": "observation",
-                        "content": _content_to_text(tool_message.content)[:2000],
+                        "content": snippet,
                         "timestamp": datetime.now(timezone.utc).isoformat(),
                     }
                 )
+                if snippet:
+                    tool_snippets.append(snippet)
 
     referenced_articles = list(_referenced_articles_tracker)
     if not referenced_articles and final_answer:
         referenced_articles = _match_articles_in_text(final_answer)
+
+    if _needs_final_answer(final_answer):
+        synthesized = _finalize_answer(query, referenced_articles, tool_snippets)
+        if synthesized:
+            final_answer = synthesized
+
+    final_answer = _sanitize_final_answer(final_answer)
 
     structured_block = ""
     if referenced_articles:
@@ -438,9 +592,11 @@ def research_stream(
     initial_state: AgentState = {
         "messages": _build_initial_messages(query, chat_history),
         "iteration": 0,
+        "mode": "research",
     }
 
     final_answer = ""
+    tool_snippets: List[str] = []
 
     for update in graph.stream(initial_state, stream_mode="updates"):
         if "agent" in update:
@@ -468,12 +624,15 @@ def research_stream(
                 )
         if "tools" in update:
             for tool_message in update["tools"]["messages"]:
+                snippet = _content_to_text(tool_message.content)[:2000]
+                if snippet:
+                    tool_snippets.append(snippet)
                 yield (
                     "data: "
                     + json.dumps(
                         {
                             "type": "tool_result",
-                            "content": _content_to_text(tool_message.content)[:2000],
+                            "content": snippet,
                         }
                     )
                     + "\n\n"
@@ -482,6 +641,13 @@ def research_stream(
     referenced_articles = list(_referenced_articles_tracker)
     if not referenced_articles and final_answer:
         referenced_articles = _match_articles_in_text(final_answer)
+
+    if _needs_final_answer(final_answer):
+        synthesized = _finalize_answer(query, referenced_articles, tool_snippets)
+        if synthesized:
+            final_answer = synthesized
+
+    final_answer = _sanitize_final_answer(final_answer)
 
     yield (
         "data: "
@@ -505,7 +671,7 @@ def research_stream(
         structured_block = f"\n```json:articles\n{json.dumps(payload, indent=2)}\n```\n"
 
     result = {
-        "success": True,
+        "success": bool(final_answer.strip()),
         "query": query,
         "answer": final_answer,
         "structured_articles": structured_block,
