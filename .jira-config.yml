@@ -1,0 +1,38 @@
+jira:
+  url: ${JIRA_URL}
+  email: ${JIRA_EMAIL}
+  api_token: ${JIRA_API_TOKEN}
+  project_key: CAP  # Your Jira project key
+
+sync:
+  # Linking strategy: html_comment, inline_bracket, or separate_json
+  linking_strategy: html_comment
+
+  # Deletion handling
+  archive_to_log: true
+  log_file_path: Log.md
+
+  # Conflict resolution: interactive, latest, manual
+  conflict_mode: interactive
+
+  # Status mapping
+  status_map:
+    todo: To Do
+    in_progress: In Progress
+    done: Done
+
+  # Priority mapping
+  priority_map:
+    P0: Highest
+    P1: High
+    P2: Medium
+    P3: Low
+
+  # Issue type mapping (use available Jira types)
+  issue_types:
+    phase: Initiative
+    subsection: Initiative
+    item: Initiative
+
+# Sections to sync (empty = sync all)
+sync_sections: []

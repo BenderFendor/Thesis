@@ -371,3 +371,10 @@ dev-browser/
 
 # Backend logs
 backend/logs/
+
+# Jira sync
+.jira-sync-state.json
+scripts/.pytest_cache/
+scripts/__pycache__/
+scripts/*.pyc
+scripts/*.bak
