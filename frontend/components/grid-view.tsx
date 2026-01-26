@@ -279,7 +279,7 @@ export function GridView({
       })
     }
     return result
-  }, [articles, searchTerm])
+  }, [articles, searchTerm, isDev])
 
   // Notify parent about filtered count
   useEffect(() => {
@@ -841,10 +841,10 @@ export function GridView({
                       const showImage = hasRealImage(article.image)
 
                       return (
-                        <button
+                        <div
                           key={article.url ? `url:${article.url}` : `id:${article.id}`}
                           onClick={() => handleArticleClick(article)}
-                          className="group w-full text-left transition-colors duration-200 snap-start"
+                          className="group w-full text-left transition-colors duration-200 snap-start cursor-pointer"
                         >
                           <Card className="h-full overflow-hidden flex flex-col border border-white/10 bg-[var(--news-bg-secondary)] transition-colors duration-200 group-hover:border-primary/60 cursor-pointer rounded-none shadow-none">
                             {/* Compact Image (or no-image fallback) */}
@@ -950,9 +950,9 @@ export function GridView({
                                 </span>
                               </div>
                             </CardContent>
-                          </Card>
-                        </button>
-                      )
+                           </Card>
+                         </div>
+                       )
                     })}
                   </div>
                   {group.articles.length > initialArticleCount && (
