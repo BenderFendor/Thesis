@@ -43,6 +43,9 @@
 - Use a marker value (e.g., `"none"`) for failed attempts so they aren't re-tried.
 - Every layer (DB, API, frontend) must handle marker values consistently.
 
+## Local DB Bootstrap
+- Before running migrations locally, run `init_db()` and confirm `gdelt_events` exists.
+
 ## Image Handling
 - Filter SVGs and placeholder images at fetch time, not just display time.
 - URLs ending in `.svg` or containing `placeholder` are not valid article images.
