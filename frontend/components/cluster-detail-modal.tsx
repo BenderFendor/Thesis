@@ -50,6 +50,82 @@ interface ClusterDetailModalProps {
 
 const fullArticleCache = new Map<string, string | null>();
 
+interface ComparisonData {
+  similarity: {
+    content_similarity: number;
+    title_similarity: number;
+    overall_match_percent: number;
+  };
+  entities: {
+    source_1: {
+      persons: string[];
+      organizations: string[];
+      locations: string[];
+      dates: string[];
+    };
+    source_2: {
+      persons: string[];
+      organizations: string[];
+      locations: string[];
+      dates: string[];
+    };
+    comparison: {
+      common_entities: {
+        persons: string[];
+        organizations: string[];
+        locations: string[];
+        dates: string[];
+      };
+      unique_to_source_1: {
+        persons: string[];
+        organizations: string[];
+        locations: string[];
+        dates: string[];
+      };
+      unique_to_source_2: {
+        persons: string[];
+        organizations: string[];
+        locations: string[];
+        dates: string[];
+      };
+    };
+  };
+  keywords: {
+    source_1_top: Array<{ word: string; count: number }>;
+    source_2_top: Array<{ word: string; count: number }>;
+    comparison: {
+      common_keywords: Array<{
+        keyword: string;
+        source_1_freq: number;
+        source_2_freq: number;
+        difference: number;
+        emphasis: string;
+      }>;
+      unique_to_source_1: Array<{ keyword: string; frequency: number }>;
+      unique_to_source_2: Array<{ keyword: string; frequency: number }>;
+    };
+  };
+  diff: {
+    added: Array<{ index: number; text: string; type: string }>;
+    removed: Array<{ index: number; text: string; type: string }>;
+    similar: Array<{
+      source_1_index: number;
+      source_2_index: number;
+      source_1_text: string;
+      source_2_text: string;
+      similarity: number;
+    }>;
+  };
+  summary: {
+    common_entities_count: number;
+    unique_entities_source_1: number;
+    unique_entities_source_2: number;
+    common_keywords_count: number;
+    unique_keywords_source_1: number;
+    unique_keywords_source_2: number;
+  };
+}
+
 function formatDate(dateStr?: string): string {
   if (!dateStr) return "";
   const date = new Date(dateStr);
@@ -85,6 +161,9 @@ export function ClusterDetailModal({
   const [isExpanded, setIsExpanded] = useState(false);
   const [likedArticles, setLikedArticles] = useState<Set<number>>(new Set());
   const [comparisonMode, setComparisonMode] = useState(false);
+  const [comparisonData, setComparisonData] = useState<ComparisonData | null>(null);
+  const [comparisonLoading, setComparisonLoading] = useState(false);
+  const [selectedArticlesForComparison, setSelectedArticlesForComparison] = useState<number[]>([]);
   const articleContentRef = useRef<HTMLDivElement>(null);
 
   const { addArticleToQueue, removeArticleFromQueue, isArticleInQueue } = useReadingQueue();
@@ -159,6 +238,46 @@ export function ClusterDetailModal({
       return next;
     });
   }, []);
+
+  const loadComparisonData = useCallback(async (articleIds: number[]) => {
+    if (articleIds.length < 2 || !clusterDetail) return;
+    
+    setComparisonLoading(true);
+    try {
+      const articles = clusterDetail.articles.filter(a => articleIds.includes(a.id));
+      if (articles.length < 2) return;
+
+      // Load content for both articles if not already loaded
+      for (const article of articles) {
+        if (!articleContents.has(article.id)) {
+          await loadArticleContent(article);
+        }
+      }
+
+      const content1 = articleContents.get(articles[0].id) || "";
+      const content2 = articleContents.get(articles[1].id) || "";
+
+      const response = await fetch(`${API_BASE_URL}/compare/articles`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          content_1: content1,
+          content_2: content2,
+          title_1: articles[0].title,
+          title_2: articles[1].title,
+        }),
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        setComparisonData(data);
+      }
+    } catch (err) {
+      console.error("Failed to load comparison:", err);
+    } finally {
+      setComparisonLoading(false);
+    }
+  }, [clusterDetail, articleContents, loadArticleContent]);
 
   const handleQueueToggle = useCallback(
     (article: ClusterArticle) => {
@@ -296,7 +415,15 @@ export function ClusterDetailModal({
                   <TabsTrigger
                     value="compare"
                     className="data-[state=active]:bg-[var(--news-bg-secondary)] data-[state=active]:border-primary/40 border border-transparent px-4 py-2 text-xs font-medium"
-                    onClick={() => setComparisonMode(true)}
+                    onClick={() => {
+                      setComparisonMode(true);
+                      if (clusterDetail && clusterDetail.articles.length >= 2 && selectedArticlesForComparison.length === 0) {
+                        // Auto-select first two articles
+                        const firstTwo = clusterDetail.articles.slice(0, 2).map(a => a.id);
+                        setSelectedArticlesForComparison(firstTwo);
+                        loadComparisonData(firstTwo);
+                      }
+                    }}
                   >
                     <span className="mr-2">⚖️</span>
                     Compare Sources
@@ -438,110 +565,292 @@ export function ClusterDetailModal({
                       <p className="text-sm text-muted-foreground">
                         How different sources report the same story
                       </p>
+                      {comparisonData && (
+                        <div className="mt-3 inline-flex items-center gap-2 px-3 py-1 bg-[var(--news-bg-secondary)] rounded-full text-xs">
+                          <span>Content Similarity:</span>
+                          <span className={`font-bold ${comparisonData.similarity.overall_match_percent > 70 ? 'text-green-400' : comparisonData.similarity.overall_match_percent > 40 ? 'text-yellow-400' : 'text-red-400'}`}>
+                            {comparisonData.similarity.overall_match_percent}%
+                          </span>
+                        </div>
+                      )}
                     </div>
 
-                    {/* Side-by-side comparison */}
-                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                      {clusterDetail.articles.slice(0, 2).map((article, idx) => {
-                        const content = articleContents.get(article.id);
-                        return (
-                          <div key={article.id} className="space-y-4">
-                            {/* Article Header */}
-                            <div>
-                              {hasRealImage(article.image_url) && (
-                                <div className="relative aspect-video max-h-[200px] overflow-hidden rounded-lg mb-4">
-                                  <img
-                                    src={article.image_url}
-                                    alt={article.title}
-                                    className="w-full h-full object-cover"
-                                  />
-                                  <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent" />
-                                </div>
-                              )}
-                              <h4 className="font-serif text-lg font-bold">
-                                {article.source}
-                              </h4>
-                              <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                                <Clock className="w-3 h-3" />
-                                {formatDate(article.published_at)}
-                                <Badge variant="outline" className="text-[9px]">
-                                  {Math.round(article.similarity * 100)}% match
-                                </Badge>
+                    {comparisonLoading ? (
+                      <div className="flex items-center justify-center py-12">
+                        <Loader2 className="w-8 h-8 animate-spin text-primary" />
+                        <span className="ml-3 text-muted-foreground">Analyzing articles...</span>
+                      </div>
+                    ) : comparisonData ? (
+                      <>
+                        {/* Entity Extraction Comparison */}
+                        <div className="bg-[var(--news-bg-secondary)] rounded-lg border border-border/60 p-4">
+                          <h4 className="font-bold mb-4 flex items-center gap-2">
+                            <span>Named Entities</span>
+                            <Badge variant="outline" className="text-[10px]">
+                              {comparisonData.summary.common_entities_count} shared
+                            </Badge>
+                          </h4>
+                          
+                          {/* Common Entities */}
+                          {comparisonData.entities.comparison.common_entities.persons.length > 0 && (
+                            <div className="mb-3">
+                              <span className="text-xs text-muted-foreground">Common People:</span>
+                              <div className="flex flex-wrap gap-1 mt-1">
+                                {comparisonData.entities.comparison.common_entities.persons.map((person, idx) => (
+                                  <Badge key={idx} className="text-[10px] bg-green-500/20 text-green-400 border-green-500/40">
+                                    {person}
+                                  </Badge>
+                                ))}
                               </div>
                             </div>
-
-                            {/* Content Preview */}
-                            <div>
-                              <h5 className="font-bold mb-2">{article.title}</h5>
-                              {loadingArticle === article.id ? (
-                                <div className="flex items-center gap-2 p-4 bg-[var(--news-bg-secondary)]/60 rounded-lg border border-border/60">
-                                  <Loader2 className="w-5 h-5 animate-spin text-primary" />
-                                  <span className="text-muted-foreground">Loading...</span>
-                                </div>
-                              ) : content ? (
-                                <div className="prose prose-invert max-w-none text-sm">
-                                  <ArticleContent
-                                    content={content}
-                                    highlights={[]}
-                                    className="line-clamp-10"
-                                  />
-                                </div>
-                              ) : (
-                                <div className="text-sm text-muted-foreground">
-                                  No content available
-                                </div>
-                              )}
+                          )}
+                          
+                          {comparisonData.entities.comparison.common_entities.organizations.length > 0 && (
+                            <div className="mb-3">
+                              <span className="text-xs text-muted-foreground">Common Organizations:</span>
+                              <div className="flex flex-wrap gap-1 mt-1">
+                                {comparisonData.entities.comparison.common_entities.organizations.map((org, idx) => (
+                                  <Badge key={idx} className="text-[10px] bg-green-500/20 text-green-400 border-green-500/40">
+                                    {org}
+                                  </Badge>
+                                ))}
+                              </div>
                             </div>
-
-                            {/* Actions */}
-                            <div className="flex items-center gap-2 pt-2 border-t border-border/60">
-                              <Button
-                                variant="outline"
-                                size="sm"
-                                asChild
-                                className="text-xs"
-                              >
-                                <a
-                                  href={article.url}
-                                  target="_blank"
-                                  rel="noopener noreferrer"
-                                >
-                                  <ExternalLink className="h-4 w-4 mr-2" />
-                                  Original
-                                </a>
-                              </Button>
+                          )}
+                          
+                          {/* Unique Entities */}
+                          <div className="grid grid-cols-2 gap-3 mt-4 pt-3 border-t border-border/60">
+                            <div>
+                              <span className="text-xs text-muted-foreground block mb-2">
+                                Unique to {clusterDetail.articles[0].source}:
+                              </span>
+                              <div className="space-y-1">
+                                {[...comparisonData.entities.comparison.unique_to_source_1.persons.slice(0, 3), 
+                                  ...comparisonData.entities.comparison.unique_to_source_1.organizations.slice(0, 3)].map((entity, idx) => (
+                                  <Badge key={idx} variant="outline" className="text-[9px] mr-1">
+                                    {entity}
+                                  </Badge>
+                                ))}
+                              </div>
+                            </div>
+                            <div>
+                              <span className="text-xs text-muted-foreground block mb-2">
+                                Unique to {clusterDetail.articles[1].source}:
+                              </span>
+                              <div className="space-y-1">
+                                {[...comparisonData.entities.comparison.unique_to_source_2.persons.slice(0, 3), 
+                                  ...comparisonData.entities.comparison.unique_to_source_2.organizations.slice(0, 3)].map((entity, idx) => (
+                                  <Badge key={idx} variant="outline" className="text-[9px] mr-1">
+                                    {entity}
+                                  </Badge>
+                                ))}
+                              </div>
                             </div>
                           </div>
-                        );
-                      })}
-                    </div>
+                        </div>
 
-                    {/* Comparison Summary */}
-                    <div className="mt-6 pt-6 border-t border-border/60">
-                      <h4 className="font-bold mb-4">Comparison Summary</h4>
-                      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
-                        {clusterDetail.articles.slice(0, 2).map((article, idx) => {
-                          const content = articleContents.get(article.id);
-                          const wordCount = content ? content.split(/\s+/).length : 0;
-                          return (
-                            <div key={article.id} className="bg-[var(--news-bg-secondary)] p-4 rounded-lg border border-border/60">
-                              <div className="font-bold mb-2">{article.source}</div>
-                              <div className="space-y-1 text-muted-foreground">
-                                <div>Word count: {wordCount}</div>
-                                <div>Published: {formatDate(article.published_at)}</div>
-                                <div>Similarity: {Math.round(article.similarity * 100)}%</div>
+                        {/* Keyword Frequency Comparison */}
+                        <div className="bg-[var(--news-bg-secondary)] rounded-lg border border-border/60 p-4">
+                          <h4 className="font-bold mb-4">Keyword Analysis</h4>
+                          
+                          {/* Common Keywords with emphasis */}
+                          {comparisonData.keywords.comparison.common_keywords.length > 0 && (
+                            <div className="mb-4">
+                              <span className="text-xs text-muted-foreground">Common Keywords (with emphasis):</span>
+                              <div className="mt-2 space-y-1">
+                                {comparisonData.keywords.comparison.common_keywords.slice(0, 8).map((kw, idx) => (
+                                  <div key={idx} className="flex items-center gap-2 text-xs">
+                                    <span className="w-20 font-medium">{kw.keyword}</span>
+                                    <div className="flex-1 h-4 bg-[var(--news-bg-primary)] rounded-full overflow-hidden flex">
+                                      <div 
+                                        className="h-full bg-blue-500/60" 
+                                        style={{ width: `${(kw.source_1_freq / (kw.source_1_freq + kw.source_2_freq || 1)) * 100}%` }}
+                                      />
+                                      <div 
+                                        className="h-full bg-orange-500/60" 
+                                        style={{ width: `${(kw.source_2_freq / (kw.source_1_freq + kw.source_2_freq || 1)) * 100}%` }}
+                                      />
+                                    </div>
+                                    <span className="w-8 text-right text-[10px] text-muted-foreground">
+                                      {kw.source_1_freq} vs {kw.source_2_freq}
+                                    </span>
+                                    {kw.emphasis !== 'equal' && (
+                                      <Badge className={`text-[9px] ${kw.emphasis === 'source_1' ? 'bg-blue-500/20 text-blue-400' : 'bg-orange-500/20 text-orange-400'}`}>
+                                        {kw.emphasis === 'source_1' ? clusterDetail.articles[0].source.slice(0, 8) : clusterDetail.articles[1].source.slice(0, 8)}
+                                      </Badge>
+                                    )}
+                                  </div>
+                                ))}
                               </div>
                             </div>
-                          );
-                        })}
+                          )}
+
+                          {/* Unique Keywords */}
+                          <div className="grid grid-cols-2 gap-3">
+                            <div>
+                              <span className="text-xs text-muted-foreground">Unique to {clusterDetail.articles[0].source}:</span>
+                              <div className="flex flex-wrap gap-1 mt-1">
+                                {comparisonData.keywords.comparison.unique_to_source_1.slice(0, 6).map((kw, idx) => (
+                                  <Badge key={idx} variant="outline" className="text-[9px]">
+                                    {kw.keyword} ({kw.frequency})
+                                  </Badge>
+                                ))}
+                              </div>
+                            </div>
+                            <div>
+                              <span className="text-xs text-muted-foreground">Unique to {clusterDetail.articles[1].source}:</span>
+                              <div className="flex flex-wrap gap-1 mt-1">
+                                {comparisonData.keywords.comparison.unique_to_source_2.slice(0, 6).map((kw, idx) => (
+                                  <Badge key={idx} variant="outline" className="text-[9px]">
+                                    {kw.keyword} ({kw.frequency})
+                                  </Badge>
+                                ))}
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* Side-by-side Content with Diff Highlights */}
+                        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                          {clusterDetail.articles.slice(0, 2).map((article, idx) => {
+                            const content = articleContents.get(article.id);
+                            const isFirst = idx === 0;
+                            return (
+                              <div key={article.id} className="space-y-4">
+                                {/* Article Header */}
+                                <div className="bg-[var(--news-bg-secondary)] p-4 rounded-lg border border-border/60">
+                                  {hasRealImage(article.image_url) && (
+                                    <div className="relative aspect-video max-h-[150px] overflow-hidden rounded-lg mb-3">
+                                      <img
+                                        src={article.image_url}
+                                        alt={article.title}
+                                        className="w-full h-full object-cover"
+                                      />
+                                      <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent" />
+                                    </div>
+                                  )}
+                                  <h4 className="font-serif text-lg font-bold">
+                                    {article.source}
+                                  </h4>
+                                  <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                                    <Clock className="w-3 h-3" />
+                                    {formatDate(article.published_at)}
+                                    <Badge variant="outline" className="text-[9px]">
+                                      {Math.round(article.similarity * 100)}% match
+                                    </Badge>
+                                  </div>
+                                </div>
+
+                                {/* Content with Visual Diff */}
+                                <div className="bg-[var(--news-bg-secondary)] rounded-lg border border-border/60 p-4">
+                                  <h5 className="font-bold mb-3 text-sm">{article.title}</h5>
+                                  {loadingArticle === article.id ? (
+                                    <div className="flex items-center gap-2 p-4">
+                                      <Loader2 className="w-5 h-5 animate-spin text-primary" />
+                                      <span className="text-muted-foreground text-sm">Loading...</span>
+                                    </div>
+                                  ) : content ? (
+                                    <div className="space-y-2 text-sm">
+                                      {/* Show similar sentences with highlighting */}
+                                      {comparisonData.diff.similar.slice(0, 5).map((item, sidx) => (
+                                        <div 
+                                          key={sidx} 
+                                          className={`p-2 rounded border-l-2 ${isFirst ? 'border-l-green-500 bg-green-500/5' : 'border-l-orange-500 bg-orange-500/5'}`}
+                                        >
+                                          <div className="text-[10px] text-muted-foreground mb-1">
+                                            Similarity: {Math.round(item.similarity * 100)}%
+                                          </div>
+                                          <p className="text-sm">
+                                            {isFirst ? item.source_1_text : item.source_2_text}
+                                          </p>
+                                        </div>
+                                      ))}
+                                      
+                                      {/* Show unique content */}
+                                      {comparisonData.diff[isFirst ? 'removed' : 'added'].slice(0, 3).map((item, uidx) => (
+                                        <div 
+                                          key={`unique-${uidx}`}
+                                          className="p-2 rounded border-l-2 border-l-gray-500 bg-gray-500/5 opacity-70"
+                                        >
+                                          <div className="text-[10px] text-muted-foreground mb-1">
+                                            Unique content
+                                          </div>
+                                          <p className="text-sm">{item.text}</p>
+                                        </div>
+                                      ))}
+                                    </div>
+                                  ) : (
+                                    <div className="text-sm text-muted-foreground">
+                                      No content available
+                                    </div>
+                                  )}
+                                </div>
+
+                                {/* Actions */}
+                                <div className="flex items-center gap-2">
+                                  <Button
+                                    variant="outline"
+                                    size="sm"
+                                    asChild
+                                    className="text-xs"
+                                  >
+                                    <a
+                                      href={article.url}
+                                      target="_blank"
+                                      rel="noopener noreferrer"
+                                    >
+                                      <ExternalLink className="h-4 w-4 mr-2" />
+                                      Read Original
+                                    </a>
+                                  </Button>
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </div>
+
+                        {/* Comparison Summary Stats */}
+                        <div className="bg-[var(--news-bg-secondary)] rounded-lg border border-border/60 p-4">
+                          <h4 className="font-bold mb-4">Comparison Summary</h4>
+                          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
+                            <div className="text-center">
+                              <div className="text-2xl font-bold text-green-400">
+                                {comparisonData.summary.common_entities_count}
+                              </div>
+                              <div className="text-xs text-muted-foreground">Common Entities</div>
+                            </div>
+                            <div className="text-center">
+                              <div className="text-2xl font-bold text-blue-400">
+                                {comparisonData.summary.unique_entities_source_1}
+                              </div>
+                              <div className="text-xs text-muted-foreground">Unique to {clusterDetail.articles[0].source}</div>
+                            </div>
+                            <div className="text-center">
+                              <div className="text-2xl font-bold text-orange-400">
+                                {comparisonData.summary.unique_entities_source_2}
+                              </div>
+                              <div className="text-xs text-muted-foreground">Unique to {clusterDetail.articles[1].source}</div>
+                            </div>
+                            <div className="text-center">
+                              <div className="text-2xl font-bold text-primary">
+                                {comparisonData.summary.common_keywords_count}
+                              </div>
+                              <div className="text-xs text-muted-foreground">Common Keywords</div>
+                            </div>
+                          </div>
+                        </div>
+                      </>
+                    ) : (
+                      <div className="flex items-center justify-center py-12 text-muted-foreground">
+                        Failed to load comparison data. Please try again.
                       </div>
-                    </div>
+                    )}
                   </div>
                 ) : (
                   <div className="flex-1 flex items-center justify-center text-muted-foreground">
                     {clusterDetail.articles.length < 2
                       ? "Need at least 2 sources to compare"
-                      : "Loading comparison..."}
+                      : "Select articles to compare"}
                   </div>
                 )}
               </TabsContent>

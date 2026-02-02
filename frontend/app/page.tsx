@@ -123,7 +123,9 @@ function NewsPage() {
     const getCategories = async () => {
       try {
         const backendCategories = await fetchCategories();
-        const allCategories = ["all", ...backendCategories].map(cat => ({
+        // Deduplicate categories to prevent duplicate React keys
+        const uniqueCategories = Array.from(new Set(["all", ...backendCategories]));
+        const allCategories = uniqueCategories.map(cat => ({
           id: cat,
           label: cat.charAt(0).toUpperCase() + cat.slice(1),
           icon: categoryIcons[cat] || Newspaper,
@@ -179,18 +181,20 @@ function NewsPage() {
   }, []);
 
   const sourceRecency = useMemo(() => {
-    const recency: Record<string, number> = {};
-    const articles = articlesByCategory[activeCategory] || [];
+    const articles = articlesByCategory[activeCategory]
+    if (!articles || articles.length === 0) return {}
+
+    const recency: Record<string, number> = {}
     for (const article of articles) {
-      const sourceKey = article.sourceId || article.source;
-      if (!sourceKey) continue;
-      const ts = new Date(article.publishedAt).getTime();
+      const sourceKey = article.sourceId || article.source
+      if (!sourceKey) continue
+      const ts = new Date(article.publishedAt).getTime()
       if (!Number.isNaN(ts) && (!recency[sourceKey] || ts > recency[sourceKey])) {
-        recency[sourceKey] = ts;
+        recency[sourceKey] = ts
       }
     }
-    return recency;
-  }, [articlesByCategory, activeCategory]);
+    return recency
+  }, [articlesByCategory, activeCategory])
 
   /**
    * Filter and sort articles by favorites and source selection

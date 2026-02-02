@@ -31,7 +31,8 @@ sqlalchemy>=2.0.35
 psycopg2-binary>=2.9.9
 
 # Vector database dependencies
-chromadb>=0.4.24
+numpy<2
+chromadb==0.4.24
 sentence-transformers>=2.7.0
 
 # Optional: System resource monitoring (improves RSS ingestion performance tuning)

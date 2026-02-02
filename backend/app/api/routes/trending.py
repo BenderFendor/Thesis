@@ -9,9 +9,11 @@ from pydantic import BaseModel
 from sqlalchemy import select, func, and_
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.logging import get_logger
 from app.database import get_db, TopicCluster
 from app.services.clustering import ClusteringService
 
+logger = get_logger("trending_routes")
 router = APIRouter(prefix="/trending", tags=["trending"])
 
 
@@ -25,6 +27,7 @@ class TrendingCluster(BaseModel):
     trending_score: float
     velocity: float
     representative_article: Optional[Dict[str, Any]]
+    articles: List[Dict[str, Any]] = []  # Latest articles in this cluster
 
 
 class BreakingCluster(BaseModel):
@@ -36,6 +39,7 @@ class BreakingCluster(BaseModel):
     spike_magnitude: float
     is_new_story: bool
     representative_article: Optional[Dict[str, Any]]
+    articles: List[Dict[str, Any]] = []  # Latest articles in this cluster
 
 
 class TrendingResponse(BaseModel):
@@ -71,6 +75,7 @@ class AllCluster(BaseModel):
     window_count: int
     source_diversity: int
     representative_article: Optional[Dict[str, Any]]
+    articles: List[Dict[str, Any]] = []  # Latest articles in this cluster
 
 
 class AllClustersResponse(BaseModel):
@@ -82,7 +87,7 @@ class AllClustersResponse(BaseModel):
 @router.get("", response_model=TrendingResponse)
 async def get_trending(
     response: Response,
-    window: str = Query(default="1d", regex="^(1d|1w|1m)$"),
+    window: str = Query(default="1d", pattern="^(1d|1w|1m)$"),
     limit: int = Query(default=10, ge=1, le=50),
     db: AsyncSession = Depends(get_db),
 ) -> TrendingResponse:
@@ -148,7 +153,7 @@ async def get_breaking(
 @router.get("/clusters", response_model=AllClustersResponse)
 async def get_all_clusters(
     response: Response,
-    window: str = Query(default="1d", regex="^(1d|1w|1m)$"),
+    window: str = Query(default="1d", pattern="^(1d|1w|1m)$"),
     min_articles: int = Query(default=2, ge=1, le=10),
     limit: int = Query(default=100, ge=1, le=500),
     db: AsyncSession = Depends(get_db),
@@ -337,3 +342,93 @@ async def merge_clusters(
         "active_clusters": active_count,
         "threshold_used": threshold,
     }
+
+
+@router.post("/test")
+async def test_clustering_endpoint(
+    cleanup: bool = Query(default=True),
+    db: AsyncSession = Depends(get_db),
+) -> Dict[str, Any]:
+    """
+    Test clustering by creating test articles and running clustering immediately.
+
+    This endpoint is for development/testing only. It:
+    1. Creates 8 test articles with embeddings (3 AI articles, 2 climate, 2 politics, 1 standalone)
+    2. Runs fast clustering on them
+    3. Returns results and optionally cleans up test data
+
+    Use this to verify clustering works without waiting 30 minutes.
+    """
+    import sys
+    import os
+
+    # Import test functions
+    sys.path.insert(0, os.path.join(os.path.dirname(__file__), "../../.."))
+    from test_clustering import (
+        create_test_articles_with_embeddings,
+        test_fast_clustering,
+        cleanup_test_articles,
+    )
+
+    service = ClusteringService()
+    if not service.vector_store:
+        raise HTTPException(
+            status_code=503,
+            detail="Vector store unavailable. Ensure ChromaDB is running.",
+        )
+
+    # Run the test
+    results = await test_fast_clustering()
+
+    if cleanup and results.get("success"):
+        cleaned = await cleanup_test_articles()
+        results["test_articles_cleaned"] = cleaned
+
+    return results
+
+
+@router.get("/diagnostics")
+async def get_clustering_diagnostics(
+    db: AsyncSession = Depends(get_db),
+) -> Dict[str, Any]:
+    """
+    Get detailed diagnostics about clustering system state.
+
+    Returns counts of articles, embeddings, clusters, and identifies
+    any issues preventing clustering from working.
+    """
+    import sys
+    import os
+
+    sys.path.insert(0, os.path.join(os.path.dirname(__file__), "../../.."))
+    from test_clustering import diagnose_clustering_issues
+
+    diagnostics = await diagnose_clustering_issues()
+
+    # Add current cluster distribution
+    try:
+        from sqlalchemy import select, func
+        from app.database import ArticleTopic, TopicCluster
+
+        # Get cluster sizes
+        cluster_sizes = await db.execute(
+            select(
+                TopicCluster.id,
+                TopicCluster.label,
+                func.count(ArticleTopic.id).label("article_count"),
+            )
+            .outerjoin(ArticleTopic, ArticleTopic.cluster_id == TopicCluster.id)
+            .where(TopicCluster.is_active == True)
+            .group_by(TopicCluster.id)
+            .order_by(func.count(ArticleTopic.id).desc())
+        )
+
+        diagnostics["cluster_distribution"] = [
+            {"id": row[0], "label": row[1], "articles": row[2]}
+            for row in cluster_sizes.all()
+        ]
+
+    except Exception as e:
+        diagnostics["issues"].append(f"Failed to get cluster distribution: {e}")
+
+    return diagnostics

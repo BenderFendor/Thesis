@@ -64,7 +64,12 @@ async def periodic_cluster_update(interval_seconds: int = 300) -> None:
             logger.info("Starting cluster update at %s", datetime.now(timezone.utc))
 
             async with AsyncSessionLocal() as session:
-                assigned = await process_unassigned_articles(session)
+                # Use fast batch clustering instead of slow one-by-one processing
+                from app.services.fast_clustering import (
+                    fast_process_unassigned_articles,
+                )
+
+                assigned = await fast_process_unassigned_articles(session, limit=500)
                 await session.commit()
 
                 service = ClusteringService()
@@ -123,3 +128,56 @@ async def periodic_cluster_merge(interval_seconds: int = 1800) -> None:
             break
         except Exception as e:
             logger.error("Cluster merge failed: %s", e, exc_info=True)
+
+
+async def periodic_blind_spots_update(interval_seconds: int = 86400) -> None:
+    """
+    Periodic task that updates source coverage stats for blind spots analysis.
+
+    Runs every 24 hours by default to:
+    1. Update daily coverage statistics per source
+    2. Identify new blind spots (topics sources are missing)
+    """
+    from app.database import AsyncSessionLocal
+    from app.services.blind_spots import get_blind_spots_analyzer
+    from app.core.config import settings
+
+    logger.info(
+        "Starting periodic blind spots update (interval: %ds)", interval_seconds
+    )
+
+    await asyncio.sleep(300)  # Start after 5 minutes
+
+    while True:
+        try:
+            await asyncio.sleep(interval_seconds)
+
+            if not settings.enable_database or AsyncSessionLocal is None:
+                continue
+
+            logger.info(
+                "Starting blind spots analysis at %s", datetime.now(timezone.utc)
+            )
+
+            async with AsyncSessionLocal() as session:
+                analyzer = get_blind_spots_analyzer()
+
+                # Update daily coverage stats
+                updated = await analyzer.update_daily_coverage_stats(session)
+
+                # Generate report for logging
+                report = await analyzer.generate_source_coverage_report(session, days=7)
+
+                logger.info(
+                    "Blind spots analysis complete: sources_updated=%d, "
+                    "total_sources=%d, systemic_blind_spots=%d",
+                    updated,
+                    report.get("total_sources", 0),
+                    len(report.get("systemic_blind_spots", [])),
+                )
+
+        except asyncio.CancelledError:
+            logger.info("Periodic blind spots update cancelled")
+            break
+        except Exception as e:
+            logger.error("Blind spots update failed: %s", e, exc_info=True)

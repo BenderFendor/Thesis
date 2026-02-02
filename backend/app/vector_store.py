@@ -23,6 +23,86 @@ _vector_store_lock = threading.Lock()
 
 EMBEDDING_MODEL_NAME = "all-MiniLM-L6-v2"
 
+# Connection state tracking to prevent log flooding
+_last_connection_attempt: float = 0.0
+_failed_attempts: int = 0
+_connection_backoff_until: float = 0.0
+_MAX_BACKOFF_SECONDS: float = 300.0  # Max 5 minutes between retries
+_BACKOFF_MULTIPLIER: float = 2.0
+_INITIAL_BACKOFF: float = 5.0  # Start with 5 second backoff
+
+
+def _get_backoff_duration() -> float:
+    """Calculate current backoff duration based on failed attempts."""
+    global _failed_attempts
+    duration = _INITIAL_BACKOFF * (_BACKOFF_MULTIPLIER**_failed_attempts)
+    return min(duration, _MAX_BACKOFF_SECONDS)
+
+
+def _record_connection_failure():
+    """Record a failed connection attempt and update backoff."""
+    global _failed_attempts, _connection_backoff_until, _last_connection_attempt
+    _failed_attempts += 1
+    _last_connection_attempt = time.time()
+    _connection_backoff_until = _last_connection_attempt + _get_backoff_duration()
+
+
+def _record_connection_success():
+    """Reset failure tracking on successful connection."""
+    global _failed_attempts, _connection_backoff_until
+    _failed_attempts = 0
+    _connection_backoff_until = 0.0
+
+
+def is_chroma_reachable(timeout: float = 3.0) -> bool:
+    """
+    Lightweight preflight check to see if ChromaDB is reachable.
+    Uses a simple socket connection check - much faster than full client init.
+
+    Args:
+        timeout: Connection timeout in seconds
+
+    Returns:
+        True if ChromaDB appears reachable, False otherwise
+    """
+    try:
+        import socket
+
+        sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        sock.settimeout(timeout)
+        result = sock.connect_ex((CHROMA_HOST, CHROMA_PORT))
+        sock.close()
+        return result == 0
+    except Exception:
+        return False
+
+
+def check_chroma_health() -> Dict[str, Any]:
+    """
+    Check ChromaDB health without initializing full VectorStore.
+    Returns detailed status information for monitoring/debugging.
+
+    Returns:
+        Dict with 'reachable', 'healthy', 'backoff_active', and 'last_attempt' keys
+    """
+    global _last_connection_attempt, _connection_backoff_until, _failed_attempts
+
+    now = time.time()
+    reachable = is_chroma_reachable()
+    backoff_active = now < _connection_backoff_until
+    time_until_retry = max(0, _connection_backoff_until - now)
+
+    return {
+        "reachable": reachable,
+        "healthy": reachable and not backoff_active,
+        "backoff_active": backoff_active,
+        "backoff_seconds_remaining": int(time_until_retry),
+        "failed_attempts": _failed_attempts,
+        "last_attempt": _last_connection_attempt,
+        "host": CHROMA_HOST,
+        "port": CHROMA_PORT,
+    }
+
 
 class VectorStore:
     def __init__(self):
@@ -560,7 +640,14 @@ class VectorStore:
 
 
 def get_vector_store() -> Optional[VectorStore]:
-    """Return a lazily initialised vector store (or None if disabled/unavailable)."""
+    """
+    Return a lazily initialised vector store (or None if disabled/unavailable).
+
+    Implements connection backoff to prevent log flooding when ChromaDB is down.
+    Uses preflight health check before attempting expensive initialization.
+    """
+    global _vector_store, _connection_backoff_until
+
     if not settings.enable_vector_store:
         logger.info("Vector store disabled via ENABLE_VECTOR_STORE=0")
         startup_metrics.add_note(
@@ -569,17 +656,61 @@ def get_vector_store() -> Optional[VectorStore]:
         )
         return None
 
-    global _vector_store
+    # Fast path: already initialized
     if _vector_store is not None:
         return _vector_store
+
+    # Check if we're in backoff period (prevents log flooding)
+    now = time.time()
+    if now < _connection_backoff_until:
+        # Silently return None during backoff - callers should handle this gracefully
+        return None
+
+    # Preflight check: is Chroma even reachable? (lightweight, no heavy init)
+    if not is_chroma_reachable(timeout=2.0):
+        _record_connection_failure()
+        # Only log on first failure or every 5 minutes to reduce noise
+        if _failed_attempts == 1 or (_failed_attempts % 10 == 0):
+            logger.warning(
+                "ChromaDB not reachable at %s:%d (attempt #%d, backoff %ds)",
+                CHROMA_HOST,
+                CHROMA_PORT,
+                _failed_attempts,
+                int(_get_backoff_duration()),
+            )
+        startup_metrics.add_note(
+            "vector_store_status",
+            {
+                "connected": False,
+                "error": "not_reachable",
+                "failed_attempts": _failed_attempts,
+            },
+        )
+        return None
 
     with _vector_store_lock:
         if _vector_store is not None:
             return _vector_store
         try:
             _vector_store = VectorStore()
+            _record_connection_success()
         except Exception as exc:
-            logger.warning("ChromaDB not available: %s", exc)
-            startup_metrics.add_note("vector_store_error", str(exc))
+            _record_connection_failure()
+            # Only log every Nth failure to prevent log flooding
+            if _failed_attempts == 1 or (_failed_attempts % 5 == 0):
+                logger.warning(
+                    "ChromaDB initialization failed (attempt #%d, backoff %ds): %s",
+                    _failed_attempts,
+                    int(_get_backoff_duration()),
+                    exc,
+                )
+            startup_metrics.add_note(
+                "vector_store_status",
+                {
+                    "connected": False,
+                    "error": str(exc),
+                    "failed_attempts": _failed_attempts,
+                },
+            )
             _vector_store = None
         return _vector_store

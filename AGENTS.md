@@ -9,6 +9,7 @@
 - Keep writing concise: avoid filler, keep sentences focused, avoid jargon when simpler terms work.
 - Add minimal, thoughtful debugging to support future troubleshooting.
 - Prefer a single LLM API call per feature flow when feasible to reduce rate-limit risk; consolidate prompts instead of chaining calls.
+- **NEVER create markdown summary files.** Log changes to Log.md instead. Do not create *_SUMMARY.md, *-summary.md, or similar files.
 
 ## Frontend Performance
 - When using `next/dynamic`, keep the loading component as a single React element. Complex JSX structures in the `loading` option can cause lazy element type errors.
@@ -100,3 +101,25 @@ Code should be self-documenting. If you need a comment to explain WHAT the code 
           _instance = create_client()
       return _instance
       global _instance  ```
+
+## Pre-Deployment Checklist
+- [ ] Run `init_db()` or migrations after any model changes
+- [ ] Verify imports with `python -m py_compile` on changed files
+- [ ] Test new code paths that use logging - verify logger is initialized
+
+## Debugging Database Errors
+When seeing `UndefinedColumnError`:
+1. Check `database.py` for column definition
+2. Query actual table schema: `\d tablename` in psql
+3. If mismatch, create and run migration to add missing columns
+4. Never assume schema matches models - always verify
+
+## Database Timestamp Rules
+- When creating records with time windows (last_seen, updated_at), always update them when related data changes
+- For article-based timestamps, use the article's published date rather than current time to maintain chronological consistency
+- Add migration scripts for fixing existing stale timestamps when changing timestamp logic
+- Check for stale timestamp filters when queries return empty unexpectedly
+
+## Code Quality Gates
+- Run syntax check: `python3 -m py_compile backend/app/**/*.py`
+- For new functions using logger, grep for `get_logger` import pattern

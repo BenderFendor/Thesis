@@ -28,7 +28,7 @@ from app.vector_store import get_vector_store
 
 logger = logging.getLogger(__name__)
 
-SIMILARITY_THRESHOLD = 0.75
+SIMILARITY_THRESHOLD = 0.82
 MIN_CLUSTER_SIZE = 2
 BASELINE_DAYS = 7
 BREAKING_WINDOW_HOURS = 3
@@ -42,6 +42,14 @@ class ClusteringService:
             self.embedding_model = self.vector_store.embedding_model
         else:
             self.embedding_model = None
+
+    def _cosine_similarity(self, a: np.ndarray, b: np.ndarray) -> float:
+        """Compute cosine similarity between two vectors."""
+        norm_a = np.linalg.norm(a)
+        norm_b = np.linalg.norm(b)
+        if norm_a == 0 or norm_b == 0:
+            return 0.0
+        return float(np.dot(a, b) / (norm_a * norm_b))
 
     async def assign_article_to_cluster(
         self, session: AsyncSession, article: Article
@@ -117,7 +125,9 @@ class ClusteringService:
                     continue
 
                 centroid_embedding = np.array(centroid_first)
-                similarity = float(np.dot(article_embedding, centroid_embedding))
+                similarity = self._cosine_similarity(
+                    article_embedding, centroid_embedding
+                )
 
                 if similarity > best_similarity:
                     best_similarity = similarity
@@ -365,19 +375,30 @@ class ClusteringService:
                 TopicCluster.article_count,
                 func.count(ArticleTopic.id).label("window_count"),
                 func.count(func.distinct(Article.source)).label("source_diversity"),
+                func.coalesce(func.max(ClusterStatsDaily.external_count), 0).label(
+                    "external_count"
+                ),
             )
             .select_from(TopicCluster)
             .join(ArticleTopic, ArticleTopic.cluster_id == TopicCluster.id)
             .join(Article, Article.id == ArticleTopic.article_id)
+            .outerjoin(
+                ClusterStatsDaily,
+                and_(
+                    ClusterStatsDaily.cluster_id == TopicCluster.id,
+                    ClusterStatsDaily.date >= window_start.date(),
+                ),
+            )
             .where(
                 and_(
                     TopicCluster.is_active == True,
-                    TopicCluster.last_seen >= window_start,
+                    Article.published_at
+                    >= window_start,  # Filter by actual article dates
                 )
             )
             .group_by(TopicCluster.id)
             .having(func.count(ArticleTopic.id) >= MIN_CLUSTER_SIZE)
-            .order_by(func.count(ArticleTopic.id).desc())
+            .order_by(func.max(Article.published_at).desc())
             .limit(limit * 2)
         )
 
@@ -387,6 +408,7 @@ class ClusteringService:
             baseline = await self._get_daily_baseline(session, cluster_id)
             window_count = row[6]
             source_diversity = row[7]
+            external_count = row[8] or 0
 
             if baseline > 0:
                 velocity = float(window_count / baseline)
@@ -402,10 +424,20 @@ class ClusteringService:
                 elif age_hours < 72:
                     recency_bonus = 1.2
 
-            trending_score = velocity * (1 + source_diversity * 0.1) * recency_bonus
+            # Phase 6B: Include external_count (GDELT) in trending score
+            # External coverage adds 5% per event to score
+            external_bonus = 1 + (external_count * 0.05)
+            trending_score = (
+                velocity * (1 + source_diversity * 0.1) * recency_bonus * external_bonus
+            )
 
             representative = await self._get_representative_article(
                 session, cluster_id, window_start
+            )
+
+            # Get recent articles for this cluster
+            recent_articles = await self._get_recent_articles_for_cluster(
+                session, cluster_id, limit=5, since=window_start
             )
 
             results.append(
@@ -416,9 +448,11 @@ class ClusteringService:
                     "article_count": row[5],
                     "window_count": window_count,
                     "source_diversity": source_diversity,
+                    "external_count": external_count,
                     "trending_score": round(trending_score, 2),
                     "velocity": round(velocity, 2),
                     "representative_article": representative,
+                    "articles": recent_articles,
                 }
             )
 
@@ -441,6 +475,7 @@ class ClusteringService:
                 ClusterStatsHourly.article_count,
                 ClusterStatsHourly.source_count,
                 ClusterStatsHourly.spike_magnitude,
+                ClusterStatsHourly.external_count,
                 TopicCluster.label,
                 TopicCluster.keywords,
                 TopicCluster.first_seen,
@@ -465,21 +500,28 @@ class ClusteringService:
             )
 
             is_new_story = False
-            first_seen = row[6]
+            first_seen = row[7]
             if first_seen:
                 age_hours = (now - first_seen).total_seconds() / 3600
                 is_new_story = age_hours < 6
 
+            # Get recent articles for this cluster
+            recent_articles = await self._get_recent_articles_for_cluster(
+                session, cluster_id, limit=5, since=window_start
+            )
+
             results.append(
                 {
                     "cluster_id": cluster_id,
-                    "label": row[4],
-                    "keywords": row[5] or [],
+                    "label": row[5],
+                    "keywords": row[6] or [],
                     "article_count_3h": row[1],
                     "source_count_3h": row[2],
                     "spike_magnitude": round(row[3], 2),
+                    "external_count": row[4] or 0,
                     "is_new_story": is_new_story,
                     "representative_article": representative,
+                    "articles": recent_articles,
                 }
             )
 
@@ -522,12 +564,13 @@ class ClusteringService:
             .where(
                 and_(
                     TopicCluster.is_active == True,
-                    TopicCluster.last_seen >= window_start,
+                    Article.published_at
+                    >= window_start,  # Filter by actual article dates
                 )
             )
             .group_by(TopicCluster.id)
             .having(func.count(ArticleTopic.id) >= min_articles)
-            .order_by(TopicCluster.last_seen.desc())
+            .order_by(func.max(Article.published_at).desc())
             .limit(limit)
         )
 
@@ -587,6 +630,11 @@ class ClusteringService:
             if representative and cluster_id in cluster_image_map:
                 representative["image_url"] = cluster_image_map[cluster_id]
 
+            # Get recent articles for this cluster
+            recent_articles = await self._get_recent_articles_for_cluster(
+                session, cluster_id, limit=5, since=window_start
+            )
+
             results.append(
                 {
                     "cluster_id": cluster_id,
@@ -597,6 +645,7 @@ class ClusteringService:
                     "source_diversity": row[8],
                     "last_seen": row[5].isoformat() if row[5] else None,
                     "representative_article": representative,
+                    "articles": recent_articles,
                 }
             )
 
@@ -638,6 +687,42 @@ class ClusteringService:
             else None,
             "summary": article.summary[:200] if article.summary else None,
         }
+
+    async def _get_recent_articles_for_cluster(
+        self,
+        session: AsyncSession,
+        cluster_id: int,
+        limit: int = 5,
+        since: Optional[datetime] = None,
+    ) -> List[Dict[str, Any]]:
+        """Get recent articles for a cluster, ordered by published date."""
+        query = (
+            select(Article)
+            .join(ArticleTopic, ArticleTopic.article_id == Article.id)
+            .where(ArticleTopic.cluster_id == cluster_id)
+            .order_by(Article.published_at.desc())
+        )
+
+        if since:
+            query = query.where(Article.published_at >= since)
+
+        result = await session.execute(query.limit(limit))
+        articles = result.scalars().all()
+
+        return [
+            {
+                "id": article.id,
+                "title": article.title,
+                "source": article.source,
+                "url": article.url,
+                "image_url": article.image_url,
+                "published_at": article.published_at.isoformat()
+                if article.published_at
+                else None,
+                "summary": article.summary[:200] if article.summary else None,
+            }
+            for article in articles
+        ]
 
     async def _get_best_cluster_image(
         self,
@@ -999,7 +1084,7 @@ async def merge_similar_clusters(
 
             emb_a = cluster_embeddings[cluster_id_a]
             emb_b = cluster_embeddings[cluster_id_b]
-            similarity = float(np.dot(emb_a, emb_b))
+            similarity = service._cosine_similarity(emb_a, emb_b)
 
             if similarity >= similarity_threshold:
                 cluster_a = next((c for c in clusters if c.id == cluster_id_a), None)

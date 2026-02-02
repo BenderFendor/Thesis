@@ -4,10 +4,13 @@ from fastapi import APIRouter
 
 from . import (
     article_analysis,
+    blindspots,
     bookmarks,
     cache,
+    comparison,
     debug,
     entity_research,
+    gdelt,
     general,
     image_proxy,
     inline,
@@ -48,3 +51,6 @@ router.include_router(image_proxy.router)
 router.include_router(trending.router)
 router.include_router(similarity.router)
 router.include_router(verification.router)
+router.include_router(gdelt.router)
+router.include_router(comparison.router)
+router.include_router(blindspots.router)

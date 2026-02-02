@@ -21,12 +21,13 @@ CHROMA_PORT="${CHROMA_PORT:-8001}"
 CHROMA_DATA_DIR="${CHROMA_DATA_DIR:-$ROOT_DIR/.chroma}"
 CHROMA_LOG_FILE="${CHROMA_LOG_FILE:-$CHROMA_DATA_DIR/chroma.log}"
 AUTO_INSTALL="${AUTO_INSTALL:-1}"
+GUNICORN_WORKERS="${GUNICORN_WORKERS:-4}"
 NEXT_PUBLIC_API_URL="${NEXT_PUBLIC_API_URL:-http://localhost:${BACKEND_PORT}}"
 NEXT_PUBLIC_DOCKER_API_URL="${NEXT_PUBLIC_DOCKER_API_URL:-$NEXT_PUBLIC_API_URL}"
 RUNLOCAL_STATE_DIR="${RUNLOCAL_STATE_DIR:-$ROOT_DIR/.runlocal}"
 RUNLOCAL_PID_FILE="${RUNLOCAL_PID_FILE:-$RUNLOCAL_STATE_DIR/pids}"
 
-export DATABASE_URL CHROMA_HOST CHROMA_PORT NEXT_PUBLIC_API_URL NEXT_PUBLIC_DOCKER_API_URL
+export DATABASE_URL CHROMA_HOST CHROMA_PORT GUNICORN_WORKERS NEXT_PUBLIC_API_URL NEXT_PUBLIC_DOCKER_API_URL
 
 PIDS=()
 
@@ -46,7 +47,7 @@ Usage: ./runlocal.sh [setup|services|backend|frontend|all|killall|help]
   killall   Stop processes spawned by previous runlocal.sh runs
   help      Show this message
 
- Environment overrides:
+  Environment overrides:
   BACKEND_PORT   Port for gunicorn (default 8000)
   FRONTEND_PORT  Port for Next.js dev server (default 3000)
   POSTGRES_HOST  Postgres hostname (default localhost)
@@ -60,9 +61,11 @@ Usage: ./runlocal.sh [setup|services|backend|frontend|all|killall|help]
   CHROMA_DATA_DIR Persistent directory for Chroma data (default ./.chroma)
   CHROMA_LOG_FILE Log file for Chroma server (default ./.chroma/chroma.log)
   AUTO_INSTALL   Set to 1 to auto-install Postgres if missing (default 1)
+  GUNICORN_WORKERS Worker count for backend (default 4)
   NEXT_PUBLIC_API_URL        Frontend base URL for local backend (default http://localhost:<BACKEND_PORT>)
   NEXT_PUBLIC_DOCKER_API_URL Overrides API URL when frontend runs in Docker (default matches NEXT_PUBLIC_API_URL)
 USAGE
+
 }
 
 cleanup() {
@@ -465,6 +468,7 @@ run_backend() {
 	uv pip install gunicorn
 	log "Using DATABASE_URL=$DATABASE_URL"
 	log "Using Chroma at $CHROMA_HOST:$CHROMA_PORT"
+	log "Using GUNICORN_WORKERS=$GUNICORN_WORKERS"
 
 	log "Starting FastAPI with Gunicorn on port $BACKEND_PORT"
 	gunicorn -c gunicorn.conf.py app.main:app &

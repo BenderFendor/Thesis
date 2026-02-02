@@ -367,6 +367,7 @@ volumes/
 dev-browser/
 
 .chroma/
+.chroma.bak-*/
 .agent/rules/
 
 # Backend logs

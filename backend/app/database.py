@@ -363,6 +363,9 @@ class ClusterStatsDaily(Base):
     velocity_score = Column(Float, default=0.0)  # Rate of change vs baseline
     diversity_score = Column(Float, default=0.0)  # Source diversity
 
+    # Phase 6B: External coverage count (GDELT)
+    external_count = Column(Integer, default=0)  # Number of external (GDELT) references
+
     created_at = Column(DateTime, default=get_utc_now)
     updated_at = Column(DateTime, default=get_utc_now, onupdate=get_utc_now)
 
@@ -387,6 +390,9 @@ class ClusterStatsHourly(Base):
     is_spike = Column(Boolean, default=False, index=True)  # Flagged as unusual activity
     spike_magnitude = Column(Float, default=0.0)  # How much above baseline
 
+    # Phase 6B: External coverage count (GDELT)
+    external_count = Column(Integer, default=0)  # Number of external (GDELT) references
+
     created_at = Column(DateTime, default=get_utc_now)
 
     __table_args__ = (
@@ -394,6 +400,181 @@ class ClusterStatsHourly(Base):
             "ix_cluster_stats_hourly_cluster_hour", "cluster_id", "hour", unique=True
         ),
         Index("ix_cluster_stats_hourly_spike", "is_spike", "hour"),
+    )
+
+
+class GDELTEvent(Base):
+    """GDELT Global Database of Events, Language, and Tone entries matched to clusters."""
+
+    __tablename__ = "gdelt_events"
+
+    id = Column(Integer, primary_key=True, index=True)
+    gdelt_id = Column(String, unique=True, nullable=False, index=True)  # GlobalEventID
+
+    # Content fields
+    url = Column(String, index=True)
+    title = Column(String)
+    source = Column(String, index=True)  # Domain from GDELT
+    published_at = Column(DateTime, index=True)
+
+    # GDELT-specific fields
+    event_code = Column(String)  # CAMEO event code
+    event_root_code = Column(String)  # Root CAMEO code
+    actor1_name = Column(String)
+    actor1_country = Column(String)
+    actor2_name = Column(String)
+    actor2_country = Column(String)
+    tone = Column(Float)  # Average tone (-10 to +10)
+    goldstein_scale = Column(Float)  # Conflict/cooperation scale (-10 to +10)
+
+    # Cluster matching
+    cluster_id = Column(Integer, index=True)  # Matched topic cluster (if any)
+    matched_at = Column(DateTime)
+    match_method = Column(String)  # 'url', 'embedding', 'keyword'
+    similarity_score = Column(Float)  # If embedding match
+
+    # Raw GDELT data for reference
+    raw_data = Column(JSON)
+
+    created_at = Column(DateTime, default=get_utc_now)
+
+    __table_args__ = (
+        Index("ix_gdelt_events_cluster_published", "cluster_id", "published_at"),
+        Index("ix_gdelt_events_event_code", "event_code"),
+    )
+
+
+# Phase 8: Blind Spots Analysis Tables
+
+
+class SourceMetadata(Base):
+    """Extended metadata for news sources with blind spots tracking."""
+
+    __tablename__ = "source_metadata"
+
+    id = Column(Integer, primary_key=True, index=True)
+    source_name = Column(String, unique=True, nullable=False, index=True)
+    normalized_name = Column(String, index=True)  # lowercase, stripped
+
+    # Basic info
+    domain = Column(String, index=True)
+    country = Column(String, index=True)  # ISO country code
+    language = Column(String, default="en")
+    timezone = Column(String)
+
+    # Source characteristics
+    source_type = Column(String)  # wire, newspaper, blog, broadcast, aggregator
+    is_state_media = Column(Boolean, default=False)
+    is_paywalled = Column(Boolean, default=False)
+
+    # Political bias and credibility (aggregated from research)
+    political_bias = Column(String)  # left, center-left, center, center-right, right
+    bias_confidence = Column(Float)  # 0.0 to 1.0
+    factual_rating = Column(String)  # high, mixed, low
+    credibility_score = Column(Float)  # 0.0 to 1.0
+
+    # Ownership and funding
+    parent_company = Column(String)
+    funding_type = Column(String)  # commercial, non-profit, state-funded, independent
+
+    # Coverage analysis
+    coverage_breadth = Column(
+        String
+    )  # local, regional, national, international, global
+    geographic_focus = Column(TagListType(), default=list)  # Countries/regions of focus
+    topic_focus = Column(
+        TagListType(), default=list
+    )  # Topics this source specializes in
+
+    # Blind spots tracking (calculated fields, updated by analysis job)
+    topics_covered = Column(
+        Integer, default=0
+    )  # Number of distinct topic clusters covered
+    topics_blind_spots = Column(JSON)  # Array of topics this source rarely/never covers
+    coverage_timeline = Column(JSON)  # Daily coverage counts for the last 30 days
+    last_analyzed_at = Column(DateTime)
+
+    # Research metadata
+    research_sources = Column(JSON)  # Which APIs/sources were used
+    research_confidence = Column(String)  # high, medium, low
+
+    created_at = Column(DateTime, default=get_utc_now)
+    updated_at = Column(DateTime, default=get_utc_now, onupdate=get_utc_now)
+
+    __table_args__ = (
+        Index("ix_source_metadata_country_type", "country", "source_type"),
+        Index("ix_source_metadata_bias", "political_bias"),
+        Index("ix_source_metadata_last_analyzed", "last_analyzed_at"),
+    )
+
+
+class SourceCoverageStats(Base):
+    """Daily coverage statistics per source for blind spots analysis."""
+
+    __tablename__ = "source_coverage_stats"
+
+    id = Column(Integer, primary_key=True, index=True)
+    source_name = Column(String, nullable=False, index=True)
+    date = Column(DateTime, nullable=False, index=True)  # Truncated to day
+
+    # Article counts
+    article_count = Column(Integer, default=0)
+    article_count_by_category = Column(JSON)  # {category: count}
+
+    # Topic coverage
+    topics_covered = Column(Integer, default=0)  # Number of unique clusters covered
+    cluster_ids = Column(JSON)  # Array of cluster IDs this source covered today
+
+    # Geographic coverage
+    countries_mentioned = Column(JSON)  # Array of country codes mentioned
+    country_count = Column(Integer, default=0)
+
+    # Comparison metrics
+    vs_avg_ratio = Column(Float, default=1.0)  # Article count vs average for this day
+    coverage_percentile = Column(Float)  # Percentile rank (0-100)
+
+    created_at = Column(DateTime, default=get_utc_now)
+
+    __table_args__ = (
+        Index(
+            "ix_source_coverage_stats_source_date", "source_name", "date", unique=True
+        ),
+        Index("ix_source_coverage_stats_date", "date"),
+    )
+
+
+class TopicBlindSpot(Base):
+    """Tracks which sources are NOT covering specific topics (blind spots)."""
+
+    __tablename__ = "topic_blind_spots"
+
+    id = Column(Integer, primary_key=True, index=True)
+    cluster_id = Column(Integer, nullable=False, index=True)
+    cluster_label = Column(String)
+
+    # Sources that ARE covering this topic
+    covering_sources = Column(JSON)  # Array of source names
+    covering_count = Column(Integer, default=0)
+
+    # Sources that are NOT covering (the blind spot)
+    blind_spot_sources = Column(JSON)  # Array of source names
+    blind_spot_count = Column(Integer, default=0)
+
+    # Severity
+    severity = Column(String, default="low")  # low, medium, high
+    # High = important topic, major sources missing
+    # Medium = moderate importance or some sources missing
+    # Low = niche topic or only minor sources missing
+
+    # Analysis metadata
+    article_count_total = Column(Integer, default=0)
+    date_identified = Column(DateTime, default=get_utc_now)
+    last_updated = Column(DateTime, default=get_utc_now, onupdate=get_utc_now)
+
+    __table_args__ = (
+        Index("ix_topic_blind_spots_cluster", "cluster_id"),
+        Index("ix_topic_blind_spots_severity", "severity"),
+        Index("ix_topic_blind_spots_date", "date_identified"),
     )
 
 
@@ -474,6 +655,10 @@ async def init_db():
                     "TooManyConnectionsError",
                 }:
                     return True
+                # Handle "already exists" errors for indexes/tables
+                # These occur when create_all tries to create existing objects
+                if err.__class__.__name__ == "DuplicateTableError":
+                    return True
 
             if isinstance(err, OperationalError):
                 return True
@@ -484,6 +669,21 @@ async def init_db():
             if "connection refused" in message or "could not connect" in message:
                 return True
             if "timeout" in message and "connect" in message:
+                return True
+            if "already exists" in message:
+                return True
+        return False
+
+    def _is_already_exists_error(exc: BaseException) -> bool:
+        """Check if error is about objects already existing (which is fine)."""
+        message = str(exc).lower()
+        if "already exists" in message:
+            return True
+        for err in _iter_exception_chain(exc):
+            if err.__class__.__module__.startswith("asyncpg"):
+                if err.__class__.__name__ == "DuplicateTableError":
+                    return True
+            if "already exists" in str(err).lower():
                 return True
         return False
 
@@ -501,6 +701,11 @@ async def init_db():
         except asyncio.CancelledError:
             raise
         except Exception as exc:
+            # If objects already exist, that's fine - just log and continue
+            if _is_already_exists_error(exc):
+                logger.info("Database objects already exist, continuing startup")
+                return
+
             if not _is_transient_startup_error(exc) or time.monotonic() >= deadline:
                 logger.error("Failed to initialize database: %s", exc, exc_info=True)
                 raise
