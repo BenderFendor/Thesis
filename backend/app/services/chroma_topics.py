@@ -259,17 +259,83 @@ class ChromaTopicService:
     ) -> List[ClusterCandidate]:
         if not articles:
             return []
-        clusters: List[ClusterCandidate] = []
-        seen: Set[int] = set()
+        candidates: List[ClusterCandidate] = []
+        candidate_by_anchor: Dict[int, ClusterCandidate] = {}
         for article in articles:
-            if article.id in seen:
-                continue
             cluster = await self._build_cluster_from_anchor(article_id=article.id)
             if not cluster or len(cluster.member_ids) < MIN_CLUSTER_SIZE:
-                seen.add(article.id)
                 continue
-            clusters.append(cluster)
-            seen.update(cluster.member_ids)
+            candidates.append(cluster)
+            candidate_by_anchor[cluster.anchor_id] = cluster
+
+        if not candidates:
+            return []
+
+        all_ids: Set[int] = set()
+        for cluster in candidates:
+            all_ids.update(cluster.member_ids)
+
+        parent: Dict[int, int] = {article_id: article_id for article_id in all_ids}
+
+        def find(article_id: int) -> int:
+            root = article_id
+            while parent[root] != root:
+                root = parent[root]
+            while parent[article_id] != article_id:
+                next_id = parent[article_id]
+                parent[article_id] = root
+                article_id = next_id
+            return root
+
+        def union(a: int, b: int) -> None:
+            root_a = find(a)
+            root_b = find(b)
+            if root_a != root_b:
+                parent[root_b] = root_a
+
+        for cluster in candidates:
+            anchor_id = cluster.anchor_id
+            for member_id in cluster.member_ids:
+                union(anchor_id, member_id)
+
+        components: Dict[int, Set[int]] = {}
+        for article_id in parent.keys():
+            root = find(article_id)
+            components.setdefault(root, set()).add(article_id)
+
+        clusters: List[ClusterCandidate] = []
+        for members in components.values():
+            if len(members) < MIN_CLUSTER_SIZE:
+                continue
+            anchors = [
+                anchor_id for anchor_id in members if anchor_id in candidate_by_anchor
+            ]
+            if not anchors:
+                anchor_id = min(members)
+                similarities: Dict[int, float] = {}
+            else:
+                best_anchor = anchors[0]
+                best_score = (-1, -1.0)
+                for anchor_id in anchors:
+                    candidate = candidate_by_anchor[anchor_id]
+                    size_score = len(candidate.member_ids)
+                    sim_total = sum(candidate.similarities.values())
+                    sim_avg = sim_total / max(len(candidate.similarities), 1)
+                    score = (size_score, sim_avg)
+                    if score > best_score:
+                        best_score = score
+                        best_anchor = anchor_id
+                anchor_id = best_anchor
+                similarities = candidate_by_anchor[anchor_id].similarities
+
+            clusters.append(
+                ClusterCandidate(
+                    anchor_id=anchor_id,
+                    member_ids=list(members),
+                    similarities=similarities,
+                )
+            )
+
         return clusters
 
     async def _build_cluster_from_anchor(
