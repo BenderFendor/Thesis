@@ -11,9 +11,10 @@ from sqlalchemy import (
     select,
     or_,
     func,
+    inspect,
 )
 from sqlalchemy.dialects import postgresql
-from sqlalchemy.types import TypeDecorator
+from sqlalchemy.types import TypeDecorator, JSON as JsonType
 from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession, async_sessionmaker
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.exc import OperationalError
@@ -75,7 +76,7 @@ class TagListType(TypeDecorator):
     def load_dialect_impl(self, dialect):  # type: ignore[override]
         if dialect.name == "postgresql":
             return dialect.type_descriptor(postgresql.ARRAY(String))
-        return dialect.type_descriptor(JSON)
+        return dialect.type_descriptor(JsonType())
 
     def process_bind_param(self, value, dialect):  # type: ignore[override]
         if value is None:
@@ -296,115 +297,8 @@ class ArticleAuthor(Base):
     )
 
 
-# Phase 6: Trending & Breaking News Detection Tables
-
-
-class TopicCluster(Base):
-    """Groups of semantically similar articles representing a topic/story."""
-
-    __tablename__ = "topic_clusters"
-
-    id = Column(Integer, primary_key=True, index=True)
-    label = Column(String)  # Auto-generated or manually assigned topic label
-    keywords = Column(TagListType(), default=list)  # Representative keywords
-
-    # Centroid stored as reference to representative article's embedding
-    centroid_article_id = Column(
-        Integer, index=True
-    )  # Article closest to cluster center
-
-    # Lifecycle tracking
-    first_seen = Column(DateTime, default=get_utc_now, index=True)
-    last_seen = Column(DateTime, default=get_utc_now, index=True)
-    article_count = Column(Integer, default=0)
-
-    # Clustering metadata
-    is_active = Column(Boolean, default=True, index=True)  # False if merged or stale
-    merged_into_id = Column(
-        Integer, index=True
-    )  # If merged, points to surviving cluster
-
-    created_at = Column(DateTime, default=get_utc_now)
-    updated_at = Column(DateTime, default=get_utc_now, onupdate=get_utc_now)
-
-
-class ArticleTopic(Base):
-    """Junction table linking articles to their topic clusters."""
-
-    __tablename__ = "article_topics"
-
-    id = Column(Integer, primary_key=True, index=True)
-    article_id = Column(Integer, nullable=False, index=True)
-    cluster_id = Column(Integer, nullable=False, index=True)
-    similarity = Column(Float, nullable=False)  # Cosine similarity to centroid
-    assigned_at = Column(DateTime, default=get_utc_now)
-
-    __table_args__ = (
-        Index(
-            "ix_article_topics_article_cluster", "article_id", "cluster_id", unique=True
-        ),
-        Index("ix_article_topics_cluster_similarity", "cluster_id", "similarity"),
-    )
-
-
-class ClusterStatsDaily(Base):
-    """Daily aggregate statistics per cluster for trending detection."""
-
-    __tablename__ = "cluster_stats_daily"
-
-    id = Column(Integer, primary_key=True, index=True)
-    cluster_id = Column(Integer, nullable=False, index=True)
-    date = Column(DateTime, nullable=False, index=True)  # Truncated to day
-
-    article_count = Column(Integer, default=0)
-    source_count = Column(Integer, default=0)  # Distinct sources covering this topic
-
-    # Pre-computed scores (updated by background worker)
-    velocity_score = Column(Float, default=0.0)  # Rate of change vs baseline
-    diversity_score = Column(Float, default=0.0)  # Source diversity
-
-    # Phase 6B: External coverage count (GDELT)
-    external_count = Column(Integer, default=0)  # Number of external (GDELT) references
-
-    created_at = Column(DateTime, default=get_utc_now)
-    updated_at = Column(DateTime, default=get_utc_now, onupdate=get_utc_now)
-
-    __table_args__ = (
-        Index("ix_cluster_stats_daily_cluster_date", "cluster_id", "date", unique=True),
-    )
-
-
-class ClusterStatsHourly(Base):
-    """Hourly aggregate statistics per cluster for breaking news detection."""
-
-    __tablename__ = "cluster_stats_hourly"
-
-    id = Column(Integer, primary_key=True, index=True)
-    cluster_id = Column(Integer, nullable=False, index=True)
-    hour = Column(DateTime, nullable=False, index=True)  # Truncated to hour
-
-    article_count = Column(Integer, default=0)
-    source_count = Column(Integer, default=0)
-
-    # Breaking detection
-    is_spike = Column(Boolean, default=False, index=True)  # Flagged as unusual activity
-    spike_magnitude = Column(Float, default=0.0)  # How much above baseline
-
-    # Phase 6B: External coverage count (GDELT)
-    external_count = Column(Integer, default=0)  # Number of external (GDELT) references
-
-    created_at = Column(DateTime, default=get_utc_now)
-
-    __table_args__ = (
-        Index(
-            "ix_cluster_stats_hourly_cluster_hour", "cluster_id", "hour", unique=True
-        ),
-        Index("ix_cluster_stats_hourly_spike", "is_spike", "hour"),
-    )
-
-
 class GDELTEvent(Base):
-    """GDELT Global Database of Events, Language, and Tone entries matched to clusters."""
+    """GDELT Global Database of Events, Language, and Tone entries matched to articles."""
 
     __tablename__ = "gdelt_events"
 
@@ -427,8 +321,8 @@ class GDELTEvent(Base):
     tone = Column(Float)  # Average tone (-10 to +10)
     goldstein_scale = Column(Float)  # Conflict/cooperation scale (-10 to +10)
 
-    # Cluster matching
-    cluster_id = Column(Integer, index=True)  # Matched topic cluster (if any)
+    # Article matching
+    article_id = Column(Integer, index=True)  # Matched article (if any)
     matched_at = Column(DateTime)
     match_method = Column(String)  # 'url', 'embedding', 'keyword'
     similarity_score = Column(Float)  # If embedding match
@@ -439,7 +333,7 @@ class GDELTEvent(Base):
     created_at = Column(DateTime, default=get_utc_now)
 
     __table_args__ = (
-        Index("ix_gdelt_events_cluster_published", "cluster_id", "published_at"),
+        Index("ix_gdelt_events_article_published", "article_id", "published_at"),
         Index("ix_gdelt_events_event_code", "event_code"),
     )
 
@@ -515,7 +409,7 @@ class SourceCoverageStats(Base):
 
     id = Column(Integer, primary_key=True, index=True)
     source_name = Column(String, nullable=False, index=True)
-    date = Column(DateTime, nullable=False, index=True)  # Truncated to day
+    date = Column(DateTime, nullable=False)  # Truncated to day
 
     # Article counts
     article_count = Column(Integer, default=0)
@@ -637,6 +531,27 @@ async def init_db():
         logger.info("Skipping database initialization; ENABLE_DATABASE=0")
         return
 
+    async def _create_missing_tables() -> None:
+        if engine is None:
+            return
+        async with engine.begin() as conn:
+
+            def _get_tables(sync_conn):
+                inspector = inspect(sync_conn)
+                return set(inspector.get_table_names(schema="public"))
+
+            existing = await conn.run_sync(_get_tables)
+            missing = [
+                table
+                for table in Base.metadata.sorted_tables
+                if table.name not in existing
+            ]
+            for table in missing:
+                await conn.run_sync(table.create, checkfirst=True)
+
+            if missing:
+                logger.info("Created %d missing tables", len(missing))
+
     def _iter_exception_chain(exc: BaseException):
         current: BaseException | None = exc
         seen: set[int] = set()
@@ -704,6 +619,7 @@ async def init_db():
             # If objects already exist, that's fine - just log and continue
             if _is_already_exists_error(exc):
                 logger.info("Database objects already exist, continuing startup")
+                await _create_missing_tables()
                 return
 
             if not _is_transient_startup_error(exc) or time.monotonic() >= deadline:
@@ -728,7 +644,8 @@ def article_record_to_dict(record: Article) -> Dict[str, Any]:
     if record is None:
         return {}
 
-    published = record.published_at.isoformat() if record.published_at else None
+    published_at = record.published_at
+    published = published_at.isoformat() if published_at is not None else None
     missing_fields = []
     if not hasattr(record, "source_country"):
         missing_fields.append("source_country")
@@ -746,8 +663,8 @@ def article_record_to_dict(record: Article) -> Dict[str, Any]:
 
     return {
         "id": record.id,
-        "title": record.title or "Untitled article",
-        "source": record.source or "Unknown",
+        "title": record.title if record.title is not None else "Untitled article",
+        "source": record.source if record.source is not None else "Unknown",
         "source_id": record.source_id,
         "country": record.country,
         "credibility": record.credibility,
@@ -759,16 +676,20 @@ def article_record_to_dict(record: Article) -> Dict[str, Any]:
         "image_url": record.image_url,
         "published": published,
         "published_at": published,
-        "category": record.category or "general",
+        "category": record.category if record.category is not None else "general",
         "url": record.url,
         "link": record.url,
-        "tags": record.tags or [],
+        "tags": record.tags if record.tags is not None else [],
         "original_language": record.original_language,
         "translated": record.translated,
         "chroma_id": record.chroma_id,
         "embedding_generated": record.embedding_generated,
-        "created_at": record.created_at.isoformat() if record.created_at else None,
-        "updated_at": record.updated_at.isoformat() if record.updated_at else None,
+        "created_at": record.created_at.isoformat()
+        if record.created_at is not None
+        else None,
+        "updated_at": record.updated_at.isoformat()
+        if record.updated_at is not None
+        else None,
         # Phase 5 Fields
         "source_country": source_country,
         "mentioned_countries": mentioned_countries or [],
@@ -849,13 +770,15 @@ async def fetch_articles_by_ids(
 
     stmt = select(Article).where(Article.id.in_(article_ids))
     result = await session.execute(stmt)
-    articles = {
-        record.id: article_record_to_dict(record) for record in result.scalars().all()
+    articles: Dict[int, Dict[str, Any]] = {
+        record.id: article_record_to_dict(record)  # type: ignore[misc]
+        for record in result.scalars().all()
+        if record.id is not None
     }
 
     return [
         articles[article_id] for article_id in article_ids if article_id in articles
-    ]
+    ]  # type: ignore[index]
 
 
 async def fetch_articles_page(

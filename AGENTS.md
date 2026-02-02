@@ -6,6 +6,7 @@
 - Use `uv` instead of `pip` when coding in Python.
 - Follow best practices for the framework or language in use.
 - If unsure about a library or project documentation, use web search to update knowledge.
+- Use exa-code (exa_get_code_context_exa) for all docs and context when coding.
 - Keep writing concise: avoid filler, keep sentences focused, avoid jargon when simpler terms work.
 - Add minimal, thoughtful debugging to support future troubleshooting.
 - Prefer a single LLM API call per feature flow when feasible to reduce rate-limit risk; consolidate prompts instead of chaining calls.

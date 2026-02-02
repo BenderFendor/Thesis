@@ -36,6 +36,32 @@ curl http://localhost:8000/trending/diagnostics
 
 ---
 
+## 2026-02-02: Chroma-Only Clustering Cutover
+
+**Objective:** Remove persistent topic clustering storage and compute clusters on demand from Chroma.
+
+**Backend Changes:**
+- Added `backend/app/services/chroma_topics.py` to compute trending/breaking/all clusters and article topics on demand.
+- Rewired `backend/app/api/routes/trending.py` and `backend/app/api/routes/similarity.py` to use Chroma topics.
+- Updated `backend/app/services/blind_spots.py` to use Chroma topic grouping.
+- Removed clustering schedulers from `backend/app/services/scheduler.py` and `backend/app/main.py`.
+- Removed legacy clustering services and scripts:
+  - `backend/app/services/clustering.py`
+  - `backend/app/services/fast_clustering.py`
+  - `backend/recluster_last_week.py`
+  - `backend/fix_cluster_timestamps.py`
+  - `backend/test_clustering.py`
+  - `backend/test_clustering_auto.py`
+
+**GDELT Integration:**
+- Switched `gdelt_events` linkage to `article_id`.
+- Updated `backend/app/services/gdelt_integration.py` and `backend/app/api/routes/gdelt.py` accordingly.
+
+**Database:**
+- Initialized missing tables locally and applied SQL to add `gdelt_events.article_id` and drop legacy cluster tables.
+
+---
+
 ## 2026-01-29: Phase 8 - Blind Spots Analysis
 
 ### Blind Spots Analysis Feature

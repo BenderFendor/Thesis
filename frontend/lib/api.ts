@@ -2801,6 +2801,7 @@ export interface TrendingCluster {
   trending_score: number;
   velocity: number;
   representative_article?: TrendingArticle;
+  articles?: TrendingArticle[];
 }
 
 export interface BreakingCluster {
@@ -2812,6 +2813,7 @@ export interface BreakingCluster {
   spike_magnitude: number;
   is_new_story: boolean;
   representative_article?: TrendingArticle;
+  articles?: TrendingArticle[];
 }
 
 export interface TrendingResponse {
@@ -2862,6 +2864,7 @@ export interface AllCluster {
   window_count: number;
   source_diversity: number;
   representative_article?: TrendingArticle;
+  articles?: TrendingArticle[];
 }
 
 export interface AllClustersResponse {
@@ -2973,6 +2976,74 @@ export async function fetchClusterArticles(clusterId: number): Promise<NewsArtic
  */
 export async function fetchTrendingStats(): Promise<TrendingStats> {
   const response = await fetch(`${API_BASE_URL}/trending/stats`);
+  if (!response.ok) {
+    throw new Error(`HTTP error! status: ${response.status}`);
+  }
+  return response.json();
+}
+
+// ==========================================================================
+// GDELT API
+// ==========================================================================
+
+export interface GdeltEvent {
+  id: number;
+  gdelt_id: string;
+  url?: string | null;
+  title?: string | null;
+  source?: string | null;
+  published_at?: string | null;
+  event_code?: string | null;
+  event_root_code?: string | null;
+  actor1_name?: string | null;
+  actor2_name?: string | null;
+  tone?: number | null;
+  goldstein_scale?: number | null;
+  match_method?: string | null;
+  similarity_score?: number | null;
+  matched_at?: string | null;
+}
+
+export interface GdeltArticleEventsResponse {
+  article_id: number;
+  total_external_events: number;
+  events: GdeltEvent[];
+}
+
+export interface GdeltStatsResponse {
+  window_hours: number;
+  total_events: number;
+  matched_events: number;
+  match_rate: number;
+  match_breakdown: {
+    url_match: number;
+    embedding_match: number;
+  };
+  top_articles_by_coverage: Array<{
+    article_id: number;
+    gdelt_event_count: number;
+  }>;
+}
+
+export async function fetchGdeltArticleEvents(
+  articleId: number,
+  limit: number = 50
+): Promise<GdeltArticleEventsResponse> {
+  const params = new URLSearchParams({ limit: String(limit) });
+  const response = await fetch(
+    `${API_BASE_URL}/gdelt/article/${articleId}?${params}`
+  );
+  if (!response.ok) {
+    throw new Error(`HTTP error! status: ${response.status}`);
+  }
+  return response.json();
+}
+
+export async function fetchGdeltStats(
+  hours: number = 24
+): Promise<GdeltStatsResponse> {
+  const params = new URLSearchParams({ hours: String(hours) });
+  const response = await fetch(`${API_BASE_URL}/gdelt/stats?${params}`);
   if (!response.ok) {
     throw new Error(`HTTP error! status: ${response.status}`);
   }

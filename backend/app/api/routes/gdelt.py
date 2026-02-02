@@ -13,8 +13,8 @@ from sqlalchemy import select, func
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import settings
-from app.database import get_db, GDELTEvent, TopicCluster
-from app.services.gdelt_integration import sync_gdelt_to_clusters, get_gdelt_integration
+from app.database import get_db, GDELTEvent
+from app.services.gdelt_integration import sync_gdelt_to_articles, get_gdelt_integration
 
 router = APIRouter(prefix="/gdelt", tags=["gdelt"])
 
@@ -35,7 +35,7 @@ async def trigger_gdelt_sync(
         Sync results with matched/total counts
     """
     try:
-        matched, total = await sync_gdelt_to_clusters(
+        matched, total = await sync_gdelt_to_articles(
             session, minutes=minutes, limit=limit
         )
 
@@ -50,13 +50,13 @@ async def trigger_gdelt_sync(
         raise HTTPException(status_code=500, detail=f"GDELT sync failed: {str(e)}")
 
 
-@router.get("/cluster/{cluster_id}")
-async def get_cluster_gdelt_events(
-    cluster_id: int,
+@router.get("/article/{article_id}")
+async def get_article_gdelt_events(
+    article_id: int,
     limit: int = Query(50, ge=1, le=200),
     session: AsyncSession = Depends(get_db),
 ) -> Dict[str, Any]:
-    """Get GDELT events matched to a specific cluster.
+    """Get GDELT events matched to a specific article.
 
     Args:
         cluster_id: Cluster ID to query
@@ -65,19 +65,10 @@ async def get_cluster_gdelt_events(
     Returns:
         Cluster info with matched GDELT events
     """
-    # Get cluster info
-    cluster_result = await session.execute(
-        select(TopicCluster).where(TopicCluster.id == cluster_id)
-    )
-    cluster = cluster_result.scalar_one_or_none()
-
-    if not cluster:
-        raise HTTPException(status_code=404, detail="Cluster not found")
-
-    # Get GDELT events for this cluster
+    # Get GDELT events for this article
     events_result = await session.execute(
         select(GDELTEvent)
-        .where(GDELTEvent.cluster_id == cluster_id)
+        .where(GDELTEvent.article_id == article_id)
         .order_by(GDELTEvent.published_at.desc())
         .limit(limit)
     )
@@ -85,13 +76,12 @@ async def get_cluster_gdelt_events(
 
     # Count total
     count_result = await session.execute(
-        select(func.count(GDELTEvent.id)).where(GDELTEvent.cluster_id == cluster_id)
+        select(func.count(GDELTEvent.id)).where(GDELTEvent.article_id == article_id)
     )
     total_count = count_result.scalar_one()
 
     return {
-        "cluster_id": cluster_id,
-        "cluster_label": cluster.label,
+        "article_id": article_id,
         "total_external_events": total_count,
         "events": [
             {
@@ -100,7 +90,9 @@ async def get_cluster_gdelt_events(
                 "url": e.url,
                 "title": e.title,
                 "source": e.source,
-                "published_at": e.published_at.isoformat() if e.published_at else None,
+                "published_at": e.published_at.isoformat()
+                if e.published_at is not None
+                else None,
                 "event_code": e.event_code,
                 "event_root_code": e.event_root_code,
                 "actor1_name": e.actor1_name,
@@ -109,7 +101,9 @@ async def get_cluster_gdelt_events(
                 "goldstein_scale": e.goldstein_scale,
                 "match_method": e.match_method,
                 "similarity_score": e.similarity_score,
-                "matched_at": e.matched_at.isoformat() if e.matched_at else None,
+                "matched_at": e.matched_at.isoformat()
+                if e.matched_at is not None
+                else None,
             }
             for e in events
         ],
@@ -140,7 +134,7 @@ async def get_gdelt_stats(
     # Matched events
     matched_result = await session.execute(
         select(func.count(GDELTEvent.id)).where(
-            GDELTEvent.created_at >= since, GDELTEvent.cluster_id.isnot(None)
+            GDELTEvent.created_at >= since, GDELTEvent.article_id.isnot(None)
         )
     )
     matched_events = matched_result.scalar_one()
@@ -161,21 +155,20 @@ async def get_gdelt_stats(
     embedding_matched = embedding_matched_result.scalar_one()
 
     # Top clusters by GDELT coverage
-    top_clusters_result = await session.execute(
+    top_articles_result = await session.execute(
         select(
-            TopicCluster.id,
-            TopicCluster.label,
+            GDELTEvent.article_id,
             func.count(GDELTEvent.id).label("event_count"),
         )
-        .join(GDELTEvent, GDELTEvent.cluster_id == TopicCluster.id)
         .where(GDELTEvent.created_at >= since)
-        .group_by(TopicCluster.id)
+        .group_by(GDELTEvent.article_id)
         .order_by(func.count(GDELTEvent.id).desc())
         .limit(10)
     )
-    top_clusters = [
-        {"cluster_id": row[0], "cluster_label": row[1], "gdelt_event_count": row[2]}
-        for row in top_clusters_result.all()
+    top_articles = [
+        {"article_id": row[0], "gdelt_event_count": row[1]}
+        for row in top_articles_result.all()
+        if row[0] is not None
     ]
 
     return {
@@ -189,7 +182,7 @@ async def get_gdelt_stats(
             "url_match": url_matched,
             "embedding_match": embedding_matched,
         },
-        "top_clusters_by_coverage": top_clusters,
+        "top_articles_by_coverage": top_articles,
     }
 
 
@@ -213,7 +206,7 @@ async def get_recent_gdelt_events(
     query = select(GDELTEvent).order_by(GDELTEvent.created_at.desc())
 
     if not include_unmatched:
-        query = query.where(GDELTEvent.cluster_id.isnot(None))
+        query = query.where(GDELTEvent.article_id.isnot(None))
 
     result = await session.execute(query.limit(limit))
     events = result.scalars().all()
@@ -225,12 +218,16 @@ async def get_recent_gdelt_events(
             "url": e.url,
             "title": e.title,
             "source": e.source,
-            "published_at": e.published_at.isoformat() if e.published_at else None,
+            "published_at": e.published_at.isoformat()
+            if e.published_at is not None
+            else None,
             "event_code": e.event_code,
             "tone": e.tone,
-            "cluster_id": e.cluster_id,
+            "article_id": e.article_id,
             "match_method": e.match_method,
-            "created_at": e.created_at.isoformat() if e.created_at else None,
+            "created_at": e.created_at.isoformat()
+            if e.created_at is not None
+            else None,
         }
         for e in events
     ]

@@ -1,6 +1,6 @@
 """GDELT Global Database of Events, Language, and Tone integration service.
 
-Provides functionality to fetch GDELT events and match them to topic clusters
+Provides functionality to fetch GDELT events and match them to articles
 using URL matching and embedding similarity.
 """
 
@@ -22,11 +22,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.config import settings
 from app.database import (
     GDELTEvent,
-    TopicCluster,
-    ArticleTopic,
     Article,
-    ClusterStatsDaily,
-    ClusterStatsHourly,
 )
 from app.vector_store import get_vector_store
 
@@ -39,7 +35,7 @@ SIMILARITY_THRESHOLD = 0.75  # Cosine similarity threshold for embedding matches
 
 
 class GDELTIntegration:
-    """Handles fetching and matching GDELT events to topic clusters."""
+    """Handles fetching and matching GDELT events to articles."""
 
     def __init__(self):
         self.vector_store = None
@@ -101,9 +97,7 @@ class GDELTIntegration:
 
             events = []
             for export_url in export_urls[:2]:  # Fetch last 2 updates
-                batch_events = await self._fetch_export_csv(
-                    export_url, limit=len(limit)
-                )
+                batch_events = await self._fetch_export_csv(export_url, limit=limit)
                 events.extend(batch_events)
                 if len(events) >= limit:
                     break
@@ -237,14 +231,14 @@ class GDELTIntegration:
         except Exception:
             return ""
 
-    async def match_events_to_clusters(
+    async def match_events_to_articles(
         self, session: AsyncSession, events: List[Dict[str, Any]]
     ) -> Tuple[int, int]:
-        """Match GDELT events to existing topic clusters.
+        """Match GDELT events to existing articles.
 
         Uses two methods:
-        1. URL matching - exact URL match to existing articles in clusters
-        2. Embedding similarity - semantic similarity to cluster centroids
+        1. URL matching - exact URL match to existing articles
+        2. Embedding similarity - semantic similarity to recent articles
 
         Args:
             session: Database session
@@ -258,16 +252,6 @@ class GDELTIntegration:
 
         matched_count = 0
 
-        # Get active clusters for matching
-        clusters_result = await session.execute(
-            select(TopicCluster).where(TopicCluster.is_active == True)
-        )
-        active_clusters = clusters_result.scalars().all()
-
-        if not active_clusters:
-            logger.warning("No active clusters found for GDELT matching")
-            return 0, len(events)
-
         # Get vector store for embedding comparisons
         if self.vector_store is None:
             self.vector_store = get_vector_store()
@@ -275,23 +259,21 @@ class GDELTIntegration:
         for event in events:
             try:
                 # Method 1: URL matching
-                cluster_id = await self._match_by_url(session, event["url"])
+                article_id = await self._match_by_url(session, event["url"])
                 match_method = "url"
 
                 # Method 2: Embedding similarity if no URL match
-                if cluster_id is None and self.vector_store:
-                    cluster_id = await self._match_by_embedding(
-                        session, event, active_clusters
-                    )
+                if article_id is None and self.vector_store:
+                    article_id = await self._match_by_embedding(session, event)
                     match_method = "embedding"
 
                 # Store the event with match info
-                await self._store_gdelt_event(session, event, cluster_id, match_method)
+                await self._store_gdelt_event(session, event, article_id, match_method)
 
-                if cluster_id:
+                if article_id:
                     matched_count += 1
                     logger.debug(
-                        f"Matched GDELT event {event['gdelt_id']} to cluster {cluster_id} "
+                        f"Matched GDELT event {event['gdelt_id']} to article {article_id} "
                         f"via {match_method}"
                     )
 
@@ -302,22 +284,19 @@ class GDELTIntegration:
                 continue
 
         await session.commit()
-        logger.info(f"Matched {matched_count}/{len(events)} GDELT events to clusters")
+        logger.info(f"Matched {matched_count}/{len(events)} GDELT events to articles")
 
         return matched_count, len(events)
 
     async def _match_by_url(self, session: AsyncSession, url: str) -> Optional[int]:
-        """Match GDELT event to cluster by URL.
-
-        Looks for existing articles with the same URL that are already
-        assigned to clusters.
+        """Match GDELT event to article by URL.
 
         Args:
             session: Database session
             url: URL to match
 
         Returns:
-            Cluster ID if matched, None otherwise
+            Article ID if matched, None otherwise
         """
         # Find article with this URL
         article_result = await session.execute(
@@ -328,35 +307,18 @@ class GDELTIntegration:
         if not article:
             return None
 
-        # Find cluster assignment for this article
-        topic_result = await session.execute(
-            select(ArticleTopic)
-            .where(ArticleTopic.article_id == article.id)
-            .order_by(ArticleTopic.similarity.desc())
-            .limit(1)
-        )
-        article_topic = topic_result.scalar_one_or_none()
-
-        if article_topic:
-            return article_topic.cluster_id
-
-        return None
+        article_id = article.id
+        if article_id is None:
+            return None
+        return int(article_id)
 
     async def _match_by_embedding(
-        self, session: AsyncSession, event: Dict[str, Any], clusters: List[TopicCluster]
+        self, session: AsyncSession, event: Dict[str, Any]
     ) -> Optional[int]:
-        """Match GDELT event to cluster by embedding similarity.
+        """Match GDELT event to article by embedding similarity.
 
         Generates an embedding from the event title and compares to
-        cluster centroids.
-
-        Args:
-            session: Database session
-            event: GDELT event dict
-            clusters: List of active clusters to compare against
-
-        Returns:
-            Cluster ID if matched above threshold, None otherwise
+        recent article embeddings.
         """
         if not self.vector_store:
             return None
@@ -370,35 +332,33 @@ class GDELTIntegration:
             # Generate embedding
             embedding = self.vector_store.embedding_model.encode(text).tolist()
 
-            best_cluster_id = None
+            best_article_id = None
             best_similarity = 0.0
 
-            # Compare to each cluster centroid
-            for cluster in clusters:
-                if not cluster.centroid_article_id:
+            result = self.vector_store.collection.query(
+                query_embeddings=[embedding],
+                n_results=10,
+                include=["distances"],
+            )
+
+            ids_payload = result.get("ids") if result else None
+            ids = ids_payload[0] if ids_payload else []
+            distances_payload = result.get("distances") if result else None
+            distances = distances_payload[0] if distances_payload else []
+
+            for chroma_id, distance in zip(ids, distances):
+                if not chroma_id or not chroma_id.startswith("article_"):
                     continue
-
-                # Get centroid article's embedding from ChromaDB
-                chroma_id = f"article_{cluster.centroid_article_id}"
-                centroid_result = self.vector_store.collection.get(
-                    ids=[chroma_id], include=["embeddings"]
-                )
-
-                if not centroid_result or not centroid_result.get("embeddings"):
-                    continue
-
-                centroid_embedding = centroid_result["embeddings"][0]
-
-                # Calculate cosine similarity
-                similarity = self._cosine_similarity(embedding, centroid_embedding)
-
+                similarity = 1 - distance if distance is not None else 0.0
                 if similarity > best_similarity:
                     best_similarity = similarity
-                    best_cluster_id = cluster.id
+                    try:
+                        best_article_id = int(chroma_id.replace("article_", ""))
+                    except ValueError:
+                        continue
 
-            # Return only if above threshold
             if best_similarity >= SIMILARITY_THRESHOLD:
-                return best_cluster_id
+                return best_article_id
 
         except Exception as e:
             logger.warning(f"Embedding match failed for GDELT event: {e}")
@@ -425,7 +385,7 @@ class GDELTIntegration:
         self,
         session: AsyncSession,
         event: Dict[str, Any],
-        cluster_id: Optional[int],
+        article_id: Optional[int],
         match_method: str,
     ) -> None:
         """Store GDELT event to database.
@@ -433,7 +393,7 @@ class GDELTIntegration:
         Args:
             session: Database session
             event: Event dictionary
-            cluster_id: Matched cluster ID (None if unmatched)
+            article_id: Matched article ID (None if unmatched)
             match_method: How the match was made ('url', 'embedding', or 'none')
         """
         # Check if event already exists
@@ -445,9 +405,8 @@ class GDELTIntegration:
 
         # Calculate similarity score if cluster matched
         similarity_score = None
-        if cluster_id and match_method == "embedding":
-            # Would need to recalculate or store from matching
-            similarity_score = 0.0  # Placeholder
+        if article_id and match_method == "embedding":
+            similarity_score = 0.0
 
         gdelt_event = GDELTEvent(
             gdelt_id=event["gdelt_id"],
@@ -463,66 +422,23 @@ class GDELTIntegration:
             actor2_country=event.get("actor2_country", ""),
             tone=event.get("tone"),
             goldstein_scale=event.get("goldstein_scale"),
-            cluster_id=cluster_id,
-            matched_at=datetime.now(timezone.utc) if cluster_id else None,
-            match_method=match_method if cluster_id else None,
+            article_id=article_id,
+            matched_at=datetime.now(timezone.utc) if article_id else None,
+            match_method=match_method if article_id else None,
             similarity_score=similarity_score,
             raw_data=event.get("raw_data"),
         )
 
         session.add(gdelt_event)
 
-    async def update_cluster_external_counts(
-        self, session: AsyncSession, cluster_id: int
+    async def update_article_external_count(
+        self, session: AsyncSession, article_id: int
     ) -> int:
-        """Update external_count for a specific cluster.
-
-        Args:
-            session: Database session
-            cluster_id: Cluster ID to update
-
-        Returns:
-            Number of GDELT events matched to this cluster
-        """
-        # Count GDELT events for this cluster
+        """Count GDELT events matched to a specific article."""
         count_result = await session.execute(
-            select(func.count(GDELTEvent.id)).where(GDELTEvent.cluster_id == cluster_id)
+            select(func.count(GDELTEvent.id)).where(GDELTEvent.article_id == article_id)
         )
-        external_count = count_result.scalar_one() or 0
-
-        # Update today's daily stats
-        today = datetime.now(timezone.utc).replace(
-            hour=0, minute=0, second=0, microsecond=0
-        )
-
-        daily_stats = await session.execute(
-            select(ClusterStatsDaily).where(
-                ClusterStatsDaily.cluster_id == cluster_id,
-                ClusterStatsDaily.date == today,
-            )
-        )
-        daily_stat = daily_stats.scalar_one_or_none()
-
-        if daily_stat:
-            daily_stat.external_count = external_count
-
-        # Update current hour stats
-        current_hour = datetime.now(timezone.utc).replace(
-            minute=0, second=0, microsecond=0
-        )
-
-        hourly_stats = await session.execute(
-            select(ClusterStatsHourly).where(
-                ClusterStatsHourly.cluster_id == cluster_id,
-                ClusterStatsHourly.hour == current_hour,
-            )
-        )
-        hourly_stat = hourly_stats.scalar_one_or_none()
-
-        if hourly_stat:
-            hourly_stat.external_count = external_count
-
-        return external_count
+        return count_result.scalar_one() or 0
 
     async def close(self):
         """Close HTTP client."""
@@ -543,10 +459,10 @@ def get_gdelt_integration() -> GDELTIntegration:
     return _gdelt_integration
 
 
-async def sync_gdelt_to_clusters(
+async def sync_gdelt_to_articles(
     session: AsyncSession, minutes: int = 15, limit: int = 250
 ) -> Tuple[int, int]:
-    """Convenience function to sync recent GDELT events to clusters.
+    """Convenience function to sync recent GDELT events to articles.
 
     Args:
         session: Database session
@@ -566,25 +482,7 @@ async def sync_gdelt_to_clusters(
             logger.info("No GDELT events to process")
             return 0, 0
 
-        # Match to clusters
-        matched, total = await gdelt.match_events_to_clusters(session, events)
-
-        # Update external counts for matched clusters
-        if matched > 0:
-            # Get unique cluster IDs that were matched
-            cluster_ids_result = await session.execute(
-                select(GDELTEvent.cluster_id)
-                .where(GDELTEvent.cluster_id.isnot(None))
-                .where(
-                    GDELTEvent.matched_at
-                    >= datetime.now(timezone.utc) - timedelta(minutes=minutes)
-                )
-                .distinct()
-            )
-            cluster_ids = [row[0] for row in cluster_ids_result.all()]
-
-            for cluster_id in cluster_ids:
-                await gdelt.update_cluster_external_counts(session, cluster_id)
+        matched, total = await gdelt.match_events_to_articles(session, events)
 
         await session.commit()
 

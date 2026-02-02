@@ -3,13 +3,15 @@
 from __future__ import annotations
 
 import logging
-from typing import Dict, List, Optional
+from datetime import datetime
+from typing import Dict, List, Optional, cast
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.database import Article as ArticleRecord, TopicCluster, get_db
+from app.database import Article as ArticleRecord, get_db
+from app.services.chroma_topics import ChromaTopicService
 from app.vector_store import get_vector_store
 
 logger = logging.getLogger(__name__)
@@ -35,7 +37,7 @@ async def get_related_articles(
     if not article:
         raise HTTPException(status_code=404, detail="Article not found")
 
-    source_id = article.source_id if exclude_same_source else None
+    source_id = cast(Optional[str], article.source_id) if exclude_same_source else None
     similar = vector_store.find_similar_by_id(
         article_id=article_id,
         limit=limit,
@@ -57,6 +59,7 @@ async def get_related_articles(
         art = article_map.get(sim["article_id"])
         if not art:
             continue
+        published_at = cast(Optional[datetime], art.published_at)
         related.append(
             {
                 "id": art.id,
@@ -65,9 +68,7 @@ async def get_related_articles(
                 "sourceId": art.source_id,
                 "summary": art.summary,
                 "image": art.image_url,
-                "publishedAt": art.published_at.isoformat()
-                if art.published_at
-                else None,
+                "publishedAt": published_at.isoformat() if published_at else None,
                 "category": art.category,
                 "url": art.url,
                 "similarity_score": sim["similarity_score"],
@@ -88,40 +89,10 @@ async def get_search_suggestions(
     if vector_store is None:
         raise HTTPException(status_code=503, detail="Vector store not available")
 
-    clusters_stmt = (
-        select(TopicCluster).where(TopicCluster.article_count > 0).limit(100)
-    )
-    result = await db.execute(clusters_stmt)
-    clusters = result.scalars().all()
-
-    if not clusters:
+    service = ChromaTopicService()
+    if not service.vector_store:
         return {"query": query, "suggestions": []}
-
-    cluster_data = []
-    for c in clusters:
-        if c.centroid_embedding:
-            cluster_data.append(
-                {
-                    "id": c.id,
-                    "label": c.label or f"Topic {c.id}",
-                    "centroid": c.centroid_embedding,
-                }
-            )
-
-    if not cluster_data:
-        return {"query": query, "suggestions": []}
-
-    nearest = vector_store.find_nearest_cluster_labels(query, cluster_data, limit=limit)
-    suggestions = [
-        {
-            "cluster_id": n["cluster_id"],
-            "label": n["label"],
-            "relevance": round(n["similarity"], 3),
-        }
-        for n in nearest
-        if n["similarity"] > 0.3
-    ]
-
+    suggestions = await service.get_search_suggestions(query, limit=limit)
     return {"query": query, "suggestions": suggestions}
 
 
@@ -215,33 +186,10 @@ async def get_article_topics(
     db: AsyncSession = Depends(get_db),
 ) -> Dict[str, object]:
     """Get topic cluster assignments for an article."""
-    from app.database import ArticleTopic
-
-    stmt = (
-        select(ArticleTopic, TopicCluster)
-        .join(TopicCluster, ArticleTopic.cluster_id == TopicCluster.id)
-        .where(ArticleTopic.article_id == article_id)
-        .order_by(ArticleTopic.similarity.desc())
-    )
-    result = await db.execute(stmt)
-    rows = result.all()
-
-    if not rows:
+    service = ChromaTopicService()
+    if not service.vector_store:
         return {"article_id": article_id, "topics": []}
-
-    topics = []
-    for article_topic, cluster in rows:
-        topics.append(
-            {
-                "cluster_id": cluster.id,
-                "label": cluster.label or f"Topic {cluster.id}",
-                "similarity": round(article_topic.similarity, 3)
-                if article_topic.similarity
-                else None,
-                "keywords": cluster.keywords or [],
-            }
-        )
-
+    topics = await service.get_article_topics(db, article_id)
     return {"article_id": article_id, "topics": topics}
 
 
@@ -251,33 +199,10 @@ async def get_bulk_article_topics(
     db: AsyncSession = Depends(get_db),
 ) -> Dict[str, object]:
     """Get topic cluster assignments for multiple articles."""
-    from app.database import ArticleTopic
-
     if not article_ids:
         return {"articles": {}}
-
-    stmt = (
-        select(ArticleTopic, TopicCluster)
-        .join(TopicCluster, ArticleTopic.cluster_id == TopicCluster.id)
-        .where(ArticleTopic.article_id.in_(article_ids))
-        .order_by(ArticleTopic.article_id, ArticleTopic.similarity.desc())
-    )
-    result = await db.execute(stmt)
-    rows = result.all()
-
-    articles_map: Dict[int, List[Dict]] = {aid: [] for aid in article_ids}
-
-    for article_topic, cluster in rows:
-        aid = article_topic.article_id
-        if aid in articles_map:
-            articles_map[aid].append(
-                {
-                    "cluster_id": cluster.id,
-                    "label": cluster.label or f"Topic {cluster.id}",
-                    "similarity": round(article_topic.similarity, 3)
-                    if article_topic.similarity
-                    else None,
-                }
-            )
-
+    service = ChromaTopicService()
+    if not service.vector_store:
+        return {"articles": {}}
+    articles_map = await service.get_bulk_article_topics(db, article_ids)
     return {"articles": articles_map}

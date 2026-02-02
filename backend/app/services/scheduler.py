@@ -32,104 +32,6 @@ async def periodic_rss_refresh(interval_seconds: int = 600) -> None:
             logger.error("Scheduled refresh failed: %s", e, exc_info=True)
 
 
-async def periodic_cluster_update(interval_seconds: int = 300) -> None:
-    """
-    Periodic task that updates topic clusters and stats.
-
-    Runs every 5 minutes by default to:
-    1. Assign new articles to clusters
-    2. Update cluster statistics (daily/hourly)
-    """
-    from app.database import AsyncSessionLocal
-    from app.services.clustering import (
-        process_unassigned_articles,
-        ClusteringService,
-    )
-    from app.core.config import settings
-
-    logger.info("Starting periodic cluster update (interval: %ds)", interval_seconds)
-
-    await asyncio.sleep(30)
-
-    while True:
-        try:
-            await asyncio.sleep(interval_seconds)
-
-            if not settings.enable_database or AsyncSessionLocal is None:
-                continue
-
-            if not settings.enable_vector_store:
-                continue
-
-            logger.info("Starting cluster update at %s", datetime.now(timezone.utc))
-
-            async with AsyncSessionLocal() as session:
-                # Use fast batch clustering instead of slow one-by-one processing
-                from app.services.fast_clustering import (
-                    fast_process_unassigned_articles,
-                )
-
-                assigned = await fast_process_unassigned_articles(session, limit=500)
-                await session.commit()
-
-                service = ClusteringService()
-                stats = await service.update_cluster_stats(session)
-                await session.commit()
-
-                logger.info(
-                    "Cluster update complete: assigned=%d, daily_updated=%d, hourly_updated=%d",
-                    assigned,
-                    stats.get("daily_updated", 0),
-                    stats.get("hourly_updated", 0),
-                )
-
-        except asyncio.CancelledError:
-            logger.info("Periodic cluster update cancelled")
-            break
-        except Exception as e:
-            logger.error("Cluster update failed: %s", e, exc_info=True)
-
-
-async def periodic_cluster_merge(interval_seconds: int = 1800) -> None:
-    """
-    Periodic task that merges similar topic clusters.
-
-    Runs every 30 minutes by default to deduplicate clusters
-    covering the same story from different angles.
-    """
-    from app.database import AsyncSessionLocal
-    from app.services.clustering import merge_similar_clusters
-    from app.core.config import settings
-
-    logger.info("Starting periodic cluster merge (interval: %ds)", interval_seconds)
-
-    await asyncio.sleep(120)
-
-    while True:
-        try:
-            await asyncio.sleep(interval_seconds)
-
-            if not settings.enable_database or AsyncSessionLocal is None:
-                continue
-
-            if not settings.enable_vector_store:
-                continue
-
-            logger.info("Starting cluster merge at %s", datetime.now(timezone.utc))
-
-            async with AsyncSessionLocal() as session:
-                merged = await merge_similar_clusters(
-                    session, similarity_threshold=0.80
-                )
-                logger.info("Cluster merge complete: merged=%d clusters", merged)
-
-        except asyncio.CancelledError:
-            logger.info("Periodic cluster merge cancelled")
-            break
-        except Exception as e:
-            logger.error("Cluster merge failed: %s", e, exc_info=True)
-
-
 async def periodic_blind_spots_update(interval_seconds: int = 86400) -> None:
     """
     Periodic task that updates source coverage stats for blind spots analysis.
@@ -159,7 +61,7 @@ async def periodic_blind_spots_update(interval_seconds: int = 86400) -> None:
                 "Starting blind spots analysis at %s", datetime.now(timezone.utc)
             )
 
-            async with AsyncSessionLocal() as session:
+            async with AsyncSessionLocal() as session:  # type: ignore[misc]
                 analyzer = get_blind_spots_analyzer()
 
                 # Update daily coverage stats

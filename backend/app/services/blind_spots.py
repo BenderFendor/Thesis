@@ -10,20 +10,19 @@ import json
 import logging
 from collections import defaultdict
 from datetime import datetime, timedelta, timezone
-from typing import Any, Dict, List, Optional, Set, Tuple
+from typing import Any, Dict, List, Optional, Sequence, Set, Tuple, cast
 
 from sqlalchemy import select, func, and_, or_, desc
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import (
     Article,
-    TopicCluster,
-    ArticleTopic,
     SourceMetadata,
     SourceCoverageStats,
     TopicBlindSpot,
     get_utc_now,
 )
+from app.services.chroma_topics import ChromaTopicService
 from app.core.config import settings
 
 logger = logging.getLogger(__name__)
@@ -81,40 +80,38 @@ class BlindSpotsAnalyzer:
                 "coverage_gaps": [],
             }
 
-        # Get cluster assignments for these articles
-        article_ids = [a.id for a in articles]
-        topics_result = await session.execute(
-            select(ArticleTopic.cluster_id, func.count(ArticleTopic.id).label("count"))
-            .where(ArticleTopic.article_id.in_(article_ids))
-            .group_by(ArticleTopic.cluster_id)
-        )
-        topic_counts = {row[0]: row[1] for row in topics_result.all()}
+        service = ChromaTopicService()
+        if not service.vector_store:
+            return {
+                "source": source_name,
+                "article_count": len(articles),
+                "topics_covered": 0,
+                "blind_spots": [],
+                "coverage_gaps": self._identify_coverage_gaps(list(articles)),
+            }
 
-        # Get all active clusters in timeframe
-        all_clusters_result = await session.execute(
-            select(TopicCluster).where(
-                and_(TopicCluster.is_active == True, TopicCluster.last_seen >= since)
-            )
+        article_ids = [a.id for a in articles]
+        covered_clusters = set(article_ids)
+        all_articles_result = await session.execute(
+            select(Article.id).where(Article.published_at >= since).limit(1000)
         )
-        all_clusters = all_clusters_result.scalars().all()
+        all_clusters = [row[0] for row in all_articles_result.all()]
 
         # Identify blind spots (clusters this source is NOT covering)
-        covered_clusters = set(topic_counts.keys())
         blind_spots = []
 
-        for cluster in all_clusters:
-            if cluster.id not in covered_clusters:
-                # Check if this cluster has enough coverage to matter
-                total_articles = await self._get_cluster_article_count(
-                    session, cluster.id, since
-                )
+        for cluster_id in all_clusters:
+            if cluster_id not in covered_clusters:
+                cluster_detail = await service.get_cluster_detail(session, cluster_id)
+                if not cluster_detail:
+                    continue
+                total_articles = cluster_detail.get("article_count", 0)
                 if total_articles >= self.min_articles_for_blind_spot:
                     blind_spots.append(
                         {
-                            "cluster_id": cluster.id,
-                            "cluster_label": cluster.label
-                            or ", ".join(cluster.keywords[:3]),
-                            "topic_keywords": cluster.keywords,
+                            "cluster_id": cluster_id,
+                            "cluster_label": cluster_detail.get("label") or "Topic",
+                            "topic_keywords": cluster_detail.get("keywords", []),
                             "total_articles": total_articles,
                             "severity": self._calculate_blind_spot_severity(
                                 total_articles
@@ -132,7 +129,7 @@ class BlindSpotsAnalyzer:
             "total_active_topics": len(all_clusters),
             "coverage_ratio": len(covered_clusters) / max(len(all_clusters), 1),
             "blind_spots": blind_spots[:20],  # Top 20 blind spots
-            "coverage_gaps": self._identify_coverage_gaps(articles),
+            "coverage_gaps": self._identify_coverage_gaps(list(articles)),
         }
 
     async def identify_topic_blind_spots(
@@ -149,17 +146,16 @@ class BlindSpotsAnalyzer:
         """
         since = get_utc_now() - timedelta(days=7)  # Last week
 
-        # Get all active clusters with sufficient coverage
-        clusters_result = await session.execute(
-            select(TopicCluster).where(
-                and_(
-                    TopicCluster.is_active == True,
-                    TopicCluster.last_seen >= since,
-                    TopicCluster.article_count >= self.min_articles_for_blind_spot,
-                )
-            )
+        service = ChromaTopicService()
+        if not service.vector_store:
+            return []
+
+        clusters = await service.get_all_clusters(
+            session,
+            window="1w",
+            min_articles=self.min_articles_for_blind_spot,
+            limit=200,
         )
-        clusters = clusters_result.scalars().all()
 
         # Get all active sources
         sources_result = await session.execute(
@@ -181,16 +177,15 @@ class BlindSpotsAnalyzer:
         blind_spots = []
 
         for cluster in clusters:
-            # Get sources covering this cluster
+            cluster_id = cluster["cluster_id"]
+            detail = await service.get_cluster_detail(session, cluster_id)
+            if not detail:
+                continue
+            member_ids = [article["id"] for article in detail.get("articles", [])]
+            if not member_ids:
+                continue
             covering_result = await session.execute(
-                select(func.distinct(Article.source))
-                .join(ArticleTopic, ArticleTopic.article_id == Article.id)
-                .where(
-                    and_(
-                        ArticleTopic.cluster_id == cluster.id,
-                        Article.published_at >= since,
-                    )
-                )
+                select(func.distinct(Article.source)).where(Article.id.in_(member_ids))
             )
             covering_sources = {row[0] for row in covering_result.all() if row[0]}
 
@@ -200,16 +195,17 @@ class BlindSpotsAnalyzer:
 
                 if blind_sources:
                     severity = self._calculate_topic_blind_spot_severity(
-                        len(covering_sources), len(blind_sources), cluster.article_count
+                        len(covering_sources),
+                        len(blind_sources),
+                        cluster["article_count"],
                     )
 
                     blind_spots.append(
                         {
-                            "cluster_id": cluster.id,
-                            "cluster_label": cluster.label
-                            or ", ".join(cluster.keywords[:3]),
-                            "keywords": cluster.keywords,
-                            "article_count": cluster.article_count,
+                            "cluster_id": cluster_id,
+                            "cluster_label": cluster.get("label") or "Topic",
+                            "keywords": cluster.get("keywords", []),
+                            "article_count": cluster.get("article_count", 0),
                             "covering_sources": list(covering_sources),
                             "covering_count": len(covering_sources),
                             "blind_spot_sources": list(blind_sources),
@@ -326,16 +322,11 @@ class BlindSpotsAnalyzer:
 
         updated_count = 0
 
-        for source_name, source_arts in source_articles.items():
-            # Get cluster coverage for this source today
-            article_ids = [a.id for a in source_arts]
+        service = ChromaTopicService()
 
-            cluster_result = await session.execute(
-                select(func.distinct(ArticleTopic.cluster_id)).where(
-                    ArticleTopic.article_id.in_(article_ids)
-                )
-            )
-            cluster_ids = [row[0] for row in cluster_result.all() if row[0]]
+        for source_name, source_arts in source_articles.items():
+            article_ids = [a.id for a in source_arts]
+            cluster_ids = article_ids if service.vector_store else []
 
             # Count by category
             category_counts = defaultdict(int)
@@ -353,19 +344,30 @@ class BlindSpotsAnalyzer:
             )
             stats = existing.scalar_one_or_none()
 
+            stats_payload = {
+                "article_count": len(source_arts),
+                "article_count_by_category": dict(category_counts),
+                "topics_covered": len(cluster_ids),
+                "cluster_ids": cluster_ids,
+            }
             if stats:
-                stats.article_count = len(source_arts)
-                stats.article_count_by_category = dict(category_counts)
-                stats.topics_covered = len(cluster_ids)
-                stats.cluster_ids = cluster_ids
+                await session.execute(
+                    (
+                        SourceCoverageStats.__table__.update()
+                        .where(SourceCoverageStats.id == stats.id)
+                        .values(**stats_payload)
+                    )
+                )
             else:
                 stats = SourceCoverageStats(
                     source_name=source_name,
                     date=today,
-                    article_count=len(source_arts),
-                    article_count_by_category=dict(category_counts),
-                    topics_covered=len(cluster_ids),
-                    cluster_ids=cluster_ids,
+                    article_count=stats_payload["article_count"],
+                    article_count_by_category=stats_payload[
+                        "article_count_by_category"
+                    ],
+                    topics_covered=stats_payload["topics_covered"],
+                    cluster_ids=stats_payload["cluster_ids"],
                 )
                 session.add(stats)
 
@@ -374,7 +376,9 @@ class BlindSpotsAnalyzer:
         await session.commit()
         return updated_count
 
-    def _identify_coverage_gaps(self, articles: List[Article]) -> List[Dict[str, Any]]:
+    def _identify_coverage_gaps(
+        self, articles: Sequence[Article]
+    ) -> List[Dict[str, Any]]:
         """Identify temporal or category gaps in coverage."""
         if not articles:
             return []
@@ -389,7 +393,7 @@ class BlindSpotsAnalyzer:
             prev_date = sorted_articles[i - 1].published_at
             curr_date = sorted_articles[i].published_at
 
-            if prev_date and curr_date:
+            if prev_date is not None and curr_date is not None:
                 gap_hours = (curr_date - prev_date).total_seconds() / 3600
                 if gap_hours > 24:  # Gap larger than 24 hours
                     gaps.append(
@@ -401,21 +405,6 @@ class BlindSpotsAnalyzer:
                     )
 
         return gaps[:5]  # Top 5 gaps
-
-    async def _get_cluster_article_count(
-        self, session: AsyncSession, cluster_id: int, since: datetime
-    ) -> int:
-        """Get total article count for a cluster since a date."""
-        result = await session.execute(
-            select(func.count(ArticleTopic.id))
-            .join(Article, Article.id == ArticleTopic.article_id)
-            .where(
-                and_(
-                    ArticleTopic.cluster_id == cluster_id, Article.published_at >= since
-                )
-            )
-        )
-        return result.scalar_one() or 0
 
     def _calculate_blind_spot_severity(self, total_articles: int) -> str:
         """Calculate severity of a blind spot based on coverage."""

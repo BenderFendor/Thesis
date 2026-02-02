@@ -8,7 +8,9 @@ import tempfile
 import threading
 import time
 from datetime import datetime, timezone
-from typing import Any
+from typing import Any, cast
+
+from sqlalchemy.ext.asyncio import async_sessionmaker
 
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
@@ -36,8 +38,6 @@ from app.services.rss_ingestion import (
 )
 from app.services.scheduler import (
     periodic_rss_refresh,
-    periodic_cluster_update,
-    periodic_cluster_merge,
     periodic_blind_spots_update,
 )
 from app.services.startup_metrics import startup_metrics
@@ -133,9 +133,12 @@ async def _load_cache_from_db_fast() -> None:
         logger.info("Skipping DB cache warmup; ENABLE_DATABASE=0")
         return
 
+    assert AsyncSessionLocal is not None
+    session_factory = cast(async_sessionmaker, AsyncSessionLocal)
+
     logger.info("Attempting to load articles from database...")
     try:
-        async with AsyncSessionLocal() as session:
+        async with session_factory() as session:
             # Load small batch (500) for fast perceived startup
             articles_dicts = await fetch_all_articles(session, limit=500)
             if articles_dicts:
@@ -379,62 +382,8 @@ async def on_startup() -> None:
         )
         _register_background_task(migration_task)
 
-    # Run initial cluster aggregation on startup (leader only)
-    if settings.enable_database and settings.enable_vector_store and is_leader:
-
-        async def _initial_cluster_aggregation():
-            """Run fast cluster aggregation immediately on startup."""
-            from app.database import AsyncSessionLocal
-            from app.services.fast_clustering import fast_process_unassigned_articles
-            from app.services.clustering import ClusteringService
-
-            logger.info("Starting initial cluster aggregation (fast batch mode)...")
-            try:
-                async with AsyncSessionLocal() as session:
-                    # Use fast batch clustering - processes 500 articles in ~30 seconds vs 5-10 minutes
-                    assigned = await fast_process_unassigned_articles(
-                        session, limit=500
-                    )
-                    await session.commit()
-
-                    service = ClusteringService()
-                    stats = await service.update_cluster_stats(session)
-                    await session.commit()
-
-                    logger.info(
-                        "Initial cluster aggregation complete: assigned=%d, daily_updated=%d, hourly_updated=%d",
-                        assigned,
-                        stats.get("daily_updated", 0),
-                        stats.get("hourly_updated", 0),
-                    )
-            except Exception as e:
-                logger.error("Initial cluster aggregation failed: %s", e, exc_info=True)
-
-        aggregation_task = asyncio.create_task(
-            _initial_cluster_aggregation(), name="initial_cluster_aggregation"
-        )
-        _register_background_task(aggregation_task)
-        startup_metrics.add_note(
-            "cluster_aggregation_task", aggregation_task.get_name()
-        )
-
-    # Start periodic cluster update for trending/breaking detection
+    # Start blind spots analysis scheduler
     if settings.enable_database and settings.enable_vector_store:
-        cluster_task = asyncio.create_task(
-            periodic_cluster_update(interval_seconds=300),
-            name="cluster_update_scheduler",
-        )
-        _register_background_task(cluster_task)
-        startup_metrics.add_note("cluster_scheduler_task", cluster_task.get_name())
-
-        merge_task = asyncio.create_task(
-            periodic_cluster_merge(interval_seconds=1800),
-            name="cluster_merge_scheduler",
-        )
-        _register_background_task(merge_task)
-        startup_metrics.add_note("cluster_merge_task", merge_task.get_name())
-
-        # Start blind spots analysis scheduler
         blind_spots_task = asyncio.create_task(
             periodic_blind_spots_update(interval_seconds=86400),
             name="blind_spots_scheduler",

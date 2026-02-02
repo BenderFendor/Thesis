@@ -10,8 +10,8 @@ from sqlalchemy import select, func, and_
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.logging import get_logger
-from app.database import get_db, TopicCluster
-from app.services.clustering import ClusteringService
+from app.database import get_db
+from app.services.chroma_topics import ChromaTopicService
 
 logger = get_logger("trending_routes")
 router = APIRouter(prefix="/trending", tags=["trending"])
@@ -106,7 +106,7 @@ async def get_trending(
     """
     response.headers["Cache-Control"] = "public, max-age=60, stale-while-revalidate=120"
 
-    service = ClusteringService()
+    service = ChromaTopicService()
     if not service.vector_store:
         return TrendingResponse(window=window, clusters=[], total=0)
 
@@ -137,7 +137,7 @@ async def get_breaking(
     """
     response.headers["Cache-Control"] = "public, max-age=30, stale-while-revalidate=60"
 
-    service = ClusteringService()
+    service = ChromaTopicService()
     if not service.vector_store:
         return BreakingResponse(window_hours=3, clusters=[], total=0)
 
@@ -174,7 +174,7 @@ async def get_all_clusters(
     """
     response.headers["Cache-Control"] = "public, max-age=60, stale-while-revalidate=120"
 
-    service = ClusteringService()
+    service = ChromaTopicService()
     if not service.vector_store:
         return AllClustersResponse(window=window, clusters=[], total=0)
 
@@ -201,7 +201,7 @@ async def get_cluster_detail(
     - Cluster metadata (label, keywords, timestamps)
     - List of member articles ordered by relevance and recency
     """
-    service = ClusteringService()
+    service = ChromaTopicService()
     detail = await service.get_cluster_detail(db, cluster_id)
 
     if not detail:
@@ -219,216 +219,14 @@ async def get_trending_stats(
 
     Useful for debugging and monitoring cluster health.
     """
-    from sqlalchemy import select, func
-    from app.database import TopicCluster, ArticleTopic, ClusterStatsHourly
-
-    active_clusters = await db.execute(
-        select(func.count(TopicCluster.id)).where(TopicCluster.is_active == True)
-    )
-    active_count = active_clusters.scalar() or 0
-
-    total_assignments = await db.execute(select(func.count(ArticleTopic.id)))
-    assignment_count = total_assignments.scalar() or 0
-
-    recent_spikes = await db.execute(
-        select(func.count(ClusterStatsHourly.id)).where(
-            ClusterStatsHourly.is_spike == True
-        )
-    )
-    spike_count = recent_spikes.scalar() or 0
-
-    return {
-        "active_clusters": active_count,
-        "total_article_assignments": assignment_count,
-        "recent_spikes": spike_count,
-        "similarity_threshold": 0.75,
-        "baseline_days": 7,
-        "breaking_window_hours": 3,
-    }
-
-
-@router.post("/backfill")
-async def backfill_clusters(
-    limit: int = Query(default=500, ge=10, le=2000),
-    db: AsyncSession = Depends(get_db),
-) -> Dict[str, Any]:
-    """
-    Backfill article clusters and update stats.
-
-    Run this to populate trending/breaking data when:
-    - Clusters are empty after initial setup
-    - Articles were ingested without clustering enabled
-    - Vector store was unavailable during ingestion
-    """
-    from app.services.clustering import process_unassigned_articles
-
-    service = ClusteringService()
+    service = ChromaTopicService()
     if not service.vector_store:
-        raise HTTPException(
-            status_code=503,
-            detail="Vector store unavailable. Ensure ChromaDB is running.",
-        )
-
-    assigned = await process_unassigned_articles(db)
-    await db.commit()
-
-    stats = await service.update_cluster_stats(db)
-    await db.commit()
-
-    active_clusters = await db.execute(
-        select(func.count(TopicCluster.id)).where(TopicCluster.is_active == True)
-    )
-    active_count = active_clusters.scalar() or 0
-
-    unlabeled = await db.execute(
-        select(TopicCluster.id).where(
-            and_(
-                TopicCluster.is_active == True,
-                TopicCluster.label == None,
-                TopicCluster.article_count >= 2,
-            )
-        )
-    )
-    for row in unlabeled.all():
-        await service.generate_cluster_label(db, row[0])
-    await db.commit()
-
-    return {
-        "message": "Backfill completed",
-        "articles_assigned": assigned,
-        "daily_stats_updated": stats.get("daily_updated", 0),
-        "hourly_stats_updated": stats.get("hourly_updated", 0),
-        "active_clusters": active_count,
-    }
-
-
-@router.post("/merge")
-async def merge_clusters(
-    threshold: float = Query(default=0.80, ge=0.5, le=0.95),
-    db: AsyncSession = Depends(get_db),
-) -> Dict[str, Any]:
-    """
-    Merge semantically similar clusters.
-
-    This helps deduplicate clusters that cover the same story but were
-    created from articles with slightly different angles.
-
-    The threshold parameter controls how similar clusters must be to merge:
-    - 0.80 (default): Conservative, only merges very similar clusters
-    - 0.70: More aggressive, may merge related but distinct stories
-    - 0.90: Very conservative, only obvious duplicates
-
-    Run this after backfill or periodically to clean up duplicate clusters.
-    """
-    from app.services.clustering import merge_similar_clusters
-
-    service = ClusteringService()
-    if not service.vector_store:
-        raise HTTPException(
-            status_code=503,
-            detail="Vector store unavailable. Ensure ChromaDB is running.",
-        )
-
-    merged_count = await merge_similar_clusters(db, similarity_threshold=threshold)
-
-    active_clusters = await db.execute(
-        select(func.count(TopicCluster.id)).where(TopicCluster.is_active == True)
-    )
-    active_count = active_clusters.scalar() or 0
-
-    return {
-        "message": "Cluster merge completed",
-        "clusters_merged": merged_count,
-        "active_clusters": active_count,
-        "threshold_used": threshold,
-    }
-
-
-@router.post("/test")
-async def test_clustering_endpoint(
-    cleanup: bool = Query(default=True),
-    db: AsyncSession = Depends(get_db),
-) -> Dict[str, Any]:
-    """
-    Test clustering by creating test articles and running clustering immediately.
-
-    This endpoint is for development/testing only. It:
-    1. Creates 8 test articles with embeddings (3 AI articles, 2 climate, 2 politics, 1 standalone)
-    2. Runs fast clustering on them
-    3. Returns results and optionally cleans up test data
-
-    Use this to verify clustering works without waiting 30 minutes.
-    """
-    import sys
-    import os
-
-    # Import test functions
-    sys.path.insert(0, os.path.join(os.path.dirname(__file__), "../../.."))
-    from test_clustering import (
-        create_test_articles_with_embeddings,
-        test_fast_clustering,
-        cleanup_test_articles,
-    )
-
-    service = ClusteringService()
-    if not service.vector_store:
-        raise HTTPException(
-            status_code=503,
-            detail="Vector store unavailable. Ensure ChromaDB is running.",
-        )
-
-    # Run the test
-    results = await test_fast_clustering()
-
-    if cleanup and results.get("success"):
-        cleaned = await cleanup_test_articles()
-        results["test_articles_cleaned"] = cleaned
-
-    return results
-
-
-@router.get("/diagnostics")
-async def get_clustering_diagnostics(
-    db: AsyncSession = Depends(get_db),
-) -> Dict[str, Any]:
-    """
-    Get detailed diagnostics about clustering system state.
-
-    Returns counts of articles, embeddings, clusters, and identifies
-    any issues preventing clustering from working.
-    """
-    import sys
-    import os
-
-    sys.path.insert(0, os.path.join(os.path.dirname(__file__), "../../.."))
-    from test_clustering import diagnose_clustering_issues
-
-    diagnostics = await diagnose_clustering_issues()
-
-    # Add current cluster distribution
-    try:
-        from sqlalchemy import select, func
-        from app.database import ArticleTopic, TopicCluster
-
-        # Get cluster sizes
-        cluster_sizes = await db.execute(
-            select(
-                TopicCluster.id,
-                TopicCluster.label,
-                func.count(ArticleTopic.id).label("article_count"),
-            )
-            .outerjoin(ArticleTopic, ArticleTopic.cluster_id == TopicCluster.id)
-            .where(TopicCluster.is_active == True)
-            .group_by(TopicCluster.id)
-            .order_by(func.count(ArticleTopic.id).desc())
-        )
-
-        diagnostics["cluster_distribution"] = [
-            {"id": row[0], "label": row[1], "articles": row[2]}
-            for row in cluster_sizes.all()
-        ]
-
-    except Exception as e:
-        diagnostics["issues"].append(f"Failed to get cluster distribution: {e}")
-
-    return diagnostics
+        return {
+            "active_clusters": 0,
+            "total_article_assignments": 0,
+            "recent_spikes": 0,
+            "similarity_threshold": 0.0,
+            "baseline_days": 0,
+            "breaking_window_hours": 3,
+        }
+    return await service.get_trending_stats(db)
