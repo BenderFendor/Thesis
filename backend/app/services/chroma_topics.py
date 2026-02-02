@@ -463,15 +463,83 @@ class ChromaTopicService:
         return [self._serialize_article(article) for article in ordered[:limit]]
 
     def _generate_cluster_label(self, articles: Dict[int, Article]) -> str:
-        words: List[str] = []
-        for article in articles.values():
-            words.extend(self._extract_keywords(article))
-        if not words:
-            return "Topic"
-        from collections import Counter
+        """Select the best article title to represent the cluster.
 
-        common = Counter(words).most_common(3)
-        return " ".join([w[0] for w in common]).title() if common else "Topic"
+        Scores titles based on length, credibility, recency, and content quality.
+        Returns the highest-scoring title or falls back to anchor article title.
+        """
+        if not articles:
+            return "Topic"
+
+        def score_title(article: Article) -> float:
+            if not article.title:
+                return 0.0
+
+            title = article.title.strip()
+            score = 0.0
+
+            # Length score: ideal is 40-100 chars
+            length = len(title)
+            if 40 <= length <= 100:
+                score += 10.0
+            elif 30 <= length < 40:
+                score += 7.0
+            elif 100 < length <= 140:
+                score += 6.0
+            elif length < 30:
+                score += 3.0
+            else:
+                score += 1.0
+
+            # Credibility bonus
+            if article.credibility == "high":
+                score += 5.0
+            elif article.credibility == "medium":
+                score += 2.0
+
+            # Recency bonus (prefer articles from last 24h)
+            if article.published_at:
+                age_hours = (
+                    get_utc_now() - article.published_at
+                ).total_seconds() / 3600
+                if age_hours < 6:
+                    score += 3.0
+                elif age_hours < 24:
+                    score += 2.0
+                elif age_hours < 72:
+                    score += 1.0
+
+            # Penalize generic/low-value titles
+            title_lower = title.lower()
+            generic_terms = ["breaking", "update", "news alert", "developing"]
+            for term in generic_terms:
+                if term in title_lower:
+                    score -= 5.0
+
+            # Bonus for named entities (capitalized words suggest proper nouns)
+            import re
+
+            capitalized = re.findall(r"\b[A-Z][a-zA-Z]+(?:\s+[A-Z][a-zA-Z]+)*\b", title)
+            score += min(len(capitalized) * 1.5, 8.0)
+
+            return score
+
+        # Score all articles and pick the best
+        scored_articles = [
+            (article, score_title(article)) for article in articles.values()
+        ]
+        scored_articles.sort(key=lambda x: x[1], reverse=True)
+
+        # Return best title if we have one with decent score, else fallback
+        if scored_articles and scored_articles[0][1] > 5.0:
+            return scored_articles[0][0].title
+
+        # Fallback: try to find any valid title
+        for article in articles.values():
+            if article.title and len(article.title.strip()) > 10:
+                return article.title.strip()
+
+        return "Topic"
 
     def _extract_keywords(self, article: Article) -> List[str]:
         text = f"{article.title or ''} {article.summary or ''}".lower()

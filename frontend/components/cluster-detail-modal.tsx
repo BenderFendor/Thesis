@@ -449,6 +449,15 @@ export function ClusterDetailModal({
                             className="w-full h-full object-cover"
                           />
                           <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent" />
+                          {/* Source Badge */}
+                          <div className="absolute top-3 left-3">
+                            <Badge
+                              variant="outline"
+                              className="text-[10px] font-semibold px-2 py-0.5 bg-black/70 text-white border-white/30 uppercase tracking-wider"
+                            >
+                              {article.source}
+                            </Badge>
+                          </div>
                         </div>
                       )}
                       <h3 className="font-serif text-2xl font-bold mb-3">
