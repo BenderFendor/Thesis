@@ -103,11 +103,20 @@ export const useNewsStream = (options: UseNewsStreamOptions = {}) => {
 
           // Filter out duplicates using a Set of article IDs
           const newArticles = sourceArticles.filter(article => {
-            const key = article.url ? `url:${article.url}` : `id:${article.id}`;
-            if (seenArticleIdsRef.current.has(key)) {
-              return false; // Skip duplicate
+            const urlKey = article.url ? `url:${article.url}` : null;
+            const idKey = `id:${article.id}`;
+            // Check if article is duplicate by URL or ID
+            if (urlKey && seenArticleIdsRef.current.has(urlKey)) {
+              return false; // Skip duplicate by URL
             }
-            seenArticleIdsRef.current.add(key);
+            if (seenArticleIdsRef.current.has(idKey)) {
+              return false; // Skip duplicate by ID
+            }
+            // Add both keys to track this article
+            if (urlKey) {
+              seenArticleIdsRef.current.add(urlKey);
+            }
+            seenArticleIdsRef.current.add(idKey);
             return true; // Include new article
           });
 

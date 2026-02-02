@@ -331,11 +331,11 @@ function BreakingCard({
   };
 
   return (
-    <button
+    <div
       onClick={handleClick}
-      className="group w-full text-left transition-colors duration-200"
+      className="group w-full text-left transition-colors duration-200 cursor-pointer"
     >
-      <Card className="h-full overflow-hidden flex flex-col border border-white/10 bg-[var(--news-bg-secondary)] transition-colors duration-200 group-hover:border-red-500/60 cursor-pointer rounded-none shadow-none relative">
+      <Card className="h-full overflow-hidden flex flex-col border border-white/10 bg-[var(--news-bg-secondary)] transition-colors duration-200 group-hover:border-red-500/60 rounded-none shadow-none relative">
         {/* Red accent for breaking */}
         <div className="absolute top-0 left-0 w-1 h-full bg-red-500 z-10" />
         
@@ -434,7 +434,7 @@ function BreakingCard({
           </div>
         </CardContent>
       </Card>
-    </button>
+    </div>
   );
 }
 
@@ -470,11 +470,11 @@ function TrendingCard({
   };
 
   return (
-    <button
+    <div
       onClick={handleClick}
-      className="group w-full text-left transition-colors duration-200"
+      className="group w-full text-left transition-colors duration-200 cursor-pointer"
     >
-      <Card className="h-full overflow-hidden flex flex-col border border-white/10 bg-[var(--news-bg-secondary)] transition-colors duration-200 group-hover:border-primary/60 cursor-pointer rounded-none shadow-none">
+      <Card className="h-full overflow-hidden flex flex-col border border-white/10 bg-[var(--news-bg-secondary)] transition-colors duration-200 group-hover:border-primary/60 rounded-none shadow-none">
         {/* Image or fallback */}
         <div className="relative aspect-video overflow-hidden bg-[var(--news-bg-primary)]/40 flex-shrink-0">
           {showImage ? (
@@ -575,7 +575,7 @@ function TrendingCard({
           </div>
         </CardContent>
       </Card>
-    </button>
+    </div>
   );
 }
 
