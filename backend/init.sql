@@ -40,6 +40,14 @@ CREATE TABLE IF NOT EXISTS bookmarks (
   UNIQUE(article_id)
 );
 
+-- Liked Articles (no user auth needed for self-hosted)
+CREATE TABLE IF NOT EXISTS liked_articles (
+  id SERIAL PRIMARY KEY,
+  article_id INTEGER NOT NULL REFERENCES articles(id) ON DELETE CASCADE,
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  UNIQUE(article_id)
+);
+
 -- Preferences (shared or single-user)
 CREATE TABLE IF NOT EXISTS preferences (
   id SERIAL PRIMARY KEY,

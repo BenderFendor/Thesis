@@ -36,6 +36,7 @@ import { TrendingFeed } from "./trending-feed"
 import type { NewsArticle, AllCluster } from "@/lib/api"
 import { get_logger } from "@/lib/utils"
 import { useReadingQueue } from "@/hooks/useReadingQueue"
+import { useLikedArticles } from "@/hooks/useLikedArticles"
 import { useFavorites } from "@/hooks/useFavorites"
 import { usePaginatedNews } from "@/hooks/usePaginatedNews"
 import { FEATURE_FLAGS } from "@/lib/constants"
@@ -150,7 +151,7 @@ export function GridView({
     null
   )
   const [isArticleModalOpen, setIsArticleModalOpen] = useState(false)
-  const [likedArticles, setLikedArticles] = useState<Set<number>>(new Set())
+  const { likedIds, toggleLike } = useLikedArticles()
   const [expandedSourceId, setExpandedSourceId] = useState<string | null>(null)
   const [visibleGroupIds, setVisibleGroupIds] = useState<Set<string>>(new Set())
   const [clusterColsPerRow, setClusterColsPerRow] = useState(CLUSTER_COLS_DESKTOP)
@@ -341,16 +342,8 @@ export function GridView({
   }, [])
 
   const handleLike = useCallback((articleId: number) => {
-    setLikedArticles((prev) => {
-      const next = new Set(prev)
-      if (next.has(articleId)) {
-        next.delete(articleId)
-      } else {
-        next.add(articleId)
-      }
-      return next
-    })
-  }, [])
+    void toggleLike(articleId)
+  }, [toggleLike])
 
   const handleQueueToggle = useCallback(
     (article: NewsArticle) => {
@@ -899,7 +892,7 @@ export function GridView({
                                 >
                                   <Heart
                                     className={`w-3 h-3 ${
-                                      likedArticles.has(article.id as number)
+                                      likedIds.has(article.id as number)
                                         ? "fill-current text-foreground"
                                         : "text-muted-foreground"
                                     }`}

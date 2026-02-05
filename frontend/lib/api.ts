@@ -602,6 +602,79 @@ export async function deleteBookmark(articleId: number): Promise<boolean> {
   }
 }
 
+export interface LikedEntry {
+  likedId: number
+  articleId: number
+  article: NewsArticle
+  createdAt?: string
+}
+
+export async function fetchLikedArticles(): Promise<LikedEntry[]> {
+  try {
+    const response = await fetch(`${API_BASE_URL}/api/liked`)
+    if (!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status}`)
+    }
+
+    const data = await response.json()
+    const liked = Array.isArray(data?.liked) ? data.liked : []
+    const mappedArticles = mapBackendArticles(liked)
+
+    return mappedArticles.map((article, index) => ({
+      likedId: liked[index].liked_id,
+      articleId: liked[index].article_id,
+      createdAt: liked[index].created_at,
+      article
+    }))
+  } catch (error) {
+    console.error('Failed to fetch liked articles:', error)
+    return []
+  }
+}
+
+export async function createLikedArticle(articleId: number): Promise<LikedEntry | null> {
+  try {
+    const response = await fetch(`${API_BASE_URL}/api/liked`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({ article_id: articleId })
+    })
+
+    if (!response.ok) {
+      throw new Error(`Failed to like article. Status: ${response.status}`)
+    }
+
+    return await fetchLikedArticles().then(liked => 
+      liked.find(entry => entry.articleId === articleId) || null
+    )
+  } catch (error) {
+    console.error('Failed to like article:', error)
+    throw error
+  }
+}
+
+export async function deleteLikedArticle(articleId: number): Promise<boolean> {
+  try {
+    const response = await fetch(`${API_BASE_URL}/api/liked/${articleId}`, {
+      method: 'DELETE'
+    })
+
+    if (response.status === 404) {
+      return false
+    }
+    if (!response.ok) {
+      throw new Error(`Failed to unlike article. Status: ${response.status}`)
+    }
+
+    return true
+  } catch (error) {
+    console.error('Failed to unlike article:', error)
+    throw error
+  }
+}
+
 // Helper functions for compatibility with existing components
 let cachedSources: NewsSource[] = [];
 let cachedArticles: NewsArticle[] = [];

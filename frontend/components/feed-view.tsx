@@ -1,13 +1,15 @@
 "use client";
 
 import { useState, useEffect, useCallback, useRef } from "react";
-import { type NewsArticle, fetchBookmarks, createBookmark, deleteBookmark, fetchOGImage } from "@/lib/api";
+import { type NewsArticle, fetchOGImage } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Heart, Bookmark, ExternalLink, Star } from "lucide-react";
 import { ArticleDetailModal } from "./article-detail-modal";
 import { get_logger } from "@/lib/utils";
 import { useFavorites } from "@/hooks/useFavorites";
+import { useLikedArticles } from "@/hooks/useLikedArticles";
+import { useBookmarks } from "@/hooks/useBookmarks";
 
 const logger = get_logger("FeedView")
 
@@ -25,8 +27,8 @@ interface FeedViewProps {
 }
 
 export function FeedView({ articles, loading }: FeedViewProps) {
-  const [likedArticles, setLikedArticles] = useState<Set<number>>(new Set());
-  const [bookmarkedArticles, setBookmarkedArticles] = useState<Set<number>>(new Set());
+  const { likedIds, toggleLike } = useLikedArticles();
+  const { bookmarkIds, toggleBookmark } = useBookmarks();
   const [selectedArticle, setSelectedArticle] = useState<NewsArticle | null>(null);
   const [isArticleModalOpen, setIsArticleModalOpen] = useState(false);
   const [activeIndex, setActiveIndex] = useState(0);
@@ -43,19 +45,6 @@ export function FeedView({ articles, loading }: FeedViewProps) {
     return article.source.length > 24 ? `${article.source.slice(0, 24)}…` : article.source
   }, [])
 
-  // Load bookmarks on mount
-  useEffect(() => {
-    const loadBookmarks = async () => {
-      try {
-        const entries = await fetchBookmarks();
-        setBookmarkedArticles(new Set(entries.map(entry => entry.articleId)));
-      } catch (error) {
-        logger.error('Failed to load bookmarks:', error);
-      }
-    };
-
-    loadBookmarks();
-  }, []);
 
   // Fetch OG images for articles missing images
   useEffect(() => {
@@ -81,54 +70,18 @@ export function FeedView({ articles, loading }: FeedViewProps) {
   }, [articles]);
 
   const handleLike = (articleId: number) => {
-    setLikedArticles(prev => {
-      const newSet = new Set(prev);
-      if (newSet.has(articleId)) {
-        newSet.delete(articleId);
-      } else {
-        newSet.add(articleId);
-      }
-      return newSet;
-    });
+    void toggleLike(articleId);
   };
 
   const handleBookmark = async (articleId: number) => {
     if (!articleId) return;
-
-    const isBookmarked = bookmarkedArticles.has(articleId);
-    const previousSet = new Set(bookmarkedArticles);
-    const updatedSet = new Set(bookmarkedArticles);
-
-    if (isBookmarked) {
-      updatedSet.delete(articleId);
-    } else {
-      updatedSet.add(articleId);
-    }
-
-    setBookmarkedArticles(updatedSet);
-
-    try {
-      if (isBookmarked) {
-        await deleteBookmark(articleId);
-      } else {
-        await createBookmark(articleId);
-      }
-    } catch (error) {
-      logger.error('Failed to toggle bookmark:', error);
-      setBookmarkedArticles(previousSet);
-    }
+    await toggleBookmark(articleId);
   };
 
   const handleModalBookmarkChange = (articleId: number, isBookmarked: boolean) => {
-    setBookmarkedArticles(prev => {
-      const next = new Set(prev);
-      if (isBookmarked) {
-        next.add(articleId);
-      } else {
-        next.delete(articleId);
-      }
-      return next;
-    });
+    if (isBookmarked !== bookmarkIds.has(articleId)) {
+      void toggleBookmark(articleId);
+    }
   };
 
   const handleArticlePreview = useCallback((article: NewsArticle) => {
@@ -361,7 +314,7 @@ export function FeedView({ articles, loading }: FeedViewProps) {
                       handleLike(article.id);
                     }}
                   >
-                    <Heart className={`w-6 h-6 ${likedArticles.has(article.id) ? "fill-current text-foreground" : "text-muted-foreground"}`} />
+                    <Heart className={`w-6 h-6 ${likedIds.has(article.id) ? "fill-current text-foreground" : "text-muted-foreground"}`} />
                   </Button>
                   <Button
                     variant="ghost"
@@ -384,7 +337,7 @@ export function FeedView({ articles, loading }: FeedViewProps) {
                       void handleBookmark(article.id);
                     }}
                   >
-                    <Bookmark className={`w-6 h-6 ${bookmarkedArticles.has(article.id) ? "fill-current text-foreground" : "text-muted-foreground"}`} />
+                    <Bookmark className={`w-6 h-6 ${bookmarkIds.has(article.id) ? "fill-current text-foreground" : "text-muted-foreground"}`} />
                   </Button>
                 </div>
               </div>
@@ -396,7 +349,6 @@ export function FeedView({ articles, loading }: FeedViewProps) {
         article={selectedArticle}
         isOpen={isArticleModalOpen}
         onClose={() => setIsArticleModalOpen(false)}
-        initialIsBookmarked={selectedArticle ? bookmarkedArticles.has(selectedArticle.id) : false}
         onBookmarkChange={handleModalBookmarkChange}
       />
     </>

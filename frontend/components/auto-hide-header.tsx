@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { cn } from "@/lib/utils";
-import { Globe } from "lucide-react";
+import { Globe, Bookmark } from "lucide-react";
 import Link from "next/link";
 
 export function AutoHideHeader() {
@@ -66,6 +66,13 @@ export function AutoHideHeader() {
             className="px-3 py-1 text-sm text-muted-foreground hover:text-foreground transition-colors"
           >
             Research
+          </Link>
+          <Link
+            href="/saved"
+            className="px-3 py-1 text-sm text-muted-foreground hover:text-foreground transition-colors flex items-center gap-1"
+          >
+            <Bookmark className="w-3.5 h-3.5" />
+            Saved
           </Link>
           <Link
             href="/sources"

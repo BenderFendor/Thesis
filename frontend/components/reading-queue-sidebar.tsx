@@ -1,6 +1,8 @@
 "use client";
 
 import { useReadingQueue } from "@/hooks/useReadingQueue";
+import { useBookmarks } from "@/hooks/useBookmarks";
+import { useLikedArticles } from "@/hooks/useLikedArticles";
 import { useFavorites } from "@/hooks/useFavorites";
 import { useReadingHistory } from "@/hooks/useReadingHistory";
 import { Button } from "@/components/ui/button";
@@ -55,8 +57,8 @@ export function ReadingQueueSidebar() {
   const [selectedArticleUrl, setSelectedArticleUrl] = useState<string | null>(
     null
   );
-  const [isLiked, setIsLiked] = useState(false);
-  const [isBookmarked, setIsBookmarked] = useState(false);
+  const { isLiked, toggleLike } = useLikedArticles();
+  const { isBookmarked, toggleBookmark } = useBookmarks();
   const [aiAnalysis, setAiAnalysis] = useState<ArticleAnalysis | null>(null);
   const [aiAnalysisLoading, setAiAnalysisLoading] = useState(false);
   const [source, setSource] = useState<NewsSource | null>(null);
@@ -260,8 +262,8 @@ export function ReadingQueueSidebar() {
   useEffect(() => {
     if (selectedArticle) {
       // Reset all state for the new article
-      setIsLiked(false);
-      setIsBookmarked(false);
+      // liked state derived from backend
+      // bookmark state derived from backend
       setShowSourceDetails(false);
       setDebugOpen(false);
 
@@ -511,13 +513,13 @@ export function ReadingQueueSidebar() {
                       <Button
                         size="sm"
                         variant="ghost"
-                        onClick={() => setIsLiked(!isLiked)}
+                        onClick={() => selectedArticle?.id && toggleLike(selectedArticle.id)}
                         className={
-                          isLiked ? "text-red-400" : "text-gray-400"
+                          selectedArticle?.id && isLiked(selectedArticle.id) ? "text-red-400" : "text-gray-400"
                         }
                       >
                         <Heart
-                          className={`h-4 w-4 mr-2 ${isLiked ? "fill-current" : ""
+                          className={`h-4 w-4 mr-2 ${selectedArticle?.id && isLiked(selectedArticle.id) ? "fill-current" : ""
                             }`}
                         />
                         Like
@@ -548,13 +550,13 @@ export function ReadingQueueSidebar() {
                       <Button
                         size="sm"
                         variant="ghost"
-                        onClick={() => setIsBookmarked(!isBookmarked)}
+                        onClick={() => selectedArticle?.id && toggleBookmark(selectedArticle.id)}
                         className={
-                          isBookmarked ? "text-yellow-400" : "text-gray-400"
+                          selectedArticle?.id && isBookmarked(selectedArticle.id) ? "text-yellow-400" : "text-gray-400"
                         }
                       >
                         <Bookmark
-                          className={`h-4 w-4 ${isBookmarked ? "fill-current" : ""
+                          className={`h-4 w-4 ${selectedArticle?.id && isBookmarked(selectedArticle.id) ? "fill-current" : ""
                             }`}
                         />
                         Bookmark

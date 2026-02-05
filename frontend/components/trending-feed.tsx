@@ -33,6 +33,7 @@ import {
 import { get_logger } from "@/lib/utils";
 import { ClusterDetailModal } from "./cluster-detail-modal";
 import { useReadingQueue } from "@/hooks/useReadingQueue";
+import { useLikedArticles } from "@/hooks/useLikedArticles";
 
 const logger = get_logger("TrendingFeed");
 
@@ -141,7 +142,7 @@ export function TrendingFeed() {
   const [selectedCluster, setSelectedCluster] = useState<TrendingCluster | BreakingCluster | null>(null);
   const [isBreakingCluster, setIsBreakingCluster] = useState(false);
   const [isModalOpen, setIsModalOpen] = useState(false);
-  const [likedArticles, setLikedArticles] = useState<Set<number>>(new Set());
+  const { likedIds, toggleLike } = useLikedArticles();
   const [trendingWindow, setTrendingWindow] = useState<"1d" | "1w" | "1m">("1d");
   
   const { addArticleToQueue, removeArticleFromQueue, isArticleInQueue } = useReadingQueue();
@@ -194,16 +195,8 @@ export function TrendingFeed() {
 
   const handleLike = useCallback((articleId: number, e: React.MouseEvent) => {
     e.stopPropagation();
-    setLikedArticles((prev) => {
-      const next = new Set(prev);
-      if (next.has(articleId)) {
-        next.delete(articleId);
-      } else {
-        next.add(articleId);
-      }
-      return next;
-    });
-  }, []);
+    void toggleLike(articleId);
+  }, [toggleLike]);
 
   if (!mounted || (loading && !trendingData)) {
     return <TrendingSkeleton />;
@@ -267,7 +260,7 @@ export function TrendingFeed() {
                 onQueueToggle={handleQueueToggle}
                 onLike={handleLike}
                 isInQueue={isArticleInQueue}
-                isLiked={likedArticles}
+                isLiked={likedIds}
               />
             ))}
             {/* Then trending stories */}
@@ -280,7 +273,7 @@ export function TrendingFeed() {
                 onQueueToggle={handleQueueToggle}
                 onLike={handleLike}
                 isInQueue={isArticleInQueue}
-                isLiked={likedArticles}
+                isLiked={likedIds}
               />
             ))}
           </div>

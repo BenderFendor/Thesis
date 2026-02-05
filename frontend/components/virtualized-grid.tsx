@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/button";
 import { Clock, Heart, PlusCircle, MinusCircle, Loader2 } from "lucide-react";
 import type { NewsArticle } from "@/lib/api";
 import { useReadingQueue } from "@/hooks/useReadingQueue";
+import { useLikedArticles } from "@/hooks/useLikedArticles";
 
 // Configuration constants
 const CARD_HEIGHT = 380; // Height of each article card
@@ -45,8 +46,9 @@ const ArticleCard = memo(function ArticleCard({
 }) {
   const { addArticleToQueue, removeArticleFromQueue, isArticleInQueue } =
     useReadingQueue();
+  const { likedIds, toggleLike } = useLikedArticles();
   const inQueue = isArticleInQueue(article.url);
-  const [liked, setLiked] = useState(false);
+  const liked = typeof article.id === "number" ? likedIds.has(article.id) : false;
 
   const handleQueueToggle = useCallback(
     (e: React.MouseEvent) => {
@@ -62,8 +64,10 @@ const ArticleCard = memo(function ArticleCard({
 
   const handleLike = useCallback((e: React.MouseEvent) => {
     e.stopPropagation();
-    setLiked((prev) => !prev);
-  }, []);
+    if (typeof article.id === "number") {
+      void toggleLike(article.id);
+    }
+  }, [article.id, toggleLike]);
 
   const hasRealImage = useMemo(() => {
     const src = article.image;

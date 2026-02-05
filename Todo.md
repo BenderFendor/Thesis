@@ -92,8 +92,8 @@
 - [ ] Add log file for agentic debug + performance metrics
 
 ## Reading Queue + Reader UX
-- [ ] Finalize liked vs bookmarked vs reading queue model
-- [ ] Page to view liked/bookmarked articles
+- [x] Finalize liked vs bookmarked vs reading queue model
+- [x] Page to view liked/bookmarked articles
 - [ ] Queue overview digest
 - [ ] Highlights + notes with centralized tab
 - [ ] Export highlights/notes to Obsidian markdown
@@ -123,7 +123,7 @@
 
 ## Performance + Infra
 - [ ] Investigate slow startup
-- [ ] Migrate RSS ingestion to Rust (future)
+- [x] Migrate RSS ingestion to Rust
 - [ ] Add backend tests
 - [ ] Update README
 

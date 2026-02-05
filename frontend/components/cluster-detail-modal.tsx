@@ -28,6 +28,7 @@ import {
   API_BASE_URL,
 } from "@/lib/api";
 import { useReadingQueue } from "@/hooks/useReadingQueue";
+import { useLikedArticles } from "@/hooks/useLikedArticles";
 import { ArticleContent } from "@/components/article-content";
 import { toast } from "sonner";
 
@@ -159,7 +160,7 @@ export function ClusterDetailModal({
   const [articleContents, setArticleContents] = useState<Map<number, string | null>>(new Map());
   const [loadingArticle, setLoadingArticle] = useState<number | null>(null);
   const [isExpanded, setIsExpanded] = useState(false);
-  const [likedArticles, setLikedArticles] = useState<Set<number>>(new Set());
+  const { likedIds, toggleLike } = useLikedArticles();
   const [comparisonMode, setComparisonMode] = useState(false);
   const [comparisonData, setComparisonData] = useState<ComparisonData | null>(null);
   const [comparisonLoading, setComparisonLoading] = useState(false);
@@ -228,16 +229,8 @@ export function ClusterDetailModal({
   }, [activeArticleId, clusterDetail, articleContents, loadArticleContent]);
 
   const handleLike = useCallback((articleId: number) => {
-    setLikedArticles((prev) => {
-      const next = new Set(prev);
-      if (next.has(articleId)) {
-        next.delete(articleId);
-      } else {
-        next.add(articleId);
-      }
-      return next;
-    });
-  }, []);
+    void toggleLike(articleId);
+  }, [toggleLike]);
 
   const loadComparisonData = useCallback(async (articleIds: number[]) => {
     if (articleIds.length < 2 || !clusterDetail) return;
@@ -516,14 +509,14 @@ export function ClusterDetailModal({
                           size="sm"
                           onClick={() => handleLike(article.id)}
                           className={
-                            likedArticles.has(article.id)
+                            likedIds.has(article.id)
                               ? "text-red-400"
                               : "text-gray-400"
                           }
                         >
                           <Heart
                             className={`h-4 w-4 mr-2 ${
-                              likedArticles.has(article.id) ? "fill-current" : ""
+                              likedIds.has(article.id) ? "fill-current" : ""
                             }`}
                           />
                           Like

@@ -7,13 +7,15 @@ import { X, ExternalLink, Heart, Bookmark, AlertTriangle, DollarSign, Bug, Link 
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
-import { type NewsArticle, getSourceById, type NewsSource, fetchSourceDebugData, type SourceDebugData, analyzeArticle, type ArticleAnalysis, API_BASE_URL, createBookmark, deleteBookmark, performAgenticSearch, type FactCheckResult, type Highlight, getHighlightsForArticle, createHighlight, updateHighlight, deleteHighlight } from "@/lib/api"
+import { type NewsArticle, getSourceById, type NewsSource, fetchSourceDebugData, type SourceDebugData, analyzeArticle, type ArticleAnalysis, API_BASE_URL, performAgenticSearch, type FactCheckResult, type Highlight, getHighlightsForArticle, createHighlight, updateHighlight, deleteHighlight } from "@/lib/api"
+import { useLikedArticles } from "@/hooks/useLikedArticles"
 import { loadHighlightStore, mergeHighlights, saveHighlightStore, toRemoteHighlights, type LocalHighlight, type HighlightSyncStatus, generateClientId, markFailed, markPending, markSynced } from "@/lib/highlight-store"
 import { isDebugMode } from "@/lib/logger"
 import { useReadingQueue } from "@/hooks/useReadingQueue"
 import { useFavorites } from "@/hooks/useFavorites"
 import { useReadingHistory } from "@/hooks/useReadingHistory"
 import { useInlineDefinition } from "@/hooks/useInlineDefinition"
+import { useBookmarks } from "@/hooks/useBookmarks"
 import InlineDefinition from "@/components/inline-definition"
 import { SourceResearchPanel } from "@/components/source-research-panel"
 import { RelatedArticles } from "@/components/related-articles"
@@ -59,14 +61,13 @@ interface ArticleDetailModalProps {
   article: NewsArticle | null
   isOpen: boolean
   onClose: () => void
-  initialIsBookmarked?: boolean
   onBookmarkChange?: (articleId: number, isBookmarked: boolean) => void
   onNavigate?: (direction: "prev" | "next") => void
 }
 
-export function ArticleDetailModal({ article, isOpen, onClose, initialIsBookmarked = false, onBookmarkChange, onNavigate }: ArticleDetailModalProps) {
-  const [isLiked, setIsLiked] = useState(false)
-  const [isBookmarked, setIsBookmarked] = useState(initialIsBookmarked)
+export function ArticleDetailModal({ article, isOpen, onClose, onBookmarkChange, onNavigate }: ArticleDetailModalProps) {
+  const { isLiked, toggleLike } = useLikedArticles()
+  const { isBookmarked, toggleBookmark } = useBookmarks()
   const { addArticleToQueue, removeArticleFromQueue, isArticleInQueue, queuedArticles } = useReadingQueue()
   const { isFavorite, toggleFavorite } = useFavorites()
   const { markAsRead } = useReadingHistory()
@@ -278,11 +279,6 @@ export function ArticleDetailModal({ article, isOpen, onClose, initialIsBookmark
     return () => window.removeEventListener("storage", handleStorage)
   }, [])
 
-  useEffect(() => {
-    if (article) {
-      setIsBookmarked(initialIsBookmarked)
-    }
-  }, [initialIsBookmarked, article?.id])
 
   // Track reading history when article is opened
   useEffect(() => {
@@ -369,7 +365,6 @@ export function ArticleDetailModal({ article, isOpen, onClose, initialIsBookmark
 
   // Reset state when article changes or modal opens
   useEffect(() => {
-    setIsLiked(false)
     setDebugOpen(false)
     setDebugData(null)
     setMatchedEntryIndex(null)
@@ -482,17 +477,11 @@ export function ArticleDetailModal({ article, isOpen, onClose, initialIsBookmark
 
     setBookmarkLoading(true)
     try {
-      if (isBookmarked) {
-        await deleteBookmark(article.id)
-        setIsBookmarked(false)
-        onBookmarkChange?.(article.id, false)
-      } else {
-        await createBookmark(article.id)
-        setIsBookmarked(true)
-        onBookmarkChange?.(article.id, true)
-      }
+      const currentlyBookmarked = isBookmarked(article.id)
+      await toggleBookmark(article.id)
+      onBookmarkChange?.(article.id, !currentlyBookmarked)
     } catch (error) {
-      console.error('Failed to toggle bookmark:', error)
+      console.error("Failed to toggle bookmark:", error)
     } finally {
       setBookmarkLoading(false)
     }
@@ -920,10 +909,10 @@ export function ArticleDetailModal({ article, isOpen, onClose, initialIsBookmark
                     <Button
                       variant="ghost"
                       size="sm"
-                      onClick={() => setIsLiked(!isLiked)}
-                      className={isLiked ? "text-red-400" : "text-gray-400"}
+                      onClick={() => article?.id && toggleLike(article.id)}
+                      className={article?.id && isLiked(article.id) ? "text-red-400" : "text-gray-400"}
                     >
-                      <Heart className={`h-4 w-4 mr-2 ${isLiked ? "fill-current" : ""}`} />
+                      <Heart className={`h-4 w-4 mr-2 ${article?.id && isLiked(article.id) ? "fill-current" : ""}`} />
                       Like
                     </Button>
                     <Button
@@ -940,10 +929,10 @@ export function ArticleDetailModal({ article, isOpen, onClose, initialIsBookmark
                       variant="ghost"
                       size="sm"
                       onClick={handleBookmarkToggle}
-                      className={isBookmarked ? "text-yellow-400" : "text-gray-400"}
+                      className={article?.id && isBookmarked(article.id) ? "text-yellow-400" : "text-gray-400"}
                       disabled={bookmarkLoading}
                     >
-                      <Bookmark className={`h-4 w-4 ${isBookmarked ? "fill-current" : ""}`} />
+                      <Bookmark className={`h-4 w-4 ${article?.id && isBookmarked(article.id) ? "fill-current" : ""}`} />
                       Bookmark
                     </Button>
                     <Button

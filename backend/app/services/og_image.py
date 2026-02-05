@@ -49,7 +49,7 @@ TWITTER_IMAGE_PATTERN = re.compile(
 
 
 def _needs_image(article: NewsArticle) -> bool:
-    if not article.image:
+    if not article.image or article.image == "none":
         return True
     img = article.image.lower()
     return "placeholder" in img or img.endswith(".svg")

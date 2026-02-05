@@ -15,6 +15,7 @@ from . import (
     image_proxy,
     inline,
     jobs,
+    liked,
     news,
     news_by_country,
     profiling,
@@ -38,6 +39,7 @@ router.include_router(cache.router)
 router.include_router(stream.router)
 router.include_router(debug.router)
 router.include_router(bookmarks.router)
+router.include_router(liked.router)
 router.include_router(reading_queue.router)
 router.include_router(research.router)
 router.include_router(entity_research.router)

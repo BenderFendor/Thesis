@@ -23,6 +23,7 @@ from app.models.news import NewsArticle
 from app.services.cache import news_cache
 from app.services.metrics import get_metrics, reset_metrics
 from app.services.og_image import enrich_articles_with_og_images
+from app.services.image_extraction import is_valid_image_url
 from app.services.persistence import persist_articles_dual_write
 from app.services.websocket_manager import manager
 
@@ -32,6 +33,7 @@ try:  # Optional Rust acceleration
     RUST_RSS_AVAILABLE = True
 except ImportError:  # pragma: no cover - optional dependency
     RUST_RSS_AVAILABLE = False
+    rss_parser_rust = None  # type: ignore[assignment]
 
 logger = get_logger("rss_ingestion")
 stream_logger = get_logger("news_stream")
@@ -83,7 +85,12 @@ def parse_rss_feed(
                 channel_image_url = image.get("url") or image.get("href")
 
         for entry in feed.entries:
-            article_link = entry.get("link", "") or getattr(feed.feed, "link", url)
+            article_link_raw = entry.get("link", "") or getattr(feed.feed, "link", url)
+            article_link = (
+                article_link_raw
+                if isinstance(article_link_raw, str)
+                else str(article_link_raw)
+            )
             if article_link in seen_urls:
                 continue
             seen_urls.add(article_link)
@@ -96,28 +103,31 @@ def parse_rss_feed(
                 article_url=article_link,
                 base_url=base_url,
             )
-            if not image_url and channel_image_url:
+            if (
+                not image_url
+                and channel_image_url
+                and is_valid_image_url(channel_image_url)
+            ):
                 image_url = channel_image_url
 
-            title = entry.get("title", "No title")
-            description = entry.get("description", "No description")
+            title_raw = entry.get("title", "No title")
+            description_raw = entry.get("description", "No description")
+            title = str(title_raw)
+            description = str(description_raw)
 
             title = _clean_text(title)
             description = _clean_text(description)
 
-            if image_url and not image_url.startswith(("http://", "https://")):
-                try:
-                    parsed_url = urlparse(url)
-                    base_url = f"{parsed_url.scheme}://{parsed_url.netloc}"
-                    image_url = urljoin(base_url, image_url)
-                except Exception:
-                    image_url = None
+            image_url = _normalize_article_image(image_url, article_link)
+
+            published_raw = entry.get("published", str(datetime.now(timezone.utc)))
+            published = str(published_raw)
 
             article = NewsArticle(
                 title=title,
                 link=article_link,
                 description=description,
-                published=entry.get("published", str(datetime.now(timezone.utc))),
+                published=published,
                 source=source_name,
                 category=source_info.get("category", "general"),
                 country=source_info.get("country"),
@@ -171,6 +181,19 @@ def _extract_image_from_entry(
         )
 
     return result.image_url
+
+
+def _normalize_article_image(image_url: str | None, article_url: str) -> str | None:
+    if not image_url:
+        return None
+    if image_url.startswith("//"):
+        image_url = f"https:{image_url}"
+    elif not image_url.startswith(("http://", "https://")):
+        try:
+            image_url = urljoin(article_url, image_url)
+        except Exception:
+            return None
+    return image_url if is_valid_image_url(image_url) else None
 
 
 def _flatten_thumbnail(url_field: Any) -> str | None:
@@ -245,6 +268,8 @@ def get_rss_as_json(url: str, source_name: str) -> Tuple[Dict[str, Any], Any]:
                 logger.error("All retries failed for %s: %s", source_name, exc)
                 feed = feedparser.parse(url, agent="NewsAggregator/1.0")
                 return {"error": str(exc), "fallback": True}, feed
+
+    return {"error": "Unknown error", "fallback": True}, None
 
 
 def _process_source(
@@ -839,7 +864,7 @@ async def _refresh_news_cache_with_rust(
         return
 
     result = await asyncio.to_thread(
-        rss_parser_rust.parse_feeds_parallel,
+        rss_parser_rust.parse_feeds_parallel,  # type: ignore[attr-defined]
         sources_payload,
         min(64, max(8, len(sources_payload) * 2)),
     )
@@ -854,17 +879,35 @@ async def _refresh_news_cache_with_rust(
         source_info = rss_sources.get(source_name, {})
         category = item.get("category") or source_info.get("category", "general")
 
+        link_value = str(item.get("link", ""))
+        image_url = _normalize_article_image(item.get("image"), link_value)
         article = NewsArticle(
             title=item.get("title", "No title"),
-            link=item.get("link", ""),
+            link=link_value,
             description=item.get("description", "No description"),
             published=item.get("published", datetime.now(timezone.utc).isoformat()),
             source=source_name,
             category=category,
             country=source_info.get("country"),
-            image=item.get("image"),
+            image=image_url,
         )
         articles_by_source.setdefault(source_name, []).append(article)
+
+    all_articles = [
+        article for group in articles_by_source.values() for article in group
+    ]
+
+    if all_articles:
+        await enrich_articles_with_og_images(all_articles)
+        for name, articles in articles_by_source.items():
+            total = len(articles)
+            missing = sum(1 for article in articles if not article.image)
+            logger.info(
+                "Rust ingest image coverage for %s: %d/%d missing",
+                name,
+                missing,
+                total,
+            )
 
     for articles in articles_by_source.values():
         articles.sort(key=lambda article: article.published, reverse=True)
@@ -918,9 +961,6 @@ async def _refresh_news_cache_with_rust(
     if persist_tasks:
         await asyncio.gather(*persist_tasks)
 
-    all_articles = [
-        article for group in articles_by_source.values() for article in group
-    ]
     if settings.enable_incremental_cache:
         total_articles = len(news_cache.get_articles())
         total_sources = len(news_cache.get_source_stats())
@@ -1124,17 +1164,7 @@ def parse_rss_feed_entries(
         title = _clean_text(entry.get("title", "No title"))
         description = _clean_text(entry.get("description", "No description"))
 
-        if image_url and not image_url.startswith(("http://", "https://")):
-            try:
-                parsed_url = urlparse(source_info.get("url", ""))
-                base_url = (
-                    f"{parsed_url.scheme}://{parsed_url.netloc}"
-                    if parsed_url.scheme and parsed_url.netloc
-                    else ""
-                )
-                image_url = urljoin(base_url, image_url) if base_url else None
-            except Exception:
-                image_url = None
+        image_url = _normalize_article_image(image_url, link)
 
         article = NewsArticle(
             title=title,

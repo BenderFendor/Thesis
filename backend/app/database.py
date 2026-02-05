@@ -133,6 +133,14 @@ class Bookmark(Base):
     created_at = Column(DateTime, default=get_utc_now)
 
 
+class LikedArticle(Base):
+    __tablename__ = "liked_articles"
+
+    id = Column(Integer, primary_key=True, index=True)
+    article_id = Column(Integer, nullable=False, unique=True)
+    created_at = Column(DateTime, default=get_utc_now)
+
+
 class Preference(Base):
     __tablename__ = "preferences"
 

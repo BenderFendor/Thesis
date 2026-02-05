@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import timezone
 from typing import Dict
 
 from fastapi import APIRouter, Depends, HTTPException
@@ -46,7 +46,9 @@ async def list_bookmarks(db: AsyncSession = Depends(get_db)) -> Dict[str, object
             "published": row.published_at.isoformat() if row.published_at else None,
             "category": row.category,
             "url": row.url,
-            "created_at": row.created_at.isoformat() if row.created_at else None,
+            "created_at": row.created_at.isoformat()
+            if row.created_at is not None
+            else None,
         }
         for row in rows
     ]
@@ -80,7 +82,9 @@ async def get_bookmark(
         "published": article.published_at.isoformat() if article.published_at else None,
         "category": article.category,
         "url": article.url,
-        "created_at": bookmark.created_at.isoformat() if bookmark.created_at else None,
+        "created_at": bookmark.created_at.isoformat()
+        if bookmark.created_at is not None
+        else None,
     }
 
 
@@ -106,7 +110,7 @@ async def create_bookmark(
             "bookmark_id": existing.id,
             "article_id": existing.article_id,
             "created_at": existing.created_at.isoformat()
-            if existing.created_at
+            if existing.created_at is not None
             else None,
         }
 
@@ -119,7 +123,9 @@ async def create_bookmark(
         "created": True,
         "bookmark_id": bookmark.id,
         "article_id": bookmark.article_id,
-        "created_at": bookmark.created_at.isoformat() if bookmark.created_at else None,
+        "created_at": bookmark.created_at.isoformat()
+        if bookmark.created_at is not None
+        else None,
     }
 
 
@@ -135,13 +141,12 @@ async def update_bookmark(
     if not bookmark:
         raise HTTPException(status_code=404, detail="Bookmark not found")
 
-    bookmark.created_at = datetime.now(timezone.utc).replace(tzinfo=None)
-    await db.flush()
-
     return {
         "bookmark_id": bookmark.id,
         "article_id": bookmark.article_id,
-        "created_at": bookmark.created_at.isoformat() if bookmark.created_at else None,
+        "created_at": bookmark.created_at.isoformat()
+        if bookmark.created_at is not None
+        else None,
         "updated": True,
     }
 

@@ -1,5 +1,24 @@
 # Log
 
+## 2026-02-04: Saved Articles Page
+
+**Changes:**
+- Marked RSS ingestion to Rust as complete in Todo.md
+- Created new saved articles page at `frontend/app/saved/page.tsx` with:
+  - Two tabs: Bookmarks (persistent) and Liked (localStorage)
+  - Grid view for displaying saved articles
+  - Empty states with CTAs to browse news
+  - Refresh functionality
+- Added "Saved" navigation link to header in `frontend/components/auto-hide-header.tsx`
+- Updated Todo.md to mark reading queue tasks as complete
+
+**Files Modified:**
+- `frontend/app/saved/page.tsx` (created)
+- `frontend/components/auto-hide-header.tsx`
+- `Todo.md`
+
+---
+
 ## 2026-01-31: Fast Clustering Test Suite
 
 ### Test-Driven Clustering Development
