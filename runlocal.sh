@@ -40,7 +40,7 @@ Usage: ./runlocal.sh [setup|services|backend|frontend|all|killall|help]
 
   setup     Install local Postgres + Chroma dependencies and prep defaults
   services  Start Postgres + Chroma locally (no Docker)
-  backend   Create/refresh the Python venv, install deps, start FastAPI (gunicorn)
+  backend   Create/refresh the Python3 venv, install deps, start FastAPI (gunicorn)
   frontend  Install npm deps if needed and start Next.js dev server (also starts Postgres + Chroma)
   all       Run backend and frontend together (default)
   killall   Stop processes spawned by previous runlocal.sh runs
@@ -295,7 +295,7 @@ install_postgres() {
 ensure_backend_venv() {
 	if [[ ! -d "$BACKEND_DIR/.venv" ]]; then
 		log "Creating backend virtual environment..."
-		python -m venv "$BACKEND_DIR/.venv"
+		python3 -m venv "$BACKEND_DIR/.venv"
 	fi
 }
 
@@ -450,7 +450,7 @@ setup_services() {
 }
 
 run_backend() {
-	require_cmd python
+	require_cmd python3
 	require_cmd uv
 	free_port "$BACKEND_PORT"
 
