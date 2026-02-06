@@ -5,7 +5,7 @@ import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
-import { X, Star, Search, ChevronDown, ExternalLink } from "lucide-react";
+import { X, Star, Search, ChevronDown, ExternalLink, BookOpen } from "lucide-react";
 import { useFavorites } from "@/hooks/useFavorites";
 import { useSourceFilter } from "@/hooks/useSourceFilter";
 import { fetchSources, NewsSource } from "@/lib/api";
@@ -338,6 +338,16 @@ function SourceItem({
         <p className="text-xs text-muted-foreground truncate">
           {source.country}
         </p>
+      </Link>
+
+      {/* Wiki link */}
+      <Link
+        href={`/wiki/source/${encodeURIComponent(source.name)}`}
+        className="flex-shrink-0 p-1 text-muted-foreground hover:text-primary transition-colors"
+        onClick={onClose}
+        title="Wiki profile"
+      >
+        <BookOpen className="h-3.5 w-3.5" />
       </Link>
 
       {/* Favorite Button */}

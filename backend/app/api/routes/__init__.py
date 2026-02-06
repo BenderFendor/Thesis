@@ -28,6 +28,7 @@ from . import (
     trending,
     updates,
     verification,
+    wiki,
 )
 
 router = APIRouter()
@@ -56,3 +57,4 @@ router.include_router(verification.router)
 router.include_router(gdelt.router)
 router.include_router(comparison.router)
 router.include_router(blindspots.router)
+router.include_router(wiki.router)

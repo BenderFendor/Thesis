@@ -3351,6 +3351,230 @@ export async function fetchBulkArticleTopics(
  * Fetch the OpenGraph image for a given article URL
  * @param url The URL of the article
  */
+// ============================================================================
+// Media Accountability Wiki API
+// ============================================================================
+
+export interface WikiFilterScore {
+  filter_name: string;
+  score: number;
+  confidence?: string;
+  prose_explanation?: string;
+  citations?: Array<{ url?: string; title?: string; snippet?: string }>;
+  empirical_basis?: string;
+  scored_by?: string;
+  last_scored_at?: string;
+}
+
+export interface WikiSourceCard {
+  name: string;
+  country?: string;
+  funding_type?: string;
+  bias_rating?: string;
+  category?: string;
+  parent_company?: string;
+  credibility_score?: number;
+  filter_scores?: Record<string, number>;
+  index_status?: string;
+  last_indexed_at?: string;
+}
+
+export interface WikiSourceProfile {
+  name: string;
+  country?: string;
+  funding_type?: string;
+  bias_rating?: string;
+  category?: string;
+  parent_company?: string;
+  credibility_score?: number;
+  is_state_media?: boolean;
+  source_type?: string;
+  filter_scores: WikiFilterScore[];
+  reporters: Array<Record<string, unknown>>;
+  organization?: Record<string, unknown>;
+  ownership_chain: Array<Record<string, unknown>>;
+  article_count: number;
+  geographic_focus: string[];
+  topic_focus: string[];
+  index_status?: string;
+  last_indexed_at?: string;
+}
+
+export interface WikiReporterCard {
+  id: number;
+  name: string;
+  normalized_name?: string;
+  bio?: string;
+  topics?: string[];
+  political_leaning?: string;
+  leaning_confidence?: string;
+  article_count: number;
+  current_outlet?: string;
+  wikipedia_url?: string;
+  research_confidence?: string;
+}
+
+export interface WikiReporterDossier extends WikiReporterCard {
+  career_history?: Array<{ organization?: string; role?: string; source?: string }>;
+  education?: Array<Record<string, unknown>>;
+  leaning_sources?: string[];
+  twitter_handle?: string;
+  linkedin_url?: string;
+  source_patterns?: Record<string, unknown>;
+  topics_avoided?: Record<string, unknown>;
+  advertiser_alignment?: Record<string, unknown>;
+  revolving_door?: Record<string, unknown>;
+  controversies?: Array<Record<string, unknown>>;
+  institutional_affiliations?: Array<Record<string, unknown>>;
+  coverage_comparison?: Record<string, unknown>;
+  last_article_at?: string;
+  recent_articles: Array<Record<string, unknown>>;
+  research_sources?: string[];
+}
+
+export interface WikiOwnershipGraph {
+  nodes: Array<{ id: string; label: string; type?: string; bias?: string; [key: string]: unknown }>;
+  edges: Array<{ source: string; target: string; relationship?: string; [key: string]: unknown }>;
+}
+
+export interface WikiIndexStatus {
+  total_entries: number;
+  by_status: Record<string, number>;
+  by_type: Record<string, number>;
+}
+
+export interface WikiSourcesParams {
+  country?: string;
+  bias?: string;
+  funding?: string;
+  search?: string;
+  sort?: string;
+  limit?: number;
+  offset?: number;
+}
+
+/**
+ * Fetch the wiki source directory with optional filters
+ */
+export async function fetchWikiSources(params: WikiSourcesParams = {}): Promise<WikiSourceCard[]> {
+  const query = new URLSearchParams();
+  if (params.country) query.set("country", params.country);
+  if (params.bias) query.set("bias", params.bias);
+  if (params.funding) query.set("funding", params.funding);
+  if (params.search) query.set("search", params.search);
+  if (params.sort) query.set("sort", params.sort);
+  if (params.limit) query.set("limit", params.limit.toString());
+  if (params.offset) query.set("offset", params.offset.toString());
+
+  const qs = query.toString();
+  const response = await fetch(`${API_BASE_URL}/api/wiki/sources${qs ? `?${qs}` : ""}`);
+  if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+  return response.json();
+}
+
+/**
+ * Fetch the full wiki profile for a single source
+ */
+export async function fetchWikiSource(sourceName: string): Promise<WikiSourceProfile> {
+  const response = await fetch(`${API_BASE_URL}/api/wiki/sources/${encodeURIComponent(sourceName)}`);
+  if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+  return response.json();
+}
+
+/**
+ * Fetch propaganda filter scores for a source
+ */
+export async function fetchWikiSourceFilters(sourceName: string): Promise<WikiFilterScore[]> {
+  const response = await fetch(`${API_BASE_URL}/api/wiki/sources/${encodeURIComponent(sourceName)}/filters`);
+  if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+  return response.json();
+}
+
+/**
+ * Fetch reporters associated with a source
+ */
+export async function fetchWikiSourceReporters(sourceName: string): Promise<WikiReporterCard[]> {
+  const response = await fetch(`${API_BASE_URL}/api/wiki/sources/${encodeURIComponent(sourceName)}/reporters`);
+  if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+  return response.json();
+}
+
+/**
+ * Fetch the wiki reporter directory
+ */
+export async function fetchWikiReporters(params: {
+  search?: string;
+  outlet?: string;
+  limit?: number;
+  offset?: number;
+} = {}): Promise<WikiReporterCard[]> {
+  const query = new URLSearchParams();
+  if (params.search) query.set("search", params.search);
+  if (params.outlet) query.set("source", params.outlet);
+  if (params.limit) query.set("limit", params.limit.toString());
+  if (params.offset) query.set("offset", params.offset.toString());
+
+  const qs = query.toString();
+  const response = await fetch(`${API_BASE_URL}/api/wiki/reporters${qs ? `?${qs}` : ""}`);
+  if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+  return response.json();
+}
+
+/**
+ * Fetch a full reporter dossier
+ */
+export async function fetchWikiReporter(reporterId: number): Promise<WikiReporterDossier> {
+  const response = await fetch(`${API_BASE_URL}/api/wiki/reporters/${reporterId}`);
+  if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+  return response.json();
+}
+
+/**
+ * Fetch articles by a reporter (returns simplified article objects)
+ */
+export async function fetchWikiReporterArticles(reporterId: number): Promise<Array<{
+  id: number;
+  title: string;
+  source: string;
+  published_at?: string;
+  url: string;
+  category?: string;
+  image_url?: string;
+}>> {
+  const response = await fetch(`${API_BASE_URL}/api/wiki/reporters/${reporterId}/articles`);
+  if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+  return response.json();
+}
+
+/**
+ * Fetch the ownership graph for the force-directed visualization
+ */
+export async function fetchWikiOwnershipGraph(): Promise<WikiOwnershipGraph> {
+  const response = await fetch(`${API_BASE_URL}/api/wiki/organizations/graph`);
+  if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+  return response.json();
+}
+
+/**
+ * Fetch wiki indexing status summary
+ */
+export async function fetchWikiIndexStatus(): Promise<WikiIndexStatus> {
+  const response = await fetch(`${API_BASE_URL}/api/wiki/index/status`);
+  if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+  return response.json();
+}
+
+/**
+ * Trigger wiki indexing for a specific source
+ */
+export async function triggerWikiIndex(sourceName: string): Promise<{ status: string; message: string }> {
+  const response = await fetch(`${API_BASE_URL}/api/wiki/index/${encodeURIComponent(sourceName)}`, {
+    method: "POST",
+  });
+  if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+  return response.json();
+}
+
 export async function fetchOGImage(url: string): Promise<string | null> {
   try {
     const response = await fetch(`${API_BASE_URL}/image/og?url=${encodeURIComponent(url)}`);

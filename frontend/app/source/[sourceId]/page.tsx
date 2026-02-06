@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation"
 import Link from "next/link"
 import { useQuery } from "@tanstack/react-query"
 import { motion, AnimatePresence } from "framer-motion"
-import { ArrowLeft, Globe, MapPin, ExternalLink, Star, Clock, Newspaper, AlertTriangle, Bug } from "lucide-react"
+import { ArrowLeft, Globe, MapPin, ExternalLink, Star, Clock, Newspaper, AlertTriangle, Bug, BookOpen } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Card, CardContent } from "@/components/ui/card"
@@ -151,6 +151,13 @@ export default async function SourcePage(props: SourcePageProps) {
             
             <div className="flex items-center gap-3">
               <h1 className="font-serif text-lg font-bold tracking-tight">{source.name}</h1>
+              <Link
+                href={`/wiki/source/${encodeURIComponent(source.name)}`}
+                className="text-muted-foreground hover:text-primary transition-colors"
+                title="View wiki profile"
+              >
+                <BookOpen className="w-4 h-4" />
+              </Link>
               <Button
                 variant="ghost"
                 size="icon"

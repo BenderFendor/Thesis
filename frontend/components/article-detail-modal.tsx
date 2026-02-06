@@ -3,7 +3,7 @@
 import { useState, useEffect, useMemo, useRef } from "react"
 import { logUserAction } from "@/lib/performance-logger"
 import Link from "next/link"
-import { X, ExternalLink, Heart, Bookmark, AlertTriangle, DollarSign, Bug, Link as LinkIcon, Rss, Sparkles, Maximize2, Minimize2, Loader2, Search, RefreshCw, CheckCircle2, XCircle, Copy, PlusCircle, MinusCircle, Star, Edit2, Trash2, Eye, EyeOff, Download } from "lucide-react"
+import { X, ExternalLink, Heart, Bookmark, AlertTriangle, DollarSign, Bug, Link as LinkIcon, Rss, Sparkles, Maximize2, Minimize2, Loader2, Search, RefreshCw, CheckCircle2, XCircle, Copy, PlusCircle, MinusCircle, Star, Edit2, Trash2, Eye, EyeOff, Download, BookOpen } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
@@ -736,10 +736,31 @@ export function ArticleDetailModal({ article, isOpen, onClose, onBookmarkChange,
                   >
                     {article.source}
                   </Link>
+                  <Link
+                    href={`/wiki/source/${encodeURIComponent(article.source)}`}
+                    className="text-muted-foreground hover:text-primary transition-colors"
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      onClose()
+                    }}
+                    title="View wiki profile"
+                  >
+                    <BookOpen className="h-3.5 w-3.5" />
+                  </Link>
                   {article.author && (
                     <>
                       <span>•</span>
-                      <span>Reporter: {article.author}</span>
+                      <Link
+                        href={`/wiki/reporters?search=${encodeURIComponent(article.author)}`}
+                        className="hover:text-primary hover:underline transition-colors"
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          onClose()
+                        }}
+                        title="Search reporter in wiki"
+                      >
+                        Reporter: {article.author}
+                      </Link>
                     </>
                   )}
                   <span>•</span>
@@ -1741,15 +1762,44 @@ export function ArticleDetailModal({ article, isOpen, onClose, onBookmarkChange,
                         {article.author && (
                           <div className="flex items-center gap-2 text-sm">
                             <span className="text-gray-400">Reporter:</span>
-                            <span className="text-white text-xs">{article.author}</span>
+                            <Link
+                              href={`/wiki/reporters?search=${encodeURIComponent(article.author)}`}
+                              className="text-white text-xs hover:text-primary hover:underline transition-colors"
+                              onClick={(e) => {
+                                e.stopPropagation()
+                                onClose()
+                              }}
+                            >
+                              {article.author}
+                            </Link>
                           </div>
                         )}
 
                         {showSourceDetails && (
                           <div className="space-y-3 pt-3 border-t border-gray-700 text-sm">
-                            <div>
+                            <div className="flex items-center gap-2">
                               <span className="text-gray-400">Publisher:</span>
-                              <span className="text-white ml-2">{source.name}</span>
+                              <Link
+                                href={`/wiki/source/${encodeURIComponent(source.name)}`}
+                                className="text-white hover:text-primary hover:underline transition-colors"
+                                onClick={(e) => {
+                                  e.stopPropagation()
+                                  onClose()
+                                }}
+                              >
+                                {source.name}
+                              </Link>
+                              <Link
+                                href={`/wiki/source/${encodeURIComponent(source.name)}`}
+                                className="text-muted-foreground hover:text-primary transition-colors"
+                                onClick={(e) => {
+                                  e.stopPropagation()
+                                  onClose()
+                                }}
+                                title="View wiki profile"
+                              >
+                                <BookOpen className="h-3 w-3" />
+                              </Link>
                             </div>
                             <div>
                               <span className="text-gray-400">Country:</span>

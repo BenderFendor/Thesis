@@ -40,6 +40,7 @@ from app.services.scheduler import (
     periodic_rss_refresh,
     periodic_blind_spots_update,
 )
+from app.services.wiki_indexer import periodic_wiki_refresh
 from app.services.startup_metrics import startup_metrics
 from app.services.websocket_manager import manager
 
@@ -390,6 +391,15 @@ async def on_startup() -> None:
         )
         _register_background_task(blind_spots_task)
         startup_metrics.add_note("blind_spots_task", blind_spots_task.get_name())
+
+    # Start wiki indexer refresh (daily, re-indexes stale entries)
+    if settings.enable_database:
+        wiki_task = asyncio.create_task(
+            periodic_wiki_refresh(interval_seconds=86400),
+            name="wiki_refresh_scheduler",
+        )
+        _register_background_task(wiki_task)
+        startup_metrics.add_note("wiki_refresh_task", wiki_task.get_name())
 
     logger.info(
         "API startup complete (%.2fs) - cache ready with %d articles",

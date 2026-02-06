@@ -227,6 +227,17 @@ class Reporter(Base):
     linkedin_url = Column(String)
     wikipedia_url = Column(String)
 
+    # Deep dossier fields (Manufacturing Consent analysis)
+    source_patterns = Column(JSON)  # {official: int, grassroots: int, analysis: str}
+    topics_avoided = Column(JSON)  # Topics the reporter systematically skips
+    advertiser_alignment = Column(JSON)  # Overlap between beat and owner/ad interests
+    revolving_door = Column(JSON)  # Gov/corporate/media employment history
+    controversies = Column(JSON)  # [{description, date, citations}]
+    institutional_affiliations = Column(JSON)  # [{org, role, start, end}]
+    coverage_comparison = Column(JSON)  # How coverage shifts across outlets
+    article_count = Column(Integer, default=0)  # Total articles in our system
+    last_article_at = Column(DateTime)  # Most recent article timestamp
+
     # Research metadata
     research_sources = Column(JSON)  # Which APIs/sources were consulted
     last_researched_at = Column(DateTime)
@@ -513,6 +524,81 @@ class VerificationCache(Base):
     expires_at = Column(DateTime, index=True)
 
     __table_args__ = (Index("ix_verification_cache_expires", "expires_at"),)
+
+
+# Phase 9: Media Accountability Wiki Tables
+
+
+class PropagandaFilterScore(Base):
+    """Stores Chomsky/Parenti propaganda filter scores per source.
+
+    Six axes: ownership, advertising, sourcing, flak, ideology (Chomsky)
+    and class_interest (Parenti). Each scored 1-5 with prose reasoning
+    and cited evidence.
+    """
+
+    __tablename__ = "propaganda_filter_scores"
+
+    id = Column(Integer, primary_key=True, index=True)
+    source_name = Column(String, nullable=False, index=True)
+    filter_name = Column(
+        String, nullable=False
+    )  # ownership, advertising, sourcing, flak, ideology, class_interest
+
+    score = Column(Integer, nullable=False)  # 1-5
+    confidence = Column(String)  # high, medium, low
+    prose_explanation = Column(Text)  # Reasoning for the score
+    citations = Column(JSON)  # [{url, title, accessed_at}]
+    empirical_basis = Column(Text)  # Distinguishes measured data from inferred analysis
+
+    scored_by = Column(String, default="llm")  # llm, manual, data
+    last_scored_at = Column(DateTime, default=get_utc_now)
+
+    created_at = Column(DateTime, default=get_utc_now)
+    updated_at = Column(DateTime, default=get_utc_now, onupdate=get_utc_now)
+
+    __table_args__ = (
+        Index(
+            "ix_propaganda_filter_source_filter",
+            "source_name",
+            "filter_name",
+            unique=True,
+        ),
+    )
+
+
+class WikiIndexStatus(Base):
+    """Tracks background indexing progress for the media wiki."""
+
+    __tablename__ = "wiki_index_status"
+
+    id = Column(Integer, primary_key=True, index=True)
+    entity_type = Column(
+        String, nullable=False, index=True
+    )  # source, reporter, organization
+    entity_name = Column(String, nullable=False, index=True)
+
+    status = Column(
+        String, default="pending"
+    )  # pending, indexing, complete, failed, stale
+    error_message = Column(Text)
+    index_duration_ms = Column(Integer)  # Performance tracking
+
+    last_indexed_at = Column(DateTime)
+    next_index_at = Column(DateTime)
+
+    created_at = Column(DateTime, default=get_utc_now)
+    updated_at = Column(DateTime, default=get_utc_now, onupdate=get_utc_now)
+
+    __table_args__ = (
+        Index(
+            "ix_wiki_index_entity",
+            "entity_type",
+            "entity_name",
+            unique=True,
+        ),
+        Index("ix_wiki_index_status_next", "status", "next_index_at"),
+    )
 
 
 # Dependency for FastAPI
