@@ -323,7 +323,13 @@ async def get_source_wiki(
 
     # Load reporters associated with this source (via articles)
     reporter_result = await db.execute(
-        select(Reporter)
+        select(
+            Reporter.id,
+            Reporter.name,
+            Reporter.topics,
+            Reporter.political_leaning,
+            Reporter.article_count,
+        )
         .join(ArticleAuthor, ArticleAuthor.reporter_id == Reporter.id)
         .join(Article, Article.id == ArticleAuthor.article_id)
         .where(Article.source == source_name)
@@ -338,7 +344,7 @@ async def get_source_wiki(
             "political_leaning": r.political_leaning,
             "article_count": r.article_count or 0,
         }
-        for r in reporter_result.scalars().all()
+        for r in reporter_result.all()
     ]
 
     # Load organization data

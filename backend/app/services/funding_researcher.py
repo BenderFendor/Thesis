@@ -129,43 +129,48 @@ class FundingResearcher:
     def __init__(self):
         self.client = get_openai_client()
         self.http_client = httpx.AsyncClient(timeout=30.0)
-        
+
         # ProPublica Nonprofit Explorer API (free, no key needed)
         self.propublica_base = "https://projects.propublica.org/nonprofits/api/v2"
-        
+
     async def research_organization(
-        self, 
-        name: str,
-        website: Optional[str] = None,
-        use_ai: bool = True
+        self, name: str, website: Optional[str] = None, use_ai: bool = True
     ) -> Dict[str, Any]:
         """
         Research an organization's funding and ownership.
-        
+
         Args:
             name: Organization name
             website: Optional website URL
-            
+
         Returns:
             Organization data dict with ownership, funding, etc.
         """
         logger.info(f"Researching organization: {name}")
-        
+
         normalized_name = self._normalize_name(name)
-        
+
         # Gather data from multiple sources in parallel
         results = await asyncio.gather(
             self._search_wikipedia(name),
             self._search_propublica_nonprofit(name),
             self._get_known_org_data(name),
-            return_exceptions=True
+            return_exceptions=True,
         )
-        
-        wikipedia_data = results[0] if not isinstance(results[0], Exception) else {}
-        nonprofit_data = results[1] if not isinstance(results[1], Exception) else {}
-        known_data = results[2] if not isinstance(results[2], Exception) else {}
-        wikidata_data = await self._fetch_wikidata(wikipedia_data.get("page_title") or name)
-        
+
+        wikipedia_data: Dict[str, Any] = (
+            results[0] if not isinstance(results[0], BaseException) else {}
+        )
+        nonprofit_data: Dict[str, Any] = (
+            results[1] if not isinstance(results[1], BaseException) else {}
+        )
+        known_data: Dict[str, Any] = (
+            results[2] if not isinstance(results[2], BaseException) else {}
+        )
+        wikidata_data = await self._fetch_wikidata(
+            wikipedia_data.get("page_title") or name
+        )
+
         # Merge with priority
         org_data = self._merge_org_data(
             name=name,
@@ -174,23 +179,28 @@ class FundingResearcher:
             wikipedia=wikipedia_data,
             wikidata=wikidata_data,
             nonprofit=nonprofit_data,
-            known=known_data
+            known=known_data,
         )
-        
+
         # Use AI to synthesize
         if self.client and use_ai:
             org_data = await self._ai_enhance_org_data(org_data)
-        
+
         org_data["last_researched_at"] = datetime.now(timezone.utc).isoformat()
-        
+
         return org_data
-    
+
     def _normalize_name(self, name: str) -> str:
         """Normalize organization name for matching."""
         # Remove common suffixes
-        name = re.sub(r'\b(Inc|LLC|Corp|Corporation|Co|Ltd|Limited)\b\.?', '', name, flags=re.IGNORECASE)
+        name = re.sub(
+            r"\b(Inc|LLC|Corp|Corporation|Co|Ltd|Limited)\b\.?",
+            "",
+            name,
+            flags=re.IGNORECASE,
+        )
         return name.lower().strip()
-    
+
     async def _search_wikipedia(self, name: str) -> Dict[str, Any]:
         """Search Wikipedia for organization information."""
         try:
@@ -201,19 +211,19 @@ class FundingResearcher:
                 "list": "search",
                 "srsearch": search_query,
                 "format": "json",
-                "srlimit": 3
+                "srlimit": 3,
             }
-            
+
             response = await self.http_client.get(url, params=params)
             if response.status_code != 200:
                 return {}
-                
+
             data = response.json()
             search_results = data.get("query", {}).get("search", [])
-            
+
             if not search_results:
                 return {}
-            
+
             page_title = search_results[0]["title"]
             extract_params = {
                 "action": "query",
@@ -222,25 +232,25 @@ class FundingResearcher:
                 "exintro": True,
                 "explaintext": True,
                 "format": "json",
-                "inprop": "url"
+                "inprop": "url",
             }
-            
+
             extract_response = await self.http_client.get(url, params=extract_params)
             if extract_response.status_code != 200:
                 return {}
-                
+
             extract_data = extract_response.json()
             pages = extract_data.get("query", {}).get("pages", {})
-            
+
             for page_id, page_info in pages.items():
                 if page_id == "-1":
                     continue
-                    
+
                 extract = page_info.get("extract", "")
-                
+
                 # Try to extract ownership info from text
                 ownership_info = self._extract_ownership_from_text(extract)
-                
+
                 return {
                     "source": "wikipedia",
                     "title": page_info.get("title"),
@@ -248,20 +258,20 @@ class FundingResearcher:
                     "url": page_info.get("fullurl"),
                     "ownership": ownership_info,
                     "page_title": page_info.get("title"),
-                    "confidence": "high"
+                    "confidence": "high",
                 }
-                
+
             return {}
-            
+
         except Exception as e:
             logger.error(f"Wikipedia search failed for {name}: {e}")
             return {}
-    
+
     def _extract_ownership_from_text(self, text: str) -> Optional[Dict[str, Any]]:
         """Extract ownership information from Wikipedia text."""
         ownership = {}
         lower_text = text.lower()
-        
+
         # Common patterns for ownership
         patterns = [
             r"owned by ([A-Z][A-Za-z\s&]+)",
@@ -269,13 +279,13 @@ class FundingResearcher:
             r"parent company (?:is )?([A-Z][A-Za-z\s&]+)",
             r"acquired by ([A-Z][A-Za-z\s&]+)",
         ]
-        
+
         for pattern in patterns:
             match = re.search(pattern, text)
             if match:
                 ownership["parent"] = match.group(1).strip()
                 break
-        
+
         # Look for funding type indicators
         if "non-profit" in lower_text or "nonprofit" in lower_text:
             ownership["funding_type"] = "non-profit"
@@ -283,53 +293,53 @@ class FundingResearcher:
             ownership["funding_type"] = "public"
         elif "state-owned" in lower_text or "government-funded" in lower_text:
             ownership["funding_type"] = "state-funded"
-            
+
         return ownership if ownership else None
-    
+
     async def _search_propublica_nonprofit(self, name: str) -> Dict[str, Any]:
         """Search ProPublica Nonprofit Explorer for 990 data."""
         try:
             # Search for organization
             search_url = f"{self.propublica_base}/search.json"
             params = {"q": name}
-            
+
             response = await self.http_client.get(search_url, params=params)
             if response.status_code != 200:
                 return {}
-                
+
             data = response.json()
             organizations = data.get("organizations", [])
-            
+
             if not organizations:
                 return {}
-            
+
             # Get the first matching organization
             org = organizations[0]
             ein = org.get("ein")
             if ein is not None:
                 ein = str(ein)
-            
+
             if not ein:
                 return {}
-            
+
             # Get detailed org data including 990 filings
             org_url = f"{self.propublica_base}/organizations/{ein}.json"
             org_response = await self.http_client.get(org_url)
-            
+
             if org_response.status_code != 200:
                 return {
                     "source": "propublica",
                     "ein": ein,
                     "name": org.get("name"),
-                    "confidence": "medium"
+                    "confidence": "medium",
                 }
-                
+
             org_data = org_response.json()
             org_info = org_data.get("organization", {})
             filings = org_data.get("filings_with_data", [])
-            
+
             latest_filing = filings[0] if filings else {}
-            
+
             return {
                 "source": "propublica",
                 "ein": ein,
@@ -339,9 +349,9 @@ class FundingResearcher:
                 "total_assets": str(latest_filing.get("totassetsend", "")),
                 "tax_period": latest_filing.get("tax_prd_yr"),
                 "subsection": org_info.get("subsection_code"),  # 501c type
-                "confidence": "high"
+                "confidence": "high",
             }
-            
+
         except Exception as e:
             logger.error(f"ProPublica search failed for {name}: {e}")
             return {}
@@ -384,16 +394,30 @@ class FundingResearcher:
                 "source": "wikidata",
                 "qid": qid,
                 "wikidata_url": f"https://www.wikidata.org/wiki/{qid}" if qid else None,
-                "owned_by": [labels.get(item_id) for item_id in ownership_ids if labels.get(item_id)],
-                "parent_orgs": [labels.get(item_id) for item_id in parent_ids if labels.get(item_id)],
-                "part_of": [labels.get(item_id) for item_id in part_of_ids if labels.get(item_id)],
-                "headquarters": [labels.get(item_id) for item_id in headquarters_ids if labels.get(item_id)],
+                "owned_by": [
+                    labels.get(item_id)
+                    for item_id in ownership_ids
+                    if labels.get(item_id)
+                ],
+                "parent_orgs": [
+                    labels.get(item_id) for item_id in parent_ids if labels.get(item_id)
+                ],
+                "part_of": [
+                    labels.get(item_id)
+                    for item_id in part_of_ids
+                    if labels.get(item_id)
+                ],
+                "headquarters": [
+                    labels.get(item_id)
+                    for item_id in headquarters_ids
+                    if labels.get(item_id)
+                ],
                 "inception": _extract_wikidata_time(claims, "P571"),
                 "official_website": _extract_wikidata_url(claims, "P856"),
                 "confidence": "medium",
             }
         except Exception as exc:
-            logger.warning("Wikidata fetch failed for %s: %s", name, exc)
+            logger.warning("Wikidata fetch failed for %s: %s", page_title, exc)
             return {}
 
     async def _resolve_wikidata_labels(self, item_ids: List[str]) -> Dict[str, str]:
@@ -423,18 +447,18 @@ class FundingResearcher:
             if entity_id and label:
                 labels[entity_id] = label
         return labels
-    
+
     async def _get_known_org_data(self, name: str) -> Dict[str, Any]:
         """Return known data for major news organizations."""
         normalized = self._normalize_name(name)
-        
+
         # Check for exact or partial matches
         for key, data in KNOWN_ORGS.items():
             if key in normalized or normalized in key:
                 return {"source": "known_data", **data}
-                
+
         return {}
-    
+
     def _merge_org_data(
         self,
         name: str,
@@ -443,7 +467,7 @@ class FundingResearcher:
         wikipedia: Dict[str, Any],
         wikidata: Dict[str, Any],
         nonprofit: Dict[str, Any],
-        known: Dict[str, Any]
+        known: Dict[str, Any],
     ) -> Dict[str, Any]:
         """Merge data from multiple sources."""
         org = {
@@ -473,9 +497,9 @@ class FundingResearcher:
             "littlesis_url": None,
             "opensecrets_url": None,
             "research_sources": [],
-            "research_confidence": "low"
+            "research_confidence": "low",
         }
-        
+
         # Merge known data (highest priority for major outlets)
         if known:
             org["funding_type"] = known.get("funding_type") or org["funding_type"]
@@ -484,12 +508,14 @@ class FundingResearcher:
             org["factual_reporting"] = known.get("factual_reporting")
             org["research_sources"].append("known_data")
             org["research_confidence"] = "high"
-        
+
         # Merge Wikipedia data
         if wikipedia:
             if not org["parent_org"] and wikipedia.get("ownership", {}).get("parent"):
                 org["parent_org"] = wikipedia["ownership"]["parent"]
-            if not org["funding_type"] and wikipedia.get("ownership", {}).get("funding_type"):
+            if not org["funding_type"] and wikipedia.get("ownership", {}).get(
+                "funding_type"
+            ):
                 org["funding_type"] = wikipedia["ownership"]["funding_type"]
             org["wikipedia_url"] = wikipedia.get("url")
             org["research_sources"].append("wikipedia")
@@ -521,26 +547,26 @@ class FundingResearcher:
             org["funding_type"] = nonprofit.get("funding_type") or org["funding_type"]
             org["research_sources"].append("propublica")
             org["research_confidence"] = "high"
-        
+
         return org
-    
+
     async def _ai_enhance_org_data(self, org: Dict[str, Any]) -> Dict[str, Any]:
         """Use AI to fill gaps in organization data."""
         if not self.client:
             return org
-            
+
         # Only enhance if we have minimal data
         if org.get("research_confidence") == "high":
             return org
-            
+
         try:
             prompt = f"""You are a media research assistant analyzing a news organization.
 
-Organization: {org['name']}
+Organization: {org["name"]}
 Known Data:
-- Funding Type: {org.get('funding_type', 'Unknown')}
-- Parent Organization: {org.get('parent_org', 'Unknown')}
-- Bias Rating: {org.get('media_bias_rating', 'Unknown')}
+- Funding Type: {org.get("funding_type", "Unknown")}
+- Parent Organization: {org.get("parent_org", "Unknown")}
+- Bias Rating: {org.get("media_bias_rating", "Unknown")}
 
 Based on your knowledge, provide information about this organization:
 1. What type of funding does this organization have? (commercial, public, non-profit, state-funded, independent)
@@ -561,15 +587,15 @@ Respond in JSON:
                 model="google/gemini-3-flash-preview",
                 messages=[{"role": "user", "content": prompt}],
                 max_tokens=400,
-                temperature=0.3
+                temperature=0.3,
             )
-            
+
             content = response.choices[0].message.content
-            json_match = re.search(r'\{[^{}]*\}', content, re.DOTALL)
-            
+            json_match = re.search(r"\{[^{}]*\}", content, re.DOTALL)
+
             if json_match:
                 ai_data = json.loads(json_match.group())
-                
+
                 if not org.get("funding_type"):
                     org["funding_type"] = ai_data.get("funding_type")
                 if not org.get("parent_org"):
@@ -578,15 +604,17 @@ Respond in JSON:
                     org["media_bias_rating"] = ai_data.get("media_bias_rating")
                 if not org.get("factual_reporting"):
                     org["factual_reporting"] = ai_data.get("factual_reporting")
-                    
+
                 org["research_sources"].append("ai_inference")
-                
+
         except Exception as e:
             logger.error(f"AI enhancement failed for org {org['name']}: {e}")
-            
+
         return org
-    
-    async def get_ownership_chain(self, org_name: str, max_depth: int = 5) -> List[Dict[str, Any]]:
+
+    async def get_ownership_chain(
+        self, org_name: str, max_depth: int = 5
+    ) -> List[Dict[str, Any]]:
         """
         Build an ownership chain for an organization.
         Returns a list of organizations from child to ultimate parent.
@@ -594,23 +622,23 @@ Respond in JSON:
         chain = []
         current_name = org_name
         visited = set()
-        
+
         for _ in range(max_depth):
             if current_name.lower() in visited:
                 break
             visited.add(current_name.lower())
-            
+
             org_data = await self.research_organization(current_name)
             chain.append(org_data)
-            
+
             parent = org_data.get("parent_org")
             if not parent:
                 break
-                
+
             current_name = parent
-        
+
         return chain
-    
+
     async def close(self):
         """Close HTTP client."""
         await self.http_client.aclose()

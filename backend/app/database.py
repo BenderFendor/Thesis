@@ -12,6 +12,7 @@ from sqlalchemy import (
     or_,
     func,
     inspect,
+    text as sqlalchemy_text,
 )
 from sqlalchemy.dialects import postgresql
 from sqlalchemy.types import TypeDecorator, JSON as JsonType
@@ -646,6 +647,63 @@ async def init_db():
             if missing:
                 logger.info("Created %d missing tables", len(missing))
 
+    async def _add_missing_columns(conn=None) -> None:
+        """Add columns that exist in SQLAlchemy models but not in the DB.
+
+        Uses ADD COLUMN IF NOT EXISTS so it is safe to call repeatedly.
+        If *conn* is provided, reuses it to avoid opening a second connection.
+        """
+        if engine is None:
+            return
+
+        sa_type_to_pg = {
+            "INTEGER": "INTEGER",
+            "VARCHAR": "VARCHAR",
+            "TEXT": "TEXT",
+            "BOOLEAN": "BOOLEAN",
+            "FLOAT": "FLOAT",
+            "DATETIME": "TIMESTAMP WITHOUT TIME ZONE",
+            "JSON": "JSON",
+            "JSONB": "JSONB",
+        }
+
+        async def _do(c):
+            def _get_existing_columns(sync_conn):
+                insp = inspect(sync_conn)
+                result = {}
+                for table in Base.metadata.sorted_tables:
+                    try:
+                        cols = insp.get_columns(table.name, schema="public")
+                        result[table.name] = {c["name"] for c in cols}
+                    except Exception:
+                        result[table.name] = set()
+                return result
+
+            existing_columns = await c.run_sync(_get_existing_columns)
+            added = 0
+
+            for table in Base.metadata.sorted_tables:
+                db_cols = existing_columns.get(table.name)
+                if not db_cols:
+                    continue
+                for col in table.columns:
+                    if col.name in db_cols:
+                        continue
+                    col_type_str = str(col.type).upper().split("(")[0]
+                    pg_type = sa_type_to_pg.get(col_type_str, "TEXT")
+                    stmt = f'ALTER TABLE "{table.name}" ADD COLUMN IF NOT EXISTS "{col.name}" {pg_type}'
+                    await c.execute(sqlalchemy_text(stmt))
+                    added += 1
+
+            if added:
+                logger.info("Added %d missing columns to existing tables", added)
+
+        if conn is not None:
+            await _do(conn)
+        else:
+            async with engine.begin() as new_conn:
+                await _do(new_conn)
+
     def _iter_exception_chain(exc: BaseException):
         current: BaseException | None = exc
         seen: set[int] = set()
@@ -705,7 +763,8 @@ async def init_db():
         try:
             async with engine.begin() as conn:
                 await conn.run_sync(Base.metadata.create_all)
-            logger.info("Database tables initialized successfully")
+                logger.info("Database tables initialized successfully")
+                await _add_missing_columns(conn)
             return
         except asyncio.CancelledError:
             raise
@@ -714,6 +773,7 @@ async def init_db():
             if _is_already_exists_error(exc):
                 logger.info("Database objects already exist, continuing startup")
                 await _create_missing_tables()
+                await _add_missing_columns()
                 return
 
             if not _is_transient_startup_error(exc) or time.monotonic() >= deadline:

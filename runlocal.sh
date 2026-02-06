@@ -29,6 +29,14 @@ RUNLOCAL_PID_FILE="${RUNLOCAL_PID_FILE:-$RUNLOCAL_STATE_DIR/pids}"
 
 export DATABASE_URL CHROMA_HOST CHROMA_PORT GUNICORN_WORKERS NEXT_PUBLIC_API_URL NEXT_PUBLIC_DOCKER_API_URL
 
+# Source API keys from backend/.env (needed by wiki indexer and LLM scoring)
+if [[ -f "$BACKEND_DIR/.env" ]]; then
+	set -a
+	# shellcheck disable=SC1091
+	source "$BACKEND_DIR/.env"
+	set +a
+fi
+
 PIDS=()
 
 log() {

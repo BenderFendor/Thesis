@@ -264,11 +264,7 @@ async def index_stale_sources(
         )
         stale_entries = result.scalars().all()
 
-        if not stale_entries:
-            logger.info("No stale wiki entries found")
-            return {"total": 0, "success": 0, "failed": 0}
-
-        # Also find sources that have never been indexed
+        # Find sources that have never been indexed
         all_sources = get_rss_sources()
         result2 = await session.execute(
             select(WikiIndexStatus.entity_name).where(
@@ -299,6 +295,11 @@ async def index_stale_sources(
 
         all_to_index = {**to_reindex, **unindexed}
         total = len(all_to_index)
+
+        if total == 0:
+            logger.info("No stale or unindexed wiki entries found")
+            return {"total": 0, "success": 0, "failed": 0}
+
         success = 0
         failed = 0
 
