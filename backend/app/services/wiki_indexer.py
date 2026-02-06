@@ -215,6 +215,14 @@ async def index_source(source_name: str, source_config: Dict[str, Any]) -> bool:
         researcher = get_funding_researcher()
         org_data = await researcher.research_organization(source_name, use_ai=False)
 
+        # Apply RSS config funding_type as authoritative source
+        # Priority: KNOWN_ORGS (already in org_data) > rss_sources.json > ProPublica/Wikipedia
+        rss_funding = source_config.get("funding_type", "").strip()
+        if rss_funding and "known_data" not in org_data.get("research_sources", []):
+            org_data["funding_type"] = rss_funding.lower()
+            if "rss_config" not in org_data.get("research_sources", []):
+                org_data.setdefault("research_sources", []).append("rss_config")
+
         source_metadata = {
             "country": source_config.get("country", ""),
             "funding_type": source_config.get("funding_type", ""),

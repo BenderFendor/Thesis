@@ -10,36 +10,36 @@
         "url": "http://feeds.bbci.co.uk/news/rss.xml",
         "category": "BBC News - Home",
         "country": "GB",
-        "funding_type": "",
-        "bias_rating": ""
+        "funding_type": "Public",
+        "bias_rating": "Center"
     },
     "BBC News - India": {
         "url": "http://feeds.bbci.co.uk/news/world/asia/india/rss.xml",
         "category": "BBC News - India",
         "country": "IN",
-        "funding_type": "",
-        "bias_rating": ""
+        "funding_type": "Public",
+        "bias_rating": "Center"
     },
     "BBC News - Science & Environment": {
         "url": "http://feeds.bbci.co.uk/news/science_and_environment/rss.xml",
         "category": "60-Second Science",
-        "country": "",
-        "funding_type": "",
-        "bias_rating": ""
+        "country": "GB",
+        "funding_type": "Public",
+        "bias_rating": "Center"
     },
     "BBC News - World": {
         "url": "http://feeds.bbci.co.uk/news/world/rss.xml",
         "category": "BBC News - World",
-        "country": "",
-        "funding_type": "",
-        "bias_rating": ""
+        "country": "GB",
+        "funding_type": "Public",
+        "bias_rating": "Center"
     },
     "BBC Sport - Sport": {
         "url": "http://feeds.bbci.co.uk/sport/rss.xml",
         "category": "BBC Sport - Sport",
-        "country": "",
-        "funding_type": "",
-        "bias_rating": ""
+        "country": "GB",
+        "funding_type": "Public",
+        "bias_rating": "Center"
     },
     "CNN": {
         "url": "https://news.google.com/rss/search?q=site:cnn.com&hl=en-US&gl=US&ceid=US:en",
@@ -59,15 +59,15 @@
         "url": "http://www.npr.org/rss/rss.php?id=1001",
         "category": "general",
         "country": "US",
-        "funding_type": "Public",
+        "funding_type": "Non-profit",
         "bias_rating": "Left-Center"
     },
     "National Post": {
         "url": "https://nationalpost.com/feed/",
         "category": "CBC | Top Stories News",
         "country": "CA",
-        "funding_type": "",
-        "bias_rating": ""
+        "funding_type": "Commercial",
+        "bias_rating": "Right-Center"
     },
     "Fox News": {
         "url": "https://feeds.foxnews.com/foxnews/latest",
@@ -117,7 +117,7 @@
         "url": "https://www.theguardian.com/world/rss",
         "category": "general",
         "country": "GB",
-        "funding_type": "Commercial",
+        "funding_type": "Trust-owned",
         "bias_rating": "Left"
     },
     "The Washington Post": {
@@ -173,7 +173,7 @@
         "url": "https://www.democracynow.org/democracynow.rss",
         "category": "politics",
         "country": "US",
-        "funding_type": "Independent",
+        "funding_type": "Non-profit",
         "bias_rating": "Left"
     },
     "The Wall Street Journal": {
@@ -250,8 +250,8 @@
         "url": "https://www.japantimes.co.jp/feed/topstories/",
         "category": "Japan Times latest articles",
         "country": "JP",
-        "funding_type": "",
-        "bias_rating": ""
+        "funding_type": "Commercial",
+        "bias_rating": "Center"
     },
     "Axios": {
         "url": "https://www.axios.com/feeds/feed.rss",
@@ -264,14 +264,14 @@
         "url": "https://news.ycombinator.com/rss",
         "category": "technology",
         "country": "US",
-        "funding_type": "Independent",
+        "funding_type": "Commercial",
         "bias_rating": "Center"
     },
     "Hacker News Frontpage": {
         "url": "https://hnrss.org/frontpage",
         "category": "technology",
         "country": "US",
-        "funding_type": "Independent",
+        "funding_type": "Commercial",
         "bias_rating": "Center"
     },
     "IGN": {
@@ -485,22 +485,22 @@
         "url": "http://leaderpost.com/feed/",
         "category": "general",
         "country": "CA",
-        "funding_type": "",
-        "bias_rating": ""
+        "funding_type": "Commercial",
+        "bias_rating": "Center"
     },
     "StarPhoenix": {
         "url": "http://thestarphoenix.com/feed/",
         "category": "general",
         "country": "CA",
-        "funding_type": "",
-        "bias_rating": ""
+        "funding_type": "Commercial",
+        "bias_rating": "Center"
     },
     "Windsor Star": {
         "url": "http://windsorstar.com/feed/",
         "category": "general",
         "country": "CA",
-        "funding_type": "",
-        "bias_rating": ""
+        "funding_type": "Commercial",
+        "bias_rating": "Center"
     },
     "Economic Times India": {
         "url": "https://economictimes.indiatimes.com/News/rssfeeds/1715249553.cms",
@@ -534,7 +534,7 @@
         "url": "http://www.nationalreview.com/feed",
         "category": "politics",
         "country": "US",
-        "funding_type": "Commercial",
+        "funding_type": "Non-profit",
         "bias_rating": "Right"
     },
     "Washington Examiner": {
@@ -548,7 +548,7 @@
         "url": "http://spectator.org/feed",
         "category": "politics",
         "country": "US",
-        "funding_type": "Commercial",
+        "funding_type": "Non-profit",
         "bias_rating": "Right"
     },
     "The Dispatch": {
@@ -562,7 +562,7 @@
         "url": "https://reason.com/feed",
         "category": "politics",
         "country": "US",
-        "funding_type": "Commercial",
+        "funding_type": "Non-profit",
         "bias_rating": "Libertarian"
     },
     "NewsNation": {
@@ -611,7 +611,7 @@
         "url": "https://www.theguardian.com/uk/rss",
         "category": "general",
         "country": "GB",
-        "funding_type": "Commercial",
+        "funding_type": "Trust-owned",
         "bias_rating": "Left"
     },
     "France24": {

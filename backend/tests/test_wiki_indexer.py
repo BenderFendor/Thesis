@@ -650,3 +650,231 @@ class TestPeriodicWikiRefresh:
             await periodic_wiki_refresh(interval_seconds=1, stale_days=7)
 
         assert call_count == 2
+
+
+# ---------------------------------------------------------------------------
+# RSS config funding_type priority
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+class TestRssConfigFundingTypePriority:
+    """Verify that index_source applies RSS config funding_type with correct priority:
+    KNOWN_ORGS > rss_sources.json > ProPublica/Wikipedia/AI."""
+
+    async def test_rss_config_overrides_propublica(self, engine_and_session):
+        """When researcher returns non-profit (from ProPublica) but RSS config
+        says Commercial, the DB should store commercial."""
+        engine, factory = await engine_and_session()
+
+        org_data = {
+            "name": "Bloomberg",
+            "normalized_name": "bloomberg",
+            "funding_type": "non-profit",  # wrong, from ProPublica
+            "research_sources": ["propublica"],
+            "research_confidence": "high",
+        }
+
+        mock_researcher = MagicMock()
+        mock_researcher.research_organization = AsyncMock(return_value=org_data)
+
+        mock_scorer = MagicMock()
+        mock_scorer.score_source = AsyncMock(
+            return_value=ScoringResult(scores=_make_filter_scores())
+        )
+
+        with (
+            patch(
+                "app.services.wiki_indexer._get_session", side_effect=lambda: factory()
+            ),
+            patch(
+                "app.services.wiki_indexer.get_funding_researcher",
+                return_value=mock_researcher,
+            ),
+            patch(
+                "app.services.wiki_indexer.get_propaganda_scorer",
+                return_value=mock_scorer,
+            ),
+        ):
+            from app.services.wiki_indexer import index_source
+
+            result = await index_source(
+                "Bloomberg", {"funding_type": "Commercial", "category": "business"}
+            )
+
+        assert result is True
+
+        async with factory() as session:
+            org = (
+                await session.execute(
+                    select(Organization).where(
+                        Organization.normalized_name == "bloomberg"
+                    )
+                )
+            ).scalar_one_or_none()
+
+            assert org is not None
+            assert org.funding_type == "commercial"
+
+        await engine.dispose()
+
+    async def test_known_data_not_overridden_by_rss_config(self, engine_and_session):
+        """When researcher returns data from KNOWN_ORGS, RSS config should NOT
+        override funding_type."""
+        engine, factory = await engine_and_session()
+
+        org_data = {
+            "name": "BBC",
+            "normalized_name": "bbc",
+            "funding_type": "public",
+            "research_sources": ["known_data", "wikipedia"],
+            "research_confidence": "high",
+        }
+
+        mock_researcher = MagicMock()
+        mock_researcher.research_organization = AsyncMock(return_value=org_data)
+
+        mock_scorer = MagicMock()
+        mock_scorer.score_source = AsyncMock(
+            return_value=ScoringResult(scores=_make_filter_scores())
+        )
+
+        with (
+            patch(
+                "app.services.wiki_indexer._get_session", side_effect=lambda: factory()
+            ),
+            patch(
+                "app.services.wiki_indexer.get_funding_researcher",
+                return_value=mock_researcher,
+            ),
+            patch(
+                "app.services.wiki_indexer.get_propaganda_scorer",
+                return_value=mock_scorer,
+            ),
+        ):
+            from app.services.wiki_indexer import index_source
+
+            # Even if RSS says "State-funded", known_data should win
+            result = await index_source(
+                "BBC", {"funding_type": "State-funded", "category": "general"}
+            )
+
+        assert result is True
+
+        async with factory() as session:
+            org = (
+                await session.execute(
+                    select(Organization).where(Organization.normalized_name == "bbc")
+                )
+            ).scalar_one_or_none()
+
+            assert org is not None
+            assert org.funding_type == "public"
+
+        await engine.dispose()
+
+    async def test_empty_rss_config_does_not_override(self, engine_and_session):
+        """When RSS config funding_type is empty, existing org_data should be preserved."""
+        engine, factory = await engine_and_session()
+
+        org_data = {
+            "name": "SomeSource",
+            "normalized_name": "somesource",
+            "funding_type": "non-profit",
+            "research_sources": ["propublica"],
+            "research_confidence": "high",
+        }
+
+        mock_researcher = MagicMock()
+        mock_researcher.research_organization = AsyncMock(return_value=org_data)
+
+        mock_scorer = MagicMock()
+        mock_scorer.score_source = AsyncMock(
+            return_value=ScoringResult(scores=_make_filter_scores())
+        )
+
+        with (
+            patch(
+                "app.services.wiki_indexer._get_session", side_effect=lambda: factory()
+            ),
+            patch(
+                "app.services.wiki_indexer.get_funding_researcher",
+                return_value=mock_researcher,
+            ),
+            patch(
+                "app.services.wiki_indexer.get_propaganda_scorer",
+                return_value=mock_scorer,
+            ),
+        ):
+            from app.services.wiki_indexer import index_source
+
+            result = await index_source(
+                "SomeSource", {"funding_type": "", "category": "general"}
+            )
+
+        assert result is True
+
+        async with factory() as session:
+            org = (
+                await session.execute(
+                    select(Organization).where(
+                        Organization.normalized_name == "somesource"
+                    )
+                )
+            ).scalar_one_or_none()
+
+            assert org is not None
+            assert org.funding_type == "non-profit"
+
+        await engine.dispose()
+
+    async def test_rss_config_adds_source_tracking(self, engine_and_session):
+        """When RSS config is applied, 'rss_config' should appear in research_sources."""
+        engine, factory = await engine_and_session()
+
+        org_data = {
+            "name": "Axios",
+            "normalized_name": "axios",
+            "funding_type": "non-profit",  # wrong
+            "research_sources": ["propublica"],
+            "research_confidence": "medium",
+        }
+
+        mock_researcher = MagicMock()
+        mock_researcher.research_organization = AsyncMock(return_value=org_data)
+
+        mock_scorer = MagicMock()
+        mock_scorer.score_source = AsyncMock(
+            return_value=ScoringResult(scores=_make_filter_scores())
+        )
+
+        with (
+            patch(
+                "app.services.wiki_indexer._get_session", side_effect=lambda: factory()
+            ),
+            patch(
+                "app.services.wiki_indexer.get_funding_researcher",
+                return_value=mock_researcher,
+            ),
+            patch(
+                "app.services.wiki_indexer.get_propaganda_scorer",
+                return_value=mock_scorer,
+            ),
+        ):
+            from app.services.wiki_indexer import index_source
+
+            await index_source(
+                "Axios", {"funding_type": "Commercial", "category": "general"}
+            )
+
+        async with factory() as session:
+            org = (
+                await session.execute(
+                    select(Organization).where(Organization.normalized_name == "axios")
+                )
+            ).scalar_one_or_none()
+
+            assert org is not None
+            assert "rss_config" in (org.research_sources or [])
+
+        await engine.dispose()
