@@ -128,7 +128,12 @@ class FundingResearcher:
 
     def __init__(self):
         self.client = get_openai_client()
-        self.http_client = httpx.AsyncClient(timeout=30.0)
+        self.http_client = httpx.AsyncClient(
+            timeout=30.0,
+            headers={
+                "User-Agent": "ScoopNewsApp/1.0 (https://github.com/scoopnews; academic research project)",
+            },
+        )
 
         # ProPublica Nonprofit Explorer API (free, no key needed)
         self.propublica_base = "https://projects.propublica.org/nonprofits/api/v2"
@@ -200,6 +205,15 @@ class FundingResearcher:
             flags=re.IGNORECASE,
         )
         return name.lower().strip()
+
+    @staticmethod
+    def _name_overlap(a: str, b: str) -> float:
+        """Word-level Jaccard similarity between two names."""
+        words_a = set(a.split())
+        words_b = set(b.split())
+        if not words_a or not words_b:
+            return 0.0
+        return len(words_a & words_b) / len(words_a | words_b)
 
     async def _search_wikipedia(self, name: str) -> Dict[str, Any]:
         """Search Wikipedia for organization information."""
@@ -299,7 +313,6 @@ class FundingResearcher:
     async def _search_propublica_nonprofit(self, name: str) -> Dict[str, Any]:
         """Search ProPublica Nonprofit Explorer for 990 data."""
         try:
-            # Search for organization
             search_url = f"{self.propublica_base}/search.json"
             params = {"q": name}
 
@@ -313,8 +326,27 @@ class FundingResearcher:
             if not organizations:
                 return {}
 
-            # Get the first matching organization
-            org = organizations[0]
+            # Find the best match by name similarity
+            normalized_query = self._normalize_name(name)
+            org = None
+            for candidate in organizations:
+                candidate_name = (candidate.get("name") or "").lower().strip()
+                if (
+                    normalized_query in candidate_name
+                    or candidate_name in normalized_query
+                    or self._name_overlap(normalized_query, candidate_name) >= 0.5
+                ):
+                    org = candidate
+                    break
+
+            if not org:
+                logger.debug(
+                    "ProPublica: no name match for '%s' in results: %s",
+                    name,
+                    [c.get("name") for c in organizations[:3]],
+                )
+                return {}
+
             ein = org.get("ein")
             if ein is not None:
                 ein = str(ein)
@@ -374,10 +406,16 @@ class FundingResearcher:
             if response.status_code != 200:
                 return {}
             data = response.json()
-            entities = data.get("entities") or []
+            entities = data.get("entities")
             if not entities:
                 return {}
-            entity = entities[0]
+            # Wikidata returns entities as a dict keyed by QID
+            if isinstance(entities, dict):
+                entity = next(iter(entities.values()), None)
+            else:
+                entity = entities[0] if entities else None
+            if not entity or not isinstance(entity, dict):
+                return {}
             qid = entity.get("id")
             claims = entity.get("claims") or {}
 
@@ -441,7 +479,14 @@ class FundingResearcher:
             return {}
         data = response.json()
         labels: Dict[str, str] = {}
-        for entity in data.get("entities") or []:
+        entities = data.get("entities")
+        if not entities:
+            return labels
+        # Wikidata returns entities as a dict keyed by QID
+        entity_values = entities.values() if isinstance(entities, dict) else entities
+        for entity in entity_values:
+            if not isinstance(entity, dict):
+                continue
             entity_id = entity.get("id")
             label = (entity.get("labels") or {}).get("en", {}).get("value")
             if entity_id and label:
@@ -511,12 +556,11 @@ class FundingResearcher:
 
         # Merge Wikipedia data
         if wikipedia:
-            if not org["parent_org"] and wikipedia.get("ownership", {}).get("parent"):
-                org["parent_org"] = wikipedia["ownership"]["parent"]
-            if not org["funding_type"] and wikipedia.get("ownership", {}).get(
-                "funding_type"
-            ):
-                org["funding_type"] = wikipedia["ownership"]["funding_type"]
+            wiki_ownership = wikipedia.get("ownership") or {}
+            if not org["parent_org"] and wiki_ownership.get("parent"):
+                org["parent_org"] = wiki_ownership["parent"]
+            if not org["funding_type"] and wiki_ownership.get("funding_type"):
+                org["funding_type"] = wiki_ownership["funding_type"]
             org["wikipedia_url"] = wikipedia.get("url")
             org["research_sources"].append("wikipedia")
             if org["research_confidence"] == "low":
@@ -539,14 +583,17 @@ class FundingResearcher:
             if org["research_confidence"] == "low":
                 org["research_confidence"] = "medium"
 
-        # Merge ProPublica nonprofit data
+        # Merge ProPublica nonprofit data (only EIN and revenue, not funding_type
+        # which would incorrectly label commercial orgs as non-profit)
         if nonprofit:
             nonprofit_ein = nonprofit.get("ein")
             org["ein"] = str(nonprofit_ein) if nonprofit_ein is not None else None
             org["annual_revenue"] = nonprofit.get("annual_revenue")
-            org["funding_type"] = nonprofit.get("funding_type") or org["funding_type"]
+            if not org.get("funding_type"):
+                org["funding_type"] = nonprofit.get("funding_type")
             org["research_sources"].append("propublica")
-            org["research_confidence"] = "high"
+            if org["research_confidence"] == "low":
+                org["research_confidence"] = "high"
 
         return org
 
