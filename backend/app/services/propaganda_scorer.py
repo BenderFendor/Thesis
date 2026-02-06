@@ -123,6 +123,7 @@ class FilterScore:
         prose: str,
         citations: List[Dict[str, str]],
         empirical_basis: str,
+        scored_by: str = "llm",
     ):
         self.filter_name = filter_name
         self.score = max(1, min(5, score))  # clamp 1-5
@@ -130,6 +131,7 @@ class FilterScore:
         self.prose = prose
         self.citations = citations
         self.empirical_basis = empirical_basis
+        self.scored_by = scored_by
 
     def to_dict(self) -> Dict[str, Any]:
         return {
@@ -139,6 +141,7 @@ class FilterScore:
             "prose_explanation": self.prose,
             "citations": self.citations,
             "empirical_basis": self.empirical_basis,
+            "scored_by": self.scored_by,
         }
 
 
@@ -267,6 +270,7 @@ class PropagandaFilterScorer:
                 prose=f"Ownership structure for {source_name} has not been researched yet. Score defaults to 3 (neutral) pending investigation.",
                 citations=[],
                 empirical_basis="No ownership data available.",
+                scored_by="data",
             )
 
         # Scoring logic
@@ -371,6 +375,7 @@ class PropagandaFilterScorer:
             empirical_basis=" ".join(empirical_parts)
             if empirical_parts
             else "Ownership data derived from known corporate records.",
+            scored_by="data",
         )
 
     def _score_advertising(
@@ -470,6 +475,7 @@ class PropagandaFilterScorer:
             empirical_basis=" ".join(empirical_parts)
             if empirical_parts
             else "No detailed advertising/funding data available.",
+            scored_by="data",
         )
 
     async def _llm_score_filters(
@@ -597,9 +603,26 @@ Respond ONLY with valid JSON (no markdown):
             )
 
             content = response.choices[0].message.content or ""
+            finish_reason = (
+                response.choices[0].finish_reason if response.choices else "unknown"
+            )
+
+            if not content:
+                logger.error(
+                    "Empty LLM response for %s (finish_reason=%s)",
+                    source_name,
+                    finish_reason,
+                )
+                return {"scores": {}}
+
             json_match = re.search(r"\{[\s\S]*\}", content)
             if not json_match:
-                logger.error("No JSON found in LLM response for %s", source_name)
+                logger.error(
+                    "No JSON found in LLM response for %s (finish_reason=%s): %.200s",
+                    source_name,
+                    finish_reason,
+                    content,
+                )
                 return {"scores": {}}
 
             data = json.loads(json_match.group())
@@ -608,6 +631,11 @@ Respond ONLY with valid JSON (no markdown):
             for filter_name in ["sourcing", "flak", "ideology", "class_interest"]:
                 filter_data = data.get(filter_name, {})
                 if not filter_data:
+                    logger.warning(
+                        "LLM response missing filter '%s' for %s",
+                        filter_name,
+                        source_name,
+                    )
                     continue
 
                 results[filter_name] = FilterScore(

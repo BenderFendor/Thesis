@@ -37,7 +37,7 @@ class Settings:
     app_version: str = "1.0.0"
     gemini_api_key: Optional[str] = os.getenv("GEMINI_API_KEY")
     open_router_api_key: Optional[str] = os.getenv("OPEN_ROUTER_API_KEY")
-    open_router_model: str = os.getenv("OPEN_ROUTER_MODEL", "z-ai/glm-4.5-air:free")
+    open_router_model: str = os.getenv("OPEN_ROUTER_MODEL", "openai/gpt-oss-120b:free")
     frontend_origins: tuple[str, ...] = (
         "http://localhost:3000",
         "http://localhost:3001",

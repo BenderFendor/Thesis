@@ -212,3 +212,43 @@ class TestPropagandaFilterScorer:
 
         call_args = scorer.client.chat.completions.create.call_args
         assert call_args.kwargs["max_tokens"] == 2000
+
+    async def test_scored_by_reflects_scoring_method(self):
+        scorer = PropagandaFilterScorer()
+        scorer.client = _make_mock_client(include_org=False)
+
+        result = await scorer.score_source(
+            source_name="Test News",
+            org_data={"name": "Test", "research_confidence": "high"},
+        )
+
+        by_name = {s.filter_name: s for s in result.scores}
+        assert by_name["ownership"].scored_by == "data"
+        assert by_name["advertising"].scored_by == "data"
+        assert by_name["sourcing"].scored_by == "llm"
+        assert by_name["flak"].scored_by == "llm"
+        assert by_name["ideology"].scored_by == "llm"
+        assert by_name["class_interest"].scored_by == "llm"
+
+    async def test_empty_llm_response_returns_defaults(self):
+        scorer = PropagandaFilterScorer()
+        client = MagicMock()
+        message = MagicMock()
+        message.content = ""
+        choice = MagicMock()
+        choice.message = message
+        choice.finish_reason = "length"
+        response = MagicMock()
+        response.choices = [choice]
+        client.chat.completions.create.return_value = response
+        scorer.client = client
+
+        result = await scorer.score_source(source_name="Empty Response Source")
+
+        assert isinstance(result, ScoringResult)
+        assert len(result.scores) == 6
+        llm_names = {"sourcing", "flak", "ideology", "class_interest"}
+        for s in result.scores:
+            if s.filter_name in llm_names:
+                assert s.score == 3
+                assert s.confidence == "low"

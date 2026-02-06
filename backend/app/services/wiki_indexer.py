@@ -125,6 +125,7 @@ async def _save_filter_scores(
             existing.prose_explanation = score_dict["prose_explanation"]
             existing.citations = score_dict["citations"]
             existing.empirical_basis = score_dict["empirical_basis"]
+            existing.scored_by = score_dict.get("scored_by", "llm")
             existing.last_scored_at = get_utc_now()
             existing.updated_at = get_utc_now()
         else:
@@ -136,7 +137,7 @@ async def _save_filter_scores(
                 prose_explanation=score_dict["prose_explanation"],
                 citations=score_dict["citations"],
                 empirical_basis=score_dict["empirical_basis"],
-                scored_by="llm",
+                scored_by=score_dict.get("scored_by", "llm"),
             )
             session.add(entry)
 
