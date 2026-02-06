@@ -45,6 +45,7 @@
 
 ## Local DB Bootstrap
 - Before running migrations locally, run `init_db()` and confirm `gdelt_events` exists.
+- PostgreSQL requires `sudo` to start/stop. If it is not running, prompt the user to start it themselves (`sudo systemctl start postgresql`). Do not attempt to run sudo commands directly.
 
 ## Image Handling
 - Filter SVGs and placeholder images at fetch time, not just display time.

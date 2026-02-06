@@ -142,6 +142,18 @@ class FilterScore:
         }
 
 
+class ScoringResult:
+    """Container for filter scores and optional org metadata updates."""
+
+    def __init__(
+        self,
+        scores: List[FilterScore],
+        org_updates: Optional[Dict[str, Any]] = None,
+    ):
+        self.scores = scores
+        self.org_updates = org_updates
+
+
 class PropagandaFilterScorer:
     """Scores sources on the six propaganda filters."""
 
@@ -154,8 +166,11 @@ class PropagandaFilterScorer:
         org_data: Optional[Dict[str, Any]] = None,
         source_metadata: Optional[Dict[str, Any]] = None,
         article_corpus_stats: Optional[Dict[str, Any]] = None,
-    ) -> List[FilterScore]:
-        """Score a source on all six filters.
+    ) -> "ScoringResult":
+        """Score a source on all six filters, optionally enhancing org metadata.
+
+        When org_data has research_confidence != "high", the LLM call also
+        returns org metadata fields so we avoid a second API call.
 
         Args:
             source_name: display name of the source
@@ -164,7 +179,7 @@ class PropagandaFilterScorer:
             article_corpus_stats: stats about articles in our DB (optional)
 
         Returns:
-            list of FilterScore objects, one per filter
+            ScoringResult with filter scores and optional org metadata updates
         """
         logger.info("Scoring propaganda filters for: %s", source_name)
 
@@ -172,12 +187,20 @@ class PropagandaFilterScorer:
             source_name, org_data, source_metadata, article_corpus_stats
         )
 
+        needs_org_enhancement = (
+            org_data is not None and org_data.get("research_confidence") != "high"
+        )
+
         # Score empirical filters first (ownership, advertising)
         ownership_score = self._score_ownership(source_name, context)
         advertising_score = self._score_advertising(source_name, context)
 
-        # LLM-scored filters that require deeper analysis
-        llm_scores = await self._llm_score_filters(source_name, context)
+        # LLM-scored filters (+ org metadata when needed)
+        llm_result = await self._llm_score_filters(
+            source_name, context, include_org_metadata=needs_org_enhancement
+        )
+        llm_scores = llm_result["scores"]
+        org_updates = llm_result.get("org_updates")
 
         scores = [ownership_score, advertising_score]
         for filter_name in ["sourcing", "flak", "ideology", "class_interest"]:
@@ -195,7 +218,7 @@ class PropagandaFilterScorer:
                     )
                 )
 
-        return scores
+        return ScoringResult(scores=scores, org_updates=org_updates)
 
     def _build_context(
         self,
@@ -450,15 +473,46 @@ class PropagandaFilterScorer:
         )
 
     async def _llm_score_filters(
-        self, source_name: str, context: Dict[str, Any]
-    ) -> Dict[str, FilterScore]:
-        """Use LLM to score the harder-to-measure filters: sourcing, flak, ideology, class_interest."""
+        self,
+        source_name: str,
+        context: Dict[str, Any],
+        include_org_metadata: bool = False,
+    ) -> Dict[str, Any]:
+        """Use LLM to score the harder-to-measure filters: sourcing, flak, ideology, class_interest.
+
+        When include_org_metadata is True, the prompt also asks for org metadata
+        (funding_type, parent_org, media_bias_rating, factual_reporting) to avoid
+        a separate LLM call for org enhancement.
+
+        Returns dict with "scores" (Dict[str, FilterScore]) and optional "org_updates" (Dict).
+        """
         if not self.client:
             logger.warning("No LLM client available; skipping LLM-scored filters")
-            return {}
+            return {"scores": {}}
 
-        # Build a context summary for the LLM
         context_summary = self._format_context_for_llm(source_name, context)
+
+        org_metadata_section = ""
+        org_json_section = ""
+        if include_org_metadata:
+            org_data = context.get("org_data", {})
+            org_metadata_section = f"""
+ADDITIONAL TASK - ORGANIZATION METADATA:
+The following organization fields are incomplete. Based on your knowledge
+of {source_name}, provide best-effort values for any missing fields.
+Currently known:
+- Funding type: {org_data.get("funding_type", "Unknown")}
+- Parent organization: {org_data.get("parent_org", "Unknown")}
+- Media bias rating: {org_data.get("media_bias_rating", "Unknown")}
+- Factual reporting: {org_data.get("factual_reporting", "Unknown")}
+"""
+            org_json_section = """,
+  "organization": {{
+    "funding_type": "commercial|public|non-profit|state-funded|independent",
+    "parent_org": "Parent Company Name or null",
+    "media_bias_rating": "left|center-left|center|center-right|right",
+    "factual_reporting": "very-high|high|mixed|low|very-low"
+  }}"""
 
         prompt = f"""You are a media analyst applying Noam Chomsky's propaganda model
 (from Manufacturing Consent) and Michael Parenti's class analysis
@@ -468,7 +522,7 @@ SOURCE: {source_name}
 
 AVAILABLE CONTEXT:
 {context_summary}
-
+{org_metadata_section}
 Score this source on these four filters. Each score is 1-5 where:
   1 = minimal filter effect (most independent/diverse)
   5 = maximum filter effect (most constrained/aligned)
@@ -531,23 +585,22 @@ Respond ONLY with valid JSON (no markdown):
     "prose": "...",
     "citations": [{{"url": "...", "title": "..."}}],
     "empirical_basis": "..."
-  }}
+  }}{org_json_section}
 }}"""
 
         try:
             response = self.client.chat.completions.create(
                 model=settings.open_router_model,
                 messages=[{"role": "user", "content": prompt}],
-                max_tokens=2000,
+                max_tokens=2500 if include_org_metadata else 2000,
                 temperature=0.3,
             )
 
             content = response.choices[0].message.content or ""
-            # Extract JSON from response
             json_match = re.search(r"\{[\s\S]*\}", content)
             if not json_match:
                 logger.error("No JSON found in LLM response for %s", source_name)
-                return {}
+                return {"scores": {}}
 
             data = json.loads(json_match.group())
             results: Dict[str, FilterScore] = {}
@@ -569,14 +622,24 @@ Respond ONLY with valid JSON (no markdown):
                     ),
                 )
 
-            return results
+            output: Dict[str, Any] = {"scores": results}
+
+            if include_org_metadata and "organization" in data:
+                output["org_updates"] = data["organization"]
+                logger.info(
+                    "LLM returned org metadata for %s: %s",
+                    source_name,
+                    list(data["organization"].keys()),
+                )
+
+            return output
 
         except json.JSONDecodeError as exc:
             logger.error("Failed to parse LLM JSON for %s: %s", source_name, exc)
-            return {}
+            return {"scores": {}}
         except Exception as exc:
             logger.error("LLM scoring failed for %s: %s", source_name, exc)
-            return {}
+            return {"scores": {}}
 
     def _format_context_for_llm(self, source_name: str, context: Dict[str, Any]) -> str:
         """Format available context into a readable summary for the LLM prompt."""

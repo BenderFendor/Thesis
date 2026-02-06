@@ -26,6 +26,7 @@ from app.core.config import settings
 from app.core.logging import get_logger
 from app.database import (
     AsyncSessionLocal,
+    Organization,
     PropagandaFilterScore,
     Reporter,
     SourceMetadata,
@@ -142,8 +143,62 @@ async def _save_filter_scores(
     await session.commit()
 
 
+async def _upsert_organization(
+    session: AsyncSession,
+    org_data: Dict[str, Any],
+) -> None:
+    """Create or update an Organization row from research data."""
+    normalized = org_data.get("normalized_name", "")
+    if not normalized:
+        return
+
+    result = await session.execute(
+        select(Organization).where(Organization.normalized_name == normalized)
+    )
+    existing = result.scalar_one_or_none()
+
+    if existing:
+        for attr in (
+            "funding_type",
+            "funding_sources",
+            "ein",
+            "annual_revenue",
+            "media_bias_rating",
+            "factual_reporting",
+            "wikipedia_url",
+            "research_sources",
+            "research_confidence",
+        ):
+            value = org_data.get(attr)
+            if value is not None:
+                setattr(existing, attr, value)
+        existing.updated_at = get_utc_now()
+    else:
+        org = Organization(
+            name=org_data.get("name"),
+            normalized_name=normalized,
+            org_type=org_data.get("org_type"),
+            funding_type=org_data.get("funding_type"),
+            funding_sources=org_data.get("funding_sources"),
+            ein=org_data.get("ein"),
+            annual_revenue=org_data.get("annual_revenue"),
+            media_bias_rating=org_data.get("media_bias_rating"),
+            factual_reporting=org_data.get("factual_reporting"),
+            website=org_data.get("website"),
+            wikipedia_url=org_data.get("wikipedia_url"),
+            research_sources=org_data.get("research_sources"),
+            research_confidence=org_data.get("research_confidence"),
+        )
+        session.add(org)
+
+    await session.commit()
+
+
 async def index_source(source_name: str, source_config: Dict[str, Any]) -> bool:
     """Index a single source: research org data and score propaganda filters.
+
+    Uses a single LLM call to both score propaganda filters and fill org
+    metadata gaps (when research_confidence is not "high").
 
     Returns True on success, False on failure.
     """
@@ -154,11 +209,11 @@ async def index_source(source_name: str, source_config: Dict[str, Any]) -> bool:
     try:
         await _upsert_index_status(session, "source", source_name, "indexing")
 
-        # Research organization data
+        # Research organization data WITHOUT AI enhancement
+        # The scorer's LLM call handles org metadata when needed
         researcher = get_funding_researcher()
-        org_data = await researcher.research_organization(source_name, use_ai=True)
+        org_data = await researcher.research_organization(source_name, use_ai=False)
 
-        # Build source_metadata context
         source_metadata = {
             "country": source_config.get("country", ""),
             "funding_type": source_config.get("funding_type", ""),
@@ -166,16 +221,33 @@ async def index_source(source_name: str, source_config: Dict[str, Any]) -> bool:
             "source_type": source_config.get("category", "general"),
         }
 
-        # Score propaganda filters
+        # Score propaganda filters (may also return org metadata updates)
         scorer = get_propaganda_scorer()
-        scores = await scorer.score_source(
+        result = await scorer.score_source(
             source_name=source_name,
             org_data=org_data,
             source_metadata=source_metadata,
         )
 
-        # Persist scores
-        await _save_filter_scores(session, source_name, scores)
+        # Apply org metadata updates from the consolidated LLM call
+        if result.org_updates:
+            for field in (
+                "funding_type",
+                "parent_org",
+                "media_bias_rating",
+                "factual_reporting",
+            ):
+                value = result.org_updates.get(field)
+                if value and not org_data.get(field):
+                    org_data[field] = value
+            if "ai_inference" not in org_data.get("research_sources", []):
+                org_data.setdefault("research_sources", []).append("ai_inference")
+
+        # Persist organization data
+        await _upsert_organization(session, org_data)
+
+        # Persist filter scores
+        await _save_filter_scores(session, source_name, result.scores)
 
         duration_ms = int((time.monotonic() - start) * 1000)
         await _upsert_index_status(
@@ -186,7 +258,7 @@ async def index_source(source_name: str, source_config: Dict[str, Any]) -> bool:
             "Indexed source %s in %dms (scores: %s)",
             source_name,
             duration_ms,
-            ", ".join(f"{s.filter_name}={s.score}" for s in scores),
+            ", ".join(f"{s.filter_name}={s.score}" for s in result.scores),
         )
         return True
 

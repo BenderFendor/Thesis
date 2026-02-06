@@ -368,19 +368,19 @@ export default function ReporterProfilePage() {
             <div className="space-y-1">
               {data.recent_articles.map((article, i) => (
                 <a
-                  key={i}
-                  href={article.url as string}
+                  key={article.id ?? i}
+                  href={article.url ?? "#"}
                   target="_blank"
                   rel="noopener noreferrer"
                   className="flex items-center justify-between gap-3 p-2 border border-white/5 hover:bg-zinc-900/40 transition-colors"
                 >
                   <div className="min-w-0 flex-1">
-                    <div className="text-sm truncate">{article.title as string}</div>
+                    <div className="text-sm truncate">{article.title}</div>
                     <div className="text-[10px] text-muted-foreground font-mono mt-0.5">
-                      {article.source as string}
+                      {article.source}
                       {article.published_at && (
                         <span className="ml-2">
-                          {new Date(article.published_at as string).toLocaleDateString()}
+                          {new Date(article.published_at).toLocaleDateString()}
                         </span>
                       )}
                     </div>

@@ -14,11 +14,12 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_asyn
 
 from app.database import (
     Base,
+    Organization,
     PropagandaFilterScore,
     WikiIndexStatus,
     get_utc_now,
 )
-from app.services.propaganda_scorer import FilterScore
+from app.services.propaganda_scorer import FilterScore, ScoringResult
 
 
 # ---------------------------------------------------------------------------
@@ -93,7 +94,9 @@ class TestIndexSource:
         mock_researcher.research_organization = AsyncMock(return_value=_mock_org_data())
 
         mock_scorer = MagicMock()
-        mock_scorer.score_source = AsyncMock(return_value=_make_filter_scores())
+        mock_scorer.score_source = AsyncMock(
+            return_value=ScoringResult(scores=_make_filter_scores())
+        )
 
         with (
             patch(
@@ -115,6 +118,11 @@ class TestIndexSource:
             )
 
         assert result is True
+
+        # Verify research_organization called with use_ai=False (consolidated call)
+        mock_researcher.research_organization.assert_awaited_once_with(
+            "Test Source", use_ai=False
+        )
 
         async with factory() as session:
             row = (
@@ -139,7 +147,9 @@ class TestIndexSource:
         mock_researcher.research_organization = AsyncMock(return_value=_mock_org_data())
 
         mock_scorer = MagicMock()
-        mock_scorer.score_source = AsyncMock(return_value=_make_filter_scores())
+        mock_scorer.score_source = AsyncMock(
+            return_value=ScoringResult(scores=_make_filter_scores())
+        )
 
         with (
             patch(
@@ -235,7 +245,12 @@ class TestIndexSource:
             s.score = 5
 
         mock_scorer = MagicMock()
-        mock_scorer.score_source = AsyncMock(side_effect=[scores_v1, scores_v2])
+        mock_scorer.score_source = AsyncMock(
+            side_effect=[
+                ScoringResult(scores=scores_v1),
+                ScoringResult(scores=scores_v2),
+            ]
+        )
 
         with (
             patch(
@@ -273,6 +288,175 @@ class TestIndexSource:
 
         await engine.dispose()
 
+    async def test_applies_org_updates_from_scorer(self, engine_and_session):
+        """When scorer returns org_updates, those should be merged into org_data
+        and persisted as an Organization row."""
+        engine, factory = await engine_and_session()
+
+        # org_data without funding_type or media_bias_rating
+        incomplete_org = {
+            "name": "Indie Wire",
+            "normalized_name": "indie wire",
+            "research_confidence": "low",
+            "research_sources": ["wikipedia"],
+        }
+
+        mock_researcher = MagicMock()
+        mock_researcher.research_organization = AsyncMock(return_value=incomplete_org)
+
+        org_updates = {
+            "funding_type": "independent",
+            "parent_org": None,
+            "media_bias_rating": "center-left",
+            "factual_reporting": "high",
+        }
+        mock_scorer = MagicMock()
+        mock_scorer.score_source = AsyncMock(
+            return_value=ScoringResult(
+                scores=_make_filter_scores(), org_updates=org_updates
+            )
+        )
+
+        with (
+            patch(
+                "app.services.wiki_indexer._get_session", side_effect=lambda: factory()
+            ),
+            patch(
+                "app.services.wiki_indexer.get_funding_researcher",
+                return_value=mock_researcher,
+            ),
+            patch(
+                "app.services.wiki_indexer.get_propaganda_scorer",
+                return_value=mock_scorer,
+            ),
+        ):
+            from app.services.wiki_indexer import index_source
+
+            result = await index_source("Indie Wire", {})
+
+        assert result is True
+
+        async with factory() as session:
+            org = (
+                await session.execute(
+                    select(Organization).where(
+                        Organization.normalized_name == "indie wire"
+                    )
+                )
+            ).scalar_one_or_none()
+
+            assert org is not None
+            assert org.funding_type == "independent"
+            assert org.media_bias_rating == "center-left"
+            assert org.factual_reporting == "high"
+            assert "ai_inference" in (org.research_sources or [])
+
+        await engine.dispose()
+
+    async def test_no_org_updates_when_confidence_high(self, engine_and_session):
+        """When org_data has research_confidence 'high', scorer should not
+        return org_updates (no org enhancement needed)."""
+        engine, factory = await engine_and_session()
+
+        high_conf_org = _mock_org_data()
+        high_conf_org["research_confidence"] = "high"
+
+        mock_researcher = MagicMock()
+        mock_researcher.research_organization = AsyncMock(return_value=high_conf_org)
+
+        # ScoringResult without org_updates (confidence was high)
+        mock_scorer = MagicMock()
+        mock_scorer.score_source = AsyncMock(
+            return_value=ScoringResult(scores=_make_filter_scores(), org_updates=None)
+        )
+
+        with (
+            patch(
+                "app.services.wiki_indexer._get_session", side_effect=lambda: factory()
+            ),
+            patch(
+                "app.services.wiki_indexer.get_funding_researcher",
+                return_value=mock_researcher,
+            ),
+            patch(
+                "app.services.wiki_indexer.get_propaganda_scorer",
+                return_value=mock_scorer,
+            ),
+        ):
+            from app.services.wiki_indexer import index_source
+
+            result = await index_source("Test Source", {})
+
+        assert result is True
+
+        # Verify score_source was called (org_updates=None means no extra fields)
+        mock_scorer.score_source.assert_awaited_once()
+
+        await engine.dispose()
+
+    async def test_org_updates_do_not_overwrite_existing_values(
+        self, engine_and_session
+    ):
+        """LLM org_updates should only fill gaps, not overwrite existing values."""
+        engine, factory = await engine_and_session()
+
+        # org_data already has funding_type set
+        org_with_some_data = {
+            "name": "Partial Org",
+            "normalized_name": "partial org",
+            "funding_type": "commercial",
+            "research_confidence": "low",
+            "research_sources": ["wikipedia"],
+        }
+
+        mock_researcher = MagicMock()
+        mock_researcher.research_organization = AsyncMock(
+            return_value=org_with_some_data
+        )
+
+        org_updates = {
+            "funding_type": "independent",  # should NOT overwrite "commercial"
+            "media_bias_rating": "center",  # should fill gap
+        }
+        mock_scorer = MagicMock()
+        mock_scorer.score_source = AsyncMock(
+            return_value=ScoringResult(
+                scores=_make_filter_scores(), org_updates=org_updates
+            )
+        )
+
+        with (
+            patch(
+                "app.services.wiki_indexer._get_session", side_effect=lambda: factory()
+            ),
+            patch(
+                "app.services.wiki_indexer.get_funding_researcher",
+                return_value=mock_researcher,
+            ),
+            patch(
+                "app.services.wiki_indexer.get_propaganda_scorer",
+                return_value=mock_scorer,
+            ),
+        ):
+            from app.services.wiki_indexer import index_source
+
+            await index_source("Partial Org", {})
+
+        async with factory() as session:
+            org = (
+                await session.execute(
+                    select(Organization).where(
+                        Organization.normalized_name == "partial org"
+                    )
+                )
+            ).scalar_one_or_none()
+
+            assert org is not None
+            assert org.funding_type == "commercial"  # NOT overwritten
+            assert org.media_bias_rating == "center"  # filled in
+
+        await engine.dispose()
+
 
 # ---------------------------------------------------------------------------
 # index_stale_sources
@@ -293,7 +477,9 @@ class TestIndexStaleSources:
         mock_researcher = MagicMock()
         mock_researcher.research_organization = AsyncMock(return_value=_mock_org_data())
         mock_scorer = MagicMock()
-        mock_scorer.score_source = AsyncMock(return_value=_make_filter_scores())
+        mock_scorer.score_source = AsyncMock(
+            return_value=ScoringResult(scores=_make_filter_scores())
+        )
 
         with (
             patch(
@@ -344,7 +530,9 @@ class TestIndexStaleSources:
         mock_researcher = MagicMock()
         mock_researcher.research_organization = AsyncMock(return_value=_mock_org_data())
         mock_scorer = MagicMock()
-        mock_scorer.score_source = AsyncMock(return_value=_make_filter_scores())
+        mock_scorer.score_source = AsyncMock(
+            return_value=ScoringResult(scores=_make_filter_scores())
+        )
 
         with (
             patch(

@@ -488,29 +488,29 @@ export default function SourceWikiPage() {
                 </h2>
                 <dl className="grid grid-cols-2 gap-3 text-sm">
                   <dt className="text-muted-foreground">Name</dt>
-                  <dd className="font-medium">{data.organization.name as string}</dd>
+                  <dd className="font-medium">{data.organization.name}</dd>
                   {data.organization.org_type && (
                     <>
                       <dt className="text-muted-foreground">Type</dt>
-                      <dd className="capitalize">{data.organization.org_type as string}</dd>
+                      <dd className="capitalize">{data.organization.org_type}</dd>
                     </>
                   )}
-                  {data.organization.annual_revenue && (
+                  {data.organization.annual_revenue != null && (
                     <>
                       <dt className="text-muted-foreground">Annual Revenue</dt>
-                      <dd className="font-mono">{data.organization.annual_revenue as string}</dd>
+                      <dd className="font-mono">${data.organization.annual_revenue.toLocaleString()}</dd>
                     </>
                   )}
                   {data.organization.factual_reporting && (
                     <>
                       <dt className="text-muted-foreground">Factual Reporting</dt>
-                      <dd className="capitalize">{data.organization.factual_reporting as string}</dd>
+                      <dd className="capitalize">{data.organization.factual_reporting}</dd>
                     </>
                   )}
                   {data.organization.media_bias_rating && (
                     <>
                       <dt className="text-muted-foreground">MBFC Rating</dt>
-                      <dd className="capitalize">{data.organization.media_bias_rating as string}</dd>
+                      <dd className="capitalize">{data.organization.media_bias_rating}</dd>
                     </>
                   )}
                 </dl>
@@ -540,7 +540,7 @@ export default function SourceWikiPage() {
                 )}
                 {data.organization.wikipedia_url && (
                   <a
-                    href={data.organization.wikipedia_url as string}
+                    href={data.organization.wikipedia_url}
                     target="_blank"
                     rel="noopener noreferrer"
                     className="inline-flex items-center gap-1 text-xs text-blue-400 hover:text-blue-300 mt-3"
@@ -581,10 +581,10 @@ export default function SourceWikiPage() {
               {data.ownership_chain.map((org, i) => (
                 <div key={i} className="flex items-center gap-2">
                   <div className="border border-white/10 bg-zinc-950/50 px-3 py-2 text-sm">
-                    {org.name as string}
-                    {org.ownership_percentage && (
+                    {org.name}
+                    {org.ownership_percentage != null && (
                       <span className="text-muted-foreground ml-1 text-xs">
-                        ({org.ownership_percentage as string}%)
+                        ({org.ownership_percentage}%)
                       </span>
                     )}
                   </div>
@@ -613,14 +613,14 @@ export default function SourceWikiPage() {
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
               {data.reporters.map((r) => (
                 <Link
-                  key={r.id as number}
+                  key={r.id}
                   href={`/wiki/reporter/${r.id}`}
                   className="border border-white/10 bg-zinc-950/50 p-3 hover:bg-zinc-900/60 transition-colors"
                 >
-                  <div className="font-serif text-sm font-medium">{r.name as string}</div>
-                  {(r.topics as string[] | undefined) && (
+                  <div className="font-serif text-sm font-medium">{r.name}</div>
+                  {r.topics && (
                     <div className="flex flex-wrap gap-1 mt-1">
-                      {(r.topics as string[]).slice(0, 3).map((t: string, i: number) => (
+                      {r.topics.slice(0, 3).map((t, i) => (
                         <span key={i} className="text-[10px] px-1 py-0.5 bg-zinc-800/50 text-muted-foreground">
                           {t}
                         </span>
@@ -628,8 +628,8 @@ export default function SourceWikiPage() {
                     </div>
                   )}
                   <div className="flex items-center justify-between mt-2 text-[10px] font-mono text-muted-foreground">
-                    <span>{r.political_leaning as string || "unknown"}</span>
-                    <span>{(r.article_count as number) || 0} articles</span>
+                    <span>{r.political_leaning || "unknown"}</span>
+                    <span>{r.article_count || 0} articles</span>
                   </div>
                 </Link>
               ))}

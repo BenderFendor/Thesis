@@ -3390,9 +3390,32 @@ export interface WikiSourceProfile {
   is_state_media?: boolean;
   source_type?: string;
   filter_scores: WikiFilterScore[];
-  reporters: Array<Record<string, unknown>>;
-  organization?: Record<string, unknown>;
-  ownership_chain: Array<Record<string, unknown>>;
+  reporters: Array<{
+    id: number;
+    name: string;
+    topics?: string[];
+    political_leaning?: string;
+    article_count: number;
+  }>;
+  organization?: {
+    id: number;
+    name: string;
+    org_type?: string;
+    funding_type?: string;
+    funding_sources?: unknown[];
+    major_advertisers?: unknown[];
+    ein?: string;
+    annual_revenue?: number;
+    media_bias_rating?: string;
+    factual_reporting?: string;
+    wikipedia_url?: string;
+    research_confidence?: string;
+  } | null;
+  ownership_chain: Array<{
+    name: string;
+    ownership_percentage?: number;
+    [key: string]: unknown;
+  }>;
   article_count: number;
   geographic_focus: string[];
   topic_focus: string[];
@@ -3428,13 +3451,21 @@ export interface WikiReporterDossier extends WikiReporterCard {
   institutional_affiliations?: Array<Record<string, unknown>>;
   coverage_comparison?: Record<string, unknown>;
   last_article_at?: string;
-  recent_articles: Array<Record<string, unknown>>;
+  recent_articles: Array<{
+    id?: number;
+    title?: string;
+    source?: string;
+    published_at?: string | null;
+    url?: string;
+    category?: string;
+    image_url?: string | null;
+  }>;
   research_sources?: string[];
 }
 
 export interface WikiOwnershipGraph {
-  nodes: Array<{ id: string; label: string; type?: string; bias?: string; [key: string]: unknown }>;
-  edges: Array<{ source: string; target: string; relationship?: string; [key: string]: unknown }>;
+  nodes: Array<{ id: string; label: string; type?: string; bias?: string; funding?: string; country?: string; [key: string]: unknown }>;
+  edges: Array<{ source: string; target: string; type?: string; percentage?: number; [key: string]: unknown }>;
 }
 
 export interface WikiIndexStatus {

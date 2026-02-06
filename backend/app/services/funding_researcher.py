@@ -591,6 +591,9 @@ Respond in JSON:
             )
 
             content = response.choices[0].message.content
+            if not content:
+                logger.warning(f"AI returned empty content for org {org['name']}")
+                return org
             json_match = re.search(r"\{[^{}]*\}", content, re.DOTALL)
 
             if json_match:
