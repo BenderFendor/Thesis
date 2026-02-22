@@ -2,7 +2,7 @@
 name = "rss_parser_rust"
 version = "0.1.0"
 edition = "2021"
-description = "High performance RSS ingestion pipeline for Thesis backend"
+description = "High performance RSS ingestion pipeline for My Thesis's backend"
 license = "MIT"
 
 [lib]

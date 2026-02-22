@@ -70,7 +70,7 @@ fn rss_parser_rust(py: Python<'_>, module: &Bound<'_, PyModule>) -> PyResult<()>
     // Expose helper metadata
     let info = PyDict::new_bound(py);
     info.set_item("description", "Rust-powered RSS ingestion helpers")?;
-    info.set_item("author", "Thesis")?;
+    info.set_item("author", "Bender")?;
     module.add("__info__", info)?;
 
     Ok(())

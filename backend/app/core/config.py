@@ -38,9 +38,8 @@ class Settings:
     gemini_api_key: Optional[str] = os.getenv("GEMINI_API_KEY")
     open_router_api_key: Optional[str] = os.getenv("OPEN_ROUTER_API_KEY")
     open_router_model: str = os.getenv("OPEN_ROUTER_MODEL", "openai/gpt-oss-120b:free")
-    frontend_origins: tuple[str, ...] = (
-        "http://localhost:3000",
-        "http://localhost:3001",
+    frontend_origins: tuple[str, ...] = _parse_domain_list(
+        "CORS_ORIGINS", "http://localhost:3000,http://localhost:3001"
     )
     enable_vector_store: bool = _env_enabled("ENABLE_VECTOR_STORE")
     enable_database: bool = _env_enabled("ENABLE_DATABASE")

@@ -610,26 +610,21 @@ export interface LikedEntry {
 }
 
 export async function fetchLikedArticles(): Promise<LikedEntry[]> {
-  try {
-    const response = await fetch(`${API_BASE_URL}/api/liked`)
-    if (!response.ok) {
-      throw new Error(`HTTP error! status: ${response.status}`)
-    }
-
-    const data = await response.json()
-    const liked = Array.isArray(data?.liked) ? data.liked : []
-    const mappedArticles = mapBackendArticles(liked)
-
-    return mappedArticles.map((article, index) => ({
-      likedId: liked[index].liked_id,
-      articleId: liked[index].article_id,
-      createdAt: liked[index].created_at,
-      article
-    }))
-  } catch (error) {
-    console.error('Failed to fetch liked articles:', error)
-    return []
+  const response = await fetch(`${API_BASE_URL}/api/liked`)
+  if (!response.ok) {
+    throw new Error(`Failed to load liked articles (${response.status})`)
   }
+
+  const data = await response.json()
+  const liked = Array.isArray(data?.liked) ? data.liked : []
+  const mappedArticles = mapBackendArticles(liked)
+
+  return mappedArticles.map((article, index) => ({
+    likedId: liked[index].liked_id,
+    articleId: liked[index].article_id,
+    createdAt: liked[index].created_at,
+    article
+  }))
 }
 
 export async function createLikedArticle(articleId: number): Promise<LikedEntry | null> {

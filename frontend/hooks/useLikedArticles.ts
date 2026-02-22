@@ -6,19 +6,28 @@ import {
 } from "@/lib/api"
 
 type LikedListener = (ids: Set<number>) => void
+type ErrorListener = (error: string | null) => void
 
 let likedCache: Set<number> | null = null
 let likedLoaded = false
 let likedLoading = false
+let likedError: string | null = null
 const likedListeners = new Set<LikedListener>()
+const errorListeners = new Set<ErrorListener>()
 
 const notifyLikedListeners = (ids: Set<number>) => {
   likedListeners.forEach((listener) => listener(new Set(ids)))
 }
 
+const notifyErrorListeners = (error: string | null) => {
+  errorListeners.forEach((listener) => listener(error))
+}
+
 const loadLikedFromApi = async () => {
   if (likedLoading) return
   likedLoading = true
+  likedError = null
+  notifyErrorListeners(null)
   try {
     const entries = await fetchLikedArticles()
     likedCache = new Set(entries.map((entry) => entry.articleId))
@@ -26,8 +35,9 @@ const loadLikedFromApi = async () => {
     notifyLikedListeners(likedCache)
     return entries
   } catch (error) {
-    console.error("Failed to load liked articles:", error)
-    return []
+    likedError = error instanceof Error ? error.message : "Failed to load liked articles"
+    notifyErrorListeners(likedError)
+    return undefined
   } finally {
     likedLoading = false
   }
@@ -38,20 +48,25 @@ export function useLikedArticles() {
     likedCache ? new Set(likedCache) : new Set()
   )
   const [isLoaded, setIsLoaded] = useState(likedLoaded)
+  const [error, setError] = useState<string | null>(likedError)
 
   useEffect(() => {
-    const listener = (ids: Set<number>) => {
+    const likedListener = (ids: Set<number>) => {
       setLikedIds(ids)
       setIsLoaded(true)
     }
-    likedListeners.add(listener)
+    const errListener = (err: string | null) => setError(err)
+
+    likedListeners.add(likedListener)
+    errorListeners.add(errListener)
 
     if (!likedLoaded) {
       void loadLikedFromApi()
     }
 
     return () => {
-      likedListeners.delete(listener)
+      likedListeners.delete(likedListener)
+      errorListeners.delete(errListener)
     }
   }, [])
 
@@ -103,5 +118,6 @@ export function useLikedArticles() {
     toggleLike,
     refresh,
     isLoaded,
+    error,
   }
 }
