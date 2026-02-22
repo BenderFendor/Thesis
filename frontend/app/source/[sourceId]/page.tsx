@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useMemo, useCallback, useEffect } from "react"
+import { useState, useMemo, useCallback, useEffect, use } from "react"
 import { useRouter } from "next/navigation"
 import Link from "next/link"
 import { useQuery } from "@tanstack/react-query"
@@ -20,8 +20,8 @@ interface SourcePageProps {
   params: Promise<{ sourceId: string }>
 }
 
-export default async function SourcePage(props: SourcePageProps) {
-  const params = await props.params
+export default function SourcePage(props: SourcePageProps) {
+  const params = use(props.params)
   const sourceId = decodeURIComponent(params.sourceId)
   const router = useRouter()
   const [selectedArticle, setSelectedArticle] = useState<NewsArticle | null>(null)

@@ -100,8 +100,6 @@ export function useReadingQueue() {
         if (storedItems) {
           const parsed = JSON.parse(storedItems);
           setQueuedArticles(parsed);
-          // Notify listeners of initial load
-          notifyQueueListeners(parsed);
         }
       } catch (error) {
         console.error("Error reading from localStorage:", error);

@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, use } from "react"
 import { fetchSourceDebugData, SourceDebugData } from "@/lib/api"
 import { isDebugMode, setDebugMode } from "@/lib/logger"
 import { ArrowLeft, RefreshCw, Code, ExternalLink, AlertTriangle, CheckCircle, Image, FileText, Globe, Search, Settings } from "lucide-react"
@@ -12,8 +12,8 @@ import Link from "next/link"
 import JsonView from 'react18-json-view'
 import 'react18-json-view/src/style.css'
 
-export default async function SourceDebugPage(props: { params: Promise<{ source: string }> }) {
-  const params = await props.params
+export default function SourceDebugPage(props: { params: Promise<{ source: string }> }) {
+  const params = use(props.params)
   const sourceName = decodeURIComponent(params.source)
   const [debugData, setDebugData] = useState<SourceDebugData | null>(null)
   const [loading, setLoading] = useState(true)
