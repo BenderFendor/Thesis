@@ -53,8 +53,10 @@ class ChromaTopicService:
         if not self.vector_store:
             return []
         window_start = _window_start(window)
+        max_articles = 200
+        fetch_limit = min(limit * TRENDING_EXPANSION, max_articles)
         article_rows = await self._fetch_recent_articles(
-            session, window_start, limit * TRENDING_EXPANSION
+            session, window_start, fetch_limit
         )
         clusters = await self._cluster_articles(article_rows)
         return await self._build_trending_clusters(
@@ -67,8 +69,10 @@ class ChromaTopicService:
         if not self.vector_store:
             return []
         window_start = get_utc_now() - timedelta(hours=BREAKING_WINDOW_HOURS)
+        max_articles = 100
+        fetch_limit = min(limit * TRENDING_EXPANSION, max_articles)
         article_rows = await self._fetch_recent_articles(
-            session, window_start, limit * TRENDING_EXPANSION
+            session, window_start, fetch_limit
         )
         clusters = await self._cluster_articles(article_rows)
         return await self._build_breaking_clusters(session, clusters, limit)
@@ -83,8 +87,10 @@ class ChromaTopicService:
         if not self.vector_store:
             return []
         window_start = _window_start(window)
+        max_articles = 500
+        fetch_limit = min(limit * TRENDING_EXPANSION, max_articles)
         article_rows = await self._fetch_recent_articles(
-            session, window_start, limit * TRENDING_EXPANSION
+            session, window_start, fetch_limit
         )
         clusters = await self._cluster_articles(article_rows)
         results = []
