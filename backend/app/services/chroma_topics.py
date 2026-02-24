@@ -1,8 +1,13 @@
-"""Chroma-native topic clustering for trending and similarity views.
+"""Topic clustering via ChromaDB, designed for background-worker use only.
 
-Clusters are computed on-demand using Chroma similarity results. We use an
-anchor article ID as the cluster identifier so existing clients can keep
-stable IDs per response.
+The public API never calls ChromaDB directly.  Instead:
+  1. A background worker calls compute_and_save_clusters() on a schedule.
+  2. Results are written to the topic_cluster_snapshots Postgres table.
+  3. API routes read exclusively from that table via cluster_cache.py.
+
+If ChromaDB is unreachable, the worker skips the run and the API continues
+serving the last successful snapshot — it never surfaces a connection error
+to the user.
 """
 
 from __future__ import annotations
@@ -16,7 +21,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.logging import get_logger
 from app.database import Article, GDELTEvent, get_utc_now
-from app.vector_store import get_vector_store
+from app.vector_store import get_vector_store, is_chroma_reachable
 
 logger = get_logger("chroma_topics")
 
@@ -45,12 +50,16 @@ def _window_start(window: str) -> datetime:
 
 class ChromaTopicService:
     def __init__(self):
-        self.vector_store = get_vector_store()
+        pass
+
+    def _get_vector_store(self):
+        """Return the current vector store, refreshing from the module-level singleton."""
+        return get_vector_store()
 
     async def get_trending_clusters(
         self, session: AsyncSession, window: str = "1d", limit: int = 10
     ) -> List[Dict[str, Any]]:
-        if not self.vector_store:
+        if not self._get_vector_store():
             return []
         window_start = _window_start(window)
         max_articles = 200
@@ -66,7 +75,7 @@ class ChromaTopicService:
     async def get_breaking_clusters(
         self, session: AsyncSession, limit: int = 5
     ) -> List[Dict[str, Any]]:
-        if not self.vector_store:
+        if not self._get_vector_store():
             return []
         window_start = get_utc_now() - timedelta(hours=BREAKING_WINDOW_HOURS)
         max_articles = 100
@@ -82,12 +91,12 @@ class ChromaTopicService:
         session: AsyncSession,
         window: str = "1d",
         min_articles: int = MIN_CLUSTER_SIZE,
-        limit: int = 100,
+        limit: int = 1000,
     ) -> List[Dict[str, Any]]:
-        if not self.vector_store:
+        if not self._get_vector_store():
             return []
         window_start = _window_start(window)
-        max_articles = 500
+        max_articles = 50000
         fetch_limit = min(limit * TRENDING_EXPANSION, max_articles)
         article_rows = await self._fetch_recent_articles(
             session, window_start, fetch_limit
@@ -124,7 +133,7 @@ class ChromaTopicService:
     async def get_cluster_detail(
         self, session: AsyncSession, cluster_id: int
     ) -> Optional[Dict[str, Any]]:
-        if not self.vector_store:
+        if not self._get_vector_store():
             return None
         cluster = await self._build_cluster_from_anchor(cluster_id)
         if not cluster:
@@ -170,7 +179,7 @@ class ChromaTopicService:
     async def get_article_topics(
         self, session: AsyncSession, article_id: int, limit: int = 5
     ) -> List[Dict[str, Any]]:
-        if not self.vector_store:
+        if not self._get_vector_store():
             return []
         cluster = await self._build_cluster_from_anchor(article_id)
         if not cluster:
@@ -201,9 +210,10 @@ class ChromaTopicService:
     async def get_search_suggestions(
         self, query: str, limit: int = 5
     ) -> List[Dict[str, Any]]:
-        if not self.vector_store:
+        vector_store = self._get_vector_store()
+        if not vector_store:
             return []
-        results = self.vector_store.search_similar(query, limit=limit * 2)
+        results = vector_store.search_similar(query, limit=limit * 2)
         suggestions = []
         for result in results:
             article_id = result.get("article_id")
@@ -249,6 +259,51 @@ class ChromaTopicService:
         )
         return result.scalar() or 0
 
+    async def compute_and_save_clusters(
+        self,
+        session: AsyncSession,
+        windows: Sequence[str] = ("1d", "1w", "1m"),
+        limit: int = 1000,
+        min_articles: int = MIN_CLUSTER_SIZE,
+    ) -> Dict[str, int]:
+        """Compute clusters for each window and persist to Postgres.
+
+        Called exclusively by the background computation worker — never by an
+        API route.  Returns a dict mapping window → cluster count saved.
+
+        If ChromaDB is unreachable the run is skipped entirely (one log line).
+        The Postgres snapshot table retains the previous result so the API
+        keeps serving stale-but-valid data.
+        """
+        from app.database import AsyncSessionLocal
+        from app.services.cluster_cache import save_snapshot
+
+        if not is_chroma_reachable():
+            logger.warning("ChromaDB unreachable; skipping cluster computation run")
+            return {}
+
+        counts: Dict[str, int] = {}
+        for window in windows:
+            try:
+                clusters = await self.get_all_clusters(
+                    session, window=window, min_articles=min_articles, limit=limit
+                )
+                # Serialize to plain dicts so they are JSON-safe for Postgres
+                cluster_dicts = [{k: v for k, v in c.items()} for c in clusters]
+                async with AsyncSessionLocal() as write_session:
+                    await save_snapshot(write_session, window, cluster_dicts)
+                counts[window] = len(cluster_dicts)
+                logger.info(
+                    "Cluster computation done: window=%s count=%d",
+                    window,
+                    len(cluster_dicts),
+                )
+            except Exception as exc:
+                logger.error(
+                    "Cluster computation failed for window=%s: %s", window, exc
+                )
+        return counts
+
     async def _fetch_recent_articles(
         self, session: AsyncSession, since: datetime, limit: int
     ) -> List[Article]:
@@ -264,6 +319,12 @@ class ChromaTopicService:
         self, articles: Sequence[Article]
     ) -> List[ClusterCandidate]:
         if not articles:
+            return []
+        if not is_chroma_reachable():
+            logger.warning(
+                "ChromaDB not reachable; skipping cluster query for %d articles",
+                len(articles),
+            )
             return []
         candidates: List[ClusterCandidate] = []
         candidate_by_anchor: Dict[int, ClusterCandidate] = {}
@@ -347,18 +408,22 @@ class ChromaTopicService:
     async def _build_cluster_from_anchor(
         self, article_id: int = 0
     ) -> Optional[ClusterCandidate]:
-        if not self.vector_store:
+        vector_store = self._get_vector_store()
+        if not vector_store:
             return None
         chroma_id = f"article_{article_id}"
         try:
-            embedded = self.vector_store.collection.get(
+            embedded = vector_store.collection.get(
                 ids=[chroma_id], include=["embeddings"]
             )
             embeddings = embedded.get("embeddings") if embedded else None
-            if not embeddings or not embeddings[0]:
+            if embeddings is None or len(embeddings) == 0 or len(embeddings[0]) == 0:
                 return None
             query_embedding = embeddings[0]
-            result = self.vector_store.collection.query(
+            if hasattr(query_embedding, "tolist"):
+                query_embedding = query_embedding.tolist()
+
+            result = vector_store.collection.query(
                 query_embeddings=[query_embedding],
                 n_results=TRENDING_EXPANSION,
                 include=["distances", "metadatas"],
@@ -663,3 +728,39 @@ class ChromaTopicService:
         if not dates:
             return None
         return min(dates).isoformat()
+
+
+async def cluster_computation_worker(
+    interval_seconds: int = 300,
+    startup_delay_seconds: int = 30,
+) -> None:
+    """Periodic background task: compute topic clusters and persist to Postgres.
+
+    Sleeps startup_delay_seconds on first run to let services settle, then
+    runs every interval_seconds.  ChromaDB errors skip the run without
+    crashing; the previous snapshot remains available to the API.
+    """
+    import asyncio
+    from app.core.config import settings
+    from app.database import AsyncSessionLocal
+
+    logger.info(
+        "Cluster computation worker starting (delay=%ds, interval=%ds)",
+        startup_delay_seconds,
+        interval_seconds,
+    )
+    await asyncio.sleep(startup_delay_seconds)
+
+    service = ChromaTopicService()
+
+    while True:
+        try:
+            if settings.enable_database and AsyncSessionLocal is not None:
+                async with AsyncSessionLocal() as session:
+                    counts = await service.compute_and_save_clusters(session)
+                    if counts:
+                        logger.info("Cluster snapshots saved: %s", counts)
+        except Exception as exc:
+            logger.error("Cluster computation worker error: %s", exc)
+
+        await asyncio.sleep(interval_seconds)

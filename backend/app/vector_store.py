@@ -68,11 +68,9 @@ def is_chroma_reachable(timeout: float = 3.0) -> bool:
     try:
         import socket
 
-        sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        sock.settimeout(timeout)
-        result = sock.connect_ex((CHROMA_HOST, CHROMA_PORT))
+        sock = socket.create_connection((CHROMA_HOST, CHROMA_PORT), timeout=timeout)
         sock.close()
-        return result == 0
+        return True
     except Exception:
         return False
 
@@ -195,7 +193,7 @@ class VectorStore:
             ).tolist()
 
             # Store in ChromaDB with metadata
-            self.collection.add(
+            self.collection.upsert(
                 ids=[article_id],
                 embeddings=[embedding],
                 documents=[text],
@@ -263,6 +261,7 @@ class VectorStore:
 
     def batch_add_articles(self, articles: List[Dict]) -> int:
         """Batch insert articles for better performance"""
+        global _vector_store
         try:
             ids: List[str] = []
             documents: List[str] = []
@@ -302,7 +301,7 @@ class VectorStore:
 
             embeddings = [embedding.tolist() for embedding in embeddings_array]
 
-            self.collection.add(
+            self.collection.upsert(
                 ids=ids, embeddings=embeddings, documents=documents, metadatas=metadatas
             )
 
@@ -311,6 +310,11 @@ class VectorStore:
 
         except Exception as e:
             logger.error("Batch add failed: %s", e)
+            if "Connection refused" in str(e) or "connect" in str(e).lower():
+                _vector_store = None
+                logger.warning(
+                    "Cleared stale vector store after connection error in batch_add_articles"
+                )
             return 0
 
     def list_articles(self, limit: int = 50, offset: int = 0) -> Dict[str, Any]:

@@ -24,9 +24,9 @@ logger = get_logger("persistence")
 article_persistence_queue: asyncio.Queue[Tuple[List[NewsArticle], Dict[str, Any]]] = (
     asyncio.Queue()
 )
-embedding_generation_queue: asyncio.Queue[
-    Tuple[List[Dict[str, Any]], List[str]]
-] = asyncio.Queue(maxsize=settings.embedding_queue_size)
+embedding_generation_queue: asyncio.Queue[Tuple[List[Dict[str, Any]], List[str]]] = (
+    asyncio.Queue(maxsize=settings.embedding_queue_size)
+)
 _main_event_loop: Optional[asyncio.AbstractEventLoop] = None
 
 
@@ -216,10 +216,7 @@ async def _persist_articles_async(
                     update_stmt = (
                         update(ArticleRecord.__table__)
                         .where(ArticleRecord.__table__.c.id == bindparam("b_id"))
-                        .values(
-                            chroma_id=bindparam("b_chroma_id"),
-                            embedding_generated=False,
-                        )
+                        .values(chroma_id=bindparam("b_chroma_id"))
                     )
                     await session.execute(update_stmt, chroma_updates)
 
@@ -311,7 +308,9 @@ async def embedding_generation_worker() -> None:
                 and not embedding_generation_queue.empty()
             ):
                 try:
-                    extra_payloads, extra_deletes = embedding_generation_queue.get_nowait()
+                    extra_payloads, extra_deletes = (
+                        embedding_generation_queue.get_nowait()
+                    )
                 except asyncio.QueueEmpty:
                     break
                 payloads.extend(extra_payloads)
@@ -348,9 +347,7 @@ async def embedding_generation_worker() -> None:
 
                 if settings.embedding_max_per_minute > 0:
                     delay = (
-                        len(payloads)
-                        * 60
-                        / max(1, settings.embedding_max_per_minute)
+                        len(payloads) * 60 / max(1, settings.embedding_max_per_minute)
                     )
                     if delay > 0:
                         await asyncio.sleep(delay)

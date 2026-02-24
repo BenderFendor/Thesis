@@ -6,12 +6,13 @@ from typing import Any, Dict, List, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Response
 from pydantic import BaseModel
-from sqlalchemy import select, func, and_
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.logging import get_logger
 from app.database import get_db
 from app.services.chroma_topics import ChromaTopicService
+from app.services.cluster_cache import get_latest_snapshot
+from app.vector_store import is_chroma_reachable
 
 logger = get_logger("trending_routes")
 router = APIRouter(prefix="/trending", tags=["trending"])
@@ -27,7 +28,7 @@ class TrendingCluster(BaseModel):
     trending_score: float
     velocity: float
     representative_article: Optional[Dict[str, Any]]
-    articles: List[Dict[str, Any]] = []  # Latest articles in this cluster
+    articles: List[Dict[str, Any]] = []
 
 
 class BreakingCluster(BaseModel):
@@ -39,7 +40,7 @@ class BreakingCluster(BaseModel):
     spike_magnitude: float
     is_new_story: bool
     representative_article: Optional[Dict[str, Any]]
-    articles: List[Dict[str, Any]] = []  # Latest articles in this cluster
+    articles: List[Dict[str, Any]] = []
 
 
 class TrendingResponse(BaseModel):
@@ -75,13 +76,15 @@ class AllCluster(BaseModel):
     window_count: int
     source_diversity: int
     representative_article: Optional[Dict[str, Any]]
-    articles: List[Dict[str, Any]] = []  # Latest articles in this cluster
+    articles: List[Dict[str, Any]] = []
 
 
 class AllClustersResponse(BaseModel):
     window: str
     clusters: List[AllCluster]
     total: int
+    computed_at: Optional[str] = None
+    status: Optional[str] = None
 
 
 @router.get("", response_model=TrendingResponse)
@@ -91,25 +94,13 @@ async def get_trending(
     limit: int = Query(default=10, ge=1, le=50),
     db: AsyncSession = Depends(get_db),
 ) -> TrendingResponse:
-    """
-    Get trending topic clusters based on velocity and diversity.
-
-    Window options:
-    - 1d: Last 24 hours
-    - 1w: Last 7 days
-    - 1m: Last 30 days
-
-    Scoring factors:
-    - Velocity: Article count vs trailing baseline
-    - Source diversity: Number of distinct sources covering the topic
-    - Recency: Bonus for newly emerging stories
-    """
+    """Get trending topic clusters based on velocity and diversity."""
     response.headers["Cache-Control"] = "public, max-age=60, stale-while-revalidate=120"
 
-    service = ChromaTopicService()
-    if not service.vector_store:
+    if not is_chroma_reachable():
         return TrendingResponse(window=window, clusters=[], total=0)
 
+    service = ChromaTopicService()
     clusters = await service.get_trending_clusters(db, window=window, limit=limit)
 
     return TrendingResponse(
@@ -125,22 +116,13 @@ async def get_breaking(
     limit: int = Query(default=5, ge=1, le=20),
     db: AsyncSession = Depends(get_db),
 ) -> BreakingResponse:
-    """
-    Get breaking news clusters showing unusual activity spikes.
-
-    Breaking detection:
-    - 3-hour window comparison against 7-day hourly baseline
-    - Spike threshold: 2x baseline volume
-    - Prioritizes new stories (first seen < 6 hours ago)
-
-    Returns clusters ordered by spike magnitude.
-    """
+    """Get breaking news clusters showing unusual activity spikes."""
     response.headers["Cache-Control"] = "public, max-age=30, stale-while-revalidate=60"
 
-    service = ChromaTopicService()
-    if not service.vector_store:
+    if not is_chroma_reachable():
         return BreakingResponse(window_hours=3, clusters=[], total=0)
 
+    service = ChromaTopicService()
     clusters = await service.get_breaking_clusters(db, limit=limit)
 
     return BreakingResponse(
@@ -154,38 +136,41 @@ async def get_breaking(
 async def get_all_clusters(
     response: Response,
     window: str = Query(default="1d", pattern="^(1d|1w|1m)$"),
-    min_articles: int = Query(default=2, ge=1, le=10),
-    limit: int = Query(default=100, ge=1, le=500),
     db: AsyncSession = Depends(get_db),
 ) -> AllClustersResponse:
-    """
-    Get all active topic clusters within a time window for topic-based view.
+    """Get all active topic clusters from the latest pre-computed snapshot.
 
-    Window options:
-    - 1d: Last 24 hours
-    - 1w: Last 7 days
-    - 1m: Last 30 days
+    Served exclusively from the Postgres snapshot written by the background
+    cluster computation worker — no ChromaDB call at request time.
 
-    Parameters:
-    - min_articles: Minimum articles per cluster (excludes single-article clusters)
-    - limit: Maximum clusters to return (pagination support)
-
-    Returns clusters ordered by recency (most recently seen first).
+    Returns status="initializing" with an empty cluster list when no snapshot
+    exists yet (e.g. shortly after first startup).
     """
     response.headers["Cache-Control"] = "public, max-age=60, stale-while-revalidate=120"
 
-    service = ChromaTopicService()
-    if not service.vector_store:
-        return AllClustersResponse(window=window, clusters=[], total=0)
+    snapshot = await get_latest_snapshot(db, window)
 
-    clusters = await service.get_all_clusters(
-        db, window=window, min_articles=min_articles, limit=limit
-    )
+    if snapshot is None:
+        logger.info(
+            "No cluster snapshot found for window=%s; returning initializing", window
+        )
+        return AllClustersResponse(
+            window=window,
+            clusters=[],
+            total=0,
+            computed_at=None,
+            status="initializing",
+        )
+
+    clusters_data: List[Dict[str, Any]] = snapshot.clusters_json or []  # type: ignore[assignment]
+    clusters = [AllCluster(**c) for c in clusters_data]
 
     return AllClustersResponse(
         window=window,
-        clusters=[AllCluster(**c) for c in clusters],
+        clusters=clusters,
         total=len(clusters),
+        computed_at=snapshot.computed_at.isoformat() if snapshot.computed_at else None,
+        status="ok",
     )
 
 
@@ -194,13 +179,7 @@ async def get_cluster_detail(
     cluster_id: int,
     db: AsyncSession = Depends(get_db),
 ) -> ClusterDetailResponse:
-    """
-    Get detailed information about a specific topic cluster.
-
-    Returns:
-    - Cluster metadata (label, keywords, timestamps)
-    - List of member articles ordered by relevance and recency
-    """
+    """Get detailed information about a specific topic cluster."""
     service = ChromaTopicService()
     detail = await service.get_cluster_detail(db, cluster_id)
 
@@ -214,13 +193,8 @@ async def get_cluster_detail(
 async def get_trending_stats(
     db: AsyncSession = Depends(get_db),
 ) -> Dict[str, Any]:
-    """
-    Get overall trending system statistics.
-
-    Useful for debugging and monitoring cluster health.
-    """
-    service = ChromaTopicService()
-    if not service.vector_store:
+    """Get overall trending system statistics for debugging and monitoring."""
+    if not is_chroma_reachable():
         return {
             "active_clusters": 0,
             "total_article_assignments": 0,
@@ -229,4 +203,6 @@ async def get_trending_stats(
             "baseline_days": 0,
             "breaking_window_hours": 3,
         }
+
+    service = ChromaTopicService()
     return await service.get_trending_stats(db)

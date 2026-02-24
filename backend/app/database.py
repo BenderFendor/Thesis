@@ -492,6 +492,31 @@ class TopicBlindSpot(Base):
     )
 
 
+class TopicClusterSnapshot(Base):
+    """Pre-computed topic cluster results, written by background worker.
+
+    The API reads exclusively from this table — it never queries ChromaDB at
+    request time.  One row per (window, computation run).  Old rows are pruned
+    by the writer to keep at most SNAPSHOT_KEEP_COUNT rows per window.
+    """
+
+    __tablename__ = "topic_cluster_snapshots"
+
+    id = Column(Integer, primary_key=True)
+    window = Column(String(10), nullable=False)  # '1d', '1w', '1m'
+    clusters_json = Column(JSON, nullable=False)  # List[AllCluster dicts]
+    cluster_count = Column(Integer, nullable=False, default=0)
+    computed_at = Column(DateTime, nullable=False, default=get_utc_now)
+
+    __table_args__ = (
+        Index(
+            "ix_topic_cluster_snapshots_window_computed",
+            "window",
+            "computed_at",
+        ),
+    )
+
+
 # Verification Agent Tables
 
 

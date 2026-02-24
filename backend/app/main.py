@@ -24,6 +24,8 @@ from app.database import init_db, AsyncSessionLocal, fetch_all_articles
 from app.middleware.request_tracing import RequestTracingMiddleware
 from app.models.news import NewsArticle
 from app.services.cache import news_cache
+from app.services.chroma_sync import chroma_sync_worker
+from app.services.chroma_topics import cluster_computation_worker
 from app.services.persistence import (
     article_persistence_worker,
     embedding_generation_worker,
@@ -375,6 +377,14 @@ async def on_startup() -> None:
                     embedding_generation_worker(), name="embedding_generation_worker"
                 )
                 _register_background_task(embedding_task)
+                cluster_task = asyncio.create_task(
+                    cluster_computation_worker(), name="cluster_computation_worker"
+                )
+                _register_background_task(cluster_task)
+                chroma_sync_task = asyncio.create_task(
+                    chroma_sync_worker(), name="chroma_sync_worker"
+                )
+                _register_background_task(chroma_sync_task)
 
     # Only migrate if cache has stale articles (> 6 hours old) - leader only
     if settings.enable_database and is_leader:
