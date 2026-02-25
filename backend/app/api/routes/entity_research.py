@@ -184,6 +184,17 @@ class SourceResearchRequest(BaseModel):
     website: Optional[str] = None
 
 
+class SourceBatchRequest(BaseModel):
+    sources: List[SourceResearchRequest]
+    force_refresh: bool = False
+
+
+class SourceBatchResponse(BaseModel):
+    results: Dict[str, Optional[SourceResearchResponse]]
+    cached_count: int
+    newly_researched_count: int
+
+
 class SourceResearchValue(BaseModel):
     value: str
     sources: Optional[List[str]] = None
@@ -458,6 +469,61 @@ async def research_source_profile(
     if profile is None:
         raise HTTPException(status_code=404, detail="No cached profile available")
     return SourceResearchResponse(**profile)
+
+
+@router.post("/source/batch", response_model=SourceBatchResponse)
+async def research_source_batch(
+    request: SourceBatchRequest,
+):
+    """
+    Research multiple sources in a single request.
+    Uses file-based caching unless force_refresh is requested.
+    Returns results for all sources, using cache when available.
+    """
+    from app.services.source_research import get_source_profile
+
+    valid_sources = []
+    for source_req in request.sources:
+        source_name = source_req.name.strip()
+        if not source_name:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Source name cannot be empty: '{source_req.name}'",
+            )
+        valid_sources.append((source_req, source_name))
+
+    async def fetch_profile(source_req: SourceResearchRequest, source_name: str):
+        profile = await get_source_profile(
+            source_name=source_name,
+            website=source_req.website,
+            force_refresh=request.force_refresh,
+            cache_only=False,
+        )
+        return source_name, profile
+
+    fetch_results = await asyncio.gather(
+        *[fetch_profile(sr, sn) for sr, sn in valid_sources]
+    )
+
+    results: Dict[str, Optional[SourceResearchResponse]] = {}
+    cached_count = 0
+    newly_researched_count = 0
+
+    for source_name, profile in fetch_results:
+        if profile:
+            results[source_name] = SourceResearchResponse(**profile)
+            if profile.get("cached"):
+                cached_count += 1
+            else:
+                newly_researched_count += 1
+        else:
+            results[source_name] = None
+
+    return SourceBatchResponse(
+        results=results,
+        cached_count=cached_count,
+        newly_researched_count=newly_researched_count,
+    )
 
 
 @router.get("/organization/{org_id}", response_model=OrganizationResearchResponse)

@@ -8,15 +8,20 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
+from datetime import timedelta
+
+from app.core.config import settings
 from app.core.logging import get_logger
 from app.services.cache import news_cache
 from app.services.funding_researcher import get_funding_researcher
 from app.services.source_document_collector import MAX_DOCS, collect_source_documents
+from app.services.source_field_extractor import extract_fields_from_documents
 from app.services.source_profile_extractor import (
     FIELD_KEYS,
     build_fields_from_documents,
 )
 from app.services.source_profile_synthesizer import synthesize_source_fields
+from app.services.source_query_generator import generate_search_queries
 
 logger = get_logger("source_research")
 
@@ -38,6 +43,17 @@ def _load_cached_profile(source_name: str) -> Optional[Dict[str, Any]]:
     path = _cache_path(source_name)
     if not path.exists():
         return None
+
+    ttl = timedelta(hours=settings.source_research_cache_ttl_hours)
+    cache_age = datetime.now(timezone.utc) - datetime.fromtimestamp(
+        path.stat().st_mtime, tz=timezone.utc
+    )
+    if cache_age > ttl:
+        logger.info(
+            "Cache expired for %s (age: %s, ttl: %s)", source_name, cache_age, ttl
+        )
+        return None
+
     try:
         with path.open("r", encoding="utf-8") as handle:
             return json.load(handle)
@@ -142,35 +158,13 @@ async def _build_source_profile(
         if field_name not in fields:
             fields[field_name] = []
 
-    documents = await collect_source_documents(
-        source_name,
-        resolved_website,
-        use_llm_planner=False,
+    llm_success = await _build_with_llm_extraction(
+        source_name, resolved_website, fields
     )
-    if documents:
-        _merge_extracted_fields(fields, build_fields_from_documents(documents))
-        missing = _missing_fields(fields)
-        if missing:
-            gap_queries = _build_gap_queries(missing, source_name, resolved_website)
-            if gap_queries:
-                existing_urls = {doc.url for doc in documents}
-                documents = await collect_source_documents(
-                    source_name,
-                    resolved_website,
-                    max_total_docs=MAX_DOCS,
-                    existing_documents=documents,
-                    extra_queries=gap_queries,
-                    use_llm_planner=False,
-                )
-                new_docs = [doc for doc in documents if doc.url not in existing_urls]
-                if new_docs:
-                    _merge_extracted_fields(
-                        fields, build_fields_from_documents(new_docs)
-                    )
-        synthesized_fields = await synthesize_source_fields(
-            source_name, documents, fields
-        )
-        _merge_extracted_fields(fields, synthesized_fields)
+
+    if not llm_success:
+        logger.info(f"LLM extraction failed for {source_name}, using regex fallback")
+        await _build_with_regex_only(source_name, resolved_website, fields)
 
     profile = {
         "name": source_name,
@@ -182,6 +176,96 @@ async def _build_source_profile(
     }
 
     return profile
+
+
+async def _build_with_llm_extraction(
+    source_name: str,
+    website: Optional[str],
+    fields: Dict[str, List[Dict[str, Any]]],
+) -> bool:
+    """Two-step LLM pipeline: generate queries, extract fields, synthesize."""
+    try:
+        queries = await generate_search_queries(source_name, website)
+        if not queries:
+            logger.warning(f"No queries generated for {source_name}")
+            return False
+
+        logger.info(f"Generated {len(queries)} queries for {source_name}")
+
+        documents = await collect_source_documents(
+            source_name,
+            website,
+            use_llm_planner=False,
+            extra_queries=queries,
+            max_total_docs=MAX_DOCS,
+        )
+
+        if not documents:
+            logger.warning(f"No documents collected for {source_name}")
+            return False
+
+        logger.info(f"Collected {len(documents)} documents for {source_name}")
+
+        extracted_entries = await extract_fields_from_documents(source_name, documents)
+        if extracted_entries:
+            for entry in extracted_entries:
+                field_name = entry.get("field")
+                if not field_name:
+                    continue
+                _append_field(
+                    fields,
+                    field_name,
+                    entry.get("value"),
+                    entry.get("sources"),
+                    entry.get("notes"),
+                )
+            logger.info(
+                f"LLM extracted {len(extracted_entries)} field entries for {source_name}"
+            )
+        else:
+            _merge_extracted_fields(fields, build_fields_from_documents(documents))
+
+        synthesized_fields = await synthesize_source_fields(
+            source_name, documents, fields
+        )
+        if synthesized_fields:
+            _merge_extracted_fields(fields, synthesized_fields)
+            logger.info(f"LLM synthesis complete for {source_name}")
+
+        return True
+
+    except Exception as exc:
+        logger.warning(f"LLM extraction pipeline failed for {source_name}: {exc}")
+        return False
+
+
+async def _build_with_regex_only(
+    source_name: str,
+    website: Optional[str],
+    fields: Dict[str, List[Dict[str, Any]]],
+) -> None:
+    """Fallback: use regex extraction only (no LLM)."""
+    try:
+        queries = [
+            f"{source_name} about",
+            f"{source_name} editorial policy",
+            f"{source_name} media bias",
+        ]
+
+        documents = await collect_source_documents(
+            source_name,
+            website,
+            use_llm_planner=False,
+            extra_queries=queries,
+            max_total_docs=6,
+        )
+
+        if documents:
+            _merge_extracted_fields(fields, build_fields_from_documents(documents))
+            logger.info(f"Regex extraction complete for {source_name}")
+
+    except Exception as exc:
+        logger.warning(f"Regex extraction also failed for {source_name}: {exc}")
 
 
 def _merge_extracted_fields(
