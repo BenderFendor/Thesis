@@ -128,3 +128,37 @@ When seeing `UndefinedColumnError`:
 ## Code Quality Gates
 - Run syntax check: `python3 -m py_compile backend/app/**/*.py`
 - For new functions using logger, grep for `get_logger` import pattern
+
+## ChromaDB Recovery (2026-02-25)
+### Problem
+After `/tmp` wipe (system reboot), ChromaDB is empty but Postgres has `embedding_generated=True` for all 80k articles. "By Topic" view broke because cluster worker waited for Chroma sync.
+
+### Root Causes
+1. **Stale flags**: DB said 80k embedded, Chroma had 0 → backfill found nothing
+2. **Slow drift detection**: `COUNT(*)` on 80k rows timed out under write load
+3. **OOM kills**: Gunicorn workers loading embedding model got killed under memory pressure
+4. **Leader churn**: Multiple workers claimed leadership due to stale lock file + OOM recycling
+
+### Solutions Implemented
+1. **Drift detection**: Use Chroma doc count threshold (`_FULL_SYNC_THRESHOLD = 10_000`) instead of slow DB COUNT
+2. **Recovery scan scope**: Scan only past 7 days (~10k articles) instead of all 80k to avoid OOM
+3. **No mass flag reset**: Check Chroma membership directly per batch, embed only missing → small targeted UPDATEs
+4. **Immediate unblock**: Signal cluster worker after first batch embed, not after full sync
+5. **Fixed leader lock**: Use `O_CREAT|O_EXCL` (atomic), add stale PID cleanup with alive check
+
+### Key Files
+- `backend/app/services/chroma_sync.py` - Drift detection + 7-day recovery scan
+- `backend/app/main.py` - Leader lock fixes
+- `backend/app/services/chroma_topics.py` - Removed stale `embedding_generated` filter
+
+### Debug Commands
+```bash
+# Check Chroma count
+curl -s "http://localhost:8001/api/v1/collections/<uuid>/count"
+
+# Check DB articles in time window
+psql -U newsuser -d newsdb -h localhost -c "SELECT COUNT(*) FROM articles WHERE published_at >= NOW() - INTERVAL '7 days'"
+
+# Verify clusters work
+curl -s "http://localhost:8000/trending/clusters?window=1d" | python3 -c "import sys,json; print(len(json.load(sys.stdin).get('clusters', [])))"
+```
