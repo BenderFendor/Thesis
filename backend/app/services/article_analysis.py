@@ -3,7 +3,8 @@ from __future__ import annotations
 import json
 from typing import Any, Dict, Optional
 
-from app.core.config import get_openai_client, settings
+from app.core.config import settings
+from app.core.llm_client import get_llm_client
 from app.core.logging import get_logger
 from app.services.article_extraction import extract_article_full_text
 from tenacity import retry, stop_after_attempt, wait_exponential, retry_if_exception
@@ -28,9 +29,12 @@ def _is_retryable_error(exception):
     stop=stop_after_attempt(5),
     reraise=True,
 )
-def _generate_content_safe(client, model, messages):
-    return client.chat.completions.create(
-        model=model, messages=messages, response_format={"type": "json_object"}
+def _generate_content_safe(llm_client, model, messages):
+    return llm_client.chat_completions_create(
+        service_name="article_analysis",
+        messages=messages,
+        model=model,
+        response_format={"type": "json_object"},
     )
 
 
@@ -42,15 +46,15 @@ async def extract_article_content(url: str) -> Dict[str, Any]:
 async def analyze_with_gemini(
     article_data: Dict[str, Any], source_name: Optional[str] = None
 ) -> Dict[str, Any]:
-    openai_client = get_openai_client()
-    if not openai_client:
+    llm_client = get_llm_client()
+    if not llm_client:
         return {"error": "OpenRouter API key not configured"}
 
     try:
         prompt = _build_analysis_prompt(article_data, source_name)
 
         response = _generate_content_safe(
-            client=openai_client,
+            llm_client=llm_client,
             model=settings.open_router_model,
             messages=[
                 {"role": "system", "content": SYSTEM_MESSAGE},

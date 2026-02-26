@@ -23,7 +23,8 @@ import re
 from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional
 
-from app.core.config import get_openai_client, settings
+from app.core.config import settings
+from app.core.llm_client import get_llm_client
 from app.core.logging import get_logger
 
 logger = get_logger("propaganda_scorer")
@@ -161,7 +162,7 @@ class PropagandaFilterScorer:
     """Scores sources on the six propaganda filters."""
 
     def __init__(self):
-        self.client = get_openai_client()
+        self.llm_client = get_llm_client()
 
     async def score_source(
         self,
@@ -492,7 +493,7 @@ class PropagandaFilterScorer:
 
         Returns dict with "scores" (Dict[str, FilterScore]) and optional "org_updates" (Dict).
         """
-        if not self.client:
+        if not self.llm_client:
             logger.warning("No LLM client available; skipping LLM-scored filters")
             return {"scores": {}}
 
@@ -595,8 +596,8 @@ Respond ONLY with valid JSON (no markdown):
 }}"""
 
         try:
-            response = self.client.chat.completions.create(
-                model=settings.open_router_model,
+            response = self.llm_client.chat_completions_create(
+                service_name="propaganda",
                 messages=[{"role": "user", "content": prompt}],
                 max_tokens=2500 if include_org_metadata else 2000,
                 temperature=0.3,

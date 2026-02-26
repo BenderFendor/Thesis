@@ -5,7 +5,8 @@ import json
 import re
 from typing import Any, Dict, List, Sequence
 
-from app.core.config import get_openai_client, settings
+from app.core.config import settings
+from app.core.llm_client import get_llm_client
 from app.core.logging import get_logger
 from app.services.source_profile_extractor import FIELD_KEYS, SourceDocument
 
@@ -25,9 +26,12 @@ async def synthesize_source_fields(
     documents: Sequence[SourceDocument],
     existing_fields: Dict[str, List[Dict[str, Any]]],
 ) -> Dict[str, List[Dict[str, Any]]]:
-    client = get_openai_client()
-    if not client:
-        logger.info("OpenRouter client unavailable, skipping source synthesis for %s", source_name)
+    llm_client = get_llm_client()
+    if not llm_client:
+        logger.info(
+            "OpenRouter client unavailable, skipping source synthesis for %s",
+            source_name,
+        )
         return {}
 
     if not documents:
@@ -38,8 +42,7 @@ async def synthesize_source_fields(
         "field_keys": FIELD_KEYS,
         "existing_fields": existing_fields,
         "documents": [
-            {"url": doc.url, "title": doc.title, "text": doc.text}
-            for doc in documents
+            {"url": doc.url, "title": doc.title, "text": doc.text} for doc in documents
         ],
     }
 
@@ -71,12 +74,13 @@ async def synthesize_source_fields(
 
     try:
         response = await asyncio.to_thread(
-            client.chat.completions.create,
-            model=settings.open_router_model,
+            llm_client.chat_completions_create,
+            service_name="source_profile",
             messages=[
                 {"role": "system", "content": SYSTEM_PROMPT},
                 {"role": "user", "content": prompt},
             ],
+            model=settings.open_router_model,
             max_tokens=900,
             temperature=0.2,
         )
@@ -109,7 +113,9 @@ def _parse_json_payload(text: str) -> Dict[str, Any]:
         return {}
 
 
-def _normalize_fields(fields_payload: Dict[str, Any]) -> Dict[str, List[Dict[str, Any]]]:
+def _normalize_fields(
+    fields_payload: Dict[str, Any],
+) -> Dict[str, List[Dict[str, Any]]]:
     normalized: Dict[str, List[Dict[str, Any]]] = {}
     for key in FIELD_KEYS:
         entries = fields_payload.get(key, [])

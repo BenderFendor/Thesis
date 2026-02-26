@@ -2,7 +2,8 @@ from __future__ import annotations
 
 from typing import Any, Dict, Optional
 
-from app.core.config import get_openai_client, settings
+from app.core.config import settings
+from app.core.llm_client import get_llm_client
 from app.core.logging import get_logger
 
 logger = get_logger("inline_definition")
@@ -16,12 +17,11 @@ async def define_term_with_gemini(
     Uses the configured OpenRouter client. If OpenRouter is not configured, returns an
     explanatory error message.
     """
-    openai_client = get_openai_client()
-    if not openai_client:
+    llm_client = get_llm_client()
+    if not llm_client:
         return {"error": "OpenRouter API key not configured"}
 
     try:
-        # Build a concise prompt asking for a one-paragraph definition in the given context
         ctx = context or "general"
         prompt = (
             f"The user is reading an article about {ctx}. "
@@ -29,8 +29,8 @@ async def define_term_with_gemini(
             "Please provide a short, one-paragraph definition or explanation for this term in context."
         )
 
-        response = openai_client.chat.completions.create(
-            model=settings.open_router_model,
+        response = llm_client.chat_completions_create(
+            service_name="inline_def",
             messages=[
                 {
                     "role": "system",
@@ -38,7 +38,9 @@ async def define_term_with_gemini(
                 },
                 {"role": "user", "content": prompt},
             ],
-            max_tokens=200,
+            model=settings.open_router_model,
+            max_tokens=300,
+            temperature=0.3,
         )
 
         text = response.choices[0].message.content.strip()

@@ -195,11 +195,20 @@ async def _upsert_organization(
     await session.commit()
 
 
-async def index_source(source_name: str, source_config: Dict[str, Any]) -> bool:
+async def index_source(
+    source_name: str,
+    source_config: Dict[str, Any],
+    enable_llm_scoring: bool = True,
+) -> bool:
     """Index a single source: research org data and score propaganda filters.
 
     Uses a single LLM call to both score propaganda filters and fill org
     metadata gaps (when research_confidence is not "high").
+
+    Args:
+        source_name: Name of the source to index
+        source_config: Configuration dict for the source
+        enable_llm_scoring: If False, skip LLM-based propaganda scoring (for background tasks)
 
     Returns True on success, False on failure.
     """
@@ -230,13 +239,17 @@ async def index_source(source_name: str, source_config: Dict[str, Any]) -> bool:
             "source_type": source_config.get("category", "general"),
         }
 
-        # Score propaganda filters (may also return org metadata updates)
-        scorer = get_propaganda_scorer()
-        result = await scorer.score_source(
-            source_name=source_name,
-            org_data=org_data,
-            source_metadata=source_metadata,
-        )
+        # Score propaganda filters (LLM call) - only when explicitly enabled
+        result = None
+        if enable_llm_scoring:
+            scorer = get_propaganda_scorer()
+            result = await scorer.score_source(
+                source_name=source_name,
+                org_data=org_data,
+                source_metadata=source_metadata,
+            )
+        else:
+            result = type("Result", (), {"scores": [], "org_updates": {}})()
 
         # Apply org metadata updates from the consolidated LLM call
         if result.org_updates:
@@ -255,7 +268,7 @@ async def index_source(source_name: str, source_config: Dict[str, Any]) -> bool:
         # Persist organization data
         await _upsert_organization(session, org_data)
 
-        # Persist filter scores
+        # Persist filter scores (empty when LLM disabled)
         await _save_filter_scores(session, source_name, result.scores)
 
         duration_ms = int((time.monotonic() - start) * 1000)
@@ -263,11 +276,16 @@ async def index_source(source_name: str, source_config: Dict[str, Any]) -> bool:
             session, "source", source_name, "complete", duration_ms=duration_ms
         )
 
+        scores_str = (
+            ", ".join(f"{s.filter_name}={s.score}" for s in result.scores)
+            if result.scores
+            else "disabled"
+        )
         logger.info(
             "Indexed source %s in %dms (scores: %s)",
             source_name,
             duration_ms,
-            ", ".join(f"{s.filter_name}={s.score}" for s in result.scores),
+            scores_str,
         )
         return True
 
@@ -283,8 +301,13 @@ async def index_source(source_name: str, source_config: Dict[str, Any]) -> bool:
 
 async def index_all_sources(
     delay_seconds: float = INDEX_DELAY_SECONDS,
+    enable_llm_scoring: bool = True,
 ) -> Dict[str, Any]:
     """Index all sources from rss_sources.json.
+
+    Args:
+        delay_seconds: Delay between indexing each source
+        enable_llm_scoring: If True, run LLM-based propaganda scoring (default for CLI)
 
     Returns summary stats.
     """
@@ -306,7 +329,7 @@ async def index_all_sources(
 
     for i, (name, config) in enumerate(unique_sources.items(), 1):
         logger.info("[%d/%d] Indexing: %s", i, total, name)
-        result = await index_source(name, config)
+        result = await index_source(name, config, enable_llm_scoring=enable_llm_scoring)
         if result:
             success += 1
         else:
@@ -329,6 +352,7 @@ async def index_all_sources(
 async def index_stale_sources(
     stale_days: int = STALE_THRESHOLD_DAYS,
     delay_seconds: float = INDEX_DELAY_SECONDS,
+    enable_llm_scoring: bool = False,
 ) -> Dict[str, Any]:
     """Re-index sources whose wiki data is older than stale_days."""
     session = await _get_session()
@@ -393,7 +417,9 @@ async def index_stale_sources(
 
         for i, (name, config) in enumerate(all_to_index.items(), 1):
             logger.info("[%d/%d] Re-indexing: %s", i, total, name)
-            result_ok = await index_source(name, config)
+            result_ok = await index_source(
+                name, config, enable_llm_scoring=enable_llm_scoring
+            )
             if result_ok:
                 success += 1
             else:

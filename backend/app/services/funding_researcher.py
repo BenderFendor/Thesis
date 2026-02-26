@@ -24,7 +24,7 @@ from typing import Any, Dict, List, Optional
 
 import httpx
 
-from app.core.config import get_openai_client
+from app.core.llm_client import get_llm_client
 from app.core.logging import get_logger
 
 logger = get_logger("funding_researcher")
@@ -334,7 +334,7 @@ class FundingResearcher:
     """Agent that researches news organization funding and ownership."""
 
     def __init__(self):
-        self.client = get_openai_client()
+        self.llm_client = get_llm_client()
         self.http_client = httpx.AsyncClient(
             timeout=30.0,
             headers={
@@ -395,7 +395,7 @@ class FundingResearcher:
         )
 
         # Use AI to synthesize
-        if self.client and use_ai:
+        if self.llm_client and use_ai:
             org_data = await self._ai_enhance_org_data(org_data)
 
         org_data["last_researched_at"] = datetime.now(timezone.utc).isoformat()
@@ -806,7 +806,7 @@ class FundingResearcher:
 
     async def _ai_enhance_org_data(self, org: Dict[str, Any]) -> Dict[str, Any]:
         """Use AI to fill gaps in organization data."""
-        if not self.client:
+        if not self.llm_client:
             return org
 
         # Only enhance if we have minimal data
@@ -837,9 +837,10 @@ Respond in JSON:
   "notes": "Brief explanation"
 }}"""
 
-            response = self.client.chat.completions.create(
-                model="google/gemini-3-flash-preview",
+            response = self.llm_client.chat_completions_create(
+                service_name="funding",
                 messages=[{"role": "user", "content": prompt}],
+                model="google/gemini-3-flash-preview",
                 max_tokens=400,
                 temperature=0.3,
             )

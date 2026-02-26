@@ -23,7 +23,8 @@ from typing import Any, Dict, List, Optional
 
 import httpx
 
-from app.core.config import get_openai_client, settings
+from app.core.config import settings
+from app.core.llm_client import get_llm_client
 from app.core.logging import get_logger
 
 logger = get_logger("reporter_profiler")
@@ -33,7 +34,7 @@ class ReporterProfiler:
     """Agent that researches and profiles journalists/reporters."""
 
     def __init__(self):
-        self.client = get_openai_client()
+        self.llm_client = get_llm_client()
         self.http_client = httpx.AsyncClient(timeout=30.0)
 
     async def profile_reporter(
@@ -80,7 +81,7 @@ class ReporterProfiler:
         )
 
         # Use AI to synthesize and fill gaps
-        if self.client:
+        if self.llm_client:
             profile = await self._ai_enhance_profile(
                 profile, organization, article_context
             )
@@ -269,7 +270,7 @@ class ReporterProfiler:
         article_context: Optional[str],
     ) -> Dict[str, Any]:
         """Use AI to enhance and fill gaps in the profile."""
-        if not self.client:
+        if not self.llm_client:
             return profile
 
         # Only enhance if we have some data to work with
@@ -297,9 +298,10 @@ Respond in JSON format:
   "assessment_notes": "Brief explanation"
 }}"""
 
-            response = self.client.chat.completions.create(
-                model=settings.open_router_model,
+            response = self.llm_client.chat_completions_create(
+                service_name="reporter",
                 messages=[{"role": "user", "content": prompt}],
+                model=settings.open_router_model,
                 max_tokens=500,
                 temperature=0.3,
             )
@@ -438,7 +440,7 @@ Respond in JSON format:
         org_data: Optional[Dict[str, Any]],
     ) -> Dict[str, Any]:
         """Use LLM for the deeper dossier fields that require contextual knowledge."""
-        if not self.client:
+        if not self.llm_client:
             logger.warning("No LLM client; skipping deep dossier research for %s", name)
             return {}
 
@@ -510,9 +512,10 @@ Respond ONLY with valid JSON (no markdown):
 }}"""
 
         try:
-            response = self.client.chat.completions.create(
-                model=settings.open_router_model,
+            response = self.llm_client.chat_completions_create(
+                service_name="reporter",
                 messages=[{"role": "user", "content": prompt}],
+                model=settings.open_router_model,
                 max_tokens=2000,
                 temperature=0.3,
             )

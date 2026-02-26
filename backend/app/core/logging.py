@@ -1,5 +1,6 @@
 import logging
 import os
+from datetime import datetime
 from logging.handlers import RotatingFileHandler
 from pathlib import Path
 from typing import Optional
@@ -9,9 +10,19 @@ _LOG_FORMAT = (
 )
 
 LOG_DIR = Path(os.environ.get("LOG_DIR", Path(__file__).parent.parent.parent / "logs"))
-LOG_FILE = LOG_DIR / "app.log"
 MAX_LOG_SIZE = 10 * 1024 * 1024  # 10 MB
 BACKUP_COUNT = 3
+
+_session_dir: Optional[Path] = None
+
+
+def get_session_dir() -> Path:
+    global _session_dir
+    if _session_dir is None:
+        session_name = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
+        _session_dir = LOG_DIR / session_name
+        _session_dir.mkdir(parents=True, exist_ok=True)
+    return _session_dir
 
 
 def configure_logging(level: int = logging.INFO) -> logging.Logger:
@@ -28,10 +39,13 @@ def configure_logging(level: int = logging.INFO) -> logging.Logger:
     console_handler.setFormatter(formatter)
     root_logger.addHandler(console_handler)
 
+    session_dir = get_session_dir()
+    app_log_file = session_dir / "app.log"
+
     try:
-        LOG_DIR.mkdir(parents=True, exist_ok=True)
+        session_dir.mkdir(parents=True, exist_ok=True)
         file_handler = RotatingFileHandler(
-            LOG_FILE,
+            app_log_file,
             maxBytes=MAX_LOG_SIZE,
             backupCount=BACKUP_COUNT,
         )
