@@ -80,6 +80,7 @@ app.include_router(api_router)
 _background_tasks: list[asyncio.Task[Any]] = []
 _scheduler_lock = threading.Lock()
 _schedulers_started = False
+_leader_lock_file: str | None = None  # Set only in the leader worker
 
 
 def _register_background_task(task: asyncio.Task[Any]) -> None:
@@ -318,14 +319,37 @@ async def on_startup() -> None:
     try:
         os.makedirs(startup_lock_dir, exist_ok=True)
         lock_file = os.path.join(startup_lock_dir, "leader.lock")
-        import tempfile
 
-        with tempfile.NamedTemporaryFile(
-            mode="w", dir=startup_lock_dir, delete=False
-        ) as f:
-            f.write(str(os.getpid()))
-            temp_path = f.name
-        os.rename(temp_path, lock_file)
+        # Remove a stale lock file left by a previous process that was killed
+        # without running on_shutdown (e.g. SIGKILL).
+        if os.path.exists(lock_file):
+            old_pid_str = "?"
+            try:
+                with open(lock_file) as f:
+                    old_pid_str = f.read().strip()
+                old_pid = int(old_pid_str)
+                # Check if that PID is still alive (signal 0 = existence check).
+                os.kill(old_pid, 0)
+                # PID is alive — another worker legitimately holds the lock.
+            except (ValueError, ProcessLookupError, PermissionError) as stale_err:
+                # PID is dead or unreadable — remove the stale lock.
+                logger.warning(
+                    "Removing stale leader lock (PID %s no longer running): %s",
+                    old_pid_str,
+                    stale_err,
+                )
+                try:
+                    os.unlink(lock_file)
+                except FileNotFoundError:
+                    pass  # Another worker removed it first; that's fine.
+
+        # O_CREAT|O_EXCL is atomic and raises FileExistsError if file exists.
+        # os.rename silently overwrites on Linux so it cannot be used here.
+        fd = os.open(lock_file, os.O_CREAT | os.O_EXCL | os.O_WRONLY)
+        os.write(fd, str(os.getpid()).encode())
+        os.close(fd)
+        global _leader_lock_file
+        _leader_lock_file = lock_file
         is_leader = True
         logger.info("This worker (PID %d) is the leader for startup tasks", os.getpid())
     except FileExistsError:
@@ -429,6 +453,13 @@ async def on_shutdown() -> None:
 
     if tasks_snapshot:
         await asyncio.gather(*tasks_snapshot, return_exceptions=True)
+
+    # Release the leader lock so the next restart can elect a new leader.
+    if _leader_lock_file:
+        try:
+            os.unlink(_leader_lock_file)
+        except OSError:
+            pass
 
     logger.info("Shutdown complete")
 

@@ -1,5 +1,36 @@
 # Log
 
+## 2026-02-25: ChromaDB Auto-Recovery on Restart
+
+### Problem
+After `/tmp` wipe (system reboot), ChromaDB is empty but Postgres still has `embedding_generated=True` for all 80k articles. The "By Topic" view reads from pre-computed Postgres snapshots (not Chroma), so it broke on restart because the cluster computation worker waited for Chroma sync to complete.
+
+### Solution
+Rewrote `chroma_sync.py` with new drift detection and recovery approach:
+
+1. **Drift detection**: Uses Chroma doc count threshold (10,000) instead of slow DB COUNT queries
+2. **Recovery scan**: Scopes to past 7 days (10k articles) to avoid OOM kills in gunicorn workers
+3. **No mass DB flag reset**: Checks Chroma membership directly for each batch, embeds only missing articles
+4. **Immediate unblock**: Signals cluster worker after first batch embed, not after full sync
+
+### Files Modified
+- `backend/app/services/chroma_sync.py` - Full rewrite with 7-day scoped recovery scan
+- `backend/app/services/chroma_topics.py` - Removed stale `embedding_generated` filter
+- `backend/app/main.py` - Leader lock fixes (O_CREAT|O_EXCL, stale PID cleanup)
+
+### Verification
+- After restart, "By Topic" returns 46 clusters (working)
+- Recovery scan runs and embeds articles in background
+- Drift detection fires correctly when Chroma < 10k docs
+- Cluster worker unblocks and computes fresh clusters
+
+### Notes
+- Chroma count currently 7,833 (below 10k threshold but functional)
+- Recovery scan is slow (~1 article/min) but continues in background
+- Future restarts will trigger drift detection until Chroma reaches 10k+
+
+---
+
 ## 2026-02-04: Saved Articles Page
 
 **Changes:**

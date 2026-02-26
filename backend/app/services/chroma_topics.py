@@ -16,7 +16,7 @@ from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 from typing import Any, Dict, Iterable, List, Optional, Sequence, Set, Tuple
 
-from sqlalchemy import and_, func, select
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.logging import get_logger
@@ -307,9 +307,13 @@ class ChromaTopicService:
     async def _fetch_recent_articles(
         self, session: AsyncSession, since: datetime, limit: int
     ) -> List[Article]:
+        # Do not filter by embedding_generated: after a Chroma drift reset all
+        # flags are False even though Chroma still holds the vectors.  Articles
+        # not present in Chroma are silently skipped by _build_cluster_from_anchor.
         result = await session.execute(
             select(Article)
-            .where(and_(Article.published_at >= since, Article.embedding_generated))
+            .where(Article.published_at >= since)
+            .where(Article.content.isnot(None))
             .order_by(Article.published_at.desc())
             .limit(limit)
         )
@@ -736,13 +740,18 @@ async def cluster_computation_worker(
 ) -> None:
     """Periodic background task: compute topic clusters and persist to Postgres.
 
-    Sleeps startup_delay_seconds on first run to let services settle, then
-    runs every interval_seconds.  ChromaDB errors skip the run without
-    crashing; the previous snapshot remains available to the API.
+    Waits for the chroma_sync worker to signal that the initial backfill pass
+    is complete before running for the first time.  This ensures clusters are
+    computed against a fully populated Chroma store.  Subsequent runs happen
+    every interval_seconds.
+
+    ChromaDB errors skip the run without crashing; the previous snapshot
+    remains available to the API.
     """
     import asyncio
     from app.core.config import settings
     from app.database import AsyncSessionLocal
+    from app.services.chroma_sync import sync_caught_up
 
     logger.info(
         "Cluster computation worker starting (delay=%ds, interval=%ds)",
@@ -750,6 +759,20 @@ async def cluster_computation_worker(
         interval_seconds,
     )
     await asyncio.sleep(startup_delay_seconds)
+
+    # Wait for the sync worker to confirm Chroma is populated before the first
+    # cluster computation.  Cap the wait so we don't block indefinitely if the
+    # sync worker is stuck or disabled.
+    MAX_SYNC_WAIT_SECONDS = 3600  # 1 hour
+    logger.info("Waiting for Chroma sync to complete before first cluster run...")
+    try:
+        await asyncio.wait_for(sync_caught_up.wait(), timeout=MAX_SYNC_WAIT_SECONDS)
+        logger.info("Chroma sync ready; starting cluster computation.")
+    except asyncio.TimeoutError:
+        logger.warning(
+            "Chroma sync did not complete within %ds; running clusters anyway.",
+            MAX_SYNC_WAIT_SECONDS,
+        )
 
     service = ChromaTopicService()
 
