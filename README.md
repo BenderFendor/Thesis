@@ -105,6 +105,26 @@ The backend uses these for analysis, research agents, and fact-checking. Restart
 
 ---
 
+### ChromaDB Troubleshooting
+
+**Error: `no such column: collections.topic`**
+
+This error occurs when the ChromaDB client and server versions mismatch, or when stale data exists from a previous version.
+
+**Solution:**
+1. Delete the ChromaDB data directory:
+   ```bash
+   rm -rf .chroma
+   ```
+2. Restart ChromaDB:
+   ```bash
+   ./runlocal.sh services
+   ```
+
+**Prevention:** Always delete `.chroma` when upgrading the `chromadb` package version in `requirements.txt`.
+
+---
+
 ## Agentic Search
 
 ### Components
