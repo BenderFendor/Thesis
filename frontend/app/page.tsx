@@ -46,6 +46,7 @@ import { isDebugMode, logger } from "@/lib/logger"
 import { ErrorBoundary } from '@/components/ErrorBoundary';
 import { NotificationsPopup, Notification, type NotificationActionType } from '@/components/notification-popup';
 import { SourceSidebar } from "@/components/source-sidebar";
+import { cn } from "@/lib/utils";
 
 type ViewMode = "globe" | "grid" | "scroll" | "list"
 
@@ -609,7 +610,7 @@ function NewsPage() {
         />
       )}
 
-      <div className="flex-1 flex flex-col min-w-0">
+      <div className="flex-1 flex flex-col min-w-0 h-screen overflow-hidden">
       <header className="sticky top-0 z-40 border-b border-white/10 bg-[var(--news-bg-primary)]/95 backdrop-blur">
         <div className="flex items-center justify-end px-6 py-3 gap-2">
           <Button asChild variant="outline" size="sm" className="border-white/10 bg-transparent text-[10px] font-mono uppercase tracking-[0.32em]">
@@ -629,11 +630,14 @@ function NewsPage() {
         </div>
       </header>
 
-      <main className="flex-1 bg-[var(--news-bg-primary)]">
-        <div className="max-w-[1600px] mx-auto grid grid-cols-1 lg:grid-cols-12 gap-0">
+      <main className={cn("flex-1 bg-[var(--news-bg-primary)]", currentView === "scroll" ? "overflow-hidden" : "")}>
+        <div className={cn("max-w-[1600px] mx-auto grid grid-cols-1 lg:grid-cols-12 gap-0", currentView === "scroll" ? "h-full" : "")}>
 
-          <section className="lg:col-span-12 bg-[var(--news-bg-primary)] flex flex-col min-h-[calc(100vh-80px)] border-x border-white/10">
-            {!isGlobeView && (
+          <section className={cn(
+            "lg:col-span-12 bg-[var(--news-bg-primary)] flex flex-col border-x border-white/10",
+            currentView === "scroll" ? "h-full overflow-hidden" : "min-h-[calc(100vh-80px)]"
+          )}>
+            {!isGlobeView && currentView !== "scroll" && (
               <div className="relative p-6 border-b border-white/10">
               <div
                 className="pointer-events-none absolute inset-0 opacity-[0.04] bg-primary"
@@ -729,108 +733,110 @@ function NewsPage() {
             )}
 
             <Tabs value={activeCategory} onValueChange={(value) => setActiveCategory(value)} className="flex-1 flex flex-col overflow-hidden">
-              <div className="px-8 py-6 border-b border-white/10">
-                <div className="flex items-center justify-between mb-6">
-                  <div className="flex items-center gap-4">
-                    <h3 className="font-serif text-2xl uppercase font-black tracking-tight">The Index</h3>
-                    <div className="flex-1 h-px bg-white/10" />
-                    <span className="font-mono text-[10px] uppercase tracking-[0.3em] text-muted-foreground">
-                      {articleCount} articles
-                    </span>
+              {currentView !== "scroll" && (
+                <div className="px-8 py-6 border-b border-white/10">
+                  <div className="flex items-center justify-between mb-6">
+                    <div className="flex items-center gap-4">
+                      <h3 className="font-serif text-2xl uppercase font-black tracking-tight">The Index</h3>
+                      <div className="flex-1 h-px bg-white/10" />
+                      <span className="font-mono text-[10px] uppercase tracking-[0.3em] text-muted-foreground">
+                        {articleCount} articles
+                      </span>
+                    </div>
+                  </div>
+                  <div className="mb-4 flex flex-wrap items-center justify-between gap-2 text-[10px] font-mono uppercase tracking-[0.32em] text-muted-foreground">
+                    <span>Category</span>
+                    {!isGlobeView && (
+                      <span className="text-muted-foreground/70">Use category filters to compare coverage.</span>
+                    )}
+                  </div>
+                  <div className="flex flex-wrap items-center gap-3">
+                    <TooltipProvider>
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <select
+                            value={activeCategory}
+                            onChange={(event) => setActiveCategory(event.target.value)}
+                            className="min-w-[220px] border border-white/10 bg-[var(--news-bg-secondary)] px-3 py-2 text-[10px] font-mono uppercase tracking-[0.32em] text-foreground focus:outline-none focus:border-primary"
+                            aria-label="Select category"
+                          >
+                            {categories.map((category) => (
+                              <option key={category.id} value={category.id}>
+                                {category.label}
+                              </option>
+                            ))}
+                          </select>
+                        </TooltipTrigger>
+                        <TooltipContent>Filter by category</TooltipContent>
+                      </Tooltip>
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <select
+                            value={currentView === "grid" && gridMode === "topic" ? topicSortMode : sortMode}
+                            onChange={(event) => {
+                              const value = event.target.value
+                              if (currentView === "grid" && gridMode === "topic") {
+                                setTopicSortMode(value as typeof topicSortMode)
+                              } else {
+                                setSortMode(value as typeof sortMode)
+                              }
+                            }}
+                            className="min-w-[220px] border border-white/10 bg-[var(--news-bg-secondary)] px-3 py-2 text-[10px] font-mono uppercase tracking-[0.32em] text-foreground focus:outline-none focus:border-primary"
+                            aria-label="Select sort order"
+                          >
+                            {currentView === "grid" && gridMode === "topic" ? (
+                              <>
+                                <option value="sources">Most sources</option>
+                                <option value="articles">Most articles</option>
+                                <option value="recent">Newest topics</option>
+                              </>
+                            ) : (
+                              <>
+                                <option value="favorites">Favorites, newest</option>
+                                <option value="newest">Newest first</option>
+                                <option value="oldest">Oldest first</option>
+                                <option value="source-freshness">Sources by freshness</option>
+                              </>
+                            )}
+                          </select>
+                        </TooltipTrigger>
+                        <TooltipContent>
+                          {currentView === "grid" && gridMode === "topic" ? "Sort topics" : "Sort articles"}
+                        </TooltipContent>
+                      </Tooltip>
+
+                      <div className="flex items-center gap-2 lg:hidden">
+                        <span className="text-[10px] font-mono uppercase tracking-[0.32em] text-muted-foreground">View</span>
+                        <select
+                          value={currentView}
+                          onChange={(event) => setCurrentView(event.target.value as ViewMode)}
+                          className="border border-white/10 bg-[var(--news-bg-secondary)] px-3 py-2 text-[10px] font-mono uppercase tracking-[0.32em] text-foreground focus:outline-none focus:border-primary"
+                          aria-label="Select view"
+                        >
+                          <option value="globe">Globe</option>
+                          <option value="grid">Grid</option>
+                          <option value="scroll">Scroll</option>
+                          <option value="list">List</option>
+                        </select>
+                      </div>
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => setSidebarOpen(true)}
+                            className="border-white/10 bg-transparent text-[10px] font-mono uppercase tracking-[0.32em]"
+                          >
+                            <SlidersHorizontal className="w-3.5 h-3.5 mr-2" />
+                            Sources
+                          </Button>
+                        </TooltipTrigger>
+                        <TooltipContent>Filter sources</TooltipContent>
+                      </Tooltip>
+                    </TooltipProvider>
                   </div>
                 </div>
-                <div className="mb-4 flex flex-wrap items-center justify-between gap-2 text-[10px] font-mono uppercase tracking-[0.32em] text-muted-foreground">
-                  <span>Category</span>
-                  {!isGlobeView && (
-                    <span className="text-muted-foreground/70">Use category filters to compare coverage.</span>
-                  )}
-                </div>
-                <div className="flex flex-wrap items-center gap-3">
-                  <TooltipProvider>
-                    <Tooltip>
-                      <TooltipTrigger asChild>
-                        <select
-                          value={activeCategory}
-                          onChange={(event) => setActiveCategory(event.target.value)}
-                          className="min-w-[220px] border border-white/10 bg-[var(--news-bg-secondary)] px-3 py-2 text-[10px] font-mono uppercase tracking-[0.32em] text-foreground focus:outline-none focus:border-primary"
-                          aria-label="Select category"
-                        >
-                          {categories.map((category) => (
-                            <option key={category.id} value={category.id}>
-                              {category.label}
-                            </option>
-                          ))}
-                        </select>
-                      </TooltipTrigger>
-                      <TooltipContent>Filter by category</TooltipContent>
-                    </Tooltip>
-                    <Tooltip>
-                      <TooltipTrigger asChild>
-                        <select
-                          value={currentView === "grid" && gridMode === "topic" ? topicSortMode : sortMode}
-                          onChange={(event) => {
-                            const value = event.target.value
-                            if (currentView === "grid" && gridMode === "topic") {
-                              setTopicSortMode(value as typeof topicSortMode)
-                            } else {
-                              setSortMode(value as typeof sortMode)
-                            }
-                          }}
-                          className="min-w-[220px] border border-white/10 bg-[var(--news-bg-secondary)] px-3 py-2 text-[10px] font-mono uppercase tracking-[0.32em] text-foreground focus:outline-none focus:border-primary"
-                          aria-label="Select sort order"
-                        >
-                          {currentView === "grid" && gridMode === "topic" ? (
-                            <>
-                              <option value="sources">Most sources</option>
-                              <option value="articles">Most articles</option>
-                              <option value="recent">Newest topics</option>
-                            </>
-                          ) : (
-                            <>
-                              <option value="favorites">Favorites, newest</option>
-                              <option value="newest">Newest first</option>
-                              <option value="oldest">Oldest first</option>
-                              <option value="source-freshness">Sources by freshness</option>
-                            </>
-                          )}
-                        </select>
-                      </TooltipTrigger>
-                      <TooltipContent>
-                        {currentView === "grid" && gridMode === "topic" ? "Sort topics" : "Sort articles"}
-                      </TooltipContent>
-                    </Tooltip>
-
-                    <div className="flex items-center gap-2 lg:hidden">
-                      <span className="text-[10px] font-mono uppercase tracking-[0.32em] text-muted-foreground">View</span>
-                      <select
-                        value={currentView}
-                        onChange={(event) => setCurrentView(event.target.value as ViewMode)}
-                        className="border border-white/10 bg-[var(--news-bg-secondary)] px-3 py-2 text-[10px] font-mono uppercase tracking-[0.32em] text-foreground focus:outline-none focus:border-primary"
-                        aria-label="Select view"
-                      >
-                        <option value="globe">Globe</option>
-                        <option value="grid">Grid</option>
-                        <option value="scroll">Scroll</option>
-                        <option value="list">List</option>
-                      </select>
-                    </div>
-                    <Tooltip>
-                      <TooltipTrigger asChild>
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => setSidebarOpen(true)}
-                          className="border-white/10 bg-transparent text-[10px] font-mono uppercase tracking-[0.32em]"
-                        >
-                          <SlidersHorizontal className="w-3.5 h-3.5 mr-2" />
-                          Sources
-                        </Button>
-                      </TooltipTrigger>
-                      <TooltipContent>Filter sources</TooltipContent>
-                    </Tooltip>
-                  </TooltipProvider>
-                </div>
-              </div>
+              )}
               {categories.map((category) => (
                 <TabsContent key={category.id} value={category.id} className="mt-0 flex-1 overflow-hidden flex flex-col">
                   {currentView === "globe" && (

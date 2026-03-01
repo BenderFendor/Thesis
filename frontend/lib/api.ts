@@ -2731,6 +2731,39 @@ export async function checkSourceProfileCache(
   return response.json();
 }
 
+export interface SourceResearchRequest {
+  name: string;
+  website?: string;
+}
+
+export interface SourceBatchResponse {
+  results: Record<string, SourceResearchProfile | null>;
+  cached_count: number;
+  newly_researched_count: number;
+}
+
+/**
+ * Research multiple sources in a single batch request
+ * Uses caching and parallelizes research under the hood
+ */
+export async function researchSourceProfilesBatch(
+  sources: SourceResearchRequest[],
+  forceRefresh: boolean = false
+): Promise<SourceBatchResponse> {
+  const params = forceRefresh ? "?force_refresh=true" : "";
+  const response = await fetch(`${API_BASE_URL}/research/entity/source/batch${params}`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ sources }),
+  });
+
+  if (!response.ok) {
+    throw new Error(`HTTP error! status: ${response.status}`);
+  }
+
+  return response.json();
+}
+
 /**
  * Get a cached organization by ID
  */

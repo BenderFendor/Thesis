@@ -27,7 +27,10 @@ async def synthesize_source_fields(
 ) -> Dict[str, List[Dict[str, Any]]]:
     client = get_openai_client()
     if not client:
-        logger.info("OpenRouter client unavailable, skipping source synthesis for %s", source_name)
+        logger.info(
+            "OpenRouter client unavailable, skipping source synthesis for %s",
+            source_name,
+        )
         return {}
 
     if not documents:
@@ -38,8 +41,7 @@ async def synthesize_source_fields(
         "field_keys": FIELD_KEYS,
         "existing_fields": existing_fields,
         "documents": [
-            {"url": doc.url, "title": doc.title, "text": doc.text}
-            for doc in documents
+            {"url": doc.url, "title": doc.title, "text": doc.text} for doc in documents
         ],
     }
 
@@ -72,7 +74,7 @@ async def synthesize_source_fields(
     try:
         response = await asyncio.to_thread(
             client.chat.completions.create,
-            model=settings.open_router_model,
+            model=settings.source_research_model,
             messages=[
                 {"role": "system", "content": SYSTEM_PROMPT},
                 {"role": "user", "content": prompt},
@@ -109,7 +111,9 @@ def _parse_json_payload(text: str) -> Dict[str, Any]:
         return {}
 
 
-def _normalize_fields(fields_payload: Dict[str, Any]) -> Dict[str, List[Dict[str, Any]]]:
+def _normalize_fields(
+    fields_payload: Dict[str, Any],
+) -> Dict[str, List[Dict[str, Any]]]:
     normalized: Dict[str, List[Dict[str, Any]]] = {}
     for key in FIELD_KEYS:
         entries = fields_payload.get(key, [])

@@ -12,18 +12,27 @@ A full-stack news aggregation platform that blends curated RSS feeds with AI-ass
 - **3D/Interactive Visuals**: Three.js globe (future milestones)
 
 ## Quick Start
+
 ### Local Services (Recommended)
+The project includes a robust `runlocal.sh` script that manages all services (Postgres, ChromaDB, Backend, Frontend) without requiring Docker. It uses `uv` to automatically manage a stable Python 3.13 environment to ensure compatibility with all AI and database libraries.
+
 ```bash
-./runlocal.sh services
+# Initial setup (installs uv, postgres, and backend/frontend deps)
+./runlocal.sh setup
+
+# Run all services together
 ./runlocal.sh all
 ```
+
 Frontend: http://localhost:3000  
 Backend docs: http://localhost:8000/docs
 
 ### Manual Backend Setup
 ```bash
 cd backend
-python -m venv .venv && source .venv/bin/activate
+# Recommended: use uv for performance and stability
+uv venv .venv --python 3.13
+source .venv/bin/activate
 uv pip install -r requirements.txt
 uvicorn app.main:app --reload --port 8000
 ```
@@ -456,10 +465,11 @@ pip install maturin>=1.10.0
 #### Manjaro/Arch Linux
 ```bash
 # Core dependencies
-sudo pacman -S postgresql python python-pip nodejs npm
+sudo pacman -S postgresql python python-pip nodejs npm python-uv
 
 # Build essentials
 sudo pacman -S base-devel git docker docker-compose
+```
 
 # Optional: for local development
 sudo pacman -S chromium # For debugging/testing
@@ -564,7 +574,8 @@ NEXT_PUBLIC_ENABLE_AGENTIC_LOGGING=false
 #### Full System Setup (Manjaro/Arch)
 ```bash
 # System packages
-sudo pacman -S postgresql python python-pip nodejs npm base-devel git docker
+sudo pacman -S postgresql python python-pip nodejs npm base-devel git docker python-uv
+```
 
 # Database setup
 sudo -iu postgres initdb -D /var/lib/postgres/data

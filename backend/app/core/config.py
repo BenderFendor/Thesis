@@ -37,7 +37,13 @@ class Settings:
     app_version: str = "1.0.0"
     gemini_api_key: Optional[str] = os.getenv("GEMINI_API_KEY")
     open_router_api_key: Optional[str] = os.getenv("OPEN_ROUTER_API_KEY")
-    open_router_model: str = os.getenv("OPEN_ROUTER_MODEL", "openai/gpt-oss-120b:free")
+    open_router_model: str = os.getenv("OPEN_ROUTER_MODEL", "z-ai/glm-4.5-air:free")
+    source_research_model: str = os.getenv(
+        "SOURCE_RESEARCH_MODEL", "z-ai/glm-4.5-air:free"
+    )
+    source_research_cache_ttl_hours: int = int(
+        os.getenv("SOURCE_RESEARCH_CACHE_TTL_HOURS", "168")
+    )
     frontend_origins: tuple[str, ...] = _parse_domain_list(
         "CORS_ORIGINS", "http://localhost:3000,http://localhost:3001"
     )

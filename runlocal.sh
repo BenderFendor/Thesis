@@ -29,19 +29,25 @@ RUNLOCAL_PID_FILE="${RUNLOCAL_PID_FILE:-$RUNLOCAL_STATE_DIR/pids}"
 
 export DATABASE_URL CHROMA_HOST CHROMA_PORT GUNICORN_WORKERS NEXT_PUBLIC_API_URL NEXT_PUBLIC_DOCKER_API_URL
 
-# Source API keys from backend/.env (needed by wiki indexer and LLM scoring)
-if [[ -f "$BACKEND_DIR/.env" ]]; then
-	set -a
-	# shellcheck disable=SC1091
-	source "$BACKEND_DIR/.env"
-	set +a
-fi
-
-PIDS=()
-
 log() {
 	echo "[runlocal] $*"
 }
+
+log "ROOT_DIR: $ROOT_DIR"
+log "BACKEND_DIR: $BACKEND_DIR"
+log "FRONTEND_DIR: $FRONTEND_DIR"
+
+# Source API keys from backend/.env (needed by wiki indexer and LLM scoring)
+if [[ -f "$BACKEND_DIR/.env" ]]; then
+	set +u # Disable unbound variable check for sourcing
+	set -a
+	# shellcheck disable=SC1091
+	source "$BACKEND_DIR/.env"
+	set -a
+	set -u
+fi
+
+PIDS=()
 
 usage() {
 	cat <<'USAGE'
@@ -303,14 +309,53 @@ install_postgres() {
 	esac
 }
 
+install_uv() {
+	local pkg_mgr
+	pkg_mgr="$(detect_package_manager)"
+	if [[ "$pkg_mgr" == "pacman" ]]; then
+		log "Installing uv using pacman..."
+		sudo pacman -S --noconfirm python-uv
+	else
+		log "Installing uv using official installer..."
+		curl -LsSf https://astral.sh/uv/install.sh | sh
+		# Try to add it to current session path if it was installed to ~/.local/bin
+		if [[ -f "$HOME/.local/bin/uv" ]]; then
+			export PATH="$HOME/.local/bin:$PATH"
+		fi
+	fi
+}
+
+ensure_uv_setup() {
+	if command -v uv >/dev/null 2>&1; then
+		return 0
+	fi
+
+	if [[ "$AUTO_INSTALL" == "1" ]]; then
+		install_uv || return 1
+		return 0
+	fi
+
+	log "uv is not installed. Run ./runlocal.sh setup or set AUTO_INSTALL=1."
+	return 1
+}
+
 ensure_backend_venv() {
 	if [[ ! -d "$BACKEND_DIR/.venv" ]]; then
 		log "Creating backend virtual environment..."
-		python -m venv "$BACKEND_DIR/.venv"
+		if command -v uv >/dev/null 2>&1; then
+			if uv python list | grep -q "3.13"; then
+				uv venv "$BACKEND_DIR/.venv" --python 3.13
+			else
+				uv venv "$BACKEND_DIR/.venv"
+			fi
+		else
+			python3.13 -m venv "$BACKEND_DIR/.venv" || python -m venv "$BACKEND_DIR/.venv"
+		fi
 	fi
 }
 
 install_backend_deps() {
+	ensure_uv_setup
 	# shellcheck disable=SC1091
 	source "$BACKEND_DIR/.venv/bin/activate"
 	log "Installing backend dependencies..."
@@ -330,8 +375,9 @@ postgres_ready() {
 		return $?
 	fi
 
+	local psql_url="${DATABASE_URL//+asyncpg/}"
 	if command -v psql >/dev/null 2>&1; then
-		PGPASSWORD="$POSTGRES_PASSWORD" psql "$DATABASE_URL" -c "SELECT 1" >/dev/null 2>&1
+		PGPASSWORD="$POSTGRES_PASSWORD" psql "$psql_url" -c "SELECT 1" >/dev/null 2>&1
 		return $?
 	fi
 
@@ -386,7 +432,8 @@ ensure_postgres_user_db() {
 		return 1
 	fi
 
-	if PGPASSWORD="$POSTGRES_PASSWORD" psql "$DATABASE_URL" -c "SELECT 1" >/dev/null 2>&1; then
+	local psql_url="${DATABASE_URL//+asyncpg/}"
+	if PGPASSWORD="$POSTGRES_PASSWORD" psql "$psql_url" -c "SELECT 1" >/dev/null 2>&1; then
 		return 0
 	fi
 
@@ -462,7 +509,7 @@ setup_services() {
 
 run_backend() {
 	require_cmd python
-	require_cmd uv
+	ensure_uv_setup
 	free_port "$BACKEND_PORT"
 
 	pushd "$BACKEND_DIR" >/dev/null
