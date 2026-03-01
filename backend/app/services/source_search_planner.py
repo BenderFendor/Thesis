@@ -5,7 +5,8 @@ import json
 import re
 from typing import List, Optional
 
-from app.core.config import get_openai_client, settings
+from app.core.config import settings
+from app.core.llm_client import get_llm_client
 from app.core.logging import get_logger
 
 logger = get_logger("source_search_planner")
@@ -25,8 +26,8 @@ class SourceSearchPlanner:
         website: Optional[str],
         max_queries: int = 6,
     ) -> List[str]:
-        client = get_openai_client()
-        if not client:
+        llm_client = get_llm_client()
+        if not llm_client:
             return []
 
         payload = {
@@ -60,12 +61,13 @@ class SourceSearchPlanner:
 
         try:
             response = await asyncio.to_thread(
-                client.chat.completions.create,
-                model=settings.open_router_model,
+                llm_client.chat_completions_create,
+                service_name="source_search",
                 messages=[
                     {"role": "system", "content": SYSTEM_PROMPT},
                     {"role": "user", "content": prompt},
                 ],
+                model=settings.open_router_model,
                 max_tokens=350,
                 temperature=0.2,
             )

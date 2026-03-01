@@ -1,5 +1,25 @@
 # Log
 
+## 2026-02-26: ChromaDB Schema Mismatch Fix
+
+**Problem:** ChromaDB client (0.4.24) failed to connect with error:
+```
+OperationalError('no such column: collections.topic')
+```
+
+**Root Cause:** Stale ChromaDB data directory (`.chroma/`) from a previous/older ChromaDB version with incompatible schema.
+
+**Solution:**
+1. Deleted the stale ChromaDB data directory:
+   ```bash
+   rm -rf /home/bender/classwork/Thesis/.chroma
+   ```
+2. Restarted ChromaDB via `./runlocal.sh services`
+
+**Prevention:** When upgrading ChromaDB client version, delete the `.chroma` data directory before starting the server to avoid schema mismatch errors.
+
+---
+
 ## 2026-02-25: ChromaDB Auto-Recovery on Restart
 
 ### Problem
@@ -40,7 +60,7 @@ Rewrote `chroma_sync.py` with new drift detection and recovery approach:
   - Grid view for displaying saved articles
   - Empty states with CTAs to browse news
   - Refresh functionality
-- Added "Saved" navigation link to header in `frontend/components/auto-hide-header.tsx`
+- Added "Saved" navigation link to header in `frontend/app/layout.tsx`
 - Updated Todo.md to mark reading queue tasks as complete
 
 **Files Modified:**

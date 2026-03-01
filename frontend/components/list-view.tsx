@@ -13,7 +13,7 @@ interface ListViewProps {
 export function ListView({ articles, loading }: ListViewProps) {
   const [selectedArticle, setSelectedArticle] = useState<NewsArticle | null>(null)
   const [isArticleModalOpen, setIsArticleModalOpen] = useState(false)
-  const [sortBy, setSortBy] = useState<"newest" | "oldest" | "source" | "credibility" | "title">("newest")
+  const [sortBy, setSortBy] = useState<"newest" | "oldest" | "source" | "credibility" | "title" | "left" | "center" | "right">("newest")
 
   const sortedArticles = useMemo(() => {
     const sorted = [...articles]
@@ -31,6 +31,22 @@ export function ListView({ articles, loading }: ListViewProps) {
           return 2
         default:
           return 3
+      }
+    }
+    const biasRank = (value?: string) => {
+      switch ((value || "").toLowerCase()) {
+        case "left":
+          return 0
+        case "center-left":
+          return 1
+        case "center":
+          return 2
+        case "center-right":
+          return 3
+        case "right":
+          return 4
+        default:
+          return 5
       }
     }
 
@@ -52,6 +68,12 @@ export function ListView({ articles, loading }: ListViewProps) {
           const titleSort = (a.title || "").localeCompare(b.title || "")
           return titleSort || byDateDesc(a, b)
         })
+      case "left":
+        return sorted.filter((a) => (a.bias || "").toLowerCase().includes("left"))
+      case "center":
+        return sorted.filter((a) => (a.bias || "").toLowerCase().includes("center"))
+      case "right":
+        return sorted.filter((a) => (a.bias || "").toLowerCase().includes("right"))
       case "newest":
       default:
         return sorted.sort(byDateDesc)
@@ -88,6 +110,9 @@ export function ListView({ articles, loading }: ListViewProps) {
             <option value="source">Source</option>
             <option value="credibility">Credibility</option>
             <option value="title">Headline</option>
+            <option value="left">Bias: Left</option>
+            <option value="center">Bias: Center</option>
+            <option value="right">Bias: Right</option>
           </select>
         </div>
       </div>
@@ -152,7 +177,7 @@ export function ListView({ articles, loading }: ListViewProps) {
           </div>
         ))}
 
-        {articles.length === 0 && (
+        {sortedArticles.length === 0 && (
           <div className="py-12 text-center text-muted-foreground font-mono text-xs uppercase tracking-widest">
             No records found
           </div>

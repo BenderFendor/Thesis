@@ -44,7 +44,6 @@ ALLOWED_CONTENT_TYPES = {
 # User agent for fetching (some sites block default agents)
 USER_AGENT = "Mozilla/5.0 (compatible; ThesisNewsBot/1.0; +https://github.com/BenderFendor/Thesis)"
 
-
 def _get_cache_path(url: str) -> tuple[Path, Path]:
     """Get cache file paths for URL."""
     url_hash = hashlib.md5(url.encode()).hexdigest()

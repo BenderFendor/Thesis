@@ -5,7 +5,8 @@ from __future__ import annotations
 import json
 from typing import Any
 
-from app.core.config import get_openai_client, settings
+from app.core.config import settings
+from app.core.llm_client import get_llm_client
 from app.core.logging import get_logger
 
 logger = get_logger("queue_digest")
@@ -24,18 +25,19 @@ async def generate_queue_digest(
     Returns:
         Formatted digest as markdown string
     """
-    openai_client = get_openai_client()
-    if not openai_client:
+    llm_client = get_llm_client()
+    if not llm_client:
         logger.error("OpenRouter API client not configured")
         raise RuntimeError("OpenRouter API key not configured")
 
     try:
-        response = openai_client.chat.completions.create(
-            model=settings.open_router_model,
+        response = llm_client.chat_completions_create(
+            service_name="queue_digest",
             messages=[
                 {"role": "system", "content": "You are a helpful news assistant."},
                 {"role": "user", "content": _build_digest_prompt(articles, grouped)},
             ],
+            model=settings.open_router_model,
         )
 
         if not response or not response.choices:
