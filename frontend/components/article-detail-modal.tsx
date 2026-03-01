@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect, useMemo, useRef } from "react"
+import { useState, useEffect, useMemo, useRef, useCallback } from "react"
 import { logUserAction } from "@/lib/performance-logger"
 import Link from "next/link"
 import { X, ExternalLink, Heart, Bookmark, AlertTriangle, DollarSign, Bug, Link as LinkIcon, Rss, Sparkles, Maximize2, Minimize2, Loader2, Search, RefreshCw, CheckCircle2, XCircle, Copy, PlusCircle, MinusCircle, Star, Edit2, Trash2, Eye, EyeOff, Download, BookOpen } from "lucide-react"
@@ -23,6 +23,7 @@ import { toast } from "sonner"
 import { ArticleContent } from "@/components/article-content"
 import { HighlightToolbar } from "@/components/highlight-toolbar"
 import { HighlightNotePopover } from "@/components/highlight-note-popover"
+import { getMarkdownWithHighlights } from "@/lib/highlight-utils"
 
 type FactCheckStatus = FactCheckResult["verification_status"]
 type FactCheckStatusFilter = FactCheckStatus | "all"
@@ -113,6 +114,7 @@ export function ArticleDetailModal({ article, isOpen, onClose, onBookmarkChange,
   const [aiAnalysisRequested, setAiAnalysisRequested] = useState(false)
   const [highlights, setHighlights] = useState<LocalHighlight[]>([])
   const [highlightSyncStatus, setHighlightSyncStatus] = useState<"idle" | "syncing" | "failed" | "offline">("idle")
+  const [highlightsHistory, setHighlightsHistory] = useState<LocalHighlight[][]>([])
   const latestHighlightSyncRef = useRef(0)
   const articleContentRef = useRef<HTMLDivElement>(null)
   const [activeHighlightId, setActiveHighlightId] = useState<string | null>(null)
@@ -120,6 +122,68 @@ export function ArticleDetailModal({ article, isOpen, onClose, onBookmarkChange,
   const [highlightPopoverAnchorEl, setHighlightPopoverAnchorEl] = useState<HTMLElement | null>(null)
   const [highlightPopoverHighlight, setHighlightPopoverHighlight] = useState<Highlight | null>(null)
   const lastCreatedClientIdRef = useRef<string | null>(null)
+
+  const pushToHistory = useCallback((currentHighlights: LocalHighlight[]) => {
+    setHighlightsHistory((prev) => [...prev, currentHighlights].slice(-20)) // keep last 20 states
+  }, [])
+
+  const handleUndo = useCallback(() => {
+    setHighlightsHistory((prev) => {
+      if (prev.length === 0) return prev
+      const newHistory = [...prev]
+      const previousState = newHistory.pop()
+      if (previousState && article?.url) {
+        setHighlights((current) => {
+          const nextState = previousState.map(ph => {
+            const currentEquivalent = current.find(ch => ch.client_id === ph.client_id)
+            if (!currentEquivalent && !ph.deleted) {
+              return markPending({ highlight: ph, op: ph.server_id ? "update" : "create" })
+            }
+            if (currentEquivalent?.deleted && !ph.deleted) {
+               return markPending({ highlight: { ...ph, deleted: false }, op: ph.server_id ? "update" : "create" })
+            }
+            return ph
+          })
+
+          current.forEach(ch => {
+            if (!previousState.find(ph => ph.client_id === ch.client_id) && !ch.deleted) {
+              nextState.push(markPending({ highlight: { ...ch, deleted: true }, op: "delete" }))
+            }
+          })
+
+          saveHighlightStore({ version: 1, article_url: article.url, highlights: nextState })
+          void syncHighlights(article.url, nextState)
+          return nextState
+        })
+      }
+      return newHistory
+    })
+  }, [article?.url])
+
+  const updateHighlightsWithHistory = useCallback((updater: (prev: LocalHighlight[]) => LocalHighlight[]) => {
+    setHighlights((prev) => {
+      pushToHistory(prev)
+      const next = updater(prev)
+      if (article?.url) {
+        saveHighlightStore({ version: 1, article_url: article.url, highlights: next })
+        void syncHighlights(article.url, next)
+      }
+      return next
+    })
+  }, [article?.url, pushToHistory])
+
+  useEffect(() => {
+    const handleGlobalKeyDown = (e: KeyboardEvent) => {
+      if ((e.ctrlKey || e.metaKey) && e.key === 'z') {
+        if (!isTextInputFocused()) {
+          e.preventDefault()
+          handleUndo()
+        }
+      }
+    }
+    window.addEventListener("keydown", handleGlobalKeyDown)
+    return () => window.removeEventListener("keydown", handleGlobalKeyDown)
+  }, [handleUndo])
 
   const HIGHLIGHT_DEBUG =
     typeof window !== "undefined" &&
@@ -558,14 +622,12 @@ export function ArticleDetailModal({ article, isOpen, onClose, onBookmarkChange,
 
     const handleSaveHighlightNote = async (highlightId: number, note: string) => {
       if (!article) return
-      setHighlights((prev) => {
+      updateHighlightsWithHistory((prev) => {
         const updatedLocal = prev.map((item) => {
           const id = item.server_id ?? item.id
           if (id !== highlightId) return item
           return markPending({ highlight: { ...item, note }, op: "update" })
         })
-        saveHighlightStore({ version: 1, article_url: article.url, highlights: updatedLocal })
-        void syncHighlights(article.url, updatedLocal)
         return updatedLocal
       })
     }
@@ -635,58 +697,58 @@ export function ArticleDetailModal({ article, isOpen, onClose, onBookmarkChange,
          onSave={handleSaveHighlightNote}
        />
 
-      <div className={`bg-[var(--news-bg-primary)] border border-border/60 rounded-xl shadow-2xl shadow-black/40 transition-all duration-300 animate-in zoom-in-95 fade-in-0 duration-200 ${isExpanded
-        ? 'w-full h-full max-w-none max-h-none overflow-y-auto'
-        : 'max-w-4xl w-full max-h-[90vh] overflow-hidden'
+      <div className={`bg-black border border-white/10 shadow-2xl shadow-black/80 transition-all duration-300 animate-in zoom-in-95 fade-in-0 duration-200 flex flex-col ${isExpanded
+        ? 'w-[calc(100vw-1rem)] h-[calc(100vh-1rem)] rounded-xl overflow-hidden'
+        : 'max-w-6xl w-full max-h-[85vh] rounded-2xl overflow-hidden'
         }`}>
         {/* Header Controls */}
-         <div className="flex items-center justify-between gap-2 p-4 border-b border-border/60 sticky top-0 bg-[var(--news-bg-primary)]/95 backdrop-blur z-10">
-          <div className="flex items-center gap-2">
-            {isExpanded && (
-              <>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => handleNavigate("prev")}
-                  disabled={!onNavigate}
-                  className="bg-[var(--news-bg-secondary)]/70 hover:bg-[var(--news-bg-secondary)] border border-border/60"
-                  title="Previous (ArrowLeft)"
-                >
-                  Prev
-                </Button>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => handleNavigate("next")}
-                  disabled={!onNavigate}
-                  className="bg-[var(--news-bg-secondary)]/70 hover:bg-[var(--news-bg-secondary)] border border-border/60"
-                  title="Next (ArrowRight)"
-                >
-                  Next
-                </Button>
-              </>
-            )}
+         <div className="flex items-center justify-between gap-2 p-4 sticky top-0 bg-black/80 backdrop-blur-md z-20">
+          <div className="flex items-center gap-2 flex-1">
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => handleNavigate("prev")}
+              disabled={!onNavigate}
+              className="bg-white/5 hover:bg-white/10 text-white border border-white/10 rounded-md font-mono text-[10px] uppercase tracking-widest px-4"
+              title="Previous (ArrowLeft)"
+            >
+              Prev
+            </Button>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => handleNavigate("next")}
+              disabled={!onNavigate}
+              className="bg-white/5 hover:bg-white/10 text-white border border-white/10 rounded-md font-mono text-[10px] uppercase tracking-widest px-4"
+              title="Next (ArrowRight)"
+            >
+              Next
+            </Button>
           </div>
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={() => setIsExpanded(!isExpanded)}
-            className="bg-[var(--news-bg-secondary)]/70 hover:bg-[var(--news-bg-secondary)] border border-border/60"
-          >
-            {isExpanded ? <Minimize2 className="h-4 w-4" /> : <Maximize2 className="h-4 w-4" />}
-          </Button>
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={onClose}
-            className="bg-[var(--news-bg-secondary)]/70 hover:bg-[var(--news-bg-secondary)] border border-border/60"
-          >
-            <X className="h-5 w-5" />
-          </Button>
+          <div className="flex items-center justify-center flex-1">
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={() => setIsExpanded(!isExpanded)}
+              className="bg-white/5 hover:bg-white/10 text-white border border-white/10 rounded-md h-8 w-8"
+            >
+              {isExpanded ? <Minimize2 className="h-4 w-4" /> : <Maximize2 className="h-4 w-4" />}
+            </Button>
+          </div>
+          <div className="flex items-center justify-end flex-1">
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={onClose}
+              className="bg-white/5 hover:bg-white/10 text-white border border-white/10 rounded-md h-8 w-8"
+            >
+              <X className="h-4 w-4" />
+            </Button>
+          </div>
         </div>
 
         {/* Content Wrapper */}
-        <div className={isExpanded ? "" : "overflow-y-auto max-h-[calc(90vh-80px)]"}>
+        <div className="flex-1 overflow-y-auto no-scrollbar relative bg-[#0a0a0a]">
           {/* Hero Section */}
           <div className={`relative overflow-hidden ${isExpanded ? 'h-[60vh] min-h-[400px]' : 'h-48'} ${heroImage ? "bg-[var(--news-bg-secondary)]" : "bg-[var(--news-bg-primary)]"}`}>
             {heroImage ? (
@@ -850,44 +912,38 @@ export function ArticleDetailModal({ article, isOpen, onClose, onBookmarkChange,
                             op: "create",
                           })
 
-                          setHighlights((prev) => {
-                            const updated = [...prev, nextLocal]
-                            saveHighlightStore({ version: 1, article_url: article.url, highlights: updated })
-                            return updated
+                          let newlyCreatedLocal: LocalHighlight | null = null;
+                          updateHighlightsWithHistory((prev) => {
+                            newlyCreatedLocal = nextLocal;
+                            return [...prev, nextLocal]
                           })
 
-                          const anchor = articleContentRef.current?.querySelector(
-                            `mark[data-highlight-stable-id=\"client:${clientId}\"]`
-                          ) as HTMLElement | null
+                          setTimeout(() => {
+                            const anchor = articleContentRef.current?.querySelector(
+                              `mark[data-highlight-stable-id=\"client:${clientId}\"]`
+                            ) as HTMLElement | null
 
-                          setHighlightPopoverHighlight(toRemoteHighlights([nextLocal])[0] ?? null)
-                          setHighlightPopoverAnchorEl(anchor)
-                          setHighlightPopoverOpen(true)
-
-                          await syncHighlights(article.url, [...highlights, nextLocal])
+                            setHighlightPopoverHighlight(toRemoteHighlights([nextLocal])[0] ?? null)
+                            setHighlightPopoverAnchorEl(anchor)
+                            setHighlightPopoverOpen(true)
+                          }, 10)
                         }}
                         onUpdate={async ({ highlightId, note }) => {
-                          setHighlights((prev) => {
-                            const updated = prev.map((item) => {
+                          updateHighlightsWithHistory((prev) => {
+                            return prev.map((item) => {
                               const id = item.server_id ?? item.id
                               if (id !== highlightId) return item
                               return markPending({ highlight: { ...item, note }, op: "update" })
                             })
-                            saveHighlightStore({ version: 1, article_url: article.url, highlights: updated })
-                            void syncHighlights(article.url, updated)
-                            return updated
                           })
                         }}
                         onDelete={async ({ highlightId }) => {
-                          setHighlights((prev) => {
-                            const updated = prev.map((item) => {
+                          updateHighlightsWithHistory((prev) => {
+                            return prev.map((item) => {
                               const id = item.server_id ?? item.id
                               if (id !== highlightId) return item
                               return markPending({ highlight: item, op: "delete" })
                             })
-                            saveHighlightStore({ version: 1, article_url: article.url, highlights: updated })
-                            void syncHighlights(article.url, updated)
-                            return updated
                           })
                         }}
                       />
@@ -925,7 +981,7 @@ export function ArticleDetailModal({ article, isOpen, onClose, onBookmarkChange,
                 </div>
 
                 {/* Actions */}
-                <div className="flex items-center justify-between pt-6 border-t border-gray-800">
+                <div className="flex items-center justify-between pt-6 border-t border-gray-800 relative z-10 mb-20">
                   <div className="flex items-center gap-4">
                     <Button
                       variant="ghost"
@@ -1065,14 +1121,11 @@ export function ArticleDetailModal({ article, isOpen, onClose, onBookmarkChange,
                             const lastClientId = lastCreatedClientIdRef.current
                             if (!lastClientId) return
 
-                            setHighlights((prev) => {
-                              const updated = prev.map((item) => {
+                            updateHighlightsWithHistory((prev) => {
+                              return prev.map((item) => {
                                 if (item.client_id !== lastClientId) return item
                                 return markPending({ highlight: { ...item, color }, op: "update" })
                               })
-                              saveHighlightStore({ version: 1, article_url: article.url, highlights: updated })
-                              void syncHighlights(article.url, updated)
-                              return updated
                             })
                           }}
                           className={`h-7 w-7 rounded border ${highlightColor === color ? "border-foreground" : "border-transparent"} ${
@@ -1097,41 +1150,116 @@ export function ArticleDetailModal({ article, isOpen, onClose, onBookmarkChange,
                         variant="outline"
                         size="sm"
                         onClick={async () => {
-                          const created = new Date().toISOString().split("T")[0]
-                          const title = article.title.replace(/"/g, "'")
-                          const lines: string[] = [
-                            "---",
-                            `title: \"${title}\"`,
-                            `source: \"${article.url}\"`,
-                            `created: \"${created}\"`,
-                            `description: \"Annotations from Scoop Reader\"`,
-                            `tags: [clippings, annotations, scoop]`,
-                            "---",
-                            "",
-                            `# ${article.title}`,
-                            "",
-                            `Source: ${article.url}`,
-                            `Publisher: ${article.source}`,
-                            `Collected: ${created}`,
-                            "",
-                            "## Annotations",
-                          ]
+                          const getObsidianMarkdown = () => {
+                            const lines: string[] = [
+                              "---",
+                              `source: "${article.url}"`,
+                              `author:`,
+                              article.author ? `  - "[[${article.author}]]"` : `  - ""`,
+                              `published: "${article.publishedAt}"`,
+                              `tags:`,
+                              `  - "news"`,
+                              `backlinks: ""`,
+                              "---",
+                              ""
+                            ]
 
-                          ;(highlights.length ? highlights : []).forEach((highlight) => {
-                            if (highlight.deleted) return
-                            const text = highlight.highlighted_text.replace(/\s+/g, " ").trim()
-                            if (!text) return
-                            lines.push(`- ==${text}==`)
-                            if (highlight.note) {
-                              lines.push(`  - *${highlight.note.trim()}*`)
+                            const validHighlights = highlights.filter((h) => !h.deleted)
+                            
+                            // 1. Highlights Summary
+                            if (validHighlights.length > 0) {
+                              lines.push("## Highlights\n")
+                              validHighlights.forEach((highlight) => {
+                                const text = highlight.highlighted_text.replace(/\s+/g, " ").trim()
+                                if (!text) return
+                                lines.push(`> ${text}`)
+                                if (highlight.note) {
+                                  lines.push(`\nNote: ${highlight.note.trim()}\n`)
+                                } else {
+                                  lines.push("\n")
+                                }
+                              })
+                              lines.push("\n---\n")
                             }
-                          })
 
-                          const markdown =
-                            highlights.length === 0 ? [...lines, "No annotations yet."].join("\n") : lines.join("\n")
+                            // 2. Full Article with inline highlights
+                            lines.push("## Full Article\n")
+                            const fullContent = fullArticleText || article.content || article.summary || ""
+                            const contentWithHighlights = getMarkdownWithHighlights(fullContent, highlights)
+                            lines.push(contentWithHighlights)
 
-                          await navigator.clipboard.writeText(markdown)
-                          toast.success("Markdown copied")
+                            return [...lines, "", "[[News Clippings]]"].join("\n")
+                          }
+
+                          const markdown = getObsidianMarkdown()
+                          const title = article.title.replace(/[:\\/]/g, "-")
+                          
+                          try {
+                            await navigator.clipboard.writeText(markdown)
+                            const obsidianUrl = `obsidian://new?file=${encodeURIComponent("News Clippings/" + title)}&clipboard=true`
+                            window.location.href = obsidianUrl
+                            toast.success("Opening in Obsidian...")
+                          } catch (err) {
+                            const obsidianUrl = `obsidian://new?file=${encodeURIComponent("News Clippings/" + title)}&content=${encodeURIComponent(markdown)}`
+                            window.location.href = obsidianUrl
+                            toast.success("Opening in Obsidian...")
+                          }
+                          
+                          logUserAction("highlight_sent_to_obsidian", { url: article.url })
+                        }}
+                        className="gap-2 bg-purple-500/10 hover:bg-purple-500/20 border-purple-500/30 text-purple-200 col-span-2"
+                      >
+                        <PlusCircle className="h-4 w-4" />
+                        Add to Obsidian
+                      </Button>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        onClick={async () => {
+                          const getObsidianMarkdown = () => {
+                            const lines: string[] = [
+                              "---",
+                              `source: "${article.url}"`,
+                              `author:`,
+                              article.author ? `  - "[[${article.author}]]"` : `  - ""`,
+                              `published: "${article.publishedAt}"`,
+                              `tags:`,
+                              `  - "news"`,
+                              `backlinks: ""`,
+                              "---",
+                              ""
+                            ]
+
+                            const validHighlights = highlights.filter((h) => !h.deleted)
+                            
+                            // 1. Highlights Summary
+                            if (validHighlights.length > 0) {
+                              lines.push("## Highlights\n")
+                              validHighlights.forEach((highlight) => {
+                                const text = highlight.highlighted_text.replace(/\s+/g, " ").trim()
+                                if (!text) return
+                                lines.push(`> ${text}`)
+                                if (highlight.note) {
+                                  lines.push(`\nNote: ${highlight.note.trim()}\n`)
+                                } else {
+                                  lines.push("\n")
+                                }
+                              })
+                              lines.push("\n---\n")
+                            }
+
+                            // 2. Full Article with inline highlights
+                            lines.push("## Full Article\n")
+                            const fullContent = fullArticleText || article.content || article.summary || ""
+                            const contentWithHighlights = getMarkdownWithHighlights(fullContent, highlights)
+                            lines.push(contentWithHighlights)
+
+                            return [...lines, "", "[[News Clippings]]"].join("\n")
+                          }
+
+                          await navigator.clipboard.writeText(getObsidianMarkdown())
+                          toast.success("Obsidian Markdown copied")
                           logUserAction("highlight_markdown_copied", { url: article.url })
                         }}
                         className="gap-2"
@@ -1144,8 +1272,6 @@ export function ArticleDetailModal({ article, isOpen, onClose, onBookmarkChange,
                         variant="outline"
                         size="sm"
                         onClick={() => {
-                          const created = new Date().toISOString().split("T")[0]
-                          const title = article.title.replace(/"/g, "'")
                           const sanitizeFilename = (value: string) =>
                             value
                               .toLowerCase()
@@ -1153,39 +1279,48 @@ export function ArticleDetailModal({ article, isOpen, onClose, onBookmarkChange,
                               .replace(/(^-|-$)+/g, "")
                               .slice(0, 80) || "annotations"
 
-                          const lines: string[] = [
-                            "---",
-                            `title: \"${title}\"`,
-                            `source: \"${article.url}\"`,
-                            `created: \"${created}\"`,
-                            `description: \"Annotations from Scoop Reader\"`,
-                            `tags: [clippings, annotations, scoop]`,
-                            "---",
-                            "",
-                            `# ${article.title}`,
-                            "",
-                            `Source: ${article.url}`,
-                            `Publisher: ${article.source}`,
-                            `Collected: ${created}`,
-                            "",
-                            "## Annotations",
-                          ]
+                          const getObsidianMarkdown = () => {
+                            const lines: string[] = [
+                              "---",
+                              `source: "${article.url}"`,
+                              `author:`,
+                              article.author ? `  - "[[${article.author}]]"` : `  - ""`,
+                              `published: "${article.publishedAt}"`,
+                              `tags:`,
+                              `  - "news"`,
+                              `backlinks: ""`,
+                              "---",
+                              ""
+                            ]
 
-                          highlights.forEach((highlight) => {
-                            if (highlight.deleted) return
-                            const text = highlight.highlighted_text.replace(/\s+/g, " ").trim()
-                            if (!text) return
-                            lines.push(`- ==${text}==`)
-                            if (highlight.note) {
-                              lines.push(`  - *${highlight.note.trim()}*`)
+                            const validHighlights = highlights.filter((h) => !h.deleted)
+                            
+                            // 1. Highlights Summary
+                            if (validHighlights.length > 0) {
+                              lines.push("## Highlights\n")
+                              validHighlights.forEach((highlight) => {
+                                const text = highlight.highlighted_text.replace(/\s+/g, " ").trim()
+                                if (!text) return
+                                lines.push(`> ${text}`)
+                                if (highlight.note) {
+                                  lines.push(`\nNote: ${highlight.note.trim()}\n`)
+                                } else {
+                                  lines.push("\n")
+                                }
+                              })
+                              lines.push("\n---\n")
                             }
-                          })
 
-                          if (highlights.length === 0) {
-                            lines.push("No annotations yet.")
+                            // 2. Full Article with inline highlights
+                            lines.push("## Full Article\n")
+                            const fullContent = fullArticleText || article.content || article.summary || ""
+                            const contentWithHighlights = getMarkdownWithHighlights(fullContent, highlights)
+                            lines.push(contentWithHighlights)
+
+                            return [...lines, "", "[[News Clippings]]"].join("\n")
                           }
 
-                          const blob = new Blob([lines.join("\n")], { type: "text/markdown" })
+                          const blob = new Blob([getObsidianMarkdown()], { type: "text/markdown" })
                           const fileName = `${sanitizeFilename(article.title)}.md`
                           const link = document.createElement("a")
                           link.href = URL.createObjectURL(blob)
@@ -1193,7 +1328,7 @@ export function ArticleDetailModal({ article, isOpen, onClose, onBookmarkChange,
                           link.click()
                           URL.revokeObjectURL(link.href)
                           logUserAction("highlight_markdown_downloaded", { url: article.url })
-                          toast.success("Markdown exported")
+                          toast.success("Obsidian Markdown exported")
                         }}
                         className="gap-2"
                       >
@@ -1214,10 +1349,13 @@ export function ArticleDetailModal({ article, isOpen, onClose, onBookmarkChange,
                       </div>
                     ) : (
                       highlights
-                        .slice()
+                        .filter(h => !h.deleted)
                         .sort((a, b) => a.character_start - b.character_start)
-                        .map((highlight) => (
-                           <div key={highlight.id ? `server:${highlight.id}` : `client:${highlight.client_id}`} className="rounded-lg border border-border/60 bg-background/60 p-4 space-y-3">
+                        .map((highlight, idx) => (
+                           <div key={highlight.id ? `server:${highlight.id}` : `client:${highlight.client_id}`} className="relative rounded-lg border border-border/60 bg-background/60 p-4 space-y-3">
+                            <div className="absolute -left-2 -top-2 w-5 h-5 bg-background border border-border/60 rounded-full flex items-center justify-center text-[10px] text-muted-foreground font-mono font-bold shadow-sm">
+                              {idx + 1}
+                            </div>
                             <button
                               type="button"
                               className="w-full text-left"
@@ -1307,23 +1445,20 @@ export function ArticleDetailModal({ article, isOpen, onClose, onBookmarkChange,
                                       try {
                                         const removed = highlight
 
-                                        setHighlights((prev) => {
-                                          const updated = prev.map((item) => {
+                                        updateHighlightsWithHistory((prev) => {
+                                          return prev.map((item) => {
                                             const id = item.server_id ?? item.id
                                             if (id !== removed.id) return item
                                             return markPending({ highlight: item, op: "delete" })
                                           })
-                                          saveHighlightStore({ version: 1, article_url: article.url, highlights: updated })
-                                          void syncHighlights(article.url, updated)
-                                          return updated
                                         })
 
                                         toast("Annotation removed", {
                                           action: {
                                             label: "Undo",
                                             onClick: () => {
-                                              setHighlights((prev) => {
-                                                const updated = prev.map((item) => {
+                                              updateHighlightsWithHistory((prev) => {
+                                                return prev.map((item) => {
                                                   if (item.client_id !== removed.client_id) return item
                                                   return {
                                                     ...item,
@@ -1334,9 +1469,6 @@ export function ArticleDetailModal({ article, isOpen, onClose, onBookmarkChange,
                                                     last_error: undefined,
                                                   }
                                                 })
-                                                saveHighlightStore({ version: 1, article_url: article.url, highlights: updated })
-                                                void syncHighlights(article.url, updated)
-                                                return updated
                                               })
                                             },
                                           },

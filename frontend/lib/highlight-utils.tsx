@@ -83,7 +83,26 @@ export function renderHighlightedContent(
   activeHighlightId?: HighlightStableId | null
 ): React.ReactNode[] {
   if (!text) return [];
-  if (!highlights || highlights.length === 0) return [text];
+
+  const renderTextSegment = (str: string, keyPrefix: string) => {
+    if (!str) return [];
+    // Split by single newlines but filter out completely empty segments if they are trailing/leading
+    return str.split('\n').map((line, index) => {
+      const trimmed = line.trim();
+      if (trimmed === '') {
+        return <div key={`${keyPrefix}-${index}`} className="h-4" aria-hidden="true" />;
+      }
+      return (
+        <div key={`${keyPrefix}-${index}`} className="mb-4 last:mb-0 leading-relaxed text-foreground/90">
+          {line}
+        </div>
+      );
+    });
+  };
+
+  if (!highlights || highlights.length === 0) {
+    return renderTextSegment(text, "plain");
+  }
 
   // Sort highlights by start position
   const sortedHighlights = [...highlights].sort((a, b) => a.character_start - b.character_start);
@@ -91,7 +110,7 @@ export function renderHighlightedContent(
   const nodes: React.ReactNode[] = [];
   let currentPosition = 0;
 
-  sortedHighlights.forEach((highlight) => {
+  sortedHighlights.forEach((highlight, i) => {
     const start = Math.max(highlight.character_start, currentPosition)
     const end = highlight.character_end
 
@@ -99,7 +118,7 @@ export function renderHighlightedContent(
     if (end <= start) return
 
     if (start > currentPosition) {
-      nodes.push(text.slice(currentPosition, start))
+      nodes.push(...renderTextSegment(text.slice(currentPosition, start), `pre-${i}`));
     }
 
     const highlightedText = text.slice(start, Math.min(end, text.length))
@@ -109,13 +128,14 @@ export function renderHighlightedContent(
       <mark
         key={stableId}
         data-highlight-stable-id={stableId}
-        className={`cursor-pointer transition-colors hover:opacity-80 rounded-sm px-0.5 mx-0.5 ${getHighlightColorClass(highlight.color)} ${stableId === activeHighlightId ? "ring-2 ring-primary/70" : ""}`}
+        className={`cursor-pointer transition-colors hover:opacity-80 rounded-sm px-0.5 ${getHighlightColorClass(highlight.color)} ${stableId === activeHighlightId ? "ring-2 ring-primary/70" : ""}`}
         onClick={(e) => {
           e.stopPropagation()
           onHighlightClick?.(stableId, e.currentTarget)
         }}
         title={highlight.note || "Click to edit"}
       >
+        <sup className="select-none text-[9px] font-mono opacity-50 mr-0.5 font-bold">{i + 1}</sup>
         {highlightedText}
       </mark>
     )
@@ -125,7 +145,7 @@ export function renderHighlightedContent(
 
   // Add remaining text
   if (currentPosition < text.length) {
-    nodes.push(text.slice(currentPosition));
+    nodes.push(...renderTextSegment(text.slice(currentPosition), "post"));
   }
 
   return nodes;
@@ -147,3 +167,41 @@ export function getHighlightColorClass(color: string) {
         return "bg-yellow-200 dark:bg-yellow-900/60 text-yellow-900 dark:text-yellow-100";
     }
   }
+
+/**
+ * Converts text and highlights into Markdown with inline markers.
+ */
+export function getMarkdownWithHighlights(text: string, highlights: Highlight[]): string {
+  if (!text) return "";
+  const validHighlights = (highlights || []).filter(h => !h.deleted);
+  if (validHighlights.length === 0) return text;
+
+  // Sort highlights by start position
+  const sortedHighlights = [...validHighlights].sort((a, b) => a.character_start - b.character_start);
+  
+  let result = "";
+  let currentPosition = 0;
+
+  sortedHighlights.forEach((highlight) => {
+    const start = Math.max(highlight.character_start, currentPosition);
+    const end = highlight.character_end;
+
+    if (start >= text.length) return;
+    if (end <= start) return;
+
+    if (start > currentPosition) {
+      result += text.slice(currentPosition, start);
+    }
+
+    const highlightedText = text.slice(start, Math.min(end, text.length));
+    result += `==${highlightedText}==`;
+
+    currentPosition = Math.min(end, text.length);
+  });
+
+  if (currentPosition < text.length) {
+    result += text.slice(currentPosition);
+  }
+
+  return result;
+}

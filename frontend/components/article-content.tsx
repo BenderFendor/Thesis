@@ -17,7 +17,7 @@ export const ArticleContent = forwardRef<HTMLDivElement, ArticleContentProps>(
       <div
         ref={ref}
         className={`article-content selection:bg-primary/20 selection:text-foreground ${className}`}
-        style={{ whiteSpace: "pre-wrap", wordBreak: "break-word" }}
+        style={{ whiteSpace: "normal", wordBreak: "break-word" }}
       >
         {renderHighlightedContent(content, highlights, onHighlightClick, activeHighlightId)}
       </div>

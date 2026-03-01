@@ -189,7 +189,7 @@ export function FeedView({ articles: propArticles, loading }: FeedViewProps) {
       >
         {articles.map((article, index) => (
           <section
-            key={article.id}
+            key={`${article.id}-${index}`}
             data-index={index}
             className="snap-start h-[calc(100vh-64px)] w-full relative cursor-pointer group"
             onClick={() => handleArticlePreview(article)}
