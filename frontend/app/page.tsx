@@ -610,7 +610,7 @@ function NewsPage() {
         />
       )}
 
-      <div className="flex-1 flex flex-col min-w-0 h-screen overflow-hidden">
+      <div className={cn("flex-1 flex flex-col min-w-0", currentView === "scroll" ? "h-screen overflow-hidden" : "")}>
       <header className="sticky top-0 z-40 border-b border-white/10 bg-[var(--news-bg-primary)]/95 backdrop-blur">
         <div className="flex items-center justify-end px-6 py-3 gap-2">
           <Button asChild variant="outline" size="sm" className="border-white/10 bg-transparent text-[10px] font-mono uppercase tracking-[0.32em]">
@@ -732,7 +732,7 @@ function NewsPage() {
               </div>
             )}
 
-            <Tabs value={activeCategory} onValueChange={(value) => setActiveCategory(value)} className="flex-1 flex flex-col overflow-hidden">
+            <Tabs value={activeCategory} onValueChange={(value) => setActiveCategory(value)} className={cn("flex-1 flex flex-col", currentView === "scroll" ? "overflow-hidden" : "")}>
               {currentView !== "scroll" && (
                 <div className="px-8 py-6 border-b border-white/10">
                   <div className="flex items-center justify-between mb-6">
@@ -838,27 +838,32 @@ function NewsPage() {
                 </div>
               )}
               {categories.map((category) => (
-                <TabsContent key={category.id} value={category.id} className="mt-0 flex-1 overflow-hidden flex flex-col">
-                  {currentView === "globe" && (
-                    <GlobeView key={`${category.id}-globe`} articles={filterAndSortArticles(articlesByCategory[category.id] || [])} loading={loading} />
-                  )}
-                  {currentView === "grid" && (
-                    <GridView
-                      articles={filterAndSortArticles(articlesByCategory[activeCategory] || [])}
-                      loading={loading}
-                      onCountChange={setArticleCount}
-                      apiUrl={apiUrl}
-                      showTrending={true}
-                      topicSortMode={topicSortMode}
-                      viewMode={gridMode}
-                      onViewModeChange={setGridMode}
-                    />
-                  )}
-                  {currentView === "scroll" && (
-                    <FeedView key={`${category.id}-scroll`} articles={filterAndSortArticles(articlesByCategory[category.id] || [])} loading={loading} />
-                  )}
-                  {currentView === "list" && (
-                    <ListView key={`${category.id}-list`} articles={filterAndSortArticles(articlesByCategory[category.id] || [])} loading={loading} />
+                <TabsContent key={category.id} value={category.id} className={cn("mt-0 flex-1", currentView === "scroll" ? "overflow-hidden flex flex-col" : "")}>
+                  {activeCategory === category.id && (
+                    <>
+                      {currentView === "globe" && (
+                        <GlobeView key={`${category.id}-globe`} articles={filterAndSortArticles(articlesByCategory[category.id] || [])} loading={loading} />
+                      )}
+                      {currentView === "grid" && (
+                        <GridView
+                          articles={filterAndSortArticles(articlesByCategory[activeCategory] || [])}
+                          loading={loading}
+                          onCountChange={setArticleCount}
+                          apiUrl={apiUrl}
+                          showTrending={true}
+                          topicSortMode={topicSortMode}
+                          viewMode={gridMode}
+                          onViewModeChange={setGridMode}
+                          isScrollMode={currentView === "scroll"}
+                        />
+                      )}
+                      {currentView === "scroll" && (
+                        <FeedView key={`${category.id}-scroll`} articles={filterAndSortArticles(articlesByCategory[category.id] || [])} loading={loading} />
+                      )}
+                      {currentView === "list" && (
+                        <ListView key={`${category.id}-list`} articles={filterAndSortArticles(articlesByCategory[category.id] || [])} loading={loading} />
+                      )}
+                    </>
                   )}
                 </TabsContent>
               ))}

@@ -34,7 +34,7 @@ const VirtualizedGrid = lazy(() => import("./virtualized-grid").then(module => (
 
 import { TrendingFeed } from "./trending-feed"
 import type { NewsArticle, AllCluster } from "@/lib/api"
-import { get_logger } from "@/lib/utils"
+import { get_logger, cn } from "@/lib/utils"
 import { useReadingQueue } from "@/hooks/useReadingQueue"
 import { useLikedArticles } from "@/hooks/useLikedArticles"
 import { useFavorites } from "@/hooks/useFavorites"
@@ -66,6 +66,7 @@ const CLUSTER_COLS_DESKTOP = 4
   topicSortMode?: "sources" | "articles" | "recent"
   viewMode?: "source" | "topic"
   onViewModeChange?: (mode: "source" | "topic") => void
+  isScrollMode?: boolean
 }
 
 
@@ -87,6 +88,7 @@ export function GridView({
   topicSortMode = "sources",
   viewMode: controlledViewMode,
   onViewModeChange,
+  isScrollMode = false,
 }: GridViewProps) {
   const hasRealImage = useCallback((src?: string | null) => {
     if (!src) return false
@@ -190,6 +192,8 @@ export function GridView({
 
   // Track current group index by scroll position
   useEffect(() => {
+    if (!isScrollMode) return
+
     const container = containerRef.current
     if (!container) return
 
@@ -566,7 +570,7 @@ export function GridView({
   // Virtualized Grid Mode - high performance for large datasets
   if (useVirtualization) {
     return (
-      <div className="w-full h-full flex flex-col overflow-hidden bg-[var(--news-bg-primary)]">
+      <div className={cn("w-full flex flex-col bg-[var(--news-bg-primary)]", isScrollMode ? "h-full overflow-hidden" : "")}>
         {/* Search Bar */}
         <div className="flex-shrink-0 px-4 sm:px-6 lg:px-8 py-3 border-b border-white/10 bg-[var(--news-bg-secondary)]/60 backdrop-blur-sm">
           <div className="relative">
@@ -640,7 +644,7 @@ export function GridView({
   // Legacy source-grouped mode (default when virtualization is disabled)
 
   return (
-    <div className="w-full h-full flex flex-col overflow-hidden bg-[var(--news-bg-primary)]">
+    <div className={cn("w-full flex flex-col bg-[var(--news-bg-primary)]", isScrollMode ? "h-full overflow-hidden" : "")}>
       {/* Search Bar */}
       <div className="flex-shrink-0 px-4 sm:px-6 lg:px-8 py-3 border-b border-white/10 bg-[var(--news-bg-secondary)]/60 backdrop-blur-sm">
         <div className="flex items-center gap-4 w-full">
@@ -736,7 +740,7 @@ export function GridView({
       ) : (
         <div
           ref={containerRef}
-          className="flex-1 overflow-y-scroll px-3 sm:px-4 lg:px-6 py-4 snap-y snap-mandatory"
+          className={cn("flex-1 overflow-y-auto px-3 sm:px-4 lg:px-6 py-4", isScrollMode ? "snap-y snap-mandatory" : "")}
           style={{
             scrollPaddingTop: "1rem",
             scrollBehavior: "smooth",
@@ -1235,18 +1239,20 @@ export function GridView({
       )}
 
       {/* Pager UI */}
-      <div className="p-2 text-xs text-muted-foreground text-center">
-        Use ↑/↓ keys, PageUp/PageDown, mouse wheel or swipe to move between
-        {viewMode === "source" ? (
-          <>
-            sources — {currentGroupIndex + 1} / {sourceGroups.length}
-          </>
-        ) : (
-          <>
-            topics — {sortedClusters.length}
-          </>
-        )}
-      </div>
+      {isScrollMode && (
+        <div className="p-2 text-xs text-muted-foreground text-center">
+          Use ↑/↓ keys, PageUp/PageDown, mouse wheel or swipe to move between
+          {viewMode === "source" ? (
+            <>
+              sources — {currentGroupIndex + 1} / {sourceGroups.length}
+            </>
+          ) : (
+            <>
+              topics — {sortedClusters.length}
+            </>
+          )}
+        </div>
+      )}
 
       {/* Article Detail Modal */}
       <ArticleDetailModal
