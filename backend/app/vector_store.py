@@ -122,11 +122,14 @@ class VectorStore:
             # Fail fast if the Chroma server isn't reachable.
             self.client.heartbeat()
 
-            # Create or get collection
-            self.collection = self.client.get_or_create_collection(
-                name="news_articles",
-                metadata={"hnsw:space": "cosine"},  # Cosine similarity for text
-            )
+            # Create or get collection - workaround for 0.5.23 get_or_create_collection bug
+            try:
+                self.collection = self.client.get_collection(name="news_articles")
+            except Exception:
+                self.collection = self.client.get_or_create_collection(
+                    name="news_articles",
+                    metadata={"hnsw:space": "cosine"},  # Cosine similarity for text
+                )
 
             # Configure local cache for HuggingFace model
             self._embedding_cache_dir = os.path.expanduser(
