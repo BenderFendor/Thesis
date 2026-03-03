@@ -61,6 +61,12 @@ async def _detect_and_fix_chroma_drift(vs) -> bool:
             chroma_count,
             _FULL_SYNC_THRESHOLD,
         )
+        if not sync_caught_up.is_set():
+            sync_caught_up.set()
+            logger.info(
+                "Chroma already populated (%d docs); cluster worker unblocked.",
+                chroma_count,
+            )
         return False
 
     logger.warning(

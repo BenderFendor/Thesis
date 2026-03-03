@@ -143,6 +143,7 @@ export function GridView({
   )
   const [clusters, setClusters] = useState<AllCluster[]>([])
   const [clustersLoading, setClustersLoading] = useState(false)
+  const [clustersStatus, setClustersStatus] = useState<string | null>(null)
   const [clusterWindow, setClusterWindow] = useState<"1d" | "1w" | "1m">("1w")
   const [expandedClusterId, setExpandedClusterId] = useState<number | null>(null)
   const [clusterArticlesCache, setClusterArticlesCache] = useState<Map<number, NewsArticle[]>>(new Map())
@@ -479,19 +480,44 @@ export function GridView({
 
   // Load clusters when in topic mode
   useEffect(() => {
-    if (viewMode === "topic") {
+    if (viewMode !== "topic") return
+
+    let cancelled = false
+    let retryTimer: ReturnType<typeof setTimeout> | null = null
+
+    const loadClusters = async () => {
       setClustersLoading(true)
-      fetchAllClusters(clusterWindow, 2, 100)
-        .then((data) => {
-          setClusters(data.clusters)
-          setExpandedClusterId(null)
-        })
-        .catch((err) => {
+      try {
+        const data = await fetchAllClusters(clusterWindow, 2, 100)
+        if (cancelled) return
+
+        setClusters(data.clusters)
+        setClustersStatus(data.status ?? null)
+        setExpandedClusterId(null)
+
+        if (data.status === "initializing") {
+          retryTimer = setTimeout(() => {
+            void loadClusters()
+          }, 15000)
+        }
+      } catch (err) {
+        if (!cancelled) {
           logger.error("Failed to load clusters:", err)
-        })
-        .finally(() => {
+        }
+      } finally {
+        if (!cancelled) {
           setClustersLoading(false)
-        })
+        }
+      }
+    }
+
+    void loadClusters()
+
+    return () => {
+      cancelled = true
+      if (retryTimer) {
+        clearTimeout(retryTimer)
+      }
     }
   }, [viewMode, clusterWindow])
 
@@ -980,7 +1006,9 @@ export function GridView({
                 </div>
               ) : clusters.length === 0 ? (
                 <div className="text-center py-8 text-muted-foreground">
-                  No topics found
+                  {clustersStatus === "initializing"
+                    ? "Building topics..."
+                    : "No topics found"}
                 </div>
               ) : (
                 <div className="space-y-0">

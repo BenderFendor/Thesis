@@ -238,3 +238,9 @@ curl http://localhost:8000/trending/diagnostics
 - `backend/app/api/routes/__init__.py` - Registered comparison router
 - `frontend/components/cluster-detail-modal.tsx` - Enhanced comparison UI
 - `Todo.md` - Marked Phase 7 complete
+
+2026-03-03T02:49:56Z — Topic clustering resilience
+- Implemented lexical fallback for topic clustering and snapshot-first detail lookup so the by-topic view remains available when Chroma is unstable.
+- Frontend now reports initialization state and auto-retries while snapshots build.
+- Added targeted backend tests and adjusted sync wait to provide faster developer feedback.
+

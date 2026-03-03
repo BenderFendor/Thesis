@@ -3185,6 +3185,8 @@ export interface AllClustersResponse {
   window: string;
   clusters: AllCluster[];
   total: number;
+  computed_at?: string | null;
+  status?: "ok" | "initializing" | string;
 }
 
 /**

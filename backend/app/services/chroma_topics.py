@@ -14,7 +14,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
-from typing import Any, Dict, Iterable, List, Optional, Sequence, Set, Tuple
+from typing import Any, Dict, Iterable, List, Optional, Sequence, Set
 
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -30,6 +30,12 @@ MIN_CLUSTER_SIZE = 2
 TRENDING_EXPANSION = 50
 BREAKING_WINDOW_HOURS = 3
 BREAKING_SPIKE_THRESHOLD = 2.0
+LEXICAL_MIN_TOKEN_OVERLAP = 2
+LEXICAL_MIN_JACCARD = 0.22
+LEXICAL_MAX_TOKEN_POSTINGS = 250
+LEXICAL_MAX_ARTICLES = 3000
+CHROMA_PROBE_LIMIT = 20
+USE_CHROMA_CLUSTER_QUERY = False
 
 
 @dataclass
@@ -59,8 +65,6 @@ class ChromaTopicService:
     async def get_trending_clusters(
         self, session: AsyncSession, window: str = "1d", limit: int = 10
     ) -> List[Dict[str, Any]]:
-        if not self._get_vector_store():
-            return []
         window_start = _window_start(window)
         max_articles = 200
         fetch_limit = min(limit * TRENDING_EXPANSION, max_articles)
@@ -75,8 +79,6 @@ class ChromaTopicService:
     async def get_breaking_clusters(
         self, session: AsyncSession, limit: int = 5
     ) -> List[Dict[str, Any]]:
-        if not self._get_vector_store():
-            return []
         window_start = get_utc_now() - timedelta(hours=BREAKING_WINDOW_HOURS)
         max_articles = 100
         fetch_limit = min(limit * TRENDING_EXPANSION, max_articles)
@@ -93,8 +95,6 @@ class ChromaTopicService:
         min_articles: int = MIN_CLUSTER_SIZE,
         limit: int = 1000,
     ) -> List[Dict[str, Any]]:
-        if not self._get_vector_store():
-            return []
         window_start = _window_start(window)
         max_articles = 50000
         fetch_limit = min(limit * TRENDING_EXPANSION, max_articles)
@@ -133,6 +133,11 @@ class ChromaTopicService:
     async def get_cluster_detail(
         self, session: AsyncSession, cluster_id: int
     ) -> Optional[Dict[str, Any]]:
+        snapshot_detail = await self._get_cluster_detail_from_snapshot(
+            session, cluster_id
+        )
+        if snapshot_detail:
+            return snapshot_detail
         if not self._get_vector_store():
             return None
         cluster = await self._build_cluster_from_anchor(cluster_id)
@@ -141,7 +146,6 @@ class ChromaTopicService:
         cluster_articles = await self._fetch_articles(session, cluster.member_ids)
         if not cluster_articles:
             return None
-        representative = cluster_articles.get(cluster.anchor_id)
         keywords = self._extract_keywords_from_articles(list(cluster_articles.values()))
         label = self._generate_cluster_label(cluster_articles)
         articles_payload = []
@@ -259,6 +263,53 @@ class ChromaTopicService:
         )
         return result.scalar() or 0
 
+    async def _get_cluster_detail_from_snapshot(
+        self, session: AsyncSession, cluster_id: int
+    ) -> Optional[Dict[str, Any]]:
+        from app.services.cluster_cache import get_latest_snapshot
+
+        best_match: Optional[Dict[str, Any]] = None
+        for window in ("1w", "1d", "1m"):
+            snapshot = await get_latest_snapshot(session, window)
+            if snapshot is None:
+                continue
+            clusters_data: List[Dict[str, Any]] = snapshot.clusters_json or []  # type: ignore[assignment]
+            for cluster in clusters_data:
+                if cluster.get("cluster_id") != cluster_id:
+                    continue
+                if best_match is None or cluster.get(
+                    "article_count", 0
+                ) > best_match.get("article_count", 0):
+                    best_match = cluster
+
+        if best_match is None:
+            return None
+
+        raw_articles = best_match.get("articles") or []
+        articles = []
+        for article in raw_articles:
+            if not isinstance(article, dict):
+                continue
+            normalized_article = {**article}
+            normalized_article.setdefault("similarity", 1.0)
+            articles.append(normalized_article)
+        published_dates = sorted(
+            article["published_at"]
+            for article in articles
+            if article.get("published_at")
+        )
+
+        return {
+            "id": cluster_id,
+            "label": best_match.get("label") or "Topic",
+            "keywords": best_match.get("keywords") or [],
+            "article_count": best_match.get("article_count", len(articles)),
+            "first_seen": published_dates[0] if published_dates else None,
+            "last_seen": published_dates[-1] if published_dates else None,
+            "is_active": True,
+            "articles": articles,
+        }
+
     async def compute_and_save_clusters(
         self,
         session: AsyncSession,
@@ -271,16 +322,16 @@ class ChromaTopicService:
         Called exclusively by the background computation worker — never by an
         API route.  Returns a dict mapping window → cluster count saved.
 
-        If ChromaDB is unreachable the run is skipped entirely (one log line).
-        The Postgres snapshot table retains the previous result so the API
-        keeps serving stale-but-valid data.
+        When ChromaDB is unreachable or unstable, the service falls back to a
+        lexical clustering strategy so snapshot updates continue.
         """
         from app.database import AsyncSessionLocal
         from app.services.cluster_cache import save_snapshot
 
         if not is_chroma_reachable():
-            logger.warning("ChromaDB unreachable; skipping cluster computation run")
-            return {}
+            logger.warning(
+                "ChromaDB unreachable; using lexical fallback cluster computation"
+            )
 
         counts: Dict[str, int] = {}
         for window in windows:
@@ -324,23 +375,45 @@ class ChromaTopicService:
     ) -> List[ClusterCandidate]:
         if not articles:
             return []
-        if not is_chroma_reachable():
-            logger.warning(
-                "ChromaDB not reachable; skipping cluster query for %d articles",
+        article_window = list(articles[:LEXICAL_MAX_ARTICLES])
+        if len(article_window) < len(articles):
+            logger.info(
+                "Clustering capped to %d newest articles (from %d)",
+                len(article_window),
                 len(articles),
             )
-            return []
+
+        if not USE_CHROMA_CLUSTER_QUERY:
+            return self._cluster_articles_lexical(article_window)
+
+        if not is_chroma_reachable():
+            logger.warning(
+                "ChromaDB not reachable; using lexical clustering fallback for %d articles",
+                len(article_window),
+            )
+            return self._cluster_articles_lexical(article_window)
+
         candidates: List[ClusterCandidate] = []
         candidate_by_anchor: Dict[int, ClusterCandidate] = {}
-        for article in articles:
+        for index, article in enumerate(article_window):
             cluster = await self._build_cluster_from_anchor(article_id=article.id)
             if not cluster or len(cluster.member_ids) < MIN_CLUSTER_SIZE:
+                if (
+                    index + 1 >= CHROMA_PROBE_LIMIT
+                    and not candidates
+                    and len(article_window) > CHROMA_PROBE_LIMIT
+                ):
+                    logger.warning(
+                        "Chroma clustering probe produced no candidates; using lexical fallback"
+                    )
+                    return self._cluster_articles_lexical(article_window)
                 continue
             candidates.append(cluster)
             candidate_by_anchor[cluster.anchor_id] = cluster
 
         if not candidates:
-            return []
+            logger.warning("No Chroma cluster candidates found; using lexical fallback")
+            return self._cluster_articles_lexical(article_window)
 
         all_ids: Set[int] = set()
         for cluster in candidates:
@@ -407,6 +480,121 @@ class ChromaTopicService:
                 )
             )
 
+        return clusters
+
+    def _article_keyword_set(self, article: Article) -> Set[str]:
+        return {keyword.lower() for keyword in self._extract_keywords(article)}
+
+    def _cluster_articles_lexical(
+        self, articles: Sequence[Article]
+    ) -> List[ClusterCandidate]:
+        if not articles:
+            return []
+
+        article_list = list(articles)
+        order_index = {article.id: idx for idx, article in enumerate(article_list)}
+        keyword_sets: Dict[int, Set[str]] = {
+            article.id: self._article_keyword_set(article) for article in article_list
+        }
+
+        token_to_article_ids: Dict[str, List[int]] = {}
+        for article_id, token_set in keyword_sets.items():
+            for token in token_set:
+                token_to_article_ids.setdefault(token, []).append(article_id)
+
+        parent: Dict[int, int] = {article.id: article.id for article in article_list}
+
+        def find(article_id: int) -> int:
+            root = article_id
+            while parent[root] != root:
+                root = parent[root]
+            while parent[article_id] != article_id:
+                next_id = parent[article_id]
+                parent[article_id] = root
+                article_id = next_id
+            return root
+
+        def union(a: int, b: int) -> None:
+            root_a = find(a)
+            root_b = find(b)
+            if root_a != root_b:
+                parent[root_b] = root_a
+
+        for article in article_list:
+            article_id = article.id
+            base_tokens = keyword_sets.get(article_id, set())
+            if len(base_tokens) < LEXICAL_MIN_TOKEN_OVERLAP:
+                continue
+
+            candidate_overlaps: Dict[int, int] = {}
+            base_index = order_index[article_id]
+            for token in base_tokens:
+                neighbors = token_to_article_ids.get(token, [])
+                if len(neighbors) > LEXICAL_MAX_TOKEN_POSTINGS:
+                    continue
+                for neighbor_id in neighbors:
+                    if order_index[neighbor_id] <= base_index:
+                        continue
+                    candidate_overlaps[neighbor_id] = (
+                        candidate_overlaps.get(neighbor_id, 0) + 1
+                    )
+
+            for neighbor_id, overlap in candidate_overlaps.items():
+                if overlap < LEXICAL_MIN_TOKEN_OVERLAP:
+                    continue
+                neighbor_tokens = keyword_sets.get(neighbor_id, set())
+                if not neighbor_tokens:
+                    continue
+                union_size = len(base_tokens | neighbor_tokens) or 1
+                jaccard = overlap / union_size
+                if jaccard >= LEXICAL_MIN_JACCARD or overlap >= (
+                    LEXICAL_MIN_TOKEN_OVERLAP + 1
+                ):
+                    union(article_id, neighbor_id)
+
+        components: Dict[int, Set[int]] = {}
+        for article_id in parent.keys():
+            root = find(article_id)
+            components.setdefault(root, set()).add(article_id)
+
+        clusters: List[ClusterCandidate] = []
+        for members in components.values():
+            if len(members) < MIN_CLUSTER_SIZE:
+                continue
+
+            ordered_members = sorted(
+                members,
+                key=lambda member_id: order_index.get(member_id, 0),
+            )
+            anchor_id = ordered_members[0]
+            anchor_tokens = keyword_sets.get(anchor_id, set())
+
+            similarities: Dict[int, float] = {}
+            for member_id in ordered_members:
+                if member_id == anchor_id:
+                    similarities[member_id] = 1.0
+                    continue
+                member_tokens = keyword_sets.get(member_id, set())
+                if not anchor_tokens or not member_tokens:
+                    similarities[member_id] = 0.0
+                    continue
+                overlap = len(anchor_tokens & member_tokens)
+                union_size = len(anchor_tokens | member_tokens) or 1
+                similarities[member_id] = round(overlap / union_size, 3)
+
+            clusters.append(
+                ClusterCandidate(
+                    anchor_id=anchor_id,
+                    member_ids=ordered_members,
+                    similarities=similarities,
+                )
+            )
+
+        logger.info(
+            "Lexical fallback produced %d clusters from %d articles",
+            len(clusters),
+            len(article_list),
+        )
         return clusters
 
     async def _build_cluster_from_anchor(
@@ -763,7 +951,7 @@ async def cluster_computation_worker(
     # Wait for the sync worker to confirm Chroma is populated before the first
     # cluster computation.  Cap the wait so we don't block indefinitely if the
     # sync worker is stuck or disabled.
-    MAX_SYNC_WAIT_SECONDS = 3600  # 1 hour
+    MAX_SYNC_WAIT_SECONDS = 60
     logger.info("Waiting for Chroma sync to complete before first cluster run...")
     try:
         await asyncio.wait_for(sync_caught_up.wait(), timeout=MAX_SYNC_WAIT_SECONDS)
