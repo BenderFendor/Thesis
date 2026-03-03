@@ -1,7 +1,6 @@
 # AGENTS.md
 
 ## Rules
-- OS: Manjaro Linux.
 - No emojis in logs or UI.
 - Use `uv` instead of `pip` when coding in Python.
 - Follow best practices for the framework or language in use.
