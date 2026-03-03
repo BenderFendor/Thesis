@@ -1,15 +1,17 @@
-import { logger } from "@/lib/logger"
+import { logger } from "@/lib/logger";
 // API utility for communicating with FastAPI backend
 
 // Default to localhost backend when env var is not set (makes dev easier)
 const resolveBaseUrl = (value?: string) => {
-  const fallback = 'http://localhost:8000';
+  const fallback = "http://localhost:8000";
   const raw = value && value.trim().length > 0 ? value : fallback;
-  return raw.replace(/\/+$/, '');
+  return raw.replace(/\/+$/, "");
 };
 
 export const API_BASE_URL = resolveBaseUrl(process.env.NEXT_PUBLIC_API_URL);
-const DOCKER_API_BASE_URL = resolveBaseUrl(process.env.NEXT_PUBLIC_DOCKER_API_URL || API_BASE_URL);
+const DOCKER_API_BASE_URL = resolveBaseUrl(
+  process.env.NEXT_PUBLIC_DOCKER_API_URL || API_BASE_URL,
+);
 
 // Use DOCKER_API_BASE_URL when running in Docker
 // This allows the frontend to reach the backend when both are in Docker containers
@@ -17,73 +19,109 @@ const DOCKER_API_BASE_URL = resolveBaseUrl(process.env.NEXT_PUBLIC_DOCKER_API_UR
 // (In production, both frontend and backend would be served from the same origin)
 
 // --- Feature Gates ---
-export const ENABLE_DIGEST = process.env.NEXT_PUBLIC_ENABLE_DIGEST === "true"
-export const ENABLE_HIGHLIGHTS = true
+export const ENABLE_DIGEST = process.env.NEXT_PUBLIC_ENABLE_DIGEST === "true";
+export const ENABLE_HIGHLIGHTS = true;
+
+const OG_IMAGE_SUCCESS_TTL_MS = 10 * 60 * 1000;
+const OG_IMAGE_MISS_TTL_MS = 2 * 60 * 1000;
+const OG_IMAGE_ERROR_TTL_MS = 30 * 1000;
+const OG_IMAGE_MAX_CACHE_ENTRIES = 2000;
+
+const ogImageCache = new Map<
+  string,
+  { imageUrl: string | null; expiresAt: number }
+>();
+const ogImageInFlight = new Map<string, Promise<string | null>>();
+const ogImageMetrics = {
+  total: 0,
+  cacheHit: 0,
+  inFlightHit: 0,
+  network: 0,
+};
+
+const pruneOgImageCache = () => {
+  const now = Date.now();
+  for (const [key, entry] of ogImageCache.entries()) {
+    if (entry.expiresAt <= now) {
+      ogImageCache.delete(key);
+    }
+  }
+
+  if (ogImageCache.size <= OG_IMAGE_MAX_CACHE_ENTRIES) {
+    return;
+  }
+
+  const keys = Array.from(ogImageCache.keys());
+  const overflow = ogImageCache.size - OG_IMAGE_MAX_CACHE_ENTRIES;
+  for (let i = 0; i < overflow; i += 1) {
+    ogImageCache.delete(keys[i]);
+  }
+};
 
 // --- Data Types ---
 
 // Data types
 
 export interface NewsSource {
-  id: string
-  name: string
-  country: string
-  url: string
-  rssUrl: string
-  credibility: "high" | "medium" | "low"
-  bias: "left" | "center" | "right"
-  category: string[]
-  language: string
-  funding: string[]
+  id: string;
+  name: string;
+  country: string;
+  url: string;
+  rssUrl: string;
+  credibility: "high" | "medium" | "low";
+  bias: "left" | "center" | "right";
+  category: string[];
+  language: string;
+  funding: string[];
 }
 
 export interface NewsArticle {
-  id: number
-  title: string
-  source: string
-  sourceId: string
-  country: string
-  credibility: "high" | "medium" | "low"
-  bias: "left" | "center" | "right"
-  summary: string
-  content?: string
-  image: string
-  publishedAt: string
-  category: string
-  url: string
-  tags: string[]
-  originalLanguage: string
-  translated: boolean
+  id: number;
+  title: string;
+  source: string;
+  sourceId: string;
+  country: string;
+  credibility: "high" | "medium" | "low";
+  bias: "left" | "center" | "right";
+  summary: string;
+  content?: string;
+  image: string;
+  publishedAt: string;
+  category: string;
+  url: string;
+  tags: string[];
+  originalLanguage: string;
+  translated: boolean;
   // Phase 5 Fields
-  source_country?: string
-  mentioned_countries?: string[]
-  author?: string
+  source_country?: string;
+  mentioned_countries?: string[];
+  author?: string;
   // Preloaded queue data
   _queueData?: {
-    fullText?: string
-    readingTimeMinutes?: number
-    aiAnalysis?: ArticleAnalysis
-    preloadedAt?: number
-  }
+    fullText?: string;
+    readingTimeMinutes?: number;
+    aiAnalysis?: ArticleAnalysis;
+    preloadedAt?: number;
+  };
 }
 
 export interface BookmarkEntry {
-  bookmarkId: number
-  articleId: number
-  article: NewsArticle
-  createdAt?: string
+  bookmarkId: number;
+  articleId: number;
+  article: NewsArticle;
+  createdAt?: string;
 }
 
 export interface SemanticSearchResult {
-  article: NewsArticle
-  similarityScore?: number | null
-  distance?: number | null
+  article: NewsArticle;
+  similarityScore?: number | null;
+  distance?: number | null;
 }
 
 export interface SemanticSearchResponse {
-  query: string
-  results: SemanticSearchResult[]
-  total: number
+  query: string;
+  results: SemanticSearchResult[];
+  total: number;
 }
 
 // Add streaming interfaces
@@ -105,7 +143,14 @@ export interface StreamProgress {
 }
 
 export interface StreamEvent {
-  status: 'starting' | 'initial' | 'cache_data' | 'source_complete' | 'source_error' | 'complete' | 'error';
+  status:
+    | "starting"
+    | "initial"
+    | "cache_data"
+    | "source_complete"
+    | "source_error"
+    | "complete"
+    | "error";
   stream_id?: string;
   message?: string;
   source?: string;
@@ -128,12 +173,12 @@ export async function fetchNews(params?: {
 }): Promise<NewsArticle[]> {
   try {
     const searchParams = new URLSearchParams();
-    searchParams.append('use_cache', 'true'); // Use cache by default
+    searchParams.append("use_cache", "true"); // Use cache by default
 
-    if (params?.limit) searchParams.append('limit', params.limit.toString());
-    if (params?.category) searchParams.append('category', params.category);
+    if (params?.limit) searchParams.append("limit", params.limit.toString());
+    if (params?.category) searchParams.append("category", params.category);
 
-    const url = `${API_BASE_URL}/news/stream${searchParams.toString() ? '?' + searchParams.toString() : ''}`;
+    const url = `${API_BASE_URL}/news/stream${searchParams.toString() ? "?" + searchParams.toString() : ""}`;
     logger.debug(`Fetching news from unified endpoint: ${url}`);
     const response = await fetch(url);
 
@@ -148,9 +193,14 @@ export async function fetchNews(params?: {
     let articles = data.articles || [];
 
     if (articles.length === 0) {
-      logger.debug(`No articles received from backend. Full response:`, JSON.stringify(data, null, 2));
+      logger.debug(
+        `No articles received from backend. Full response:`,
+        JSON.stringify(data, null, 2),
+      );
     } else {
-      logger.debug(`Received ${articles.length} articles from unified backend endpoint`);
+      logger.debug(
+        `Received ${articles.length} articles from unified backend endpoint`,
+      );
     }
 
     // Convert backend format to frontend format
@@ -160,20 +210,26 @@ export async function fetchNews(params?: {
     if (params?.search) {
       const searchTerm = params.search.toLowerCase();
       const beforeFilterCount = articles.length;
-      articles = articles.filter((article: NewsArticle) =>
-        article.title.toLowerCase().includes(searchTerm) ||
-        article.summary.toLowerCase().includes(searchTerm)
+      articles = articles.filter(
+        (article: NewsArticle) =>
+          article.title.toLowerCase().includes(searchTerm) ||
+          article.summary.toLowerCase().includes(searchTerm),
       );
-      logger.debug(`Search filter applied: ${beforeFilterCount} -> ${articles.length} articles (search: "${params.search}")`);
+      logger.debug(
+        `Search filter applied: ${beforeFilterCount} -> ${articles.length} articles (search: "${params.search}")`,
+      );
     }
 
     // Client-side category filtering if needed
     if (params?.category) {
       const beforeFilterCount = articles.length;
-      articles = articles.filter((article: NewsArticle) =>
-        article.category.toLowerCase() === params.category!.toLowerCase()
+      articles = articles.filter(
+        (article: NewsArticle) =>
+          article.category.toLowerCase() === params.category!.toLowerCase(),
       );
-      logger.debug(`Category filter applied: ${beforeFilterCount} -> ${articles.length} articles (category: "${params.category}")`);
+      logger.debug(
+        `Category filter applied: ${beforeFilterCount} -> ${articles.length} articles (category: "${params.category}")`,
+      );
     }
 
     if (articles.length === 0) {
@@ -182,7 +238,7 @@ export async function fetchNews(params?: {
 
     return articles;
   } catch (error) {
-    console.error('Failed to fetch news from unified endpoint:', error);
+    console.error("Failed to fetch news from unified endpoint:", error);
     throw error;
   }
 }
@@ -190,47 +246,51 @@ export async function fetchNews(params?: {
 // Helper functions to map source to metadata
 function getCountryFromSource(source: string): string {
   const countryMap: { [key: string]: string } = {
-    'BBC': 'United Kingdom',
-    'CNN': 'United States',
-    'Reuters': 'United Kingdom',
-    'NPR': 'United States',
-    'Fox News': 'United States',
-    'Associated Press': 'United States'
+    BBC: "United Kingdom",
+    CNN: "United States",
+    Reuters: "United Kingdom",
+    NPR: "United States",
+    "Fox News": "United States",
+    "Associated Press": "United States",
   };
-  return countryMap[source] || 'United States';
+  return countryMap[source] || "United States";
 }
 
 function getCredibilityFromSource(source: string): "high" | "medium" | "low" {
   const credibilityMap: { [key: string]: "high" | "medium" | "low" } = {
-    'BBC': 'high',
-    'CNN': 'medium',
-    'Reuters': 'high',
-    'NPR': 'high',
-    'Fox News': 'medium',
-    'Associated Press': 'high'
+    BBC: "high",
+    CNN: "medium",
+    Reuters: "high",
+    NPR: "high",
+    "Fox News": "medium",
+    "Associated Press": "high",
   };
-  return credibilityMap[source] || 'medium';
+  return credibilityMap[source] || "medium";
 }
 
 function getBiasFromSource(source: string): "left" | "center" | "right" {
   const biasMap: { [key: string]: "left" | "center" | "right" } = {
-    'BBC': 'center',
-    'CNN': 'left',
-    'Reuters': 'center',
-    'NPR': 'left',
-    'Fox News': 'right',
-    'Associated Press': 'center'
+    BBC: "center",
+    CNN: "left",
+    Reuters: "center",
+    NPR: "left",
+    "Fox News": "right",
+    "Associated Press": "center",
   };
-  return biasMap[source] || 'center';
+  return biasMap[source] || "center";
 }
 
-export async function fetchNewsFromSource(sourceId: string): Promise<NewsArticle[]> {
+export async function fetchNewsFromSource(
+  sourceId: string,
+): Promise<NewsArticle[]> {
   // Refactored to use the main fetchNews function for consistency
   const allArticles = await fetchNews();
-  return allArticles.filter(article => article.sourceId === sourceId);
+  return allArticles.filter((article) => article.sourceId === sourceId);
 }
 
-export async function fetchNewsByCategory(category: string): Promise<NewsArticle[]> {
+export async function fetchNewsByCategory(
+  category: string,
+): Promise<NewsArticle[]> {
   return fetchNews({ category });
 }
 
@@ -246,7 +306,7 @@ export async function fetchSources(): Promise<NewsSource[]> {
 
     // Convert backend source format to frontend format
     return sources.map((source: any) => ({
-      id: source.name.toLowerCase().replace(/\s+/g, '-'),
+      id: source.name.toLowerCase().replace(/\s+/g, "-"),
       name: source.name,
       country: source.country,
       url: source.url,
@@ -255,10 +315,10 @@ export async function fetchSources(): Promise<NewsSource[]> {
       bias: mapBias(source.bias_rating),
       category: [source.category],
       language: "en",
-      funding: [source.funding_type || "Unknown"]
+      funding: [source.funding_type || "Unknown"],
     }));
   } catch (error) {
-    console.error('Failed to fetch sources:', error);
+    console.error("Failed to fetch sources:", error);
     return [];
   }
 }
@@ -289,9 +349,9 @@ export async function fetchCategories(): Promise<string[]> {
 
     const data = await response.json();
     // Backend returns { categories: [...] }
-    return Array.isArray(data) ? data : (data?.categories || []);
+    return Array.isArray(data) ? data : data?.categories || [];
   } catch (error) {
-    console.error('Failed to fetch categories:', error);
+    console.error("Failed to fetch categories:", error);
     return [];
   }
 }
@@ -301,12 +361,20 @@ export async function fetchCategories(): Promise<string[]> {
  * Requests a short, one-paragraph AI-generated definition for a highlighted term using the /api/inline/define endpoint.
  * Returns a success flag, the term, and the definition or error.
  */
-export async function requestInlineDefinition(term: string, context?: string): Promise<{ success: boolean; term: string; definition?: string | null; error?: string | null }> {
+export async function requestInlineDefinition(
+  term: string,
+  context?: string,
+): Promise<{
+  success: boolean;
+  term: string;
+  definition?: string | null;
+  error?: string | null;
+}> {
   try {
     const resp = await fetch(`${API_BASE_URL}/api/inline/define`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ term, context: context ?? '' }),
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ term, context: context ?? "" }),
     });
 
     if (!resp.ok) {
@@ -315,10 +383,20 @@ export async function requestInlineDefinition(term: string, context?: string): P
     }
 
     const data = await resp.json();
-    return { success: true, term, definition: data.definition ?? null, error: data.error ?? null };
+    return {
+      success: true,
+      term,
+      definition: data.definition ?? null,
+      error: data.error ?? null,
+    };
   } catch (err: any) {
-    console.error('requestInlineDefinition failed', err);
-    return { success: false, term, definition: null, error: err?.message ?? String(err) };
+    console.error("requestInlineDefinition failed", err);
+    return {
+      success: false,
+      term,
+      definition: null,
+      error: err?.message ?? String(err),
+    };
   }
 }
 
@@ -346,7 +424,7 @@ export async function fetchSourceStats(): Promise<SourceStats[]> {
     const data = await response.json();
     return data.sources || [];
   } catch (error) {
-    console.error('Failed to fetch source stats:', error);
+    console.error("Failed to fetch source stats:", error);
     return [];
   }
 }
@@ -373,11 +451,10 @@ export async function fetchCacheStatus(): Promise<CacheStatus | null> {
 
     return await response.json();
   } catch (error) {
-    console.error('Failed to fetch cache status:', error);
+    console.error("Failed to fetch cache status:", error);
     return null;
   }
 }
-
 
 export async function refreshCache(
   onProgress?: (event: {
@@ -388,7 +465,7 @@ export async function refreshCache(
     totalArticles?: number;
     successfulSources?: number;
     message?: string;
-  }) => void
+  }) => void,
 ): Promise<boolean> {
   try {
     const response = await fetch(`${API_BASE_URL}/cache/refresh/stream`, {
@@ -460,213 +537,223 @@ export async function refreshCache(
 
 export async function semanticSearch(
   query: string,
-  options?: { limit?: number; category?: string }
+  options?: { limit?: number; category?: string },
 ): Promise<SemanticSearchResponse> {
-  const params = new URLSearchParams({ query })
-  if (options?.limit) params.append('limit', options.limit.toString())
-  if (options?.category) params.append('category', options.category)
+  const params = new URLSearchParams({ query });
+  if (options?.limit) params.append("limit", options.limit.toString());
+  if (options?.category) params.append("category", options.category);
 
-  const url = `${API_BASE_URL}/api/search/semantic?${params.toString()}`
+  const url = `${API_BASE_URL}/api/search/semantic?${params.toString()}`;
 
-  const response = await fetch(url)
+  const response = await fetch(url);
   if (response.status === 503) {
-    throw new Error('Semantic search is currently unavailable.')
+    throw new Error("Semantic search is currently unavailable.");
   }
   if (!response.ok) {
-    throw new Error(`Semantic search failed with status ${response.status}`)
+    throw new Error(`Semantic search failed with status ${response.status}`);
   }
 
-  const data = await response.json()
-  const rawResults = Array.isArray(data?.results) ? data.results : []
-  const mappedArticles = mapBackendArticles(rawResults)
+  const data = await response.json();
+  const rawResults = Array.isArray(data?.results) ? data.results : [];
+  const mappedArticles = mapBackendArticles(rawResults);
 
-  const results: SemanticSearchResult[] = mappedArticles.map((article, index) => ({
-    article,
-    similarityScore: rawResults[index]?.similarity_score ?? null,
-    distance: rawResults[index]?.distance ?? null
-  }))
+  const results: SemanticSearchResult[] = mappedArticles.map(
+    (article, index) => ({
+      article,
+      similarityScore: rawResults[index]?.similarity_score ?? null,
+      distance: rawResults[index]?.distance ?? null,
+    }),
+  );
 
   return {
     query: data?.query || query,
     results,
-    total: typeof data?.total === 'number' ? data.total : results.length
-  }
+    total: typeof data?.total === "number" ? data.total : results.length,
+  };
 }
 
 export async function fetchBookmarks(): Promise<BookmarkEntry[]> {
   try {
-    const response = await fetch(`${API_BASE_URL}/api/bookmarks`)
+    const response = await fetch(`${API_BASE_URL}/api/bookmarks`);
     if (!response.ok) {
-      throw new Error(`HTTP error! status: ${response.status}`)
+      throw new Error(`HTTP error! status: ${response.status}`);
     }
 
-    const data = await response.json()
-    const bookmarks = Array.isArray(data?.bookmarks) ? data.bookmarks : []
-    const mappedArticles = mapBackendArticles(bookmarks)
+    const data = await response.json();
+    const bookmarks = Array.isArray(data?.bookmarks) ? data.bookmarks : [];
+    const mappedArticles = mapBackendArticles(bookmarks);
 
     return mappedArticles.map((article, index) => ({
       bookmarkId: bookmarks[index].bookmark_id,
       articleId: bookmarks[index].article_id,
       createdAt: bookmarks[index].created_at,
-      article
-    }))
+      article,
+    }));
   } catch (error) {
-    console.error('Failed to fetch bookmarks:', error)
-    return []
+    console.error("Failed to fetch bookmarks:", error);
+    return [];
   }
 }
 
-export async function fetchBookmark(articleId: number): Promise<BookmarkEntry | null> {
+export async function fetchBookmark(
+  articleId: number,
+): Promise<BookmarkEntry | null> {
   try {
-    const response = await fetch(`${API_BASE_URL}/api/bookmarks/${articleId}`)
+    const response = await fetch(`${API_BASE_URL}/api/bookmarks/${articleId}`);
     if (response.status === 404) {
-      return null
+      return null;
     }
     if (!response.ok) {
-      throw new Error(`HTTP error! status: ${response.status}`)
+      throw new Error(`HTTP error! status: ${response.status}`);
     }
 
-    const data = await response.json()
-    const [article] = mapBackendArticles([data])
+    const data = await response.json();
+    const [article] = mapBackendArticles([data]);
     return {
       bookmarkId: data.bookmark_id,
       articleId: data.article_id,
       createdAt: data.created_at,
-      article
-    }
+      article,
+    };
   } catch (error) {
-    console.error('Failed to fetch bookmark:', error)
-    return null
+    console.error("Failed to fetch bookmark:", error);
+    return null;
   }
 }
 
-export async function createBookmark(articleId: number): Promise<BookmarkEntry | null> {
+export async function createBookmark(
+  articleId: number,
+): Promise<BookmarkEntry | null> {
   try {
     const response = await fetch(`${API_BASE_URL}/api/bookmarks`, {
-      method: 'POST',
+      method: "POST",
       headers: {
-        'Content-Type': 'application/json'
+        "Content-Type": "application/json",
       },
-      body: JSON.stringify({ article_id: articleId })
-    })
+      body: JSON.stringify({ article_id: articleId }),
+    });
 
     if (!response.ok) {
-      throw new Error(`Failed to create bookmark. Status: ${response.status}`)
+      throw new Error(`Failed to create bookmark. Status: ${response.status}`);
     }
 
     // Fetch the complete bookmark details (article metadata + bookmark info)
-    return await fetchBookmark(articleId)
+    return await fetchBookmark(articleId);
   } catch (error) {
-    console.error('Failed to create bookmark:', error)
-    throw error
+    console.error("Failed to create bookmark:", error);
+    throw error;
   }
 }
 
-export async function updateBookmark(articleId: number): Promise<BookmarkEntry | null> {
+export async function updateBookmark(
+  articleId: number,
+): Promise<BookmarkEntry | null> {
   try {
     const response = await fetch(`${API_BASE_URL}/api/bookmarks/${articleId}`, {
-      method: 'PUT'
-    })
+      method: "PUT",
+    });
 
     if (response.status === 404) {
-      return null
+      return null;
     }
     if (!response.ok) {
-      throw new Error(`Failed to update bookmark. Status: ${response.status}`)
+      throw new Error(`Failed to update bookmark. Status: ${response.status}`);
     }
 
-    return await fetchBookmark(articleId)
+    return await fetchBookmark(articleId);
   } catch (error) {
-    console.error('Failed to update bookmark:', error)
-    return null
+    console.error("Failed to update bookmark:", error);
+    return null;
   }
 }
 
 export async function deleteBookmark(articleId: number): Promise<boolean> {
   try {
     const response = await fetch(`${API_BASE_URL}/api/bookmarks/${articleId}`, {
-      method: 'DELETE'
-    })
+      method: "DELETE",
+    });
 
     if (response.status === 404) {
-      return false
+      return false;
     }
     if (!response.ok) {
-      throw new Error(`Failed to delete bookmark. Status: ${response.status}`)
+      throw new Error(`Failed to delete bookmark. Status: ${response.status}`);
     }
 
-    return true
+    return true;
   } catch (error) {
-    console.error('Failed to delete bookmark:', error)
-    throw error
+    console.error("Failed to delete bookmark:", error);
+    throw error;
   }
 }
 
 export interface LikedEntry {
-  likedId: number
-  articleId: number
-  article: NewsArticle
-  createdAt?: string
+  likedId: number;
+  articleId: number;
+  article: NewsArticle;
+  createdAt?: string;
 }
 
 export async function fetchLikedArticles(): Promise<LikedEntry[]> {
-  const response = await fetch(`${API_BASE_URL}/api/liked`)
+  const response = await fetch(`${API_BASE_URL}/api/liked`);
   if (!response.ok) {
-    throw new Error(`Failed to load liked articles (${response.status})`)
+    throw new Error(`Failed to load liked articles (${response.status})`);
   }
 
-  const data = await response.json()
-  const liked = Array.isArray(data?.liked) ? data.liked : []
-  const mappedArticles = mapBackendArticles(liked)
+  const data = await response.json();
+  const liked = Array.isArray(data?.liked) ? data.liked : [];
+  const mappedArticles = mapBackendArticles(liked);
 
   return mappedArticles.map((article, index) => ({
     likedId: liked[index].liked_id,
     articleId: liked[index].article_id,
     createdAt: liked[index].created_at,
-    article
-  }))
+    article,
+  }));
 }
 
-export async function createLikedArticle(articleId: number): Promise<LikedEntry | null> {
+export async function createLikedArticle(
+  articleId: number,
+): Promise<LikedEntry | null> {
   try {
     const response = await fetch(`${API_BASE_URL}/api/liked`, {
-      method: 'POST',
+      method: "POST",
       headers: {
-        'Content-Type': 'application/json'
+        "Content-Type": "application/json",
       },
-      body: JSON.stringify({ article_id: articleId })
-    })
+      body: JSON.stringify({ article_id: articleId }),
+    });
 
     if (!response.ok) {
-      throw new Error(`Failed to like article. Status: ${response.status}`)
+      throw new Error(`Failed to like article. Status: ${response.status}`);
     }
 
-    return await fetchLikedArticles().then(liked => 
-      liked.find(entry => entry.articleId === articleId) || null
-    )
+    return await fetchLikedArticles().then(
+      (liked) => liked.find((entry) => entry.articleId === articleId) || null,
+    );
   } catch (error) {
-    console.error('Failed to like article:', error)
-    throw error
+    console.error("Failed to like article:", error);
+    throw error;
   }
 }
 
 export async function deleteLikedArticle(articleId: number): Promise<boolean> {
   try {
     const response = await fetch(`${API_BASE_URL}/api/liked/${articleId}`, {
-      method: 'DELETE'
-    })
+      method: "DELETE",
+    });
 
     if (response.status === 404) {
-      return false
+      return false;
     }
     if (!response.ok) {
-      throw new Error(`Failed to unlike article. Status: ${response.status}`)
+      throw new Error(`Failed to unlike article. Status: ${response.status}`);
     }
 
-    return true
+    return true;
   } catch (error) {
-    console.error('Failed to unlike article:', error)
-    throw error
+    console.error("Failed to unlike article:", error);
+    throw error;
   }
 }
 
@@ -674,27 +761,33 @@ export async function deleteLikedArticle(articleId: number): Promise<boolean> {
 let cachedSources: NewsSource[] = [];
 let cachedArticles: NewsArticle[] = [];
 
-export async function getSourceById(id: string): Promise<NewsSource | undefined> {
+export async function getSourceById(
+  id: string,
+): Promise<NewsSource | undefined> {
   if (cachedSources.length === 0) {
     cachedSources = await fetchSources();
   }
-  return cachedSources.find(source => source.id === id);
+  return cachedSources.find((source) => source.id === id);
 }
 
-export async function getArticlesByCountry(country: string): Promise<NewsArticle[]> {
+export async function getArticlesByCountry(
+  country: string,
+): Promise<NewsArticle[]> {
   if (cachedArticles.length === 0) {
     cachedArticles = await fetchNews({ limit: 3000 }); // Get more articles for filtering
   }
-  return cachedArticles.filter(article =>
-    article.country.toLowerCase() === country.toLowerCase()
+  return cachedArticles.filter(
+    (article) => article.country.toLowerCase() === country.toLowerCase(),
   );
 }
 
-export async function fetchArticlesBySource(sourceId: string): Promise<NewsArticle[]> {
+export async function fetchArticlesBySource(
+  sourceId: string,
+): Promise<NewsArticle[]> {
   if (cachedArticles.length === 0) {
     cachedArticles = await fetchNews({ limit: 3000 });
   }
-  return cachedArticles.filter(article => article.sourceId === sourceId);
+  return cachedArticles.filter((article) => article.sourceId === sourceId);
 }
 
 // Initialize data on module load
@@ -703,16 +796,18 @@ export async function initializeData() {
     cachedSources = await fetchSources();
     cachedArticles = await fetchNews({ limit: 1000 });
   } catch (error) {
-    console.error('Failed to initialize data:', error);
+    console.error("Failed to initialize data:", error);
   }
 }
-
 
 /**
  * Requests a definition for a term using the /api/inline/definition endpoint.
  * Returns the definition and any error encountered.
  */
-export async function fetchInlineDefinition(term: string, context?: string): Promise<{ definition?: string | null; error?: string | null }> {
+export async function fetchInlineDefinition(
+  term: string,
+  context?: string,
+): Promise<{ definition?: string | null; error?: string | null }> {
   // Backwards-compatible wrapper around requestInlineDefinition
   const res = await requestInlineDefinition(term, context);
   return { definition: res.definition ?? null, error: res.error ?? null };
@@ -780,7 +875,9 @@ export interface SourceDebugData {
   error?: string;
 }
 
-export async function fetchSourceDebugData(sourceName: string): Promise<SourceDebugData> {
+export async function fetchSourceDebugData(
+  sourceName: string,
+): Promise<SourceDebugData> {
   // Safely decode the source name in case it's already URL encoded, then encode it properly
   let decodedSourceName: string;
   try {
@@ -796,7 +893,10 @@ export async function fetchSourceDebugData(sourceName: string): Promise<SourceDe
   logger.debug(`Fetching debug data for source: ${url}`);
   try {
     const response = await fetch(url);
-    logger.debug(`Debug response status for source ${sourceName}:`, response.status);
+    logger.debug(
+      `Debug response status for source ${sourceName}:`,
+      response.status,
+    );
     if (!response.ok) {
       return {
         source_name: sourceName,
@@ -808,13 +908,13 @@ export async function fetchSourceDebugData(sourceName: string): Promise<SourceDe
           link: "",
           language: "",
           updated: "",
-          generator: ""
+          generator: "",
         },
         feed_status: {
           http_status: response.status,
           bozo: false,
           bozo_exception: "",
-          entries_count: 0
+          entries_count: 0,
         },
         parsed_entries: [],
         cached_articles: [],
@@ -823,9 +923,9 @@ export async function fetchSourceDebugData(sourceName: string): Promise<SourceDe
         image_analysis: {
           total_entries: 0,
           entries_with_images: 0,
-          image_sources: []
+          image_sources: [],
         },
-        error: `HTTP error! status: ${response.status}`
+        error: `HTTP error! status: ${response.status}`,
       };
     }
 
@@ -833,12 +933,12 @@ export async function fetchSourceDebugData(sourceName: string): Promise<SourceDe
     logger.debug(`Debug data received for ${sourceName}:`, {
       entriesCount: debugData.feed_status?.entries_count,
       cachedArticles: debugData.cached_articles?.length,
-      hasError: !!debugData.error
+      hasError: !!debugData.error,
     });
 
     return debugData;
   } catch (error: any) {
-    console.error('Error fetching source debug data:', error);
+    console.error("Error fetching source debug data:", error);
     return {
       source_name: sourceName,
       source_config: null,
@@ -849,13 +949,13 @@ export async function fetchSourceDebugData(sourceName: string): Promise<SourceDe
         link: "",
         language: "",
         updated: "",
-        generator: ""
+        generator: "",
       },
       feed_status: {
         http_status: "fetch_failed",
         bozo: false,
         bozo_exception: error?.message || "Unknown fetch error",
-        entries_count: 0
+        entries_count: 0,
       },
       parsed_entries: [],
       cached_articles: [],
@@ -864,9 +964,9 @@ export async function fetchSourceDebugData(sourceName: string): Promise<SourceDe
       image_analysis: {
         total_entries: 0,
         entries_with_images: 0,
-        image_sources: []
+        image_sources: [],
       },
-      error: error?.message || "Unknown fetch error"
+      error: error?.message || "Unknown fetch error",
     };
   }
 }
@@ -919,7 +1019,11 @@ export interface StorageDriftReport {
   vector_total_documents: number;
   missing_in_chroma_count: number;
   dangling_in_chroma_count: number;
-  missing_in_chroma: Array<{ id: number; chroma_id?: string | null; embedding_generated?: boolean | null }>;
+  missing_in_chroma: Array<{
+    id: number;
+    chroma_id?: string | null;
+    embedding_generated?: boolean | null;
+  }>;
   dangling_in_chroma: string[];
 }
 
@@ -982,7 +1086,7 @@ export async function fetchChromaDebugArticles(params?: {
 
   const query = searchParams.toString();
   const response = await fetch(
-    `${API_BASE_URL}/debug/chromadb/articles${query ? `?${query}` : ""}`
+    `${API_BASE_URL}/debug/chromadb/articles${query ? `?${query}` : ""}`,
   );
 
   if (!response.ok) {
@@ -1020,7 +1124,7 @@ export async function fetchDatabaseDebugArticles(params?: {
 
   const query = searchParams.toString();
   const response = await fetch(
-    `${API_BASE_URL}/debug/database/articles${query ? `?${query}` : ""}`
+    `${API_BASE_URL}/debug/database/articles${query ? `?${query}` : ""}`,
   );
 
   if (!response.ok) {
@@ -1030,13 +1134,17 @@ export async function fetchDatabaseDebugArticles(params?: {
   return (await response.json()) as DatabaseDebugResponse;
 }
 
-export async function fetchStorageDrift(sampleLimit: number = 50): Promise<StorageDriftReport> {
+export async function fetchStorageDrift(
+  sampleLimit: number = 50,
+): Promise<StorageDriftReport> {
   const response = await fetch(
-    `${API_BASE_URL}/debug/storage/drift?sample_limit=${sampleLimit}`
+    `${API_BASE_URL}/debug/storage/drift?sample_limit=${sampleLimit}`,
   );
 
   if (!response.ok) {
-    throw new Error(`Failed to fetch storage drift report (${response.status})`);
+    throw new Error(
+      `Failed to fetch storage drift report (${response.status})`,
+    );
   }
 
   return (await response.json()) as StorageDriftReport;
@@ -1054,7 +1162,7 @@ export async function fetchCacheDebugArticles(params?: {
 
   const query = searchParams.toString();
   const response = await fetch(
-    `${API_BASE_URL}/debug/cache/articles${query ? `?${query}` : ""}`
+    `${API_BASE_URL}/debug/cache/articles${query ? `?${query}` : ""}`,
   );
 
   if (!response.ok) {
@@ -1081,12 +1189,15 @@ export async function fetchCacheDelta(params?: {
     searchParams.append("source", params.source);
   }
   if (params?.sample_preview_limit != null) {
-    searchParams.append("sample_preview_limit", String(params.sample_preview_limit));
+    searchParams.append(
+      "sample_preview_limit",
+      String(params.sample_preview_limit),
+    );
   }
 
   const query = searchParams.toString();
   const response = await fetch(
-    `${API_BASE_URL}/debug/cache/delta${query ? `?${query}` : ""}`
+    `${API_BASE_URL}/debug/cache/delta${query ? `?${query}` : ""}`,
   );
 
   if (!response.ok) {
@@ -1105,13 +1216,13 @@ export async function fetchStartupMetrics(): Promise<StartupMetricsResponse> {
   const data = await response.json();
   const events: StartupEventMetric[] = Array.isArray(data?.events)
     ? data.events.map((event: any) => ({
-      name: event?.name ?? "event",
-      startedAt: event?.started_at ?? null,
-      completedAt: event?.completed_at ?? null,
-      durationSeconds: event?.duration_seconds ?? null,
-      detail: event?.detail ?? null,
-      metadata: event?.metadata ?? {},
-    }))
+        name: event?.name ?? "event",
+        startedAt: event?.started_at ?? null,
+        completedAt: event?.completed_at ?? null,
+        durationSeconds: event?.duration_seconds ?? null,
+        detail: event?.detail ?? null,
+        metadata: event?.metadata ?? {},
+      }))
     : [];
 
   return {
@@ -1133,9 +1244,18 @@ export function streamNews(options: StreamOptions = {}): {
   }>;
   url: string;
 } {
-  const { useCache = true, category, onProgress, onSourceComplete, onError, signal } = options;
+  const {
+    useCache = true,
+    category,
+    onProgress,
+    onSourceComplete,
+    onError,
+    signal,
+  } = options;
 
-  logger.debug(`Starting news stream with useCache=${useCache} and category=${category}`);
+  logger.debug(
+    `Starting news stream with useCache=${useCache} and category=${category}`,
+  );
 
   // Build SSE URL with parameters
   const baseUrl = (
@@ -1206,7 +1326,7 @@ export function streamNews(options: StreamOptions = {}): {
 
       if (!response.ok) {
         throw new Error(
-          `Stream request failed with status ${response.status}: ${response.statusText}`
+          `Stream request failed with status ${response.status}: ${response.statusText}`,
         );
       }
 
@@ -1242,7 +1362,7 @@ export function streamNews(options: StreamOptions = {}): {
           Date.now() - lastMessageTime > cacheLoadTimeout
         ) {
           console.warn(
-            `Stream ${streamId} stalled after cache load - auto-completing`
+            `Stream ${streamId} stalled after cache load - auto-completing`,
           );
           clearInterval(timeoutInterval);
           clearInterval(stallInterval);
@@ -1312,7 +1432,7 @@ export function streamNews(options: StreamOptions = {}): {
                   data = JSON.parse(eventData);
                 } catch (e) {
                   console.warn(
-                    "[streamNews] First JSON.parse failed, attempting to re-parse"
+                    "[streamNews] First JSON.parse failed, attempting to re-parse",
                   );
                   data = JSON.parse(JSON.parse(`"${eventData}"`));
                 }
@@ -1340,7 +1460,7 @@ export function streamNews(options: StreamOptions = {}): {
                       const cacheAge = data.cache_age_seconds || 999;
 
                       logger.debug(
-                        `Stream ${streamId} INITIAL data: ${mappedArticles.length} articles (cache age: ${cacheAge}s)`
+                        `Stream ${streamId} INITIAL data: ${mappedArticles.length} articles (cache age: ${cacheAge}s)`,
                       );
 
                       // Process articles in batches to avoid UI freeze
@@ -1350,27 +1470,24 @@ export function streamNews(options: StreamOptions = {}): {
                           i < mappedArticles.length;
                           i += BATCH_SIZE
                         ) {
-                          const batch = mappedArticles.slice(
-                            i,
-                            i + BATCH_SIZE
-                          );
+                          const batch = mappedArticles.slice(i, i + BATCH_SIZE);
                           articles.push(...batch);
                           batch.forEach((article) =>
-                            sources.add(article.source)
+                            sources.add(article.source),
                           );
 
                           // Notify about this batch immediately
                           if (onSourceComplete) {
                             onSourceComplete(
                               `initial-batch-${Math.floor(i / BATCH_SIZE)}`,
-                              batch
+                              batch,
                             );
                           }
 
                           // Yield to the event loop to prevent blocking
                           if (i + BATCH_SIZE < mappedArticles.length) {
                             await new Promise((resolve) =>
-                              setTimeout(resolve, 0)
+                              setTimeout(resolve, 0),
                             );
                           }
                         }
@@ -1386,13 +1503,15 @@ export function streamNews(options: StreamOptions = {}): {
                     } else {
                       console.warn(
                         "[streamNews] 'initial' event received but 'articles' is not an array or is missing.",
-                        data
+                        data,
                       );
                     }
                     break;
 
                   case "starting":
-                    logger.debug(`Stream ${streamId} starting: ${data.message}`);
+                    logger.debug(
+                      `Stream ${streamId} starting: ${data.message}`,
+                    );
                     onProgress?.({
                       completed: 0,
                       total: 0,
@@ -1409,7 +1528,7 @@ export function streamNews(options: StreamOptions = {}): {
                       const cacheAge = data.cache_age_seconds || 999;
 
                       logger.debug(
-                        `Stream ${streamId} cache data: ${mappedArticles.length} articles (cache age: ${cacheAge}s, fresh: ${cacheAge < 120})`
+                        `Stream ${streamId} cache data: ${mappedArticles.length} articles (cache age: ${cacheAge}s, fresh: ${cacheAge < 120})`,
                       );
 
                       // Process articles in batches to avoid UI freeze
@@ -1419,27 +1538,24 @@ export function streamNews(options: StreamOptions = {}): {
                           i < mappedArticles.length;
                           i += BATCH_SIZE
                         ) {
-                          const batch = mappedArticles.slice(
-                            i,
-                            i + BATCH_SIZE
-                          );
+                          const batch = mappedArticles.slice(i, i + BATCH_SIZE);
                           articles.push(...batch);
                           batch.forEach((article) =>
-                            sources.add(article.source)
+                            sources.add(article.source),
                           );
 
                           // Notify about this batch immediately
                           if (onSourceComplete) {
                             onSourceComplete(
                               `cache-batch-${Math.floor(i / BATCH_SIZE)}`,
-                              batch
+                              batch,
                             );
                           }
 
                           // Yield to the event loop to prevent blocking
                           if (i + BATCH_SIZE < mappedArticles.length) {
                             await new Promise((resolve) =>
-                              setTimeout(resolve, 0)
+                              setTimeout(resolve, 0),
                             );
                           }
                         }
@@ -1455,12 +1571,12 @@ export function streamNews(options: StreamOptions = {}): {
                         // If cache is fresh (<120s), set a short timeout to auto-complete if server doesn't send complete event
                         if (cacheAge < 120) {
                           logger.debug(
-                            `Cache is fresh (${cacheAge}s), waiting for completion or timeout after 5s...`
+                            `Cache is fresh (${cacheAge}s), waiting for completion or timeout after 5s...`,
                           );
                           setTimeout(() => {
                             if (!settled && hasReceivedData) {
                               logger.debug(
-                                `Auto-completing stream after fresh cache timeout`
+                                `Auto-completing stream after fresh cache timeout`,
                               );
                               if (abortController) {
                                 abortController.abort();
@@ -1472,7 +1588,7 @@ export function streamNews(options: StreamOptions = {}): {
                     } else {
                       console.warn(
                         "[streamNews] 'cache_data' event received but 'articles' is not an array or is missing.",
-                        data
+                        data,
                       );
                     }
                     break;
@@ -1485,7 +1601,7 @@ export function streamNews(options: StreamOptions = {}): {
                       sources.add(data.source);
 
                       logger.debug(
-                        `Stream ${streamId} source complete: ${data.source} (${mappedArticles.length} articles)`
+                        `Stream ${streamId} source complete: ${data.source} (${mappedArticles.length} articles)`,
                       );
 
                       onSourceComplete?.(data.source, mappedArticles);
@@ -1554,7 +1670,7 @@ export function streamNews(options: StreamOptions = {}): {
 
                   default:
                     logger.debug(
-                      `Stream ${streamId} unknown status: ${data.status}`
+                      `Stream ${streamId} unknown status: ${data.status}`,
                     );
                 }
               } catch (parseError) {
@@ -1562,10 +1678,10 @@ export function streamNews(options: StreamOptions = {}): {
                   "Error parsing stream event:",
                   parseError,
                   "Raw data:",
-                  eventData
+                  eventData,
                 );
                 onError?.(
-                  `Parse error: ${parseError instanceof Error ? parseError.message : String(parseError)}`
+                  `Parse error: ${parseError instanceof Error ? parseError.message : String(parseError)}`,
                 );
               }
             }
@@ -1574,10 +1690,7 @@ export function streamNews(options: StreamOptions = {}): {
           clearInterval(timeoutInterval);
           clearInterval(stallInterval);
 
-          if (
-            readError instanceof Error &&
-            readError.name === "AbortError"
-          ) {
+          if (readError instanceof Error && readError.name === "AbortError") {
             console.warn("Stream reader aborted");
             if (!settled) {
               settled = true;
@@ -1604,10 +1717,7 @@ export function streamNews(options: StreamOptions = {}): {
 
       if (!settled) {
         settled = true;
-        if (
-          error instanceof Error &&
-          error.name === "AbortError"
-        ) {
+        if (error instanceof Error && error.name === "AbortError") {
           resolve({
             articles: removeDuplicateArticles(articles),
             sources: Array.from(sources),
@@ -1638,57 +1748,78 @@ const hashStringToInt = (value: string) => {
 
 // Helper function to map backend articles to frontend format
 function mapBackendArticles(backendArticles: any[]): NewsArticle[] {
-  logger.debug(`[mapBackendArticles] Mapping ${backendArticles.length} articles from backend format to frontend format.`);
+  logger.debug(
+    `[mapBackendArticles] Mapping ${backendArticles.length} articles from backend format to frontend format.`,
+  );
   return backendArticles.map((article: any) => {
-    const sourceName = article.source || article.source_name || 'Unknown';
+    const sourceName = article.source || article.source_name || "Unknown";
 
-    const summary = article.summary || article.description || '';
+    const summary = article.summary || article.description || "";
     const content = article.content || summary;
     const rawImage = article.image || article.image_url;
-    const image = (rawImage && rawImage !== "none") ? rawImage : "/placeholder.svg";
-    const published = article.published_at || article.publishedAt || article.published || new Date().toISOString();
-    const category = article.category || 'general';
-    const rawUrl = article.url || article.link || article.article_url || article.original_url || '';
-    const stableKey = rawUrl || `${sourceName}|${article.title || ''}|${published}`;
-    const resolvedId = typeof article.id === 'number'
-      ? article.id
-      : typeof article.article_id === 'number'
-        ? article.article_id
-        : hashStringToInt(stableKey);
+    const image =
+      rawImage && rawImage !== "none" ? rawImage : "/placeholder.svg";
+    const published =
+      article.published_at ||
+      article.publishedAt ||
+      article.published ||
+      new Date().toISOString();
+    const category = article.category || "general";
+    const rawUrl =
+      article.url ||
+      article.link ||
+      article.article_url ||
+      article.original_url ||
+      "";
+    const stableKey =
+      rawUrl || `${sourceName}|${article.title || ""}|${published}`;
+    const resolvedId =
+      typeof article.id === "number"
+        ? article.id
+        : typeof article.article_id === "number"
+          ? article.article_id
+          : hashStringToInt(stableKey);
     const url = rawUrl;
-    const author = article.author
-      || (Array.isArray(article.authors) ? article.authors[0] : undefined);
+    const author =
+      article.author ||
+      (Array.isArray(article.authors) ? article.authors[0] : undefined);
 
     const country = article.country || getCountryFromSource(sourceName);
-    const credibilityValue = typeof article.credibility === 'string' ? article.credibility.toLowerCase() : undefined;
-    const biasValue = typeof article.bias === 'string' ? article.bias.toLowerCase() : undefined;
+    const credibilityValue =
+      typeof article.credibility === "string"
+        ? article.credibility.toLowerCase()
+        : undefined;
+    const biasValue =
+      typeof article.bias === "string" ? article.bias.toLowerCase() : undefined;
 
-    const credibility = credibilityValue && ['high', 'medium', 'low'].includes(credibilityValue)
-      ? (credibilityValue as 'high' | 'medium' | 'low')
-      : getCredibilityFromSource(sourceName);
+    const credibility =
+      credibilityValue && ["high", "medium", "low"].includes(credibilityValue)
+        ? (credibilityValue as "high" | "medium" | "low")
+        : getCredibilityFromSource(sourceName);
 
-    const bias = biasValue && ['left', 'center', 'right'].includes(biasValue)
-      ? (biasValue as 'left' | 'center' | 'right')
-      : getBiasFromSource(sourceName);
+    const bias =
+      biasValue && ["left", "center", "right"].includes(biasValue)
+        ? (biasValue as "left" | "center" | "right")
+        : getBiasFromSource(sourceName);
 
     const mappedArticle: NewsArticle = {
       id: resolvedId,
-      title: article.title || 'No title',
+      title: article.title || "No title",
       source: sourceName,
-      sourceId: sourceName.toLowerCase().replace(/\s+/g, '-'),
+      sourceId: sourceName.toLowerCase().replace(/\s+/g, "-"),
       country,
       credibility,
       bias,
-      summary: summary || 'No description',
+      summary: summary || "No description",
       content,
       image,
       publishedAt: published,
       category,
       url,
       tags: [category, sourceName].filter(Boolean),
-      originalLanguage: article.original_language || 'en',
+      originalLanguage: article.original_language || "en",
       translated: article.translated ?? false,
-      author: author || undefined
+      author: author || undefined,
     };
 
     return mappedArticle;
@@ -1698,7 +1829,7 @@ function mapBackendArticles(backendArticles: any[]): NewsArticle[] {
 // Helper function to remove duplicate articles
 function removeDuplicateArticles(articles: NewsArticle[]): NewsArticle[] {
   const seen = new Set<string>();
-  return articles.filter(article => {
+  return articles.filter((article) => {
     const key = `${article.title}-${article.source}`;
     if (seen.has(key)) {
       return false;
@@ -1718,10 +1849,10 @@ export async function fetchStreamStatus(): Promise<any> {
     }
 
     const data = await response.json();
-    logger.debug('Stream status:', data);
+    logger.debug("Stream status:", data);
     return data;
   } catch (error) {
-    console.error('Failed to fetch stream status:', error);
+    console.error("Failed to fetch stream status:", error);
     return null;
   }
 }
@@ -1739,12 +1870,15 @@ export interface FrontendDebugReportPayload {
       eventCount: number;
       startTime: number;
     }>;
-    componentStats: Record<string, {
-      count: number;
-      avgDurationMs: number;
-      maxDurationMs: number;
-      errorCount: number;
-    }>;
+    componentStats: Record<
+      string,
+      {
+        count: number;
+        avgDurationMs: number;
+        maxDurationMs: number;
+        errorCount: number;
+      }
+    >;
   };
   recent_events: Array<{
     eventId: string;
@@ -1806,12 +1940,12 @@ export interface FrontendDebugReportPayload {
 }
 
 export async function sendFrontendDebugReport(
-  payload: FrontendDebugReportPayload
+  payload: FrontendDebugReportPayload,
 ): Promise<void> {
   try {
     const response = await fetch(`${API_BASE_URL}/debug/logs/frontend`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
       body: JSON.stringify(payload),
     });
 
@@ -1819,24 +1953,27 @@ export async function sendFrontendDebugReport(
       throw new Error(`HTTP error! status: ${response.status}`);
     }
   } catch (error) {
-    console.error('Failed to send frontend debug report:', error);
+    console.error("Failed to send frontend debug report:", error);
   }
 }
 
 // Article Analysis Types
 export interface FactCheckResult {
   claim: string;
-  verification_status: 'verified' | 'partially-verified' | 'unverified' | 'false';
+  verification_status:
+    | "verified"
+    | "partially-verified"
+    | "unverified"
+    | "false";
   evidence: string;
   sources: string[];
-  confidence: 'high' | 'medium' | 'low';
+  confidence: "high" | "medium" | "low";
   notes?: string;
 }
 
 // --- Trending & Breaking News ---
 // The interfaces and functions for fetching trending and breaking news
 // are now consolidated at the bottom of this file (Phase 6 section) to avoid duplication.
-
 
 export interface ArticleAnalysis {
   success: boolean;
@@ -1877,18 +2014,21 @@ export interface ArticleAnalysis {
 }
 
 // Analyze article with AI
-export async function analyzeArticle(url: string, sourceName?: string): Promise<ArticleAnalysis> {
+export async function analyzeArticle(
+  url: string,
+  sourceName?: string,
+): Promise<ArticleAnalysis> {
   try {
     logger.debug(`Analyzing article: ${url}`);
     const response = await fetch(`${API_BASE_URL}/api/article/analyze`, {
-      method: 'POST',
+      method: "POST",
       headers: {
-        'Content-Type': 'application/json',
+        "Content-Type": "application/json",
       },
       body: JSON.stringify({
         url,
-        source_name: sourceName
-      })
+        source_name: sourceName,
+      }),
     });
 
     if (!response.ok) {
@@ -1896,17 +2036,17 @@ export async function analyzeArticle(url: string, sourceName?: string): Promise<
     }
 
     const data = await response.json();
-    logger.debug('Article analysis complete:', data);
+    logger.debug("Article analysis complete:", data);
     return data;
   } catch (error) {
-    console.error('Failed to analyze article:', error);
+    console.error("Failed to analyze article:", error);
     throw error;
   }
 }
 
 // News Research Agent Types
 export interface ThinkingStep {
-  type: 'thought' | 'action' | 'tool_start' | 'observation' | 'answer';
+  type: "thought" | "action" | "tool_start" | "observation" | "answer";
   content: string;
   timestamp: string;
 }
@@ -1917,26 +2057,26 @@ export interface NewsResearchResponse {
   answer: string;
   thinking_steps: ThinkingStep[];
   articles_searched: number;
-  referenced_articles?: any[];  // Full article objects from backend
+  referenced_articles?: any[]; // Full article objects from backend
   error?: string;
 }
 
 // Perform news research using the AI agent
 export async function performNewsResearch(
   query: string,
-  includeThinking: boolean = true
+  includeThinking: boolean = true,
 ): Promise<NewsResearchResponse> {
   try {
     logger.debug(`Performing news research: ${query}`);
     const response = await fetch(`${API_BASE_URL}/api/news/research`, {
-      method: 'POST',
+      method: "POST",
       headers: {
-        'Content-Type': 'application/json',
+        "Content-Type": "application/json",
       },
       body: JSON.stringify({
         query,
-        include_thinking: includeThinking
-      })
+        include_thinking: includeThinking,
+      }),
     });
 
     if (!response.ok) {
@@ -1944,80 +2084,83 @@ export async function performNewsResearch(
     }
 
     const data = await response.json();
-    logger.debug('News research complete:', data);
+    logger.debug("News research complete:", data);
     return data;
   } catch (error) {
-    console.error('Failed to perform news research:', error);
+    console.error("Failed to perform news research:", error);
     throw error;
   }
 }
 
 // Agentic search (LangChain backend agent)
 export interface AgenticSearchRequest {
-  query: string
-  max_steps?: number
+  query: string;
+  max_steps?: number;
 }
 
 export interface AgenticSearchResponse {
-  success: boolean
-  answer: string
-  reasoning?: any[]
-  citations?: any[]
+  success: boolean;
+  answer: string;
+  reasoning?: any[];
+  citations?: any[];
 }
 
-export async function performAgenticSearch(query: string, maxSteps: number = 8): Promise<AgenticSearchResponse> {
+export async function performAgenticSearch(
+  query: string,
+  maxSteps: number = 8,
+): Promise<AgenticSearchResponse> {
   try {
     const response = await fetch(`${API_BASE_URL}/api/search/agentic`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ query, max_steps: maxSteps })
-    })
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ query, max_steps: maxSteps }),
+    });
 
     if (!response.ok) {
-      throw new Error(`HTTP error! status: ${response.status}`)
+      throw new Error(`HTTP error! status: ${response.status}`);
     }
 
-    const data = await response.json()
-    return data as AgenticSearchResponse
+    const data = await response.json();
+    return data as AgenticSearchResponse;
   } catch (error) {
-    console.error('Agentic search failed:', error)
-    throw error
+    console.error("Agentic search failed:", error);
+    throw error;
   }
 }
 
 // Reading Queue API functions
 export interface ReadingQueueItem {
-  id?: number
-  user_id?: number
-  article_id: number
-  article_title: string
-  article_url: string
-  article_source: string
-  article_image?: string
-  queue_type: 'daily' | 'permanent'
-  position: number
-  read_status: 'unread' | 'reading' | 'completed'
-  added_at: string
-  archived_at?: string
-  created_at?: string
-  updated_at?: string
+  id?: number;
+  user_id?: number;
+  article_id: number;
+  article_title: string;
+  article_url: string;
+  article_source: string;
+  article_image?: string;
+  queue_type: "daily" | "permanent";
+  position: number;
+  read_status: "unread" | "reading" | "completed";
+  added_at: string;
+  archived_at?: string;
+  created_at?: string;
+  updated_at?: string;
 }
 
 export interface QueueResponse {
-  items: ReadingQueueItem[]
-  daily_count: number
-  permanent_count: number
-  total_count: number
+  items: ReadingQueueItem[];
+  daily_count: number;
+  permanent_count: number;
+  total_count: number;
 }
 
 export async function addToReadingQueue(
   article: NewsArticle,
-  queueType: 'daily' | 'permanent' = 'daily'
+  queueType: "daily" | "permanent" = "daily",
 ): Promise<ReadingQueueItem> {
   try {
     const response = await fetch(`${API_BASE_URL}/api/queue/add`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         article_id: article.id,
         article_title: article.title,
@@ -2026,322 +2169,337 @@ export async function addToReadingQueue(
         article_image: article.image,
         queue_type: queueType,
       }),
-    })
+    });
 
     if (!response.ok) {
-      throw new Error(`HTTP error! status: ${response.status}`)
+      throw new Error(`HTTP error! status: ${response.status}`);
     }
 
-    const data = await response.json()
-    logger.debug('Article added to reading queue:', data)
-    return data
+    const data = await response.json();
+    logger.debug("Article added to reading queue:", data);
+    return data;
   } catch (error) {
-    console.error('Failed to add article to reading queue:', error)
-    throw error
+    console.error("Failed to add article to reading queue:", error);
+    throw error;
   }
 }
 
-export async function removeFromReadingQueue(queueItemId: number): Promise<void> {
+export async function removeFromReadingQueue(
+  queueItemId: number,
+): Promise<void> {
   try {
     const response = await fetch(`${API_BASE_URL}/api/queue/${queueItemId}`, {
-      method: 'DELETE',
-    })
+      method: "DELETE",
+    });
 
     if (!response.ok) {
-      throw new Error(`HTTP error! status: ${response.status}`)
+      throw new Error(`HTTP error! status: ${response.status}`);
     }
 
-    logger.debug('Article removed from reading queue')
+    logger.debug("Article removed from reading queue");
   } catch (error) {
-    console.error('Failed to remove article from reading queue:', error)
-    throw error
+    console.error("Failed to remove article from reading queue:", error);
+    throw error;
   }
 }
 
 export async function removeFromReadingQueueByUrl(
-  articleUrl: string
+  articleUrl: string,
 ): Promise<void> {
   try {
-    const encodedUrl = encodeURIComponent(articleUrl)
+    const encodedUrl = encodeURIComponent(articleUrl);
     const response = await fetch(
       `${API_BASE_URL}/api/queue/url/${encodedUrl}`,
-      { method: 'DELETE' }
-    )
+      { method: "DELETE" },
+    );
 
     if (!response.ok) {
-      throw new Error(`HTTP error! status: ${response.status}`)
+      throw new Error(`HTTP error! status: ${response.status}`);
     }
 
-    logger.debug('Article removed from reading queue by URL')
+    logger.debug("Article removed from reading queue by URL");
   } catch (error) {
-    console.error('Failed to remove article from reading queue:', error)
-    throw error
+    console.error("Failed to remove article from reading queue:", error);
+    throw error;
   }
 }
 
 export async function getReadingQueue(): Promise<QueueResponse> {
   try {
     const response = await fetch(`${API_BASE_URL}/api/queue`, {
-      method: 'GET',
-      headers: { 'Content-Type': 'application/json' },
-    })
+      method: "GET",
+      headers: { "Content-Type": "application/json" },
+    });
 
     if (!response.ok) {
-      throw new Error(`HTTP error! status: ${response.status}`)
+      throw new Error(`HTTP error! status: ${response.status}`);
     }
 
-    const data = await response.json()
-    logger.debug('Reading queue retrieved:', data)
-    return data
+    const data = await response.json();
+    logger.debug("Reading queue retrieved:", data);
+    return data;
   } catch (error) {
-    console.error('Failed to fetch reading queue:', error)
-    throw error
+    console.error("Failed to fetch reading queue:", error);
+    throw error;
   }
 }
 
 export interface UpdateQueueItemRequest {
-  read_status?: 'unread' | 'reading' | 'completed'
-  queue_type?: 'daily' | 'permanent'
-  position?: number
-  archived_at?: string
+  read_status?: "unread" | "reading" | "completed";
+  queue_type?: "daily" | "permanent";
+  position?: number;
+  archived_at?: string;
 }
 
 export async function updateReadingQueueItem(
   queueItemId: number,
-  updates: UpdateQueueItemRequest
+  updates: UpdateQueueItemRequest,
 ): Promise<ReadingQueueItem> {
   try {
     const response = await fetch(`${API_BASE_URL}/api/queue/${queueItemId}`, {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
       body: JSON.stringify(updates),
-    })
+    });
 
     if (!response.ok) {
-      throw new Error(`HTTP error! status: ${response.status}`)
+      throw new Error(`HTTP error! status: ${response.status}`);
     }
 
-    const data = await response.json()
-    logger.debug('Queue item updated:', data)
-    return data
+    const data = await response.json();
+    logger.debug("Queue item updated:", data);
+    return data;
   } catch (error) {
-    console.error('Failed to update queue item:', error)
-    throw error
+    console.error("Failed to update queue item:", error);
+    throw error;
   }
 }
 
 export interface QueueOverview {
-  total_items: number
-  daily_items: number
-  permanent_items: number
-  unread_count: number
-  reading_count: number
-  completed_count: number
-  estimated_total_read_time_minutes: number
+  total_items: number;
+  daily_items: number;
+  permanent_items: number;
+  unread_count: number;
+  reading_count: number;
+  completed_count: number;
+  estimated_total_read_time_minutes: number;
 }
 
 export async function getQueueOverview(): Promise<QueueOverview> {
   try {
     const response = await fetch(`${API_BASE_URL}/api/queue/overview`, {
-      method: 'GET',
-      headers: { 'Content-Type': 'application/json' },
-    })
+      method: "GET",
+      headers: { "Content-Type": "application/json" },
+    });
 
     if (!response.ok) {
-      throw new Error(`HTTP error! status: ${response.status}`)
+      throw new Error(`HTTP error! status: ${response.status}`);
     }
 
-    const data = await response.json()
-    logger.debug('Queue overview retrieved:', data)
-    return data
+    const data = await response.json();
+    logger.debug("Queue overview retrieved:", data);
+    return data;
   } catch (error) {
-    console.error('Failed to fetch queue overview:', error)
-    throw error
+    console.error("Failed to fetch queue overview:", error);
+    throw error;
   }
 }
 
 // Highlights API
 export interface Highlight {
-  id?: number
-  user_id?: number
-  article_url: string
-  highlighted_text: string
-  color: 'yellow' | 'blue' | 'red' | 'green' | 'purple'
-  note?: string
-  character_start: number
-  character_end: number
-  created_at?: string
-  updated_at?: string
+  id?: number;
+  user_id?: number;
+  article_url: string;
+  highlighted_text: string;
+  color: "yellow" | "blue" | "red" | "green" | "purple";
+  note?: string;
+  character_start: number;
+  character_end: number;
+  created_at?: string;
+  updated_at?: string;
 }
 
-export async function createHighlight(highlight: Highlight): Promise<Highlight> {
+export async function createHighlight(
+  highlight: Highlight,
+): Promise<Highlight> {
   try {
     const response = await fetch(`${API_BASE_URL}/api/queue/highlights`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
       body: JSON.stringify(highlight),
-    })
+    });
 
     if (!response.ok) {
-      throw new Error(`HTTP error! status: ${response.status}`)
+      throw new Error(`HTTP error! status: ${response.status}`);
     }
 
-    const data = await response.json()
-    logger.debug('Highlight created:', data)
-    return data
+    const data = await response.json();
+    logger.debug("Highlight created:", data);
+    return data;
   } catch (error) {
-    console.error('Failed to create highlight:', error)
-    throw error
+    console.error("Failed to create highlight:", error);
+    throw error;
   }
 }
 
 export async function getHighlightsForArticle(
-  articleUrl: string
+  articleUrl: string,
 ): Promise<Highlight[]> {
   try {
-    const encodedUrl = encodeURIComponent(articleUrl)
-    const url = `${API_BASE_URL}/api/queue/highlights/article/${encodedUrl}`
+    const encodedUrl = encodeURIComponent(articleUrl);
+    const url = `${API_BASE_URL}/api/queue/highlights/article/${encodedUrl}`;
 
-    if (process.env.NODE_ENV !== 'production') {
-      logger.debug(`[Highlights] GET ${url}`)
+    if (process.env.NODE_ENV !== "production") {
+      logger.debug(`[Highlights] GET ${url}`);
     }
 
     const response = await fetch(url, {
-      method: 'GET',
-      headers: { 'Content-Type': 'application/json' },
-    })
+      method: "GET",
+      headers: { "Content-Type": "application/json" },
+    });
 
     if (!response.ok) {
-      throw new Error(`HTTP error! status: ${response.status}`)
+      throw new Error(`HTTP error! status: ${response.status}`);
     }
 
-    const data = await response.json()
-    logger.debug('Highlights retrieved:', data)
-    return data
+    const data = await response.json();
+    logger.debug("Highlights retrieved:", data);
+    return data;
   } catch (error) {
-    console.error('Failed to fetch highlights:', error)
-    throw error
+    console.error("Failed to fetch highlights:", error);
+    throw error;
   }
 }
 
 export async function getAllHighlights(): Promise<Highlight[]> {
   try {
     const response = await fetch(`${API_BASE_URL}/api/queue/highlights`, {
-      method: 'GET',
-      headers: { 'Content-Type': 'application/json' },
-    })
+      method: "GET",
+      headers: { "Content-Type": "application/json" },
+    });
 
     if (!response.ok) {
-      throw new Error(`HTTP error! status: ${response.status}`)
+      throw new Error(`HTTP error! status: ${response.status}`);
     }
 
-    const data = await response.json()
-    logger.debug('All highlights retrieved:', data)
-    return data
+    const data = await response.json();
+    logger.debug("All highlights retrieved:", data);
+    return data;
   } catch (error) {
-    console.error('Failed to fetch highlights:', error)
-    throw error
+    console.error("Failed to fetch highlights:", error);
+    throw error;
   }
 }
 
 export async function updateHighlight(
   highlightId: number,
-  updates: Partial<Highlight>
+  updates: Partial<Highlight>,
 ): Promise<Highlight> {
   try {
-    const response = await fetch(`${API_BASE_URL}/api/queue/highlights/${highlightId}`, {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(updates),
-    })
+    const response = await fetch(
+      `${API_BASE_URL}/api/queue/highlights/${highlightId}`,
+      {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(updates),
+      },
+    );
 
     if (!response.ok) {
-      throw new Error(`HTTP error! status: ${response.status}`)
+      throw new Error(`HTTP error! status: ${response.status}`);
     }
 
-    const data = await response.json()
-    logger.debug('Highlight updated:', data)
-    return data
+    const data = await response.json();
+    logger.debug("Highlight updated:", data);
+    return data;
   } catch (error) {
-    console.error('Failed to update highlight:', error)
-    throw error
+    console.error("Failed to update highlight:", error);
+    throw error;
   }
 }
 
 export async function deleteHighlight(highlightId: number): Promise<void> {
   try {
-    const response = await fetch(`${API_BASE_URL}/api/queue/highlights/${highlightId}`, {
-      method: 'DELETE',
-    })
+    const response = await fetch(
+      `${API_BASE_URL}/api/queue/highlights/${highlightId}`,
+      {
+        method: "DELETE",
+      },
+    );
 
     if (!response.ok) {
-      throw new Error(`HTTP error! status: ${response.status}`)
+      throw new Error(`HTTP error! status: ${response.status}`);
     }
 
-    logger.debug('Highlight deleted')
+    logger.debug("Highlight deleted");
   } catch (error) {
-    console.error('Failed to delete highlight:', error)
-    throw error
+    console.error("Failed to delete highlight:", error);
+    throw error;
   }
 }
 
 // --- Reading Queue Content & Digest ---
 
 export interface QueueItemContent {
-  id: number
-  article_url: string
-  article_title: string
-  article_source: string
-  full_text: string
-  word_count?: number
-  estimated_read_time_minutes?: number
-  read_status: string
+  id: number;
+  article_url: string;
+  article_title: string;
+  article_source: string;
+  full_text: string;
+  word_count?: number;
+  estimated_read_time_minutes?: number;
+  read_status: string;
 }
 
 export interface QueueDigest {
-  digest_items: ReadingQueueItem[]
-  total_items: number
-  estimated_read_time_minutes: number
-  generated_at: string
+  digest_items: ReadingQueueItem[];
+  total_items: number;
+  estimated_read_time_minutes: number;
+  generated_at: string;
 }
 
-export async function getQueueItemContent(queueId: number): Promise<QueueItemContent> {
+export async function getQueueItemContent(
+  queueId: number,
+): Promise<QueueItemContent> {
   try {
-    const response = await fetch(`${API_BASE_URL}/api/queue/${queueId}/content`, {
-      method: 'GET',
-      headers: { 'Content-Type': 'application/json' },
-    })
+    const response = await fetch(
+      `${API_BASE_URL}/api/queue/${queueId}/content`,
+      {
+        method: "GET",
+        headers: { "Content-Type": "application/json" },
+      },
+    );
 
     if (!response.ok) {
-      throw new Error(`HTTP error! status: ${response.status}`)
+      throw new Error(`HTTP error! status: ${response.status}`);
     }
 
-    const data = await response.json()
-    logger.debug('Queue item content retrieved:', data)
-    return data
+    const data = await response.json();
+    logger.debug("Queue item content retrieved:", data);
+    return data;
   } catch (error) {
-    console.error('Failed to fetch queue item content:', error)
-    throw error
+    console.error("Failed to fetch queue item content:", error);
+    throw error;
   }
 }
 
 export async function getDailyDigest(): Promise<QueueDigest> {
   try {
     const response = await fetch(`${API_BASE_URL}/api/queue/digest/daily`, {
-      method: 'GET',
-      headers: { 'Content-Type': 'application/json' },
-    })
+      method: "GET",
+      headers: { "Content-Type": "application/json" },
+    });
 
     if (!response.ok) {
-      throw new Error(`HTTP error! status: ${response.status}`)
+      throw new Error(`HTTP error! status: ${response.status}`);
     }
 
-    const data = await response.json()
-    logger.debug('Daily digest retrieved:', data)
-    return data
+    const data = await response.json();
+    logger.debug("Daily digest retrieved:", data);
+    return data;
   } catch (error) {
-    console.error('Failed to fetch daily digest:', error)
-    throw error
+    console.error("Failed to fetch daily digest:", error);
+    throw error;
   }
 }
 
@@ -2361,14 +2519,14 @@ export interface PaginationParams {
   cursor?: string;
   category?: string;
   source?: string;
-  sources?: string;  // Comma-separated source names for multi-select
+  sources?: string; // Comma-separated source names for multi-select
   search?: string;
 }
 
 // --- Paginated Fetch Functions ---
 
 export async function fetchNewsPaginated(
-  params: PaginationParams = {}
+  params: PaginationParams = {},
 ): Promise<PaginatedResponse> {
   const searchParams = new URLSearchParams();
 
@@ -2409,7 +2567,7 @@ export async function fetchNewsPaginated(
 }
 
 export async function fetchCachedNewsPaginated(
-  params: PaginationParams & { offset?: number } = {}
+  params: PaginationParams & { offset?: number } = {},
 ): Promise<PaginatedResponse> {
   const searchParams = new URLSearchParams();
 
@@ -2526,7 +2684,7 @@ export async function fetchNewsForCountry(
   code: string,
   view: "internal" | "external" = "internal",
   limit: number = 50,
-  offset: number = 0
+  offset: number = 0,
 ): Promise<LocalLensResponse> {
   const params = new URLSearchParams({
     view,
@@ -2534,7 +2692,9 @@ export async function fetchNewsForCountry(
     offset: offset.toString(),
   });
 
-  const response = await fetch(`${API_BASE_URL}/news/country/${code}?${params}`);
+  const response = await fetch(
+    `${API_BASE_URL}/news/country/${code}?${params}`,
+  );
   if (!response.ok) {
     throw new Error(`HTTP error! status: ${response.status}`);
   }
@@ -2556,7 +2716,11 @@ export interface ReporterProfile {
   name: string;
   normalized_name?: string;
   bio?: string;
-  career_history?: Array<{ organization?: string; role?: string; source?: string }>;
+  career_history?: Array<{
+    organization?: string;
+    role?: string;
+    source?: string;
+  }>;
   topics?: string[];
   political_leaning?: string;
   leaning_confidence?: string;
@@ -2619,18 +2783,21 @@ export async function profileReporter(
   name: string,
   organization?: string,
   articleContext?: string,
-  forceRefresh: boolean = false
+  forceRefresh: boolean = false,
 ): Promise<ReporterProfile> {
   const params = forceRefresh ? "?force_refresh=true" : "";
-  const response = await fetch(`${API_BASE_URL}/research/entity/reporter/profile${params}`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      name,
-      organization,
-      article_context: articleContext,
-    }),
-  });
+  const response = await fetch(
+    `${API_BASE_URL}/research/entity/reporter/profile${params}`,
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        name,
+        organization,
+        article_context: articleContext,
+      }),
+    },
+  );
 
   if (!response.ok) {
     throw new Error(`HTTP error! status: ${response.status}`);
@@ -2642,8 +2809,12 @@ export async function profileReporter(
 /**
  * Get a cached reporter by ID
  */
-export async function getReporter(reporterId: number): Promise<ReporterProfile> {
-  const response = await fetch(`${API_BASE_URL}/research/entity/reporter/${reporterId}`);
+export async function getReporter(
+  reporterId: number,
+): Promise<ReporterProfile> {
+  const response = await fetch(
+    `${API_BASE_URL}/research/entity/reporter/${reporterId}`,
+  );
   if (!response.ok) {
     throw new Error(`HTTP error! status: ${response.status}`);
   }
@@ -2653,9 +2824,17 @@ export async function getReporter(reporterId: number): Promise<ReporterProfile> 
 /**
  * List all cached reporters
  */
-export async function listReporters(limit: number = 50, offset: number = 0): Promise<ReporterProfile[]> {
-  const params = new URLSearchParams({ limit: limit.toString(), offset: offset.toString() });
-  const response = await fetch(`${API_BASE_URL}/research/entity/reporters?${params}`);
+export async function listReporters(
+  limit: number = 50,
+  offset: number = 0,
+): Promise<ReporterProfile[]> {
+  const params = new URLSearchParams({
+    limit: limit.toString(),
+    offset: offset.toString(),
+  });
+  const response = await fetch(
+    `${API_BASE_URL}/research/entity/reporters?${params}`,
+  );
   if (!response.ok) {
     throw new Error(`HTTP error! status: ${response.status}`);
   }
@@ -2668,14 +2847,17 @@ export async function listReporters(limit: number = 50, offset: number = 0): Pro
 export async function researchOrganization(
   name: string,
   website?: string,
-  forceRefresh: boolean = false
+  forceRefresh: boolean = false,
 ): Promise<OrganizationProfile> {
   const params = forceRefresh ? "?force_refresh=true" : "";
-  const response = await fetch(`${API_BASE_URL}/research/entity/organization/research${params}`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ name, website }),
-  });
+  const response = await fetch(
+    `${API_BASE_URL}/research/entity/organization/research${params}`,
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ name, website }),
+    },
+  );
 
   if (!response.ok) {
     throw new Error(`HTTP error! status: ${response.status}`);
@@ -2690,14 +2872,17 @@ export async function researchOrganization(
 export async function researchSourceProfile(
   name: string,
   website?: string,
-  forceRefresh: boolean = false
+  forceRefresh: boolean = false,
 ): Promise<SourceResearchProfile> {
   const params = forceRefresh ? "?force_refresh=true" : "";
-  const response = await fetch(`${API_BASE_URL}/research/entity/source/profile${params}`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ name, website }),
-  });
+  const response = await fetch(
+    `${API_BASE_URL}/research/entity/source/profile${params}`,
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ name, website }),
+    },
+  );
 
   if (!response.ok) {
     throw new Error(`HTTP error! status: ${response.status}`);
@@ -2712,13 +2897,16 @@ export async function researchSourceProfile(
  */
 export async function checkSourceProfileCache(
   name: string,
-  website?: string
+  website?: string,
 ): Promise<SourceResearchProfile | null> {
-  const response = await fetch(`${API_BASE_URL}/research/entity/source/profile?cache_only=true`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ name, website }),
-  });
+  const response = await fetch(
+    `${API_BASE_URL}/research/entity/source/profile?cache_only=true`,
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ name, website }),
+    },
+  );
 
   if (response.status === 404) {
     return null;
@@ -2748,14 +2936,17 @@ export interface SourceBatchResponse {
  */
 export async function researchSourceProfilesBatch(
   sources: SourceResearchRequest[],
-  forceRefresh: boolean = false
+  forceRefresh: boolean = false,
 ): Promise<SourceBatchResponse> {
   const params = forceRefresh ? "?force_refresh=true" : "";
-  const response = await fetch(`${API_BASE_URL}/research/entity/source/batch${params}`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ sources }),
-  });
+  const response = await fetch(
+    `${API_BASE_URL}/research/entity/source/batch${params}`,
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ sources }),
+    },
+  );
 
   if (!response.ok) {
     throw new Error(`HTTP error! status: ${response.status}`);
@@ -2767,8 +2958,12 @@ export async function researchSourceProfilesBatch(
 /**
  * Get a cached organization by ID
  */
-export async function getOrganization(orgId: number): Promise<OrganizationProfile> {
-  const response = await fetch(`${API_BASE_URL}/research/entity/organization/${orgId}`);
+export async function getOrganization(
+  orgId: number,
+): Promise<OrganizationProfile> {
+  const response = await fetch(
+    `${API_BASE_URL}/research/entity/organization/${orgId}`,
+  );
   if (!response.ok) {
     throw new Error(`HTTP error! status: ${response.status}`);
   }
@@ -2778,10 +2973,13 @@ export async function getOrganization(orgId: number): Promise<OrganizationProfil
 /**
  * Get ownership chain for an organization
  */
-export async function getOwnershipChain(orgName: string, maxDepth: number = 5): Promise<OwnershipChain> {
+export async function getOwnershipChain(
+  orgName: string,
+  maxDepth: number = 5,
+): Promise<OwnershipChain> {
   const params = new URLSearchParams({ max_depth: maxDepth.toString() });
   const response = await fetch(
-    `${API_BASE_URL}/research/entity/organization/${encodeURIComponent(orgName)}/ownership-chain?${params}`
+    `${API_BASE_URL}/research/entity/organization/${encodeURIComponent(orgName)}/ownership-chain?${params}`,
   );
   if (!response.ok) {
     throw new Error(`HTTP error! status: ${response.status}`);
@@ -2792,9 +2990,17 @@ export async function getOwnershipChain(orgName: string, maxDepth: number = 5): 
 /**
  * List all cached organizations
  */
-export async function listOrganizations(limit: number = 50, offset: number = 0): Promise<OrganizationProfile[]> {
-  const params = new URLSearchParams({ limit: limit.toString(), offset: offset.toString() });
-  const response = await fetch(`${API_BASE_URL}/research/entity/organizations?${params}`);
+export async function listOrganizations(
+  limit: number = 50,
+  offset: number = 0,
+): Promise<OrganizationProfile[]> {
+  const params = new URLSearchParams({
+    limit: limit.toString(),
+    offset: offset.toString(),
+  });
+  const response = await fetch(
+    `${API_BASE_URL}/research/entity/organizations?${params}`,
+  );
   if (!response.ok) {
     throw new Error(`HTTP error! status: ${response.status}`);
   }
@@ -2846,19 +3052,22 @@ export async function analyzeMaterialContext(
   sourceCountry: string,
   mentionedCountries: string[],
   topics?: string[],
-  articleText?: string
+  articleText?: string,
 ): Promise<MaterialContext> {
-  const response = await fetch(`${API_BASE_URL}/research/entity/material-context`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      source,
-      source_country: sourceCountry,
-      mentioned_countries: mentionedCountries,
-      topics,
-      article_text: articleText,
-    }),
-  });
+  const response = await fetch(
+    `${API_BASE_URL}/research/entity/material-context`,
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        source,
+        source_country: sourceCountry,
+        mentioned_countries: mentionedCountries,
+        topics,
+        article_text: articleText,
+      }),
+    },
+  );
 
   if (!response.ok) {
     throw new Error(`HTTP error! status: ${response.status}`);
@@ -2870,8 +3079,12 @@ export async function analyzeMaterialContext(
 /**
  * Get economic profile for a country
  */
-export async function getCountryEconomicProfile(countryCode: string): Promise<CountryEconomicProfile> {
-  const response = await fetch(`${API_BASE_URL}/research/entity/country/${countryCode}/economic-profile`);
+export async function getCountryEconomicProfile(
+  countryCode: string,
+): Promise<CountryEconomicProfile> {
+  const response = await fetch(
+    `${API_BASE_URL}/research/entity/country/${countryCode}/economic-profile`,
+  );
   if (!response.ok) {
     throw new Error(`HTTP error! status: ${response.status}`);
   }
@@ -2981,7 +3194,7 @@ export interface AllClustersResponse {
  */
 export async function fetchTrending(
   window: "1d" | "1w" | "1m" = "1d",
-  limit: number = 10
+  limit: number = 10,
 ): Promise<TrendingResponse> {
   const params = new URLSearchParams({
     window,
@@ -2999,7 +3212,9 @@ export async function fetchTrending(
  * Get breaking news clusters (3-hour spike detection)
  * @param limit Max clusters to return
  */
-export async function fetchBreaking(limit: number = 5): Promise<BreakingResponse> {
+export async function fetchBreaking(
+  limit: number = 5,
+): Promise<BreakingResponse> {
   const params = new URLSearchParams({
     limit: limit.toString(),
   });
@@ -3020,7 +3235,7 @@ export async function fetchBreaking(limit: number = 5): Promise<BreakingResponse
 export async function fetchAllClusters(
   window: "1d" | "1w" | "1m" = "1d",
   minArticles: number = 2,
-  limit: number = 100
+  limit: number = 100,
 ): Promise<AllClustersResponse> {
   const params = new URLSearchParams({
     window,
@@ -3038,8 +3253,12 @@ export async function fetchAllClusters(
 /**
  * Get detailed info about a specific topic cluster
  */
-export async function fetchClusterDetail(clusterId: number): Promise<ClusterDetail> {
-  const response = await fetch(`${API_BASE_URL}/trending/clusters/${clusterId}`);
+export async function fetchClusterDetail(
+  clusterId: number,
+): Promise<ClusterDetail> {
+  const response = await fetch(
+    `${API_BASE_URL}/trending/clusters/${clusterId}`,
+  );
   if (!response.ok) {
     throw new Error(`HTTP error! status: ${response.status}`);
   }
@@ -3050,9 +3269,11 @@ export async function fetchClusterDetail(clusterId: number): Promise<ClusterDeta
  * Fetch all articles for a cluster and transform to NewsArticle format
  * Used by topic view expansion
  */
-export async function fetchClusterArticles(clusterId: number): Promise<NewsArticle[]> {
+export async function fetchClusterArticles(
+  clusterId: number,
+): Promise<NewsArticle[]> {
   const detail = await fetchClusterDetail(clusterId);
-  
+
   return detail.articles.map((article) => ({
     id: article.id,
     title: article.title,
@@ -3128,11 +3349,11 @@ export interface GdeltStatsResponse {
 
 export async function fetchGdeltArticleEvents(
   articleId: number,
-  limit: number = 50
+  limit: number = 50,
 ): Promise<GdeltArticleEventsResponse> {
   const params = new URLSearchParams({ limit: String(limit) });
   const response = await fetch(
-    `${API_BASE_URL}/gdelt/article/${articleId}?${params}`
+    `${API_BASE_URL}/gdelt/article/${articleId}?${params}`,
   );
   if (!response.ok) {
     throw new Error(`HTTP error! status: ${response.status}`);
@@ -3141,7 +3362,7 @@ export async function fetchGdeltArticleEvents(
 }
 
 export async function fetchGdeltStats(
-  hours: number = 24
+  hours: number = 24,
 ): Promise<GdeltStatsResponse> {
   const params = new URLSearchParams({ hours: String(hours) });
   const response = await fetch(`${API_BASE_URL}/gdelt/stats?${params}`);
@@ -3216,7 +3437,7 @@ export interface NoveltyScoreResponse {
 export async function fetchRelatedArticles(
   articleId: number,
   limit: number = 5,
-  excludeSameSource: boolean = true
+  excludeSameSource: boolean = true,
 ): Promise<RelatedArticlesResponse> {
   const params = new URLSearchParams({
     limit: limit.toString(),
@@ -3224,7 +3445,7 @@ export async function fetchRelatedArticles(
   });
 
   const response = await fetch(
-    `${API_BASE_URL}/api/similarity/related/${articleId}?${params}`
+    `${API_BASE_URL}/api/similarity/related/${articleId}?${params}`,
   );
   if (response.status === 503) {
     throw new Error("Similarity features unavailable - vector store offline");
@@ -3242,7 +3463,7 @@ export async function fetchRelatedArticles(
  */
 export async function fetchSearchSuggestions(
   query: string,
-  limit: number = 5
+  limit: number = 5,
 ): Promise<SearchSuggestionsResponse> {
   const params = new URLSearchParams({
     query,
@@ -3250,7 +3471,7 @@ export async function fetchSearchSuggestions(
   });
 
   const response = await fetch(
-    `${API_BASE_URL}/api/similarity/search-suggestions?${params}`
+    `${API_BASE_URL}/api/similarity/search-suggestions?${params}`,
   );
   if (response.status === 503) {
     throw new Error("Search suggestions unavailable");
@@ -3268,7 +3489,7 @@ export async function fetchSearchSuggestions(
  */
 export async function fetchSourceCoverage(
   sourceIds: string[],
-  sampleSize: number = 100
+  sampleSize: number = 100,
 ): Promise<SourceCoverageResponse> {
   const params = new URLSearchParams({
     source_ids: sourceIds.join(","),
@@ -3276,7 +3497,7 @@ export async function fetchSourceCoverage(
   });
 
   const response = await fetch(
-    `${API_BASE_URL}/api/similarity/source-coverage?${params}`
+    `${API_BASE_URL}/api/similarity/source-coverage?${params}`,
   );
   if (response.status === 503) {
     throw new Error("Source coverage unavailable");
@@ -3294,7 +3515,7 @@ export async function fetchSourceCoverage(
  */
 export async function fetchNoveltyScore(
   articleId: number,
-  readingHistory: number[]
+  readingHistory: number[],
 ): Promise<NoveltyScoreResponse> {
   const response = await fetch(`${API_BASE_URL}/api/similarity/novelty-score`, {
     method: "POST",
@@ -3330,7 +3551,10 @@ export interface ArticleTopicsResponse {
 }
 
 export interface BulkArticleTopicsResponse {
-  articles: Record<number, Array<{ cluster_id: number; label: string; similarity: number | null }>>;
+  articles: Record<
+    number,
+    Array<{ cluster_id: number; label: string; similarity: number | null }>
+  >;
 }
 
 /**
@@ -3338,10 +3562,10 @@ export interface BulkArticleTopicsResponse {
  * @param articleId The article to get topics for
  */
 export async function fetchArticleTopics(
-  articleId: number
+  articleId: number,
 ): Promise<ArticleTopicsResponse> {
   const response = await fetch(
-    `${API_BASE_URL}/api/similarity/article-topics/${articleId}`
+    `${API_BASE_URL}/api/similarity/article-topics/${articleId}`,
   );
   if (response.status === 503) {
     throw new Error("Topic lookup unavailable");
@@ -3357,7 +3581,7 @@ export async function fetchArticleTopics(
  * @param articleIds Array of article IDs
  */
 export async function fetchBulkArticleTopics(
-  articleIds: number[]
+  articleIds: number[],
 ): Promise<BulkArticleTopicsResponse> {
   const response = await fetch(
     `${API_BASE_URL}/api/similarity/bulk-article-topics`,
@@ -3365,7 +3589,7 @@ export async function fetchBulkArticleTopics(
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(articleIds),
-    }
+    },
   );
   if (response.status === 503) {
     throw new Error("Topic lookup unavailable");
@@ -3466,7 +3690,11 @@ export interface WikiReporterCard {
 }
 
 export interface WikiReporterDossier extends WikiReporterCard {
-  career_history?: Array<{ organization?: string; role?: string; source?: string }>;
+  career_history?: Array<{
+    organization?: string;
+    role?: string;
+    source?: string;
+  }>;
   education?: Array<Record<string, unknown>>;
   leaning_sources?: string[];
   twitter_handle?: string;
@@ -3492,8 +3720,22 @@ export interface WikiReporterDossier extends WikiReporterCard {
 }
 
 export interface WikiOwnershipGraph {
-  nodes: Array<{ id: string; label: string; type?: string; bias?: string; funding?: string; country?: string; [key: string]: unknown }>;
-  edges: Array<{ source: string; target: string; type?: string; percentage?: number; [key: string]: unknown }>;
+  nodes: Array<{
+    id: string;
+    label: string;
+    type?: string;
+    bias?: string;
+    funding?: string;
+    country?: string;
+    [key: string]: unknown;
+  }>;
+  edges: Array<{
+    source: string;
+    target: string;
+    type?: string;
+    percentage?: number;
+    [key: string]: unknown;
+  }>;
 }
 
 export interface WikiIndexStatus {
@@ -3515,7 +3757,9 @@ export interface WikiSourcesParams {
 /**
  * Fetch the wiki source directory with optional filters
  */
-export async function fetchWikiSources(params: WikiSourcesParams = {}): Promise<WikiSourceCard[]> {
+export async function fetchWikiSources(
+  params: WikiSourcesParams = {},
+): Promise<WikiSourceCard[]> {
   const query = new URLSearchParams();
   if (params.country) query.set("country", params.country);
   if (params.bias) query.set("bias", params.bias);
@@ -3526,7 +3770,9 @@ export async function fetchWikiSources(params: WikiSourcesParams = {}): Promise<
   if (params.offset) query.set("offset", params.offset.toString());
 
   const qs = query.toString();
-  const response = await fetch(`${API_BASE_URL}/api/wiki/sources${qs ? `?${qs}` : ""}`);
+  const response = await fetch(
+    `${API_BASE_URL}/api/wiki/sources${qs ? `?${qs}` : ""}`,
+  );
   if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
   return response.json();
 }
@@ -3534,8 +3780,12 @@ export async function fetchWikiSources(params: WikiSourcesParams = {}): Promise<
 /**
  * Fetch the full wiki profile for a single source
  */
-export async function fetchWikiSource(sourceName: string): Promise<WikiSourceProfile> {
-  const response = await fetch(`${API_BASE_URL}/api/wiki/sources/${encodeURIComponent(sourceName)}`);
+export async function fetchWikiSource(
+  sourceName: string,
+): Promise<WikiSourceProfile> {
+  const response = await fetch(
+    `${API_BASE_URL}/api/wiki/sources/${encodeURIComponent(sourceName)}`,
+  );
   if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
   return response.json();
 }
@@ -3543,8 +3793,12 @@ export async function fetchWikiSource(sourceName: string): Promise<WikiSourcePro
 /**
  * Fetch propaganda filter scores for a source
  */
-export async function fetchWikiSourceFilters(sourceName: string): Promise<WikiFilterScore[]> {
-  const response = await fetch(`${API_BASE_URL}/api/wiki/sources/${encodeURIComponent(sourceName)}/filters`);
+export async function fetchWikiSourceFilters(
+  sourceName: string,
+): Promise<WikiFilterScore[]> {
+  const response = await fetch(
+    `${API_BASE_URL}/api/wiki/sources/${encodeURIComponent(sourceName)}/filters`,
+  );
   if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
   return response.json();
 }
@@ -3552,8 +3806,12 @@ export async function fetchWikiSourceFilters(sourceName: string): Promise<WikiFi
 /**
  * Fetch reporters associated with a source
  */
-export async function fetchWikiSourceReporters(sourceName: string): Promise<WikiReporterCard[]> {
-  const response = await fetch(`${API_BASE_URL}/api/wiki/sources/${encodeURIComponent(sourceName)}/reporters`);
+export async function fetchWikiSourceReporters(
+  sourceName: string,
+): Promise<WikiReporterCard[]> {
+  const response = await fetch(
+    `${API_BASE_URL}/api/wiki/sources/${encodeURIComponent(sourceName)}/reporters`,
+  );
   if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
   return response.json();
 }
@@ -3561,12 +3819,14 @@ export async function fetchWikiSourceReporters(sourceName: string): Promise<Wiki
 /**
  * Fetch the wiki reporter directory
  */
-export async function fetchWikiReporters(params: {
-  search?: string;
-  outlet?: string;
-  limit?: number;
-  offset?: number;
-} = {}): Promise<WikiReporterCard[]> {
+export async function fetchWikiReporters(
+  params: {
+    search?: string;
+    outlet?: string;
+    limit?: number;
+    offset?: number;
+  } = {},
+): Promise<WikiReporterCard[]> {
   const query = new URLSearchParams();
   if (params.search) query.set("search", params.search);
   if (params.outlet) query.set("source", params.outlet);
@@ -3574,7 +3834,9 @@ export async function fetchWikiReporters(params: {
   if (params.offset) query.set("offset", params.offset.toString());
 
   const qs = query.toString();
-  const response = await fetch(`${API_BASE_URL}/api/wiki/reporters${qs ? `?${qs}` : ""}`);
+  const response = await fetch(
+    `${API_BASE_URL}/api/wiki/reporters${qs ? `?${qs}` : ""}`,
+  );
   if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
   return response.json();
 }
@@ -3582,8 +3844,12 @@ export async function fetchWikiReporters(params: {
 /**
  * Fetch a full reporter dossier
  */
-export async function fetchWikiReporter(reporterId: number): Promise<WikiReporterDossier> {
-  const response = await fetch(`${API_BASE_URL}/api/wiki/reporters/${reporterId}`);
+export async function fetchWikiReporter(
+  reporterId: number,
+): Promise<WikiReporterDossier> {
+  const response = await fetch(
+    `${API_BASE_URL}/api/wiki/reporters/${reporterId}`,
+  );
   if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
   return response.json();
 }
@@ -3591,16 +3857,20 @@ export async function fetchWikiReporter(reporterId: number): Promise<WikiReporte
 /**
  * Fetch articles by a reporter (returns simplified article objects)
  */
-export async function fetchWikiReporterArticles(reporterId: number): Promise<Array<{
-  id: number;
-  title: string;
-  source: string;
-  published_at?: string;
-  url: string;
-  category?: string;
-  image_url?: string;
-}>> {
-  const response = await fetch(`${API_BASE_URL}/api/wiki/reporters/${reporterId}/articles`);
+export async function fetchWikiReporterArticles(reporterId: number): Promise<
+  Array<{
+    id: number;
+    title: string;
+    source: string;
+    published_at?: string;
+    url: string;
+    category?: string;
+    image_url?: string;
+  }>
+> {
+  const response = await fetch(
+    `${API_BASE_URL}/api/wiki/reporters/${reporterId}/articles`,
+  );
   if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
   return response.json();
 }
@@ -3626,25 +3896,84 @@ export async function fetchWikiIndexStatus(): Promise<WikiIndexStatus> {
 /**
  * Trigger wiki indexing for a specific source
  */
-export async function triggerWikiIndex(sourceName: string): Promise<{ status: string; message: string }> {
-  const response = await fetch(`${API_BASE_URL}/api/wiki/index/${encodeURIComponent(sourceName)}`, {
-    method: "POST",
-  });
+export async function triggerWikiIndex(
+  sourceName: string,
+): Promise<{ status: string; message: string }> {
+  const response = await fetch(
+    `${API_BASE_URL}/api/wiki/index/${encodeURIComponent(sourceName)}`,
+    {
+      method: "POST",
+    },
+  );
   if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
   return response.json();
 }
 
 export async function fetchOGImage(url: string): Promise<string | null> {
-  try {
-    const response = await fetch(`${API_BASE_URL}/image/og?url=${encodeURIComponent(url)}`);
-    if (!response.ok) {
-      if (response.status === 404) return null;
-      throw new Error(`HTTP error! status: ${response.status}`);
+  const now = Date.now();
+  ogImageMetrics.total += 1;
+  const cached = ogImageCache.get(url);
+  if (cached && cached.expiresAt > now) {
+    ogImageMetrics.cacheHit += 1;
+    return cached.imageUrl;
+  }
+  if (cached && cached.expiresAt <= now) {
+    ogImageCache.delete(url);
+  }
+
+  const inFlight = ogImageInFlight.get(url);
+  if (inFlight) {
+    ogImageMetrics.inFlightHit += 1;
+    return inFlight;
+  }
+
+  pruneOgImageCache();
+
+  const requestPromise = (async () => {
+    ogImageMetrics.network += 1;
+    if (ogImageMetrics.total % 200 === 0) {
+      logger.debug("OG image fetch metrics", {
+        total: ogImageMetrics.total,
+        cacheHit: ogImageMetrics.cacheHit,
+        inFlightHit: ogImageMetrics.inFlightHit,
+        network: ogImageMetrics.network,
+        cacheSize: ogImageCache.size,
+      });
     }
-    const data = await response.json();
-    return data.image_url || null;
-  } catch (error) {
-    console.error("Failed to fetch OG image:", error);
-    return null;
+
+    const cacheResult = (imageUrl: string | null, ttlMs: number) => {
+      ogImageCache.set(url, {
+        imageUrl,
+        expiresAt: Date.now() + ttlMs,
+      });
+      return imageUrl;
+    };
+
+    try {
+      const response = await fetch(
+        `${API_BASE_URL}/image/og?url=${encodeURIComponent(url)}`,
+      );
+      if (!response.ok) {
+        if (response.status === 404) {
+          return cacheResult(null, OG_IMAGE_MISS_TTL_MS);
+        }
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+      const data = await response.json();
+      return cacheResult(data.image_url || null, OG_IMAGE_SUCCESS_TTL_MS);
+    } catch (error) {
+      console.error("Failed to fetch OG image:", error);
+      return cacheResult(null, OG_IMAGE_ERROR_TTL_MS);
+    } finally {
+      ogImageInFlight.delete(url);
+    }
+  })();
+
+  ogImageInFlight.set(url, requestPromise);
+
+  try {
+    return await requestPromise;
+  } finally {
+    pruneOgImageCache();
   }
 }

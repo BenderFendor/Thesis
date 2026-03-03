@@ -76,6 +76,22 @@ async def stream_news(
 
     async def event_generator():
         fetch_start_time = time.time()
+
+        def format_sse_event(event_name: str, payload: Dict[str, object]) -> str:
+            encode_start = time.perf_counter()
+            encoded = f"data: {json.dumps(payload)}\n\n"
+            encode_ms = (time.perf_counter() - encode_start) * 1000
+            log_stream_event(
+                stream_id,
+                "sse_emit",
+                details={
+                    "event_name": event_name,
+                    "encode_ms": round(encode_ms, 3),
+                    "payload_bytes": len(encoded),
+                },
+            )
+            return encoded
+
         try:
             stream_logger.info("Stream %s starting event generation", stream_id)
 
@@ -88,9 +104,11 @@ async def stream_news(
                 cache_load_start = time.time()
                 cached_articles = news_cache.get_articles()
                 cached_stats = news_cache.get_source_stats()
-                cache_age = (datetime.now(timezone.utc) - news_cache.last_updated).total_seconds()
+                cache_age = (
+                    datetime.now(timezone.utc) - news_cache.last_updated
+                ).total_seconds()
                 cache_load_duration = (time.time() - cache_load_start) * 1000
-                
+
                 debug_logger.log_cache_operation(
                     operation="read",
                     hit=len(cached_articles) > 0,
@@ -101,7 +119,7 @@ async def stream_news(
                         "source_stats_count": len(cached_stats),
                     },
                 )
-                
+
                 stream_logger.info(
                     "Stream %s found %s cached articles (age: %.1fs)",
                     stream_id,
@@ -134,8 +152,8 @@ async def stream_news(
                         "message": f"Loaded {len(cached_articles)} cached articles instantly",
                         "timestamp": datetime.now(timezone.utc).isoformat(),
                     }
-                    yield f"data: {json.dumps(initial_data)}\n\n"
-                    
+                    yield format_sse_event("initial", initial_data)
+
                     log_stream_event(
                         stream_id,
                         "initial_cache_emit",
@@ -145,7 +163,7 @@ async def stream_news(
                             "category_filter": category,
                         },
                     )
-                    
+
                     stream_logger.info(
                         "Stream %s emitted initial cached data (%s articles)",
                         stream_id,
@@ -172,7 +190,7 @@ async def stream_news(
                 "timestamp": datetime.now(timezone.utc).isoformat(),
                 "active_streams": stream_manager.get_active_stream_count(),
             }
-            yield f"data: {json.dumps(initial_status)}\n\n"
+            yield format_sse_event("starting", initial_status)
 
             # Now continue with existing cache logic
             if use_cache:
@@ -190,7 +208,7 @@ async def stream_news(
                         "cache_age_seconds": cache_age,
                         "timestamp": datetime.now(timezone.utc).isoformat(),
                     }
-                    yield f"data: {json.dumps(final_data)}\n\n"
+                    yield format_sse_event("complete", final_data)
                     return
                 else:
                     stream_logger.info(
@@ -298,7 +316,7 @@ async def stream_news(
                         source_start_time = time.time()
                         articles, source_stat = await future
                         source_duration_ms = (time.time() - source_start_time) * 1000
-                        
+
                         source_name = (
                             source_stat.get("name", "unknown")
                             if isinstance(source_stat, dict)
@@ -314,7 +332,7 @@ async def stream_news(
                             sources_completed=completed_sources,
                             status="processing",
                         )
-                        
+
                         # Log to debug logger
                         log_stream_event(
                             stream_id,
@@ -323,7 +341,9 @@ async def stream_news(
                             article_count=len(articles),
                             details={
                                 "duration_ms": source_duration_ms,
-                                "source_status": source_stat.get("status") if isinstance(source_stat, dict) else "unknown",
+                                "source_status": source_stat.get("status")
+                                if isinstance(source_stat, dict)
+                                else "unknown",
                                 "progress": f"{completed_sources}/{total_sources}",
                             },
                         )
@@ -354,14 +374,14 @@ async def stream_news(
                             },
                             "timestamp": datetime.now(timezone.utc).isoformat(),
                         }
-                        yield f"data: {json.dumps(progress_data)}\n\n"
+                        yield format_sse_event("source_complete", progress_data)
                     except Exception as exc:  # pragma: no cover - defensive logging
                         completed_sources += 1
                         source_name = future_to_source.get(future, "unknown")
                         stream_logger.error(
                             "Stream %s error for %s: %s", stream_id, source_name, exc
                         )
-                        
+
                         # Log error to debug logger
                         debug_logger.log_rss_operation(
                             operation="fetch",
@@ -387,7 +407,7 @@ async def stream_news(
                             },
                             "timestamp": datetime.now(timezone.utc).isoformat(),
                         }
-                        yield f"data: {json.dumps(error_data)}\n\n"
+                        yield format_sse_event("source_error", error_data)
 
                 total_duration_ms = (time.time() - fetch_start_time) * 1000
                 stream_logger.info(
@@ -426,8 +446,8 @@ async def stream_news(
                     "duration_ms": total_duration_ms,
                     "timestamp": datetime.now(timezone.utc).isoformat(),
                 }
-                yield f"data: {json.dumps(final_data)}\n\n"
-                
+                yield format_sse_event("complete", final_data)
+
                 # End stream tracing with success
                 end_stream(stream_id, reason="complete")
             finally:
@@ -448,7 +468,7 @@ async def stream_news(
                 "error": str(exc),
                 "timestamp": datetime.now(timezone.utc).isoformat(),
             }
-            yield f"data: {json.dumps(error_response)}\n\n"
+            yield format_sse_event("error", error_response)
         finally:
             stream_manager.unregister_stream(stream_id)
             stream_logger.info("Stream %s cleanup completed", stream_id)
