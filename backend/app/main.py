@@ -299,6 +299,15 @@ async def on_startup() -> None:
     signal.signal(signal.SIGTERM, _handle_shutdown_signal)
     signal.signal(signal.SIGINT, _handle_shutdown_signal)
 
+    # Fail fast if llama.cpp backend is selected but the server is not running
+    if settings.llm_backend == "llamacpp":
+        from app.core.config import check_llamacpp_server
+
+        check_llamacpp_server(logger)
+        startup_metrics.add_note("llm_backend", "llamacpp")
+    else:
+        startup_metrics.add_note("llm_backend", settings.llm_backend)
+
     if settings.enable_database:
         db_start = time.time()
         await init_db()
@@ -307,7 +316,6 @@ async def on_startup() -> None:
     else:
         logger.info("Database disabled; skipping initialisation and persistence")
         startup_metrics.add_note("database_disabled", True)
-
     _start_schedulers_once()
     startup_metrics.add_note("schedulers_started_at", time.time())
 

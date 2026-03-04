@@ -7,7 +7,7 @@ from typing import Any, Dict, List, Optional
 
 from openai import OpenAI
 
-from app.core.config import get_openai_client, settings
+from app.core.config import get_llamacpp_model, get_openai_client, settings
 from app.core.logging import get_session_dir
 
 
@@ -107,7 +107,11 @@ class LLMClient:
         **kwargs,
     ) -> Any:
         if model is None:
-            model = settings.open_router_model
+            model = (
+                get_llamacpp_model()
+                if settings.llm_backend == "llamacpp"
+                else settings.open_router_model
+            )
 
         request_id = str(uuid.uuid4())[:8]
         start_time = time.monotonic()

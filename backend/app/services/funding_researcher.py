@@ -840,7 +840,6 @@ Respond in JSON:
             response = self.llm_client.chat_completions_create(
                 service_name="funding",
                 messages=[{"role": "user", "content": prompt}],
-                model="google/gemini-3-flash-preview",
                 max_tokens=400,
                 temperature=0.3,
             )

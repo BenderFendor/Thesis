@@ -20,7 +20,7 @@ from langgraph.prebuilt import ToolNode
 from pydantic import SecretStr
 from typing_extensions import TypedDict
 
-from app.core.config import settings
+from app.core.config import get_llamacpp_model, settings
 from app.core.logging import get_logger
 from app.services.article_extraction import extract_article_content
 from app.vector_store import get_vector_store
@@ -253,22 +253,67 @@ TOOL_ROUTER_SYSTEM_PROMPT = (
     "After tool use, answer with sections titled 'Answer' and 'Follow-up questions'."
 )
 
-if settings.open_router_api_key:
-    llm = ChatOpenAI(
-        model=settings.open_router_model,
-        temperature=0.2,
-        api_key=SecretStr(settings.open_router_api_key),
-        base_url="https://openrouter.ai/api/v1",
-    )
-else:
-    llm = ChatGoogleGenerativeAI(
-        model=os.getenv("NEWS_RESEARCH_GEMINI_MODEL", "gemini-3-flash-preview"),
-        temperature=0.2,
-        max_retries=2,
-    )
+_llm_instance = None
+_model_instance = None
+_tool_router_instance = None
+_graph_instance = None
 
-model = llm.bind_tools(tools)
-tool_router = llm.bind_tools(tools, tool_choice="required")
+
+def _get_llm():
+    global _llm_instance
+    if _llm_instance is None:
+        if settings.llm_backend == "llamacpp":
+            _llm_instance = ChatOpenAI(
+                model=get_llamacpp_model(),
+                temperature=0.2,
+                api_key=SecretStr(settings.llamacpp_api_key),
+                base_url=settings.llamacpp_base_url,
+            )
+        elif settings.open_router_api_key:
+            _llm_instance = ChatOpenAI(
+                model=settings.open_router_model,
+                temperature=0.2,
+                api_key=SecretStr(settings.open_router_api_key),
+                base_url="https://openrouter.ai/api/v1",
+            )
+        else:
+            _llm_instance = ChatGoogleGenerativeAI(
+                model=os.getenv("NEWS_RESEARCH_GEMINI_MODEL", "gemini-3-flash-preview"),
+                temperature=0.2,
+                max_retries=2,
+            )
+    return _llm_instance
+
+
+def _get_model():
+    global _model_instance
+    if _model_instance is None:
+        _model_instance = _get_llm().bind_tools(tools)
+    return _model_instance
+
+
+def _get_tool_router():
+    global _tool_router_instance
+    if _tool_router_instance is None:
+        _tool_router_instance = _get_llm().bind_tools(tools, tool_choice="required")
+    return _tool_router_instance
+
+
+def _get_graph():
+    global _graph_instance
+    if _graph_instance is None:
+        builder = StateGraph(AgentState)
+        builder.add_node("agent", call_model)
+        builder.add_node("tools", ToolNode(tools))
+        builder.add_edge(START, "agent")
+        builder.add_edge("tools", "agent")
+        builder.add_conditional_edges(
+            "agent",
+            should_continue,
+            {"tools": "tools", "agent": "agent", END: END},
+        )
+        _graph_instance = builder.compile()
+    return _graph_instance
 
 
 class AgentState(TypedDict):
@@ -307,7 +352,7 @@ def call_model(state: AgentState) -> Dict[str, Any]:
                 )
             ),
         ]
-        response = llm.invoke(messages)
+        response = _get_llm().invoke(messages)
         return {
             "messages": [response],
             "iteration": state.get("iteration", 0),
@@ -319,14 +364,14 @@ def call_model(state: AgentState) -> Dict[str, Any]:
             SystemMessage(content=TOOL_ROUTER_SYSTEM_PROMPT),
             *state["messages"],
         ]
-        response = tool_router.invoke(messages)
+        response = _get_tool_router().invoke(messages)
         return {
             "messages": [response],
             "iteration": state.get("iteration", 0) + 1,
             "mode": "research",
         }
 
-    response = model.invoke(state["messages"])
+    response = _get_model().invoke(state["messages"])
     iteration = state.get("iteration", 0) + 1
     next_mode = "research"
     if isinstance(response, AIMessage):
@@ -368,20 +413,6 @@ def should_continue(state: AgentState) -> str:
             state["mode"] = "final"
             return "agent"
     return END
-
-
-graph_builder = StateGraph(AgentState)
-graph_builder.add_node("agent", call_model)
-graph_builder.add_node("tools", ToolNode(tools))
-graph_builder.add_edge(START, "agent")
-graph_builder.add_edge("tools", "agent")
-graph_builder.add_conditional_edges(
-    "agent",
-    should_continue,
-    {"tools": "tools", "agent": "agent", END: END},
-)
-
-graph = graph_builder.compile()
 
 
 def _build_initial_messages(
@@ -478,7 +509,7 @@ def _finalize_answer(
         HumanMessage(content="\n\n".join(prompt_parts)),
     ]
     try:
-        response = llm.invoke(finalizer_messages)
+        response = _get_llm().invoke(finalizer_messages)
         return _content_to_text(response.content).strip()
     except Exception as exc:  # pragma: no cover - defensive fallback
         logger.warning("Finalizer failed: %s", exc)
@@ -515,7 +546,7 @@ def research_news(
     final_answer = ""
     tool_snippets: List[str] = []
 
-    for update in graph.stream(initial_state, stream_mode="updates"):
+    for update in _get_graph().stream(initial_state, stream_mode="updates"):
         if "agent" in update:
             agent_message = update["agent"]["messages"][-1]
             final_answer = _content_to_text(agent_message.content)
@@ -598,7 +629,7 @@ def research_stream(
     final_answer = ""
     tool_snippets: List[str] = []
 
-    for update in graph.stream(initial_state, stream_mode="updates"):
+    for update in _get_graph().stream(initial_state, stream_mode="updates"):
         if "agent" in update:
             agent_message = update["agent"]["messages"][-1]
             content_text = _content_to_text(agent_message.content)

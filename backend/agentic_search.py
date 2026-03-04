@@ -23,6 +23,8 @@ from langchain_google_genai import ChatGoogleGenerativeAI
 from langchain_openai import ChatOpenAI
 from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
 
+from app.core.config import get_llamacpp_model, settings
+
 # Load environment variables from .env file
 load_dotenv()
 
@@ -100,8 +102,15 @@ def create_agent_executor():
     Returns:
         AgentExecutor configured with the LLM, tools, and prompt
     """
-    # Initialize the LLM
-    if os.getenv("OPEN_ROUTER_API_KEY"):
+    # Initialize the LLM — backend selected by LLM_BACKEND env var
+    if settings.llm_backend == "llamacpp":
+        llm = ChatOpenAI(
+            model=get_llamacpp_model(),
+            temperature=0.7,
+            api_key=settings.llamacpp_api_key,
+            base_url=settings.llamacpp_base_url,
+        )
+    elif os.getenv("OPEN_ROUTER_API_KEY"):
         llm = ChatOpenAI(
             model=os.getenv("OPEN_ROUTER_MODEL", "google/gemini-3-flash-preview"),
             temperature=0.7,
@@ -161,7 +170,9 @@ def main():
     """
     # Check if API key is set
     if not os.getenv("GEMINI_API_KEY") and not os.getenv("OPEN_ROUTER_API_KEY"):
-        print("ERROR: Neither GEMINI_API_KEY nor OPEN_ROUTER_API_KEY found in environment variables.")
+        print(
+            "ERROR: Neither GEMINI_API_KEY nor OPEN_ROUTER_API_KEY found in environment variables."
+        )
         print("Please set one in your .env file or environment.")
         return
 
