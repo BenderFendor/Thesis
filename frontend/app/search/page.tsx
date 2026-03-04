@@ -129,6 +129,7 @@ export default function NewsResearchPage() {
   const [expandedStepMessageIds, setExpandedStepMessageIds] = useState<Set<string>>(new Set())
   const [expandedSourceIds, setExpandedSourceIds] = useState<Set<string>>(new Set())
   const inputRef = useRef<HTMLTextAreaElement>(null)
+  const composerFormRef = useRef<HTMLFormElement>(null)
   const chatScrollRef = useRef<HTMLDivElement>(null)
   const isHydratingRef = useRef(true)
 
@@ -643,6 +644,26 @@ export default function NewsResearchPage() {
     }
   }
 
+  const handleResetMessage = (assistantMessageId: string) => {
+    if (isSearching) return
+
+    const assistantIndex = messages.findIndex((message) => message.id === assistantMessageId)
+    if (assistantIndex <= 0) return
+
+    const contextMessages = messages.slice(0, assistantIndex)
+    const retryUserMessage = [...contextMessages]
+      .reverse()
+      .find((message) => message.type === "user")
+    if (!retryUserMessage || !retryUserMessage.content.trim()) return
+
+    setMessages(contextMessages)
+    setQuery(retryUserMessage.content)
+
+    window.setTimeout(() => {
+      composerFormRef.current?.requestSubmit()
+    }, 0)
+  }
+
   const sampleQueries = [
     "What are the different perspectives on climate change?",
     "Compare how different sources cover technology news",
@@ -1060,8 +1081,8 @@ export default function NewsResearchPage() {
                                    )}
                                  </div>
 
-                                 {isAssistant && !message.isStreaming && stepCount > 0 && (
-                                   <div className="mt-3">
+                                  {isAssistant && !message.isStreaming && stepCount > 0 && (
+                                    <div className="mt-3">
                                      <button
                                        type="button"
                                        onClick={() => toggleStepVisibility(message.id)}
@@ -1082,16 +1103,31 @@ export default function NewsResearchPage() {
                                          ))}
                                        </div>
                                      )}
-                                   </div>
-                                 )}
-                               </div>
-                             )
-                           })
+                                    </div>
+                                  )}
+
+                                  {isAssistant && !message.isStreaming && message.error && (
+                                    <div className="mt-3">
+                                      <Button
+                                        type="button"
+                                        variant="outline"
+                                        size="sm"
+                                        onClick={() => handleResetMessage(message.id)}
+                                        disabled={isSearching}
+                                        className="border-border/60"
+                                      >
+                                        Reset
+                                      </Button>
+                                    </div>
+                                  )}
+                                </div>
+                              )
+                            })
                          )}
                        </div>
 
                        <div className="border-t border-border/60 bg-[var(--news-bg-primary)]/90 pb-6 pt-4">
-                         <form onSubmit={handleSearch} className="space-y-3">
+                          <form ref={composerFormRef} onSubmit={handleSearch} className="space-y-3">
                            <div className="rounded-2xl border border-border/60 bg-[var(--news-bg-secondary)]/70 p-3 focus-within:border-primary/60 focus-within:shadow-[0_0_0_1px_rgba(233,118,43,0.35)]">
                              <textarea
                                ref={inputRef}
@@ -1293,4 +1329,3 @@ export default function NewsResearchPage() {
      </div>
    )
  }
-

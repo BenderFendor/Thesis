@@ -6,7 +6,7 @@ import json
 import os
 import re
 from datetime import datetime, timezone
-from typing import Annotated, Any, Dict, Generator, List, Optional, Sequence
+from typing import Annotated, Any, Callable, Dict, Generator, List, Optional, Sequence
 
 from ddgs import DDGS
 from typing import cast
@@ -259,6 +259,92 @@ _tool_router_instance = None
 _graph_instance = None
 
 
+def _reset_llm_instances() -> None:
+    global _llm_instance, _model_instance, _tool_router_instance
+    _llm_instance = None
+    _model_instance = None
+    _tool_router_instance = None
+
+
+def _is_recoverable_llamacpp_error(exc: Exception) -> bool:
+    if settings.llm_backend != "llamacpp":
+        return False
+    message = str(exc).lower()
+    if "cannot have 2 or more assistant messages at the end of the list" in message:
+        return True
+    return (
+        "invalid_request_error" in message
+        and "model" in message
+        and "not found" in message
+    )
+
+
+def _coalesce_assistant_runs(messages: Sequence[BaseMessage]) -> List[BaseMessage]:
+    collapsed: List[BaseMessage] = []
+    for message in messages:
+        if (
+            collapsed
+            and isinstance(message, AIMessage)
+            and isinstance(collapsed[-1], AIMessage)
+        ):
+            collapsed[-1] = message
+        else:
+            collapsed.append(message)
+    return collapsed
+
+
+def _trim_trailing_assistant_runs(messages: Sequence[BaseMessage]) -> List[BaseMessage]:
+    sanitized = list(messages)
+    while (
+        len(sanitized) >= 2
+        and isinstance(sanitized[-1], AIMessage)
+        and isinstance(sanitized[-2], AIMessage)
+    ):
+        del sanitized[-2]
+    return sanitized
+
+
+def _sanitize_messages_for_llamacpp(
+    messages: Sequence[BaseMessage],
+) -> List[BaseMessage]:
+    if settings.llm_backend != "llamacpp":
+        return list(messages)
+    return _trim_trailing_assistant_runs(_coalesce_assistant_runs(messages))
+
+
+def _refresh_llamacpp_model() -> None:
+    try:
+        from app.core.config import check_llamacpp_server
+
+        check_llamacpp_server(logger)
+    except Exception as refresh_exc:
+        logger.warning("llama.cpp model refresh failed: %s", refresh_exc)
+
+
+def _invoke_with_llamacpp_recovery(
+    invoke_fn: Callable[[Sequence[BaseMessage]], Any],
+    messages: Sequence[BaseMessage],
+    stage: str,
+) -> Any:
+    prepared = _sanitize_messages_for_llamacpp(messages)
+    try:
+        return invoke_fn(prepared)
+    except Exception as exc:
+        if not _is_recoverable_llamacpp_error(exc):
+            raise
+        logger.warning(
+            "Recoverable llama.cpp request error during %s; retrying once: %s",
+            stage,
+            exc,
+        )
+        error_text = str(exc).lower()
+        if "model" in error_text and "not found" in error_text:
+            _refresh_llamacpp_model()
+        _reset_llm_instances()
+        retry_messages = _sanitize_messages_for_llamacpp(prepared)
+        return invoke_fn(retry_messages)
+
+
 def _get_llm():
     global _llm_instance
     if _llm_instance is None:
@@ -352,7 +438,11 @@ def call_model(state: AgentState) -> Dict[str, Any]:
                 )
             ),
         ]
-        response = _get_llm().invoke(messages)
+        response = _invoke_with_llamacpp_recovery(
+            lambda payload: _get_llm().invoke(payload),
+            messages,
+            "final mode invoke",
+        )
         return {
             "messages": [response],
             "iteration": state.get("iteration", 0),
@@ -364,14 +454,22 @@ def call_model(state: AgentState) -> Dict[str, Any]:
             SystemMessage(content=TOOL_ROUTER_SYSTEM_PROMPT),
             *state["messages"],
         ]
-        response = _get_tool_router().invoke(messages)
+        response = _invoke_with_llamacpp_recovery(
+            lambda payload: _get_tool_router().invoke(payload),
+            messages,
+            "tool router invoke",
+        )
         return {
             "messages": [response],
             "iteration": state.get("iteration", 0) + 1,
             "mode": "research",
         }
 
-    response = _get_model().invoke(state["messages"])
+    response = _invoke_with_llamacpp_recovery(
+        lambda payload: _get_model().invoke(payload),
+        state["messages"],
+        "research invoke",
+    )
     iteration = state.get("iteration", 0) + 1
     next_mode = "research"
     if isinstance(response, AIMessage):
@@ -432,7 +530,13 @@ def _build_initial_messages(
                 history_messages.append(HumanMessage(content=content))
             elif role == "assistant":
                 history_messages.append(AIMessage(content=content))
-    return [system_message, *history_messages, HumanMessage(content=query)]
+    combined = (
+        [system_message, *_coalesce_assistant_runs(history_messages)]
+        if settings.llm_backend == "llamacpp"
+        else [system_message, *history_messages]
+    )
+    combined.append(HumanMessage(content=query))
+    return _sanitize_messages_for_llamacpp(combined)
 
 
 def _content_to_text(content: Any) -> str:
@@ -509,7 +613,11 @@ def _finalize_answer(
         HumanMessage(content="\n\n".join(prompt_parts)),
     ]
     try:
-        response = _get_llm().invoke(finalizer_messages)
+        response = _invoke_with_llamacpp_recovery(
+            lambda payload: _get_llm().invoke(payload),
+            finalizer_messages,
+            "finalizer invoke",
+        )
         return _content_to_text(response.content).strip()
     except Exception as exc:  # pragma: no cover - defensive fallback
         logger.warning("Finalizer failed: %s", exc)
@@ -596,7 +704,6 @@ def research_news(
             "total": len(referenced_articles),
             "query": query,
         }
-        json_payload = json.dumps(payload)
         structured_block = f"\n```json:articles\n{json.dumps(payload, indent=2)}\n```\n"
 
     result = {
