@@ -1178,53 +1178,19 @@ export default function NewsResearchPage() {
                   <span className="text-[9px] font-mono uppercase tracking-[0.2em] text-muted-foreground/60 hidden sm:inline shrink-0">
                     WORKSPACE
                   </span>
-                  <span className="text-muted-foreground/40 hidden sm:inline mx-1 shrink-0">/</span>
+                  <span className="text-muted-foreground/40 hidden sm:inline mx-1 shrink-0">
+                    /
+                  </span>
                   <span className="text-sm font-serif text-muted-foreground/90 truncate max-w-[300px] sm:max-w-[400px]">
                     {activeChatId
-                      ? chats.find((c) => c.id === activeChatId)?.title || "Untitled research"
+                      ? chats.find((c) => c.id === activeChatId)?.title ||
+                        "Untitled research"
                       : "Untitled research"}
                   </span>
                 </div>
               </div>
               <div className="flex items-center gap-4">
-                {/* Status metadata merged here */}
-                {activeChatId && (
-                  <div className="hidden lg:flex items-center gap-4 border-r border-border/10 pr-4 mr-2">
-                    {(isSearching || latestAssistantMessage?.isStreaming) && (
-                      <div className="flex items-center gap-2 text-xs text-primary/80 bg-primary/5 px-2 py-1 rounded">
-                        <Loader2 className="w-3 h-3 animate-spin flex-shrink-0" />
-                        <span className="font-mono text-[9px] uppercase tracking-widest">
-                          {latestAssistantMessage?.streamingStatus ||
-                            "Running..."}
-                        </span>
-                        <button
-                          type="button"
-                          onClick={handleStop}
-                          className="ml-1 flex items-center justify-center rounded hover:bg-primary/20 p-0.5 transition-colors"
-                          title="Stop generation"
-                        >
-                          <Square className="w-2.5 h-2.5 fill-current" />
-                        </button>
-                      </div>
-                    )}
-                    <div className="flex items-center gap-3">
-                      <div className="text-[9px] font-mono uppercase tracking-[0.15em] text-muted-foreground/60 flex items-center gap-1.5">
-                        <span className="text-foreground/80 font-semibold">
-                          {conversationMessages.length}
-                        </span>{" "}
-                        MSGS
-                      </div>
-                      {latestAssistantMessage?.articles_searched && (
-                        <div className="text-[9px] font-mono uppercase tracking-[0.15em] text-muted-foreground/60 flex items-center gap-1.5">
-                          <span className="text-foreground/80 font-semibold">
-                            {latestAssistantMessage.articles_searched}
-                          </span>{" "}
-                          SOURCES
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                )}
+                {/* Status metadata removed from header */}
 
                 <Link href="/">
                   <Button
