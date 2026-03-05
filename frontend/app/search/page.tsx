@@ -1374,7 +1374,7 @@ export default function NewsResearchPage() {
                                 ? "border-border/5 bg-[var(--news-bg-secondary)]/30 ml-20"
                                 : message.error
                                   ? "border-border/5 bg-destructive/5 mr-12"
-                                  : "border-transparent bg-transparent pl-0 pr-0 mt-3 mr-4";
+                                  : "border-transparent bg-transparent pl-0 pr-0 mt-2 mr-4";
                             return (
                               <div
                                 key={message.id}
