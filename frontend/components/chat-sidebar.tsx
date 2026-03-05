@@ -182,14 +182,14 @@ export function ChatSidebar({
   }
 
   return (
-    <aside className="w-64 min-w-[16rem] bg-[var(--news-bg-primary)] text-foreground border-r border-border/60 h-screen flex flex-col backdrop-blur-md overflow-hidden">
-      <div className="px-3 pt-3 pb-2 border-b border-border/60">
+    <aside className="w-64 min-w-[16rem] bg-[var(--news-bg-primary)] text-foreground border-r border-border/20 h-screen flex flex-col overflow-hidden">
+      <div className="px-3 pt-3 pb-3 border-b border-border/20">
         {!isSelectionMode ? (
           <div className="flex gap-1.5">
             <Button
               onClick={onNewChat}
               variant="ghost"
-              className="flex-1 justify-start gap-2 rounded-lg border border-border/60 bg-[var(--news-bg-secondary)]/70 hover:bg-[var(--news-bg-secondary)] hover:border-primary/30 transition-all duration-200 font-medium text-xs h-9"
+              className="flex-1 justify-start gap-2 rounded-md border border-border/30 bg-transparent hover:bg-[var(--news-bg-secondary)]/40 hover:border-border/50 transition-all duration-200 font-serif text-sm font-medium h-9"
             >
               <Plus className="w-3.5 h-3.5" />
               New Session
@@ -199,7 +199,7 @@ export function ChatSidebar({
               variant="ghost"
               size="icon"
               title="Select chats"
-              className="rounded-lg border border-border/60 bg-[var(--news-bg-secondary)]/70 hover:bg-[var(--news-bg-secondary)] hover:border-primary/30 transition-all duration-200 h-9 w-9"
+              className="rounded-md border border-border/30 bg-transparent hover:bg-[var(--news-bg-secondary)]/40 hover:border-border/50 transition-all duration-200 h-9 w-9"
             >
               <CheckSquare className="w-3.5 h-3.5 text-muted-foreground" />
             </Button>
@@ -209,7 +209,7 @@ export function ChatSidebar({
               size="icon"
               title="Delete all chats"
               disabled={chats.length === 0}
-              className="rounded-lg border border-border/60 bg-[var(--news-bg-secondary)]/70 hover:bg-[var(--news-bg-secondary)] hover:border-destructive/40 transition-all duration-200 disabled:opacity-50 h-9 w-9"
+              className="rounded-md border border-border/20 bg-transparent hover:bg-[var(--news-bg-secondary)]/40 hover:border-destructive/40 transition-all duration-200 disabled:opacity-50 h-9 w-9"
             >
               <Trash2 className="w-3.5 h-3.5 text-destructive" />
             </Button>
@@ -258,7 +258,7 @@ export function ChatSidebar({
             onChange={(event) => setSearchTerm(event.target.value)}
             placeholder="Search conversations"
             aria-label="Search chats"
-            className="w-full h-10 pl-10 pr-3 rounded-lg border border-border/60 bg-[var(--news-bg-secondary)]/70 text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/40 focus:border-primary/40 transition-all"
+            className="w-full h-9 pl-9 pr-3 rounded-md border border-border/30 bg-[var(--news-bg-secondary)]/20 text-xs placeholder:text-muted-foreground/70 focus:outline-none focus:border-border/60 transition-all"
           />
         </div>
       </div>
@@ -269,7 +269,7 @@ export function ChatSidebar({
             No chats match your search.
           </div>
         ) : (
-          <ul className="space-y-1">
+          <ul className="space-y-1.5">
             <AnimatePresence initial={false}>
               {filteredChats.map((chat) => {
                 const isActive = activeId === chat.id;
@@ -286,7 +286,7 @@ export function ChatSidebar({
                     transition={{ duration: 0.18, ease: "easeOut" }}
                   >
                     <div
-                      className={`group flex items-center gap-2 rounded-lg border px-2.5 py-1.5 transition-all duration-200 ${
+                      className={`group flex items-center gap-2 rounded-lg border px-3 py-2 transition-all duration-200 ${
                         isSelectionMode
                           ? isSelected
                             ? "border-primary/50 bg-primary/10"
@@ -351,11 +351,11 @@ export function ChatSidebar({
                           disabled={isSelectionMode} // Disable button behavior in selection mode, handled by parent div
                         >
                           <div>
-                            <div className="font-medium font-serif text-sm text-foreground truncate">
+                            <div className="font-serif text-sm font-medium text-foreground/90 truncate">
                               {chat.title}
                             </div>
                             {chat.lastMessage && (
-                              <div className="text-xs text-muted-foreground truncate mt-1">
+                              <div className="text-[11px] text-muted-foreground/80 truncate mt-1">
                                 {chat.lastMessage}
                               </div>
                             )}
@@ -408,12 +408,12 @@ export function ChatSidebar({
         )}
       </div>
 
-      <div className="px-4 py-3 border-t border-border/60 flex items-center justify-between text-xs text-muted-foreground">
+      <div className="px-4 py-3 border-t border-border/20 flex items-center justify-between text-xs text-muted-foreground">
         <span className="font-serif tracking-wide">News Research</span>
         {onToggle && (
           <button
             onClick={onToggle}
-            className="px-3 py-2 rounded-lg border border-border/60 hover:border-primary/40 hover:bg-[var(--news-bg-secondary)]/70 transition"
+            className="px-3 py-1.5 rounded-md border border-border/20 hover:border-border/40 hover:bg-[var(--news-bg-secondary)]/20 transition"
           >
             <div className="flex items-center gap-2 text-muted-foreground">
               <PanelLeftClose className="w-4 h-4" />

@@ -1303,15 +1303,15 @@ export default function NewsResearchPage() {
                 <section className="flex-1 min-w-0 flex flex-col">
                   <div className="border-b border-border/60 bg-[var(--news-bg-secondary)]/70">
                     <div className="max-w-[1200px] mx-auto px-4 py-3 flex flex-col gap-2">
-                      <div className="flex flex-wrap items-center justify-between gap-3">
+                      <div className="flex flex-col gap-1">
                         <div>
-                          <p className="text-[10px] font-mono uppercase tracking-[0.3em] text-muted-foreground">
-                            Active briefing
+                          <p className="text-[10px] font-mono uppercase tracking-[0.2em] text-muted-foreground/60 mb-1">
+                            ACTIVE BRIEFING
                           </p>
-                          <h2 className="text-xl font-semibold text-foreground">
+                          <h2 className="text-2xl font-serif font-semibold tracking-tight text-foreground/90 leading-tight">
                             {latestUserMessage?.content || "Research thread"}
                           </h2>
-                          <p className="text-xs text-muted-foreground mt-1">
+                          <p className="text-xs text-muted-foreground mt-1.5 hidden">
                             {latestAssistantMessage?.articles_searched
                               ? `${latestAssistantMessage.articles_searched} sources searched`
                               : "Evidence stream pending"}
@@ -1338,11 +1338,11 @@ export default function NewsResearchPage() {
                         )}
                       </div>
                       <div className="flex flex-wrap gap-3">
-                        <div className="text-[10px] font-mono uppercase tracking-[0.1em] text-muted-foreground">
+                        <div className="text-[10px] font-mono uppercase tracking-[0.05em] text-muted-foreground/70">
                           {conversationMessages.length} messages
                         </div>
                         {latestAssistantMessage?.articles_searched && (
-                          <div className="text-[10px] font-mono uppercase tracking-[0.1em] text-muted-foreground">
+                          <div className="text-[10px] font-mono uppercase tracking-[0.05em] text-muted-foreground/70">
                             {latestAssistantMessage.articles_searched} sources
                             searched
                           </div>
@@ -1449,7 +1449,7 @@ export default function NewsResearchPage() {
                                                 key={`${message.id}-step-${idx}`}
                                                 className="rounded-lg border border-border/60 bg-[var(--news-bg-primary)]/40 p-3"
                                               >
-                                                <div className="text-[10px] font-mono uppercase tracking-[0.1em] text-muted-foreground">
+                                                <div className="text-[10px] font-mono uppercase tracking-[0.05em] text-muted-foreground/70">
                                                   Step {idx + 1}:{" "}
                                                   {step.type.replace("_", " ")}
                                                 </div>
@@ -1545,12 +1545,12 @@ export default function NewsResearchPage() {
                   </div>
                 </section>
 
-                <aside className="w-full lg:w-[320px] shrink-0 border-t border-border/20 lg:border-l lg:border-t-0 bg-[var(--news-bg-primary)]/95 overflow-hidden flex flex-col h-full">
+                <aside className="w-full lg:w-[320px] shrink-0 border-t border-border/10 lg:border-l lg:border-t-0 bg-[var(--news-bg-primary)]/95 overflow-hidden flex flex-col h-full">
                   <div className="flex-1 overflow-y-auto custom-scrollbar h-full">
                     <div className="p-5 space-y-2">
                       <div className="border-b border-border/10 pb-4 pt-1 mb-2 last:border-0">
                         <div className="flex items-center justify-between">
-                          <h3 className="text-[10px] font-mono uppercase tracking-[0.3em] text-muted-foreground">
+                          <h3 className="text-[10px] font-mono uppercase tracking-[0.2em] text-muted-foreground/80">
                             Research Log
                           </h3>
                           <span className="text-xs text-muted-foreground">
@@ -1564,7 +1564,7 @@ export default function NewsResearchPage() {
                                 key={`${step.type}-${idx}`}
                                 className="border-l-2 border-primary/20 pl-3 py-1 ml-0.5 mt-1"
                               >
-                                <div className="text-[10px] font-mono uppercase tracking-[0.1em] text-muted-foreground">
+                                <div className="text-[10px] font-mono uppercase tracking-[0.05em] text-muted-foreground/70">
                                   {step.type.replace("_", " ")}
                                 </div>
                                 <p className="mt-1 text-[11px] text-muted-foreground/80 leading-relaxed">
@@ -1593,7 +1593,7 @@ export default function NewsResearchPage() {
                       {latestSemanticMessage?.semanticResults &&
                         latestSemanticMessage.semanticResults.length > 0 && (
                           <div className="border-b border-border/10 pb-4 pt-1 mb-2 last:border-0">
-                            <h3 className="text-[10px] font-mono uppercase tracking-[0.3em] text-muted-foreground">
+                            <h3 className="text-[10px] font-mono uppercase tracking-[0.2em] text-muted-foreground/80">
                               Related Coverage
                             </h3>
                             <div className="mt-3 space-y-2">
@@ -1628,7 +1628,7 @@ export default function NewsResearchPage() {
 
                       {groupedSources.length > 0 && (
                         <div className="border-b border-border/10 pb-4 pt-1 mb-2 last:border-0">
-                          <h3 className="text-[10px] font-mono uppercase tracking-[0.3em] text-muted-foreground">
+                          <h3 className="text-[10px] font-mono uppercase tracking-[0.2em] text-muted-foreground/80">
                             Sources Used
                           </h3>
                           <div className="mt-3 space-y-4">
@@ -1701,7 +1701,7 @@ export default function NewsResearchPage() {
                       )}
 
                       <div className="border-b border-border/10 pb-4 pt-1 mb-2 last:border-0">
-                        <h3 className="text-[10px] font-mono uppercase tracking-[0.3em] text-muted-foreground">
+                        <h3 className="text-[10px] font-mono uppercase tracking-[0.2em] text-muted-foreground/80">
                           Recent Queries
                         </h3>
                         <div className="mt-3 space-y-2">
