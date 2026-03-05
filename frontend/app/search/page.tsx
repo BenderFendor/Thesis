@@ -1142,7 +1142,7 @@ export default function NewsResearchPage() {
     <div className="min-h-screen bg-[var(--news-bg-primary)] text-foreground">
       <div className="flex min-h-screen">
         <div
-          className={`${sidebarCollapsed ? "w-0 md:w-0" : "w-full md:w-[280px]"} fixed inset-y-0 z-40 md:relative md:block transition-all duration-300 ease-in-out border-r border-border/60 bg-[var(--news-bg-primary)]`}
+          className={`${sidebarCollapsed ? "w-0 md:w-0" : "w-full md:w-[240px]"} shrink-0 fixed inset-y-0 z-40 md:relative md:block transition-all duration-300 ease-in-out border-r border-border/60 bg-[var(--news-bg-primary)]`}
         >
           <ChatSidebar
             chats={chats}
@@ -1159,7 +1159,7 @@ export default function NewsResearchPage() {
 
         <div className="flex-1 flex flex-col min-w-0">
           <header className="sticky top-0 z-20 border-b border-border/60 bg-[var(--news-bg-primary)]/90 backdrop-blur">
-            <div className="max-w-[1400px] mx-auto flex items-center justify-between px-6 py-4">
+            <div className="max-w-[1400px] mx-auto flex items-center justify-between px-4 py-2.5">
               <div className="flex items-center gap-3">
                 <button
                   onClick={toggleSidebar}
@@ -1171,12 +1171,16 @@ export default function NewsResearchPage() {
                     <ChevronLeft size={18} />
                   )}
                 </button>
-                <div>
-                  <p className="text-[10px] font-mono uppercase tracking-[0.3em] text-muted-foreground">
-                    Research Workspace
-                  </p>
-                  <h1 className="text-lg font-semibold">Scoop Research</h1>
-                  <p className="text-xs text-muted-foreground">
+                <div className="flex flex-col">
+                  <div className="flex items-baseline gap-2">
+                    <h1 className="text-base font-semibold leading-none">
+                      Scoop Research
+                    </h1>
+                    <span className="text-[10px] font-mono uppercase tracking-[0.2em] text-muted-foreground hidden sm:inline">
+                      Workspace
+                    </span>
+                  </div>
+                  <p className="text-xs text-muted-foreground mt-0.5 line-clamp-1">
                     {activeChatId
                       ? chats.find((c) => c.id === activeChatId)?.title ||
                         "Untitled session"
@@ -1201,23 +1205,26 @@ export default function NewsResearchPage() {
 
           <main className="flex-1 flex flex-col bg-[var(--news-bg-primary)]">
             {isEmpty ? (
-              <div className="flex-1 flex flex-col p-6 lg:p-12">
-                <div className="flex-1 max-w-4xl mx-auto w-full flex flex-col justify-center">
-                  <div className="text-center mb-12 animate-in fade-in-0 duration-300">
-                    <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-[var(--news-bg-secondary)] border border-border/60 mb-6">
-                      <Cpu className="w-8 h-8 text-muted-foreground" />
+              <div className="flex-1 flex flex-col p-4 lg:p-8">
+                <div className="flex-1 max-w-3xl mx-auto w-full flex flex-col justify-center -mt-16">
+                  <div className="mb-8 animate-in fade-in-0 duration-300">
+                    <div className="flex items-center gap-3 mb-2">
+                      <div className="inline-flex items-center justify-center w-8 h-8 rounded-lg bg-[var(--news-bg-secondary)] border border-border/60">
+                        <Cpu className="w-4 h-4 text-primary" />
+                      </div>
+                      <h1 className="text-2xl font-serif tracking-tight text-foreground">
+                        Research Workspace
+                      </h1>
                     </div>
-                    <h1 className="text-3xl font-serif tracking-tight text-foreground mb-3">
-                      Research Workspace
-                    </h1>
-                    <p className="text-muted-foreground text-lg">
-                      Ask a focused question to start a research chat.
+                    <p className="text-muted-foreground text-sm">
+                      Ask a focused question to start a multi-source research
+                      brief.
                     </p>
                   </div>
 
                   <div className="relative group w-full">
-                    <div className="absolute -inset-0.5 rounded-xl bg-gradient-to-r from-primary/20 to-transparent opacity-20 group-hover:opacity-40 transition duration-500 blur"></div>
-                    <div className="relative rounded-xl border border-border/60 bg-[var(--news-bg-secondary)] p-4 shadow-2xl">
+                    <div className="absolute -inset-0.5 rounded-xl bg-gradient-to-r from-primary/10 to-transparent opacity-0 group-hover:opacity-100 transition duration-500 blur"></div>
+                    <div className="relative rounded-xl border border-border/60 bg-[var(--news-bg-secondary)] p-3 shadow-xl focus-within:border-primary/50 focus-within:ring-1 focus-within:ring-primary/50 transition-all">
                       <form onSubmit={handleSearch}>
                         <textarea
                           ref={inputRef}
@@ -1230,7 +1237,7 @@ export default function NewsResearchPage() {
                             }
                           }}
                           placeholder="Ask a question about coverage, bias, or context..."
-                          className="w-full bg-transparent text-foreground placeholder:text-muted-foreground resize-none focus:outline-none text-lg min-h-[120px]"
+                          className="w-full bg-transparent text-foreground placeholder:text-muted-foreground/50 resize-none focus:outline-none text-base min-h-[60px] py-1"
                         />
                         {query.length >= 3 && (
                           <SearchSuggestions
@@ -1239,10 +1246,10 @@ export default function NewsResearchPage() {
                               setQuery(suggestion.label);
                               inputRef.current?.focus();
                             }}
-                            className="mt-3 pt-3 border-t border-border/40"
+                            className="mt-2 pt-2 border-t border-border/40"
                           />
                         )}
-                        <div className="flex justify-between items-center mt-4 pt-4 border-t border-border/60">
+                        <div className="flex justify-between items-center mt-2 pt-2 border-t border-border/40">
                           <div className="flex gap-2">
                             <button
                               type="button"
@@ -1295,7 +1302,7 @@ export default function NewsResearchPage() {
               <div className="flex-1 flex flex-col lg:flex-row min-h-0">
                 <section className="flex-1 min-w-0 flex flex-col">
                   <div className="border-b border-border/60 bg-[var(--news-bg-secondary)]/70">
-                    <div className="max-w-[1200px] mx-auto px-6 py-5 flex flex-col gap-4">
+                    <div className="max-w-[1200px] mx-auto px-4 py-3 flex flex-col gap-2">
                       <div className="flex flex-wrap items-center justify-between gap-3">
                         <div>
                           <p className="text-[10px] font-mono uppercase tracking-[0.3em] text-muted-foreground">
@@ -1348,7 +1355,7 @@ export default function NewsResearchPage() {
                     <div className="max-w-[1200px] mx-auto h-full flex flex-col px-6">
                       <div
                         ref={chatScrollRef}
-                        className="flex-1 min-h-0 overflow-y-auto py-6 space-y-4"
+                        className="flex-1 min-h-0 overflow-y-auto py-4 space-y-3"
                       >
                         {conversationMessages.length === 0 ? (
                           <div className="rounded-xl border border-border/60 bg-[var(--news-bg-secondary)]/70 p-6 text-sm text-muted-foreground">
@@ -1371,7 +1378,7 @@ export default function NewsResearchPage() {
                             return (
                               <div
                                 key={message.id}
-                                className={`rounded-2xl border px-4 py-3 ${messageClass}`}
+                                className={`rounded-xl border px-3 py-2.5 ${messageClass}`}
                               >
                                 <div className="flex items-center justify-between text-[10px] font-mono uppercase tracking-[0.3em] text-muted-foreground">
                                   <span>
@@ -1481,13 +1488,13 @@ export default function NewsResearchPage() {
                         )}
                       </div>
 
-                      <div className="border-t border-border/60 bg-[var(--news-bg-primary)]/90 pb-6 pt-4">
+                      <div className="border-t border-border/60 bg-[var(--news-bg-primary)]/90 pb-4 pt-3">
                         <form
                           ref={composerFormRef}
                           onSubmit={handleSearch}
-                          className="space-y-3"
+                          className="space-y-2"
                         >
-                          <div className="rounded-2xl border border-border/60 bg-[var(--news-bg-secondary)]/70 p-3 focus-within:border-primary/60 focus-within:shadow-[0_0_0_1px_rgba(233,118,43,0.35)]">
+                          <div className="rounded-xl border border-border/60 bg-[var(--news-bg-secondary)]/70 p-2 focus-within:border-primary/50 focus-within:shadow-[0_0_0_1px_rgba(255,59,48,0.2)]">
                             <textarea
                               ref={inputRef}
                               value={query}
@@ -1499,7 +1506,7 @@ export default function NewsResearchPage() {
                                 }
                               }}
                               placeholder="Ask a question and press Enter..."
-                              className="w-full min-h-[88px] bg-transparent text-sm text-foreground placeholder:text-muted-foreground resize-none focus:outline-none"
+                              className="w-full min-h-[56px] bg-transparent text-sm text-foreground placeholder:text-muted-foreground/70 resize-none focus:outline-none py-1 px-1"
                               disabled={isSearching}
                             />
                           </div>
@@ -1547,10 +1554,10 @@ export default function NewsResearchPage() {
                   </div>
                 </section>
 
-                <aside className="w-full lg:w-[380px] border-t border-border/60 lg:border-l lg:border-t-0 bg-[var(--news-bg-primary)]/95">
-                  <div className="h-full max-h-[calc(100vh-120px)] overflow-y-auto">
-                    <div className="p-6 space-y-6">
-                      <div className="rounded-xl border border-border/60 bg-[var(--news-bg-secondary)]/70 p-5">
+                <aside className="w-full lg:w-[320px] shrink-0 border-t border-border/60 lg:border-l lg:border-t-0 bg-[var(--news-bg-primary)]/95">
+                  <div className="h-full max-h-[calc(100vh-80px)] overflow-y-auto">
+                    <div className="p-4 space-y-4">
+                      <div className="rounded-lg border border-border/60 bg-[var(--news-bg-secondary)]/70 p-3.5">
                         <div className="flex items-center justify-between">
                           <h3 className="text-[10px] font-mono uppercase tracking-[0.3em] text-muted-foreground">
                             Research Log
@@ -1564,12 +1571,12 @@ export default function NewsResearchPage() {
                             thinkingSteps.slice(-6).map((step, idx) => (
                               <div
                                 key={`${step.type}-${idx}`}
-                                className="rounded-lg border border-border/60 bg-[var(--news-bg-primary)]/50 p-3"
+                                className="border-l-2 border-primary/30 pl-3 py-1"
                               >
-                                <div className="text-[10px] font-mono uppercase tracking-[0.3em] text-muted-foreground">
+                                <div className="text-[9px] font-mono uppercase tracking-[0.2em] text-muted-foreground">
                                   {step.type.replace("_", " ")}
                                 </div>
-                                <p className="mt-2 text-xs text-muted-foreground line-clamp-3">
+                                <p className="mt-1 text-xs text-muted-foreground line-clamp-2">
                                   {step.content}
                                 </p>
                               </div>
@@ -1594,7 +1601,7 @@ export default function NewsResearchPage() {
 
                       {latestSemanticMessage?.semanticResults &&
                         latestSemanticMessage.semanticResults.length > 0 && (
-                          <div className="rounded-xl border border-border/60 bg-[var(--news-bg-secondary)]/70 p-5">
+                          <div className="rounded-lg border border-border/60 bg-[var(--news-bg-secondary)]/70 p-3.5">
                             <h3 className="text-[10px] font-mono uppercase tracking-[0.3em] text-muted-foreground">
                               Related Coverage
                             </h3>
@@ -1629,7 +1636,7 @@ export default function NewsResearchPage() {
                         )}
 
                       {groupedSources.length > 0 && (
-                        <div className="rounded-xl border border-border/60 bg-[var(--news-bg-secondary)]/70 p-5">
+                        <div className="rounded-lg border border-border/60 bg-[var(--news-bg-secondary)]/70 p-3.5">
                           <h3 className="text-[10px] font-mono uppercase tracking-[0.3em] text-muted-foreground">
                             Sources Used
                           </h3>
@@ -1702,7 +1709,7 @@ export default function NewsResearchPage() {
                         </div>
                       )}
 
-                      <div className="rounded-xl border border-border/60 bg-[var(--news-bg-secondary)]/70 p-5">
+                      <div className="rounded-lg border border-border/60 bg-[var(--news-bg-secondary)]/70 p-3.5">
                         <h3 className="text-[10px] font-mono uppercase tracking-[0.3em] text-muted-foreground">
                           Recent Queries
                         </h3>
