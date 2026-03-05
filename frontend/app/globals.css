@@ -19,9 +19,9 @@
   /* Editorial dark theme with warm accent */
   --background: #050505;
   --foreground: #e0e0e0;
-  --card: #121212;
+  --card: #080808;
   --card-foreground: #e0e0e0;
-  --popover: #050505;
+  --popover: #080808;
   --popover-foreground: #e0e0e0;
   --primary: #ff3b30;
   --primary-foreground: #050505;
@@ -53,7 +53,7 @@
 
   /* Custom theme colors for news app */
   --news-bg-primary: #050505;
-  --news-bg-secondary: #0a0a0a;
+  --news-bg-secondary: #080808;
   --news-card-bg: #121212;
 }
 
@@ -61,9 +61,9 @@
   /* Dark mode uses the editorial palette */
   --background: #050505;
   --foreground: #e0e0e0;
-  --card: #121212;
+  --card: #080808;
   --card-foreground: #e0e0e0;
-  --popover: #050505;
+  --popover: #080808;
   --popover-foreground: #e0e0e0;
   --primary: #ff3b30;
   --primary-foreground: #050505;
