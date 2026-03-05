@@ -1,5 +1,5 @@
-import React, { useMemo, useState } from 'react'
-import { Button } from './ui/button'
+import React, { useMemo, useState } from "react";
+import { Button } from "./ui/button";
 import {
   CheckSquare,
   PanelLeftClose,
@@ -8,134 +8,165 @@ import {
   Plus,
   Search,
   Trash2,
-  X
-} from 'lucide-react'
-import { AnimatePresence, motion } from 'framer-motion'
+  X,
+} from "lucide-react";
+import { AnimatePresence, motion } from "framer-motion";
 
 export interface ChatSummary {
-  id: string
-  title: string
-  lastMessage?: string
-  updatedAt?: string // ISO
+  id: string;
+  title: string;
+  lastMessage?: string;
+  updatedAt?: string; // ISO
 }
 
 interface ChatSidebarProps {
-  chats: ChatSummary[]
-  onSelect: (id: string) => void
-  onNewChat: () => void
-  onRename: (id: string, title: string) => void
-  onDelete: (id: string) => void
-  onDeleteMultiple?: (ids: string[]) => void
-  activeId?: string | null
-  collapsed?: boolean
-  onToggle?: () => void
+  chats: ChatSummary[];
+  onSelect: (id: string) => void;
+  onNewChat: () => void;
+  onRename: (id: string, title: string) => void;
+  onDelete: (id: string) => void;
+  onDeleteMultiple?: (ids: string[]) => void;
+  activeId?: string | null;
+  collapsed?: boolean;
+  onToggle?: () => void;
 }
 
-export function ChatSidebar({ chats, onSelect, onNewChat, onRename, onDelete, onDeleteMultiple, activeId, collapsed = false, onToggle }: ChatSidebarProps) {
-  const [searchTerm, setSearchTerm] = useState('')
-  const [editingId, setEditingId] = useState<string | null>(null)
-  const [draftTitle, setDraftTitle] = useState('')
-  const [isSelectionMode, setIsSelectionMode] = useState(false)
-  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
+export function ChatSidebar({
+  chats,
+  onSelect,
+  onNewChat,
+  onRename,
+  onDelete,
+  onDeleteMultiple,
+  activeId,
+  collapsed = false,
+  onToggle,
+}: ChatSidebarProps) {
+  const [searchTerm, setSearchTerm] = useState("");
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [draftTitle, setDraftTitle] = useState("");
+  const [isSelectionMode, setIsSelectionMode] = useState(false);
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
 
   const filteredChats = useMemo(() => {
-    if (!searchTerm.trim()) return chats
-    const term = searchTerm.trim().toLowerCase()
+    if (!searchTerm.trim()) return chats;
+    const term = searchTerm.trim().toLowerCase();
     return chats.filter((chat) => {
-      const inTitle = chat.title?.toLowerCase().includes(term)
-      const inMessage = chat.lastMessage?.toLowerCase().includes(term)
-      return inTitle || inMessage
-    })
-  }, [chats, searchTerm])
-  const allFilteredSelected = filteredChats.length > 0 && selectedIds.size === filteredChats.length
+      const inTitle = chat.title?.toLowerCase().includes(term);
+      const inMessage = chat.lastMessage?.toLowerCase().includes(term);
+      return inTitle || inMessage;
+    });
+  }, [chats, searchTerm]);
+  const allFilteredSelected =
+    filteredChats.length > 0 && selectedIds.size === filteredChats.length;
 
   const startRename = (chat: ChatSummary) => {
-    setEditingId(chat.id)
-    setDraftTitle(chat.title)
-  }
+    setEditingId(chat.id);
+    setDraftTitle(chat.title);
+  };
 
   const cancelRename = () => {
-    setEditingId(null)
-    setDraftTitle('')
-  }
+    setEditingId(null);
+    setDraftTitle("");
+  };
 
   const commitRename = () => {
-    if (!editingId) return
-    const trimmed = draftTitle.trim()
+    if (!editingId) return;
+    const trimmed = draftTitle.trim();
     if (trimmed && trimmed.length) {
-      onRename(editingId, trimmed)
+      onRename(editingId, trimmed);
     }
-    cancelRename()
-  }
+    cancelRename();
+  };
 
   const toggleSelectionMode = () => {
-    setIsSelectionMode(!isSelectionMode)
-    setSelectedIds(new Set())
-    setEditingId(null)
-  }
+    setIsSelectionMode(!isSelectionMode);
+    setSelectedIds(new Set());
+    setEditingId(null);
+  };
 
   const toggleSelection = (id: string) => {
-    const newSelected = new Set(selectedIds)
+    const newSelected = new Set(selectedIds);
     if (newSelected.has(id)) {
-      newSelected.delete(id)
+      newSelected.delete(id);
     } else {
-      newSelected.add(id)
+      newSelected.add(id);
     }
-    setSelectedIds(newSelected)
-  }
+    setSelectedIds(newSelected);
+  };
 
   const handleDeleteSelected = () => {
-    if (selectedIds.size === 0) return
-    
-    if (window.confirm(`Delete ${selectedIds.size} selected chats? This action cannot be undone.`)) {
+    if (selectedIds.size === 0) return;
+
+    if (
+      window.confirm(
+        `Delete ${selectedIds.size} selected chats? This action cannot be undone.`,
+      )
+    ) {
       if (onDeleteMultiple) {
-        onDeleteMultiple(Array.from(selectedIds))
+        onDeleteMultiple(Array.from(selectedIds));
       } else {
         // Fallback if multiple delete not provided
-        selectedIds.forEach(id => onDelete(id))
+        selectedIds.forEach((id) => onDelete(id));
       }
-      setIsSelectionMode(false)
-      setSelectedIds(new Set())
+      setIsSelectionMode(false);
+      setSelectedIds(new Set());
     }
-  }
+  };
 
   const handleDeleteAll = () => {
-    if (chats.length === 0) return
-    if (window.confirm(`Delete all ${chats.length} chats? This action cannot be undone.`)) {
-      const ids = chats.map((chat) => chat.id)
+    if (chats.length === 0) return;
+    if (
+      window.confirm(
+        `Delete all ${chats.length} chats? This action cannot be undone.`,
+      )
+    ) {
+      const ids = chats.map((chat) => chat.id);
       if (onDeleteMultiple) {
-        onDeleteMultiple(ids)
+        onDeleteMultiple(ids);
       } else {
-        ids.forEach((id) => onDelete(id))
+        ids.forEach((id) => onDelete(id));
       }
-      setIsSelectionMode(false)
-      setSelectedIds(new Set())
+      setIsSelectionMode(false);
+      setSelectedIds(new Set());
     }
-  }
+  };
 
   const toggleSelectAll = () => {
     if (allFilteredSelected) {
-      setSelectedIds(new Set())
+      setSelectedIds(new Set());
     } else {
-      setSelectedIds(new Set(filteredChats.map((chat) => chat.id)))
+      setSelectedIds(new Set(filteredChats.map((chat) => chat.id)));
     }
-  }
+  };
 
   if (collapsed) {
     // Compact vertical bar
     return (
-  <aside className="w-16 h-full bg-[var(--news-bg-primary)] border-r border-border/60 flex flex-col items-center py-3 space-y-4 backdrop-blur">
-        <button onClick={onNewChat} title="New chat" className="p-2 rounded-md hover:bg-[var(--news-bg-secondary)]/70 transition" aria-label="New chat">
+      <aside className="w-16 h-screen bg-[var(--news-bg-primary)] border-r border-border/60 flex flex-col items-center py-3 space-y-4 backdrop-blur overflow-hidden">
+        <button
+          onClick={onNewChat}
+          title="New chat"
+          className="p-2 rounded-md hover:bg-[var(--news-bg-secondary)]/70 transition"
+          aria-label="New chat"
+        >
           <Plus className="w-4 h-4 text-foreground" />
         </button>
         <nav className="flex-1 w-full space-y-2 flex flex-col items-center px-1 overflow-y-auto">
-          {chats.map(c => {
-            const isActive = activeId === c.id
+          {chats.map((c) => {
+            const isActive = activeId === c.id;
             return (
-              <button key={c.id} onClick={() => onSelect(c.id)} title={c.title} className={`w-10 h-10 rounded-md flex items-center justify-center ${isActive ? 'bg-primary/20 ring-1 ring-primary/30 translate-x-0' : 'bg-[var(--news-bg-secondary)]/60 hover:bg-[var(--news-bg-secondary)]'} transition-all`}>
-                <span className="text-xs font-semibold text-primary">{c.title?.charAt(0)?.toUpperCase() || '?'}</span>
+              <button
+                key={c.id}
+                onClick={() => onSelect(c.id)}
+                title={c.title}
+                className={`w-10 h-10 rounded-md flex items-center justify-center ${isActive ? "bg-primary/20 ring-1 ring-primary/30 translate-x-0" : "bg-[var(--news-bg-secondary)]/60 hover:bg-[var(--news-bg-secondary)]"} transition-all`}
+              >
+                <span className="text-xs font-semibold text-primary">
+                  {c.title?.charAt(0)?.toUpperCase() || "?"}
+                </span>
               </button>
-            )
+            );
           })}
         </nav>
         <button
@@ -147,11 +178,11 @@ export function ChatSidebar({ chats, onSelect, onNewChat, onRename, onDelete, on
           <PanelLeftOpen className="w-4 h-4 text-foreground" />
         </button>
       </aside>
-    )
+    );
   }
 
   return (
-    <aside className="w-64 min-w-[16rem] bg-[var(--news-bg-primary)] text-foreground border-r border-border/60 h-full flex flex-col shadow-2xl shadow-black/40 backdrop-blur-md">
+    <aside className="w-64 min-w-[16rem] bg-[var(--news-bg-primary)] text-foreground border-r border-border/60 h-screen flex flex-col backdrop-blur-md overflow-hidden">
       <div className="px-3 pt-3 pb-2 border-b border-border/60">
         {!isSelectionMode ? (
           <div className="flex gap-1.5">
@@ -219,7 +250,7 @@ export function ChatSidebar({ chats, onSelect, onNewChat, onRename, onDelete, on
             </div>
           </div>
         )}
-        
+
         <div className="mt-4 relative">
           <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
           <input
@@ -241,9 +272,9 @@ export function ChatSidebar({ chats, onSelect, onNewChat, onRename, onDelete, on
           <ul className="space-y-1">
             <AnimatePresence initial={false}>
               {filteredChats.map((chat) => {
-                const isActive = activeId === chat.id
-                const isEditing = editingId === chat.id
-                const isSelected = selectedIds.has(chat.id)
+                const isActive = activeId === chat.id;
+                const isEditing = editingId === chat.id;
+                const isSelected = selectedIds.has(chat.id);
 
                 return (
                   <motion.li
@@ -252,47 +283,53 @@ export function ChatSidebar({ chats, onSelect, onNewChat, onRename, onDelete, on
                     initial={{ opacity: 0, y: 8 }}
                     animate={{ opacity: 1, y: 0 }}
                     exit={{ opacity: 0, y: -6 }}
-                    transition={{ duration: 0.18, ease: 'easeOut' }}
+                    transition={{ duration: 0.18, ease: "easeOut" }}
                   >
                     <div
                       className={`group flex items-center gap-2 rounded-lg border px-2.5 py-1.5 transition-all duration-200 ${
-                        isSelectionMode 
-                          ? isSelected 
-                            ? 'border-primary/50 bg-primary/10' 
-                            : 'border-transparent hover:bg-[var(--news-bg-secondary)]/70 cursor-pointer'
-                          : isActive 
-                            ? 'border-primary/50 bg-primary/10 shadow-lg shadow-primary/10' 
-                            : 'border-transparent hover:border-border/60 hover:bg-[var(--news-bg-secondary)]/70'
+                        isSelectionMode
+                          ? isSelected
+                            ? "border-primary/50 bg-primary/10"
+                            : "border-transparent hover:bg-[var(--news-bg-secondary)]/70 cursor-pointer"
+                          : isActive
+                            ? "border-primary/50 bg-primary/10 shadow-lg shadow-primary/10"
+                            : "border-transparent hover:border-border/60 hover:bg-[var(--news-bg-secondary)]/70"
                       }`}
                       onClick={() => {
                         if (isSelectionMode) {
-                          toggleSelection(chat.id)
+                          toggleSelection(chat.id);
                         }
                       }}
                     >
                       {isSelectionMode && (
-                        <div className={`w-4 h-4 rounded border flex items-center justify-center transition-colors ${isSelected ? 'bg-primary border-primary' : 'border-border/60 bg-transparent'}`}>
-                          {isSelected && <CheckSquare className="w-3 h-3 text-primary-foreground" />}
+                        <div
+                          className={`w-4 h-4 rounded border flex items-center justify-center transition-colors ${isSelected ? "bg-primary border-primary" : "border-border/60 bg-transparent"}`}
+                        >
+                          {isSelected && (
+                            <CheckSquare className="w-3 h-3 text-primary-foreground" />
+                          )}
                         </div>
                       )}
 
                       {isEditing ? (
                         <form
                           onSubmit={(event) => {
-                            event.preventDefault()
-                            commitRename()
+                            event.preventDefault();
+                            commitRename();
                           }}
                           className="flex-1"
                           onClick={(e) => e.stopPropagation()}
                         >
                           <input
                             value={draftTitle}
-                            onChange={(event) => setDraftTitle(event.target.value)}
+                            onChange={(event) =>
+                              setDraftTitle(event.target.value)
+                            }
                             onBlur={commitRename}
                             onKeyDown={(event) => {
-                              if (event.key === 'Escape') {
-                                event.preventDefault()
-                                cancelRename()
+                              if (event.key === "Escape") {
+                                event.preventDefault();
+                                cancelRename();
                               }
                             }}
                             autoFocus
@@ -303,10 +340,10 @@ export function ChatSidebar({ chats, onSelect, onNewChat, onRename, onDelete, on
                         <button
                           onClick={(e) => {
                             if (isSelectionMode) {
-                              e.preventDefault()
-                              toggleSelection(chat.id)
+                              e.preventDefault();
+                              toggleSelection(chat.id);
                             } else {
-                              onSelect(chat.id)
+                              onSelect(chat.id);
                             }
                           }}
                           className="flex-1 text-left"
@@ -331,11 +368,11 @@ export function ChatSidebar({ chats, onSelect, onNewChat, onRename, onDelete, on
                           <button
                             type="button"
                             onClick={(event) => {
-                              event.stopPropagation()
+                              event.stopPropagation();
                               if (isEditing) {
-                                commitRename()
+                                commitRename();
                               } else {
-                                startRename(chat)
+                                startRename(chat);
                               }
                             }}
                             className="p-1 rounded-md hover:bg-[var(--news-bg-secondary)]/70 transition"
@@ -346,9 +383,13 @@ export function ChatSidebar({ chats, onSelect, onNewChat, onRename, onDelete, on
                           <button
                             type="button"
                             onClick={(event) => {
-                              event.stopPropagation()
-                              if (window.confirm('Delete this chat? This action cannot be undone.')) {
-                                onDelete(chat.id)
+                              event.stopPropagation();
+                              if (
+                                window.confirm(
+                                  "Delete this chat? This action cannot be undone.",
+                                )
+                              ) {
+                                onDelete(chat.id);
                               }
                             }}
                             className="p-1 rounded-md hover:bg-destructive/20 transition"
@@ -360,7 +401,7 @@ export function ChatSidebar({ chats, onSelect, onNewChat, onRename, onDelete, on
                       )}
                     </div>
                   </motion.li>
-                )
+                );
               })}
             </AnimatePresence>
           </ul>
@@ -382,7 +423,7 @@ export function ChatSidebar({ chats, onSelect, onNewChat, onRename, onDelete, on
         )}
       </div>
     </aside>
-  )
+  );
 }
 
-export default ChatSidebar
+export default ChatSidebar;
