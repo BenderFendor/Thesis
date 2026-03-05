@@ -1159,7 +1159,7 @@ export default function NewsResearchPage() {
 
         <div className="flex-1 flex flex-col min-w-0">
           <header className="sticky top-0 z-20 border-b border-border/10 bg-[var(--news-bg-primary)]/90 backdrop-blur">
-            <div className="w-full h-12 flex items-center justify-between px-4">
+            <div className="w-full h-14 flex items-center justify-between px-4 py-2">
               <div className="flex items-center gap-3">
                 <button
                   onClick={toggleSidebar}
@@ -1188,7 +1188,46 @@ export default function NewsResearchPage() {
                   </p>
                 </div>
               </div>
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-4">
+                {/* Status metadata merged here */}
+                {activeChatId && (
+                  <div className="hidden lg:flex items-center gap-4 border-r border-border/10 pr-4 mr-2">
+                    {(isSearching || latestAssistantMessage?.isStreaming) && (
+                      <div className="flex items-center gap-2 text-xs text-primary/80 bg-primary/5 px-2 py-1 rounded">
+                        <Loader2 className="w-3 h-3 animate-spin flex-shrink-0" />
+                        <span className="font-mono text-[9px] uppercase tracking-widest">
+                          {latestAssistantMessage?.streamingStatus ||
+                            "Running..."}
+                        </span>
+                        <button
+                          type="button"
+                          onClick={handleStop}
+                          className="ml-1 flex items-center justify-center rounded hover:bg-primary/20 p-0.5 transition-colors"
+                          title="Stop generation"
+                        >
+                          <Square className="w-2.5 h-2.5 fill-current" />
+                        </button>
+                      </div>
+                    )}
+                    <div className="flex items-center gap-3">
+                      <div className="text-[9px] font-mono uppercase tracking-[0.15em] text-muted-foreground/60 flex items-center gap-1.5">
+                        <span className="text-foreground/80 font-semibold">
+                          {conversationMessages.length}
+                        </span>{" "}
+                        MSGS
+                      </div>
+                      {latestAssistantMessage?.articles_searched && (
+                        <div className="text-[9px] font-mono uppercase tracking-[0.15em] text-muted-foreground/60 flex items-center gap-1.5">
+                          <span className="text-foreground/80 font-semibold">
+                            {latestAssistantMessage.articles_searched}
+                          </span>{" "}
+                          SOURCES
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )}
+
                 <Link href="/">
                   <Button
                     variant="outline"
