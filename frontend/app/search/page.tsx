@@ -1371,10 +1371,10 @@ export default function NewsResearchPage() {
                             );
                             const messageClass =
                               message.type === "user"
-                                ? "border-border/20 bg-[var(--news-bg-secondary)]/40 ml-12"
+                                ? "border-border/10 bg-[var(--news-bg-secondary)]/20 ml-16"
                                 : message.error
                                   ? "border-destructive/30 bg-destructive/10 mr-12"
-                                  : "border-transparent bg-transparent pl-0 mr-12";
+                                  : "border-transparent bg-transparent pl-0 pr-0 mt-2 mr-4";
                             return (
                               <div
                                 key={message.id}
@@ -1548,7 +1548,7 @@ export default function NewsResearchPage() {
                 <aside className="w-full lg:w-[320px] shrink-0 border-t border-border/20 lg:border-l lg:border-t-0 bg-[var(--news-bg-primary)]/95 overflow-hidden flex flex-col h-full">
                   <div className="flex-1 overflow-y-auto custom-scrollbar h-full">
                     <div className="p-5 space-y-2">
-                      <div className="border-b border-border/20 pb-5 pt-2 last:border-0">
+                      <div className="border-b border-border/10 pb-4 pt-1 mb-2 last:border-0">
                         <div className="flex items-center justify-between">
                           <h3 className="text-[10px] font-mono uppercase tracking-[0.3em] text-muted-foreground">
                             Research Log
@@ -1562,7 +1562,7 @@ export default function NewsResearchPage() {
                             thinkingSteps.slice(-6).map((step, idx) => (
                               <div
                                 key={`${step.type}-${idx}`}
-                                className="border-l border-primary/40 pl-4 py-1.5 ml-1"
+                                className="border-l-2 border-primary/20 pl-3 py-1 ml-0.5 mt-1"
                               >
                                 <div className="text-[10px] font-mono uppercase tracking-[0.1em] text-muted-foreground">
                                   {step.type.replace("_", " ")}
@@ -1592,7 +1592,7 @@ export default function NewsResearchPage() {
 
                       {latestSemanticMessage?.semanticResults &&
                         latestSemanticMessage.semanticResults.length > 0 && (
-                          <div className="border-b border-border/20 pb-5 pt-2 last:border-0">
+                          <div className="border-b border-border/10 pb-4 pt-1 mb-2 last:border-0">
                             <h3 className="text-[10px] font-mono uppercase tracking-[0.3em] text-muted-foreground">
                               Related Coverage
                             </h3>
@@ -1627,7 +1627,7 @@ export default function NewsResearchPage() {
                         )}
 
                       {groupedSources.length > 0 && (
-                        <div className="border-b border-border/20 pb-5 pt-2 last:border-0">
+                        <div className="border-b border-border/10 pb-4 pt-1 mb-2 last:border-0">
                           <h3 className="text-[10px] font-mono uppercase tracking-[0.3em] text-muted-foreground">
                             Sources Used
                           </h3>
@@ -1700,7 +1700,7 @@ export default function NewsResearchPage() {
                         </div>
                       )}
 
-                      <div className="border-b border-border/20 pb-5 pt-2 last:border-0">
+                      <div className="border-b border-border/10 pb-4 pt-1 mb-2 last:border-0">
                         <h3 className="text-[10px] font-mono uppercase tracking-[0.3em] text-muted-foreground">
                           Recent Queries
                         </h3>
