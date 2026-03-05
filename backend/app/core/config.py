@@ -46,6 +46,15 @@ class Settings:
     llamacpp_base_url: str = os.getenv("LLAMACPP_BASE_URL", "http://localhost:8080/v1")
     llamacpp_model: str = os.getenv("LLAMACPP_MODEL", "local")
     llamacpp_api_key: str = os.getenv("LLAMACPP_API_KEY", "no-key")
+
+    # llama.cpp Instruct mode settings for reasoning tasks
+    llamacpp_temperature: float = 1.0
+    llamacpp_top_p: float = 0.95
+    llamacpp_top_k: int = 20
+    llamacpp_min_p: float = 0.0
+    llamacpp_presence_penalty: float = 1.5
+    llamacpp_repetition_penalty: float = 1.0
+
     source_research_cache_ttl_hours: int = int(
         os.getenv("SOURCE_RESEARCH_CACHE_TTL_HOURS", "168")
     )
@@ -300,6 +309,18 @@ def check_llamacpp_server(logger) -> None:
 
 
 _openai_client_instance: Optional[OpenAI] = None
+
+
+def get_llamacpp_instruct_params() -> dict:
+    """Return llama.cpp inference parameters for Instruct/reasoning mode."""
+    return {
+        "temperature": settings.llamacpp_temperature,
+        "top_p": settings.llamacpp_top_p,
+        "top_k": settings.llamacpp_top_k,
+        "min_p": settings.llamacpp_min_p,
+        "presence_penalty": settings.llamacpp_presence_penalty,
+        "repetition_penalty": settings.llamacpp_repetition_penalty,
+    }
 
 
 def get_openai_client() -> Optional[OpenAI]:

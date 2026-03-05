@@ -12,6 +12,7 @@ import {
   Cpu,
   Filter,
   Clock,
+  Square,
 } from "lucide-react"
 import { API_BASE_URL, ThinkingStep, type NewsArticle, semanticSearch, type SemanticSearchResult, type SearchSuggestion } from "@/lib/api"
 import { Button } from "@/components/ui/button"
@@ -132,14 +133,31 @@ export default function NewsResearchPage() {
   const composerFormRef = useRef<HTMLFormElement>(null)
   const chatScrollRef = useRef<HTMLDivElement>(null)
   const isHydratingRef = useRef(true)
+  const abortControllerRef = useRef<AbortController | null>(null)
 
   const handleNewChat = () => {
     const id = `chat-${Date.now()}-${Math.random().toString(36).slice(2,8)}`
     const newChat: ChatSummary = { id, title: 'Untitled research', lastMessage: '', updatedAt: new Date().toISOString() }
+    // Abort any running stream when switching to a fresh chat
+    abortControllerRef.current?.abort()
+    abortControllerRef.current = null
     setChats(prev => [newChat, ...prev])
     setChatMessagesMap(prev => ({ ...prev, [id]: [] }))
     setActiveChatId(id)
     setMessages([])
+    setIsSearching(false)
+  }
+
+  const handleStop = () => {
+    abortControllerRef.current?.abort()
+    abortControllerRef.current = null
+    setIsSearching(false)
+    // Mark the current streaming message as stopped
+    setMessages(prev => prev.map(msg =>
+      msg.isStreaming
+        ? { ...msg, isStreaming: false, streamingStatus: undefined, content: msg.content || '[Stopped]' }
+        : msg
+    ))
   }
 
   const toggleSidebar = () => setSidebarCollapsed(prev => !prev)
@@ -319,7 +337,7 @@ export default function NewsResearchPage() {
     if (!trimmedQuery) return
 
     const historyPayload = buildChatHistoryPayload(messages)
-  const promptQuery = `${trimmedQuery}\n\nProvide a concise answer, then list follow-up questions to explore next.`
+  const promptQuery = `${trimmedQuery}\n\nProvide a concise answer with detailed well-written prose based on the sources you have searched cited them when needed.`
 
   // If there's no active chat, create one automatically and name it from the prompt.
   let newChatTitle: string | undefined = undefined
@@ -422,7 +440,9 @@ export default function NewsResearchPage() {
         streamUrl.searchParams.set('history', JSON.stringify(historyPayload))
       }
 
-      const eventSource = new EventSource(streamUrl.toString())
+      const abortController = new AbortController()
+      abortControllerRef.current = abortController
+
       const stallTimeout = window.setTimeout(() => {
         setMessages(prev => prev.map(msg =>
           msg.id === assistantId
@@ -431,63 +451,45 @@ export default function NewsResearchPage() {
         ))
       }, 30000)
 
-      eventSource.onmessage = (event) => {
+      const processEvent = (line: string) => {
+        if (!line.startsWith('data: ')) return
+        const raw = line.slice(6).trim()
+        if (!raw || raw === '[DONE]') return
         try {
-          const data = JSON.parse(event.data) as ResearchStreamMessage
+          const data = JSON.parse(raw) as ResearchStreamMessage
 
           if (isStatusMessage(data)) {
             setMessages(prev =>
-              prev.map((msg) => {
-                if (msg.id !== assistantId) {
-                  return msg
-                }
-                return {
-                  ...msg,
-                  streamingStatus: data.message
-                }
-              })
+              prev.map((msg) =>
+                msg.id !== assistantId ? msg : { ...msg, streamingStatus: data.message }
+              )
             )
           } else if (isThinkingStepMessage(data)) {
             thinkingSteps.push(data.step)
             setMessages(prev =>
-              prev.map((msg) => {
-                if (msg.id !== assistantId) {
-                  return msg
-                }
-                return {
-                  ...msg,
-                  thinking_steps: [...thinkingSteps],
-                  streamingStatus: `Processing: ${data.step.type}...`
-                }
-              })
+              prev.map((msg) =>
+                msg.id !== assistantId
+                  ? msg
+                  : { ...msg, thinking_steps: [...thinkingSteps], streamingStatus: `Processing: ${data.step.type}...` }
+              )
             )
           } else if (isArticlesJsonMessage(data)) {
             try {
-              // Try parsing directly first (new backend format)
               let parsed: StructuredArticlesPayload | null = null
               try {
                 parsed = JSON.parse(data.data) as StructuredArticlesPayload
-              } catch (e) {
-                // Fallback to regex if it's wrapped in markdown (old format)
+              } catch {
                 const jsonMatch = data.data.match(/```json:articles\n([\s\S]*?)\n```/)
-                if (jsonMatch) {
-                  parsed = JSON.parse(jsonMatch[1]) as StructuredArticlesPayload
-                }
+                if (jsonMatch) parsed = JSON.parse(jsonMatch[1]) as StructuredArticlesPayload
               }
-
               if (parsed) {
                 structuredArticles = parsed
                 setMessages(prev =>
-                  prev.map((msg) => {
-                    if (msg.id !== assistantId) {
-                      return msg
-                    }
-                    return {
-                      ...msg,
-                      structured_articles_json: structuredArticles,
-                      streamingStatus: 'Received article data...'
-                    }
-                  })
+                  prev.map((msg) =>
+                    msg.id !== assistantId
+                      ? msg
+                      : { ...msg, structured_articles_json: structuredArticles, streamingStatus: 'Received article data...' }
+                  )
                 )
               }
             } catch (jsonError) {
@@ -497,7 +499,6 @@ export default function NewsResearchPage() {
             const referencedArticlesPayload: ReferencedArticlePayload[] = Array.isArray(data.articles) ? data.articles : []
             const referencedArticles: NewsArticle[] = referencedArticlesPayload.map((article) => {
               const tags = [article.category, article.source].filter((value): value is string => Boolean(value))
-
               return {
                 id: Date.now() + Math.random(),
                 title: article.title || 'No title',
@@ -517,27 +518,16 @@ export default function NewsResearchPage() {
                 translated: false
               }
             })
-
             setMessages(prev =>
-              prev.map((msg) => {
-                if (msg.id !== assistantId) {
-                  return msg
-                }
-                return {
-                  ...msg,
-                  referenced_articles: referencedArticles,
-                  streamingStatus: 'Processing articles...'
-                }
-              })
+              prev.map((msg) =>
+                msg.id !== assistantId ? msg : { ...msg, referenced_articles: referencedArticles, streamingStatus: 'Processing articles...' }
+              )
             )
           } else if (isCompleteMessage(data)) {
             window.clearTimeout(stallTimeout)
             finalResult = data.result
-            eventSource.close()
-
             const referencedArticles: NewsArticle[] = (finalResult.referenced_articles ?? []).map((article) => {
               const tags = [article.category, article.source].filter((value): value is string => Boolean(value))
-
               return {
                 id: Date.now() + Math.random(),
                 title: article.title || 'No title',
@@ -557,77 +547,79 @@ export default function NewsResearchPage() {
                 translated: false
               }
             })
-
             setMessages(prev =>
-              prev.map((msg) => {
-                if (msg.id !== assistantId) {
-                  return msg
-                }
-                return {
-                  ...msg,
-                  content: finalResult?.answer || 'No answer returned.',
-                  thinking_steps: [...thinkingSteps],
-                  articles_searched: finalResult?.articles_searched,
-                  referenced_articles: referencedArticles,
-                  structured_articles_json: structuredArticles ?? msg.structured_articles_json,
-                  isStreaming: false,
-                  streamingStatus: undefined,
-                  error: !finalResult?.success
-                }
-              })
+              prev.map((msg) =>
+                msg.id !== assistantId
+                  ? msg
+                  : {
+                      ...msg,
+                      content: finalResult?.answer || 'No answer returned.',
+                      thinking_steps: [...thinkingSteps],
+                      articles_searched: finalResult?.articles_searched,
+                      referenced_articles: referencedArticles,
+                      structured_articles_json: structuredArticles ?? msg.structured_articles_json,
+                      isStreaming: false,
+                      streamingStatus: undefined,
+                      error: !finalResult?.success
+                    }
+              )
             )
-
             setIsSearching(false)
+            abortControllerRef.current = null
             inputRef.current?.focus()
           } else if (isErrorMessage(data)) {
             window.clearTimeout(stallTimeout)
-            eventSource.close()
-
             let errorMessage = data.message || 'The research agent encountered an error.'
             const lowered = errorMessage.toLowerCase()
             if (lowered.includes('rate limit') || lowered.includes('quota') || lowered.includes('429')) {
               errorMessage = 'API Rate Limit: The AI service has reached its rate limit. Please wait a moment and try again.'
             }
-
             setMessages(prev =>
-              prev.map((msg) => {
-                if (msg.id !== assistantId) {
-                  return msg
-                }
-                return {
-                  ...msg,
-                  content: errorMessage,
-                  error: true,
-                  isStreaming: false,
-                  streamingStatus: undefined
-                }
-              })
+              prev.map((msg) =>
+                msg.id !== assistantId
+                  ? msg
+                  : { ...msg, content: errorMessage, error: true, isStreaming: false, streamingStatus: undefined }
+              )
             )
             setIsSearching(false)
+            abortControllerRef.current = null
           }
         } catch (parseError) {
           console.error('Failed to parse research stream message:', parseError)
         }
       }
 
-      eventSource.onerror = (error) => {
-        console.error('SSE error:', error)
+      const response = await fetch(streamUrl.toString(), { signal: abortController.signal })
+      if (!response.ok || !response.body) {
+        throw new Error(`Stream request failed: ${response.status}`)
+      }
+
+      const reader = response.body.getReader()
+      const decoder = new TextDecoder()
+      let buffer = ''
+
+      try {
+        while (true) {
+          const { done, value } = await reader.read()
+          if (done) break
+          buffer += decoder.decode(value, { stream: true })
+          const lines = buffer.split('\n')
+          buffer = lines.pop() ?? ''
+          for (const line of lines) {
+            processEvent(line)
+          }
+        }
+        // Process any remaining buffered data
+        if (buffer) processEvent(buffer)
+      } finally {
+        reader.releaseLock()
         window.clearTimeout(stallTimeout)
-        eventSource.close()
-        setMessages(prev => prev.map(msg =>
-          msg.id === assistantId
-            ? {
-                ...msg,
-                content: 'Connection error. The server may be busy or experiencing rate limits. Please try again in a moment.',
-                error: true,
-                isStreaming: false,
-                streamingStatus: undefined
-              }
-            : msg
-        ))
-        setIsSearching(false)
       }
     } catch (error) {
+      if (error instanceof Error && error.name === 'AbortError') {
+        // User stopped the request — message already updated by handleStop
+        return
+      }
       console.error('Failed to start research stream:', error)
       setMessages(prev => prev.map(msg =>
         msg.id === assistantId
@@ -1022,12 +1014,21 @@ export default function NewsResearchPage() {
                                : 'Evidence stream pending'}
                            </p>
                          </div>
-                         {(isSearching || latestAssistantMessage?.isStreaming) && (
-                           <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                             <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                             <span>{latestAssistantMessage?.streamingStatus || 'Running research...'}</span>
-                           </div>
-                         )}
+                          {(isSearching || latestAssistantMessage?.isStreaming) && (
+                            <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                              <Loader2 className="w-3.5 h-3.5 animate-spin flex-shrink-0" />
+                              <span>{latestAssistantMessage?.streamingStatus || 'Running research...'}</span>
+                              <button
+                                type="button"
+                                onClick={handleStop}
+                                className="flex items-center gap-1 rounded px-1.5 py-0.5 text-xs text-muted-foreground hover:text-foreground hover:bg-border/40 transition-colors"
+                                title="Stop generation"
+                              >
+                                <Square className="w-3 h-3" />
+                                Stop
+                              </button>
+                            </div>
+                          )}
                        </div>
                        <div className="flex flex-wrap gap-3">
                          <div className="text-[10px] font-mono uppercase tracking-[0.3em] text-muted-foreground">
@@ -1068,11 +1069,20 @@ export default function NewsResearchPage() {
                                  </div>
                                  <div className="mt-2 text-sm text-foreground/80">
                                    {isAssistant ? (
-                                     message.isStreaming ? (
-                                       <div className="flex items-center gap-2 text-muted-foreground">
-                                         <Loader2 className="h-4 w-4 animate-spin" />
-                                         <span>{message.streamingStatus || "Working..."}</span>
-                                       </div>
+                                      message.isStreaming ? (
+                                        <div className="flex items-center gap-2 text-muted-foreground">
+                                          <Loader2 className="h-4 w-4 animate-spin flex-shrink-0" />
+                                          <span>{message.streamingStatus || "Working..."}</span>
+                                          <button
+                                            type="button"
+                                            onClick={handleStop}
+                                            className="ml-1 flex items-center gap-1 rounded px-1.5 py-0.5 text-xs text-muted-foreground hover:text-foreground hover:bg-border/40 transition-colors"
+                                            title="Stop generation"
+                                          >
+                                            <Square className="h-3 w-3" />
+                                            Stop
+                                          </button>
+                                        </div>
                                      ) : (
                                        renderContentWithEmbeds(message.content, buildArticleEmbeds(message))
                                      )

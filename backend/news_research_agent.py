@@ -6,11 +6,27 @@ import json
 import os
 import re
 from datetime import datetime, timezone
-from typing import Annotated, Any, Callable, Dict, Generator, List, Optional, Sequence
+from typing import (
+    Annotated,
+    Any,
+    Callable,
+    Dict,
+    Generator,
+    List,
+    Optional,
+    Sequence,
+    Set,
+)
 
 from ddgs import DDGS
 from typing import cast
-from langchain_core.messages import AIMessage, BaseMessage, HumanMessage, SystemMessage
+from langchain_core.messages import (
+    AIMessage,
+    BaseMessage,
+    HumanMessage,
+    SystemMessage,
+    ToolMessage,
+)
 from langchain_core.tools import tool
 from langchain_google_genai import ChatGoogleGenerativeAI
 from langchain_openai import ChatOpenAI
@@ -38,28 +54,67 @@ SYSTEM_PROMPT = (
     "then use web_search or news_search for fresh context. When you find useful\n"
     "articles that are missing from the archive, call rag_index_documents to update\n"
     "the store. Avoid meta commentary about tools; focus on answering the user.\n"
-    "Respond with sections titled 'Answer' and 'Follow-up questions'.\n"
+    "Respond with a section titled 'Answer'.\n"
     "Cite sources with URLs, highlight differing viewpoints, and mention\n"
     "bias or funding details when relevant. Current date: {date}."
 )
 FINALIZER_SYSTEM_PROMPT = (
-    "You are a careful news analyst. Produce the final response with sections titled "
-    "'Answer' and 'Follow-up questions'. Use the provided context only. "
+    "You are a careful news analyst. Produce the final response with a section titled "
+    "'Answer'. Use the provided context only. "
     "Include URLs in citations when possible. Keep the answer concise but complete."
 )
 MAX_ITERATIONS = 5
+MAX_TOOL_CALLS_PER_SESSION = 15
 MIN_FINAL_ANSWER_CHARS = 120
-MIN_FINAL_ANSWER_SECTIONS = ("answer", "follow-up questions")
+MIN_FINAL_ANSWER_SECTIONS = ("answer",)
 
 _news_articles_cache: List[Dict[str, Any]] = []
 _referenced_articles_tracker: List[Dict[str, Any]] = []
 _articles_by_id: Dict[str, Dict[str, Any]] = {}
+_fetched_urls_cache: Dict[str, str] = {}
 
 
 def _normalize_url(url: Optional[str]) -> Optional[str]:
     if not url or not isinstance(url, str):
         return None
     return url.rstrip("/")
+
+
+def _normalize_tool_call_args(name: str, args: Any) -> Any:
+    if name != "fetch_article_content" or not isinstance(args, dict):
+        return args
+    normalized_args = dict(args)
+    normalized_url = _normalize_url(normalized_args.get("url"))
+    if normalized_url:
+        normalized_args["url"] = normalized_url
+    return normalized_args
+
+
+def _serialize_tool_args(args: Any) -> str:
+    try:
+        return json.dumps(args, sort_keys=True, ensure_ascii=True, default=str)
+    except TypeError:
+        return repr(args)
+
+
+def _tool_call_key(call: Dict[str, Any]) -> str:
+    name = str(call.get("name", ""))
+    normalized_args = _normalize_tool_call_args(name, call.get("args", {}))
+    return f"{name}:{_serialize_tool_args(normalized_args)}"
+
+
+def _iter_new_tool_calls(
+    tool_calls: Sequence[Dict[str, Any]],
+    seen: Set[str],
+) -> List[Dict[str, Any]]:
+    unique_calls: List[Dict[str, Any]] = []
+    for call in tool_calls:
+        key = _tool_call_key(call)
+        if key in seen:
+            continue
+        seen.add(key)
+        unique_calls.append(call)
+    return unique_calls
 
 
 def _register_article_lookup(article: Dict[str, Any]) -> None:
@@ -73,10 +128,14 @@ def _register_article_lookup(article: Dict[str, Any]) -> None:
 
 
 def set_news_articles(articles: Optional[List[Dict[str, Any]]]) -> None:
-    global _news_articles_cache, _referenced_articles_tracker, _articles_by_id
+    global _news_articles_cache
+    global _referenced_articles_tracker
+    global _articles_by_id
+    global _fetched_urls_cache
     _news_articles_cache = articles or []
     _referenced_articles_tracker = []
     _articles_by_id = {}
+    _fetched_urls_cache = {}
     for article in _news_articles_cache:
         _register_article_lookup(article)
 
@@ -188,12 +247,23 @@ def news_search(keywords: str, max_results: int = 10, region: str = "wt-wt") -> 
 @tool
 def fetch_article_content(url: str) -> str:
     """Fetch and clean article content from the provided URL."""
+    normalized = _normalize_url(url)
+    if normalized and normalized in _fetched_urls_cache:
+        logger.debug("fetch_article_content cache hit: %s", normalized)
+        return _fetched_urls_cache[normalized]
     result = extract_article_content(url)
     if "error" in result:
-        return f"Error fetching {url}: {result['error']}"
+        out = f"Error fetching {url}: {result['error']}"
+        if normalized:
+            _fetched_urls_cache[normalized] = out
+        return out
     text = result.get("text", "")
     preview = text[:8000]
-    return f"Title: {result.get('title', 'Untitled')}\nContent: {preview}"
+    out = f"Title: {result.get('title', 'Untitled')}\nContent: {preview}"
+    if normalized:
+        _fetched_urls_cache[normalized] = out
+    logger.debug("fetch_article_content fetched: %s", normalized)
+    return out
 
 
 @tool
@@ -250,7 +320,7 @@ TOOL_ROUTER_SYSTEM_PROMPT = (
     "Decide which tools to use for the query. "
     "Always use search_internal_news first, then web_search or news_search. "
     "If you need full text, call fetch_article_content on selected URLs. "
-    "After tool use, answer with sections titled 'Answer' and 'Follow-up questions'."
+    "After tool use, answer with a section titled 'Answer'."
 )
 
 _llm_instance = None
@@ -374,15 +444,113 @@ def _get_llm():
 def _get_model():
     global _model_instance
     if _model_instance is None:
-        _model_instance = _get_llm().bind_tools(tools)
+        llm = _get_llm()
+        if settings.llm_backend == "llamacpp":
+            try:
+                _model_instance = llm.bind_tools(tools, parallel_tool_calls=False)
+            except TypeError:
+                logger.warning(
+                    "parallel_tool_calls is unsupported by this backend; using default tool binding"
+                )
+                _model_instance = llm.bind_tools(tools)
+        else:
+            _model_instance = llm.bind_tools(tools)
     return _model_instance
 
 
 def _get_tool_router():
     global _tool_router_instance
     if _tool_router_instance is None:
-        _tool_router_instance = _get_llm().bind_tools(tools, tool_choice="required")
+        llm = _get_llm()
+        if settings.llm_backend == "llamacpp":
+            try:
+                _tool_router_instance = llm.bind_tools(
+                    tools,
+                    tool_choice="required",
+                    parallel_tool_calls=False,
+                )
+            except TypeError:
+                logger.warning(
+                    "parallel_tool_calls is unsupported by this backend; using default required tool binding"
+                )
+                _tool_router_instance = llm.bind_tools(tools, tool_choice="required")
+        else:
+            _tool_router_instance = llm.bind_tools(tools, tool_choice="required")
     return _tool_router_instance
+
+
+_tools_by_name = {t.name: t for t in tools}
+
+
+def _dedup_tool_node(state: "AgentState") -> Dict[str, Any]:
+    """Intercept the last AIMessage and deduplicate tool calls before execution.
+
+    Keeps the first occurrence of each (tool_name, args) pair across the
+    entire session. Duplicate calls get a synthetic ToolMessage instead of
+    being executed, which stops the LLM's batch-duplicate doom loop.
+
+    Also enforces MAX_TOOL_CALLS_PER_SESSION: once that many unique calls
+    have been made, all further calls are short-circuited regardless of args.
+    """
+    last_msg = state["messages"][-1]
+    tool_calls = getattr(last_msg, "tool_calls", None) or []
+    tool_history = set(state.get("tool_history", set()))
+    tool_calls_used = int(state.get("tool_calls_used", 0))
+
+    results: List[ToolMessage] = []
+    unique_calls = []
+
+    for call in tool_calls:
+        key = _tool_call_key(call)
+        tool_call_id = str(call.get("id", "missing-tool-call-id"))
+        tool_name = str(call.get("name", "unknown_tool"))
+
+        if key in tool_history:
+            results.append(
+                ToolMessage(
+                    content=(
+                        "Already called with the same arguments; "
+                        "use prior results already in context."
+                    ),
+                    tool_call_id=tool_call_id,
+                    name=tool_name,
+                )
+            )
+            logger.debug("dedup_tool_node: duplicate call key=%s", key)
+        elif tool_calls_used >= MAX_TOOL_CALLS_PER_SESSION:
+            results.append(
+                ToolMessage(
+                    content=(
+                        f"Tool call limit reached ({MAX_TOOL_CALLS_PER_SESSION} unique calls per session). "
+                        "Synthesize a final answer from the context already gathered."
+                    ),
+                    tool_call_id=tool_call_id,
+                    name=tool_name,
+                )
+            )
+            logger.warning(
+                "dedup_tool_node: session cap hit (%d), blocking call to %s",
+                MAX_TOOL_CALLS_PER_SESSION,
+                tool_name,
+            )
+        else:
+            tool_history.add(key)
+            tool_calls_used += 1
+            unique_calls.append(call)
+
+    if unique_calls:
+        # Build a trimmed AIMessage with only the unique calls so ToolNode
+        # processes exactly those and nothing else.
+        trimmed = AIMessage(content=last_msg.content, tool_calls=unique_calls)
+        trimmed_state = {**state, "messages": [*state["messages"][:-1], trimmed]}
+        tool_results = ToolNode(list(_tools_by_name.values())).invoke(trimmed_state)
+        results = list(tool_results.get("messages", [])) + results
+
+    return {
+        "messages": results,
+        "tool_history": tool_history,
+        "tool_calls_used": tool_calls_used,
+    }
 
 
 def _get_graph():
@@ -390,7 +558,7 @@ def _get_graph():
     if _graph_instance is None:
         builder = StateGraph(AgentState)
         builder.add_node("agent", call_model)
-        builder.add_node("tools", ToolNode(tools))
+        builder.add_node("tools", _dedup_tool_node)
         builder.add_edge(START, "agent")
         builder.add_edge("tools", "agent")
         builder.add_conditional_edges(
@@ -406,10 +574,14 @@ class AgentState(TypedDict):
     messages: Annotated[Sequence[BaseMessage], add_messages]
     iteration: int
     mode: str
+    tool_history: Set[str]
+    tool_calls_used: int
 
 
 def call_model(state: AgentState) -> Dict[str, Any]:
     mode = state.get("mode", "research")
+    tool_history = set(state.get("tool_history", set()))
+    tool_calls_used = int(state.get("tool_calls_used", 0))
     if mode == "final":
         messages = list(state["messages"])
         last_user = ""
@@ -432,8 +604,8 @@ def call_model(state: AgentState) -> Dict[str, Any]:
             SystemMessage(content=FINALIZER_SYSTEM_PROMPT),
             HumanMessage(
                 content=(
-                    "Return the final response with sections titled 'Answer' and "
-                    "'Follow-up questions'. Use the context provided.\n\n"
+                    "Return the final response with a section titled 'Answer'. "
+                    "Use the context provided.\n\n"
                     f"Question: {last_user}\n\nContext:\n{context_blob}"
                 )
             ),
@@ -447,6 +619,8 @@ def call_model(state: AgentState) -> Dict[str, Any]:
             "messages": [response],
             "iteration": state.get("iteration", 0),
             "mode": mode,
+            "tool_history": tool_history,
+            "tool_calls_used": tool_calls_used,
         }
 
     if mode == "tool_router":
@@ -463,6 +637,8 @@ def call_model(state: AgentState) -> Dict[str, Any]:
             "messages": [response],
             "iteration": state.get("iteration", 0) + 1,
             "mode": "research",
+            "tool_history": tool_history,
+            "tool_calls_used": tool_calls_used,
         }
 
     response = _invoke_with_llamacpp_recovery(
@@ -480,6 +656,8 @@ def call_model(state: AgentState) -> Dict[str, Any]:
         "messages": [response],
         "iteration": iteration,
         "mode": next_mode,
+        "tool_history": tool_history,
+        "tool_calls_used": tool_calls_used,
     }
 
 
@@ -608,18 +786,17 @@ def _finalize_answer(
     if tool_context:
         prompt_parts.extend(["Tool notes:", tool_context])
     prompt_parts.append("Return the final response.")
-    finalizer_messages = [
+    finalizer_messages: List[BaseMessage] = [
         SystemMessage(content=FINALIZER_SYSTEM_PROMPT),
         HumanMessage(content="\n\n".join(prompt_parts)),
     ]
     try:
-        response = _invoke_with_llamacpp_recovery(
-            lambda payload: _get_llm().invoke(payload),
-            finalizer_messages,
-            "finalizer invoke",
-        )
+        # Bypass _invoke_with_llamacpp_recovery to avoid any message reordering.
+        # The finalizer is always a clean [SystemMessage, HumanMessage] pair so
+        # no coalescing or trimming is needed, and the system message must stay first.
+        response = _get_llm().invoke(finalizer_messages)
         return _content_to_text(response.content).strip()
-    except Exception as exc:  # pragma: no cover - defensive fallback
+    except Exception as exc:
         logger.warning("Finalizer failed: %s", exc)
         return ""
 
@@ -630,11 +807,7 @@ def _sanitize_final_answer(answer_text: str) -> str:
         return content
     if not content:
         content = "No answer available."
-    return (
-        "Answer\n"
-        + content
-        + "\n\nFollow-up questions\n- What details should I verify?\n"
-    )
+    return "Answer\n" + content + "\n"
 
 
 def research_news(
@@ -648,11 +821,14 @@ def research_news(
         "messages": _build_initial_messages(query, chat_history),
         "iteration": 0,
         "mode": "research",
+        "tool_history": set(),
+        "tool_calls_used": 0,
     }
 
     thinking_steps: List[Dict[str, Any]] = []
     final_answer = ""
     tool_snippets: List[str] = []
+    logged_tool_calls: Set[str] = set()
 
     for update in _get_graph().stream(initial_state, stream_mode="updates"):
         if "agent" in update:
@@ -665,7 +841,10 @@ def research_news(
                     "timestamp": datetime.now(timezone.utc).isoformat(),
                 }
             )
-            for tool_call in getattr(agent_message, "tool_calls", []) or []:
+            for tool_call in _iter_new_tool_calls(
+                getattr(agent_message, "tool_calls", []) or [],
+                logged_tool_calls,
+            ):
                 thinking_steps.append(
                     {
                         "type": "action",
@@ -731,10 +910,13 @@ def research_stream(
         "messages": _build_initial_messages(query, chat_history),
         "iteration": 0,
         "mode": "research",
+        "tool_history": set(),
+        "tool_calls_used": 0,
     }
 
     final_answer = ""
     tool_snippets: List[str] = []
+    logged_tool_calls: Set[str] = set()
 
     for update in _get_graph().stream(initial_state, stream_mode="updates"):
         if "agent" in update:
@@ -748,7 +930,10 @@ def research_stream(
                     + "\n\n"
                 )
 
-            for tool_call in getattr(agent_message, "tool_calls", []) or []:
+            for tool_call in _iter_new_tool_calls(
+                getattr(agent_message, "tool_calls", []) or [],
+                logged_tool_calls,
+            ):
                 yield (
                     "data: "
                     + json.dumps(

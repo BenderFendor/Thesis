@@ -130,8 +130,7 @@ async def news_research_stream_endpoint(
                 fallback = {
                     "success": False,
                     "query": query,
-                    "answer": last_thought
-                    or "Answer\nNo answer available.\n\nFollow-up questions\n- What details should I verify?",
+                    "answer": last_thought or "Answer\nNo answer available.\n",
                     "structured_articles": "",
                     "articles_searched": len(articles_dict),
                     "referenced_articles": [],

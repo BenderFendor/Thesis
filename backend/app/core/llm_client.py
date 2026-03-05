@@ -2,12 +2,14 @@ import uuid
 import time
 import json
 from datetime import datetime, timezone
-from pathlib import Path
 from typing import Any, Dict, List, Optional
 
-from openai import OpenAI
-
-from app.core.config import get_llamacpp_model, get_openai_client, settings
+from app.core.config import (
+    get_llamacpp_instruct_params,
+    get_llamacpp_model,
+    get_openai_client,
+    settings,
+)
 from app.core.logging import get_session_dir
 
 
@@ -112,6 +114,24 @@ class LLMClient:
                 if settings.llm_backend == "llamacpp"
                 else settings.open_router_model
             )
+
+        # Apply llama.cpp Instruct mode params automatically
+        if settings.llm_backend == "llamacpp":
+            instruct_params = get_llamacpp_instruct_params()
+            # Keep OpenAI-compatible params at the top level and move
+            # llama.cpp-specific sampling args into extra_body.
+            kwargs.setdefault("temperature", instruct_params["temperature"])
+            kwargs.setdefault("top_p", instruct_params["top_p"])
+            kwargs.setdefault("presence_penalty", instruct_params["presence_penalty"])
+
+            extra_body = dict(kwargs.pop("extra_body", {}) or {})
+            for key in ("top_k", "min_p", "repetition_penalty"):
+                if key in kwargs:
+                    extra_body[key] = kwargs.pop(key)
+                else:
+                    extra_body.setdefault(key, instruct_params[key])
+            if extra_body:
+                kwargs["extra_body"] = extra_body
 
         request_id = str(uuid.uuid4())[:8]
         start_time = time.monotonic()
