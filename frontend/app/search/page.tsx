@@ -1159,7 +1159,7 @@ export default function NewsResearchPage() {
 
         <div className="flex-1 flex flex-col min-w-0">
           <header className="sticky top-0 z-20 border-b border-border/60 bg-[var(--news-bg-primary)]/90 backdrop-blur">
-            <div className="w-full flex items-center justify-between px-4 py-2">
+            <div className="w-full h-12 flex items-center justify-between px-4">
               <div className="flex items-center gap-3">
                 <button
                   onClick={toggleSidebar}
@@ -1172,7 +1172,7 @@ export default function NewsResearchPage() {
                   )}
                 </button>
                 <div className="flex flex-col">
-                  <div className="flex items-baseline gap-2">
+                  <div className="flex items-center gap-2">
                     <h1 className="text-base font-semibold leading-none">
                       Scoop Research
                     </h1>
@@ -1301,7 +1301,7 @@ export default function NewsResearchPage() {
             ) : (
               <div className="flex-1 flex flex-col lg:flex-row min-h-0 h-full">
                 <section className="flex-1 min-w-0 flex flex-col">
-                  <div className="border-b border-border/60 bg-[var(--news-bg-secondary)]/70">
+                  <div className="border-b border-border/10 bg-transparent">
                     <div className="max-w-[1200px] mx-auto px-4 py-3 flex flex-col gap-2">
                       <div className="flex flex-col gap-1">
                         <div>
@@ -1488,7 +1488,7 @@ export default function NewsResearchPage() {
                         )}
                       </div>
 
-                      <div className="bg-[var(--news-bg-primary)] border-t border-border/20 p-4">
+                      <div className="bg-[var(--news-bg-primary)] p-4">
                         <form
                           ref={composerFormRef}
                           onSubmit={handleSearch}
