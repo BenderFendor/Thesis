@@ -1142,7 +1142,7 @@ export default function NewsResearchPage() {
     <div className="h-screen bg-[var(--news-bg-primary)] text-foreground overflow-hidden">
       <div className="flex h-screen">
         <div
-          className={`${sidebarCollapsed ? "w-16" : "w-[240px]"} shrink-0 hidden md:block transition-all duration-300 ease-in-out border-r border-border/60 bg-[var(--news-bg-primary)]`}
+          className={`${sidebarCollapsed ? "w-16" : "w-[240px]"} shrink-0 hidden md:block transition-all duration-300 ease-in-out border-r border-border/10 bg-[var(--news-bg-primary)]`}
         >
           <ChatSidebar
             chats={chats}
@@ -1158,12 +1158,12 @@ export default function NewsResearchPage() {
         </div>
 
         <div className="flex-1 flex flex-col min-w-0">
-          <header className="sticky top-0 z-20 border-b border-border/60 bg-[var(--news-bg-primary)]/90 backdrop-blur">
+          <header className="sticky top-0 z-20 border-b border-border/10 bg-[var(--news-bg-primary)]/90 backdrop-blur">
             <div className="w-full h-12 flex items-center justify-between px-4">
               <div className="flex items-center gap-3">
                 <button
                   onClick={toggleSidebar}
-                  className="p-2 rounded-lg border border-border/60 text-muted-foreground hover:text-foreground"
+                  className="p-2 rounded-lg border border-border/10 text-muted-foreground hover:text-foreground"
                 >
                   {sidebarCollapsed ? (
                     <ChevronRight size={18} />
@@ -1193,7 +1193,7 @@ export default function NewsResearchPage() {
                   <Button
                     variant="outline"
                     size="sm"
-                    className="border-border/60"
+                    className="border-border/10"
                   >
                     <Home className="w-4 h-4 mr-2" />
                     Back to News
@@ -1358,7 +1358,7 @@ export default function NewsResearchPage() {
                         className="flex-1 min-h-0 overflow-y-auto py-6 space-y-6 custom-scrollbar px-2"
                       >
                         {conversationMessages.length === 0 ? (
-                          <div className="rounded-xl border border-border/60 bg-[var(--news-bg-secondary)]/70 p-6 text-sm text-muted-foreground">
+                          <div className="rounded-xl border border-border/10 bg-[var(--news-bg-secondary)]/70 p-6 text-sm text-muted-foreground">
                             Start a query to build a multi-turn session.
                           </div>
                         ) : (
@@ -1447,7 +1447,7 @@ export default function NewsResearchPage() {
                                             (step, idx) => (
                                               <div
                                                 key={`${message.id}-step-${idx}`}
-                                                className="rounded-lg border border-border/60 bg-[var(--news-bg-primary)]/40 p-3"
+                                                className="rounded-lg border border-border/10 bg-[var(--news-bg-primary)]/40 p-3"
                                               >
                                                 <div className="text-[10px] font-mono uppercase tracking-[0.05em] text-muted-foreground/70">
                                                   Step {idx + 1}:{" "}
@@ -1476,7 +1476,7 @@ export default function NewsResearchPage() {
                                           handleResetMessage(message.id)
                                         }
                                         disabled={isSearching}
-                                        className="border-border/60"
+                                        className="border-border/10"
                                       >
                                         Reset
                                       </Button>
@@ -1605,7 +1605,7 @@ export default function NewsResearchPage() {
                                       setSelectedArticle(article);
                                       setIsArticleModalOpen(true);
                                     }}
-                                    className="w-full text-left rounded-lg border border-border/60 bg-[var(--news-bg-primary)]/50 p-3 hover:border-primary/40 transition-colors"
+                                    className="w-full text-left rounded-lg border border-border/10 bg-[var(--news-bg-primary)]/50 p-3 hover:border-primary/40 transition-colors"
                                   >
                                     <div className="text-sm font-medium text-foreground line-clamp-2">
                                       {article.title}
@@ -1613,7 +1613,7 @@ export default function NewsResearchPage() {
                                     <div className="mt-2 flex items-center justify-between text-xs text-muted-foreground">
                                       <span>{article.source}</span>
                                       {typeof similarityScore === "number" && (
-                                        <span className="text-[10px] px-2 py-0.5 rounded-full bg-[var(--news-bg-primary)] text-muted-foreground border border-border/60">
+                                        <span className="text-[10px] px-2 py-0.5 rounded-full bg-[var(--news-bg-primary)] text-muted-foreground border border-border/10">
                                           {Math.round(similarityScore * 100)}%
                                           match
                                         </span>
@@ -1712,7 +1712,7 @@ export default function NewsResearchPage() {
                                 onClick={() =>
                                   handleSampleQuery(message.content)
                                 }
-                                className="w-full text-left rounded-lg border border-border/60 bg-[var(--news-bg-primary)]/50 px-3 py-2 text-xs text-muted-foreground hover:border-primary/40 hover:text-foreground transition-colors"
+                                className="w-full text-left rounded-lg border border-border/10 bg-[var(--news-bg-primary)]/50 px-3 py-2 text-xs text-muted-foreground hover:border-primary/40 hover:text-foreground transition-colors"
                               >
                                 {message.content}
                               </button>
