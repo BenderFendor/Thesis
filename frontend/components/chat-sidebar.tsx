@@ -269,7 +269,7 @@ export function ChatSidebar({
             No chats match your search.
           </div>
         ) : (
-          <ul className="space-y-2.5">
+          <ul className="space-y-0">
             <AnimatePresence initial={false}>
               {filteredChats.map((chat) => {
                 const isActive = activeId === chat.id;
