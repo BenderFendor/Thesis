@@ -4,8 +4,12 @@
 @custom-variant dark (&:is(.dark *));
 
 :root {
-  font-family: system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
-  --border-color: rgba(255, 255, 255, 0.12);
+  font-family:
+    system-ui,
+    -apple-system,
+    BlinkMacSystemFont,
+    sans-serif;
+  --border-color: rgba(255, 255, 255, 0.08);
   --text-primary: #e0e0e0;
   --text-secondary: #a0a0a0;
   --bg-active: rgba(255, 255, 255, 0.08);
@@ -29,7 +33,7 @@
   --accent-foreground: #e0e0e0;
   --destructive: #ff453a;
   --destructive-foreground: #050505;
-  --border: #333333;
+  --border: #222222;
   --input: #121212;
   --ring: #ff3b30;
   --chart-1: #ff3b30;
@@ -49,7 +53,7 @@
 
   /* Custom theme colors for news app */
   --news-bg-primary: #050505;
-  --news-bg-secondary: #121212;
+  --news-bg-secondary: #0a0a0a;
   --news-card-bg: #121212;
 }
 
@@ -71,7 +75,7 @@
   --accent-foreground: #e0e0e0;
   --destructive: #ff453a;
   --destructive-foreground: #050505;
-  --border: #333333;
+  --border: #222222;
   --input: #121212;
   --ring: #ff3b30;
   --chart-1: #ff3b30;
@@ -90,9 +94,11 @@
 }
 
 @theme inline {
-  --font-sans: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
-  --font-mono: var(--font-geist-mono), 'Fira Mono', 'Menlo', monospace;
-  --font-serif: var(--font-instrument-serif), 'Instrument Serif', Georgia, serif;
+  --font-sans:
+    system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  --font-mono: var(--font-geist-mono), "Fira Mono", "Menlo", monospace;
+  --font-serif:
+    var(--font-instrument-serif), "Instrument Serif", Georgia, serif;
   --color-background: var(--background);
   --color-foreground: var(--foreground);
   --color-card: var(--card);
@@ -156,7 +162,8 @@
 }
 
 /* UI Refactoring Classes */
-.message-container, .sidebar-container {
+.message-container,
+.sidebar-container {
   border: 1px solid var(--border-color);
   color: var(--text-primary);
 }
