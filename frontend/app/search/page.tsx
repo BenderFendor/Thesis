@@ -1158,38 +1158,87 @@ export default function NewsResearchPage() {
         </div>
 
         <div className="flex-1 flex flex-col min-w-0">
-          <header className="sticky top-0 z-20 border-b border-border/10 bg-[var(--news-bg-primary)]/90 backdrop-blur flex flex-col">
-            <div className="w-full flex items-center justify-between px-6 py-4 border-b border-border/5">
-              <div className="flex items-center gap-4 min-w-0">
-                <button
-                  onClick={toggleSidebar}
-                  className="p-2 rounded-lg border border-border/20 text-muted-foreground hover:bg-[var(--news-bg-secondary)]/30 hover:text-foreground transition-all shrink-0 bg-[var(--news-bg-secondary)]/10"
-                >
-                  {sidebarCollapsed ? (
-                    <ChevronRight size={16} />
-                  ) : (
-                    <ChevronLeft size={16} />
-                  )}
-                </button>
-                <div className="flex items-center gap-2.5 min-w-0">
-                  <h1 className="text-base font-semibold text-foreground leading-none shrink-0">
-                    Scoop Research
-                  </h1>
-                  <span className="text-[10px] font-mono uppercase tracking-[0.2em] text-muted-foreground/60 hidden sm:inline shrink-0">
-                    WORKSPACE
-                  </span>
-                  <span className="text-muted-foreground/30 hidden sm:inline mx-2 shrink-0">
-                    /
-                  </span>
-                  <span className="text-sm font-serif text-muted-foreground/80 truncate max-w-[300px] sm:max-w-[400px]">
-                    {activeChatId
-                      ? chats.find((c) => c.id === activeChatId)?.title ||
-                        "Untitled research"
-                      : "Untitled research"}
-                  </span>
+          <header className="sticky top-0 z-20 border-b border-border/10 bg-[var(--news-bg-primary)]/90 backdrop-blur">
+            <div className="w-full flex items-start justify-between px-6 py-5">
+              <div className="flex flex-col gap-6 w-full min-w-0">
+                <div className="flex items-center gap-4 min-w-0">
+                  <button
+                    onClick={toggleSidebar}
+                    className="p-2 rounded-lg border border-border/20 text-muted-foreground hover:bg-[var(--news-bg-secondary)]/30 hover:text-foreground transition-all shrink-0 bg-[var(--news-bg-secondary)]/10"
+                  >
+                    {sidebarCollapsed ? (
+                      <ChevronRight size={16} />
+                    ) : (
+                      <ChevronLeft size={16} />
+                    )}
+                  </button>
+                  <div className="flex items-center gap-2.5 min-w-0">
+                    <h1 className="text-base font-semibold text-foreground leading-none shrink-0">
+                      Scoop Research
+                    </h1>
+                    <span className="text-[10px] font-mono uppercase tracking-[0.2em] text-muted-foreground/60 hidden sm:inline shrink-0">
+                      WORKSPACE
+                    </span>
+                    <span className="text-muted-foreground/30 hidden sm:inline mx-2 shrink-0">
+                      /
+                    </span>
+                    <span className="text-sm font-serif text-muted-foreground/80 truncate max-w-[300px] sm:max-w-[400px]">
+                      {activeChatId
+                        ? chats.find((c) => c.id === activeChatId)?.title ||
+                          "Untitled research"
+                        : "Untitled research"}
+                    </span>
+                  </div>
                 </div>
+
+                {!isEmpty && (
+                  <div className="flex flex-col gap-2 w-full">
+                    <p className="text-[10px] font-mono uppercase tracking-[0.2em] text-muted-foreground/50">
+                      ACTIVE BRIEFING
+                    </p>
+                    <div className="flex items-start justify-between gap-6">
+                      <h2 className="text-[26px] font-serif font-medium text-foreground/90 leading-tight">
+                        {latestUserMessage?.content || "Research thread"}
+                      </h2>
+                      {(isSearching || latestAssistantMessage?.isStreaming) && (
+                        <div className="flex items-center gap-2 text-[11px] text-primary/80 bg-primary/5 border border-primary/10 px-3 py-1.5 rounded-full shrink-0">
+                          <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                          <span className="font-mono uppercase tracking-widest">
+                            {latestAssistantMessage?.streamingStatus ||
+                              "Running..."}
+                          </span>
+                          <button
+                            type="button"
+                            onClick={handleStop}
+                            className="ml-2 flex items-center justify-center rounded-full hover:bg-primary/20 p-1 transition-colors"
+                            title="Stop generation"
+                          >
+                            <Square className="w-2.5 h-2.5 fill-current" />
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                    <div className="flex items-center gap-5 mt-1">
+                      <div className="text-[10px] font-mono uppercase tracking-[0.15em] text-muted-foreground/60 flex items-center gap-1.5">
+                        <span className="text-foreground/80 font-semibold">
+                          {conversationMessages.length}
+                        </span>{" "}
+                        MESSAGES
+                      </div>
+                      {latestAssistantMessage?.articles_searched && (
+                        <div className="text-[10px] font-mono uppercase tracking-[0.15em] text-muted-foreground/60 flex items-center gap-1.5">
+                          <span className="text-foreground/80 font-semibold">
+                            {latestAssistantMessage.articles_searched}
+                          </span>{" "}
+                          SOURCES SEARCHED
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )}
               </div>
-              <div className="flex items-center gap-4">
+
+              <div className="flex items-center gap-4 pl-4 shrink-0">
                 <Link href="/">
                   <Button
                     variant="outline"
@@ -1202,53 +1251,6 @@ export default function NewsResearchPage() {
                 </Link>
               </div>
             </div>
-
-            {/* Unified Active Briefing block attached directly below the main header */}
-            {!isEmpty && (
-              <div className="w-full px-6 py-4 flex flex-col gap-2">
-                <p className="text-[10px] font-mono uppercase tracking-[0.2em] text-muted-foreground/50">
-                  ACTIVE BRIEFING
-                </p>
-                <div className="flex items-start justify-between gap-6">
-                  <h2 className="text-[26px] font-serif font-medium text-foreground/90 leading-tight">
-                    {latestUserMessage?.content || "Research thread"}
-                  </h2>
-                  {(isSearching || latestAssistantMessage?.isStreaming) && (
-                    <div className="flex items-center gap-2 text-[11px] text-primary/80 bg-primary/5 border border-primary/10 px-3 py-1.5 rounded-full shrink-0">
-                      <Loader2 className="w-3.5 h-3.5 animate-spin flex-shrink-0" />
-                      <span className="font-mono uppercase tracking-widest">
-                        {latestAssistantMessage?.streamingStatus ||
-                          "Running..."}
-                      </span>
-                      <button
-                        type="button"
-                        onClick={handleStop}
-                        className="ml-2 flex items-center justify-center rounded-full hover:bg-primary/20 p-1 transition-colors"
-                        title="Stop generation"
-                      >
-                        <Square className="w-2.5 h-2.5 fill-current" />
-                      </button>
-                    </div>
-                  )}
-                </div>
-                <div className="flex items-center gap-5 mt-1">
-                  <div className="text-[10px] font-mono uppercase tracking-[0.15em] text-muted-foreground/60 flex items-center gap-1.5">
-                    <span className="text-foreground/80 font-semibold">
-                      {conversationMessages.length}
-                    </span>{" "}
-                    MESSAGES
-                  </div>
-                  {latestAssistantMessage?.articles_searched && (
-                    <div className="text-[10px] font-mono uppercase tracking-[0.15em] text-muted-foreground/60 flex items-center gap-1.5">
-                      <span className="text-foreground/80 font-semibold">
-                        {latestAssistantMessage.articles_searched}
-                      </span>{" "}
-                      SOURCES SEARCHED
-                    </div>
-                  )}
-                </div>
-              </div>
-            )}
           </header>
 
           <main className="flex-1 flex flex-col bg-[var(--news-bg-primary)] h-[calc(100vh-60px)] overflow-hidden">
