@@ -189,7 +189,7 @@ export function ChatSidebar({
             <Button
               onClick={onNewChat}
               variant="ghost"
-              className="flex-1 justify-start gap-2 rounded-md border border-border/30 bg-transparent hover:bg-[var(--news-bg-secondary)]/40 hover:border-border/50 transition-all duration-200 font-serif text-sm font-medium h-9"
+              className="flex-1 justify-start gap-2 rounded-md border border-border/20 bg-transparent hover:bg-[var(--news-bg-secondary)]/30 transition-all duration-200 font-sans text-sm font-medium h-9"
             >
               <Plus className="w-3.5 h-3.5" />
               New Session
@@ -199,7 +199,7 @@ export function ChatSidebar({
               variant="ghost"
               size="icon"
               title="Select chats"
-              className="rounded-md border border-border/30 bg-transparent hover:bg-[var(--news-bg-secondary)]/40 hover:border-border/50 transition-all duration-200 h-9 w-9"
+              className="rounded-md border border-border/20 bg-transparent hover:bg-[var(--news-bg-secondary)]/30 transition-all duration-200 h-9 w-9"
             >
               <CheckSquare className="w-3.5 h-3.5 text-muted-foreground" />
             </Button>
@@ -209,7 +209,7 @@ export function ChatSidebar({
               size="icon"
               title="Delete all chats"
               disabled={chats.length === 0}
-              className="rounded-md border border-border/20 bg-transparent hover:bg-[var(--news-bg-secondary)]/40 hover:border-destructive/40 transition-all duration-200 disabled:opacity-50 h-9 w-9"
+              className="rounded-md border border-border/20 bg-transparent hover:bg-[var(--news-bg-secondary)]/30 hover:text-destructive transition-all duration-200 disabled:opacity-50 h-9 w-9"
             >
               <Trash2 className="w-3.5 h-3.5 text-destructive" />
             </Button>
@@ -258,7 +258,7 @@ export function ChatSidebar({
             onChange={(event) => setSearchTerm(event.target.value)}
             placeholder="Search conversations"
             aria-label="Search chats"
-            className="w-full h-9 pl-9 pr-3 rounded-md border border-border/30 bg-[var(--news-bg-secondary)]/20 text-xs placeholder:text-muted-foreground/70 focus:outline-none focus:border-border/60 transition-all"
+            className="w-full h-9 pl-9 pr-3 rounded-md border border-border/20 bg-transparent text-sm placeholder:text-muted-foreground/50 focus:outline-none focus:border-border/40 transition-all"
           />
         </div>
       </div>
