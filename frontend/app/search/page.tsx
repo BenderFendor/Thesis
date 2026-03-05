@@ -1159,8 +1159,8 @@ export default function NewsResearchPage() {
 
         <div className="flex-1 flex flex-col min-w-0">
           <header className="sticky top-0 z-20 border-b border-border/10 bg-[var(--news-bg-primary)]/90 backdrop-blur z-10 shrink-0">
-            <div className="w-full flex items-start justify-between px-6 py-5">
-              <div className="flex flex-col gap-6 w-full min-w-0">
+            <div className="w-full flex items-start justify-between px-6 py-2.5">
+              <div className="flex flex-col gap-2.5 w-full min-w-0">
                 <div className="flex items-center gap-4 min-w-0">
                   <button
                     onClick={toggleSidebar}
@@ -1247,7 +1247,7 @@ export default function NewsResearchPage() {
                   <Button
                     variant="outline"
                     size="sm"
-                    className="border-border/20 text-muted-foreground hover:text-foreground bg-transparent hover:bg-[var(--news-bg-secondary)]/30 rounded-full px-4"
+                    className="border-border/20 text-muted-foreground hover:text-foreground bg-transparent hover:bg-[var(--news-bg-secondary)]/30 rounded-full px-3 h-8 text-[11px]"
                   >
                     <Home className="w-3.5 h-3.5 mr-2" />
                     Back to News
@@ -1257,7 +1257,7 @@ export default function NewsResearchPage() {
             </div>
           </header>
 
-          <main className="flex-1 flex flex-col bg-[var(--news-bg-primary)] h-[calc(100vh-60px)] overflow-hidden">
+          <main className="flex-1 flex flex-col bg-[var(--news-bg-primary)] h-full overflow-hidden">
             {isEmpty ? (
               <div className="flex-1 flex flex-col p-4 lg:p-8">
                 <div className="flex-1 max-w-2xl mx-auto w-full flex flex-col justify-center -mt-16">
