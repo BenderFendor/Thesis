@@ -1171,21 +1171,19 @@ export default function NewsResearchPage() {
                     <ChevronLeft size={18} />
                   )}
                 </button>
-                <div className="flex flex-col">
-                  <div className="flex items-center gap-2">
-                    <h1 className="text-base font-semibold leading-none">
-                      Scoop Research
-                    </h1>
-                    <span className="text-[10px] font-mono uppercase tracking-[0.2em] text-muted-foreground hidden sm:inline">
-                      Workspace
-                    </span>
-                  </div>
-                  <p className="text-xs text-muted-foreground mt-0.5 line-clamp-1">
+                <div className="flex items-center gap-2 min-w-0">
+                  <h1 className="text-sm font-semibold text-foreground leading-none shrink-0">
+                    Scoop Research
+                  </h1>
+                  <span className="text-[9px] font-mono uppercase tracking-[0.2em] text-muted-foreground/60 hidden sm:inline shrink-0">
+                    WORKSPACE
+                  </span>
+                  <span className="text-muted-foreground/40 hidden sm:inline mx-1 shrink-0">/</span>
+                  <span className="text-sm font-serif text-muted-foreground/90 truncate max-w-[300px] sm:max-w-[400px]">
                     {activeChatId
-                      ? chats.find((c) => c.id === activeChatId)?.title ||
-                        "Untitled session"
-                      : "New session"}
-                  </p>
+                      ? chats.find((c) => c.id === activeChatId)?.title || "Untitled research"
+                      : "Untitled research"}
+                  </span>
                 </div>
               </div>
               <div className="flex items-center gap-4">
