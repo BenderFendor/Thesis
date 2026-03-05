@@ -1607,7 +1607,7 @@ export default function NewsResearchPage() {
                                     }}
                                     className="w-full text-left rounded-lg border border-border/10 bg-[var(--news-bg-primary)]/50 p-3 hover:border-primary/40 transition-colors"
                                   >
-                                    <div className="text-sm font-medium text-foreground line-clamp-2">
+                                    <div className="text-[13px] font-serif font-medium text-foreground/90 line-clamp-2">
                                       {article.title}
                                     </div>
                                     <div className="mt-2 flex items-center justify-between text-xs text-muted-foreground">
@@ -1650,7 +1650,7 @@ export default function NewsResearchPage() {
                                       <div className="text-sm font-medium text-foreground">
                                         {group.sourceName}
                                       </div>
-                                      <div className="text-[10px] font-mono uppercase tracking-[0.2em] text-muted-foreground mt-1">
+                                      <div className="text-[9px] font-mono uppercase tracking-[0.1em] text-muted-foreground/70 mt-1.5">
                                         {group.articles.length} articles
                                       </div>
                                     </div>
@@ -1679,10 +1679,10 @@ export default function NewsResearchPage() {
                                         }}
                                         className="w-full text-left rounded-lg bg-[var(--news-bg-primary)]/40 hover:bg-[var(--news-bg-secondary)] px-3 py-2.5 text-xs transition-colors"
                                       >
-                                        <div className="text-sm font-medium text-foreground line-clamp-2">
+                                        <div className="text-[13px] font-serif font-medium text-foreground/90 line-clamp-2">
                                           {article.title}
                                         </div>
-                                        <div className="mt-2 flex items-center justify-between text-[10px] uppercase tracking-[0.2em] text-muted-foreground">
+                                        <div className="mt-2.5 flex items-center justify-between text-[9px] font-mono uppercase tracking-[0.1em] text-muted-foreground/60">
                                           <span>{article.source}</span>
                                           <span>
                                             {formatShortDate(
