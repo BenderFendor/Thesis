@@ -1302,7 +1302,7 @@ export default function NewsResearchPage() {
               <div className="flex-1 flex flex-col lg:flex-row min-h-0 h-full">
                 <section className="flex-1 min-w-0 flex flex-col">
                   <div className="border-b border-border/10 bg-transparent">
-                    <div className="max-w-[1200px] mx-auto px-4 py-3 flex flex-col gap-2">
+                    <div className="max-w-[1400px] mx-auto px-6 py-4 flex flex-col gap-2">
                       <div className="flex flex-col gap-1">
                         <div>
                           <p className="text-[10px] font-mono uppercase tracking-[0.2em] text-muted-foreground/60 mb-1">
@@ -1352,7 +1352,7 @@ export default function NewsResearchPage() {
                   </div>
 
                   <div className="flex-1 min-h-0">
-                    <div className="max-w-[1200px] mx-auto h-full flex flex-col px-6">
+                    <div className="max-w-[1400px] mx-auto w-full h-full flex flex-col px-6">
                       <div
                         ref={chatScrollRef}
                         className="flex-1 min-h-0 overflow-y-auto py-6 space-y-6 custom-scrollbar px-2"
@@ -1378,7 +1378,7 @@ export default function NewsResearchPage() {
                             return (
                               <div
                                 key={message.id}
-                                className={`rounded-2xl border px-5 py-4 ${messageClass}`}
+                                className={`rounded-2xl border px-5 py-3.5 ${messageClass}`}
                               >
                                 <div className="flex items-center justify-between text-[10px] font-mono uppercase tracking-[0.3em] text-muted-foreground">
                                   <span>
