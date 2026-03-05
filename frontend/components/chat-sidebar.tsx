@@ -269,7 +269,7 @@ export function ChatSidebar({
             No chats match your search.
           </div>
         ) : (
-          <ul className="space-y-2">
+          <ul className="space-y-2.5">
             <AnimatePresence initial={false}>
               {filteredChats.map((chat) => {
                 const isActive = activeId === chat.id;
@@ -286,7 +286,7 @@ export function ChatSidebar({
                     transition={{ duration: 0.18, ease: "easeOut" }}
                   >
                     <div
-                      className={`group flex items-center gap-2 rounded-lg border px-3 py-2.5 transition-all duration-200 ${
+                      className={`group flex items-center gap-2 rounded-lg border px-4 py-3 transition-all duration-200 ${
                         isSelectionMode
                           ? isSelected
                             ? "border-primary/50 bg-primary/10"
