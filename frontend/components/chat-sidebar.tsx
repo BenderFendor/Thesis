@@ -408,12 +408,12 @@ export function ChatSidebar({
         )}
       </div>
 
-      <div className="px-4 py-3 border-t border-border/20 flex items-center justify-between text-xs text-muted-foreground">
+      <div className="px-4 py-3 border-t border-border/10 flex items-center justify-between text-xs text-muted-foreground">
         <span className="font-serif tracking-wide">News Research</span>
         {onToggle && (
           <button
             onClick={onToggle}
-            className="px-3 py-1.5 rounded-md border border-border/20 hover:border-border/40 hover:bg-[var(--news-bg-secondary)]/20 transition"
+            className="px-3 py-1.5 rounded-md border border-border/10 bg-[var(--news-bg-secondary)]/50 hover:bg-[var(--news-bg-secondary)] transition"
           >
             <div className="flex items-center gap-2 text-muted-foreground">
               <PanelLeftClose className="w-4 h-4" />
