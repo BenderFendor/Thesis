@@ -173,7 +173,7 @@ export function getHighlightColorClass(color: string) {
  */
 export function getMarkdownWithHighlights(text: string, highlights: Highlight[]): string {
   if (!text) return "";
-  const validHighlights = (highlights || []).filter(h => !h.deleted);
+  const validHighlights = highlights || [];
   if (validHighlights.length === 0) return text;
 
   // Sort highlights by start position

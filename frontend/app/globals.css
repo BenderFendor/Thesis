@@ -4,21 +4,29 @@
 @custom-variant dark (&:is(.dark *));
 
 :root {
+  font-family: system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
+  --border-color: rgba(255, 255, 255, 0.12);
+  --text-primary: #e0e0e0;
+  --text-secondary: #a0a0a0;
+  --bg-active: rgba(255, 255, 255, 0.08);
+  --error-bg: rgba(255, 82, 82, 0.1);
+  --error-border: #ff5252;
+
   /* Editorial dark theme with warm accent */
   --background: #050505;
-  --foreground: #eaeaea;
+  --foreground: #e0e0e0;
   --card: #121212;
-  --card-foreground: #eaeaea;
+  --card-foreground: #e0e0e0;
   --popover: #050505;
-  --popover-foreground: #eaeaea;
+  --popover-foreground: #e0e0e0;
   --primary: #ff3b30;
   --primary-foreground: #050505;
   --secondary: #121212;
-  --secondary-foreground: #eaeaea;
+  --secondary-foreground: #e0e0e0;
   --muted: #0f0f0f;
   --muted-foreground: #a0a0a0;
   --accent: #121212;
-  --accent-foreground: #eaeaea;
+  --accent-foreground: #e0e0e0;
   --destructive: #ff453a;
   --destructive-foreground: #050505;
   --border: #333333;
@@ -31,11 +39,11 @@
   --chart-5: #a0a0a0;
   --radius: 0.5rem;
   --sidebar: #121212;
-  --sidebar-foreground: #eaeaea;
+  --sidebar-foreground: #e0e0e0;
   --sidebar-primary: #ff3b30;
   --sidebar-primary-foreground: #050505;
   --sidebar-accent: #121212;
-  --sidebar-accent-foreground: #eaeaea;
+  --sidebar-accent-foreground: #e0e0e0;
   --sidebar-border: #333333;
   --sidebar-ring: #ff3b30;
 
@@ -48,19 +56,19 @@
 .dark {
   /* Dark mode uses the editorial palette */
   --background: #050505;
-  --foreground: #eaeaea;
+  --foreground: #e0e0e0;
   --card: #121212;
-  --card-foreground: #eaeaea;
+  --card-foreground: #e0e0e0;
   --popover: #050505;
-  --popover-foreground: #eaeaea;
+  --popover-foreground: #e0e0e0;
   --primary: #ff3b30;
   --primary-foreground: #050505;
   --secondary: #121212;
-  --secondary-foreground: #eaeaea;
+  --secondary-foreground: #e0e0e0;
   --muted: #0f0f0f;
   --muted-foreground: #a0a0a0;
   --accent: #121212;
-  --accent-foreground: #eaeaea;
+  --accent-foreground: #e0e0e0;
   --destructive: #ff453a;
   --destructive-foreground: #050505;
   --border: #333333;
@@ -72,17 +80,17 @@
   --chart-4: #ff3b30;
   --chart-5: #a0a0a0;
   --sidebar: #121212;
-  --sidebar-foreground: #eaeaea;
+  --sidebar-foreground: #e0e0e0;
   --sidebar-primary: #ff3b30;
   --sidebar-primary-foreground: #050505;
   --sidebar-accent: #121212;
-  --sidebar-accent-foreground: #eaeaea;
+  --sidebar-accent-foreground: #e0e0e0;
   --sidebar-border: #333333;
   --sidebar-ring: #ff3b30;
 }
 
 @theme inline {
-  --font-sans: var(--font-inter), 'Inter', 'Inter UI', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  --font-sans: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
   --font-mono: var(--font-geist-mono), 'Fira Mono', 'Menlo', monospace;
   --font-serif: var(--font-instrument-serif), 'Instrument Serif', Georgia, serif;
   --color-background: var(--background);
@@ -128,8 +136,7 @@
     @apply border-border outline-ring/50;
   }
   body {
-    @apply bg-background text-foreground;
-    /* Force dark theme for AMOLED experience */
+    @apply bg-background text-foreground text-base md:text-lg;
     color-scheme: dark;
   }
 
@@ -146,6 +153,77 @@
   100% {
     transform: translateX(60%);
   }
+}
+
+/* UI Refactoring Classes */
+.message-container, .sidebar-container {
+  border: 1px solid var(--border-color);
+  color: var(--text-primary);
+}
+
+.sidebar-item {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 12px;
+  border: none;
+}
+
+.sidebar-item.active {
+  background-color: var(--bg-active);
+  border-radius: 6px;
+}
+
+.text-truncate {
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  overflow: hidden;
+  display: block;
+  color: var(--text-secondary);
+}
+
+.step-accordion {
+  border: 1px solid var(--border-color);
+  border-radius: 4px;
+  margin-bottom: 8px;
+  background-color: rgba(255, 255, 255, 0.02);
+}
+
+.step-summary {
+  padding: 10px;
+  cursor: pointer;
+  font-weight: 600;
+  display: flex;
+  justify-content: space-between;
+}
+
+.step-details {
+  padding: 10px;
+  border-top: 1px solid var(--border-color);
+  font-family: monospace;
+  white-space: pre-wrap;
+  word-wrap: break-word;
+  background-color: rgba(0, 0, 0, 0.2);
+}
+
+.error-block {
+  border-left: 4px solid var(--error-border);
+  background-color: var(--error-bg);
+  padding: 12px;
+  margin: 16px 0;
+}
+
+.error-header {
+  color: var(--error-border);
+  font-weight: bold;
+  margin-bottom: 8px;
+}
+
+.error-payload {
+  font-family: monospace;
+  overflow-x: auto;
+  padding: 8px;
+  background-color: rgba(0, 0, 0, 0.3);
 }
 
 /* Scroll Snap Styles for Modern Grid View */
@@ -167,12 +245,10 @@
     scroll-snap-stop: auto;
   }
 
-  /* Smooth scroll behavior with enhanced animations */
   .scroll-smooth {
     scroll-behavior: smooth;
   }
 
-  /* Enhanced scrollbar styling for modern look */
   .scroll-snap-container::-webkit-scrollbar {
     @apply w-2;
   }

@@ -854,7 +854,7 @@ function NewsPage() {
                           topicSortMode={topicSortMode}
                           viewMode={gridMode}
                           onViewModeChange={setGridMode}
-                          isScrollMode={currentView === "scroll"}
+                          isScrollMode={false}
                         />
                       )}
                       {currentView === "scroll" && (
