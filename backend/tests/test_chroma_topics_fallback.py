@@ -70,6 +70,43 @@ async def test_cluster_articles_uses_lexical_fallback_when_chroma_unreachable(
 
 
 @pytest.mark.asyncio
+async def test_lexical_fallback_prunes_transitive_bridge_articles(monkeypatch):
+    service = ChromaTopicService()
+    monkeypatch.setattr("app.services.chroma_topics.is_chroma_reachable", lambda: False)
+
+    articles = [
+        _article(
+            1,
+            "Middle Dubai flights crisis",
+            "source-a",
+            "https://example.com/1",
+            _utc(1),
+        ),
+        _article(
+            2,
+            "Middle Dubai Beirut crisis",
+            "source-b",
+            "https://example.com/2",
+            _utc(2),
+        ),
+        _article(
+            3,
+            "Beirut crisis lebanon strikes",
+            "source-c",
+            "https://example.com/3",
+            _utc(3),
+        ),
+    ]
+
+    clusters = await service._cluster_articles(articles)
+
+    assert clusters
+    clustered_members = [set(cluster.member_ids) for cluster in clusters]
+    assert any(member_ids == {1, 2} for member_ids in clustered_members)
+    assert all(3 not in member_ids for member_ids in clustered_members)
+
+
+@pytest.mark.asyncio
 async def test_get_cluster_detail_reads_from_snapshot_when_available(db_session):
     cluster_payload = {
         "cluster_id": 99,
@@ -154,3 +191,34 @@ async def test_get_cluster_detail_reclusters_recent_articles_when_snapshot_missi
     assert detail["id"] == clusters[0]["cluster_id"]
     assert detail["article_count"] == 2
     assert {article["id"] for article in detail["articles"]} == {201, 202}
+
+
+@pytest.mark.asyncio
+async def test_get_cluster_detail_rejects_member_id_that_is_not_cluster_anchor(
+    db_session, monkeypatch
+):
+    articles = [
+        _article(
+            301,
+            "Semiconductor exports lift South Korea current account surplus",
+            "source-a",
+            "https://example.com/south-korea-1",
+            _utc(1),
+        ),
+        _article(
+            302,
+            "South Korea surplus widens on semiconductor exports",
+            "source-b",
+            "https://example.com/south-korea-2",
+            _utc(2),
+        ),
+    ]
+    db_session.add_all(articles)
+    await db_session.commit()
+
+    service = ChromaTopicService()
+    monkeypatch.setattr(service, "_get_vector_store", lambda: None)
+
+    detail = await service.get_cluster_detail(db_session, 302)
+
+    assert detail is None

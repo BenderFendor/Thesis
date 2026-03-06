@@ -30,6 +30,11 @@ import {
   TrendingArticle,
   NewsArticle,
 } from "@/lib/api";
+import {
+  filterTrendingClusters,
+  hasRealClusterImage,
+  pickClusterImageUrl,
+} from "@/lib/cluster-display";
 import { get_logger } from "@/lib/utils";
 import { ClusterDetailModal } from "./cluster-detail-modal";
 import { useReadingQueue } from "@/hooks/useReadingQueue";
@@ -38,11 +43,7 @@ import { useLikedArticles } from "@/hooks/useLikedArticles";
 const logger = get_logger("TrendingFeed");
 
 function hasRealImage(src?: string | null): boolean {
-  if (!src) return false;
-  const trimmed = src.trim();
-  if (!trimmed || trimmed === "none") return false;
-  const lower = trimmed.toLowerCase();
-  return !lower.includes("/placeholder.svg") && !lower.includes("/placeholder.jpg");
+  return hasRealClusterImage(src);
 }
 
 function formatTimeAgo(dateStr?: string): string {
@@ -206,7 +207,9 @@ export function TrendingFeed() {
   const rawTrending = trendingData?.clusters || [];
   
   const breakingClusters = deduplicateClusters(rawBreaking);
-  const trendingClusters = deduplicateClusters(rawTrending);
+  const trendingClusters = deduplicateClusters(
+    filterTrendingClusters(rawTrending, breakingClusters)
+  );
 
   if (breakingClusters.length === 0 && trendingClusters.length === 0) {
     return null;
@@ -311,7 +314,8 @@ function BreakingCard({
 }) {
   const article = cluster.representative_article;
   const label = cluster.label || cluster.keywords.slice(0, 3).join(" ");
-  const showImage = hasRealImage(article?.image_url);
+  const imageUrl = pickClusterImageUrl(cluster);
+  const showImage = hasRealImage(imageUrl);
 
   if (!article) return null;
 
@@ -337,7 +341,7 @@ function BreakingCard({
           {showImage ? (
             <>
               <img
-                src={article.image_url!}
+                src={imageUrl!}
                 alt={article.title || label}
                 className="w-full h-full object-cover grayscale group-hover:grayscale-0 transition duration-300"
                 loading="lazy"
@@ -450,7 +454,8 @@ function TrendingCard({
 }) {
   const article = cluster.representative_article;
   const label = cluster.label || cluster.keywords.slice(0, 3).join(" ");
-  const showImage = hasRealImage(article?.image_url);
+  const imageUrl = pickClusterImageUrl(cluster);
+  const showImage = hasRealImage(imageUrl);
 
   if (!article) return null;
 
@@ -473,7 +478,7 @@ function TrendingCard({
           {showImage ? (
             <>
               <img
-                src={article.image_url!}
+                src={imageUrl!}
                 alt={article.title || label}
                 className="w-full h-full object-cover grayscale group-hover:grayscale-0 transition duration-300"
                 loading="lazy"

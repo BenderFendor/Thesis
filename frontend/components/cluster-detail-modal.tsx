@@ -42,8 +42,9 @@ interface ClusterArticle {
   title: string;
   source: string;
   url: string;
-  image_url?: string;
-  published_at?: string;
+  image_url?: string | null;
+  published_at?: string | null;
+  summary?: string | null;
   similarity: number;
 }
 
@@ -132,7 +133,7 @@ interface ComparisonData {
   };
 }
 
-function formatDate(dateStr?: string): string {
+function formatDate(dateStr?: string | null): string {
   if (!dateStr) return "";
   const date = new Date(dateStr);
   if (isNaN(date.getTime())) return dateStr;
@@ -183,6 +184,7 @@ export function ClusterDetailModal({
 }: ClusterDetailModalProps) {
   const [clusterDetail, setClusterDetail] = useState<ClusterDetail | null>(null);
   const [loading, setLoading] = useState(false);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [activeArticleId, setActiveArticleId] = useState<string | null>(null);
   const [articleContents, setArticleContents] = useState<Map<number, string | null>>(new Map());
   const [loadingArticle, setLoadingArticle] = useState<number | null>(null);
@@ -200,6 +202,7 @@ export function ClusterDetailModal({
   useEffect(() => {
     if (!isOpen || clusterId === null) {
       setClusterDetail(null);
+      setLoadError(null);
       setActiveArticleId(null);
       setArticleContents(new Map());
       setLoadingArticle(null);
@@ -212,6 +215,7 @@ export function ClusterDetailModal({
 
     const loadClusterDetail = async () => {
       setLoading(true);
+      setLoadError(null);
       setComparisonMode(false);
       setComparisonData(null);
       setComparisonLoading(false);
@@ -224,6 +228,8 @@ export function ClusterDetailModal({
         }
       } catch (err) {
         console.error("Failed to load cluster detail:", err);
+        setClusterDetail(null);
+        setLoadError("Failed to load cluster details.");
       } finally {
         setLoading(false);
       }
@@ -811,7 +817,7 @@ export function ClusterDetailModal({
                                   {hasRealImage(article.image_url) && (
                                     <div className="relative aspect-video max-h-[150px] overflow-hidden rounded-lg mb-3">
                                       <img
-                                        src={article.image_url}
+                                        src={article.image_url || undefined}
                                         alt={article.title}
                                         className="w-full h-full object-cover"
                                       />
@@ -944,6 +950,10 @@ export function ClusterDetailModal({
                 )}
               </TabsContent>
              </Tabs>
+          ) : loadError ? (
+            <div className="flex-1 flex items-center justify-center text-muted-foreground">
+              {loadError}
+            </div>
           ) : (
             <div className="flex-1 flex items-center justify-center text-muted-foreground">
               No articles found for this cluster.

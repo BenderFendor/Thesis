@@ -3324,9 +3324,9 @@ export interface TrendingArticle {
   title: string;
   source: string;
   url: string;
-  image_url?: string;
+  image_url?: string | null;
   published_at?: string;
-  summary?: string;
+  summary?: string | null;
 }
 
 export interface TrendingCluster {
@@ -3379,8 +3379,9 @@ export interface ClusterDetail {
     title: string;
     source: string;
     url: string;
-    image_url?: string;
-    published_at?: string;
+    image_url?: string | null;
+    published_at?: string | null;
+    summary?: string | null;
     similarity: number;
   }>;
 }
@@ -3418,9 +3419,9 @@ const TrendingArticleSchema = z.object({
   title: z.string(),
   source: z.string(),
   url: z.string(),
-  image_url: z.string().optional(),
+  image_url: z.string().nullish(),
   published_at: z.string().optional(),
-  summary: z.string().optional(),
+  summary: z.string().nullish(),
 });
 
 const TrendingClusterSchema = z.object({
@@ -3484,8 +3485,9 @@ const ClusterDetailArticleSchema = z.object({
   title: z.string(),
   source: z.string(),
   url: z.string(),
-  image_url: z.string().optional(),
-  published_at: z.string().optional(),
+  image_url: z.string().nullish(),
+  published_at: z.string().nullish(),
+  summary: z.string().nullish(),
   similarity: z.number(),
 });
 

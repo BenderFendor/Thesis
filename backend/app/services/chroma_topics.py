@@ -12,6 +12,7 @@ to the user.
 
 from __future__ import annotations
 
+import re
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 from typing import Any, Dict, Iterable, List, Optional, Sequence, Set, cast
@@ -36,11 +37,68 @@ TRENDING_EXPANSION = 50
 BREAKING_WINDOW_HOURS = 3
 BREAKING_SPIKE_THRESHOLD = 2.0
 LEXICAL_MIN_TOKEN_OVERLAP = 2
-LEXICAL_MIN_JACCARD = 0.22
+LEXICAL_MIN_JACCARD = 0.18
 LEXICAL_MAX_TOKEN_POSTINGS = 250
 LEXICAL_MAX_ARTICLES = 3000
 CHROMA_PROBE_LIMIT = 20
 USE_CHROMA_CLUSTER_QUERY = False
+GENERIC_CLUSTER_TOKENS = {
+    "about",
+    "after",
+    "amid",
+    "against",
+    "along",
+    "also",
+    "around",
+    "been",
+    "between",
+    "could",
+    "despite",
+    "direct",
+    "during",
+    "east",
+    "first",
+    "follow",
+    "following",
+    "from",
+    "home",
+    "including",
+    "into",
+    "latest",
+    "middle",
+    "more",
+    "most",
+    "much",
+    "news",
+    "over",
+    "part",
+    "report",
+    "reportedly",
+    "return",
+    "said",
+    "since",
+    "some",
+    "states",
+    "than",
+    "that",
+    "their",
+    "them",
+    "there",
+    "these",
+    "they",
+    "this",
+    "through",
+    "today",
+    "united",
+    "week",
+    "weekend",
+    "week's",
+    "west",
+    "what",
+    "will",
+    "with",
+    "would",
+}
 
 
 @dataclass
@@ -161,12 +219,7 @@ class ChromaTopicService:
         )
         if recent_detail:
             return recent_detail
-        if not self._get_vector_store():
-            return None
-        cluster = await self._build_cluster_from_anchor(cluster_id)
-        if not cluster:
-            return None
-        return await self._build_cluster_detail_payload(session, cluster)
+        return None
 
     async def get_article_topics(
         self, session: AsyncSession, article_id: int, limit: int = 5
@@ -324,10 +377,7 @@ class ChromaTopicService:
         for cluster in clusters:
             if cluster.anchor_id == cluster_id:
                 return cluster
-        matching = [cluster for cluster in clusters if cluster_id in cluster.member_ids]
-        if not matching:
-            return None
-        return max(matching, key=lambda cluster: len(cluster.member_ids))
+        return None
 
     async def _build_cluster_detail_payload(
         self,
@@ -548,6 +598,34 @@ class ChromaTopicService:
     def _article_keyword_set(self, article: Article) -> Set[str]:
         return {keyword.lower() for keyword in self._extract_keywords(article)}
 
+    def _passes_lexical_match(
+        self, base_tokens: Set[str], candidate_tokens: Set[str]
+    ) -> bool:
+        if not base_tokens or not candidate_tokens:
+            return False
+
+        overlap = len(base_tokens & candidate_tokens)
+        if overlap < LEXICAL_MIN_TOKEN_OVERLAP:
+            return False
+
+        union_size = len(base_tokens | candidate_tokens) or 1
+        jaccard = overlap / union_size
+        return jaccard >= LEXICAL_MIN_JACCARD or overlap >= (
+            LEXICAL_MIN_TOKEN_OVERLAP + 1
+        )
+
+    def _normalize_keyword(self, value: str) -> str:
+        normalized = value.strip("-/'\"")
+        if len(normalized) > 5 and normalized.endswith("ies"):
+            return normalized[:-3] + "y"
+        if len(normalized) > 5 and normalized.endswith("es"):
+            return normalized[:-2]
+        if len(normalized) > 4 and normalized.endswith("s"):
+            return normalized[:-1]
+        if len(normalized) > 5 and normalized.endswith("ian"):
+            return normalized[:-3]
+        return normalized
+
     def _cluster_articles_lexical(
         self, articles: Sequence[Article]
     ) -> List[ClusterCandidate]:
@@ -612,13 +690,7 @@ class ChromaTopicService:
                 if overlap < LEXICAL_MIN_TOKEN_OVERLAP:
                     continue
                 neighbor_tokens = keyword_sets.get(neighbor_id, set())
-                if not neighbor_tokens:
-                    continue
-                union_size = len(base_tokens | neighbor_tokens) or 1
-                jaccard = overlap / union_size
-                if jaccard >= LEXICAL_MIN_JACCARD or overlap >= (
-                    LEXICAL_MIN_TOKEN_OVERLAP + 1
-                ):
+                if self._passes_lexical_match(base_tokens, neighbor_tokens):
                     union(article_id, neighbor_id)
 
         components: Dict[int, Set[int]] = {}
@@ -637,9 +709,18 @@ class ChromaTopicService:
             )
             anchor_id = ordered_members[0]
             anchor_tokens = keyword_sets.get(anchor_id, set())
+            filtered_members = [anchor_id]
+
+            for member_id in ordered_members[1:]:
+                member_tokens = keyword_sets.get(member_id, set())
+                if self._passes_lexical_match(anchor_tokens, member_tokens):
+                    filtered_members.append(member_id)
+
+            if len(filtered_members) < MIN_CLUSTER_SIZE:
+                continue
 
             similarities: Dict[int, float] = {}
-            for member_id in ordered_members:
+            for member_id in filtered_members:
                 if member_id == anchor_id:
                     similarities[member_id] = 1.0
                     continue
@@ -654,7 +735,7 @@ class ChromaTopicService:
             clusters.append(
                 ClusterCandidate(
                     anchor_id=anchor_id,
-                    member_ids=ordered_members,
+                    member_ids=filtered_members,
                     similarities=similarities,
                 )
             )
@@ -954,7 +1035,7 @@ class ChromaTopicService:
         return "Topic"
 
     def _extract_keywords(self, article: Article) -> List[str]:
-        text = f"{article.title or ''} {article.summary or ''}".lower()
+        text = f"{article.title or ''}".lower()
         stopwords = {
             "the",
             "a",
@@ -971,9 +1052,37 @@ class ChromaTopicService:
             "of",
             "with",
             "by",
+            "and",
+            "or",
+            "but",
+            "not",
+            "its",
+            "into",
+            "their",
+            "than",
+            "that",
+            "have",
+            "has",
+            "had",
+            "from",
         }
-        words = [w.strip(".,!?;:'\"") for w in text.split() if len(w) > 3]
-        return list({w for w in words if w not in stopwords})[:10]
+        words = re.findall(r"[a-z0-9][a-z0-9'\-/]+", text)
+        keywords: List[str] = []
+        seen: Set[str] = set()
+        for word in words:
+            normalized = self._normalize_keyword(word)
+            if len(normalized) <= 3:
+                continue
+            if normalized in stopwords or normalized in GENERIC_CLUSTER_TOKENS:
+                continue
+            if normalized.isdigit():
+                continue
+            if normalized not in seen:
+                seen.add(normalized)
+                keywords.append(normalized)
+            if len(keywords) >= 10:
+                break
+        return keywords
 
     def _extract_keywords_from_articles(self, articles: List[Article]) -> List[str]:
         keywords: List[str] = []

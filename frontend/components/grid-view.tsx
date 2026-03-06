@@ -33,14 +33,20 @@ import { ArticleDetailModal } from "./article-detail-modal"
 const VirtualizedGrid = lazy(() => import("./virtualized-grid").then(module => ({ default: module.VirtualizedGrid })))
 
 import { TrendingFeed } from "./trending-feed"
-import type { NewsArticle, AllCluster } from "@/lib/api"
+import type { NewsArticle, AllCluster, TrendingArticle } from "@/lib/api"
 import { get_logger, cn } from "@/lib/utils"
 import { useReadingQueue } from "@/hooks/useReadingQueue"
 import { useLikedArticles } from "@/hooks/useLikedArticles"
 import { useFavorites } from "@/hooks/useFavorites"
 import { usePaginatedNews } from "@/hooks/usePaginatedNews"
 import { FEATURE_FLAGS } from "@/lib/constants"
-import { fetchAllClusters, fetchClusterArticles } from "@/lib/api"
+import {
+  clusterArticlesToNewsArticles,
+  getClusterPreviewStats,
+  hasRealClusterImage,
+  pickClusterImageUrl,
+} from "@/lib/cluster-display"
+import { fetchAllClusters } from "@/lib/api"
 
 const logger = get_logger("GridView")
 const isDev = process.env.NODE_ENV !== "production"
@@ -91,15 +97,7 @@ export function GridView({
   isScrollMode = false,
 }: GridViewProps) {
   const hasRealImage = useCallback((src?: string | null) => {
-    if (!src) return false
-    const trimmed = src.trim()
-    if (!trimmed) return false
-    if (trimmed === "none") return false
-    const lower = trimmed.toLowerCase()
-    return (
-      !lower.includes("/placeholder.svg") &&
-      !lower.includes("/placeholder.jpg")
-    )
+    return hasRealClusterImage(src)
   }, [])
 
   const formatKeywordLabel = useCallback((keywords?: string[]) => {
@@ -361,24 +359,18 @@ export function GridView({
     [isArticleInQueue, removeArticleFromQueue, addArticleToQueue],
   )
 
-  const handleExpandCluster = useCallback(async (clusterId: number) => {
+  const handleExpandCluster = useCallback((cluster: AllCluster) => {
+    const clusterId = cluster.cluster_id
     if (expandedClusterId === clusterId) {
       setExpandedClusterId(null)
       return
     }
     
     setExpandedClusterId(clusterId)
-    
+
     if (!clusterArticlesCache.has(clusterId)) {
-      setClusterArticlesLoading(clusterId)
-      try {
-        const articles = await fetchClusterArticles(clusterId)
-        setClusterArticlesCache(prev => new Map(prev).set(clusterId, articles))
-      } catch (err) {
-        logger.error("Failed to fetch cluster articles:", err)
-      } finally {
-        setClusterArticlesLoading(null)
-      }
+      const articles = clusterArticlesToNewsArticles(cluster.articles)
+      setClusterArticlesCache(prev => new Map(prev).set(clusterId, articles))
     }
   }, [expandedClusterId, clusterArticlesCache])
 
@@ -1033,13 +1025,15 @@ export function GridView({
                             if (!representative) return null
                             
                             const isThisExpanded = expandedClusterId === cluster.cluster_id
-                            const showImage = hasRealImage(representative.image_url)
+                            const cardImageUrl = pickClusterImageUrl(cluster)
+                            const showImage = hasRealImage(cardImageUrl)
                             const displayLabel = getClusterDisplayLabel(cluster)
+                            const previewStats = getClusterPreviewStats(cluster)
 
                             return (
                               <button
                                 key={cluster.cluster_id}
-                                onClick={() => handleExpandCluster(cluster.cluster_id)}
+                                onClick={() => handleExpandCluster(cluster)}
                                 className={`group w-full text-left transition-all duration-200 ${
                                   isThisExpanded 
                                     ? "ring-2 ring-primary" 
@@ -1056,7 +1050,7 @@ export function GridView({
                                     {showImage ? (
                                       <>
                                         <img
-                                          src={representative.image_url!}
+                                            src={cardImageUrl!}
                                           alt={representative.title}
                                           className="w-full h-full object-cover grayscale group-hover:grayscale-0 transition duration-300"
                                           loading="lazy"
@@ -1092,10 +1086,10 @@ export function GridView({
                                   {/* Meta Info */}
                                   <CardContent className="p-3 flex items-center justify-between gap-2">
                                     <Badge variant="outline" className="text-[9px] bg-transparent border-white/20">
-                                      {cluster.source_diversity} sources
+                                      {previewStats.sourceCount} sources
                                     </Badge>
                                     <Badge variant="outline" className="text-[9px] bg-transparent border-white/20">
-                                      {cluster.article_count} articles
+                                      {previewStats.articleCount} articles
                                     </Badge>
                                   </CardContent>
                                 </Card>
@@ -1115,12 +1109,12 @@ export function GridView({
                                   {getClusterDisplayLabel(expandedCluster)}
                                 </span>
                                 <Badge variant="outline" className="text-[10px] bg-[var(--news-bg-secondary)]">
-                                  {expandedCluster.source_diversity} sources
+                                  {getClusterPreviewStats(expandedCluster).sourceCount} sources
                                 </Badge>
                               </div>
                               <div className="flex items-center gap-3">
                                 <Badge variant="outline" className="text-[10px] bg-[var(--news-bg-secondary)]">
-                                  {expandedCluster.article_count} articles
+                                  {getClusterPreviewStats(expandedCluster).articleCount} articles
                                 </Badge>
                                 <Button
                                   variant="ghost"
