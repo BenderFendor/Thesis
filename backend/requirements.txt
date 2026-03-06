@@ -45,3 +45,7 @@ datasketch>=1.6.4 # MinHash deduplication (pure algorithm, CPU)
 
 # Build helpers for the Rust RSS parser
 maturin>=1.10.0
+
+# Testing and parity tooling
+hypothesis>=6.0.0
+testcontainers[postgresql]>=4.10.0

@@ -21,22 +21,40 @@ class NewsCache:
         self.update_in_progress: bool = False
         self.update_count: int = 0
 
+    def _assert_invariants(self) -> None:
+        assert self.update_count >= 0, "update_count must be non-negative"
+        assert isinstance(self.articles, list), "articles must remain a list"
+        assert isinstance(self.source_stats, list), "source_stats must remain a list"
+        assert isinstance(self.articles_by_source, dict), (
+            "articles_by_source must remain a dict"
+        )
+
     def _published_key(self, article: NewsArticle) -> str:
         return article.published or ""
 
     def get_articles(self) -> List[NewsArticle]:
         with self.lock:
+            self._assert_invariants()
             logger.debug("Cache accessed: %s articles available", len(self.articles))
-            return self.articles.copy()
+            snapshot = self.articles.copy()
+            assert snapshot is not self.articles, "get_articles must return a copy"
+            return snapshot
 
     def get_source_stats(self) -> List[Dict[str, object]]:
         with self.lock:
+            self._assert_invariants()
             logger.debug("Source stats accessed: %s sources", len(self.source_stats))
-            return self.source_stats.copy()
+            snapshot = self.source_stats.copy()
+            assert snapshot is not self.source_stats, (
+                "get_source_stats must return a copy"
+            )
+            return snapshot
 
     def update_cache(
         self, articles: List[NewsArticle], source_stats: List[Dict[str, object]]
     ) -> None:
+        assert isinstance(articles, list), "update_cache requires list articles"
+        assert isinstance(source_stats, list), "update_cache requires list source_stats"
         with self.lock:
             old_count = len(self.articles)
             self.articles = articles
@@ -66,6 +84,10 @@ class NewsCache:
                 len(working_sources),
                 len(error_sources),
             )
+            self._assert_invariants()
+            assert len(self.articles) == len(articles), (
+                "update_cache must preserve article count"
+            )
 
     def update_source_cache(
         self,
@@ -79,6 +101,7 @@ class NewsCache:
         if not source_name:
             return
 
+        assert isinstance(source_name, str), "source_name must be a string"
         with self.lock:
             existing_articles = self.articles
             if replace_articles:
@@ -114,6 +137,7 @@ class NewsCache:
 
             self.last_updated = datetime.now(timezone.utc)
             self.update_count += 1
+            self._assert_invariants()
 
 
 news_cache = NewsCache()

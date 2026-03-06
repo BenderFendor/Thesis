@@ -117,7 +117,7 @@ export function HighlightsView() {
               <div className="flex justify-between items-start gap-4">
                 <div className="flex-1 min-w-0">
                   <p className="text-sm italic mb-2 text-gray-800">
-                    "{highlight.highlighted_text}"
+                    &quot;{highlight.highlighted_text}&quot;
                   </p>
                   {highlight.note && (
                     <p className="text-xs text-gray-600 mb-2">

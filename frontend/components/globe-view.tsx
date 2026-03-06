@@ -77,6 +77,7 @@ export function GlobeView({ articles, loading }: GlobeViewProps) {
     if (!src) return false
     const trimmed = src.trim()
     if (!trimmed) return false
+    if (trimmed === "none") return false
     const lower = trimmed.toLowerCase()
     return !lower.includes("/placeholder.svg") && !lower.includes("/placeholder.jpg")
   }
@@ -195,7 +196,11 @@ export function GlobeView({ articles, loading }: GlobeViewProps) {
           {sidebarTab === 'briefing' && (
             <div className="h-full flex flex-col">
               <div className="px-4 py-3 border-b border-white/10 bg-[var(--news-bg-primary)]/30">
-                <Tabs value={viewMode} onValueChange={(v) => setViewMode(v as any)} className="w-full">
+                <Tabs
+                  value={viewMode}
+                  onValueChange={(v) => setViewMode(v === "external" ? "external" : "internal")}
+                  className="w-full"
+                >
                   <TabsList className="w-full bg-transparent border border-white/10 h-8 p-0 rounded-none">
                     <TabsTrigger value="internal" className="flex-1 text-[9px] uppercase tracking-widest data-[state=active]:bg-primary/20 data-[state=active]:text-primary h-full rounded-none border-r border-white/10">
                       Local Signal

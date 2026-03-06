@@ -20,10 +20,14 @@ async def test_postgresql():
         print("INFO: PostgreSQL test skipped (ENABLE_DATABASE=0)\n")
         return True
     try:
-        from app.database import engine, AsyncSessionLocal
+        from app.database import get_engine, AsyncSessionLocal
         from sqlalchemy import text
 
         print("Testing PostgreSQL connection...")
+        engine = get_engine()
+        if engine is None:
+            print("PostgreSQL engine unavailable (ENABLE_DATABASE=0)\n")
+            return True
 
         # Test basic connection
         async with engine.begin() as conn:

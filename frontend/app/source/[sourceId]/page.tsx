@@ -85,6 +85,7 @@ export default function SourcePage(props: SourcePageProps) {
     if (!src) return false
     const trimmed = src.trim()
     if (!trimmed) return false
+    if (trimmed === "none") return false
     const lower = trimmed.toLowerCase()
     return !lower.includes("/placeholder.svg") && !lower.includes("/placeholder.jpg")
   }

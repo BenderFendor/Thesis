@@ -98,11 +98,10 @@ function biasBadgeClass(bias?: string): string {
   }
 }
 
-function countryFlag(code?: string): string {
-  if (!code || code.length !== 2) return "";
-  return String.fromCodePoint(
-    ...code.toUpperCase().split("").map((c) => 0x1f1e6 + c.charCodeAt(0) - 65)
-  );
+function countryCodeLabel(code?: string): string {
+  if (!code) return "";
+  if (code.length !== 2) return code.toUpperCase();
+  return code.toUpperCase();
 }
 
 // ── Filter Score Card ────────────────────────────────────────────────
@@ -323,7 +322,7 @@ export default function SourceWikiPage() {
             </Link>
             <div>
               <h1 className="font-serif text-xl font-semibold flex items-center gap-2">
-                {data.country && <span>{countryFlag(data.country)}</span>}
+                {data.country && <span>{countryCodeLabel(data.country)}</span>}
                 {data.name}
               </h1>
               <div className="flex items-center gap-2 mt-0.5">

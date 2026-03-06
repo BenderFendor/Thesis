@@ -16,7 +16,12 @@ from sqlalchemy import (
 )
 from sqlalchemy.dialects import postgresql
 from sqlalchemy.types import TypeDecorator, JSON as JsonType
-from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession, async_sessionmaker
+from sqlalchemy.ext.asyncio import (
+    AsyncEngine,
+    AsyncSession,
+    async_sessionmaker,
+    create_async_engine,
+)
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.exc import OperationalError
 import asyncio
@@ -24,6 +29,7 @@ import time
 from datetime import datetime, timezone
 import os
 import logging
+import threading
 from typing import Any, Dict, List, Optional
 
 from app.core.config import settings
@@ -35,27 +41,66 @@ DATABASE_URL = os.getenv(
     "DATABASE_URL", "postgresql+asyncpg://newsuser:newspass@localhost:5432/newsdb"
 )
 
-# Async engine configuration
-if settings.enable_database:
-    engine = create_async_engine(
-        DATABASE_URL,
-        echo=False,  # Set to True for SQL debugging
-        future=True,
-        pool_size=20,  # Base connections to maintain
-        max_overflow=10,  # Additional connections under load
-        pool_pre_ping=True,  # Verify connections before use
-        pool_recycle=3600,  # Recycle connections every hour
-        pool_timeout=30,  # Timeout for getting connection
-    )
+_engine: AsyncEngine | None = None
+_session_factory: async_sessionmaker[AsyncSession] | None = None
+_db_init_lock = threading.Lock()
 
-    # Session factory
-    AsyncSessionLocal = async_sessionmaker(
-        engine, class_=AsyncSession, expire_on_commit=False
-    )
-else:
-    engine = None
-    AsyncSessionLocal = None
-    logger.warning("Database disabled via ENABLE_DATABASE=0; skipping engine creation")
+
+def _initialize_database_resources() -> None:
+    global _engine, _session_factory
+
+    if not settings.enable_database:
+        return
+    if _engine is not None and _session_factory is not None:
+        return
+
+    with _db_init_lock:
+        if _engine is None:
+            _engine = create_async_engine(
+                DATABASE_URL,
+                echo=False,  # Set to True for SQL debugging
+                future=True,
+                pool_size=20,  # Base connections to maintain
+                max_overflow=10,  # Additional connections under load
+                pool_pre_ping=True,  # Verify connections before use
+                pool_recycle=3600,  # Recycle connections every hour
+                pool_timeout=30,  # Timeout for getting connection
+            )
+        if _session_factory is None:
+            assert _engine is not None
+            _session_factory = async_sessionmaker(
+                _engine, class_=AsyncSession, expire_on_commit=False
+            )
+
+
+def get_engine() -> AsyncEngine | None:
+    if not settings.enable_database:
+        return None
+    _initialize_database_resources()
+    return _engine
+
+
+def get_session_factory() -> async_sessionmaker[AsyncSession] | None:
+    if not settings.enable_database:
+        return None
+    _initialize_database_resources()
+    return _session_factory
+
+
+class _LazySessionFactory:
+    def __call__(self, *args: Any, **kwargs: Any) -> Any:
+        session_factory = get_session_factory()
+        if session_factory is None:
+            raise RuntimeError("Database access requested but ENABLE_DATABASE=0")
+        return session_factory(*args, **kwargs)
+
+
+engine: AsyncEngine | None = None
+AsyncSessionLocal: _LazySessionFactory | None = (
+    _LazySessionFactory() if settings.enable_database else None
+)
+if not settings.enable_database:
+    logger.warning("Database disabled via ENABLE_DATABASE=0; lazy init is disabled")
 
 
 def get_utc_now():
@@ -647,14 +692,13 @@ async def get_db():
 # Initialize database tables
 async def init_db():
     """Create all tables if they don't exist"""
-    if not settings.enable_database or engine is None:
+    db_engine = get_engine()
+    if db_engine is None:
         logger.info("Skipping database initialization; ENABLE_DATABASE=0")
         return
 
     async def _create_missing_tables() -> None:
-        if engine is None:
-            return
-        async with engine.begin() as conn:
+        async with db_engine.begin() as conn:
 
             def _get_tables(sync_conn):
                 inspector = inspect(sync_conn)
@@ -678,9 +722,6 @@ async def init_db():
         Uses ADD COLUMN IF NOT EXISTS so it is safe to call repeatedly.
         If *conn* is provided, reuses it to avoid opening a second connection.
         """
-        if engine is None:
-            return
-
         sa_type_to_pg = {
             "INTEGER": "INTEGER",
             "VARCHAR": "VARCHAR",
@@ -726,7 +767,7 @@ async def init_db():
         if conn is not None:
             await _do(conn)
         else:
-            async with engine.begin() as new_conn:
+            async with db_engine.begin() as new_conn:
                 await _do(new_conn)
 
     def _iter_exception_chain(exc: BaseException):
@@ -786,7 +827,7 @@ async def init_db():
 
     while True:
         try:
-            async with engine.begin() as conn:
+            async with db_engine.begin() as conn:
                 await conn.run_sync(Base.metadata.create_all)
                 logger.info("Database tables initialized successfully")
                 await _add_missing_columns(conn)

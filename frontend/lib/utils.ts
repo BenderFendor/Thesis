@@ -27,28 +27,28 @@ export function getDebugMode(): boolean {
 
 export function get_logger(name: string) {
   return {
-    debug: (...args: any[]) => {
+    debug: (...args: unknown[]) => {
       if (getDebugMode()) {
         console.log(`[${name}]`, ...args)
       }
     },
-    error: (...args: any[]) => {
+    error: (...args: unknown[]) => {
       console.error(`[${name}]`, ...args)
     },
-    warn: (...args: any[]) => {
+    warn: (...args: unknown[]) => {
       console.warn(`[${name}]`, ...args)
     },
   }
 }
 
 // Debounce function for search input
-export function debounce<T extends (...args: any[]) => any>(
-  func: T,
+export function debounce<TArgs extends unknown[], TResult>(
+  func: (...args: TArgs) => TResult,
   wait: number
-): (...args: Parameters<T>) => void {
+): (...args: TArgs) => void {
   let timeout: NodeJS.Timeout | null = null
 
-  return (...args: Parameters<T>) => {
+  return (...args: TArgs) => {
     if (timeout) clearTimeout(timeout)
     timeout = setTimeout(() => func(...args), wait)
   }

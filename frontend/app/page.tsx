@@ -265,20 +265,28 @@ function NewsPage() {
     autoStart: false
   });
 
+  const streamIsActiveRef = useRef(streamHook.isStreaming);
+  const abortStreamRef = useRef(streamHook.abortStream);
+  const startStreamRef = useRef(streamHook.startStream);
 
+  useEffect(() => {
+    streamIsActiveRef.current = streamHook.isStreaming;
+    abortStreamRef.current = streamHook.abortStream;
+    startStreamRef.current = streamHook.startStream;
+  }, [streamHook.isStreaming, streamHook.abortStream, streamHook.startStream]);
 
   useEffect(() => {
     // Only run when activeCategory changes
     const loadCategory = async () => {
-      if (streamHook.isStreaming) {
-        streamHook.abortStream(true);
+      if (streamIsActiveRef.current) {
+        abortStreamRef.current(true);
       }
 
       setLoading(true);
       setArticlesByCategory(prev => ({ ...prev, [activeCategory]: [] }));
       
       try {
-        await streamHook.startStream({
+        await startStreamRef.current({
           category: activeCategory === 'all' ? undefined : activeCategory
         });
       } catch (error) {
@@ -289,7 +297,7 @@ function NewsPage() {
     };
 
     loadCategory();
-  }, [activeCategory]); // Only depend on activeCategory
+  }, [activeCategory]);
 
   useEffect(() => {
     if (streamHook.apiUrl) {

@@ -68,10 +68,10 @@ export function ThreeGlobe({
   intensityData = {},
 }: ThreeGlobeProps) {
   const mountRef = useRef<HTMLDivElement>(null)
-  const sceneRef = useRef<THREE.Scene>(null)
-  const rendererRef = useRef<THREE.WebGLRenderer>(null)
-  const globeRef = useRef<THREE.Object3D>(null)
-  const markersRef = useRef<THREE.Group>(null)
+  const sceneRef = useRef<THREE.Scene | null>(null)
+  const rendererRef = useRef<THREE.WebGLRenderer | null>(null)
+  const globeRef = useRef<THREE.Object3D | null>(null)
+  const markersRef = useRef<THREE.Group | null>(null)
   const [isLoaded, setIsLoaded] = useState(false)
 
   // Use provided country data or fallback to defaults
@@ -106,26 +106,28 @@ export function ThreeGlobe({
     const loader = new GLTFLoader();
     loader.load(
       "/3dmodel/earth 2.glb", // Assuming the model is converted and placed in public/3dmodel
-      (gltf) => {
+      (gltf: unknown) => {
         logger.debug("GLTF model loaded:", gltf)
-        const globe = gltf.scene
-        globe.traverse((child) => {
-          if (child.name === "Background") {
-            child.visible = false
+        const globe = (gltf as { scene: THREE.Object3D }).scene
+        globe.traverse((child: unknown) => {
+          const object = child as THREE.Object3D
+          if (object.name === "Background") {
+            object.visible = false
           }
-          if ((child as THREE.Mesh).isMesh) {
-            const mesh = child as THREE.Mesh
+          if ((object as THREE.Mesh).isMesh) {
+            const mesh = object as THREE.Mesh
             logger.debug("Inspecting mesh:", mesh.name, mesh)
             const materials = Array.isArray(mesh.material) ? mesh.material : [mesh.material]
-            materials.forEach((material) => {
+            materials.forEach((material: unknown) => {
               if (material) {
-                logger.debug("Material:", material.name, material)
-                if ((material as any).map) {
-                  logger.debug("Texture found for material:", material.name, (material as any).map)
+                const textureMaterial = material as THREE.Material & { map?: THREE.Texture | null }
+                logger.debug("Material:", textureMaterial.name, textureMaterial)
+                if (textureMaterial.map) {
+                  logger.debug("Texture found for material:", textureMaterial.name, textureMaterial.map)
                 } else {
-                  logger.debug("No texture map for material:", material.name)
+                  logger.debug("No texture map for material:", textureMaterial.name)
                 }
-                material.side = THREE.DoubleSide
+                textureMaterial.side = THREE.DoubleSide
               }
             })
           }
@@ -136,7 +138,7 @@ export function ThreeGlobe({
         setIsLoaded(true)
       },
       undefined,
-      (error) => {
+      (error: unknown) => {
         console.error("An error happened while loading the model:", error)
       }
     )
@@ -215,9 +217,11 @@ export function ThreeGlobe({
 
       if (intersects.length > 0) {
         const clickedMarker = intersects[0].object
-        const countryCode = clickedMarker.userData.countryCode
-        if (countryCode) {
-          onCountrySelect(selectedCountry === countryCode ? null : countryCode)
+        const countryCodeValue = clickedMarker.userData.countryCode
+        if (typeof countryCodeValue === "string" && countryCodeValue.length > 0) {
+          onCountrySelect(
+            selectedCountry === countryCodeValue ? null : countryCodeValue
+          )
         }
       }
     }

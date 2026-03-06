@@ -181,7 +181,7 @@ export function NotificationsPopup({ notifications, onClear, onClearAll, onActio
           ) : (
             <div className="p-8 text-center">
               <Bell className="mx-auto w-12 h-12 text-muted-foreground/50" />
-              <p className="mt-4 text-sm font-medium" style={{ color: 'var(--muted-foreground)' }}>You're all caught up!</p>
+              <p className="mt-4 text-sm font-medium" style={{ color: 'var(--muted-foreground)' }}>You&apos;re all caught up!</p>
               <p className="mt-1 text-xs" style={{ color: 'var(--muted-foreground)' }}>No new notifications.</p>
             </div>
           )}

@@ -14,10 +14,10 @@ import json
 import os
 import subprocess
 from datetime import datetime, timezone
-from pathlib import Path
+from typing import Any, Dict
 
 from app.core.config import settings
-from app.database import engine
+from app.database import get_engine
 
 OUTPUT_FILE = (
     "/home/bender/classwork/Thesis/backend/tests/benchmarks/config_snapshot.json"
@@ -75,6 +75,7 @@ def capture_config() -> Dict[str, Any]:
         "packages": get_python_packages(),
     }
 
+    engine = get_engine()
     if engine:
         config["database"]["pool_status"] = {
             "size": engine.pool.size() if hasattr(engine.pool, "size") else "N/A",
@@ -94,7 +95,7 @@ def main():
         json.dump(config, f, indent=2)
 
     print(f"Configuration saved to: {OUTPUT_FILE}")
-    print(f"\nSummary:")
+    print("\nSummary:")
     print(f"  App: {config['app']['title']} v{config['app']['version']}")
     print(f"  Database pool: {config['database'].get('pool_status', {})}")
     print(f"  Python packages: {len(config['packages'])}")

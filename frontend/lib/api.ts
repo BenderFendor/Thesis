@@ -1,4 +1,9 @@
 import { logger } from "@/lib/logger";
+import { z } from "zod";
+import type {
+  components as OpenApiComponents,
+  paths as OpenApiPaths,
+} from "@/lib/generated/openapi";
 // API utility for communicating with FastAPI backend
 
 // Default to localhost backend when env var is not set (makes dev easier)
@@ -105,6 +110,50 @@ export interface NewsArticle {
   };
 }
 
+const BackendArticleSchema = z
+  .object({
+    id: z.number().optional(),
+    article_id: z.number().optional(),
+    title: z.string().optional(),
+    source: z.string().optional(),
+    source_name: z.string().optional(),
+    source_id: z.string().optional(),
+    description: z.string().optional(),
+    summary: z.string().optional(),
+    content: z.string().optional(),
+    image: z.string().optional(),
+    image_url: z.string().optional(),
+    published_at: z.string().optional(),
+    publishedAt: z.string().optional(),
+    published: z.string().optional(),
+    category: z.string().optional(),
+    country: z.string().optional(),
+    credibility: z.string().optional(),
+    bias: z.string().optional(),
+    url: z.string().optional(),
+    link: z.string().optional(),
+    article_url: z.string().optional(),
+    original_url: z.string().optional(),
+    author: z.string().optional(),
+    authors: z.array(z.string()).optional(),
+    original_language: z.string().optional(),
+    translated: z.boolean().optional(),
+  })
+  .passthrough();
+
+const BackendSourceSchema = z
+  .object({
+    name: z.string(),
+    country: z.string().default("US"),
+    url: z.string(),
+    bias_rating: z.string().optional(),
+    category: z.string().optional(),
+    funding_type: z.string().optional(),
+  })
+  .passthrough();
+
+export type BackendArticle = z.infer<typeof BackendArticleSchema>;
+
 export interface BookmarkEntry {
   bookmarkId: number;
   articleId: number;
@@ -154,8 +203,8 @@ export interface StreamEvent {
   stream_id?: string;
   message?: string;
   source?: string;
-  articles?: any[];
-  source_stat?: any;
+  articles?: BackendArticle[];
+  source_stat?: Record<string, unknown>;
   error?: string;
   progress?: StreamProgress;
   cache_age_seconds?: number;
@@ -186,25 +235,35 @@ export async function fetchNews(params?: {
       throw new Error(`HTTP error! status: ${response.status}`);
     }
 
-    const data = await response.json();
+    const data = (await response.json()) as { articles?: unknown[] };
     logger.debug(`Backend response:`, data);
 
     // Backend returns { articles: [...], total: number, sources: [...], stream_id: string }
-    let articles = data.articles || [];
+    const parsedArticles = BackendArticleSchema.array().safeParse(
+      data.articles ?? [],
+    );
+    const backendArticles: BackendArticle[] = parsedArticles.success
+      ? parsedArticles.data
+      : [];
+    if (!parsedArticles.success) {
+      logger.warn(
+        "fetchNews received malformed article payload, dropping invalid entries",
+      );
+    }
 
-    if (articles.length === 0) {
+    if (backendArticles.length === 0) {
       logger.debug(
         `No articles received from backend. Full response:`,
         JSON.stringify(data, null, 2),
       );
     } else {
       logger.debug(
-        `Received ${articles.length} articles from unified backend endpoint`,
+        `Received ${backendArticles.length} articles from unified backend endpoint`,
       );
     }
 
     // Convert backend format to frontend format
-    articles = mapBackendArticles(articles);
+    let articles = mapBackendArticles(backendArticles);
 
     // Client-side search filtering if needed
     if (params?.search) {
@@ -302,10 +361,16 @@ export async function fetchSources(): Promise<NewsSource[]> {
       throw new Error(`HTTP error! status: ${response.status}`);
     }
 
-    const sources = await response.json();
+    const payload = await response.json();
+    const parsedSources = z.array(BackendSourceSchema).safeParse(payload);
+    if (!parsedSources.success) {
+      logger.warn("fetchSources received malformed payload");
+      return [];
+    }
+    const sources = parsedSources.data;
 
     // Convert backend source format to frontend format
-    return sources.map((source: any) => ({
+    return sources.map((source) => ({
       id: source.name.toLowerCase().replace(/\s+/g, "-"),
       name: source.name,
       country: source.country,
@@ -313,7 +378,7 @@ export async function fetchSources(): Promise<NewsSource[]> {
       rssUrl: source.url, // Backend doesn't separate RSS URL
       credibility: mapCredibility(source.bias_rating),
       bias: mapBias(source.bias_rating),
-      category: [source.category],
+      category: source.category ? [source.category] : ["general"],
       language: "en",
       funding: [source.funding_type || "Unknown"],
     }));
@@ -389,13 +454,14 @@ export async function requestInlineDefinition(
       definition: data.definition ?? null,
       error: data.error ?? null,
     };
-  } catch (err: any) {
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : String(err);
     console.error("requestInlineDefinition failed", err);
     return {
       success: false,
       term,
       definition: null,
-      error: err?.message ?? String(err),
+      error: message,
     };
   }
 }
@@ -815,7 +881,7 @@ export async function fetchInlineDefinition(
 
 export interface SourceDebugData {
   source_name: string;
-  source_config: any;
+  source_config: Record<string, unknown> | null;
   rss_url: string;
   all_urls?: string[];
   feed_metadata: {
@@ -839,14 +905,14 @@ export interface SourceDebugData {
     description: string;
     published: string;
     author: string;
-    tags: any[];
+    tags: unknown[];
     has_images: boolean;
-    image_sources: any[];
+    image_sources: unknown[];
     content_images: string[];
     description_images: string[];
     raw_entry_keys: string[];
   }>;
-  cached_articles: any[];
+  cached_articles: Array<Record<string, unknown>>;
   source_statistics?: {
     name: string;
     url: string | string[];
@@ -870,7 +936,7 @@ export interface SourceDebugData {
   image_analysis: {
     total_entries: number;
     entries_with_images: number;
-    image_sources: any[];
+    image_sources: unknown[];
   };
   error?: string;
 }
@@ -937,7 +1003,8 @@ export async function fetchSourceDebugData(
     });
 
     return debugData;
-  } catch (error: any) {
+  } catch (error: unknown) {
+    const message = error instanceof Error ? error.message : "Unknown fetch error";
     console.error("Error fetching source debug data:", error);
     return {
       source_name: sourceName,
@@ -954,7 +1021,7 @@ export async function fetchSourceDebugData(
       feed_status: {
         http_status: "fetch_failed",
         bozo: false,
-        bozo_exception: error?.message || "Unknown fetch error",
+        bozo_exception: message,
         entries_count: 0,
       },
       parsed_entries: [],
@@ -966,7 +1033,7 @@ export async function fetchSourceDebugData(
         entries_with_images: 0,
         image_sources: [],
       },
-      error: error?.message || "Unknown fetch error",
+      error: message,
     };
   }
 }
@@ -984,6 +1051,20 @@ export interface ChromaDebugResponse {
   total?: number;
   articles: ChromaDebugArticle[];
 }
+
+const ChromaDebugArticleSchema = z.object({
+  id: z.string(),
+  metadata: z.record(z.unknown()),
+  preview: z.string(),
+});
+
+const ChromaDebugResponseSchema = z.object({
+  limit: z.number(),
+  offset: z.number(),
+  returned: z.number(),
+  total: z.number().optional(),
+  articles: z.array(ChromaDebugArticleSchema),
+});
 
 export interface DatabaseDebugResponse {
   limit: number;
@@ -1012,6 +1093,36 @@ export interface DatabaseDebugResponse {
   }>;
 }
 
+const DatabaseDebugArticleSchema = z
+  .object({
+    id: z.number(),
+    source: z.string(),
+    title: z.string(),
+    published_at: z.string().optional(),
+    chroma_id: z.string().nullable().optional(),
+    embedding_generated: z.boolean().nullable().optional(),
+    url: z.string(),
+    summary: z.string().nullable().optional(),
+    content: z.string().nullable().optional(),
+    image_url: z.string().nullable().optional(),
+  })
+  .catchall(z.unknown());
+
+const DatabaseDebugResponseSchema = z.object({
+  limit: z.number(),
+  offset: z.number(),
+  source: z.string().nullable().optional(),
+  missing_embeddings_only: z.boolean(),
+  sort_direction: z.enum(["asc", "desc"]),
+  published_before: z.string().nullable().optional(),
+  published_after: z.string().nullable().optional(),
+  total: z.number(),
+  returned: z.number(),
+  oldest_published: z.string().nullable().optional(),
+  newest_published: z.string().nullable().optional(),
+  articles: z.array(DatabaseDebugArticleSchema),
+});
+
 export interface StorageDriftReport {
   database_total_articles: number;
   database_with_embeddings: number;
@@ -1026,6 +1137,23 @@ export interface StorageDriftReport {
   }>;
   dangling_in_chroma: string[];
 }
+
+const MissingInChromaItemSchema = z.object({
+  id: z.number(),
+  chroma_id: z.string().nullable().optional(),
+  embedding_generated: z.boolean().nullable().optional(),
+});
+
+const StorageDriftReportSchema = z.object({
+  database_total_articles: z.number(),
+  database_with_embeddings: z.number(),
+  database_missing_embeddings: z.number(),
+  vector_total_documents: z.number(),
+  missing_in_chroma_count: z.number(),
+  dangling_in_chroma_count: z.number(),
+  missing_in_chroma: z.array(MissingInChromaItemSchema),
+  dangling_in_chroma: z.array(z.string()),
+});
 
 export interface CacheDebugArticle {
   id?: number | null;
@@ -1048,6 +1176,27 @@ export interface CacheDebugResponse {
   articles: CacheDebugArticle[];
 }
 
+const CacheDebugArticleSchema = z.object({
+  id: z.number().nullable().optional(),
+  title: z.string(),
+  link: z.string(),
+  description: z.string(),
+  published: z.string(),
+  source: z.string(),
+  category: z.string(),
+  country: z.string().nullable().optional(),
+  image: z.string().nullable().optional(),
+});
+
+const CacheDebugResponseSchema = z.object({
+  limit: z.number(),
+  offset: z.number(),
+  source: z.string().nullable().optional(),
+  total: z.number(),
+  returned: z.number(),
+  articles: z.array(CacheDebugArticleSchema),
+});
+
 export interface CacheDeltaResponse {
   cache_total: number;
   cache_sampled: number;
@@ -1058,6 +1207,17 @@ export interface CacheDeltaResponse {
   sample_offset: number;
   sample_limit: number;
 }
+
+const CacheDeltaResponseSchema = z.object({
+  cache_total: z.number(),
+  cache_sampled: z.number(),
+  db_total: z.number(),
+  missing_in_db_count: z.number(),
+  missing_in_db_sample: z.array(z.string()),
+  source: z.string().nullable().optional(),
+  sample_offset: z.number(),
+  sample_limit: z.number(),
+});
 
 export interface StartupEventMetric {
   name: string;
@@ -1093,7 +1253,8 @@ export async function fetchChromaDebugArticles(params?: {
     throw new Error(`Failed to fetch Chroma debug data (${response.status})`);
   }
 
-  return (await response.json()) as ChromaDebugResponse;
+  const payload: unknown = await response.json();
+  return ChromaDebugResponseSchema.parse(payload);
 }
 
 export async function fetchDatabaseDebugArticles(params?: {
@@ -1131,7 +1292,8 @@ export async function fetchDatabaseDebugArticles(params?: {
     throw new Error(`Failed to fetch database debug data (${response.status})`);
   }
 
-  return (await response.json()) as DatabaseDebugResponse;
+  const payload: unknown = await response.json();
+  return DatabaseDebugResponseSchema.parse(payload);
 }
 
 export async function fetchStorageDrift(
@@ -1147,7 +1309,8 @@ export async function fetchStorageDrift(
     );
   }
 
-  return (await response.json()) as StorageDriftReport;
+  const payload: unknown = await response.json();
+  return StorageDriftReportSchema.parse(payload);
 }
 
 export async function fetchCacheDebugArticles(params?: {
@@ -1169,7 +1332,8 @@ export async function fetchCacheDebugArticles(params?: {
     throw new Error(`Failed to fetch cache debug data (${response.status})`);
   }
 
-  return (await response.json()) as CacheDebugResponse;
+  const payload: unknown = await response.json();
+  return CacheDebugResponseSchema.parse(payload);
 }
 
 export async function fetchCacheDelta(params?: {
@@ -1204,7 +1368,8 @@ export async function fetchCacheDelta(params?: {
     throw new Error(`Failed to fetch cache delta (${response.status})`);
   }
 
-  return (await response.json()) as CacheDeltaResponse;
+  const payload: unknown = await response.json();
+  return CacheDeltaResponseSchema.parse(payload);
 }
 
 export async function fetchStartupMetrics(): Promise<StartupMetricsResponse> {
@@ -1215,13 +1380,21 @@ export async function fetchStartupMetrics(): Promise<StartupMetricsResponse> {
 
   const data = await response.json();
   const events: StartupEventMetric[] = Array.isArray(data?.events)
-    ? data.events.map((event: any) => ({
-        name: event?.name ?? "event",
-        startedAt: event?.started_at ?? null,
-        completedAt: event?.completed_at ?? null,
-        durationSeconds: event?.duration_seconds ?? null,
-        detail: event?.detail ?? null,
-        metadata: event?.metadata ?? {},
+    ? data.events.map((event: Record<string, unknown>) => ({
+        name: typeof event?.name === "string" ? event.name : "event",
+        startedAt:
+          typeof event?.started_at === "string" ? event.started_at : null,
+        completedAt:
+          typeof event?.completed_at === "string" ? event.completed_at : null,
+        durationSeconds:
+          typeof event?.duration_seconds === "number"
+            ? event.duration_seconds
+            : null,
+        detail: typeof event?.detail === "string" ? event.detail : null,
+        metadata:
+          typeof event?.metadata === "object" && event.metadata !== null
+            ? (event.metadata as Record<string, unknown>)
+            : {},
       }))
     : [];
 
@@ -1713,7 +1886,6 @@ export function streamNews(options: StreamOptions = {}): {
       }
     } catch (error) {
       console.error("Stream fetch error:", error);
-      clearInterval(undefined as any); // This will be caught, it's ok
 
       if (!settled) {
         settled = true;
@@ -1735,7 +1907,7 @@ export function streamNews(options: StreamOptions = {}): {
 }
 
 // A simple in-memory cache for API responses
-const apiCache = new Map<string, { data: any; timestamp: number }>();
+const apiCache = new Map<string, { data: unknown; timestamp: number }>();
 
 const hashStringToInt = (value: string) => {
   let hash = 0;
@@ -1747,11 +1919,13 @@ const hashStringToInt = (value: string) => {
 };
 
 // Helper function to map backend articles to frontend format
-function mapBackendArticles(backendArticles: any[]): NewsArticle[] {
+export function mapBackendArticles(
+  backendArticles: BackendArticle[],
+): NewsArticle[] {
   logger.debug(
     `[mapBackendArticles] Mapping ${backendArticles.length} articles from backend format to frontend format.`,
   );
-  return backendArticles.map((article: any) => {
+  return backendArticles.map((article) => {
     const sourceName = article.source || article.source_name || "Unknown";
 
     const summary = article.summary || article.description || "";
@@ -1827,7 +2001,7 @@ function mapBackendArticles(backendArticles: any[]): NewsArticle[] {
 }
 
 // Helper function to remove duplicate articles
-function removeDuplicateArticles(articles: NewsArticle[]): NewsArticle[] {
+export function removeDuplicateArticles(articles: NewsArticle[]): NewsArticle[] {
   const seen = new Set<string>();
   return articles.filter((article) => {
     const key = `${article.title}-${article.source}`;
@@ -1840,7 +2014,7 @@ function removeDuplicateArticles(articles: NewsArticle[]): NewsArticle[] {
 }
 
 // Add debug endpoint for stream status
-export async function fetchStreamStatus(): Promise<any> {
+export async function fetchStreamStatus(): Promise<Record<string, unknown> | null> {
   try {
     const response = await fetch(`${API_BASE_URL}/debug/streams`);
 
@@ -2004,11 +2178,11 @@ export interface ArticleAnalysis {
   };
   fact_check_suggestions?: string[];
   fact_check_results?: FactCheckResult[];
-  grounding_metadata?: {
-    grounding_chunks?: Array<{ uri?: string; title?: string }>;
-    grounding_supports?: any[];
-    web_search_queries?: string[];
-  };
+    grounding_metadata?: {
+      grounding_chunks?: Array<{ uri?: string; title?: string }>;
+      grounding_supports?: unknown[];
+      web_search_queries?: string[];
+    };
   summary?: string;
   error?: string;
 }
@@ -2057,7 +2231,7 @@ export interface NewsResearchResponse {
   answer: string;
   thinking_steps: ThinkingStep[];
   articles_searched: number;
-  referenced_articles?: any[]; // Full article objects from backend
+  referenced_articles?: BackendArticle[]; // Full article objects from backend
   error?: string;
 }
 
@@ -2101,8 +2275,8 @@ export interface AgenticSearchRequest {
 export interface AgenticSearchResponse {
   success: boolean;
   answer: string;
-  reasoning?: any[];
-  citations?: any[];
+  reasoning?: unknown[];
+  citations?: unknown[];
 }
 
 export async function performAgenticSearch(
@@ -3019,18 +3193,65 @@ export interface TradeRelationship {
   trade_volume?: string;
 }
 
+const TradeRelationshipSchema = z.object({
+  country_pair: z.string(),
+  relationship: z.string().optional(),
+  key_sectors: z.array(z.string()).optional(),
+  tension_areas: z.array(z.string()).optional(),
+  trade_volume: z.string().optional(),
+});
+
+export interface KnownInterests {
+  parent_company?: string;
+  owner?: string;
+  owner_interests?: string[];
+  [key: string]: unknown;
+}
+
+const KnownInterestsSchema = z
+  .object({
+    parent_company: z.string().optional(),
+    owner: z.string().optional(),
+    owner_interests: z.array(z.string()).optional(),
+  })
+  .catchall(z.unknown());
+
 export interface MaterialContext {
   source: string;
   source_country: string;
   mentioned_countries: string[];
   trade_relationships: TradeRelationship[];
-  known_interests: Record<string, any>;
+  known_interests: KnownInterests;
   potential_conflicts: string[];
-  analysis_summary?: string;
-  reader_warnings?: string[];
-  confidence?: string;
-  analyzed_at?: string;
+  analysis_summary?: string | null;
+  reader_warnings?: string[] | null;
+  confidence?: string | null;
+  analyzed_at?: string | null;
 }
+
+type OpenApiMaterialContextResponse =
+  OpenApiComponents["schemas"]["MaterialContextResponse"];
+type OpenApiTrendingResponse = OpenApiComponents["schemas"]["TrendingResponse"];
+type OpenApiBreakingResponse = OpenApiComponents["schemas"]["BreakingResponse"];
+type OpenApiAllClustersResponse =
+  OpenApiComponents["schemas"]["AllClustersResponse"];
+type OpenApiClusterDetailResponse =
+  OpenApiComponents["schemas"]["ClusterDetailResponse"];
+type OpenApiTrendingStats =
+  OpenApiPaths["/trending/stats"]["get"]["responses"][200]["content"]["application/json"];
+
+const MaterialContextSchema = z.object({
+  source: z.string(),
+  source_country: z.string(),
+  mentioned_countries: z.array(z.string()),
+  trade_relationships: z.array(TradeRelationshipSchema),
+  known_interests: KnownInterestsSchema,
+  potential_conflicts: z.array(z.string()),
+  analysis_summary: z.string().nullable().optional(),
+  reader_warnings: z.array(z.string()).nullable().optional(),
+  confidence: z.string().nullable().optional(),
+  analyzed_at: z.string().nullable().optional(),
+});
 
 export interface CountryEconomicProfile {
   country_code: string;
@@ -3073,7 +3294,10 @@ export async function analyzeMaterialContext(
     throw new Error(`HTTP error! status: ${response.status}`);
   }
 
-  return response.json();
+  const payload: unknown = await response.json();
+  const parsed = MaterialContextSchema.parse(payload);
+  parsed satisfies OpenApiMaterialContextResponse;
+  return parsed;
 }
 
 /**
@@ -3107,26 +3331,26 @@ export interface TrendingArticle {
 
 export interface TrendingCluster {
   cluster_id: number;
-  label?: string;
+  label?: string | null;
   keywords: string[];
   article_count: number;
   window_count: number;
   source_diversity: number;
   trending_score: number;
   velocity: number;
-  representative_article?: TrendingArticle;
+  representative_article?: TrendingArticle | null;
   articles?: TrendingArticle[];
 }
 
 export interface BreakingCluster {
   cluster_id: number;
-  label?: string;
+  label?: string | null;
   keywords: string[];
   article_count_3h: number;
   source_count_3h: number;
   spike_magnitude: number;
   is_new_story: boolean;
-  representative_article?: TrendingArticle;
+  representative_article?: TrendingArticle | null;
   articles?: TrendingArticle[];
 }
 
@@ -3144,11 +3368,11 @@ export interface BreakingResponse {
 
 export interface ClusterDetail {
   id: number;
-  label?: string;
+  label?: string | null;
   keywords: string[];
   article_count: number;
-  first_seen?: string;
-  last_seen?: string;
+  first_seen?: string | null;
+  last_seen?: string | null;
   is_active: boolean;
   articles: Array<{
     id: number;
@@ -3172,12 +3396,12 @@ export interface TrendingStats {
 
 export interface AllCluster {
   cluster_id: number;
-  label?: string;
+  label?: string | null;
   keywords: string[];
   article_count: number;
   window_count: number;
   source_diversity: number;
-  representative_article?: TrendingArticle;
+  representative_article?: TrendingArticle | null;
   articles?: TrendingArticle[];
 }
 
@@ -3186,8 +3410,104 @@ export interface AllClustersResponse {
   clusters: AllCluster[];
   total: number;
   computed_at?: string | null;
-  status?: "ok" | "initializing" | string;
+  status?: "ok" | "initializing" | string | null;
 }
+
+const TrendingArticleSchema = z.object({
+  id: z.number(),
+  title: z.string(),
+  source: z.string(),
+  url: z.string(),
+  image_url: z.string().optional(),
+  published_at: z.string().optional(),
+  summary: z.string().optional(),
+});
+
+const TrendingClusterSchema = z.object({
+  cluster_id: z.number(),
+  label: z.string().nullable(),
+  keywords: z.array(z.string()),
+  article_count: z.number(),
+  window_count: z.number(),
+  source_diversity: z.number(),
+  trending_score: z.number(),
+  velocity: z.number(),
+  representative_article: TrendingArticleSchema.nullable(),
+  articles: z.array(TrendingArticleSchema),
+});
+
+const BreakingClusterSchema = z.object({
+  cluster_id: z.number(),
+  label: z.string().nullable(),
+  keywords: z.array(z.string()),
+  article_count_3h: z.number(),
+  source_count_3h: z.number(),
+  spike_magnitude: z.number(),
+  is_new_story: z.boolean(),
+  representative_article: TrendingArticleSchema.nullable(),
+  articles: z.array(TrendingArticleSchema),
+});
+
+const TrendingResponseSchema = z.object({
+  window: z.string(),
+  clusters: z.array(TrendingClusterSchema),
+  total: z.number(),
+});
+
+const BreakingResponseSchema = z.object({
+  window_hours: z.number(),
+  clusters: z.array(BreakingClusterSchema),
+  total: z.number(),
+});
+
+const AllClusterSchema = z.object({
+  cluster_id: z.number(),
+  label: z.string().nullable(),
+  keywords: z.array(z.string()),
+  article_count: z.number(),
+  window_count: z.number(),
+  source_diversity: z.number(),
+  representative_article: TrendingArticleSchema.nullable(),
+  articles: z.array(TrendingArticleSchema),
+});
+
+const AllClustersResponseSchema = z.object({
+  window: z.string(),
+  clusters: z.array(AllClusterSchema),
+  total: z.number(),
+  computed_at: z.string().nullable().optional(),
+  status: z.string().nullable().optional(),
+});
+
+const ClusterDetailArticleSchema = z.object({
+  id: z.number(),
+  title: z.string(),
+  source: z.string(),
+  url: z.string(),
+  image_url: z.string().optional(),
+  published_at: z.string().optional(),
+  similarity: z.number(),
+});
+
+const ClusterDetailSchema = z.object({
+  id: z.number(),
+  label: z.string().nullable(),
+  keywords: z.array(z.string()),
+  article_count: z.number(),
+  first_seen: z.string().nullable(),
+  last_seen: z.string().nullable(),
+  is_active: z.boolean(),
+  articles: z.array(ClusterDetailArticleSchema),
+});
+
+const TrendingStatsSchema = z.object({
+  active_clusters: z.number(),
+  total_article_assignments: z.number(),
+  recent_spikes: z.number(),
+  similarity_threshold: z.number(),
+  baseline_days: z.number(),
+  breaking_window_hours: z.number(),
+});
 
 /**
  * Get trending topic clusters
@@ -3207,7 +3527,10 @@ export async function fetchTrending(
   if (!response.ok) {
     throw new Error(`HTTP error! status: ${response.status}`);
   }
-  return response.json();
+  const payload: unknown = await response.json();
+  const parsed = TrendingResponseSchema.parse(payload);
+  parsed satisfies OpenApiTrendingResponse;
+  return parsed;
 }
 
 /**
@@ -3225,7 +3548,10 @@ export async function fetchBreaking(
   if (!response.ok) {
     throw new Error(`HTTP error! status: ${response.status}`);
   }
-  return response.json();
+  const payload: unknown = await response.json();
+  const parsed = BreakingResponseSchema.parse(payload);
+  parsed satisfies OpenApiBreakingResponse;
+  return parsed;
 }
 
 /**
@@ -3249,7 +3575,10 @@ export async function fetchAllClusters(
   if (!response.ok) {
     throw new Error(`HTTP error! status: ${response.status}`);
   }
-  return response.json();
+  const payload: unknown = await response.json();
+  const parsed = AllClustersResponseSchema.parse(payload);
+  parsed satisfies OpenApiAllClustersResponse;
+  return parsed;
 }
 
 /**
@@ -3264,7 +3593,10 @@ export async function fetchClusterDetail(
   if (!response.ok) {
     throw new Error(`HTTP error! status: ${response.status}`);
   }
-  return response.json();
+  const payload: unknown = await response.json();
+  const parsed = ClusterDetailSchema.parse(payload);
+  parsed satisfies OpenApiClusterDetailResponse;
+  return parsed;
 }
 
 /**
@@ -3303,7 +3635,10 @@ export async function fetchTrendingStats(): Promise<TrendingStats> {
   if (!response.ok) {
     throw new Error(`HTTP error! status: ${response.status}`);
   }
-  return response.json();
+  const payload: unknown = await response.json();
+  const parsed = TrendingStatsSchema.parse(payload);
+  parsed satisfies OpenApiTrendingStats;
+  return parsed;
 }
 
 // ==========================================================================

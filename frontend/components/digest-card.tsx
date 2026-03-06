@@ -20,16 +20,16 @@ interface DigestCardProps {
 }
 
 export function DigestCard({ onRefresh }: DigestCardProps) {
-  if (!ENABLE_DIGEST) {
-    return null;
-  }
-
   const [digest, setDigest] = useState<DigestData | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [showSchedule, setShowSchedule] = useState(false);
   const [scheduleTime, setScheduleTime] = useState("09:00");
 
   useEffect(() => {
+    if (!ENABLE_DIGEST) {
+      return;
+    }
+
     const loadDigest = async () => {
       try {
         setIsLoading(true);
@@ -44,6 +44,10 @@ export function DigestCard({ onRefresh }: DigestCardProps) {
 
     loadDigest();
   }, []);
+
+  if (!ENABLE_DIGEST) {
+    return null;
+  }
 
   const handleSchedule = () => {
     toast.success(`Digest scheduled for ${scheduleTime} daily`);

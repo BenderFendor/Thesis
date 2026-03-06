@@ -1,4 +1,9 @@
 {
+  "scripts": {
+    "openapi:export": "venv/bin/python backend/scripts/export_openapi.py",
+    "openapi:types": "npm --prefix frontend run openapi:types",
+    "openapi:refresh": "npm run openapi:export && npm run openapi:types"
+  },
   "devDependencies": {
     "@next/bundle-analyzer": "^16.1.2",
     "@playwright/test": "^1.56.1",

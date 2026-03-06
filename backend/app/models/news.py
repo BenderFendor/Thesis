@@ -1,9 +1,9 @@
 from typing import Any, Dict, List, Optional
 
-from pydantic import BaseModel
+from app.models.base import StrictBaseModel
 
 
-class NewsArticle(BaseModel):
+class NewsArticle(StrictBaseModel):
     id: Optional[int] = None
     title: str
     link: str
@@ -16,17 +16,17 @@ class NewsArticle(BaseModel):
     image: Optional[str] = None
 
 
-class BookmarkCreateRequest(BaseModel):
+class BookmarkCreateRequest(StrictBaseModel):
     article_id: int
 
 
-class NewsResponse(BaseModel):
+class NewsResponse(StrictBaseModel):
     articles: List[NewsArticle]
     total: int
     sources: List[str]
 
 
-class SourceInfo(BaseModel):
+class SourceInfo(StrictBaseModel):
     name: str
     url: str
     category: str

@@ -1,0 +1,64 @@
+repos:
+  # Python: ruff (lint + format)
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.4.4
+    hooks:
+      - id: ruff
+        args: [--fix]
+        files: ^backend/
+      - id: ruff-format
+        files: ^backend/
+
+  # Python: mypy strict
+  - repo: local
+    hooks:
+      - id: mypy
+        name: mypy (strict)
+        language: system
+        entry: uv run mypy backend/app --strict
+        pass_filenames: false
+        files: ^backend/.*\.py$
+
+  # TypeScript: strict typecheck + lint
+  - repo: local
+    hooks:
+      - id: tsc-noemit
+        name: tsc (noEmit)
+        language: system
+        entry: npm --prefix frontend exec -- tsc -p frontend/tsconfig.json --noEmit
+        pass_filenames: false
+        files: ^frontend/.*\.(ts|tsx)$
+
+      - id: eslint
+        name: eslint
+        language: system
+        entry: npm --prefix frontend run lint
+        pass_filenames: false
+        files: ^frontend/.*\.(ts|tsx|js|jsx)$
+
+  # Rust: clippy + fmt
+  - repo: local
+    hooks:
+      - id: cargo-clippy
+        name: cargo clippy
+        language: system
+        entry: cargo clippy --manifest-path backend/rss_parser_rust/Cargo.toml -- -D warnings
+        pass_filenames: false
+        files: ^backend/rss_parser_rust/.*\.rs$
+
+      - id: cargo-fmt
+        name: cargo fmt check
+        language: system
+        entry: cargo fmt --manifest-path backend/rss_parser_rust/Cargo.toml --all -- --check
+        pass_filenames: false
+        files: ^backend/rss_parser_rust/.*\.rs$
+
+  # Tests: pytest (fast only)
+  - repo: local
+    hooks:
+      - id: pytest-fast
+        name: pytest (not slow)
+        language: system
+        entry: uv run pytest backend/tests -m "not slow"
+        pass_filenames: false
+        files: ^backend/.*\.py$

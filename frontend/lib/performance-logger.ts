@@ -568,8 +568,15 @@ export const logUserAction = perfLogger.logUserAction.bind(perfLogger);
 export const getSummary = perfLogger.getSummary.bind(perfLogger);
 export const exportDebugData = perfLogger.exportDebugData.bind(perfLogger);
 
+declare global {
+  interface Window {
+    perfLogger?: FrontendPerformanceLogger;
+    exportDebugData?: typeof exportDebugData;
+  }
+}
+
 // Make available globally for debugging in console
 if (typeof window !== "undefined") {
-  (window as any).perfLogger = perfLogger;
-  (window as any).exportDebugData = exportDebugData;
+  window.perfLogger = perfLogger;
+  window.exportDebugData = exportDebugData;
 }

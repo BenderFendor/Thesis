@@ -82,6 +82,85 @@ const getImageErrorDetails = (value?: string | null) => {
   return IMAGE_ERROR_DETAILS[value] || ""
 }
 
+type UnknownRecord = Record<string, unknown>
+
+interface SystemStatusResponse {
+  components?: {
+    cache?: {
+      healthy?: boolean
+      article_count?: number
+      last_updated?: string
+      age_seconds?: number
+      update_in_progress?: boolean
+      update_count?: number
+      incremental_enabled?: boolean
+      sources_tracked?: number
+    }
+    database?: { healthy?: boolean }
+    vector_store?: { healthy?: boolean }
+    embedding_queue?: {
+      depth?: number
+      batch_size?: number
+      max_per_minute?: number
+    }
+  }
+  runtime?: {
+    python_version?: string
+    platform?: string
+    pid?: number
+  }
+  pipeline?: {
+    fetch?: {
+      not_modified?: number
+      errors?: number
+    }
+  }
+}
+
+interface RssSampleEntry {
+  title?: string
+  image_extraction?: {
+    image_url?: string
+    image_error?: string
+    selected_source?: string
+    image_error_details?: string
+  }
+}
+
+interface RssParserTestResult {
+  success?: boolean
+  parse_time_seconds?: number
+  feed_info?: { title?: string }
+  status?: { entries_count?: number }
+  sample_entries?: RssSampleEntry[]
+  error?: string
+}
+
+interface ArticleCandidate {
+  priority?: number
+  source?: string
+  url?: string
+}
+
+interface ArticleParserTestResult {
+  success?: boolean
+  image_url?: string
+  candidates?: ArticleCandidate[]
+  error?: string
+  error_details?: string
+}
+
+interface BackendDebugReport {
+  generated_at?: string
+  summary?: {
+    total_events?: number
+    slow_operations?: number
+    errors?: number
+  }
+  active_streams?: UnknownRecord[]
+  recommendations?: string[]
+}
+
 export default function DebugDashboardPage() {
   const [chromaLimit, setChromaLimit] = usePersistentNumber(25, 5, 500)
   const [chromaOffset, setChromaOffset] = usePersistentNumber(0, 0, 5000)
@@ -113,24 +192,24 @@ export default function DebugDashboardPage() {
 
   // Phase 3: New state for system status, log level, parser tester
   const [activeTab, setActiveTab] = useState("storage")
-  const [systemStatus, setSystemStatus] = useState<any>(null)
+  const [systemStatus, setSystemStatus] = useState<SystemStatusResponse | null>(null)
   const [logLevel, setLogLevel] = useState<string>("INFO")
   const [frontendDebugMode, setFrontendDebugMode] = useState(false)
 
   // Parser tester state
   const [rssTestUrl, setRssTestUrl] = useState("")
-  const [rssTestResult, setRssTestResult] = useState<any>(null)
+  const [rssTestResult, setRssTestResult] = useState<RssParserTestResult | null>(null)
   const [rssTestLoading, setRssTestLoading] = useState(false)
   const [articleTestUrl, setArticleTestUrl] = useState("")
-  const [articleTestResult, setArticleTestResult] = useState<any>(null)
+  const [articleTestResult, setArticleTestResult] = useState<ArticleParserTestResult | null>(null)
   const [articleTestLoading, setArticleTestLoading] = useState(false)
 
   // Performance logging state
-  const [backendDebugReport, setBackendDebugReport] = useState<any>(null)
+  const [backendDebugReport, setBackendDebugReport] = useState<BackendDebugReport | null>(null)
   const [frontendPerfData, setFrontendPerfData] = useState<ReturnType<typeof exportDebugData> | null>(null)
-  const [backendLogEvents, setBackendLogEvents] = useState<any[]>([])
-  const [backendSlowOps, setBackendSlowOps] = useState<any[]>([])
-  const [backendLogFiles, setBackendLogFiles] = useState<any[]>([])
+  const [backendLogEvents, setBackendLogEvents] = useState<UnknownRecord[]>([])
+  const [backendSlowOps, setBackendSlowOps] = useState<UnknownRecord[]>([])
+  const [backendLogFiles, setBackendLogFiles] = useState<UnknownRecord[]>([])
 
   const loadData = useCallback(async () => {
     setLoading(true)
@@ -306,7 +385,7 @@ export default function DebugDashboardPage() {
       const response = await fetch(`${API_BASE_URL}/debug/system/status`)
       if (response.ok) {
         const data = await response.json()
-        setSystemStatus(data)
+        setSystemStatus(data as SystemStatusResponse)
       }
     } catch (err) {
       logger.error("Failed to load system status", err)
@@ -362,28 +441,37 @@ export default function DebugDashboardPage() {
       const reportResponse = await fetch(`${API_BASE_URL}/debug/logs/report`)
       if (reportResponse.ok) {
         const report = await reportResponse.json()
-        setBackendDebugReport(report)
+        setBackendDebugReport(report as BackendDebugReport)
       }
 
       // Load backend log events
       const eventsResponse = await fetch(`${API_BASE_URL}/debug/logs/events?limit=100`)
       if (eventsResponse.ok) {
         const eventsData = await eventsResponse.json()
-        setBackendLogEvents(eventsData.events || [])
+        const events = Array.isArray(eventsData.events)
+          ? (eventsData.events as UnknownRecord[])
+          : []
+        setBackendLogEvents(events)
       }
 
       // Load slow operations
       const slowResponse = await fetch(`${API_BASE_URL}/debug/logs/slow`)
       if (slowResponse.ok) {
         const slowData = await slowResponse.json()
-        setBackendSlowOps(slowData.operations || [])
+        const operations = Array.isArray(slowData.operations)
+          ? (slowData.operations as UnknownRecord[])
+          : []
+        setBackendSlowOps(operations)
       }
 
       // Load log files
       const filesResponse = await fetch(`${API_BASE_URL}/debug/logs/files`)
       if (filesResponse.ok) {
         const filesData = await filesResponse.json()
-        setBackendLogFiles(filesData.files || [])
+        const files = Array.isArray(filesData.files)
+          ? (filesData.files as UnknownRecord[])
+          : []
+        setBackendLogFiles(files)
       }
 
       // Load frontend performance data
@@ -1115,11 +1203,11 @@ export default function DebugDashboardPage() {
                       <p><strong>Entries:</strong> {rssTestResult.status?.entries_count}</p>
                     </div>
                   )}
-                  {rssTestResult.sample_entries?.length > 0 && (
+                  {(rssTestResult.sample_entries ?? []).length > 0 && (
                     <div className="mt-2">
                       <h4 className="font-medium text-sm mb-2">Sample Entries</h4>
                       <div className="space-y-2">
-                {rssTestResult.sample_entries.map((entry: any, idx: number) => (
+                {(rssTestResult.sample_entries ?? []).map((entry: RssSampleEntry, idx: number) => (
                   <div key={idx} className="text-xs p-2 bg-muted rounded">
                     <p className="font-medium">{entry.title}</p>
                     <p className="text-muted-foreground">
@@ -1181,11 +1269,11 @@ export default function DebugDashboardPage() {
                       />
                     </div>
                   )}
-                  {articleTestResult.candidates?.length > 0 && (
+                  {(articleTestResult.candidates ?? []).length > 0 && (
                     <div>
                       <h4 className="font-medium text-sm mb-1">All Candidates</h4>
                       <ul className="text-xs space-y-1">
-                        {articleTestResult.candidates.map((c: any, idx: number) => (
+                        {(articleTestResult.candidates ?? []).map((c: ArticleCandidate, idx: number) => (
                           <li key={idx} className="p-1 bg-muted rounded">
                             [{c.priority}] {c.source}: {c.url?.slice(0, 60)}...
                           </li>
@@ -1290,7 +1378,7 @@ export default function DebugDashboardPage() {
               <CardHeader>
                 <CardTitle>Backend Debug Report</CardTitle>
                 <CardDescription>
-                  Generated at {new Date(backendDebugReport.generated_at).toLocaleString()}
+                  Generated at {backendDebugReport.generated_at ? new Date(String(backendDebugReport.generated_at)).toLocaleString() : "unknown"}
                 </CardDescription>
               </CardHeader>
               <CardContent className="space-y-4">
@@ -1314,11 +1402,11 @@ export default function DebugDashboardPage() {
                 </div>
 
                 {/* Active Streams */}
-                {backendDebugReport.active_streams?.length > 0 && (
+                {(backendDebugReport.active_streams ?? []).length > 0 && (
                   <div>
                     <h3 className="font-medium mb-2">Active Streams</h3>
                     <div className="space-y-2">
-                      {backendDebugReport.active_streams.map((stream: Record<string, unknown>, idx: number) => (
+                      {(backendDebugReport.active_streams ?? []).map((stream: Record<string, unknown>, idx: number) => (
                         <div key={idx} className="flex items-center justify-between p-2 bg-muted rounded text-sm">
                           <span className="font-mono">{String(stream.stream_id).substring(0, 8)}...</span>
                           <span>{stream.request_path as string}</span>
@@ -1332,11 +1420,11 @@ export default function DebugDashboardPage() {
                 )}
 
                 {/* Recommendations */}
-                {backendDebugReport.recommendations?.length > 0 && (
+                {(backendDebugReport.recommendations ?? []).length > 0 && (
                   <div>
                     <h3 className="font-medium mb-2">Recommendations</h3>
                     <ul className="space-y-1 text-sm text-muted-foreground">
-                      {backendDebugReport.recommendations.map((rec: string, idx: number) => (
+                      {(backendDebugReport.recommendations ?? []).map((rec: string, idx: number) => (
                         <li key={idx} className="flex items-start gap-2">
                           <span className="text-yellow-500">!</span>
                           {rec}

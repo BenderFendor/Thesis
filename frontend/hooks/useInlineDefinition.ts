@@ -36,7 +36,7 @@ export function useInlineDefinition() {
         const range = selection.getRangeAt(0);
         let rect: DOMRect | null = null;
         try {
-          rect = (range as any).getBoundingClientRect?.() ?? null;
+          rect = range.getBoundingClientRect();
         } catch (err) {
           rect = null;
         }
@@ -76,9 +76,10 @@ export function useInlineDefinition() {
         }
       } catch (err) {
         // ignore aborts and others
-        if ((err as any)?.name === "AbortError") return;
+        if (err instanceof DOMException && err.name === "AbortError") return;
         console.error("Inline definition error:", err);
-        setResult((r) => (r ? { ...r, error: (err as any)?.message ?? String(err) } : null));
+        const message = err instanceof Error ? err.message : String(err);
+        setResult((r) => (r ? { ...r, error: message } : null));
       }
     };
 
@@ -98,4 +99,3 @@ export function useInlineDefinition() {
 
   return { result, open, setOpen, anchorRef };
 }
-

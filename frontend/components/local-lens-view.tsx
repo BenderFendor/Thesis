@@ -50,7 +50,7 @@ export function LocalLensView({ countryCode, onClose }: LocalLensViewProps) {
                 <div className="flex items-center justify-between">
                     <div>
                         <CardTitle className="text-xl flex items-center gap-2">
-                            <span className="text-2xl">{getCountryFlag(countryCode)}</span>
+                            <span className="text-2xl">{getCountryCodeLabel(countryCode)}</span>
                             {countryName}
                         </CardTitle>
                         <CardDescription>
@@ -149,14 +149,11 @@ function ArticleCard({ article }: { article: NewsArticle }) {
     )
 }
 
-// Helper to get country flag emoji from ISO code
-function getCountryFlag(code: string): string {
-    if (code === "International" || code.length !== 2) return "globe"
-    const codePoints = code
-        .toUpperCase()
-        .split("")
-        .map((char) => 127397 + char.charCodeAt(0))
-    return String.fromCodePoint(...codePoints)
+// Helper to get country text indicator from ISO code
+function getCountryCodeLabel(code: string): string {
+    if (code === "International") return "GLB"
+    if (code.length !== 2) return code.toUpperCase()
+    return code.toUpperCase()
 }
 
 // Helper to format date

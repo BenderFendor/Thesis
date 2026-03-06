@@ -38,12 +38,12 @@ export function HighlightToolbar({
   const [editingId, setEditingId] = useState<number | null>(null);
   const [editingNote, setEditingNote] = useState("");
 
-  if (!ENABLE_HIGHLIGHTS) {
-    return null;
-  }
-
   // Handle text selection
   useEffect(() => {
+    if (!ENABLE_HIGHLIGHTS) {
+      return
+    }
+
     if (HIGHLIGHT_DEBUG) {
       console.debug("[HighlightToolbar] mounted", {
         hasContainer: Boolean(containerRef.current),
@@ -172,6 +172,10 @@ export function HighlightToolbar({
       document.removeEventListener("selectionchange", handleSelectionChange, { capture: true })
     }
   }, [containerRef])
+
+  if (!ENABLE_HIGHLIGHTS) {
+    return null
+  }
 
   const handleCreateHighlight = async () => {
     const selection = window.getSelection()

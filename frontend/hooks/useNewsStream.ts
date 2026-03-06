@@ -49,7 +49,7 @@ export const useNewsStream = (options: UseNewsStreamOptions = {}) => {
   const [retryCount, setRetryCount] = useState(0);
   const maxRetries = 3;
 
-  const streamPromiseRef = useRef<Promise<any> | null>(null);
+  const streamPromiseRef = useRef<Promise<unknown> | null>(null);
   const abortControllerRef = useRef<AbortController | null>(null);
   const isMountedRef = useRef<boolean>(true);
   const startingRef = useRef<boolean>(false);

@@ -984,15 +984,13 @@ export function ReadingQueueSidebar() {
                           />
                         ),
                         // Custom code renderer: detect the special json:articles fence and render inline embeds
-                        // Note: ReactMarkdown types are a bit strict here; use any for node/children
-                        // to keep the custom renderer concise.
-                        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                        code: ({ node, className, children, ...props }: any) => {
+                        code: ({ node, className, children, ...props }) => {
                           const text = String(children).replace(/\n$/, "");
+                          const nodeWithLang = node as { lang?: string } | undefined;
                           const isStructured =
                             (className === "language-json:articles") ||
                             // Some markdown renderers include the fence label in node.lang or node.meta
-                            (typeof node?.lang === 'string' && node.lang === 'json:articles') ||
+                            (typeof nodeWithLang?.lang === 'string' && nodeWithLang.lang === 'json:articles') ||
                             (text.trim().startsWith('{') && text.includes('"articles"'));
                           if (isStructured) {
                             // try parse and render ArticleInlineEmbed components
@@ -1001,8 +999,12 @@ export function ReadingQueueSidebar() {
                               const items = Array.isArray(payload.articles) ? payload.articles : [];
                               return (
                                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 my-3">
-                                  {items.map((it: any, idx: number) => {
-                                    const url = it.url || it.link || `about:blank#${idx}`;
+                                  {items.map((it: unknown, idx: number) => {
+                                    const articleRef =
+                                      typeof it === "object" && it !== null
+                                        ? (it as { url?: string; link?: string })
+                                        : {};
+                                    const url = articleRef.url || articleRef.link || `about:blank#${idx}`;
                                     return (
                                       <ArticleInlineEmbed
                                         key={url}

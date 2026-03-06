@@ -9,6 +9,8 @@
     "target": "ES2022",
     "skipLibCheck": true,
     "strict": true,
+    "noImplicitAny": true,
+    "strictNullChecks": true,
     "noEmit": true,
     "esModuleInterop": true,
     "module": "esnext",
@@ -16,6 +18,11 @@
     "resolveJsonModule": true,
     "isolatedModules": true,
     "jsx": "react-jsx",
+    "types": [
+      "node",
+      "jest",
+      "@testing-library/jest-dom"
+    ],
     "incremental": true,
     "plugins": [
       {
@@ -34,11 +41,6 @@
     "**/*.tsx",
     ".next/types/**/*.ts",
     ".next/dev/types/**/*.ts"
-  ],
-  "types": [
-    "node",
-    "jest",
-    "@testing-library/jest-dom"
   ],
   "exclude": [
     "node_modules"

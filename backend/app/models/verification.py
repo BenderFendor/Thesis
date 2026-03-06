@@ -6,7 +6,9 @@ from datetime import datetime
 from enum import Enum
 from typing import Any, Dict, List, Optional
 
-from pydantic import BaseModel, Field
+from pydantic import Field
+
+from app.models.base import StrictBaseModel
 
 
 class ConfidenceLevel(str, Enum):
@@ -30,7 +32,7 @@ class SourceType(str, Enum):
     UNKNOWN = "unknown"
 
 
-class SourceInfo(BaseModel):
+class SourceInfo(StrictBaseModel):
     id: str
     url: str
     title: Optional[str] = None
@@ -42,7 +44,7 @@ class SourceInfo(BaseModel):
     excerpt: Optional[str] = None
 
 
-class VerifiedClaim(BaseModel):
+class VerifiedClaim(StrictBaseModel):
     id: str
     claim_text: str
     confidence: float = Field(ge=0.0, le=1.0)
@@ -54,7 +56,7 @@ class VerifiedClaim(BaseModel):
     recheck_reason: Optional[str] = None
 
 
-class VerificationResult(BaseModel):
+class VerificationResult(StrictBaseModel):
     query: str
     overall_confidence: float = Field(ge=0.0, le=1.0)
     overall_confidence_level: ConfidenceLevel
@@ -66,14 +68,14 @@ class VerificationResult(BaseModel):
     error: Optional[str] = None
 
 
-class VerificationRequest(BaseModel):
+class VerificationRequest(StrictBaseModel):
     query: str
     main_findings: List[Dict[str, Any]] = Field(default_factory=list)
     main_answer: Optional[str] = None
     previous_claims: List[VerifiedClaim] = Field(default_factory=list)
 
 
-class VerificationStreamEvent(BaseModel):
+class VerificationStreamEvent(StrictBaseModel):
     type: str
     content: Optional[str] = None
     claim: Optional[VerifiedClaim] = None
@@ -82,7 +84,7 @@ class VerificationStreamEvent(BaseModel):
     progress: Optional[float] = None
 
 
-class CredibilityConfig(BaseModel):
+class CredibilityConfig(StrictBaseModel):
     domain: str
     credibility_score: float = Field(ge=0.0, le=1.0)
     source_type: SourceType = SourceType.UNKNOWN

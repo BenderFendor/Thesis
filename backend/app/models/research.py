@@ -1,20 +1,22 @@
 from typing import List, Optional
 
-from pydantic import BaseModel, Field
+from pydantic import Field
+
+from app.models.base import StrictBaseModel
 
 
-class NewsResearchRequest(BaseModel):
+class NewsResearchRequest(StrictBaseModel):
     query: str
     include_thinking: bool = True
 
 
-class ThinkingStep(BaseModel):
+class ThinkingStep(StrictBaseModel):
     type: str
     content: str
     timestamp: str
 
 
-class NewsResearchResponse(BaseModel):
+class NewsResearchResponse(StrictBaseModel):
     success: bool
     query: str
     answer: str

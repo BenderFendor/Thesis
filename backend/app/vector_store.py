@@ -6,9 +6,17 @@ import threading
 import time
 from typing import Any, Dict, List, Optional
 
-import chromadb
-from chromadb.config import Settings as ChromaSettings
-from sentence_transformers import SentenceTransformer
+try:
+    import chromadb
+    from chromadb.config import Settings as ChromaSettings
+except ImportError:  # pragma: no cover - optional at import time
+    chromadb = None
+    ChromaSettings = None
+
+try:
+    from sentence_transformers import SentenceTransformer
+except ImportError:  # pragma: no cover - optional at import time
+    SentenceTransformer = None
 
 from app.core.config import settings
 from app.services.startup_metrics import startup_metrics
@@ -108,6 +116,10 @@ class VectorStore:
         self._embedding_model = None
         self._embedding_cache_dir = None
         try:
+            if chromadb is None or ChromaSettings is None:
+                raise RuntimeError(
+                    "Chroma dependencies are not installed; install chromadb to enable vector store."
+                )
             # Use HTTP client for Docker setup
             self.client = chromadb.HttpClient(
                 host=CHROMA_HOST,
@@ -171,6 +183,10 @@ class VectorStore:
     def embedding_model(self):
         """Lazy load embedding model on first access."""
         if self._embedding_model is None:
+            if SentenceTransformer is None:
+                raise RuntimeError(
+                    "sentence-transformers is not installed; cannot generate embeddings."
+                )
             logger.info(
                 f"Loading embedding model ({EMBEDDING_MODEL_NAME}) on first use..."
             )
@@ -469,7 +485,6 @@ class VectorStore:
         """
         try:
             from app.services.hybrid_search import (
-                HybridSearch,
                 reciprocal_rank_fusion,
                 combine_scores,
             )

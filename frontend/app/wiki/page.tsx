@@ -137,13 +137,12 @@ function fundingBadgeClass(funding?: string): string {
   }
 }
 
-// ── Country flag emoji from ISO code ────────────────────────────────
+// ── Country text indicator from ISO code ─────────────────────────────
 
-function countryFlag(code?: string): string {
-  if (!code || code.length !== 2) return "";
-  return String.fromCodePoint(
-    ...code.toUpperCase().split("").map((c) => 0x1f1e6 + c.charCodeAt(0) - 65)
-  );
+function countryCodeLabel(code?: string): string {
+  if (!code) return "";
+  if (code.length !== 2) return code.toUpperCase();
+  return code.toUpperCase();
 }
 
 // ── Source Card ──────────────────────────────────────────────────────
@@ -166,7 +165,7 @@ function SourceCard({ source }: { source: WikiSourceCard }) {
           <div className="flex items-center gap-2 mb-1">
             {source.country && (
               <span className="text-sm" title={source.country}>
-                {countryFlag(source.country)}
+                {countryCodeLabel(source.country)}
               </span>
             )}
             <h3 className="font-serif text-sm font-semibold text-foreground truncate group-hover:text-white">
@@ -410,7 +409,7 @@ export default function WikiIndexPage() {
               <SelectItem value="all">All Countries</SelectItem>
               {countries.map((c) => (
                 <SelectItem key={c} value={c}>
-                  {countryFlag(c)} {c}
+                  {countryCodeLabel(c)} {c}
                 </SelectItem>
               ))}
             </SelectContent>
@@ -453,7 +452,7 @@ export default function WikiIndexPage() {
             )}
             {countryFilter !== "all" && (
               <Badge variant="secondary" className="text-xs cursor-pointer" onClick={() => setCountryFilter("all")}>
-                {countryFlag(countryFilter)} {countryFilter} x
+                {countryCodeLabel(countryFilter)} {countryFilter} x
               </Badge>
             )}
           </div>

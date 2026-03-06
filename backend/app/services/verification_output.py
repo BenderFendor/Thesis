@@ -16,7 +16,7 @@ from app.models.verification import (
 )
 
 
-def _confidence_emoji(level: ConfidenceLevel) -> str:
+def _confidence_indicator(level: ConfidenceLevel) -> str:
     """Get text indicator for confidence level (no emojis per project rules)."""
     return {
         ConfidenceLevel.HIGH: "[HIGH]",
@@ -55,10 +55,10 @@ def format_markdown_report(
     lines = []
 
     overall_level = _confidence_to_level(overall_confidence)
-    lines.append(f"## Verification Summary")
+    lines.append("## Verification Summary")
     lines.append("")
     lines.append(
-        f"**Overall Confidence:** {overall_confidence:.0%} {_confidence_emoji(overall_level)}"
+        f"**Overall Confidence:** {overall_confidence:.0%} {_confidence_indicator(overall_level)}"
     )
     lines.append("")
 
@@ -69,7 +69,7 @@ def format_markdown_report(
     footnote_counter = 0
 
     for claim in claims:
-        indicator = _confidence_emoji(claim.confidence_level)
+        indicator = _confidence_indicator(claim.confidence_level)
         lines.append(f"- {indicator} {claim.claim_text}")
 
         footnote_refs = []

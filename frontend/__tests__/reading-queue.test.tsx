@@ -172,6 +172,8 @@ describe("HighlightToolbar", () => {
       <HighlightToolbar
         articleUrl="https://example.com/article"
         containerRef={containerRef}
+        highlightColor="yellow"
+        autoCreate={false}
         highlights={[]}
         onCreate={jest.fn()}
         onUpdate={jest.fn()}

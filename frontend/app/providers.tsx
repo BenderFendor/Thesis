@@ -5,14 +5,12 @@ import { ThemeProvider } from "@/components/theme-provider"
 import { Toaster } from "sonner"
 import { ReadingQueueSidebar } from "@/components/reading-queue-sidebar"
 import { ReactNode, useState } from "react"
-import { cn } from "@/lib/utils"
 
 interface ProvidersProps {
   children: ReactNode
-  fontSans?: any
 }
 
-export function Providers({ children, fontSans }: ProvidersProps) {
+export function Providers({ children }: ProvidersProps) {
   // Create query client with optimized defaults
   const [queryClient] = useState(
     () =>

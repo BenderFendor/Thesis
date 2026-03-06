@@ -652,6 +652,7 @@ export function ArticleDetailModal({ article, isOpen, onClose, onBookmarkChange,
     if (!src) return false
     const trimmed = src.trim()
     if (!trimmed) return false
+    if (trimmed === "none") return false
     const lower = trimmed.toLowerCase()
     return !lower.includes("/placeholder.svg") && !lower.includes("/placeholder.jpg")
   }
@@ -1615,7 +1616,7 @@ export function ArticleDetailModal({ article, isOpen, onClose, onBookmarkChange,
                                     <Badge className={`${VERIFICATION_STYLE_MAP[result.verification_status]} text-[0.65rem] uppercase tracking-wide`}>
                                       {VERIFICATION_LABEL_MAP[result.verification_status]}
                                     </Badge>
-                                    <p className="text-sm text-foreground/80 line-clamp-2">"{result.claim}"</p>
+                                    <p className="text-sm text-foreground/80 line-clamp-2">&quot;{result.claim}&quot;</p>
                                   </div>
                                 ))}
                               </div>
@@ -1715,7 +1716,7 @@ export function ArticleDetailModal({ article, isOpen, onClose, onBookmarkChange,
                                           confidence: {selectedClaim.confidence}
                                         </Badge>
                                       </div>
-                                      <p className="text-sm text-foreground/90">"{selectedClaim.claim}"</p>
+                                      <p className="text-sm text-foreground/90">&quot;{selectedClaim.claim}&quot;</p>
                                       {selectedClaim.notes && (
                                         <p className="mt-3 text-xs text-slate-300/80">{selectedClaim.notes}</p>
                                       )}

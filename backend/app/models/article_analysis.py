@@ -1,14 +1,14 @@
 from typing import Any, Dict, List, Optional
 
-from pydantic import BaseModel
+from app.models.base import StrictBaseModel
 
 
-class ArticleAnalysisRequest(BaseModel):
+class ArticleAnalysisRequest(StrictBaseModel):
     url: str
     source_name: Optional[str] = None
 
 
-class FactCheckResult(BaseModel):
+class FactCheckResult(StrictBaseModel):
     claim: str
     verification_status: str
     evidence: str
@@ -17,7 +17,7 @@ class FactCheckResult(BaseModel):
     notes: Optional[str] = None
 
 
-class ArticleAnalysisResponse(BaseModel):
+class ArticleAnalysisResponse(StrictBaseModel):
     success: bool
     article_url: str
     full_text: Optional[str] = None

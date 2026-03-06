@@ -96,23 +96,27 @@ export default function SourceDebugPage(props: { params: Promise<{ source: strin
     const lowercasedQuery = searchQuery.toLowerCase()
     const filtered = JSON.parse(JSON.stringify(debugData))
 
-  const filterObject = (obj: any): any => {
+  const filterObject = (obj: unknown): unknown => {
       if (Array.isArray(obj)) {
         return obj.filter(item => filterObject(item) !== null)
       }
       if (typeof obj === 'object' && obj !== null) {
         let hasMatch = false
-        const newObj: any = {}
-        for (const key in obj) {
+        const newObj: Record<string, unknown> = {}
+        const record = obj as Record<string, unknown>
+        for (const key in record) {
           if (key.toLowerCase().includes(lowercasedQuery)) {
             hasMatch = true
-            newObj[key] = obj[key]
-          } else if (typeof obj[key] === 'string' && obj[key].toLowerCase().includes(lowercasedQuery)) {
+            newObj[key] = record[key]
+          } else if (typeof record[key] === 'string' && record[key].toLowerCase().includes(lowercasedQuery)) {
             hasMatch = true
-            newObj[key] = obj[key]
+            newObj[key] = record[key]
           } else {
-            const result = filterObject(obj[key])
-            if (result !== null && (typeof result !== 'object' || Object.keys(result).length > 0)) {
+            const result = filterObject(record[key])
+            if (
+              result !== null &&
+              (typeof result !== 'object' || Object.keys(result as Record<string, unknown>).length > 0)
+            ) {
               hasMatch = true
               newObj[key] = result
             }

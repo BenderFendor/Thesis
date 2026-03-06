@@ -17,6 +17,12 @@
 - Establish a bundle baseline (e.g., First Load JS) before optimizing to measure improvements.
 - Defer component splitting when it would require significant prop drilling or context setup - the risk outweighs the benefit.
 
+## Tests & Proof-of-Work Directives
+1. **No Test Gaming:** When writing tests, use Property-Based Testing (`Hypothesis` for Python, `fast-check` for TS) for data transformations. Tests that rely solely on hardcoded I/O strings are forbidden.
+2. **Compiler-Driven Development:** Before marking code as done, run the type checker (`mypy` or `tsc --noEmit`). Fix all type errors. `Any` or `# type: ignore` are forbidden without written justification.
+3. **Visual Verification:** If you change a UI component, use the Playwright MCP to take a screenshot, analyze it with vision capabilities, and confirm the visual hierarchy is unbroken.
+4. **Epistemic Honesty:** If you do not know the shape of an API payload, do not guess. Use `curl`, `fetch`, or web-search tools to observe the actual raw data before writing parsing logic.
+
 ## Epistemology
 - Assumptions are the enemy.
 - Never guess numerical values. Benchmark instead of estimating.
@@ -25,6 +31,7 @@
 ## Interaction
 - Clarify unclear requests, then proceed autonomously.
 - Ask for help only when scripts time out (>2 min), sudo is needed, or genuine blockers arise.
+- Run `./verify.sh` before ending any session.
 
 ## Constraints
 - Keep Canvas separate from memory/context.
@@ -127,6 +134,25 @@ When seeing `UndefinedColumnError`:
 ## Code Quality Gates
 - Run syntax check: `python3 -m py_compile backend/app/**/*.py`
 - For new functions using logger, grep for `get_logger` import pattern
+
+## Pre-Commit Verification
+Run `./verify.sh` before ending any session. It exits on first failure (`set -e`).
+
+### TypeScript / Frontend
+- `npm --prefix frontend run tsc -- --noEmit` — catches type violations the build might miss
+- `npm --prefix frontend run lint` — enforces `@typescript-eslint/no-explicit-any` and related rules
+
+### Python / Backend
+- `uv run mypy backend/app --strict` — strict type checking; no `Any` escape hatches
+- `uvx ruff check backend/ --fix` — catches unused imports and style issues
+- `uvx ruff format backend/` — enforces consistent formatting
+
+### Rust
+- `cargo clippy -- -D warnings` (run in `backend/rss_parser_rust`) — warnings are errors
+- `cargo fmt --all -- --check` (run in `backend/rss_parser_rust`) — formatting check
+
+### Tests
+- `uv run pytest backend/tests -m "not slow"` — fast test suite; mark DB/integration tests as `slow`
 
 ## ChromaDB Recovery (2026-02-25)
 ### Problem

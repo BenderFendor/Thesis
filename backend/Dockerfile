@@ -41,7 +41,7 @@ RUN uv pip install --system --no-cache -r requirements.txt
 
 # Install Rust-powered RSS parser wheel
 COPY --from=rust-builder /build/rss_parser_rust/target/wheels/*.whl /tmp/rust_wheels/
-RUN pip install /tmp/rust_wheels/*.whl && rm -rf /tmp/rust_wheels
+RUN uv pip install --system --no-cache /tmp/rust_wheels/*.whl && rm -rf /tmp/rust_wheels
 
 # Copy only the app directory which is required
 COPY backend/app/ ./app/

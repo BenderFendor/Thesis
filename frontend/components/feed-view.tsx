@@ -25,9 +25,11 @@ const OG_LOOKAHEAD = 6;
 
 const hasRealImage = (image: string) => {
   if (!image) return false;
+  const trimmed = image.trim();
+  if (!trimmed) return false;
+  if (trimmed === "none") return false;
   const lower = image.toLowerCase();
   if (lower.includes("placeholder") || lower.endsWith(".svg")) return false;
-  if (image.trim().length === 0) return false;
   return (
     !lower.includes("logo") &&
     !lower.includes("punch") &&

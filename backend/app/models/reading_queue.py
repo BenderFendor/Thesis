@@ -1,9 +1,9 @@
 from typing import Any, Optional
 from datetime import datetime
-from pydantic import BaseModel
+from app.models.base import StrictBaseModel
 
 
-class ReadingQueueItem(BaseModel):
+class ReadingQueueItem(StrictBaseModel):
     id: Optional[int] = None
     user_id: Optional[int] = None
     article_id: int
@@ -31,7 +31,7 @@ class ReadingQueueItem(BaseModel):
         return cls.model_validate(obj, from_attributes=True)
 
 
-class AddToQueueRequest(BaseModel):
+class AddToQueueRequest(StrictBaseModel):
     article_id: int
     article_title: str
     article_url: str
@@ -40,21 +40,21 @@ class AddToQueueRequest(BaseModel):
     queue_type: str = "daily"
 
 
-class UpdateQueueItemRequest(BaseModel):
+class UpdateQueueItemRequest(StrictBaseModel):
     read_status: Optional[str] = None
     queue_type: Optional[str] = None
     position: Optional[int] = None
     archived_at: Optional[datetime] = None
 
 
-class QueueResponse(BaseModel):
+class QueueResponse(StrictBaseModel):
     items: list[ReadingQueueItem]
     daily_count: int
     permanent_count: int
     total_count: int
 
 
-class Highlight(BaseModel):
+class Highlight(StrictBaseModel):
     id: Optional[int] = None
     user_id: Optional[int] = None
     article_url: str
@@ -74,7 +74,7 @@ class Highlight(BaseModel):
         return cls.model_validate(obj, from_attributes=True)
 
 
-class CreateHighlightRequest(BaseModel):
+class CreateHighlightRequest(StrictBaseModel):
     article_url: str
     highlighted_text: str
     color: str = "yellow"
@@ -83,6 +83,6 @@ class CreateHighlightRequest(BaseModel):
     character_end: int
 
 
-class UpdateHighlightRequest(BaseModel):
+class UpdateHighlightRequest(StrictBaseModel):
     color: Optional[str] = None
     note: Optional[str] = None
