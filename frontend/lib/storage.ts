@@ -5,6 +5,7 @@
 
 const isBrowser = typeof window !== "undefined";
 const STORAGE_CHANGE_EVENT = "thesis-storage-change";
+const storageSnapshotCache = new Map<string, { raw: string | null; parsed: unknown }>();
 
 function dispatchStorageChange(key?: string): void {
   if (!isBrowser) return;
@@ -34,6 +35,29 @@ export function getFromStorage<T>(key: string, defaultValue: T): T {
   }
 }
 
+export function getStorageSnapshot<T>(key: string, defaultValue: T): T {
+  if (!isBrowser) {
+    return defaultValue;
+  }
+
+  try {
+    const raw = window.localStorage.getItem(key);
+    const cached = storageSnapshotCache.get(key);
+    if (cached && cached.raw === raw) {
+      return cached.parsed as T;
+    }
+
+    const parsed = raw ? (JSON.parse(raw) as T) : defaultValue;
+    storageSnapshotCache.set(key, { raw, parsed });
+    return parsed;
+  } catch (error) {
+    console.error(`Error reading localStorage snapshot for key "${key}":`, error);
+    const raw = window.localStorage.getItem(key);
+    storageSnapshotCache.set(key, { raw, parsed: defaultValue });
+    return defaultValue;
+  }
+}
+
 /**
  * Safely save value to localStorage
  * @param key - Storage key
@@ -45,6 +69,7 @@ export function saveToStorage<T>(key: string, value: T): boolean {
 
   try {
     window.localStorage.setItem(key, JSON.stringify(value));
+    storageSnapshotCache.delete(key);
     dispatchStorageChange(key);
     return true;
   } catch (error) {
@@ -63,6 +88,7 @@ export function removeFromStorage(key: string): boolean {
 
   try {
     window.localStorage.removeItem(key);
+    storageSnapshotCache.delete(key);
     dispatchStorageChange(key);
     return true;
   } catch (error) {
@@ -80,6 +106,7 @@ export function clearStorage(): boolean {
 
   try {
     window.localStorage.clear();
+    storageSnapshotCache.clear();
     dispatchStorageChange();
     return true;
   } catch (error) {

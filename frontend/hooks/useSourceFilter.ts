@@ -2,11 +2,13 @@
 
 import { useMemo, useSyncExternalStore } from "react";
 import {
-  getFromStorage,
+  getStorageSnapshot,
   saveToStorage,
   STORAGE_KEYS,
   subscribeToStorageKey,
 } from "@/lib/storage";
+
+const EMPTY_SELECTED_SOURCE_IDS: string[] = [];
 
 /**
  * Hook for managing source filtering/selection
@@ -18,8 +20,12 @@ export function useSourceFilter() {
   const selectedSourceIds = useSyncExternalStore(
     (onChange) =>
       subscribeToStorageKey(STORAGE_KEYS.SELECTED_SOURCES, onChange),
-    () => getFromStorage<string[]>(STORAGE_KEYS.SELECTED_SOURCES, []),
-    () => []
+    () =>
+      getStorageSnapshot<string[]>(
+        STORAGE_KEYS.SELECTED_SOURCES,
+        EMPTY_SELECTED_SOURCE_IDS
+      ),
+    () => EMPTY_SELECTED_SOURCE_IDS
   );
   const selectedSources = useMemo(
     () => new Set(selectedSourceIds),

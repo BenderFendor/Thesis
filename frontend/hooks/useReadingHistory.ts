@@ -2,7 +2,7 @@
 
 import { useCallback, useSyncExternalStore } from "react";
 import {
-  getFromStorage,
+  getStorageSnapshot,
   removeFromStorage,
   saveToStorage,
   subscribeToStorageKey,
@@ -10,6 +10,7 @@ import {
 
 const STORAGE_KEY = "thesis_reading_history";
 const MAX_HISTORY_SIZE = 100;
+const EMPTY_READING_HISTORY: ReadingHistoryEntry[] = [];
 
 export interface ReadingHistoryEntry {
   articleId: number;
@@ -21,18 +22,37 @@ export interface ReadingHistoryEntry {
 export function useReadingHistory() {
   const history = useSyncExternalStore(
     (onChange) => subscribeToStorageKey(STORAGE_KEY, onChange),
-    () => getFromStorage<ReadingHistoryEntry[]>(STORAGE_KEY, []),
-    () => []
+    () =>
+      getStorageSnapshot<ReadingHistoryEntry[]>(
+        STORAGE_KEY,
+        EMPTY_READING_HISTORY
+      ),
+    () => EMPTY_READING_HISTORY
   );
 
   const markAsRead = useCallback(
     (articleId: number, title?: string, source?: string) => {
-      const exists = history.find((entry) => entry.articleId === articleId);
+      const currentHistory = getStorageSnapshot<ReadingHistoryEntry[]>(
+        STORAGE_KEY,
+        EMPTY_READING_HISTORY
+      );
+      const exists = currentHistory.find((entry) => entry.articleId === articleId);
       if (exists) {
-        const updated = [
-          { ...exists, readAt: new Date().toISOString() },
-          ...history.filter((entry) => entry.articleId !== articleId),
-        ].slice(0, MAX_HISTORY_SIZE);
+        const nextTitle = exists.title ?? title;
+        const nextSource = exists.source ?? source;
+        if (nextTitle === exists.title && nextSource === exists.source) {
+          return;
+        }
+
+        const updated = currentHistory.map((entry) =>
+          entry.articleId === articleId
+            ? {
+                ...entry,
+                title: nextTitle,
+                source: nextSource,
+              }
+            : entry
+        );
         saveToStorage(STORAGE_KEY, updated);
         return;
       }
@@ -43,10 +63,10 @@ export function useReadingHistory() {
         title,
         source,
       };
-      const updated = [newEntry, ...history].slice(0, MAX_HISTORY_SIZE);
+      const updated = [newEntry, ...currentHistory].slice(0, MAX_HISTORY_SIZE);
       saveToStorage(STORAGE_KEY, updated);
     },
-    [history]
+    []
   );
 
   const isRead = useCallback(

@@ -2,11 +2,13 @@
 
 import { useMemo, useSyncExternalStore } from "react";
 import {
-  getFromStorage,
+  getStorageSnapshot,
   saveToStorage,
   STORAGE_KEYS,
   subscribeToStorageKey,
 } from "@/lib/storage";
+
+const EMPTY_FAVORITE_IDS: string[] = [];
 
 /**
  * Hook for managing favorite sources
@@ -16,8 +18,12 @@ export function useFavorites() {
   const favoriteIds = useSyncExternalStore(
     (onChange) =>
       subscribeToStorageKey(STORAGE_KEYS.FAVORITE_SOURCES, onChange),
-    () => getFromStorage<string[]>(STORAGE_KEYS.FAVORITE_SOURCES, []),
-    () => []
+    () =>
+      getStorageSnapshot<string[]>(
+        STORAGE_KEYS.FAVORITE_SOURCES,
+        EMPTY_FAVORITE_IDS
+      ),
+    () => EMPTY_FAVORITE_IDS
   );
   const favorites = useMemo(() => new Set(favoriteIds), [favoriteIds]);
 
