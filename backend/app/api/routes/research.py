@@ -2,12 +2,13 @@ from __future__ import annotations
 
 import asyncio
 import json
+import threading
 from collections.abc import AsyncIterator, Iterator
 from datetime import datetime, timezone
 from importlib import import_module
 from typing import Any, Dict, List, Optional, Protocol, cast
 
-from fastapi import APIRouter, Query
+from fastapi import APIRouter, Query, Request
 from fastapi.responses import StreamingResponse
 
 from starlette.concurrency import iterate_in_threadpool
@@ -52,6 +53,7 @@ class _StreamResearchAgent(Protocol):
         query: str,
         articles: List[ResearchArticle],
         chat_history: Optional[ChatHistory] = None,
+        stop_event: Optional[threading.Event] = None,
     ) -> Iterator[str]: ...
 
 
@@ -83,16 +85,18 @@ def stream_research_agent(
     query: str,
     articles: List[ResearchArticle],
     chat_history: Optional[ChatHistory],
+    stop_event: Optional[threading.Event],
 ) -> Iterator[str]:
     streamer = cast(
         _StreamResearchAgent,
         getattr(import_module("app.services.news_research"), "stream_research_agent"),
     )
-    return streamer(query, articles, chat_history)
+    return streamer(query, articles, chat_history, stop_event)
 
 
 @router.get("/research/stream")
 async def news_research_stream_endpoint(
+    request: Request,
     query: str = Query(..., description="The research query"),
     include_thinking: bool = Query(True, description="Include thinking steps"),
     history: str | None = Query(
@@ -100,6 +104,7 @@ async def news_research_stream_endpoint(
     ),
 ) -> StreamingResponse:
     async def generate() -> AsyncIterator[str]:
+        stop_event = threading.Event()
         try:
             yield f"data: {json.dumps({'type': 'status', 'message': 'Starting research...', 'timestamp': datetime.now(timezone.utc).isoformat()})}\n\n"
 
@@ -138,8 +143,14 @@ async def news_research_stream_endpoint(
             final_result: ResearchResultPayload | None = None
             last_thought: str | None = None
             async for event_raw in iterate_in_threadpool(
-                stream_research_agent(query, articles_dict, chat_history)
+                stream_research_agent(query, articles_dict, chat_history, stop_event)
             ):
+                if await request.is_disconnected():
+                    stop_event.set()
+                    logger.info(
+                        "Research stream client disconnected for query=%s", query
+                    )
+                    break
                 try:
                     # event_raw is formatted as "data: {...}\n\n"
                     json_str = event_raw.replace("data: ", "").strip()
@@ -201,6 +212,8 @@ async def news_research_stream_endpoint(
                     continue
 
             if not final_result:
+                if stop_event.is_set():
+                    return
                 fallback: ResearchResultPayload = {
                     "success": False,
                     "query": query,
@@ -211,6 +224,10 @@ async def news_research_stream_endpoint(
                 }
                 yield f"data: {json.dumps({'type': 'complete', 'result': fallback, 'timestamp': datetime.now(timezone.utc).isoformat()})}\n\n"
 
+        except asyncio.CancelledError:
+            stop_event.set()
+            logger.info("Research stream cancelled for query=%s", query)
+            raise
         except Exception as exc:  # pragma: no cover - defensive logging
             message = str(exc)
             lower_msg = message.lower()
@@ -225,6 +242,8 @@ async def news_research_stream_endpoint(
                 )
 
             yield f"data: {json.dumps({'type': 'error', 'message': message, 'timestamp': datetime.now(timezone.utc).isoformat()})}\n\n"
+        finally:
+            stop_event.set()
 
     return StreamingResponse(generate(), media_type="text/event-stream")
 

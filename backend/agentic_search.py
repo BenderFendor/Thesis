@@ -1,27 +1,19 @@
 """
-Agentic Search Tool using LangChain and Google Gemini API
+Agentic Search Tool using LangChain with configurable LLM backends.
 
-This script demonstrates how to create an intelligent agent that can:
-1. Use the Gemini LLM for reasoning
-2. Decide when to use a custom web search tool
-3. Answer queries using real-time web information
-
-Required installations:
-uv pip install langchain langchain-google-genai python-dotenv requests
-
-Make sure to set GOOGLE_API_KEY in your .env file.
+Supports llama.cpp, OpenRouter, or direct Gemini access for reasoning plus a
+web search tool for current information.
 """
 
-import os
 import json
 import requests
 from dotenv import load_dotenv
 from langchain_classic.agents import create_tool_calling_agent
 from langchain_classic.agents.agent import AgentExecutor
+from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
 from langchain.tools import tool
 from langchain_google_genai import ChatGoogleGenerativeAI
 from langchain_openai import ChatOpenAI
-from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
 
 from app.core.config import get_llamacpp_model, settings
 
@@ -97,32 +89,12 @@ def get_web_search_results(query: str) -> str:
 
 def create_agent_executor():
     """
-    Create and configure the agent executor with Gemini LLM and search tool.
+    Create and configure the agent executor with the configured LLM and search tool.
 
     Returns:
         AgentExecutor configured with the LLM, tools, and prompt
     """
-    # Initialize the LLM — backend selected by LLM_BACKEND env var
-    if settings.llm_backend == "llamacpp":
-        llm = ChatOpenAI(
-            model=get_llamacpp_model(),
-            temperature=0.7,
-            api_key=settings.llamacpp_api_key,
-            base_url=settings.llamacpp_base_url,
-        )
-    elif os.getenv("OPEN_ROUTER_API_KEY"):
-        llm = ChatOpenAI(
-            model=os.getenv("OPEN_ROUTER_MODEL", "google/gemini-3-flash-preview"),
-            temperature=0.7,
-            api_key=os.getenv("OPEN_ROUTER_API_KEY"),
-            base_url="https://openrouter.ai/api/v1",
-        )
-    else:
-        llm = ChatGoogleGenerativeAI(
-            model="gemini-3-flash-preview",
-            temperature=0.7,
-            google_api_key=os.getenv("GEMINI_API_KEY"),
-        )
+    llm = _create_chat_llm()
 
     # Define the tools available to the agent
     tools = [get_web_search_results]
@@ -164,20 +136,61 @@ Be conversational and helpful. If search results are unclear or unavailable, say
     return agent_executor
 
 
+def _create_chat_llm():
+    if settings.llm_backend == "llamacpp":
+        return ChatOpenAI(
+            model=get_llamacpp_model(),
+            temperature=0.7,
+            api_key=settings.llamacpp_api_key,
+            base_url=settings.llamacpp_base_url,
+        )
+    if settings.open_router_api_key:
+        return ChatOpenAI(
+            model=settings.open_router_model,
+            temperature=0.7,
+            api_key=settings.open_router_api_key,
+            base_url="https://openrouter.ai/api/v1",
+        )
+    if settings.gemini_api_key:
+        return ChatGoogleGenerativeAI(
+            model="gemini-3-flash-preview",
+            temperature=0.7,
+            google_api_key=settings.gemini_api_key,
+        )
+    raise RuntimeError(
+        "No LLM backend configured. Set OPEN_ROUTER_API_KEY, GEMINI_API_KEY, or "
+        "enable LLM_BACKEND=llamacpp."
+    )
+
+
+def _backend_banner() -> str:
+    if settings.llm_backend == "llamacpp":
+        return f"llama.cpp ({get_llamacpp_model()})"
+    if settings.open_router_api_key:
+        return f"OpenRouter ({settings.open_router_model})"
+    if settings.gemini_api_key:
+        return "Gemini"
+    return "unconfigured backend"
+
+
 def main():
     """
     Main execution function demonstrating the agentic search tool.
     """
     # Check if API key is set
-    if not os.getenv("GEMINI_API_KEY") and not os.getenv("OPEN_ROUTER_API_KEY"):
+    if (
+        settings.llm_backend != "llamacpp"
+        and not settings.open_router_api_key
+        and not settings.gemini_api_key
+    ):
         print(
-            "ERROR: Neither GEMINI_API_KEY nor OPEN_ROUTER_API_KEY found in environment variables."
+            "ERROR: No LLM backend configured. Set OPEN_ROUTER_API_KEY, "
+            "GEMINI_API_KEY, or enable LLM_BACKEND=llamacpp."
         )
-        print("Please set one in your .env file or environment.")
         return
 
     print("=" * 80)
-    print("Agentic Search Tool - Powered by Gemini 3 Flash or OpenRouter")
+    print(f"Agentic Search Tool - Powered by {_backend_banner()}")
     print("=" * 80)
     print()
 

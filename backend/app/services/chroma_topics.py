@@ -156,47 +156,17 @@ class ChromaTopicService:
         )
         if snapshot_detail:
             return snapshot_detail
+        recent_detail = await self._get_cluster_detail_from_recent_windows(
+            session, cluster_id
+        )
+        if recent_detail:
+            return recent_detail
         if not self._get_vector_store():
             return None
         cluster = await self._build_cluster_from_anchor(cluster_id)
         if not cluster:
             return None
-        cluster_articles = await self._fetch_articles(session, cluster.member_ids)
-        if not cluster_articles:
-            return None
-        keywords = self._extract_keywords_from_articles(list(cluster_articles.values()))
-        label = self._generate_cluster_label(cluster_articles)
-        articles_payload = []
-        for article_id in cluster.member_ids:
-            article = cluster_articles.get(article_id)
-            if not article:
-                continue
-            similarity = cluster.similarities.get(article_id)
-            articles_payload.append(
-                {
-                    "id": article.id,
-                    "title": article.title,
-                    "source": article.source,
-                    "url": article.url,
-                    "image_url": article.image_url,
-                    "published_at": article.published_at.isoformat()
-                    if article.published_at
-                    else None,
-                    "similarity": round(similarity, 3)
-                    if similarity is not None
-                    else 0.0,
-                }
-            )
-        return {
-            "id": cluster.anchor_id,
-            "label": label,
-            "keywords": keywords,
-            "article_count": len(cluster.member_ids),
-            "first_seen": self._oldest_article_date(cluster_articles),
-            "last_seen": self._latest_article_date(cluster_articles),
-            "is_active": True,
-            "articles": articles_payload,
-        }
+        return await self._build_cluster_detail_payload(session, cluster)
 
     async def get_article_topics(
         self, session: AsyncSession, article_id: int, limit: int = 5
@@ -326,6 +296,80 @@ class ChromaTopicService:
             "last_seen": published_dates[-1] if published_dates else None,
             "is_active": True,
             "articles": articles,
+        }
+
+    async def _get_cluster_detail_from_recent_windows(
+        self, session: AsyncSession, cluster_id: int
+    ) -> Optional[Dict[str, Any]]:
+        for window, limit in (("1d", 500), ("1w", 1500), ("1m", LEXICAL_MAX_ARTICLES)):
+            article_rows = await self._fetch_recent_articles(
+                session, _window_start(window), limit
+            )
+            if not article_rows:
+                continue
+            clusters = await self._cluster_articles(article_rows)
+            candidate = self._find_cluster_candidate(clusters, cluster_id)
+            if candidate is None:
+                continue
+            detail = await self._build_cluster_detail_payload(
+                session, candidate, cluster_id=cluster_id
+            )
+            if detail:
+                return detail
+        return None
+
+    def _find_cluster_candidate(
+        self, clusters: Sequence[ClusterCandidate], cluster_id: int
+    ) -> Optional[ClusterCandidate]:
+        for cluster in clusters:
+            if cluster.anchor_id == cluster_id:
+                return cluster
+        matching = [cluster for cluster in clusters if cluster_id in cluster.member_ids]
+        if not matching:
+            return None
+        return max(matching, key=lambda cluster: len(cluster.member_ids))
+
+    async def _build_cluster_detail_payload(
+        self,
+        session: AsyncSession,
+        cluster: ClusterCandidate,
+        cluster_id: Optional[int] = None,
+    ) -> Optional[Dict[str, Any]]:
+        cluster_articles = await self._fetch_articles(session, cluster.member_ids)
+        if not cluster_articles:
+            return None
+        keywords = self._extract_keywords_from_articles(list(cluster_articles.values()))
+        label = self._generate_cluster_label(cluster_articles)
+        articles_payload = []
+        for article_id in cluster.member_ids:
+            article = cluster_articles.get(article_id)
+            if not article:
+                continue
+            similarity = cluster.similarities.get(article_id)
+            articles_payload.append(
+                {
+                    "id": article.id,
+                    "title": article.title,
+                    "source": article.source,
+                    "url": article.url,
+                    "image_url": article.image_url,
+                    "published_at": article.published_at.isoformat()
+                    if article.published_at
+                    else None,
+                    "similarity": round(similarity, 3)
+                    if similarity is not None
+                    else 0.0,
+                }
+            )
+        return {
+            "id": cluster_id if cluster_id is not None else cluster.anchor_id,
+            "label": label,
+            "keywords": keywords,
+            "article_count": len(cluster.member_ids),
+            "first_seen": self._oldest_article_date(cluster_articles),
+            "last_seen": self._latest_article_date(cluster_articles),
+            "is_active": True,
+            "articles": articles_payload,
         }
 
     async def compute_and_save_clusters(

@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 import os
 import re
+import threading
 from datetime import datetime, timezone
 from typing import (
     Annotated,
@@ -939,6 +940,7 @@ def research_stream(
     query: str,
     articles: Optional[List[Dict[str, Any]]] = None,
     chat_history: Optional[List[Dict[str, str]]] = None,
+    stop_event: threading.Event | None = None,
 ) -> Generator[str, None, None]:
     set_news_articles(articles)
     initial_state: AgentState = {
@@ -954,10 +956,14 @@ def research_stream(
     logged_tool_calls: Set[str] = set()
 
     for update in _get_graph().stream(initial_state, stream_mode="updates"):
+        if stop_event is not None and stop_event.is_set():
+            return
         if "agent" in update:
             agent_message = update["agent"]["messages"][-1]
             content_text = _content_to_text(agent_message.content)
             if content_text:
+                if stop_event is not None and stop_event.is_set():
+                    return
                 final_answer = content_text
                 yield (
                     "data: "
@@ -969,6 +975,8 @@ def research_stream(
                 getattr(agent_message, "tool_calls", []) or [],
                 logged_tool_calls,
             ):
+                if stop_event is not None and stop_event.is_set():
+                    return
                 yield (
                     "data: "
                     + json.dumps(
@@ -982,6 +990,8 @@ def research_stream(
                 )
         if "tools" in update:
             for tool_message in update["tools"]["messages"]:
+                if stop_event is not None and stop_event.is_set():
+                    return
                 snippet = _content_to_text(tool_message.content)[:2000]
                 if snippet:
                     tool_snippets.append(snippet)
@@ -1000,12 +1010,18 @@ def research_stream(
     if not referenced_articles and final_answer:
         referenced_articles = _match_articles_in_text(final_answer)
 
+    if stop_event is not None and stop_event.is_set():
+        return
+
     if _needs_final_answer(final_answer):
         synthesized = _finalize_answer(query, referenced_articles, tool_snippets)
         if synthesized:
             final_answer = synthesized
 
     final_answer = _sanitize_final_answer(final_answer)
+
+    if stop_event is not None and stop_event.is_set():
+        return
 
     yield (
         "data: "

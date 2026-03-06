@@ -26,13 +26,7 @@ import {
   Activity,
   AlertTriangle,
   Search,
-  Code,
-  Image,
-  FileText,
-  Eye,
-  Download,
-  Filter,
-  Globe,
+  Image as ImageIcon,
   Settings
 } from "lucide-react"
 import Link from "next/link"
@@ -173,7 +167,6 @@ export default function SourcesPage() {
   const successCount = sources.filter(s => s.status === "success").length
   const warningCount = sources.filter(s => s.status === "warning").length
   const errorCount = sources.filter(s => s.status === "error").length
-  const totalArticles = sources.reduce((sum, s) => sum + s.article_count, 0)
 
   return (
     <div className="min-h-screen bg-background dark">
@@ -191,12 +184,18 @@ export default function SourcesPage() {
               <div>
                 <h1 className="text-2xl font-bold text-foreground">Source Monitor</h1>
                 <p className="text-sm text-muted-foreground">
-                  RSS feed status and article parsing statistics
+                  RSS feed status and article parsing statistics. System-wide
+                  diagnostics live in Debug Console.
                 </p>
               </div>
             </div>
 
             <div className="flex items-center gap-3">
+              <Link href="/debug">
+                <Button variant="ghost" size="sm">
+                  System Console
+                </Button>
+              </Link>
               <Button
                 onClick={loadSourceStats}
                 disabled={loading}
@@ -452,7 +451,7 @@ export default function SourcesPage() {
                         </TableCell>
                         <TableCell>
                           <div className="flex items-center gap-2">
-                            <Image className="w-4 h-4 text-muted-foreground" />
+                            <ImageIcon className="w-4 h-4 text-muted-foreground" />
                             <span className="text-sm">
                               {/* Placeholder for image parsing status */}
                               <Badge variant="outline" className="text-xs">

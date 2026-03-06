@@ -1,6 +1,7 @@
 "use client"
 
 import { useCallback, useEffect, useMemo, useState } from "react"
+import Link from "next/link"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
@@ -37,7 +38,7 @@ import {
   API_BASE_URL,
 } from "@/lib/api"
 import { logger, isDebugMode, setDebugMode } from "@/lib/logger"
-import { perfLogger, exportDebugData, type PerformanceSummary } from "@/lib/performance-logger"
+import { exportDebugData } from "@/lib/performance-logger"
 
 function usePersistentNumber(initial: number, min: number, max: number): [number, (value: number) => void] {
   const [value, setValue] = useState(initial)
@@ -540,6 +541,9 @@ export default function DebugDashboardPage() {
         </div>
         <div className="flex items-center gap-2">
           {loading && <span className="text-sm text-muted-foreground">Refreshing...</span>}
+          <Button asChild variant="outline">
+            <Link href="/sources">Open Source Monitor</Link>
+          </Button>
           <Button onClick={loadData} variant="default">
             Refresh data
           </Button>

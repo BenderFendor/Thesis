@@ -8,6 +8,7 @@ import {
   Loader2,
   TrendingUp,
   Zap,
+  ArrowRightLeft,
   Clock,
   Newspaper,
   PlusCircle,
@@ -30,6 +31,10 @@ import {
 import { useReadingQueue } from "@/hooks/useReadingQueue";
 import { useLikedArticles } from "@/hooks/useLikedArticles";
 import { ArticleContent } from "@/components/article-content";
+import {
+  getDefaultComparisonArticleIds,
+  getSelectedComparisonArticles,
+} from "@/lib/cluster-comparison";
 import { toast } from "sonner";
 
 interface ClusterArticle {
@@ -148,6 +153,28 @@ function hasRealImage(src?: string | null): boolean {
   return !lower.includes("/placeholder.svg") && !lower.includes("/placeholder.jpg");
 }
 
+async function fetchArticleContentText(
+  article: Pick<ClusterArticle, "url">,
+): Promise<string | null> {
+  const cached = fullArticleCache.get(article.url);
+  if (cached !== undefined) {
+    return cached;
+  }
+
+  const response = await fetch(
+    `${API_BASE_URL}/article/extract?url=${encodeURIComponent(article.url)}`,
+  );
+  if (!response.ok) {
+    throw new Error(`Article extraction failed (${response.status})`);
+  }
+
+  const data: { text?: string | null; full_text?: string | null } =
+    await response.json();
+  const text = data.text || data.full_text || null;
+  fullArticleCache.set(article.url, text);
+  return text;
+}
+
 export function ClusterDetailModal({
   cluster,
   isBreaking,
@@ -166,21 +193,31 @@ export function ClusterDetailModal({
   const [comparisonLoading, setComparisonLoading] = useState(false);
   const [selectedArticlesForComparison, setSelectedArticlesForComparison] = useState<number[]>([]);
   const articleContentRef = useRef<HTMLDivElement>(null);
+  const clusterId = cluster?.cluster_id ?? null;
 
   const { addArticleToQueue, removeArticleFromQueue, isArticleInQueue } = useReadingQueue();
 
   useEffect(() => {
-    if (!isOpen || !cluster) {
+    if (!isOpen || clusterId === null) {
       setClusterDetail(null);
       setActiveArticleId(null);
       setArticleContents(new Map());
+      setLoadingArticle(null);
+      setComparisonMode(false);
+      setComparisonData(null);
+      setComparisonLoading(false);
+      setSelectedArticlesForComparison([]);
       return;
     }
 
     const loadClusterDetail = async () => {
       setLoading(true);
+      setComparisonMode(false);
+      setComparisonData(null);
+      setComparisonLoading(false);
+      setSelectedArticlesForComparison([]);
       try {
-        const detail = await fetchClusterDetail(cluster.cluster_id);
+        const detail = await fetchClusterDetail(clusterId);
         setClusterDetail(detail);
         if (detail.articles.length > 0) {
           setActiveArticleId(detail.articles[0].id.toString());
@@ -193,28 +230,16 @@ export function ClusterDetailModal({
     };
 
     loadClusterDetail();
-  }, [isOpen, cluster?.cluster_id]);
+  }, [clusterId, isOpen]);
 
   const loadArticleContent = useCallback(async (article: ClusterArticle) => {
-    const cached = fullArticleCache.get(article.url);
-    if (cached !== undefined) {
-      setArticleContents((prev) => new Map(prev).set(article.id, cached));
-      return;
-    }
-
     setLoadingArticle(article.id);
     try {
-      const response = await fetch(
-        `${API_BASE_URL}/article/extract?url=${encodeURIComponent(article.url)}`
-      );
-      if (response.ok) {
-        const data = await response.json();
-        const text = data.text || data.full_text || null;
-        fullArticleCache.set(article.url, text);
-        setArticleContents((prev) => new Map(prev).set(article.id, text));
-      }
+      const text = await fetchArticleContentText(article);
+      setArticleContents((prev) => new Map(prev).set(article.id, text));
     } catch (err) {
       console.error("Failed to extract article:", err);
+      setArticleContents((prev) => new Map(prev).set(article.id, null));
     } finally {
       setLoadingArticle(null);
     }
@@ -234,21 +259,56 @@ export function ClusterDetailModal({
 
   const loadComparisonData = useCallback(async (articleIds: number[]) => {
     if (articleIds.length < 2 || !clusterDetail) return;
-    
+
+    const comparisonArticles = getSelectedComparisonArticles(
+      clusterDetail.articles,
+      articleIds,
+    );
+    if (comparisonArticles.length < 2) {
+      setComparisonData(null);
+      return;
+    }
+
+    const [sourceOne, sourceTwo] = comparisonArticles;
+    if (sourceOne.source.trim().toLowerCase() === sourceTwo.source.trim().toLowerCase()) {
+      setComparisonData(null);
+      toast.error("Compare Sources needs coverage from at least two outlets.");
+      return;
+    }
+
     setComparisonLoading(true);
     try {
-      const articles = clusterDetail.articles.filter(a => articleIds.includes(a.id));
-      if (articles.length < 2) return;
-
-      // Load content for both articles if not already loaded
-      for (const article of articles) {
-        if (!articleContents.has(article.id)) {
-          await loadArticleContent(article);
+      const contentEntries = await Promise.all(
+        comparisonArticles.map(async (article) => {
+          const cachedContent = articleContents.get(article.id);
+          if (cachedContent !== undefined) {
+            return [article.id, cachedContent] as const;
+          }
+          try {
+            const text = await fetchArticleContentText(article);
+            return [article.id, text] as const;
+          } catch (error) {
+            console.error("Failed to extract comparison article:", error);
+            return [article.id, null] as const;
+          }
+        }),
+      );
+      const contentById = new Map(contentEntries);
+      setArticleContents((prev) => {
+        const next = new Map(prev);
+        for (const [articleId, text] of contentEntries) {
+          next.set(articleId, text);
         }
-      }
+        return next;
+      });
 
-      const content1 = articleContents.get(articles[0].id) || "";
-      const content2 = articleContents.get(articles[1].id) || "";
+      const content1 = contentById.get(sourceOne.id) || "";
+      const content2 = contentById.get(sourceTwo.id) || "";
+      if (!content1 || !content2) {
+        setComparisonData(null);
+        toast.error("Compare Sources needs full text from two articles.");
+        return;
+      }
 
       const response = await fetch(`${API_BASE_URL}/compare/articles`, {
         method: "POST",
@@ -256,21 +316,46 @@ export function ClusterDetailModal({
         body: JSON.stringify({
           content_1: content1,
           content_2: content2,
-          title_1: articles[0].title,
-          title_2: articles[1].title,
+          title_1: sourceOne.title,
+          title_2: sourceTwo.title,
         }),
       });
 
-      if (response.ok) {
-        const data = await response.json();
-        setComparisonData(data);
+      if (!response.ok) {
+        throw new Error(`Comparison failed (${response.status})`);
       }
+      const data = await response.json();
+      setComparisonData(data);
     } catch (err) {
       console.error("Failed to load comparison:", err);
+      setComparisonData(null);
+      toast.error("Failed to compare the selected sources.");
     } finally {
       setComparisonLoading(false);
     }
-  }, [clusterDetail, articleContents, loadArticleContent]);
+  }, [articleContents, clusterDetail]);
+
+  const handleTabChange = useCallback((value: string) => {
+    setActiveArticleId(value);
+    setComparisonMode(value === "compare");
+  }, []);
+
+  const handleOpenComparison = useCallback(() => {
+    if (!clusterDetail) {
+      return;
+    }
+
+    const comparisonIds = getDefaultComparisonArticleIds(clusterDetail.articles);
+    if (comparisonIds.length < 2) {
+      setComparisonData(null);
+      toast.error("Compare Sources needs at least two articles.");
+      return;
+    }
+
+    setSelectedArticlesForComparison(comparisonIds);
+    setComparisonMode(true);
+    void loadComparisonData(comparisonIds);
+  }, [clusterDetail, loadComparisonData]);
 
   const handleQueueToggle = useCallback(
     (article: ClusterArticle) => {
@@ -309,6 +394,16 @@ export function ClusterDetailModal({
     (a) => a.id.toString() === activeArticleId
   );
   const activeContent = activeArticle ? articleContents.get(activeArticle.id) : null;
+  const comparisonArticles = clusterDetail
+    ? getSelectedComparisonArticles(
+        clusterDetail.articles,
+        selectedArticlesForComparison,
+      )
+    : [];
+  const hasDistinctComparisonSources =
+    comparisonArticles.length >= 2 &&
+    comparisonArticles[0].source.trim().toLowerCase() !==
+      comparisonArticles[1].source.trim().toLowerCase();
   const label = cluster.label || cluster.keywords.slice(0, 3).join(", ");
   const breakingCluster = cluster as BreakingCluster;
   const trendingCluster = cluster as TrendingCluster;
@@ -389,7 +484,7 @@ export function ClusterDetailModal({
           ) : clusterDetail && clusterDetail.articles.length > 0 ? (
             <Tabs
               value={activeArticleId || ""}
-              onValueChange={setActiveArticleId}
+              onValueChange={handleTabChange}
               className="flex-1 flex flex-col overflow-hidden"
             >
               {/* Source Tabs */}
@@ -408,17 +503,9 @@ export function ClusterDetailModal({
                   <TabsTrigger
                     value="compare"
                     className="data-[state=active]:bg-[var(--news-bg-secondary)] data-[state=active]:border-primary/40 border border-transparent px-4 py-2 text-xs font-medium"
-                    onClick={() => {
-                      setComparisonMode(true);
-                      if (clusterDetail && clusterDetail.articles.length >= 2 && selectedArticlesForComparison.length === 0) {
-                        // Auto-select first two articles
-                        const firstTwo = clusterDetail.articles.slice(0, 2).map(a => a.id);
-                        setSelectedArticlesForComparison(firstTwo);
-                        loadComparisonData(firstTwo);
-                      }
-                    }}
+                    onClick={handleOpenComparison}
                   >
-                    <span className="mr-2">⚖️</span>
+                    <ArrowRightLeft className="w-3 h-3 mr-2" />
                     Compare Sources
                   </TabsTrigger>
                 </TabsList>
@@ -557,12 +644,12 @@ export function ClusterDetailModal({
 
               {/* Compare Sources Tab */}
               <TabsContent value="compare" className="flex-1 overflow-y-auto m-0 p-0">
-                {comparisonMode && clusterDetail.articles.length >= 2 ? (
+                {comparisonMode && hasDistinctComparisonSources ? (
                   <div className="p-6 space-y-6">
                     {/* Comparison Header */}
                     <div className="text-center mb-6">
                       <h3 className="font-serif text-2xl font-bold mb-2">
-                        Compare: {clusterDetail.articles[0].source} vs {clusterDetail.articles[1].source}
+                        Compare: {comparisonArticles[0].source} vs {comparisonArticles[1].source}
                       </h3>
                       <p className="text-sm text-muted-foreground">
                         How different sources report the same story
@@ -624,7 +711,7 @@ export function ClusterDetailModal({
                           <div className="grid grid-cols-2 gap-3 mt-4 pt-3 border-t border-border/60">
                             <div>
                               <span className="text-xs text-muted-foreground block mb-2">
-                                Unique to {clusterDetail.articles[0].source}:
+                                Unique to {comparisonArticles[0].source}:
                               </span>
                               <div className="space-y-1">
                                 {[...comparisonData.entities.comparison.unique_to_source_1.persons.slice(0, 3), 
@@ -637,7 +724,7 @@ export function ClusterDetailModal({
                             </div>
                             <div>
                               <span className="text-xs text-muted-foreground block mb-2">
-                                Unique to {clusterDetail.articles[1].source}:
+                                Unique to {comparisonArticles[1].source}:
                               </span>
                               <div className="space-y-1">
                                 {[...comparisonData.entities.comparison.unique_to_source_2.persons.slice(0, 3), 
@@ -678,7 +765,7 @@ export function ClusterDetailModal({
                                     </span>
                                     {kw.emphasis !== 'equal' && (
                                       <Badge className={`text-[9px] ${kw.emphasis === 'source_1' ? 'bg-blue-500/20 text-blue-400' : 'bg-orange-500/20 text-orange-400'}`}>
-                                        {kw.emphasis === 'source_1' ? clusterDetail.articles[0].source.slice(0, 8) : clusterDetail.articles[1].source.slice(0, 8)}
+                                        {kw.emphasis === 'source_1' ? comparisonArticles[0].source.slice(0, 8) : comparisonArticles[1].source.slice(0, 8)}
                                       </Badge>
                                     )}
                                   </div>
@@ -690,7 +777,7 @@ export function ClusterDetailModal({
                           {/* Unique Keywords */}
                           <div className="grid grid-cols-2 gap-3">
                             <div>
-                              <span className="text-xs text-muted-foreground">Unique to {clusterDetail.articles[0].source}:</span>
+                              <span className="text-xs text-muted-foreground">Unique to {comparisonArticles[0].source}:</span>
                               <div className="flex flex-wrap gap-1 mt-1">
                                 {comparisonData.keywords.comparison.unique_to_source_1.slice(0, 6).map((kw, idx) => (
                                   <Badge key={idx} variant="outline" className="text-[9px]">
@@ -700,7 +787,7 @@ export function ClusterDetailModal({
                               </div>
                             </div>
                             <div>
-                              <span className="text-xs text-muted-foreground">Unique to {clusterDetail.articles[1].source}:</span>
+                              <span className="text-xs text-muted-foreground">Unique to {comparisonArticles[1].source}:</span>
                               <div className="flex flex-wrap gap-1 mt-1">
                                 {comparisonData.keywords.comparison.unique_to_source_2.slice(0, 6).map((kw, idx) => (
                                   <Badge key={idx} variant="outline" className="text-[9px]">
@@ -714,7 +801,7 @@ export function ClusterDetailModal({
 
                         {/* Side-by-side Content with Diff Highlights */}
                         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                          {clusterDetail.articles.slice(0, 2).map((article, idx) => {
+                          {comparisonArticles.map((article, idx) => {
                             const content = articleContents.get(article.id);
                             const isFirst = idx === 0;
                             return (
@@ -825,13 +912,13 @@ export function ClusterDetailModal({
                               <div className="text-2xl font-bold text-blue-400">
                                 {comparisonData.summary.unique_entities_source_1}
                               </div>
-                              <div className="text-xs text-muted-foreground">Unique to {clusterDetail.articles[0].source}</div>
+                              <div className="text-xs text-muted-foreground">Unique to {comparisonArticles[0].source}</div>
                             </div>
                             <div className="text-center">
                               <div className="text-2xl font-bold text-orange-400">
                                 {comparisonData.summary.unique_entities_source_2}
                               </div>
-                              <div className="text-xs text-muted-foreground">Unique to {clusterDetail.articles[1].source}</div>
+                              <div className="text-xs text-muted-foreground">Unique to {comparisonArticles[1].source}</div>
                             </div>
                             <div className="text-center">
                               <div className="text-2xl font-bold text-primary">
@@ -850,9 +937,9 @@ export function ClusterDetailModal({
                   </div>
                 ) : (
                   <div className="flex-1 flex items-center justify-center text-muted-foreground">
-                    {clusterDetail.articles.length < 2
-                      ? "Need at least 2 sources to compare"
-                      : "Select articles to compare"}
+                    {!clusterDetail || clusterDetail.articles.length < 2
+                      ? "Need at least 2 articles to compare"
+                      : "Compare Sources needs coverage from at least two outlets."}
                   </div>
                 )}
               </TabsContent>

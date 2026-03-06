@@ -109,3 +109,48 @@ async def test_get_cluster_detail_reads_from_snapshot_when_available(db_session)
     assert len(detail["articles"]) == 2
     assert detail["first_seen"] == "2026-03-01T10:00:00"
     assert detail["last_seen"] == "2026-03-01T12:00:00"
+
+
+@pytest.mark.asyncio
+async def test_get_cluster_detail_reclusters_recent_articles_when_snapshot_missing(
+    db_session, monkeypatch
+):
+    articles = [
+        _article(
+            201,
+            "Semiconductor exports lift South Korea current account surplus",
+            "source-a",
+            "https://example.com/south-korea-1",
+            _utc(1),
+        ),
+        _article(
+            202,
+            "South Korea surplus widens on semiconductor exports",
+            "source-b",
+            "https://example.com/south-korea-2",
+            _utc(2),
+        ),
+        _article(
+            203,
+            "NASA prepares a new moon lander mission",
+            "source-c",
+            "https://example.com/moon-lander",
+            _utc(3),
+        ),
+    ]
+    db_session.add_all(articles)
+    await db_session.commit()
+
+    service = ChromaTopicService()
+    monkeypatch.setattr(service, "_get_vector_store", lambda: None)
+
+    clusters = await service.get_trending_clusters(db_session, window="1d", limit=5)
+
+    assert clusters
+
+    detail = await service.get_cluster_detail(db_session, clusters[0]["cluster_id"])
+
+    assert detail is not None
+    assert detail["id"] == clusters[0]["cluster_id"]
+    assert detail["article_count"] == 2
+    assert {article["id"] for article in detail["articles"]} == {201, 202}

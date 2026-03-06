@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import os
 import sys
+import threading
 from typing import Any, Dict, List, Optional
 
 from app.core.config import settings
@@ -189,6 +190,7 @@ def stream_research_agent(
     query: str,
     articles: List[Dict[str, Any]],
     chat_history: Optional[List[Dict[str, Any]]] = None,
+    stop_event: Optional[threading.Event] = None,
 ) -> Any:
     backend_path = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
     if backend_path not in sys.path:
@@ -196,4 +198,9 @@ def stream_research_agent(
 
     from news_research_agent import research_stream
 
-    return research_stream(query=query, articles=articles, chat_history=chat_history)
+    return research_stream(
+        query=query,
+        articles=articles,
+        chat_history=chat_history,
+        stop_event=stop_event,
+    )
