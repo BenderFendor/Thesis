@@ -242,7 +242,7 @@ def main():
 
     print("\n1. Capturing configuration...")
     os.chdir("/home/bender/classwork/Thesis/backend")
-    config_result = subprocess.run(
+    subprocess.run(
         [sys.executable, "tests/benchmarks/capture_config.py"],
         capture_output=True,
         text=True,
@@ -284,7 +284,7 @@ def main():
     print("\n" + "=" * 60)
     print("COMPLETE")
     print("=" * 60)
-    print(f"\nArtifacts:")
+    print("\nArtifacts:")
     print(f"  - Config: {config_path}")
     print(f"  - Baseline: {baseline_path}")
     print(f"  - Bottlenecks: {bottlenecks_path}")

@@ -9,7 +9,6 @@ Usage:
 from __future__ import annotations
 
 import random
-import time
 from locust import HttpUser, task, between, events
 from locust.runners import MasterRunner
 

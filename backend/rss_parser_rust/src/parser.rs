@@ -8,13 +8,10 @@ use rayon::prelude::*;
 use crate::cleaner::clean_html;
 use crate::fetcher::fetch_all;
 use crate::types::{
-    FetchResult, ParsedArticle, ParseResult, SourceRequest, SourceStats, SubFeedStat,
+    FetchResult, ParseResult, ParsedArticle, SourceRequest, SourceStats, SubFeedStat,
 };
 
-pub async fn parse_sources(
-    sources: Vec<SourceRequest>,
-    max_concurrent: usize,
-) -> ParseResult {
+pub async fn parse_sources(sources: Vec<SourceRequest>, max_concurrent: usize) -> ParseResult {
     let start = Instant::now();
 
     let fetch_start = Instant::now();
@@ -73,19 +70,24 @@ fn parse_results(
 
     // Ensure sources without fetch attempt still have stats
     for source in original_sources {
-        stats.entry(source.name.clone()).or_insert_with(|| SourceStats {
-            name: source.name,
-            status: "warning".to_string(),
-            article_count: 0,
-            error_message: Some("No fetch attempts".to_string()),
-            sub_feeds: None,
-        });
+        stats
+            .entry(source.name.clone())
+            .or_insert_with(|| SourceStats {
+                name: source.name,
+                status: "warning".to_string(),
+                article_count: 0,
+                error_message: Some("No fetch attempts".to_string()),
+                sub_feeds: None,
+            });
     }
 
     (articles, stats)
 }
 
-fn parse_source_group(source_name: &str, results: &[FetchResult]) -> (Vec<ParsedArticle>, SourceStats) {
+fn parse_source_group(
+    source_name: &str,
+    results: &[FetchResult],
+) -> (Vec<ParsedArticle>, SourceStats) {
     let mut articles = Vec::new();
     let mut sub_stats = Vec::new();
     let mut top_status = "success".to_string();
@@ -190,11 +192,17 @@ fn pick_description(entry: &feed_rs::model::Entry) -> Option<String> {
         return Some(summary.content.clone());
     }
 
-    if let Some(Content { body: Some(body), .. }) = &entry.content {
+    if let Some(Content {
+        body: Some(body), ..
+    }) = &entry.content
+    {
         return Some(body.clone());
     }
 
-    entry.links.first().map(|link| link.title.clone().unwrap_or_default())
+    entry
+        .links
+        .first()
+        .map(|link| link.title.clone().unwrap_or_default())
 }
 
 fn pick_image(entry: &feed_rs::model::Entry) -> Option<String> {
@@ -206,7 +214,11 @@ fn pick_image(entry: &feed_rs::model::Entry) -> Option<String> {
         }
     }
 
-    if let Some(link) = entry.links.iter().find(|l| matches_media_image(l.media_type.as_deref())) {
+    if let Some(link) = entry
+        .links
+        .iter()
+        .find(|l| matches_media_image(l.media_type.as_deref()))
+    {
         return Some(link.href.clone());
     }
 

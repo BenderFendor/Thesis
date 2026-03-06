@@ -61,7 +61,7 @@ async def periodic_blind_spots_update(interval_seconds: int = 86400) -> None:
                 "Starting blind spots analysis at %s", datetime.now(timezone.utc)
             )
 
-            async with AsyncSessionLocal() as session:  # type: ignore[misc]
+            async with AsyncSessionLocal() as session:
                 analyzer = get_blind_spots_analyzer()
 
                 # Update daily coverage stats

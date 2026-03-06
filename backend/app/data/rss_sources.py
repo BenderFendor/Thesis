@@ -14,7 +14,7 @@ with _DATA_PATH.open("r", encoding="utf-8") as _source_file:
 def get_rss_sources() -> Dict[str, Dict[str, Any]]:
     """
     Load RSS sources from JSON.
-    
+
     If consolidate=true, keeps multi-URL sources as single entries with list of URLs.
     Otherwise, flattens nested URL arrays into separate numbered sources (e.g., "AP - 1", "AP - 2").
     """
@@ -33,8 +33,7 @@ def get_rss_sources() -> Dict[str, Dict[str, Any]]:
             if consolidate:
                 # Keep as single consolidated source with all URLs
                 valid_urls = [
-                    url.strip() for url in urls
-                    if isinstance(url, str) and url.strip()
+                    url.strip() for url in urls if isinstance(url, str) and url.strip()
                 ]
                 if valid_urls:
                     flattened[key] = {

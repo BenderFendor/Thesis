@@ -15,7 +15,6 @@ from datetime import datetime, timezone
 from typing import Any, Dict
 
 from fastapi import APIRouter, Response
-from fastapi.responses import JSONResponse
 
 from app.core.profiling import (
     get_profiling_session,

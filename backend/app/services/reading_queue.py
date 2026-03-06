@@ -1,5 +1,7 @@
+from __future__ import annotations
+
 from datetime import datetime, timedelta, timezone
-from typing import List, Optional, Tuple
+from typing import TYPE_CHECKING, List, Optional, Tuple
 from sqlalchemy import select, desc
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -7,6 +9,9 @@ from app.database import ReadingQueueItem
 from app.models.reading_queue import ReadingQueueItem as ReadingQueueItemSchema
 from app.models.reading_queue import AddToQueueRequest, UpdateQueueItemRequest
 from app.core.logging import get_logger
+
+if TYPE_CHECKING:
+    from app.api.routes.reading_queue import QueueOverviewResponse
 
 logger = get_logger("reading_queue_service")
 
@@ -72,7 +77,7 @@ async def add_to_queue(
         select(ReadingQueueItem).order_by(desc(ReadingQueueItem.position)).limit(1)
     )
     max_position_item = max_pos.scalar_one_or_none()
-    new_position = (max_position_item.position + 1) if max_position_item else 0
+    new_position = ((max_position_item.position or 0) + 1) if max_position_item else 0
 
     # Extract full text and calculate metrics
     full_text = None
@@ -264,7 +269,9 @@ async def remove_by_url(session: AsyncSession, article_url: str) -> bool:
     return True
 
 
-async def get_queue_overview(session: AsyncSession, user_id: int = 1) -> dict:
+async def get_queue_overview(
+    session: AsyncSession, user_id: int = 1
+) -> QueueOverviewResponse:
     """Get queue statistics and overview."""
     from app.api.routes.reading_queue import QueueOverviewResponse
 
@@ -314,7 +321,9 @@ async def get_queue_item_by_id(
     return None
 
 
-async def generate_daily_digest(session: AsyncSession, user_id: int = 1) -> dict:
+async def generate_daily_digest(
+    session: AsyncSession, user_id: int = 1
+) -> dict[str, object]:
     """
     Generate a daily digest of queue items.
 

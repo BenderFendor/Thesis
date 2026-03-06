@@ -2,13 +2,13 @@ from __future__ import annotations
 
 import re
 from datetime import datetime, timezone
-from typing import Dict, List, Any
+from typing import Any, Dict, List, cast
 
-import feedparser  # type: ignore[import-unresolved]
+import feedparser
 from fastapi import APIRouter, HTTPException, Query
 from fastapi.concurrency import run_in_threadpool
 from pydantic import BaseModel, Field
-from sqlalchemy import func, select  # type: ignore[import-unresolved]
+from sqlalchemy import func, select
 
 from app.core.config import settings
 from app.data.rss_sources import get_rss_sources
@@ -28,6 +28,30 @@ from app.services.image_extraction import ImageErrorType
 from app.vector_store import get_vector_store
 
 router = APIRouter(prefix="/debug", tags=["debug"])
+
+
+def _serialize_stream_info(info: Dict[str, object]) -> Dict[str, object]:
+    start_time = info.get("start_time")
+    if not isinstance(start_time, datetime):
+        start_time = datetime.now(timezone.utc)
+
+    return {
+        "status": info.get("status"),
+        "sources_completed": info.get("sources_completed"),
+        "total_sources": info.get("total_sources"),
+        "duration_seconds": (datetime.now(timezone.utc) - start_time).total_seconds(),
+        "client_connected": info.get("client_connected"),
+    }
+
+
+def _as_object_list(value: object) -> List[object]:
+    return cast(List[object], value) if isinstance(value, list) else []
+
+
+def _as_str_list(value: object) -> List[str]:
+    if not isinstance(value, list):
+        return []
+    return [item for item in value if isinstance(item, str)]
 
 
 @router.get("/sources/{source_name}")
@@ -179,15 +203,7 @@ async def get_stream_status() -> Dict[str, object]:
             "active_streams": len(stream_manager.active_streams),
             "total_streams_created": stream_manager.stream_counter,
             "streams": {
-                stream_id: {
-                    "status": info["status"],
-                    "sources_completed": info["sources_completed"],
-                    "total_sources": info["total_sources"],
-                    "duration_seconds": (
-                        datetime.now(timezone.utc) - info["start_time"]
-                    ).total_seconds(),
-                    "client_connected": info["client_connected"],
-                }
+                stream_id: _serialize_stream_info(info)
                 for stream_id, info in stream_manager.active_streams.items()
             },
             "source_throttling": dict(stream_manager.source_last_accessed),
@@ -221,19 +237,20 @@ async def list_chromadb_articles(
 
     payload = await run_in_threadpool(vector_store.list_articles, limit, offset)
 
-    ids = payload.get("ids") or []
-    metadatas = payload.get("metadatas") or []
-    documents = payload.get("documents") or []
+    ids = _as_str_list(payload.get("ids"))
+    metadatas = _as_object_list(payload.get("metadatas"))
+    documents = _as_object_list(payload.get("documents"))
 
     articles: List[Dict[str, object]] = []
     for idx, chroma_id in enumerate(ids):
         metadata = metadatas[idx] if idx < len(metadatas) else {}
         document = documents[idx] if idx < len(documents) else ""
+        preview_source = document if isinstance(document, str) else str(document)
         articles.append(
             {
                 "id": chroma_id,
                 "metadata": metadata,
-                "preview": document[:200],
+                "preview": preview_source[:200],
             }
         )
 
@@ -553,6 +570,7 @@ async def test_rss_parser(
         feed = feedparser.parse(url, agent="NewsAggregator/1.0 (Debug Parser Test)")
         parse_time = time.time() - start_time
 
+        sample_entries: List[Dict[str, object]] = []
         result = {
             "url": url,
             "parse_time_seconds": round(parse_time, 3),
@@ -569,7 +587,7 @@ async def test_rss_parser(
                 "bozo_exception": str(getattr(feed, "bozo_exception", "")),
                 "entries_count": len(feed.entries) if hasattr(feed, "entries") else 0,
             },
-            "sample_entries": [],
+            "sample_entries": sample_entries,
         }
 
         for i, entry in enumerate(feed.entries[:max_entries]):
@@ -578,7 +596,7 @@ async def test_rss_parser(
 
             image_result = extract_image_from_entry(entry, base_url=url)
 
-            result["sample_entries"].append(
+            sample_entries.append(
                 {
                     "index": i,
                     "title": entry.get("title", ""),
@@ -763,15 +781,7 @@ async def get_active_debug_streams() -> Dict[str, object]:
     return {
         "active_streams": debug_logger.get_active_streams(),
         "stream_manager_streams": {
-            stream_id: {
-                "status": info["status"],
-                "sources_completed": info["sources_completed"],
-                "total_sources": info["total_sources"],
-                "duration_seconds": (
-                    datetime.now(timezone.utc) - info["start_time"]
-                ).total_seconds(),
-                "client_connected": info["client_connected"],
-            }
+            stream_id: _serialize_stream_info(info)
             for stream_id, info in stream_manager.active_streams.items()
         },
     }
@@ -812,7 +822,7 @@ async def list_debug_log_files() -> Dict[str, object]:
 
     Debug logs are stored as JSON Lines (.jsonl) files.
     """
-    log_files = []
+    log_files: List[Dict[str, object]] = []
     if DEBUG_LOG_DIR.exists():
         for log_file in sorted(DEBUG_LOG_DIR.glob("debug_*.jsonl"), reverse=True):
             stat = log_file.stat()
@@ -858,7 +868,7 @@ async def read_debug_log_file(
     if not log_file.name.startswith("debug_") or not log_file.suffix == ".jsonl":
         raise HTTPException(status_code=400, detail="Invalid log file name")
 
-    events = []
+    events: List[Dict[str, object]] = []
     total_lines = 0
 
     try:
@@ -875,6 +885,8 @@ async def read_debug_log_file(
 
                 try:
                     event = json.loads(line)
+                    if not isinstance(event, dict):
+                        continue
                     if event_type and event.get("event_type") != event_type:
                         continue
                     events.append(event)
@@ -909,7 +921,7 @@ async def clear_old_log_files(
     log_files = sorted(DEBUG_LOG_DIR.glob("debug_*.jsonl"), reverse=True)
     files_to_delete = log_files[keep_recent:]
 
-    deleted = []
+    deleted: List[Dict[str, object]] = []
     for log_file in files_to_delete:
         try:
             size = log_file.stat().st_size

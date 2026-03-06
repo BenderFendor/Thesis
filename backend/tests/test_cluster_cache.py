@@ -6,8 +6,6 @@ it reads exclusively from pre-computed rows written by the background worker.
 
 from __future__ import annotations
 
-import asyncio
-from datetime import datetime, timezone, timedelta
 from typing import Any, AsyncGenerator, Dict, List
 from unittest.mock import patch
 

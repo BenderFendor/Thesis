@@ -28,7 +28,7 @@ class PipelineMetrics:
             return (datetime.now(timezone.utc) - self.start_time).total_seconds()
         return (self.end_time - self.start_time).total_seconds()
 
-    def to_dict(self) -> Dict:
+    def to_dict(self) -> dict[str, object]:
         """Convert to dictionary for logging/API."""
         return {
             "fetch": {

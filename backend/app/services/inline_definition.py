@@ -43,7 +43,7 @@ async def define_term_with_gemini(
             temperature=0.3,
         )
 
-        text = response.choices[0].message.content.strip()
+        text = (response.choices[0].message.content or "").strip()
         return {"definition": text}
     except Exception as exc:  # pragma: no cover - defensive logging
         logger.error("Error generating inline definition: %s", exc, exc_info=True)

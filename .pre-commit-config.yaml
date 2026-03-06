@@ -15,7 +15,7 @@ repos:
       - id: mypy
         name: mypy (strict)
         language: system
-        entry: uv run mypy backend/app --strict
+        entry: bash -lc 'cd backend && MYPYPATH=. .venv/bin/mypy --explicit-package-bases app --strict'
         pass_filenames: false
         files: ^backend/.*\.py$
 

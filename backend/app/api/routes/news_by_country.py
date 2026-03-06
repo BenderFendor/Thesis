@@ -4,7 +4,8 @@ News by country endpoints for globe visualization and Local Lens feature.
 
 import json
 from pathlib import Path
-from typing import Dict
+from typing import cast
+
 from fastapi import APIRouter, Query, Depends
 from sqlalchemy import select, func
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -20,14 +21,14 @@ router = APIRouter(prefix="/news", tags=["news-by-country"])
 _COUNTRIES_PATH = Path(__file__).parent.parent.parent / "data" / "countries.json"
 try:
     with _COUNTRIES_PATH.open("r", encoding="utf-8") as f:
-        _COUNTRIES_DATA: Dict[str, Dict] = json.load(f)
+        _COUNTRIES_DATA = cast(dict[str, dict[str, object]], json.load(f))
 except Exception as e:
     logger.warning("Failed to load countries.json: %s", e)
     _COUNTRIES_DATA = {}
 
 
 @router.get("/countries/geo")
-async def get_countries_geo_data() -> Dict[str, object]:
+async def get_countries_geo_data() -> dict[str, object]:
     """
     Get static country geographic data for globe markers.
 
@@ -42,7 +43,7 @@ async def get_countries_geo_data() -> Dict[str, object]:
 @router.get("/by-country")
 async def get_article_counts_by_country(
     db: AsyncSession = Depends(get_db),
-) -> Dict[str, object]:
+) -> dict[str, object]:
     """
     Get article counts grouped by source country for globe heatmap.
 
@@ -60,7 +61,12 @@ async def get_article_counts_by_country(
     rows = result.all()
 
     # Build country -> count mapping
-    counts = {row.country: row.count for row in rows if row.country}
+    counts: dict[str, int] = {}
+    for row in rows:
+        country = row._mapping["country"]
+        count = row._mapping["count"]
+        if isinstance(country, str) and isinstance(count, int):
+            counts[country] = count
 
     # Calculate total for non-country articles
     total_stmt = select(func.count(Article.id))
@@ -84,7 +90,7 @@ async def get_news_for_country(
     limit: int = Query(50, ge=1, le=200),
     offset: int = Query(0, ge=0),
     db: AsyncSession = Depends(get_db),
-) -> Dict[str, object]:
+) -> dict[str, object]:
     """
     Local Lens feature: Get news for a specific country.
 
@@ -149,7 +155,7 @@ async def get_news_for_country(
 @router.get("/countries/list")
 async def list_available_countries(
     db: AsyncSession = Depends(get_db),
-) -> Dict[str, object]:
+) -> dict[str, object]:
     """
     List all countries with at least one article, sorted by article count.
 

@@ -7,7 +7,6 @@ and the full verification workflow.
 Run with: python -m pytest test_verification_agent.py -v
 """
 
-import asyncio
 import pytest
 from datetime import datetime, timezone
 from unittest.mock import AsyncMock, MagicMock, patch
@@ -17,9 +16,8 @@ from app.models.verification import (
     SourceInfo,
     SourceType,
     VerificationRequest,
-    VerifiedClaim,
 )
-from app.services.source_credibility import CredibilityScorer, DEFAULT_CREDIBILITY
+from app.services.source_credibility import CredibilityScorer
 from app.services.verification_agent import (
     VerificationAgent,
     _confidence_to_level,

@@ -1,6 +1,8 @@
+from typing import Any
+
 from fastapi import APIRouter, Depends, HTTPException
-from sqlalchemy.ext.asyncio import AsyncSession
 from pydantic import BaseModel
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_db
 from app.models.reading_queue import (
@@ -37,7 +39,7 @@ class QueueOverviewResponse(BaseModel):
 @router.post("/add", response_model=ReadingQueueItem)
 async def add_to_queue(
     request: AddToQueueRequest, session: AsyncSession = Depends(get_db)
-):
+) -> ReadingQueueItem:
     """Add an article to the reading queue."""
     try:
         return await queue_service.add_to_queue(session, request)
@@ -47,7 +49,9 @@ async def add_to_queue(
 
 
 @router.delete("/{queue_id}", status_code=204)
-async def remove_from_queue(queue_id: int, session: AsyncSession = Depends(get_db)):
+async def remove_from_queue(
+    queue_id: int, session: AsyncSession = Depends(get_db)
+) -> None:
     """Remove an item from the reading queue."""
     try:
         success = await queue_service.remove_from_queue(session, queue_id)
@@ -61,7 +65,7 @@ async def remove_from_queue(queue_id: int, session: AsyncSession = Depends(get_d
 @router.delete("/url/{article_url:path}", status_code=204)
 async def remove_from_queue_by_url(
     article_url: str, session: AsyncSession = Depends(get_db)
-):
+) -> None:
     """Remove an item from queue by article URL."""
     try:
         success = await queue_service.remove_by_url(session, article_url)
@@ -73,7 +77,7 @@ async def remove_from_queue_by_url(
 
 
 @router.get("", response_model=QueueResponse)
-async def get_queue(session: AsyncSession = Depends(get_db)):
+async def get_queue(session: AsyncSession = Depends(get_db)) -> QueueResponse:
     """Get all items in the reading queue."""
     try:
         items, daily_count, permanent_count = await queue_service.get_queue(session)
@@ -93,7 +97,7 @@ async def update_queue_item(
     queue_id: int,
     request: UpdateQueueItemRequest,
     session: AsyncSession = Depends(get_db),
-):
+) -> ReadingQueueItem:
     """Update a queue item (status, type, position)."""
     try:
         item = await queue_service.update_queue_item(session, queue_id, request)
@@ -106,7 +110,9 @@ async def update_queue_item(
 
 
 @router.post("/maintenance/move-expired", status_code=200)
-async def move_expired_items(session: AsyncSession = Depends(get_db)):
+async def move_expired_items(
+    session: AsyncSession = Depends(get_db),
+) -> dict[str, str]:
     """Move expired daily items to permanent queue."""
     try:
         count = await queue_service.move_expired_to_permanent(session)
@@ -117,7 +123,9 @@ async def move_expired_items(session: AsyncSession = Depends(get_db)):
 
 
 @router.get("/overview", response_model=QueueOverviewResponse)
-async def get_queue_overview(session: AsyncSession = Depends(get_db)):
+async def get_queue_overview(
+    session: AsyncSession = Depends(get_db),
+) -> QueueOverviewResponse:
     """Get queue statistics and overview."""
     try:
         return await queue_service.get_queue_overview(session)
@@ -130,7 +138,7 @@ async def get_queue_overview(session: AsyncSession = Depends(get_db)):
 @router.post("/highlights", response_model=Highlight)
 async def create_highlight(
     request: CreateHighlightRequest, session: AsyncSession = Depends(get_db)
-):
+) -> Highlight:
     """Create a new highlight."""
     try:
         return await highlights_service.create_highlight(session, request)
@@ -142,7 +150,7 @@ async def create_highlight(
 @router.get("/highlights/article/{article_url:path}", response_model=list[Highlight])
 async def get_article_highlights(
     article_url: str, session: AsyncSession = Depends(get_db)
-):
+) -> list[Highlight]:
     """Get all highlights for a specific article."""
     try:
         return await highlights_service.get_highlights_for_article(session, article_url)
@@ -152,7 +160,9 @@ async def get_article_highlights(
 
 
 @router.get("/highlights", response_model=list[Highlight])
-async def get_all_highlights(session: AsyncSession = Depends(get_db)):
+async def get_all_highlights(
+    session: AsyncSession = Depends(get_db),
+) -> list[Highlight]:
     """Get all highlights for the user."""
     try:
         return await highlights_service.get_all_highlights(session)
@@ -166,7 +176,7 @@ async def update_highlight(
     highlight_id: int,
     request: UpdateHighlightRequest,
     session: AsyncSession = Depends(get_db),
-):
+) -> Highlight:
     """Update a highlight."""
     try:
         highlight = await highlights_service.update_highlight(
@@ -181,7 +191,9 @@ async def update_highlight(
 
 
 @router.delete("/highlights/{highlight_id}", status_code=204)
-async def delete_highlight(highlight_id: int, session: AsyncSession = Depends(get_db)):
+async def delete_highlight(
+    highlight_id: int, session: AsyncSession = Depends(get_db)
+) -> None:
     """Delete a highlight."""
     try:
         success = await highlights_service.delete_highlight(session, highlight_id)
@@ -193,7 +205,9 @@ async def delete_highlight(highlight_id: int, session: AsyncSession = Depends(ge
 
 
 @router.post("/maintenance/archive", status_code=200)
-async def archive_completed_items(session: AsyncSession = Depends(get_db)):
+async def archive_completed_items(
+    session: AsyncSession = Depends(get_db),
+) -> dict[str, str]:
     """Archive completed items older than 30 days."""
     try:
         count = await queue_service.archive_completed_items(session)
@@ -206,7 +220,7 @@ async def archive_completed_items(session: AsyncSession = Depends(get_db)):
 @router.get("/{queue_id}/content", response_model=dict)
 async def get_queue_item_content(
     queue_id: int, session: AsyncSession = Depends(get_db)
-):
+) -> dict[str, object]:
     """Get full article content for a queue item."""
     try:
         item = await queue_service.get_queue_item_by_id(session, queue_id)
@@ -232,7 +246,9 @@ async def get_queue_item_content(
 
 
 @router.get("/digest/daily", response_model=dict)
-async def get_daily_digest(session: AsyncSession = Depends(get_db)):
+async def get_daily_digest(
+    session: AsyncSession = Depends(get_db),
+) -> dict[str, object]:
     """Get a daily digest of top queue items."""
     try:
         return await queue_service.generate_daily_digest(session)
@@ -244,8 +260,8 @@ async def get_daily_digest(session: AsyncSession = Depends(get_db)):
 class QueueDigestRequest(BaseModel):
     """Request for generating AI digest."""
 
-    articles: list[dict]
-    grouped: dict[str, list[dict]]
+    articles: list[dict[str, Any]]
+    grouped: dict[str, list[dict[str, Any]]]
 
 
 class QueueDigestResponse(BaseModel):
@@ -255,12 +271,12 @@ class QueueDigestResponse(BaseModel):
 
 
 @router.post("/digest", response_model=QueueDigestResponse)
-async def generate_ai_digest(request: QueueDigestRequest):
+async def generate_ai_digest(request: QueueDigestRequest) -> QueueDigestResponse:
     """Generate an AI-powered reading digest from queued articles."""
     try:
-        return {
-            "digest": await generate_queue_digest(request.articles, request.grouped)
-        }
+        return QueueDigestResponse(
+            digest=await generate_queue_digest(request.articles, request.grouped)
+        )
     except Exception as e:
         logger.error("Error generating AI digest: %s", e)
         raise HTTPException(status_code=500, detail="Failed to generate digest")

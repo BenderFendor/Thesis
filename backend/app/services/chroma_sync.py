@@ -17,13 +17,19 @@ the cluster computation worker can start promptly.
 from __future__ import annotations
 
 import asyncio
+from typing import Any, cast
 
 from sqlalchemy import select, update
 
 from app.core.config import settings
 from app.core.logging import get_logger
 from app.database import AsyncSessionLocal, Article
-from app.vector_store import get_vector_store, is_chroma_reachable
+from app.vector_store import (
+    BatchArticlePayload,
+    VectorStore,
+    get_vector_store,
+    is_chroma_reachable,
+)
 
 logger = get_logger("chroma_sync")
 
@@ -38,7 +44,21 @@ _FULL_SYNC_THRESHOLD = 10_000
 _drift_recovery: bool = False
 
 
-async def _detect_and_fix_chroma_drift(vs) -> bool:
+def _get_session_factory() -> Any:
+    return cast(Any, AsyncSessionLocal)
+
+
+def _build_batch_payload(article: Article) -> BatchArticlePayload:
+    return {
+        "chroma_id": f"article_{article.id}",
+        "title": article.title or "",
+        "summary": article.summary or "",
+        "content": article.content or "",
+        "metadata": {"source_id": article.source_id or "unknown"},
+    }
+
+
+async def _detect_and_fix_chroma_drift(vs: VectorStore) -> bool:
     """Return True if drift was detected and recovery mode was activated.
 
     Uses only the Chroma document count (fast, no DB query) to decide.
@@ -138,7 +158,7 @@ async def chroma_sync_worker(
                 continue
 
             # --- Normal mode: embed articles flagged embedding_generated=False ---
-            async with AsyncSessionLocal() as session:
+            async with _get_session_factory()() as session:
                 result = await session.execute(
                     select(Article)
                     .where(
@@ -167,7 +187,11 @@ async def chroma_sync_worker(
             await asyncio.sleep(interval_seconds)
 
 
-async def _run_recovery_scan(vs, batch_size: int, interval_seconds: int) -> None:
+async def _run_recovery_scan(
+    vs: VectorStore,
+    batch_size: int,
+    interval_seconds: int,
+) -> None:
     """Re-embed recent articles (past 7 days) not already in Chroma.
 
     Scopes the scan to the past 7 days so it covers all cluster windows (1d, 3d, 7d)
@@ -193,7 +217,7 @@ async def _run_recovery_scan(vs, batch_size: int, interval_seconds: int) -> None
     while True:
         # Fetch a batch of recent articles (within 7-day recovery window).
         try:
-            async with AsyncSessionLocal() as session:
+            async with _get_session_factory()() as session:
                 result = await session.execute(
                     select(Article)
                     .where(Article.content.isnot(None))
@@ -249,22 +273,7 @@ async def _run_recovery_scan(vs, batch_size: int, interval_seconds: int) -> None
             )
 
         if missing:
-            payloads = [
-                {
-                    "chroma_id": f"article_{a.id}",
-                    "article_id": a.id,
-                    "title": a.title or "",
-                    "summary": a.summary or "",
-                    "content": a.content or "",
-                    "source": a.source or "unknown",
-                    "url": a.url or "",
-                    "published_at": a.published_at.isoformat()
-                    if a.published_at
-                    else "",
-                    "metadata": {"source_id": a.source_id or "unknown"},
-                }
-                for a in missing
-            ]
+            payloads = [_build_batch_payload(article) for article in missing]
             try:
                 added = await asyncio.to_thread(vs.batch_add_articles, payloads)
                 if added > 0:
@@ -283,7 +292,7 @@ async def _run_recovery_scan(vs, batch_size: int, interval_seconds: int) -> None
                     # Mark embedded articles so normal mode doesn't re-process them.
                     article_ids = [a.id for a in missing]
                     try:
-                        async with AsyncSessionLocal() as session:
+                        async with _get_session_factory()() as session:
                             await session.execute(
                                 update(Article)
                                 .where(Article.id.in_(article_ids))
@@ -307,28 +316,19 @@ async def _run_recovery_scan(vs, batch_size: int, interval_seconds: int) -> None
         await asyncio.sleep(0.5)
 
 
-async def _embed_and_mark(vs, articles, interval_seconds: int) -> None:
+async def _embed_and_mark(
+    vs: VectorStore,
+    articles: list[Article],
+    interval_seconds: int,
+) -> None:
     """Embed a batch of articles and mark them as embedded in Postgres."""
-    payloads = [
-        {
-            "chroma_id": f"article_{a.id}",
-            "article_id": a.id,
-            "title": a.title or "",
-            "summary": a.summary or "",
-            "content": a.content or "",
-            "source": a.source or "unknown",
-            "url": a.url or "",
-            "published_at": a.published_at.isoformat() if a.published_at else "",
-            "metadata": {"source_id": a.source_id or "unknown"},
-        }
-        for a in articles
-    ]
+    payloads = [_build_batch_payload(article) for article in articles]
 
     added = await asyncio.to_thread(vs.batch_add_articles, payloads)
 
     if added > 0:
         article_ids = [a.id for a in articles]
-        async with AsyncSessionLocal() as session:
+        async with _get_session_factory()() as session:
             await session.execute(
                 update(Article)
                 .where(Article.id.in_(article_ids))

@@ -1,6 +1,6 @@
 "use client";
 
-import { Shield, ShieldCheck, ShieldAlert, ShieldQuestion } from "lucide-react";
+import { Shield, ShieldAlert, ShieldCheck, ShieldQuestion } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import {
   Tooltip,
@@ -25,6 +25,13 @@ interface ConfidenceBadgeProps {
   showLabel?: boolean;
   size?: "sm" | "md" | "lg";
 }
+
+const confidenceIcons = {
+  high: ShieldCheck,
+  medium: Shield,
+  low: ShieldAlert,
+  very_low: ShieldQuestion,
+} satisfies Record<ConfidenceLevel, typeof Shield>;
 
 export function ConfidenceBadge({
   confidence,
@@ -52,7 +59,7 @@ export function ConfidenceBadge({
     lg: "text-sm",
   };
 
-  const Icon = getConfidenceIcon(level);
+  const Icon = confidenceIcons[level];
   const iconSize = iconSizes[size];
   const textSize = textSizes[size];
 
@@ -94,21 +101,6 @@ export function ConfidenceBadge({
       </Tooltip>
     </TooltipProvider>
   );
-}
-
-function getConfidenceIcon(level: ConfidenceLevel) {
-  switch (level) {
-    case "high":
-      return ShieldCheck;
-    case "medium":
-      return Shield;
-    case "low":
-      return ShieldAlert;
-    case "very_low":
-      return ShieldQuestion;
-    default:
-      return Shield;
-  }
 }
 
 interface ConfidenceBarProps {

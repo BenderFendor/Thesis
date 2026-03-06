@@ -4,13 +4,13 @@ import asyncio
 import json
 import os
 import signal
-import tempfile
 import threading
 import time
 from datetime import datetime, timezone
+from types import FrameType
 from typing import Any, cast
 
-from sqlalchemy.ext.asyncio import async_sessionmaker
+from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
@@ -107,7 +107,7 @@ def _register_background_task(task: asyncio.Task[Any]) -> None:
     task.add_done_callback(_cleanup)
 
 
-def _handle_shutdown_signal(signum, frame) -> None:
+def _handle_shutdown_signal(signum: int, frame: FrameType | None) -> None:
     """Handle SIGTERM/SIGINT for graceful shutdown."""
     logger.info("Received shutdown signal %s", signum)
 
@@ -138,7 +138,7 @@ async def _load_cache_from_db_fast() -> None:
         return
 
     assert AsyncSessionLocal is not None
-    session_factory = cast(async_sessionmaker, AsyncSessionLocal)
+    session_factory = cast(async_sessionmaker[AsyncSession], AsyncSessionLocal)
 
     logger.info("Attempting to load articles from database...")
     try:

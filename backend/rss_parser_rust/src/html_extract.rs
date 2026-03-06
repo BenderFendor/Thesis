@@ -76,17 +76,12 @@ fn collect_meta_contents(document: &Html, selectors: &[&str]) -> Vec<String> {
 fn extract_title(document: &Html) -> Option<String> {
     if let Some(meta_title) = first_meta_content(
         document,
-        &[
-            "meta[property='og:title']",
-            "meta[name='twitter:title']",
-        ],
+        &["meta[property='og:title']", "meta[name='twitter:title']"],
     ) {
         return Some(meta_title);
     }
 
-    let Some(sel) = selector("title") else {
-        return None;
-    };
+    let sel = selector("title")?;
     document
         .select(&sel)
         .next()
@@ -132,10 +127,7 @@ fn extract_authors(document: &Html) -> Vec<String> {
 fn extract_top_image(document: &Html) -> Option<String> {
     first_meta_content(
         document,
-        &[
-            "meta[property='og:image']",
-            "meta[name='twitter:image']",
-        ],
+        &["meta[property='og:image']", "meta[name='twitter:image']"],
     )
 }
 
@@ -241,5 +233,8 @@ pub fn extract_og_image_from_html(html: &str) -> OgImageExtraction {
 
     let image_url = candidates.first().map(|candidate| candidate.url.clone());
 
-    OgImageExtraction { image_url, candidates }
+    OgImageExtraction {
+        image_url,
+        candidates,
+    }
 }

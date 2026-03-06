@@ -5,12 +5,11 @@ optionally returns organization metadata.
 """
 
 import json
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock
 
 import pytest
 
 from app.services.propaganda_scorer import (
-    FilterScore,
     PropagandaFilterScorer,
     ScoringResult,
 )

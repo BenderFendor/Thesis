@@ -56,7 +56,8 @@ def _load_cached_profile(source_name: str) -> Optional[Dict[str, Any]]:
 
     try:
         with path.open("r", encoding="utf-8") as handle:
-            return json.load(handle)
+            payload = json.load(handle)
+            return payload if isinstance(payload, dict) else None
     except Exception as exc:
         logger.warning(
             "Failed to read source research cache for %s: %s", source_name, exc

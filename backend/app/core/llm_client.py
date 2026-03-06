@@ -1,9 +1,13 @@
-import uuid
-import time
-import json
-from datetime import datetime, timezone
-from typing import Any, Dict, List, Optional
+from __future__ import annotations
 
+import uuid
+import json
+import time
+from datetime import datetime, timezone
+from typing import Any, Iterable, Optional, TextIO, cast
+
+from openai import OpenAI
+from openai.types.chat import ChatCompletion, ChatCompletionMessageParam
 from app.core.config import (
     get_llamacpp_instruct_params,
     get_llamacpp_model,
@@ -15,22 +19,23 @@ from app.core.logging import get_session_dir
 
 class LLMCallLogger:
     _instance: Optional["LLMCallLogger"] = None
-    _llm_log_file = None
-    _error_log_file = None
+    _llm_log_file: TextIO | None = None
+    _error_log_file: TextIO | None = None
+    _initialized: bool = False
 
-    def __new__(cls):
+    def __new__(cls) -> LLMCallLogger:
         if cls._instance is None:
             cls._instance = super().__new__(cls)
             cls._instance._initialized = False
         return cls._instance
 
-    def __init__(self):
+    def __init__(self) -> None:
         if self._initialized:
             return
         self._initialized = True
         self._setup_session()
 
-    def _setup_session(self):
+    def _setup_session(self) -> None:
         if LLMCallLogger._llm_log_file is not None:
             return
 
@@ -42,7 +47,7 @@ class LLMCallLogger:
         LLMCallLogger._llm_log_file = open(llm_log_path, "a")
         LLMCallLogger._error_log_file = open(error_log_path, "a")
 
-    def close(self):
+    def close(self) -> None:
         if LLMCallLogger._llm_log_file:
             LLMCallLogger._llm_log_file.close()
             LLMCallLogger._llm_log_file = None
@@ -55,13 +60,13 @@ class LLMCallLogger:
         request_id: str,
         service_name: str,
         model: str,
-        messages: List[Dict[str, str]],
+        messages: list[dict[str, str]],
         duration_ms: int,
         success: bool,
         error_type: Optional[str] = None,
         error_message: Optional[str] = None,
         finish_reason: Optional[str] = None,
-    ):
+    ) -> None:
         log_entry = {
             "timestamp": datetime.now(timezone.utc).isoformat(),
             "request_id": request_id,
@@ -79,8 +84,9 @@ class LLMCallLogger:
             log_entry["error_message"] = error_message
 
         log_line = json.dumps(log_entry) + "\n"
-        LLMCallLogger._llm_log_file.write(log_line)
-        LLMCallLogger._llm_log_file.flush()
+        llm_log_file = cast(TextIO, LLMCallLogger._llm_log_file)
+        llm_log_file.write(log_line)
+        llm_log_file.flush()
 
         if not success:
             error_entry = {
@@ -92,22 +98,23 @@ class LLMCallLogger:
                 "error_message": error_message,
             }
             error_line = json.dumps(error_entry) + "\n"
-            LLMCallLogger._error_log_file.write(error_line)
-            LLMCallLogger._error_log_file.flush()
+            error_log_file = cast(TextIO, LLMCallLogger._error_log_file)
+            error_log_file.write(error_line)
+            error_log_file.flush()
 
 
 class LLMClient:
-    def __init__(self):
+    def __init__(self) -> None:
         self._client = get_openai_client()
         self._logger = LLMCallLogger()
 
     def chat_completions_create(
         self,
         service_name: str,
-        messages: List[Dict[str, str]],
+        messages: list[dict[str, str]],
         model: Optional[str] = None,
-        **kwargs,
-    ) -> Any:
+        **kwargs: Any,
+    ) -> ChatCompletion:
         if model is None:
             model = (
                 get_llamacpp_model()
@@ -137,10 +144,14 @@ class LLMClient:
         start_time = time.monotonic()
 
         try:
-            response = self._client.chat.completions.create(
-                model=model,
-                messages=messages,
-                **kwargs,
+            client = cast(OpenAI, self._client)
+            response = cast(
+                ChatCompletion,
+                client.chat.completions.create(
+                    model=model,
+                    messages=cast(Iterable[ChatCompletionMessageParam], messages),
+                    **kwargs,
+                ),
             )
 
             duration_ms = int((time.monotonic() - start_time) * 1000)

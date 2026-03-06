@@ -5,7 +5,7 @@ Provides functionality to extract, cache, and serve full article content
 for the reading queue and reader mode.
 """
 
-from typing import Dict, Any, Optional
+from typing import Any, Dict, Optional
 import asyncio
 import re
 from html import unescape
@@ -13,7 +13,7 @@ from urllib.parse import urljoin
 
 import requests
 from bs4 import BeautifulSoup
-from newspaper import Article, Config  # type: ignore[import-unresolved]
+from newspaper import Article, Config
 
 from app.core.logging import get_logger
 from app.services.debug_logger import debug_logger, EventType
@@ -21,9 +21,12 @@ from app.services.debug_logger import debug_logger, EventType
 logger = get_logger("article_extraction")
 DEFAULT_REQUEST_TIMEOUT = 12
 
-try:  # Optional Rust HTML extraction
-    import rss_parser_rust  # type: ignore
+rss_parser_rust: Any | None = None
 
+try:  # Optional Rust HTML extraction
+    import rss_parser_rust as _rss_parser_rust
+
+    rss_parser_rust = _rss_parser_rust
     RUST_HTML_AVAILABLE = True
 except ImportError:  # pragma: no cover - optional dependency
     RUST_HTML_AVAILABLE = False
@@ -144,6 +147,8 @@ def _is_paywalled_source(url: str) -> bool:
 
 def _extract_with_rust(html: str) -> Dict[str, Any]:
     """Extract article content via Rust HTML parser."""
+    if rss_parser_rust is None:
+        return {}
     try:
         payload = rss_parser_rust.extract_article_html(html)
     except Exception as exc:  # pragma: no cover - optional dependency

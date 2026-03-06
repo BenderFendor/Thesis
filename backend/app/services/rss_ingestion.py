@@ -6,12 +6,13 @@ import json
 import random
 import threading
 import time
+from collections.abc import Callable, Iterable
 from concurrent.futures import ProcessPoolExecutor
 from datetime import datetime, timezone
-from typing import Any, Dict, Iterable, List, Optional, Tuple
-from urllib.parse import urljoin, urlparse
+from typing import Any, Dict, List, Optional, Tuple, TypeGuard, cast
+from urllib.parse import urljoin
 
-import feedparser  # type: ignore[import-unresolved]
+import feedparser
 import httpx
 import requests
 
@@ -27,13 +28,16 @@ from app.services.image_extraction import is_valid_image_url
 from app.services.persistence import persist_articles_dual_write
 from app.services.websocket_manager import manager
 
-try:  # Optional Rust acceleration
-    import rss_parser_rust  # type: ignore
+rss_parser_rust: Any | None = None
 
+try:  # Optional Rust acceleration
+    import rss_parser_rust as _rss_parser_rust
+
+    rss_parser_rust = _rss_parser_rust
     RUST_RSS_AVAILABLE = True
 except ImportError:  # pragma: no cover - optional dependency
     RUST_RSS_AVAILABLE = False
-    rss_parser_rust = None  # type: ignore[assignment]
+    rss_parser_rust = None
 
 logger = get_logger("rss_ingestion")
 stream_logger = get_logger("news_stream")
@@ -44,6 +48,33 @@ _process_pool: Optional[ProcessPoolExecutor] = None
 _resources: Optional[ResourceConfig] = None
 _source_cache_headers: Dict[str, Dict[str, str]] = {}
 _source_cache_lock = threading.Lock()
+
+SourceInfo = dict[str, Any]
+SourceStat = dict[str, Any]
+FeedJson = dict[str, Any]
+FeedPreviewEntry = dict[str, str]
+SourceProgressCallback = Callable[[list[NewsArticle], SourceStat], None]
+
+FetchWorkItem = tuple[str, SourceInfo]
+FetchQueueItem = FetchWorkItem | tuple[None, None]
+ParseSuccessItem = tuple[str, str, SourceInfo]
+ParseErrorItem = tuple[None, str, SourceStat]
+ParseQueueItem = ParseSuccessItem | ParseErrorItem | None
+PersistQueueItem = tuple[list[NewsArticle], SourceStat] | None
+
+
+def _is_fetch_poison_pill(item: FetchQueueItem) -> TypeGuard[tuple[None, None]]:
+    return item[0] is None
+
+
+def _is_parse_error_item(
+    item: ParseSuccessItem | ParseErrorItem,
+) -> TypeGuard[ParseErrorItem]:
+    return item[0] is None
+
+
+def _get_shutdown_event() -> asyncio.Event:
+    return cast(asyncio.Event, _shutdown_event)
 
 
 def _iter_source_urls(url_field: Any) -> Iterable[str]:
@@ -210,7 +241,7 @@ def _flatten_thumbnail(url_field: Any) -> str | None:
     return None
 
 
-def get_rss_as_json(url: str, source_name: str) -> Tuple[Dict[str, Any], Any]:
+def get_rss_as_json(url: str, source_name: str) -> Tuple[FeedJson, Any]:
     max_retries = 3
     base_delay = 5
     for attempt in range(max_retries):
@@ -225,7 +256,8 @@ def get_rss_as_json(url: str, source_name: str) -> Tuple[Dict[str, Any], Any]:
             content = response.text.strip().lstrip("\ufeff\xff\xfe")
             feed = feedparser.parse(content)
 
-            feed_json = {
+            preview_entries: list[FeedPreviewEntry] = []
+            feed_json: FeedJson = {
                 "feed_info": {
                     "title": getattr(feed.feed, "title", ""),
                     "description": getattr(feed.feed, "description", ""),
@@ -237,11 +269,11 @@ def get_rss_as_json(url: str, source_name: str) -> Tuple[Dict[str, Any], Any]:
                 "bozo": getattr(feed, "bozo", False),
                 "bozo_exception": str(getattr(feed, "bozo_exception", "")),
                 "total_entries": len(feed.entries),
-                "entries": [],
+                "entries": preview_entries,
             }
 
             for entry in feed.entries[:3]:
-                feed_json["entries"].append(
+                preview_entries.append(
                     {
                         "title": getattr(entry, "title", ""),
                         "link": getattr(entry, "link", ""),
@@ -458,8 +490,8 @@ def _blocking_parse_feed(
 
 
 async def _fetch_worker(
-    fetch_queue: asyncio.Queue,
-    parse_queue: asyncio.Queue,
+    fetch_queue: asyncio.Queue[FetchQueueItem],
+    parse_queue: asyncio.Queue[ParseQueueItem],
     semaphore: asyncio.Semaphore,
     http_client: httpx.AsyncClient,
 ) -> None:
@@ -469,19 +501,19 @@ async def _fetch_worker(
     Uses semaphore to limit concurrent connections.
     """
     metrics = get_metrics()
+    shutdown_event = _get_shutdown_event()
 
-    while not _shutdown_event.is_set():
+    while not shutdown_event.is_set():
         try:
             # Get next source from queue (with timeout to check shutdown)
             try:
-                source_name, source_info = await asyncio.wait_for(
-                    fetch_queue.get(), timeout=1.0
-                )
+                queue_item = await asyncio.wait_for(fetch_queue.get(), timeout=1.0)
             except asyncio.TimeoutError:
                 continue  # Check shutdown flag and retry
 
-            if source_name is None:  # Poison pill
+            if _is_fetch_poison_pill(queue_item):  # Poison pill
                 break
+            source_name, source_info = cast(FetchWorkItem, queue_item)
 
             # Acquire semaphore slot
             async with semaphore:
@@ -561,8 +593,8 @@ async def _fetch_worker(
 
 
 async def _parse_worker(
-    parse_queue: asyncio.Queue,
-    persist_queue: asyncio.Queue,
+    parse_queue: asyncio.Queue[ParseQueueItem],
+    persist_queue: asyncio.Queue[PersistQueueItem],
     process_pool: ProcessPoolExecutor,
 ) -> None:
     """
@@ -570,8 +602,9 @@ async def _parse_worker(
     """
     loop = asyncio.get_running_loop()
     metrics = get_metrics()
+    shutdown_event = _get_shutdown_event()
 
-    while not _shutdown_event.is_set():
+    while not shutdown_event.is_set():
         try:
             # Get next item from queue
             try:
@@ -582,14 +615,13 @@ async def _parse_worker(
             if item is None:  # Poison pill
                 break
 
-            raw_xml, source_name, source_info = item
-
             # If raw_xml is None, this is an error from fetch_worker
-            if raw_xml is None:
-                # source_info is actually the error_stat
-                await persist_queue.put(([], source_info))
+            if _is_parse_error_item(item):
+                _, _, error_stat = item
+                await persist_queue.put(([], error_stat))
                 parse_queue.task_done()
                 continue
+            raw_xml, source_name, source_info = cast(ParseSuccessItem, item)
 
             try:
                 # Offload to process pool (releases GIL)
@@ -627,8 +659,8 @@ async def _parse_worker(
 
 
 async def _persist_worker(
-    persist_queue: asyncio.Queue,
-    source_progress_callback: Optional[callable],
+    persist_queue: asyncio.Queue[PersistQueueItem],
+    source_progress_callback: SourceProgressCallback | None,
     batch_size: int,
 ) -> None:
     """
@@ -640,8 +672,9 @@ async def _persist_worker(
     metrics = get_metrics()
     article_batch: List[NewsArticle] = []
     stats_batch: List[Dict[str, Any]] = []
+    shutdown_event = _get_shutdown_event()
 
-    async def _flush_batch():
+    async def _flush_batch() -> None:
         """Helper to persist current batch."""
         if not article_batch:
             return
@@ -663,7 +696,7 @@ async def _persist_worker(
             article_batch.clear()
             stats_batch.clear()
 
-    while not _shutdown_event.is_set():
+    while not shutdown_event.is_set():
         try:
             # Get next item
             try:
@@ -682,7 +715,7 @@ async def _persist_worker(
             articles, stat = item
 
             # --- 1. Instant UI Feedback ---
-            if source_progress_callback:
+            if source_progress_callback is not None:
                 try:
                     source_progress_callback(articles, stat)
                 except Exception as e:
@@ -702,7 +735,7 @@ async def _persist_worker(
 
 
 async def refresh_news_cache_async(
-    source_progress_callback: Optional[callable] = None,
+    source_progress_callback: SourceProgressCallback | None = None,
 ) -> None:
     """Refresh the news cache, preferring the Rust pipeline when available."""
     global _shutdown_event, _process_pool, _resources
@@ -735,7 +768,7 @@ async def refresh_news_cache_async(
 
 async def _refresh_news_cache_with_python(
     rss_sources: Dict[str, Dict[str, Any]],
-    source_progress_callback: Optional[callable],
+    source_progress_callback: SourceProgressCallback | None,
 ) -> None:
     """Original async pipeline leveraging Python workers."""
     global _shutdown_event, _process_pool, _resources
@@ -750,9 +783,15 @@ async def _refresh_news_cache_with_python(
     if _process_pool is None:
         _process_pool = ProcessPoolExecutor(max_workers=_resources["cpu_workers"])
 
-    fetch_queue = asyncio.Queue(maxsize=_resources["fetch_queue_size"])
-    parse_queue = asyncio.Queue(maxsize=_resources["parse_queue_size"])
-    persist_queue = asyncio.Queue(maxsize=_resources["persist_queue_size"])
+    fetch_queue: asyncio.Queue[FetchQueueItem] = asyncio.Queue(
+        maxsize=_resources["fetch_queue_size"]
+    )
+    parse_queue: asyncio.Queue[ParseQueueItem] = asyncio.Queue(
+        maxsize=_resources["parse_queue_size"]
+    )
+    persist_queue: asyncio.Queue[PersistQueueItem] = asyncio.Queue(
+        maxsize=_resources["persist_queue_size"]
+    )
     fetch_semaphore = asyncio.Semaphore(_resources["fetch_concurrency"])
 
     http_client = httpx.AsyncClient(
@@ -776,7 +815,7 @@ async def _refresh_news_cache_with_python(
 
     def combined_callback(articles: List[NewsArticle], stat: Dict[str, Any]) -> None:
         collect_results(articles, stat)
-        if source_progress_callback:
+        if source_progress_callback is not None:
             try:
                 source_progress_callback(articles, stat)
             except Exception as exc:
@@ -848,7 +887,7 @@ async def _refresh_news_cache_with_python(
 
 async def _refresh_news_cache_with_rust(
     rss_sources: Dict[str, Dict[str, Any]],
-    source_progress_callback: Optional[callable],
+    source_progress_callback: SourceProgressCallback | None,
 ) -> None:
     logger.info("Using Rust RSS ingestion pipeline")
 
@@ -863,8 +902,10 @@ async def _refresh_news_cache_with_rust(
         await _broadcast_cache_update(0, 0)
         return
 
+    rust_parser = rss_parser_rust
+    assert rust_parser is not None
     result = await asyncio.to_thread(
-        rss_parser_rust.parse_feeds_parallel,  # type: ignore[attr-defined]
+        rust_parser.parse_feeds_parallel,
         sources_payload,
         min(64, max(8, len(sources_payload) * 2)),
     )
@@ -939,7 +980,7 @@ async def _refresh_news_cache_with_rust(
                 stat,
                 replace_articles=replace_articles,
             )
-        if source_progress_callback:
+        if source_progress_callback is not None:
             try:
                 source_progress_callback(articles_by_source.get(name, []), stat)
             except Exception as exc:
@@ -1019,7 +1060,7 @@ async def _broadcast_cache_update(total_articles: int, source_count: int) -> Non
 
 
 def refresh_news_cache(
-    source_progress_callback: callable | None = None,
+    source_progress_callback: SourceProgressCallback | None = None,
 ) -> None:
     if news_cache.update_in_progress:
         logger.info("Cache update already in progress, skipping...")
@@ -1040,7 +1081,7 @@ def refresh_news_cache(
             new_source_stat["name"],
         )
         # Call external callback if provided for streaming
-        if source_progress_callback:
+        if source_progress_callback is not None:
             try:
                 source_progress_callback(new_articles, new_source_stat)
             except Exception as exc:
@@ -1077,7 +1118,7 @@ def refresh_news_cache(
                     }
                 )
                 # Also call callback for error stats
-                if source_progress_callback:
+                if source_progress_callback is not None:
                     try:
                         source_progress_callback([], source_stats[-1])
                     except Exception as callback_exc:
@@ -1091,10 +1132,14 @@ def refresh_news_cache(
     if settings.enable_incremental_cache:
         replace_articles = True
         for stat in source_stats:
-            source_name = stat.get("name")
-            if not source_name:
+            stat_source_name = stat.get("name")
+            if not isinstance(stat_source_name, str) or not stat_source_name:
                 continue
-            source_articles = [a for a in all_articles if a.source == source_name]
+            source_articles = [
+                article
+                for article in all_articles
+                if article.source == stat_source_name
+            ]
             news_cache.update_source_cache(
                 source_articles, stat, replace_articles=replace_articles
             )

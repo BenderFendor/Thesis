@@ -12,12 +12,12 @@ from __future__ import annotations
 
 import asyncio
 import time
-from contextlib import asynccontextmanager
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from datetime import datetime, timezone
-from typing import Any, Callable, Dict, List, Optional, Tuple
+from types import TracebackType
+from typing import Any, Dict, List, Optional, Tuple
 from sqlalchemy import event
-from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.ext.asyncio import AsyncEngine
 from sqlalchemy.pool import AsyncAdaptedQueuePool
 
 from app.core.logging import get_logger
@@ -162,11 +162,11 @@ class N1QueryDetector:
         child_tables = set(self._extract_tables(child))
         return bool(parent_tables & child_tables)
 
-    def _extract_tables(self, statement: str) -> set:
+    def _extract_tables(self, statement: str) -> set[str]:
         """Extract table names from SQL statement."""
         import re
 
-        tables = set()
+        tables: set[str] = set()
         patterns = [
             r'FROM\s+"?([a-zA-Z_][a-zA-Z0-9_"]*)',
             r'JOIN\s+"?([a-zA-Z_][a-zA-Z0-9_"]*)',
@@ -197,7 +197,6 @@ class ConnectionPoolMonitor:
         """Get human-readable pool status."""
         size = self._pool.size()
         checkedout = self._pool.checkedout()
-        overflow = self._pool.overflow()
 
         if checkedout == 0:
             return "idle"
@@ -226,19 +225,31 @@ def get_query_profiler() -> QueryProfiler:
     return _global_query_profiler
 
 
-def instrument_engine(engine) -> None:
+def instrument_engine(engine: AsyncEngine) -> None:
     """Instrument SQLAlchemy engine with query profiling."""
     profiler = get_query_profiler()
 
     @event.listens_for(engine.sync_engine, "before_cursor_execute", retval=True)
     def before_cursor_execute(
-        conn, cursor, statement, parameters, context, executemany
-    ):
+        conn: Any,
+        cursor: Any,
+        statement: str,
+        parameters: Any,
+        context: Any,
+        executemany: bool,
+    ) -> tuple[str, Any]:
         conn.info["query_start_time"] = time.perf_counter()
         return statement, parameters
 
     @event.listens_for(engine.sync_engine, "after_cursor_execute")
-    def after_cursor_execute(conn, cursor, statement, parameters, context, executemany):
+    def after_cursor_execute(
+        conn: Any,
+        cursor: Any,
+        statement: str,
+        parameters: Any,
+        context: Any,
+        executemany: bool,
+    ) -> None:
         duration_ms = (time.perf_counter() - conn.info["query_start_time"]) * 1000
 
         query = QueryInfo(
@@ -248,10 +259,11 @@ def instrument_engine(engine) -> None:
             duration_ms=duration_ms,
         )
 
+        record_query_coro = profiler.record_query(query)
         if asyncio.iscoroutinefunction(conn.execute):
-            asyncio.create_task(profiler.record_query(query))
+            asyncio.create_task(record_query_coro)
         else:
-            profiler.record_query(query)
+            record_query_coro.close()
 
 
 class ProfileQueryContext:
@@ -269,7 +281,12 @@ class ProfileQueryContext:
         self.start_time = time.perf_counter()
         return self
 
-    async def __aexit__(self, exc_type, exc_val, exc_tb) -> None:
+    async def __aexit__(
+        self,
+        exc_type: type[BaseException] | None,
+        exc_val: BaseException | None,
+        exc_tb: TracebackType | None,
+    ) -> None:
         self.duration_ms = (time.perf_counter() - self.start_time) * 1000
         if exc_type:
             self.error = str(exc_val)

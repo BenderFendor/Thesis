@@ -1,6 +1,7 @@
 import os
 from dataclasses import dataclass
-from typing import List, Optional, Tuple
+import logging
+from typing import Optional, Tuple
 
 from dotenv import load_dotenv
 from google import genai
@@ -96,7 +97,7 @@ class Settings:
 settings = Settings()
 
 
-def create_gemini_client(logger) -> Optional[genai.Client]:
+def create_gemini_client(logger: logging.Logger) -> Optional[genai.Client]:
     """Initialise and return the Gemini client if an API key is configured."""
     if not settings.gemini_api_key:
         logger.warning("GEMINI_API_KEY not found in environment variables")
@@ -113,7 +114,7 @@ def create_gemini_client(logger) -> Optional[genai.Client]:
         return None
 
 
-def create_openai_client(logger) -> Optional[OpenAI]:
+def create_openai_client(logger: logging.Logger) -> Optional[OpenAI]:
     """Initialise and return an OpenAI-compatible client for the configured LLM backend.
 
     Supports two backends selected by LLM_BACKEND:
@@ -167,7 +168,7 @@ def get_llamacpp_model() -> str:
     return settings.llamacpp_model
 
 
-def check_llamacpp_server(logger) -> None:
+def check_llamacpp_server(logger: logging.Logger) -> None:
     """Probe the llama.cpp /health endpoint and raise RuntimeError if unreachable.
 
     Also auto-discovers the model name to use in API requests and stores it in
@@ -311,7 +312,7 @@ def check_llamacpp_server(logger) -> None:
 _openai_client_instance: Optional[OpenAI] = None
 
 
-def get_llamacpp_instruct_params() -> dict:
+def get_llamacpp_instruct_params() -> dict[str, float | int]:
     """Return llama.cpp inference parameters for Instruct/reasoning mode."""
     return {
         "temperature": settings.llamacpp_temperature,

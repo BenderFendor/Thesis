@@ -14,25 +14,26 @@ from __future__ import annotations
 
 import asyncio
 import gc
-import inspect
 import os
 import psutil
+import statistics
 import time
 import threading
-from collections import defaultdict, deque
-from contextlib import asynccontextmanager
+from collections import deque
+from collections.abc import Awaitable, Callable
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from functools import wraps
-from typing import Any, Callable, Deque, Dict, List, Optional, Tuple
-from starlette.middleware.base import BaseHTTPMiddleware
+from types import TracebackType
+from typing import Any, Deque, Dict, List, Optional, Tuple, TypeVar, cast
+from starlette.middleware.base import BaseHTTPMiddleware, RequestResponseEndpoint
 from starlette.requests import Request
 from starlette.responses import Response
-import statistics
 
 from app.core.logging import get_logger
 
 logger = get_logger("profiling")
+F = TypeVar("F", bound=Callable[..., Any])
 
 
 @dataclass
@@ -252,62 +253,62 @@ class ProfilingSession:
         }
 
     def get_summary(self) -> Dict[str, Any]:
-        endpoint_stats = []
-        for key, metrics in self.endpoints.items():
-            times = list(metrics.times_ms)
+        endpoint_stats: List[Dict[str, Any]] = []
+        for key, endpoint_metrics in self.endpoints.items():
             endpoint_stats.append(
                 {
                     "endpoint": key,
-                    "call_count": metrics.call_count,
-                    "total_time_ms": round(metrics.total_time_ms, 2),
-                    "avg_time_ms": round(metrics.avg_time_ms, 2),
-                    "min_time_ms": round(metrics.min_time_ms, 2)
-                    if metrics.min_time_ms != float("inf")
+                    "call_count": endpoint_metrics.call_count,
+                    "total_time_ms": round(endpoint_metrics.total_time_ms, 2),
+                    "avg_time_ms": round(endpoint_metrics.avg_time_ms, 2),
+                    "min_time_ms": round(endpoint_metrics.min_time_ms, 2)
+                    if endpoint_metrics.min_time_ms != float("inf")
                     else 0,
-                    "max_time_ms": round(metrics.max_time_ms, 2),
-                    "p50_ms": round(metrics.percentile(50), 2),
-                    "p95_ms": round(metrics.percentile(95), 2),
-                    "p99_ms": round(metrics.percentile(99), 2),
-                    "errors": metrics.errors,
+                    "max_time_ms": round(endpoint_metrics.max_time_ms, 2),
+                    "p50_ms": round(endpoint_metrics.percentile(50), 2),
+                    "p95_ms": round(endpoint_metrics.percentile(95), 2),
+                    "p99_ms": round(endpoint_metrics.percentile(99), 2),
+                    "errors": endpoint_metrics.errors,
                     "errors_percent": round(
-                        metrics.errors / metrics.call_count * 100, 2
+                        endpoint_metrics.errors / endpoint_metrics.call_count * 100,
+                        2,
                     )
-                    if metrics.call_count > 0
+                    if endpoint_metrics.call_count > 0
                     else 0,
                 }
             )
 
-        query_stats = []
-        for key, metrics in self.queries.items():
+        query_stats: List[Dict[str, Any]] = []
+        for key, query_metrics in self.queries.items():
             query_stats.append(
                 {
                     "query": key,
-                    "call_count": metrics.call_count,
-                    "total_time_ms": round(metrics.total_time_ms, 2),
-                    "avg_time_ms": round(metrics.avg_time_ms, 2),
-                    "min_time_ms": round(metrics.min_time_ms, 2)
-                    if metrics.min_time_ms != float("inf")
+                    "call_count": query_metrics.call_count,
+                    "total_time_ms": round(query_metrics.total_time_ms, 2),
+                    "avg_time_ms": round(query_metrics.avg_time_ms, 2),
+                    "min_time_ms": round(query_metrics.min_time_ms, 2)
+                    if query_metrics.min_time_ms != float("inf")
                     else 0,
-                    "max_time_ms": round(metrics.max_time_ms, 2),
-                    "errors": metrics.errors,
+                    "max_time_ms": round(query_metrics.max_time_ms, 2),
+                    "errors": query_metrics.errors,
                 }
             )
 
-        external_stats = []
-        for (service, operation), metrics in self.external_calls.items():
+        external_stats: List[Dict[str, Any]] = []
+        for (service, operation), external_metrics in self.external_calls.items():
             external_stats.append(
                 {
                     "service": service,
                     "operation": operation,
-                    "call_count": metrics.call_count,
-                    "total_time_ms": round(metrics.total_time_ms, 2),
-                    "avg_time_ms": round(metrics.avg_time_ms, 2),
-                    "min_time_ms": round(metrics.min_time_ms, 2)
-                    if metrics.min_time_ms != float("inf")
+                    "call_count": external_metrics.call_count,
+                    "total_time_ms": round(external_metrics.total_time_ms, 2),
+                    "avg_time_ms": round(external_metrics.avg_time_ms, 2),
+                    "min_time_ms": round(external_metrics.min_time_ms, 2)
+                    if external_metrics.min_time_ms != float("inf")
                     else 0,
-                    "max_time_ms": round(metrics.max_time_ms, 2),
-                    "timeouts": metrics.timeouts,
-                    "errors": metrics.errors,
+                    "max_time_ms": round(external_metrics.max_time_ms, 2),
+                    "timeouts": external_metrics.timeouts,
+                    "errors": external_metrics.errors,
                 }
             )
 
@@ -360,7 +361,11 @@ class ProfilingMiddleware(BaseHTTPMiddleware):
 
     SKIP_PATHS = {"/health", "/favicon.ico", "/metrics", "/static/"}
 
-    async def dispatch(self, request: Request, call_next: Callable) -> Response:
+    async def dispatch(
+        self,
+        request: Request,
+        call_next: RequestResponseEndpoint,
+    ) -> Response:
         path = request.url.path
         method = request.method
 
@@ -373,7 +378,7 @@ class ProfilingMiddleware(BaseHTTPMiddleware):
         try:
             response = await call_next(request)
             success = response.status_code < 500
-        except Exception as exc:
+        except Exception:
             success = False
             raise
         finally:
@@ -383,16 +388,20 @@ class ProfilingMiddleware(BaseHTTPMiddleware):
         return response
 
 
-def profile_function(name: Optional[str] = None, record_args: bool = False):
+def profile_function(
+    name: Optional[str] = None,
+    record_args: bool = False,
+) -> Callable[[F], F]:
     """Decorator to profile a function's execution time."""
 
-    def decorator(func: Callable) -> Callable:
+    def decorator(func: F) -> F:
         @wraps(func)
         async def async_wrapper(*args: Any, **kwargs: Any) -> Any:
+            async_func = cast(Callable[..., Awaitable[Any]], func)
             session = get_profiling_session()
             start = time.perf_counter()
             try:
-                result = await func(*args, **kwargs)
+                result = await async_func(*args, **kwargs)
                 return result
             finally:
                 duration_ms = (time.perf_counter() - start) * 1000
@@ -403,10 +412,11 @@ def profile_function(name: Optional[str] = None, record_args: bool = False):
 
         @wraps(func)
         def sync_wrapper(*args: Any, **kwargs: Any) -> Any:
+            sync_func = cast(Callable[..., Any], func)
             session = get_profiling_session()
             start = time.perf_counter()
             try:
-                result = func(*args, **kwargs)
+                result = sync_func(*args, **kwargs)
                 return result
             finally:
                 duration_ms = (time.perf_counter() - start) * 1000
@@ -416,8 +426,8 @@ def profile_function(name: Optional[str] = None, record_args: bool = False):
                 )
 
         if asyncio.iscoroutinefunction(func):
-            return async_wrapper
-        return sync_wrapper
+            return cast(F, async_wrapper)
+        return cast(F, sync_wrapper)
 
     return decorator
 
@@ -436,7 +446,12 @@ class ProfileSection:
         self.start_time = time.perf_counter()
         return self
 
-    async def __aexit__(self, exc_type, exc_val, exc_tb) -> None:
+    async def __aexit__(
+        self,
+        exc_type: type[BaseException] | None,
+        exc_val: BaseException | None,
+        exc_tb: TracebackType | None,
+    ) -> None:
         self.duration_ms = (time.perf_counter() - self.start_time) * 1000
         self.session.record_external_call(
             self.service, self.operation, self.duration_ms, success=exc_type is None
@@ -452,10 +467,10 @@ class QueryProfiler:
     """Profiler for database queries."""
 
     def __init__(self) -> None:
-        self._original_execute: Optional[Callable] = None
+        self._original_execute: Optional[Callable[..., Any]] = None
         self._patched = False
 
-    def patch_sessionmaker(self, sessionmaker) -> None:
+    def patch_sessionmaker(self, sessionmaker: Any) -> None:
         """Patch async_sessionmaker to profile execute calls."""
         if self._patched:
             return
@@ -463,12 +478,14 @@ class QueryProfiler:
         original_execute = getattr(sessionmaker, "execute", None)
         if original_execute:
             session = get_profiling_session()
+            execute_callable = cast(Callable[..., Awaitable[Any]], original_execute)
+            self._original_execute = execute_callable
 
             @wraps(original_execute)
-            async def patched_execute(self, *args, **kwargs):
+            async def patched_execute(self: Any, *args: Any, **kwargs: Any) -> Any:
                 start = time.perf_counter()
                 try:
-                    result = await original_execute(self, *args, **kwargs)
+                    result = await execute_callable(self, *args, **kwargs)
                     return result
                 finally:
                     duration_ms = (time.perf_counter() - start) * 1000
@@ -485,7 +502,8 @@ def get_top_slow_endpoints(limit: int = 5) -> List[Dict[str, Any]]:
     """Get the slowest endpoints by average response time."""
     session = get_profiling_session()
     stats = session.get_summary()
-    return stats["endpoints"][:limit]
+    endpoints = cast(List[Dict[str, Any]], stats["endpoints"])
+    return endpoints[:limit]
 
 
 def get_bottleneck_summary() -> Dict[str, Any]:

@@ -16,9 +16,9 @@ import hashlib
 import os
 import re
 import shutil
-import tempfile
 from datetime import datetime, timezone
 from pathlib import Path
+from types import TracebackType
 from typing import Any, Dict, List, Optional, Set
 from urllib.parse import urlparse
 
@@ -175,12 +175,13 @@ class VerificationSandbox:
         flags = re.IGNORECASE if ignore_case else 0
         matches = []
         for i, line in enumerate(content.splitlines(), 1):
-            if re.search(pattern, line, flags):
+            match = re.search(pattern, line, flags)
+            if match is not None:
                 matches.append(
                     {
                         "line_number": i,
                         "line": line.strip(),
-                        "match": re.search(pattern, line, flags).group(0),
+                        "match": match.group(0),
                     }
                 )
         return matches
@@ -227,7 +228,12 @@ class VerificationSandbox:
     def __enter__(self) -> "VerificationSandbox":
         return self
 
-    def __exit__(self, exc_type, exc_val, exc_tb) -> None:
+    def __exit__(
+        self,
+        exc_type: type[BaseException] | None,
+        exc_val: BaseException | None,
+        exc_tb: TracebackType | None,
+    ) -> None:
         self.cleanup()
 
 

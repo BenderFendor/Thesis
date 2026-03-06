@@ -8,11 +8,10 @@ Lightweight - uses existing all-MiniLM embeddings plus pure BM25 algorithm.
 from __future__ import annotations
 
 import logging
-from typing import Any, Dict, List, Optional, Tuple
+from collections.abc import Mapping, Sequence
+from typing import Protocol, TypedDict
 
-import numpy as np
-
-from app.services.bm25_search import BM25Search
+from app.services.bm25_search import BM25Search, BM25SearchResult
 
 logger = logging.getLogger(__name__)
 
@@ -20,10 +19,28 @@ logger = logging.getLogger(__name__)
 RRF_K = 60  # RRF constant - standard value from research
 
 
+class SimilarSearchResult(TypedDict):
+    chroma_id: str
+    article_id: int
+    distance: float
+    similarity_score: float
+    metadata: Mapping[str, object]
+    preview: str
+
+
+class VectorStoreProtocol(Protocol):
+    def search_similar(
+        self,
+        query: str,
+        limit: int = 10,
+        filter_metadata: Mapping[str, object] | None = None,
+    ) -> Sequence[SimilarSearchResult]: ...
+
+
 def reciprocal_rank_fusion(
-    rankings: List[List[Tuple[str, float]]],
+    rankings: list[list[tuple[str, float]]],
     k: int = RRF_K,
-) -> List[Tuple[str, float]]:
+) -> list[tuple[str, float]]:
     """
     Combine multiple rankings using Reciprocal Rank Fusion.
 
@@ -41,7 +58,7 @@ def reciprocal_rank_fusion(
     if not rankings:
         return []
 
-    fused_scores: Dict[str, float] = defaultdict(float)
+    fused_scores: dict[str, float] = defaultdict(float)
 
     for ranking in rankings:
         for rank, (doc_id, score) in enumerate(ranking, 1):
@@ -56,11 +73,11 @@ def reciprocal_rank_fusion(
 
 
 def combine_scores(
-    bm25_scores: Dict[str, float],
-    vector_scores: Dict[str, float],
+    bm25_scores: dict[str, float],
+    vector_scores: dict[str, float],
     bm25_weight: float = 0.5,
     normalize: bool = True,
-) -> Dict[str, float]:
+) -> dict[str, float]:
     """
     Combine BM25 and vector similarity scores.
 
@@ -118,11 +135,11 @@ class HybridSearch:
 
     def __init__(
         self,
-        embedding_model=None,
+        embedding_model: object | None = None,
         bm25_k1: float = 1.6,
         bm25_b: float = 0.7,
         bm25_weight: float = 0.5,
-    ):
+    ) -> None:
         """
         Initialize hybrid search.
 
@@ -137,9 +154,9 @@ class HybridSearch:
         self.bm25_weight = bm25_weight
         self.vector_weight = 1.0 - bm25_weight
         self.bm25_built = False
-        self.corpus_ids: List[str] = []
+        self.corpus_ids: list[str] = []
 
-    def build_index(self, documents: List[Dict]) -> int:
+    def build_index(self, documents: list[Mapping[str, object]]) -> int:
         """
         Build both BM25 and prepare for vector search.
 
@@ -169,11 +186,11 @@ class HybridSearch:
     def search(
         self,
         query: str,
-        vector_store,
+        vector_store: VectorStoreProtocol,
         limit: int = 10,
         vector_limit: int = 50,
         fusion_method: str = "rrf",
-    ) -> List[Dict]:
+    ) -> list[dict[str, object]]:
         """
         Execute hybrid search.
 
@@ -196,7 +213,7 @@ class HybridSearch:
         bm25_ranking = [(r["chroma_id"], r["bm25_score"]) for r in bm25_results]
 
         # 2. Vector search
-        vector_results = vector_store.search_similar(query, limit=vector_limit)
+        vector_results = list(vector_store.search_similar(query, limit=vector_limit))
         vector_scores = {r["chroma_id"]: r["similarity_score"] for r in vector_results}
         vector_ranking = sorted(vector_scores.items(), key=lambda x: x[1], reverse=True)
 
@@ -215,21 +232,36 @@ class HybridSearch:
         chroma_id_to_vector = {r["chroma_id"]: r for r in vector_results}
         chroma_id_to_bm25 = {r["chroma_id"]: r for r in bm25_results}
 
-        results = []
+        results: list[dict[str, object]] = []
         for chroma_id, fused_score in fused[:limit]:
-            vector_result = chroma_id_to_vector.get(chroma_id, {})
-            bm25_result = chroma_id_to_bm25.get(chroma_id, {})
+            vector_result = chroma_id_to_vector.get(chroma_id)
+            bm25_result: BM25SearchResult | None = chroma_id_to_bm25.get(chroma_id)
 
             results.append(
                 {
                     "chroma_id": chroma_id,
                     "article_id": int(chroma_id.replace("article_", "")),
                     "fused_score": round(fused_score, 4),
-                    "bm25_score": round(bm25_result.get("bm25_score", 0), 2),
-                    "vector_score": round(vector_result.get("similarity_score", 0), 4),
-                    "preview": vector_result.get("preview")
-                    or bm25_result.get("document", "")[:200],
-                    "metadata": vector_result.get("metadata") or {},
+                    "bm25_score": round(
+                        bm25_result["bm25_score"] if bm25_result is not None else 0.0,
+                        2,
+                    ),
+                    "vector_score": round(
+                        vector_result["similarity_score"]
+                        if vector_result is not None
+                        else 0.0,
+                        4,
+                    ),
+                    "preview": (
+                        vector_result["preview"]
+                        if vector_result is not None
+                        else bm25_result["document"][:200]
+                        if bm25_result is not None
+                        else ""
+                    ),
+                    "metadata": (
+                        vector_result["metadata"] if vector_result is not None else {}
+                    ),
                 }
             )
 
@@ -241,12 +273,14 @@ class HybridSearch:
     def _vector_only_search(
         self,
         query: str,
-        vector_store,
+        vector_store: VectorStoreProtocol,
         limit: int = 10,
-    ) -> List[Dict]:
+    ) -> list[dict[str, object]]:
         """Fallback to vector-only search."""
         logger.info("Falling back to vector-only search")
-        results = vector_store.search_similar(query, limit=limit)
+        results = [
+            dict(result) for result in vector_store.search_similar(query, limit=limit)
+        ]
 
         for r in results:
             r["fused_score"] = r.get("similarity_score", 0)
@@ -258,10 +292,10 @@ class HybridSearch:
     def search_with_metadata(
         self,
         query: str,
-        vector_store,
-        metadata_filter: Optional[Dict] = None,
+        vector_store: VectorStoreProtocol,
+        metadata_filter: Mapping[str, object] | None = None,
         limit: int = 10,
-    ) -> List[Dict]:
+    ) -> list[dict[str, object]]:
         """
         Hybrid search with metadata filtering.
 
@@ -275,10 +309,12 @@ class HybridSearch:
             Filtered search results
         """
         # Get vector results with filter
-        vector_results = vector_store.search_similar(
-            query,
-            limit=limit * 2,  # Get more to account for filtering
-            filter_metadata=metadata_filter,
+        vector_results = list(
+            vector_store.search_similar(
+                query,
+                limit=limit * 2,  # Get more to account for filtering
+                filter_metadata=metadata_filter,
+            )
         )
 
         # Get BM25 scores for filtered results
@@ -300,22 +336,25 @@ class HybridSearch:
         # Build response
         chroma_id_to_vector = {r["chroma_id"]: r for r in vector_results}
 
-        return [
-            {
-                "chroma_id": chroma_id,
-                "article_id": int(chroma_id.replace("article_", "")),
-                "fused_score": round(score, 4),
-                "vector_score": round(
-                    chroma_id_to_vector[chroma_id].get("similarity_score", 0), 4
-                ),
-                "bm25_score": round(bm25_scores.get(chroma_id, 0), 2),
-                "preview": chroma_id_to_vector[chroma_id].get("preview", "")[:200],
-                "metadata": chroma_id_to_vector[chroma_id].get("metadata", {}),
-            }
-            for chroma_id, score in sorted_results
-        ]
+        results: list[dict[str, object]] = []
+        for chroma_id, score in sorted_results:
+            vector_result = chroma_id_to_vector.get(chroma_id)
+            if vector_result is None:
+                continue
+            results.append(
+                {
+                    "chroma_id": chroma_id,
+                    "article_id": int(chroma_id.replace("article_", "")),
+                    "fused_score": round(score, 4),
+                    "vector_score": round(vector_result["similarity_score"], 4),
+                    "bm25_score": round(bm25_scores.get(chroma_id, 0), 2),
+                    "preview": vector_result["preview"][:200],
+                    "metadata": vector_result["metadata"],
+                }
+            )
+        return results
 
-    def get_stats(self) -> Dict:
+    def get_stats(self) -> dict[str, object]:
         """Get hybrid search statistics."""
         return {
             "bm25_built": self.bm25_built,
@@ -328,10 +367,10 @@ class HybridSearch:
 
 def benchmark_hybrid_search(
     query: str,
-    vector_store,
-    documents: List[Dict],
+    vector_store: VectorStoreProtocol,
+    documents: list[Mapping[str, object]],
     limit: int = 10,
-) -> Dict[str, Any]:
+) -> dict[str, object]:
     """
     Benchmark hybrid vs pure search approaches.
 
@@ -353,7 +392,7 @@ def benchmark_hybrid_search(
 
     # Time vector-only
     start = time.time()
-    vector_results = vector_store.search_similar(query, limit=limit)
+    vector_results = list(vector_store.search_similar(query, limit=limit))
     vector_time = time.time() - start
 
     # Time BM25-only
@@ -369,7 +408,11 @@ def benchmark_hybrid_search(
     # Calculate overlap
     vector_ids = {r["chroma_id"] for r in vector_results}
     bm25_ids = {r["chroma_id"] for r in bm25_results}
-    hybrid_ids = {r["chroma_id"] for r in hybrid_results}
+    hybrid_ids = {
+        chroma_id
+        for r in hybrid_results
+        if isinstance(chroma_id := r.get("chroma_id"), str)
+    }
 
     return {
         "query": query,

@@ -75,7 +75,9 @@ class SourceSearchPlanner:
             logger.warning("Search planner failed for %s: %s", source_name, exc)
             return []
 
-        content = response.choices[0].message.content if response.choices else ""
+        content = (
+            response.choices[0].message.content if response.choices else ""
+        ) or ""
         queries = _parse_query_list(content)
         if len(queries) > max_queries:
             return queries[:max_queries]

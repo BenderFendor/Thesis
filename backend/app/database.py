@@ -14,9 +14,11 @@ from sqlalchemy import (
     inspect,
     text as sqlalchemy_text,
 )
+from importlib import import_module
 from sqlalchemy.dialects import postgresql
-from sqlalchemy.types import TypeDecorator, JSON as JsonType
+from sqlalchemy.engine import Connection, Dialect
 from sqlalchemy.ext.asyncio import (
+    AsyncConnection,
     AsyncEngine,
     AsyncSession,
     async_sessionmaker,
@@ -24,15 +26,24 @@ from sqlalchemy.ext.asyncio import (
 )
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.exc import OperationalError
+from sqlalchemy.types import TypeDecorator, JSON as JsonType, TypeEngine
 import asyncio
 import time
 from datetime import datetime, timezone
 import os
 import logging
 import threading
-from typing import Any, Dict, List, Optional
+from typing import Any, AsyncGenerator, Dict, Iterator, List, Optional, Protocol, cast
 
-from app.core.config import settings
+
+class _DatabaseSettings(Protocol):
+    enable_database: bool
+
+
+settings = cast(
+    _DatabaseSettings,
+    getattr(import_module("app.core.config"), "settings"),
+)
 
 logger = logging.getLogger(__name__)
 
@@ -103,7 +114,7 @@ if not settings.enable_database:
     logger.warning("Database disabled via ENABLE_DATABASE=0; lazy init is disabled")
 
 
-def get_utc_now():
+def get_utc_now() -> datetime:
     return datetime.now(timezone.utc).replace(tzinfo=None)
 
 
@@ -113,25 +124,33 @@ Base = declarative_base()
 # Custom Types
 
 
-class TagListType(TypeDecorator):
+class TagListType(TypeDecorator[List[str]]):
     """Stores tag arrays as native ARRAY on Postgres and JSON elsewhere."""
 
     impl = JSON
     cache_ok = True
 
-    def load_dialect_impl(self, dialect):  # type: ignore[override]
+    def load_dialect_impl(self, dialect: Dialect) -> TypeEngine[Any]:
         if dialect.name == "postgresql":
             return dialect.type_descriptor(postgresql.ARRAY(String))
         return dialect.type_descriptor(JsonType())
 
-    def process_bind_param(self, value, dialect):  # type: ignore[override]
+    def process_bind_param(
+        self,
+        value: List[str] | None,
+        dialect: Dialect,
+    ) -> Any:
         if value is None:
             return []
         if isinstance(value, list):
             return value
         return list(value)
 
-    def process_result_value(self, value, dialect):  # type: ignore[override]
+    def process_result_value(
+        self,
+        value: Any | None,
+        dialect: Dialect,
+    ) -> List[str]:
         return value or []
 
 
@@ -673,7 +692,7 @@ class WikiIndexStatus(Base):
 
 
 # Dependency for FastAPI
-async def get_db():
+async def get_db() -> AsyncGenerator[AsyncSession, None]:
     """Database session dependency for FastAPI endpoints"""
     if not settings.enable_database or AsyncSessionLocal is None:
         raise RuntimeError("Database access requested but ENABLE_DATABASE=0")
@@ -690,7 +709,7 @@ async def get_db():
 
 
 # Initialize database tables
-async def init_db():
+async def init_db() -> None:
     """Create all tables if they don't exist"""
     db_engine = get_engine()
     if db_engine is None:
@@ -700,7 +719,7 @@ async def init_db():
     async def _create_missing_tables() -> None:
         async with db_engine.begin() as conn:
 
-            def _get_tables(sync_conn):
+            def _get_tables(sync_conn: Connection) -> set[str]:
                 inspector = inspect(sync_conn)
                 return set(inspector.get_table_names(schema="public"))
 
@@ -716,7 +735,9 @@ async def init_db():
             if missing:
                 logger.info("Created %d missing tables", len(missing))
 
-    async def _add_missing_columns(conn=None) -> None:
+    async def _add_missing_columns(
+        conn: AsyncConnection | None = None,
+    ) -> None:
         """Add columns that exist in SQLAlchemy models but not in the DB.
 
         Uses ADD COLUMN IF NOT EXISTS so it is safe to call repeatedly.
@@ -733,10 +754,12 @@ async def init_db():
             "JSONB": "JSONB",
         }
 
-        async def _do(c):
-            def _get_existing_columns(sync_conn):
+        async def _do(c: AsyncConnection) -> None:
+            def _get_existing_columns(
+                sync_conn: Connection,
+            ) -> dict[str, set[str]]:
                 insp = inspect(sync_conn)
-                result = {}
+                result: dict[str, set[str]] = {}
                 for table in Base.metadata.sorted_tables:
                     try:
                         cols = insp.get_columns(table.name, schema="public")
@@ -770,7 +793,7 @@ async def init_db():
             async with db_engine.begin() as new_conn:
                 await _do(new_conn)
 
-    def _iter_exception_chain(exc: BaseException):
+    def _iter_exception_chain(exc: BaseException) -> Iterator[BaseException]:
         current: BaseException | None = exc
         seen: set[int] = set()
         while current is not None and id(current) not in seen:
@@ -991,14 +1014,14 @@ async def fetch_articles_by_ids(
     stmt = select(Article).where(Article.id.in_(article_ids))
     result = await session.execute(stmt)
     articles: Dict[int, Dict[str, Any]] = {
-        record.id: article_record_to_dict(record)  # type: ignore[misc]
+        record.id: article_record_to_dict(record)
         for record in result.scalars().all()
         if record.id is not None
     }
 
     return [
         articles[article_id] for article_id in article_ids if article_id in articles
-    ]  # type: ignore[index]
+    ]
 
 
 async def fetch_articles_page(

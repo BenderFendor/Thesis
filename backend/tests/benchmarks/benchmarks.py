@@ -21,7 +21,6 @@ import statistics
 import subprocess
 import sys
 import time
-from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from enum import Enum
@@ -154,7 +153,7 @@ async def run_http_benchmark_async(
             )
             duration_ms = (time.perf_counter() - start) * 1000
             return duration_ms, resp.status_code < 500, resp.status_code
-        except Exception as e:
+        except Exception:
             duration_ms = (time.perf_counter() - start) * 1000
             return duration_ms, False, 500
 

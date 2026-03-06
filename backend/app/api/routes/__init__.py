@@ -1,5 +1,8 @@
 from __future__ import annotations
 
+from importlib import import_module
+from typing import Protocol, cast
+
 from fastapi import APIRouter
 
 from . import (
@@ -10,7 +13,6 @@ from . import (
     comparison,
     debug,
     entity_research,
-    gdelt,
     general,
     image_proxy,
     inline,
@@ -28,8 +30,19 @@ from . import (
     trending,
     updates,
     verification,
-    wiki,
 )
+
+
+class _RouteModule(Protocol):
+    router: APIRouter
+
+
+def _load_route_module(module_name: str) -> _RouteModule:
+    return cast(_RouteModule, import_module(f"{__name__}.{module_name}"))
+
+
+gdelt = _load_route_module("gdelt")
+wiki = _load_route_module("wiki")
 
 router = APIRouter()
 router.include_router(general.router)

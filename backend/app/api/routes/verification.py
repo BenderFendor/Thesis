@@ -10,7 +10,9 @@ Provides endpoints for:
 from __future__ import annotations
 
 import asyncio
-from typing import Any, Dict, Optional
+from collections.abc import AsyncIterator, Awaitable
+from importlib import import_module
+from typing import Any, Dict, Protocol, cast
 
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException
 from fastapi.responses import StreamingResponse
@@ -20,20 +22,89 @@ from app.core.config import settings
 from app.core.logging import get_logger
 from app.database import get_db
 from app.models.verification import (
+    SourceInfo,
     VerificationRequest,
     VerificationResult,
     VerificationStreamEvent,
+    VerifiedClaim,
 )
-from app.services.verification_agent import (
-    cleanup_expired_cache,
-    verify_research,
-)
-from app.services.verification_output import format_json_response
-from app.services.verification_sandbox import cleanup_stale_workspaces
 
 logger = get_logger("api.verification")
 
 router = APIRouter(prefix="/api/verification", tags=["verification"])
+
+
+class _VerifyResearchFn(Protocol):
+    def __call__(
+        self,
+        request: VerificationRequest,
+        db: AsyncSession,
+    ) -> Awaitable[VerificationResult]: ...
+
+
+class _CleanupExpiredCacheFn(Protocol):
+    def __call__(self, db: AsyncSession) -> Awaitable[int]: ...
+
+
+class _FormatJsonResponseFn(Protocol):
+    def __call__(
+        self,
+        claims: list[VerifiedClaim],
+        sources: dict[str, SourceInfo],
+        overall_confidence: float,
+    ) -> dict[str, Any]: ...
+
+
+class _CleanupStaleWorkspacesFn(Protocol):
+    def __call__(self, max_age_hours: int = 24) -> int: ...
+
+
+async def _verify_research(
+    request: VerificationRequest,
+    db: AsyncSession,
+) -> VerificationResult:
+    verify = cast(
+        _VerifyResearchFn,
+        getattr(import_module("app.services.verification_agent"), "verify_research"),
+    )
+    return await verify(request, db)
+
+
+async def _cleanup_expired_cache(db: AsyncSession) -> int:
+    cleanup = cast(
+        _CleanupExpiredCacheFn,
+        getattr(
+            import_module("app.services.verification_agent"),
+            "cleanup_expired_cache",
+        ),
+    )
+    return await cleanup(db)
+
+
+def _format_json_response(
+    claims: list[VerifiedClaim],
+    sources: dict[str, SourceInfo],
+    overall_confidence: float,
+) -> dict[str, Any]:
+    formatter = cast(
+        _FormatJsonResponseFn,
+        getattr(
+            import_module("app.services.verification_output"),
+            "format_json_response",
+        ),
+    )
+    return formatter(claims, sources, overall_confidence)
+
+
+def _cleanup_stale_workspaces(max_age_hours: int = 24) -> int:
+    cleanup = cast(
+        _CleanupStaleWorkspacesFn,
+        getattr(
+            import_module("app.services.verification_sandbox"),
+            "cleanup_stale_workspaces",
+        ),
+    )
+    return cleanup(max_age_hours)
 
 
 @router.get("/status")
@@ -79,7 +150,7 @@ async def verify_claims(
 
     try:
         result = await asyncio.wait_for(
-            verify_research(request, db),
+            _verify_research(request, db),
             timeout=settings.verification_max_duration_seconds + 5,
         )
 
@@ -127,13 +198,13 @@ async def verify_claims_stream(
             detail="Verification is disabled",
         )
 
-    async def generate():
+    async def generate() -> AsyncIterator[str]:
         import json
 
         yield f"data: {json.dumps({'type': 'started', 'query': request.query})}\n\n"
 
         try:
-            result = await verify_research(request, db)
+            result = await _verify_research(request, db)
 
             for i, claim in enumerate(result.verified_claims):
                 progress = (i + 1) / max(len(result.verified_claims), 1)
@@ -186,9 +257,9 @@ async def verify_claims_json(
             detail="Verification is disabled",
         )
 
-    result = await verify_research(request, db)
+    result = await _verify_research(request, db)
 
-    return format_json_response(
+    return _format_json_response(
         result.verified_claims,
         result.sources,
         result.overall_confidence,
@@ -205,9 +276,9 @@ async def clear_cache(
 
     Also cleans up stale sandbox workspaces.
     """
-    deleted_cache = await cleanup_expired_cache(db)
+    deleted_cache = await _cleanup_expired_cache(db)
 
-    background_tasks.add_task(cleanup_stale_workspaces, 24)
+    background_tasks.add_task(_cleanup_stale_workspaces, 24)
 
     return {
         "deleted_cache_entries": deleted_cache,

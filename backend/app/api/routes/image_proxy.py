@@ -11,7 +11,6 @@ import hashlib
 import os
 import time
 from pathlib import Path
-from typing import Optional
 
 import httpx
 from fastapi import APIRouter, HTTPException, Query
@@ -43,6 +42,7 @@ ALLOWED_CONTENT_TYPES = {
 
 # User agent for fetching (some sites block default agents)
 USER_AGENT = "Mozilla/5.0 (compatible; ThesisNewsBot/1.0; +https://github.com/BenderFendor/Thesis)"
+
 
 def _get_cache_path(url: str) -> tuple[Path, Path]:
     """Get cache file paths for URL."""
@@ -176,7 +176,7 @@ async def proxy_image(
 
 
 @router.get("/cache/stats")
-async def get_cache_stats() -> dict:
+async def get_cache_stats() -> dict[str, object]:
     """Get image cache statistics."""
     try:
         files = list(CACHE_DIR.glob("*"))
@@ -195,7 +195,7 @@ async def get_cache_stats() -> dict:
 
 
 @router.delete("/cache/clear")
-async def clear_cache() -> dict:
+async def clear_cache() -> dict[str, object]:
     """Clear all cached images."""
     try:
         files = list(CACHE_DIR.glob("*"))
@@ -216,7 +216,7 @@ async def get_og_image(
     url: str = Query(
         ..., description="URL of the article to fetch OpenGraph image from"
     ),
-) -> dict:
+) -> dict[str, str]:
     """
     Fetch the OpenGraph image for a given article URL.
 

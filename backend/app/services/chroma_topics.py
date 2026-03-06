@@ -14,14 +14,19 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
-from typing import Any, Dict, Iterable, List, Optional, Sequence, Set
+from typing import Any, Dict, Iterable, List, Optional, Sequence, Set, cast
 
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.logging import get_logger
 from app.database import Article, GDELTEvent, get_utc_now
-from app.vector_store import get_vector_store, is_chroma_reachable
+from app.vector_store import (
+    VectorStore,
+    _get_chroma_include,
+    get_vector_store,
+    is_chroma_reachable,
+)
 
 logger = get_logger("chroma_topics")
 
@@ -55,12 +60,25 @@ def _window_start(window: str) -> datetime:
 
 
 class ChromaTopicService:
-    def __init__(self):
+    def __init__(self) -> None:
         pass
 
-    def _get_vector_store(self):
+    @property
+    def vector_store(self) -> VectorStore | None:
+        return self._get_vector_store()
+
+    def _get_vector_store(self) -> VectorStore | None:
         """Return the current vector store, refreshing from the module-level singleton."""
         return get_vector_store()
+
+    def _article_id(self, article: Article) -> int:
+        return cast(int, article.id)
+
+    @staticmethod
+    def _get_session_factory() -> Any:
+        from app.database import AsyncSessionLocal
+
+        return cast(Any, AsyncSessionLocal)
 
     async def get_trending_clusters(
         self, session: AsyncSession, window: str = "1d", limit: int = 10
@@ -273,7 +291,7 @@ class ChromaTopicService:
             snapshot = await get_latest_snapshot(session, window)
             if snapshot is None:
                 continue
-            clusters_data: List[Dict[str, Any]] = snapshot.clusters_json or []  # type: ignore[assignment]
+            clusters_data = cast(List[Dict[str, Any]], snapshot.clusters_json or [])
             for cluster in clusters_data:
                 if cluster.get("cluster_id") != cluster_id:
                     continue
@@ -325,7 +343,6 @@ class ChromaTopicService:
         When ChromaDB is unreachable or unstable, the service falls back to a
         lexical clustering strategy so snapshot updates continue.
         """
-        from app.database import AsyncSessionLocal
         from app.services.cluster_cache import save_snapshot
 
         if not is_chroma_reachable():
@@ -341,7 +358,7 @@ class ChromaTopicService:
                 )
                 # Serialize to plain dicts so they are JSON-safe for Postgres
                 cluster_dicts = [{k: v for k, v in c.items()} for c in clusters]
-                async with AsyncSessionLocal() as write_session:
+                async with self._get_session_factory()() as write_session:
                     await save_snapshot(write_session, window, cluster_dicts)
                 counts[window] = len(cluster_dicts)
                 logger.info(
@@ -396,7 +413,9 @@ class ChromaTopicService:
         candidates: List[ClusterCandidate] = []
         candidate_by_anchor: Dict[int, ClusterCandidate] = {}
         for index, article in enumerate(article_window):
-            cluster = await self._build_cluster_from_anchor(article_id=article.id)
+            cluster = await self._build_cluster_from_anchor(
+                article_id=self._article_id(article)
+            )
             if not cluster or len(cluster.member_ids) < MIN_CLUSTER_SIZE:
                 if (
                     index + 1 >= CHROMA_PROBE_LIMIT
@@ -492,9 +511,12 @@ class ChromaTopicService:
             return []
 
         article_list = list(articles)
-        order_index = {article.id: idx for idx, article in enumerate(article_list)}
+        order_index = {
+            self._article_id(article): idx for idx, article in enumerate(article_list)
+        }
         keyword_sets: Dict[int, Set[str]] = {
-            article.id: self._article_keyword_set(article) for article in article_list
+            self._article_id(article): self._article_keyword_set(article)
+            for article in article_list
         }
 
         token_to_article_ids: Dict[str, List[int]] = {}
@@ -502,7 +524,10 @@ class ChromaTopicService:
             for token in token_set:
                 token_to_article_ids.setdefault(token, []).append(article_id)
 
-        parent: Dict[int, int] = {article.id: article.id for article in article_list}
+        parent: Dict[int, int] = {
+            self._article_id(article): self._article_id(article)
+            for article in article_list
+        }
 
         def find(article_id: int) -> int:
             root = article_id
@@ -521,7 +546,7 @@ class ChromaTopicService:
                 parent[root_b] = root_a
 
         for article in article_list:
-            article_id = article.id
+            article_id = self._article_id(article)
             base_tokens = keyword_sets.get(article_id, set())
             if len(base_tokens) < LEXICAL_MIN_TOKEN_OVERLAP:
                 continue
@@ -606,26 +631,40 @@ class ChromaTopicService:
         chroma_id = f"article_{article_id}"
         try:
             embedded = vector_store.collection.get(
-                ids=[chroma_id], include=["embeddings"]
+                ids=[chroma_id],
+                include=_get_chroma_include("embeddings"),
             )
             embeddings = embedded.get("embeddings") if embedded else None
-            if embeddings is None or len(embeddings) == 0 or len(embeddings[0]) == 0:
+            if embeddings is None or len(embeddings) == 0:
                 return None
-            query_embedding = embeddings[0]
-            if hasattr(query_embedding, "tolist"):
-                query_embedding = query_embedding.tolist()
+            query_embedding_raw = embeddings[0]
+            if len(query_embedding_raw) == 0:
+                return None
+            if isinstance(query_embedding_raw, list):
+                query_embedding = query_embedding_raw
+            elif hasattr(query_embedding_raw, "tolist"):
+                query_embedding = cast(
+                    List[float], cast(Any, query_embedding_raw).tolist()
+                )
+            else:
+                query_embedding = list(query_embedding_raw)
 
             result = vector_store.collection.query(
-                query_embeddings=[query_embedding],
+                query_embeddings=cast(
+                    "list[Sequence[float] | Sequence[int]]",
+                    [query_embedding],
+                ),
                 n_results=TRENDING_EXPANSION,
-                include=["distances", "metadatas"],
+                include=_get_chroma_include("distances", "metadatas"),
             )
         except Exception as exc:
             logger.warning("Failed to query cluster for %s: %s", article_id, exc)
             return None
 
-        ids = result.get("ids", [[]])[0] if result else []
-        distances = result.get("distances", [[]])[0] if result else []
+        ids_batches = result.get("ids") if result else None
+        distance_batches = result.get("distances") if result else None
+        ids = ids_batches[0] if ids_batches else []
+        distances = distance_batches[0] if distance_batches else []
         member_ids: List[int] = []
         similarities: Dict[int, float] = {}
         for chroma_id, distance in zip(ids, distances):
@@ -658,7 +697,7 @@ class ChromaTopicService:
             select(Article).where(Article.id.in_(list(article_ids)))
         )
         articles = result.scalars().all()
-        return {article.id: article for article in articles}
+        return {self._article_id(article): article for article in articles}
 
     async def _build_trending_clusters(
         self,
@@ -861,7 +900,7 @@ class ChromaTopicService:
 
         # Return best title if we have one with decent score, else fallback
         if scored_articles and scored_articles[0][1] > 5.0:
-            return scored_articles[0][0].title
+            return cast(str, scored_articles[0][0].title)
 
         # Fallback: try to find any valid title
         for article in articles.values():
@@ -967,7 +1006,7 @@ async def cluster_computation_worker(
     while True:
         try:
             if settings.enable_database and AsyncSessionLocal is not None:
-                async with AsyncSessionLocal() as session:
+                async with service._get_session_factory()() as session:
                     counts = await service.compute_and_save_clusters(session)
                     if counts:
                         logger.info("Cluster snapshots saved: %s", counts)

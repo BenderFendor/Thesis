@@ -10,7 +10,7 @@ describe("InlineDefinitionPopover", () => {
 
   it("renders nothing when closed", () => {
     const { container } = render(
-      <InlineDefinitionPopover result={null} open={false} setOpen={jest.fn()} anchorRef={{ current: null }} />
+      <InlineDefinitionPopover result={null} open={false} setOpen={jest.fn()} anchorPosition={null} />
     );
     expect(container.firstChild).toBeNull();
   });
@@ -21,7 +21,7 @@ describe("InlineDefinitionPopover", () => {
         result={{ term: "Janet Yellen", definition: "Former U.S. Treasury Secretary." }}
         open={true}
         setOpen={jest.fn()}
-        anchorRef={{ current: { x: 100, y: 200 } }}
+        anchorPosition={{ x: 100, y: 200 }}
       />
     );
 

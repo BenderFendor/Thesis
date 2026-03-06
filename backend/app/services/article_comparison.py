@@ -4,11 +4,30 @@ from __future__ import annotations
 
 import re
 from collections import Counter
-from typing import Any, Dict, List, Set, Tuple
 from difflib import SequenceMatcher
+from typing import Any, TypedDict
 
 
-def extract_entities(text: str) -> Dict[str, List[str]]:
+class CommonKeywordDiff(TypedDict):
+    keyword: str
+    source_1_freq: int
+    source_2_freq: int
+    difference: int
+    emphasis: str
+
+
+class UniqueKeywordFrequency(TypedDict):
+    keyword: str
+    frequency: int
+
+
+class KeywordComparisonResult(TypedDict):
+    common_keywords: list[CommonKeywordDiff]
+    unique_to_source_1: list[UniqueKeywordFrequency]
+    unique_to_source_2: list[UniqueKeywordFrequency]
+
+
+def extract_entities(text: str) -> dict[str, list[str]]:
     """Extract named entities from text using simple heuristics.
 
     Returns:
@@ -17,7 +36,12 @@ def extract_entities(text: str) -> Dict[str, List[str]]:
     # Simple pattern-based extraction
     # In production, this would use spaCy or a proper NER model
 
-    entities = {"persons": [], "organizations": [], "locations": [], "dates": []}
+    entities: dict[str, list[str]] = {
+        "persons": [],
+        "organizations": [],
+        "locations": [],
+        "dates": [],
+    }
 
     # Extract capitalized words (potential proper nouns)
     words = re.findall(r"\b[A-Z][a-zA-Z]+(?:\s+[A-Z][a-zA-Z]+)*\b", text)
@@ -177,7 +201,7 @@ def extract_entities(text: str) -> Dict[str, List[str]]:
     return entities
 
 
-def extract_keywords(text: str, top_n: int = 20) -> List[Tuple[str, int]]:
+def extract_keywords(text: str, top_n: int = 20) -> list[tuple[str, int]]:
     """Extract top keywords by frequency, excluding common stop words.
 
     Args:
@@ -344,14 +368,19 @@ def calculate_text_similarity(text1: str, text2: str) -> float:
 
 
 def find_common_and_unique(
-    entities1: Dict[str, List[str]], entities2: Dict[str, List[str]]
-) -> Dict[str, Any]:
+    entities1: dict[str, list[str]],
+    entities2: dict[str, list[str]],
+) -> dict[str, dict[str, list[str]]]:
     """Find common and unique entities between two entity sets.
 
     Returns:
         Dict with common_entities, unique_to_1, unique_to_2
     """
-    result = {"common_entities": {}, "unique_to_source_1": {}, "unique_to_source_2": {}}
+    result: dict[str, dict[str, list[str]]] = {
+        "common_entities": {},
+        "unique_to_source_1": {},
+        "unique_to_source_2": {},
+    }
 
     for category in ["persons", "organizations", "locations", "dates"]:
         set1 = {e.lower() for e in entities1.get(category, [])}
@@ -380,8 +409,9 @@ def find_common_and_unique(
 
 
 def compare_keywords(
-    keywords1: List[Tuple[str, int]], keywords2: List[Tuple[str, int]]
-) -> Dict[str, Any]:
+    keywords1: list[tuple[str, int]],
+    keywords2: list[tuple[str, int]],
+) -> KeywordComparisonResult:
     """Compare keyword frequency distributions between two articles.
 
     Returns:
@@ -395,7 +425,7 @@ def compare_keywords(
 
     # Common keywords with frequency comparison
     common = set1 & set2
-    common_keywords = []
+    common_keywords: list[CommonKeywordDiff] = []
     for kw in common:
         freq1 = dict1[kw]
         freq2 = dict2[kw]
@@ -418,8 +448,12 @@ def compare_keywords(
     common_keywords.sort(key=lambda x: abs(x["difference"]), reverse=True)
 
     # Unique keywords
-    unique_1 = [{"keyword": kw, "frequency": dict1[kw]} for kw in (set1 - set2)]
-    unique_2 = [{"keyword": kw, "frequency": dict2[kw]} for kw in (set2 - set1)]
+    unique_1: list[UniqueKeywordFrequency] = [
+        {"keyword": kw, "frequency": dict1[kw]} for kw in (set1 - set2)
+    ]
+    unique_2: list[UniqueKeywordFrequency] = [
+        {"keyword": kw, "frequency": dict2[kw]} for kw in (set2 - set1)
+    ]
 
     unique_1.sort(key=lambda x: x["frequency"], reverse=True)
     unique_2.sort(key=lambda x: x["frequency"], reverse=True)
@@ -431,7 +465,10 @@ def compare_keywords(
     }
 
 
-def generate_diff_highlights(text1: str, text2: str) -> Dict[str, List[Dict[str, Any]]]:
+def generate_diff_highlights(
+    text1: str,
+    text2: str,
+) -> dict[str, list[dict[str, Any]]]:
     """Generate visual diff highlights between two texts.
 
     Returns:
@@ -484,7 +521,7 @@ def generate_diff_highlights(text1: str, text2: str) -> Dict[str, List[Dict[str,
 
 def compare_articles(
     content1: str, content2: str, title1: str = "", title2: str = ""
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     """Perform comprehensive comparison between two articles.
 
     Returns:

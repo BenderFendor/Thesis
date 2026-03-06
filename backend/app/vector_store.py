@@ -4,29 +4,30 @@ import logging
 import os
 import threading
 import time
-from typing import Any, Dict, List, Optional
+from collections.abc import Mapping, Sequence
+from importlib import import_module
+from typing import TYPE_CHECKING, Any, Protocol, TypedDict, cast
 
-try:
-    import chromadb
-    from chromadb.config import Settings as ChromaSettings
-except ImportError:  # pragma: no cover - optional at import time
-    chromadb = None
-    ChromaSettings = None
+if TYPE_CHECKING:
+    from numpy.typing import NDArray
 
-try:
+    from chromadb.api.models.Collection import Collection
+    from chromadb.api.types import (
+        Embedding,
+        GetResult,
+        IncludeEnum,
+        Metadata,
+        QueryResult,
+    )
+    from chromadb.api.types import Where
     from sentence_transformers import SentenceTransformer
-except ImportError:  # pragma: no cover - optional at import time
-    SentenceTransformer = None
-
-from app.core.config import settings
-from app.services.startup_metrics import startup_metrics
 
 logger = logging.getLogger(__name__)
 
 CHROMA_HOST = os.getenv("CHROMA_HOST", "localhost")
 CHROMA_PORT = int(os.getenv("CHROMA_PORT", "8001"))
 
-_vector_store: Optional["VectorStore"] = None
+_vector_store: VectorStore | None = None
 _vector_store_lock = threading.Lock()
 
 EMBEDDING_MODEL_NAME = "all-MiniLM-L6-v2"
@@ -40,6 +41,247 @@ _BACKOFF_MULTIPLIER: float = 2.0
 _INITIAL_BACKOFF: float = 5.0  # Start with 5 second backoff
 
 
+MetadataScalar = str | int | float | bool
+
+
+class AppSettingsProtocol(Protocol):
+    enable_vector_store: bool
+
+
+class StartupMetricsProtocol(Protocol):
+    def record_event(
+        self,
+        name: str,
+        started_at: float,
+        *,
+        detail: str | None = None,
+        metadata: dict[str, Any] | None = None,
+    ) -> object: ...
+
+    def add_note(self, key: str, value: Any) -> None: ...
+
+
+class ChromaClientProtocol(Protocol):
+    def heartbeat(self) -> int: ...
+
+    def get_collection(self, *, name: str) -> "Collection": ...
+
+    def get_or_create_collection(
+        self,
+        *,
+        name: str,
+        metadata: Mapping[str, MetadataScalar],
+    ) -> "Collection": ...
+
+
+class EmbeddingModelProtocol(Protocol):
+    def encode(
+        self,
+        sentences: str | list[str],
+        *,
+        batch_size: int = ...,
+        show_progress_bar: bool | None = ...,
+        convert_to_numpy: bool = ...,
+        **kwargs: object,
+    ) -> "NDArray[Any]": ...
+
+
+class ReciprocalRankFusionProtocol(Protocol):
+    def __call__(
+        self,
+        rankings: list[list[tuple[str, float]]],
+        k: int = ...,
+    ) -> list[tuple[str, float]]: ...
+
+
+class CombineScoresProtocol(Protocol):
+    def __call__(
+        self,
+        bm25_scores: dict[str, float],
+        vector_scores: dict[str, float],
+        bm25_weight: float = ...,
+        normalize: bool = ...,
+    ) -> dict[str, float]: ...
+
+
+class BM25SearchProtocol(Protocol):
+    def build_index(
+        self,
+        documents: Sequence[Mapping[str, object]],
+        id_field: str = ...,
+        text_field: str = ...,
+    ) -> int: ...
+
+    def get_scores_for_fusion(
+        self,
+        query: str,
+        candidate_ids: Sequence[str],
+        top_k: int = ...,
+    ) -> dict[str, float]: ...
+
+
+class SimilarArticleResult(TypedDict):
+    chroma_id: str
+    article_id: int
+    distance: float
+    similarity_score: float
+    metadata: Mapping[str, MetadataScalar]
+    preview: str
+
+
+class HybridSearchResult(TypedDict):
+    chroma_id: str
+    article_id: int
+    fused_score: float
+    bm25_score: float
+    vector_score: float
+    distance: float | None
+    metadata: Mapping[str, MetadataScalar]
+    preview: str
+
+
+class BatchArticlePayload(TypedDict):
+    chroma_id: str
+    title: str
+    summary: str
+    content: str
+    metadata: Mapping[str, object]
+
+
+class ClusterCentroid(TypedDict):
+    id: str | int
+    label: str
+    centroid: Sequence[float]
+
+
+class ClusterSimilarityResult(TypedDict):
+    cluster_id: str | int
+    label: str
+    similarity: float
+
+
+def _get_settings() -> AppSettingsProtocol:
+    config_module = import_module("app.core.config")
+    return cast(AppSettingsProtocol, getattr(config_module, "settings"))
+
+
+def _get_startup_metrics() -> StartupMetricsProtocol:
+    metrics_module = import_module("app.services.startup_metrics")
+    return cast(StartupMetricsProtocol, getattr(metrics_module, "startup_metrics"))
+
+
+def _create_chroma_client() -> ChromaClientProtocol:
+    try:
+        chroma_module = cast(Any, import_module("chromadb"))
+        chroma_settings_cls = cast(
+            Any, getattr(import_module("chromadb.config"), "Settings")
+        )
+    except ImportError as exc:  # pragma: no cover - optional at import time
+        raise RuntimeError(
+            "Chroma dependencies are not installed; install chromadb to enable vector store."
+        ) from exc
+
+    return cast(
+        ChromaClientProtocol,
+        chroma_module.HttpClient(
+            host=CHROMA_HOST,
+            port=CHROMA_PORT,
+            settings=chroma_settings_cls(
+                anonymized_telemetry=False,
+                allow_reset=True,
+                chroma_server_ssl_verify=False,
+            ),
+        ),
+    )
+
+
+def _get_sentence_transformer_class() -> type["SentenceTransformer"]:
+    try:
+        transformer_module = import_module("sentence_transformers")
+    except ImportError as exc:  # pragma: no cover - optional at import time
+        raise RuntimeError(
+            "sentence-transformers is not installed; cannot generate embeddings."
+        ) from exc
+    return cast(
+        type["SentenceTransformer"], getattr(transformer_module, "SentenceTransformer")
+    )
+
+
+def _get_chroma_include(*values: str) -> list["IncludeEnum"]:
+    include_enum = cast(
+        Any, getattr(import_module("chromadb.api.types"), "IncludeEnum")
+    )
+    return [cast("IncludeEnum", include_enum(value)) for value in values]
+
+
+def _coerce_metadata(metadata: Mapping[str, object]) -> "Metadata":
+    return cast("Metadata", metadata)
+
+
+def _coerce_where(where: Mapping[str, object] | None) -> "Where | None":
+    if where is None:
+        return None
+    return cast("Where", dict(where))
+
+
+def _get_query_batches(
+    results: "QueryResult",
+) -> tuple[list[str], list[float], list["Metadata"], list[str]]:
+    ids = results["ids"] or []
+    distances = results["distances"] or []
+    metadatas = results["metadatas"] or []
+    documents = results["documents"] or []
+    if not ids or not distances or not metadatas or not documents:
+        return [], [], [], []
+    return ids[0], distances[0], metadatas[0], documents[0]
+
+
+def _get_embedding_rows(
+    payload: "GetResult",
+) -> list["Embedding | Sequence[float] | Sequence[int]"]:
+    raw_embeddings = payload["embeddings"]
+    if raw_embeddings is None:
+        return []
+
+    rows = list(cast(Sequence[object], raw_embeddings))
+    if rows and isinstance(rows[0], (float, int)):
+        return [
+            cast(
+                "Embedding | Sequence[float] | Sequence[int]",
+                cast(Sequence[float] | Sequence[int], rows),
+            )
+        ]
+    return [cast("Embedding | Sequence[float] | Sequence[int]", row) for row in rows]
+
+
+def _embedding_to_list(embedding: "NDArray[Any]") -> list[float]:
+    return cast(list[float], embedding.tolist())
+
+
+def _embeddings_to_lists(embeddings: "NDArray[Any]") -> list[list[float]]:
+    return [cast(list[float], row.tolist()) for row in embeddings]
+
+
+def _get_hybrid_search_helpers() -> tuple[
+    ReciprocalRankFusionProtocol,
+    CombineScoresProtocol,
+]:
+    hybrid_module = import_module("app.services.hybrid_search")
+    return (
+        cast(
+            ReciprocalRankFusionProtocol,
+            getattr(hybrid_module, "reciprocal_rank_fusion"),
+        ),
+        cast(CombineScoresProtocol, getattr(hybrid_module, "combine_scores")),
+    )
+
+
+def _new_bm25_search() -> BM25SearchProtocol:
+    bm25_module = import_module("app.services.bm25_search")
+    bm25_search_class = cast(Any, getattr(bm25_module, "BM25Search"))
+    return cast(BM25SearchProtocol, bm25_search_class())
+
+
 def _get_backoff_duration() -> float:
     """Calculate current backoff duration based on failed attempts."""
     global _failed_attempts
@@ -47,7 +289,7 @@ def _get_backoff_duration() -> float:
     return min(duration, _MAX_BACKOFF_SECONDS)
 
 
-def _record_connection_failure():
+def _record_connection_failure() -> None:
     """Record a failed connection attempt and update backoff."""
     global _failed_attempts, _connection_backoff_until, _last_connection_attempt
     _failed_attempts += 1
@@ -55,7 +297,7 @@ def _record_connection_failure():
     _connection_backoff_until = _last_connection_attempt + _get_backoff_duration()
 
 
-def _record_connection_success():
+def _record_connection_success() -> None:
     """Reset failure tracking on successful connection."""
     global _failed_attempts, _connection_backoff_until
     _failed_attempts = 0
@@ -83,7 +325,7 @@ def is_chroma_reachable(timeout: float = 3.0) -> bool:
         return False
 
 
-def check_chroma_health() -> Dict[str, Any]:
+def check_chroma_health() -> dict[str, object]:
     """
     Check ChromaDB health without initializing full VectorStore.
     Returns detailed status information for monitoring/debugging.
@@ -111,32 +353,22 @@ def check_chroma_health() -> Dict[str, Any]:
 
 
 class VectorStore:
-    def __init__(self):
+    def __init__(self) -> None:
         init_start = time.time()
-        self._embedding_model = None
-        self._embedding_cache_dir = None
+        startup_metrics = _get_startup_metrics()
+        self._embedding_model: EmbeddingModelProtocol | None = None
+        self._embedding_cache_dir: str | None = None
         try:
-            if chromadb is None or ChromaSettings is None:
-                raise RuntimeError(
-                    "Chroma dependencies are not installed; install chromadb to enable vector store."
-                )
-            # Use HTTP client for Docker setup
-            self.client = chromadb.HttpClient(
-                host=CHROMA_HOST,
-                port=CHROMA_PORT,
-                settings=ChromaSettings(
-                    anonymized_telemetry=False,
-                    allow_reset=True,  # Enable for development
-                    chroma_server_ssl_verify=False,
-                ),
-            )
+            self.client: ChromaClientProtocol = _create_chroma_client()
 
             # Fail fast if the Chroma server isn't reachable.
             self.client.heartbeat()
 
             # Create or get collection - workaround for 0.5.23 get_or_create_collection bug
             try:
-                self.collection = self.client.get_collection(name="news_articles")
+                self.collection: Collection = self.client.get_collection(
+                    name="news_articles"
+                )
             except Exception:
                 self.collection = self.client.get_or_create_collection(
                     name="news_articles",
@@ -180,23 +412,30 @@ class VectorStore:
             raise
 
     @property
-    def embedding_model(self):
+    def embedding_model(self) -> EmbeddingModelProtocol:
         """Lazy load embedding model on first access."""
         if self._embedding_model is None:
-            if SentenceTransformer is None:
-                raise RuntimeError(
-                    "sentence-transformers is not installed; cannot generate embeddings."
-                )
+            sentence_transformer = _get_sentence_transformer_class()
             logger.info(
                 f"Loading embedding model ({EMBEDDING_MODEL_NAME}) on first use..."
             )
-            self._embedding_model = SentenceTransformer(
-                EMBEDDING_MODEL_NAME, cache_folder=self._embedding_cache_dir
+            self._embedding_model = cast(
+                EmbeddingModelProtocol,
+                sentence_transformer(
+                    EMBEDDING_MODEL_NAME,
+                    cache_folder=self._embedding_cache_dir,
+                ),
             )
+        assert self._embedding_model is not None
         return self._embedding_model
 
     def add_article(
-        self, article_id: str, title: str, summary: str, content: str, metadata: Dict
+        self,
+        article_id: str,
+        title: str,
+        summary: str,
+        content: str,
+        metadata: Mapping[str, object],
     ) -> bool:
         """Add article embedding to ChromaDB"""
         try:
@@ -206,22 +445,29 @@ class VectorStore:
                 text += f"\n\n{content[:500]}"  # Limit content length
 
             # Generate embedding
-            embedding = self.embedding_model.encode(
-                text,
-                show_progress_bar=False,
-            ).tolist()
+            embedding = _embedding_to_list(
+                self.embedding_model.encode(
+                    text,
+                    show_progress_bar=False,
+                )
+            )
 
             # Store in ChromaDB with metadata
             self.collection.upsert(
                 ids=[article_id],
-                embeddings=[embedding],
+                embeddings=cast(
+                    "list[Sequence[float] | Sequence[int]]",
+                    [embedding],
+                ),
                 documents=[text],
                 metadatas=[
-                    {
-                        **metadata,
-                        "title": title,
-                        "summary": summary[:200],  # Truncate for metadata
-                    }
+                    _coerce_metadata(
+                        {
+                            **metadata,
+                            "title": title,
+                            "summary": summary[:200],  # Truncate for metadata
+                        }
+                    )
                 ],
             )
 
@@ -233,41 +479,46 @@ class VectorStore:
             return False
 
     def search_similar(
-        self, query: str, limit: int = 10, filter_metadata: Optional[Dict] = None
-    ) -> List[Dict]:
+        self,
+        query: str,
+        limit: int = 10,
+        filter_metadata: Mapping[str, object] | None = None,
+    ) -> list[SimilarArticleResult]:
         """Semantic search for similar articles"""
         try:
             # Generate query embedding
-            query_embedding = self.embedding_model.encode(query).tolist()
-
-            # Build where clause for filtering
-            where_clause = filter_metadata if filter_metadata else None
+            query_embedding = _embedding_to_list(self.embedding_model.encode(query))
 
             # Search ChromaDB
             results = self.collection.query(
-                query_embeddings=[query_embedding],
+                query_embeddings=cast(
+                    "list[Sequence[float] | Sequence[int]]",
+                    [query_embedding],
+                ),
                 n_results=limit,
-                where=where_clause,
-                include=["metadatas", "documents", "distances"],
+                where=_coerce_where(filter_metadata),
+                include=_get_chroma_include("metadatas", "documents", "distances"),
             )
 
             # Format results
-            articles = []
-            if results["ids"] and len(results["ids"][0]) > 0:
-                for i in range(len(results["ids"][0])):
-                    articles.append(
-                        {
-                            "chroma_id": results["ids"][0][i],
-                            "article_id": int(
-                                results["ids"][0][i].replace("article_", "")
-                            ),
-                            "distance": results["distances"][0][i],
-                            "similarity_score": 1
-                            - results["distances"][0][i],  # Convert to similarity
-                            "metadata": results["metadatas"][0][i],
-                            "preview": results["documents"][0][i][:200],
-                        }
-                    )
+            articles: list[SimilarArticleResult] = []
+            result_ids, distances, metadatas, documents = _get_query_batches(results)
+            for chroma_id, distance, result_metadata, document in zip(
+                result_ids,
+                distances,
+                metadatas,
+                documents,
+            ):
+                articles.append(
+                    {
+                        "chroma_id": chroma_id,
+                        "article_id": int(chroma_id.replace("article_", "")),
+                        "distance": distance,
+                        "similarity_score": 1 - distance,  # Convert to similarity
+                        "metadata": result_metadata,
+                        "preview": document[:200],
+                    }
+                )
 
             logger.info(
                 f"Found {len(articles)} similar articles for query: '{query[:50]}...'"
@@ -278,37 +529,37 @@ class VectorStore:
             logger.error("Vector search failed: %s", e)
             return []
 
-    def batch_add_articles(self, articles: List[Dict]) -> int:
+    def batch_add_articles(self, articles: list[BatchArticlePayload]) -> int:
         """Batch insert articles for better performance"""
         global _vector_store
         try:
-            ids: List[str] = []
-            documents: List[str] = []
-            metadatas: List[Dict] = []
+            ids: list[str] = []
+            documents: list[str] = []
+            metadatas: list[Metadata] = []
 
             for article in articles:
+                title = article["title"] or ""
+                summary = article["summary"] or ""
+                content = article["content"]
                 text_parts = [
-                    article.get("title", "") or "",
+                    title,
                     "\n\n",
-                    article.get("summary", "") or "",
+                    summary,
                 ]
-                content = article.get("content")
-                if (
-                    content
-                    and content.strip()
-                    and content.strip() != (article.get("summary") or "").strip()
-                ):
+                if content and content.strip() and content.strip() != summary.strip():
                     text_parts.extend(["\n\n", content[:500]])
                 text = "".join(text_parts)
 
                 ids.append(article["chroma_id"])
                 documents.append(text)
                 metadatas.append(
-                    {
-                        **article.get("metadata", {}),
-                        "title": article.get("title"),
-                        "summary": (article.get("summary") or "")[:200],
-                    }
+                    _coerce_metadata(
+                        {
+                            **article["metadata"],
+                            "title": title,
+                            "summary": summary[:200],
+                        }
+                    )
                 )
 
             embeddings_array = self.embedding_model.encode(
@@ -318,10 +569,16 @@ class VectorStore:
                 show_progress_bar=False,
             )
 
-            embeddings = [embedding.tolist() for embedding in embeddings_array]
+            embeddings = _embeddings_to_lists(embeddings_array)
 
             self.collection.upsert(
-                ids=ids, embeddings=embeddings, documents=documents, metadatas=metadatas
+                ids=ids,
+                embeddings=cast(
+                    "list[Sequence[float] | Sequence[int]]",
+                    embeddings,
+                ),
+                documents=documents,
+                metadatas=metadatas,
             )
 
             logger.info(f"Batch added {len(articles)} articles to vector store")
@@ -336,18 +593,18 @@ class VectorStore:
                 )
             return 0
 
-    def list_articles(self, limit: int = 50, offset: int = 0) -> Dict[str, Any]:
+    def list_articles(self, limit: int = 50, offset: int = 0) -> dict[str, object]:
         """Return a window of Chroma documents for debugging purposes."""
         try:
             payload = self.collection.get(
                 limit=limit,
                 offset=offset,
-                include=["metadatas", "documents"],
+                include=_get_chroma_include("metadatas", "documents"),
             )
 
-            ids = payload.get("ids") or []
-            metadatas = payload.get("metadatas") or []
-            documents = payload.get("documents") or []
+            ids = payload["ids"] or []
+            metadatas = payload["metadatas"] or []
+            documents = payload["documents"] or []
 
             return {
                 "ids": ids,
@@ -360,11 +617,11 @@ class VectorStore:
             logger.error("Failed to fetch Chroma documents: %s", exc)
             raise
 
-    def list_all_ids(self) -> List[str]:
+    def list_all_ids(self) -> list[str]:
         """Return every stored Chroma ID (used for drift detection)."""
         try:
-            payload = self.collection.get(include=[])
-            ids = payload.get("ids") or []
+            payload = self.collection.get(include=cast("list[IncludeEnum]", []))
+            ids = payload["ids"] or []
             return list(ids)
         except Exception as exc:
             logger.error("Failed to enumerate Chroma IDs: %s", exc)
@@ -380,7 +637,7 @@ class VectorStore:
             logger.error("Failed to delete article: %s", e)
             return False
 
-    def get_collection_stats(self) -> Dict:
+    def get_collection_stats(self) -> dict[str, object]:
         """Get vector store statistics"""
         try:
             count = self.collection.count()
@@ -399,50 +656,59 @@ class VectorStore:
         article_id: int,
         limit: int = 5,
         exclude_same_source: bool = True,
-        source_id: Optional[str] = None,
-    ) -> List[Dict]:
+        source_id: str | None = None,
+    ) -> list[SimilarArticleResult]:
         """Find similar articles given an article ID (uses stored embedding)."""
         try:
             chroma_id = f"article_{article_id}"
             result = self.collection.get(
                 ids=[chroma_id],
-                include=["embeddings", "metadatas"],
+                include=_get_chroma_include("embeddings", "metadatas"),
             )
 
-            if not result["ids"] or not result["embeddings"]:
+            stored_ids = result["ids"] or []
+            embeddings = _get_embedding_rows(result)
+            if not stored_ids or not embeddings:
                 logger.warning(f"Article {article_id} not found in vector store")
                 return []
 
-            embedding = result["embeddings"][0]
-            where_clause = None
+            embedding = embeddings[0]
+            where_clause: Where | None = None
             if exclude_same_source and source_id:
-                where_clause = {"source_id": {"$ne": source_id}}
+                where_clause = _coerce_where({"source_id": {"$ne": source_id}})
 
             results = self.collection.query(
-                query_embeddings=[embedding],
+                query_embeddings=cast(
+                    "list[Embedding] | list[Sequence[float] | Sequence[int]]",
+                    [embedding],
+                ),
                 n_results=limit + 1,
                 where=where_clause,
-                include=["metadatas", "documents", "distances"],
+                include=_get_chroma_include("metadatas", "documents", "distances"),
             )
 
-            articles = []
-            if results["ids"] and len(results["ids"][0]) > 0:
-                for i in range(len(results["ids"][0])):
-                    result_id = results["ids"][0][i]
-                    if result_id == chroma_id:
-                        continue
-                    articles.append(
-                        {
-                            "chroma_id": result_id,
-                            "article_id": int(result_id.replace("article_", "")),
-                            "distance": results["distances"][0][i],
-                            "similarity_score": 1 - results["distances"][0][i],
-                            "metadata": results["metadatas"][0][i],
-                            "preview": results["documents"][0][i][:200],
-                        }
-                    )
-                    if len(articles) >= limit:
-                        break
+            articles: list[SimilarArticleResult] = []
+            result_ids, distances, metadatas, documents = _get_query_batches(results)
+            for result_id, distance, result_metadata, document in zip(
+                result_ids,
+                distances,
+                metadatas,
+                documents,
+            ):
+                if result_id == chroma_id:
+                    continue
+                articles.append(
+                    {
+                        "chroma_id": result_id,
+                        "article_id": int(result_id.replace("article_", "")),
+                        "distance": distance,
+                        "similarity_score": 1 - distance,
+                        "metadata": result_metadata,
+                        "preview": document[:200],
+                    }
+                )
+                if len(articles) >= limit:
+                    break
 
             logger.debug(
                 f"Found {len(articles)} similar articles for article {article_id}"
@@ -453,9 +719,9 @@ class VectorStore:
             logger.error("Find similar by ID failed: %s", e)
             return []
 
-    def get_embedding_for_query(self, query: str) -> List[float]:
+    def get_embedding_for_query(self, query: str) -> list[float]:
         """Generate embedding for a text query (for search suggestions)."""
-        return self.embedding_model.encode(query).tolist()
+        return _embedding_to_list(self.embedding_model.encode(query))
 
     def search_hybrid(
         self,
@@ -463,8 +729,8 @@ class VectorStore:
         limit: int = 10,
         bm25_weight: float = 0.5,
         fusion_method: str = "rrf",
-        filter_metadata: Optional[Dict] = None,
-    ) -> List[Dict]:
+        filter_metadata: Mapping[str, object] | None = None,
+    ) -> Sequence[HybridSearchResult | SimilarArticleResult]:
         """
         Hybrid search combining BM25 (keyword) + Vector (semantic) with RRF fusion.
 
@@ -484,10 +750,7 @@ class VectorStore:
             List of result dicts with fused scores
         """
         try:
-            from app.services.hybrid_search import (
-                reciprocal_rank_fusion,
-                combine_scores,
-            )
+            reciprocal_rank_fusion, combine_scores = _get_hybrid_search_helpers()
 
             if filter_metadata:
                 vector_results = self.search_similar(
@@ -507,13 +770,11 @@ class VectorStore:
                 vector_scores.items(), key=lambda x: x[1], reverse=True
             )
 
-            bm25_scores = {}
+            bm25_scores: dict[str, float] = {}
             try:
-                from app.services.bm25_search import BM25Search
-
-                bm25_search = BM25Search()
+                bm25_search = _new_bm25_search()
                 bm25_docs = [
-                    {"chroma_id": r["chroma_id"], "text": r.get("preview", "")}
+                    {"chroma_id": r["chroma_id"], "text": r["preview"]}
                     for r in vector_results
                 ]
                 bm25_search.build_index(bm25_docs)
@@ -536,7 +797,7 @@ class VectorStore:
 
             chroma_id_to_vector = {r["chroma_id"]: r for r in vector_results}
 
-            results = []
+            results: list[HybridSearchResult] = []
             for chroma_id, fused_score in fused[:limit]:
                 if chroma_id not in chroma_id_to_vector:
                     continue
@@ -546,13 +807,11 @@ class VectorStore:
                         "chroma_id": chroma_id,
                         "article_id": int(chroma_id.replace("article_", "")),
                         "fused_score": round(fused_score, 4),
-                        "bm25_score": round(bm25_scores.get(chroma_id, 0), 2),
-                        "vector_score": round(
-                            vector_result.get("similarity_score", 0), 4
-                        ),
-                        "distance": vector_result.get("distance"),
-                        "metadata": vector_result.get("metadata", {}),
-                        "preview": vector_result.get("preview", "")[:200],
+                        "bm25_score": round(bm25_scores.get(chroma_id, 0.0), 2),
+                        "vector_score": round(vector_result["similarity_score"], 4),
+                        "distance": vector_result["distance"],
+                        "metadata": vector_result["metadata"],
+                        "preview": vector_result["preview"][:200],
                     }
                 )
 
@@ -573,14 +832,17 @@ class VectorStore:
             )
 
     def find_nearest_cluster_labels(
-        self, query: str, cluster_centroids: List[Dict], limit: int = 5
-    ) -> List[Dict]:
+        self,
+        query: str,
+        cluster_centroids: list[ClusterCentroid],
+        limit: int = 5,
+    ) -> list[ClusterSimilarityResult]:
         """Find cluster labels nearest to a query embedding."""
         try:
             query_embedding = self.embedding_model.encode(query)
             import numpy as np
 
-            results = []
+            results: list[ClusterSimilarityResult] = []
             for cluster in cluster_centroids:
                 centroid = np.array(cluster["centroid"])
                 similarity = float(
@@ -603,25 +865,29 @@ class VectorStore:
             return []
 
     def compute_source_coverage(
-        self, source_ids: List[str], sample_size: int = 100
-    ) -> Dict[str, Any]:
+        self, source_ids: list[str], sample_size: int = 100
+    ) -> dict[str, object]:
         """Compute embedding space coverage statistics per source."""
         try:
             import numpy as np
 
-            coverage_stats = {}
-            all_embeddings = []
-            source_embeddings: Dict[str, List] = {sid: [] for sid in source_ids}
+            coverage_stats: dict[str, dict[str, int | float]] = {}
+            all_embeddings: list[Embedding | Sequence[float] | Sequence[int]] = []
+            source_embeddings: dict[
+                str,
+                list[Embedding | Sequence[float] | Sequence[int]],
+            ] = {sid: [] for sid in source_ids}
 
             for source_id in source_ids:
                 results = self.collection.get(
-                    where={"source_id": source_id},
+                    where=_coerce_where({"source_id": source_id}),
                     limit=sample_size,
-                    include=["embeddings"],
+                    include=_get_chroma_include("embeddings"),
                 )
-                if results["embeddings"]:
-                    source_embeddings[source_id] = results["embeddings"]
-                    all_embeddings.extend(results["embeddings"])
+                embeddings = _get_embedding_rows(results)
+                if embeddings:
+                    source_embeddings[source_id] = embeddings
+                    all_embeddings.extend(embeddings)
 
             if not all_embeddings:
                 return {"error": "No embeddings found for sources"}
@@ -661,7 +927,7 @@ class VectorStore:
             return {"error": str(e)}
 
 
-def get_vector_store() -> Optional[VectorStore]:
+def get_vector_store() -> VectorStore | None:
     """
     Return a lazily initialised vector store (or None if disabled/unavailable).
 
@@ -669,6 +935,8 @@ def get_vector_store() -> Optional[VectorStore]:
     Uses preflight health check before attempting expensive initialization.
     """
     global _vector_store, _connection_backoff_until
+    settings = _get_settings()
+    startup_metrics = _get_startup_metrics()
 
     if not settings.enable_vector_store:
         logger.info("Vector store disabled via ENABLE_VECTOR_STORE=0")

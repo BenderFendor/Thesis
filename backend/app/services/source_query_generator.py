@@ -3,7 +3,7 @@ from __future__ import annotations
 import asyncio
 import json
 import re
-from typing import Any, Dict, List, Optional
+from typing import List, Optional
 
 from app.core.config import get_openai_client, settings
 from app.core.logging import get_logger
@@ -50,18 +50,19 @@ async def generate_search_queries(
 
     try:
         response = await asyncio.to_thread(
-            client.chat.completions.create,
-            model=settings.source_research_model,
-            messages=[
-                {"role": "system", "content": QUERY_SYSTEM_PROMPT},
-                {"role": "user", "content": context},
-            ],
-            max_tokens=400,
-            temperature=0.3,
+            lambda: client.chat.completions.create(
+                model=settings.source_research_model,
+                messages=[
+                    {"role": "system", "content": QUERY_SYSTEM_PROMPT},
+                    {"role": "user", "content": context},
+                ],
+                max_tokens=400,
+                temperature=0.3,
+            ),
         )
 
         content = response.choices[0].message.content if response.choices else ""
-        queries = _parse_queries(content)
+        queries = _parse_queries(content or "")
 
         if queries:
             logger.info(f"Generated {len(queries)} queries for {source_name}")

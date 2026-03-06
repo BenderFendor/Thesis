@@ -44,7 +44,7 @@ class StreamManager:
             self._assert_invariants()
             return stream_info
 
-    def update_stream(self, stream_id: str, **updates) -> None:
+    def update_stream(self, stream_id: str, **updates: object) -> None:
         assert stream_id, "stream_id is required"
         with self.lock:
             if stream_id in self.active_streams:
@@ -57,9 +57,10 @@ class StreamManager:
         with self.lock:
             if stream_id in self.active_streams:
                 stream_info = self.active_streams.pop(stream_id)
-                duration = (
-                    datetime.now(timezone.utc) - stream_info["start_time"]
-                ).total_seconds()
+                start_time = stream_info.get("start_time")
+                if not isinstance(start_time, datetime):
+                    start_time = datetime.now(timezone.utc)
+                duration = (datetime.now(timezone.utc) - start_time).total_seconds()
                 logger.info(
                     "Stream %s completed in %.2fs. Active streams: %s",
                     stream_id,

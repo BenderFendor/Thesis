@@ -17,7 +17,7 @@ from typing import Dict, List, Optional, Tuple
 from urllib.parse import urlparse
 
 import httpx
-from sqlalchemy import select, or_, and_, update
+from sqlalchemy import select, or_, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.logging import get_logger

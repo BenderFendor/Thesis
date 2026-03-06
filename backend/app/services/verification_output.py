@@ -146,7 +146,7 @@ def format_json_response(
     claims: List[VerifiedClaim],
     sources: Dict[str, SourceInfo],
     overall_confidence: float,
-) -> Dict:
+) -> Dict[str, object]:
     """
     Format verification results as structured JSON for frontend.
 

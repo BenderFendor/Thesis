@@ -112,9 +112,13 @@ def _append_field_unique(
 
 def _extract_funding_values(text: str) -> List[str]:
     values: List[str] = []
-    if re.search(r"\bnon[- ]?profit\b|\bnot[- ]?for[- ]?profit\b|\b501\(c\)\(3\)\b", text, re.I):
+    if re.search(
+        r"\bnon[- ]?profit\b|\bnot[- ]?for[- ]?profit\b|\b501\(c\)\(3\)\b", text, re.I
+    ):
         _append_unique(values, "non-profit")
-    if re.search(r"reader[- ]supported|supported by readers|supported by reader", text, re.I):
+    if re.search(
+        r"reader[- ]supported|supported by readers|supported by reader", text, re.I
+    ):
         _append_unique(values, "reader-supported")
     if re.search(r"reader donations", text, re.I):
         _append_unique(values, "reader-supported")
@@ -154,7 +158,9 @@ def _extract_editorial_stance_values(text: str) -> List[str]:
 def _extract_corrections_value(text: str) -> str | None:
     if re.search(r"corrections? policy", text, re.I):
         return "Corrections policy published"
-    if re.search(r"corrections?", text, re.I) and re.search(r"errors?|mistakes?", text, re.I):
+    if re.search(r"corrections?", text, re.I) and re.search(
+        r"errors?|mistakes?", text, re.I
+    ):
         return "Corrections process mentioned"
     return None
 
@@ -263,7 +269,11 @@ def _extract_major_controversies(text: str) -> List[str]:
 
 
 def _sentences(text: str) -> List[str]:
-    return [segment.strip() for segment in re.split(r"(?<=[.!?])\s+", text) if segment.strip()]
+    return [
+        segment.strip()
+        for segment in re.split(r"(?<=[.!?])\s+", text)
+        if segment.strip()
+    ]
 
 
 def _trim_words(text: str, limit: int) -> str:

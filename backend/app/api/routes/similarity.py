@@ -3,8 +3,7 @@
 from __future__ import annotations
 
 import logging
-from datetime import datetime
-from typing import Dict, List, Optional, cast
+from typing import Dict, List
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy import select
@@ -12,7 +11,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import Article as ArticleRecord, get_db
 from app.services.chroma_topics import ChromaTopicService
-from app.vector_store import get_vector_store
+from app.vector_store import _get_chroma_include, get_vector_store
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/similarity", tags=["similarity"])
@@ -37,7 +36,7 @@ async def get_related_articles(
     if not article:
         raise HTTPException(status_code=404, detail="Article not found")
 
-    source_id = cast(Optional[str], article.source_id) if exclude_same_source else None
+    source_id = article.source_id if exclude_same_source else None
     similar = vector_store.find_similar_by_id(
         article_id=article_id,
         limit=limit,
@@ -59,7 +58,7 @@ async def get_related_articles(
         art = article_map.get(sim["article_id"])
         if not art:
             continue
-        published_at = cast(Optional[datetime], art.published_at)
+        published_at = art.published_at
         related.append(
             {
                 "id": art.id,
@@ -90,8 +89,6 @@ async def get_search_suggestions(
         raise HTTPException(status_code=503, detail="Vector store not available")
 
     service = ChromaTopicService()
-    if not service.vector_store:
-        return {"query": query, "suggestions": []}
     suggestions = await service.get_search_suggestions(query, limit=limit)
     return {"query": query, "suggestions": suggestions}
 
@@ -137,7 +134,7 @@ async def compute_novelty_score(
     article_chroma_id = f"article_{article_id}"
     article_result = vector_store.collection.get(
         ids=[article_chroma_id],
-        include=["embeddings"],
+        include=_get_chroma_include("embeddings"),
     )
 
     if not article_result["ids"] or not article_result["embeddings"]:
@@ -148,7 +145,7 @@ async def compute_novelty_score(
     history_ids = [f"article_{aid}" for aid in reading_history[:50]]
     history_result = vector_store.collection.get(
         ids=history_ids,
-        include=["embeddings"],
+        include=_get_chroma_include("embeddings"),
     )
 
     if not history_result["embeddings"]:
@@ -186,9 +183,9 @@ async def get_article_topics(
     db: AsyncSession = Depends(get_db),
 ) -> Dict[str, object]:
     """Get topic cluster assignments for an article."""
-    service = ChromaTopicService()
-    if not service.vector_store:
+    if get_vector_store() is None:
         return {"article_id": article_id, "topics": []}
+    service = ChromaTopicService()
     topics = await service.get_article_topics(db, article_id)
     return {"article_id": article_id, "topics": topics}
 
@@ -201,8 +198,8 @@ async def get_bulk_article_topics(
     """Get topic cluster assignments for multiple articles."""
     if not article_ids:
         return {"articles": {}}
-    service = ChromaTopicService()
-    if not service.vector_store:
+    if get_vector_store() is None:
         return {"articles": {}}
+    service = ChromaTopicService()
     articles_map = await service.get_bulk_article_topics(db, article_ids)
     return {"articles": articles_map}

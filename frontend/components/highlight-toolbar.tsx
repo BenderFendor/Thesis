@@ -38,6 +38,59 @@ export function HighlightToolbar({
   const [editingId, setEditingId] = useState<number | null>(null);
   const [editingNote, setEditingNote] = useState("");
 
+  const handleCreateHighlight = async () => {
+    const selection = window.getSelection()
+    if (!selection || selection.toString().length === 0 || !containerRef.current) {
+      toast.error("No text selected")
+      return
+    }
+
+    try {
+      const range = selection.getRangeAt(0);
+      const highlightedText = selection.toString();
+
+      const startOffset = getGlobalOffset(containerRef.current, range.startContainer, range.startOffset)
+      const endOffset = getGlobalOffset(containerRef.current, range.endContainer, range.endOffset)
+
+      if (HIGHLIGHT_DEBUG) {
+        console.debug("[HighlightToolbar] computed offsets", {
+          startOffset,
+          endOffset,
+          selectedText: highlightedText.slice(0, 80),
+        })
+      }
+
+      if (startOffset === -1 || endOffset === -1) {
+        toast.error("Selection outside of article content");
+        return;
+      }
+
+      const finalStart = Math.min(startOffset, endOffset);
+      const finalEnd = Math.max(startOffset, endOffset);
+
+      if (finalStart === finalEnd) {
+        toast.error("Empty selection");
+        return;
+      }
+
+      await onCreate({
+        highlightedText,
+        color: highlightColor,
+        range: { start: finalStart, end: finalEnd },
+      });
+
+      toast.success("Highlight created");
+
+      selection.removeAllRanges();
+      if (toolbarRef.current) {
+        toolbarRef.current.style.display = "none";
+      }
+    } catch (error) {
+      toast.error("Failed to create highlight");
+      console.error(error);
+    }
+  };
+
   // Handle text selection
   useEffect(() => {
     if (!ENABLE_HIGHLIGHTS) {
@@ -171,64 +224,11 @@ export function HighlightToolbar({
       document.removeEventListener("keyup", handleSelection, { capture: true })
       document.removeEventListener("selectionchange", handleSelectionChange, { capture: true })
     }
-  }, [containerRef])
+  }, [autoCreate, containerRef, handleCreateHighlight])
 
   if (!ENABLE_HIGHLIGHTS) {
     return null
   }
-
-  const handleCreateHighlight = async () => {
-    const selection = window.getSelection()
-    if (!selection || selection.toString().length === 0 || !containerRef.current) {
-      toast.error("No text selected")
-      return
-    }
-
-    try {
-      const range = selection.getRangeAt(0);
-      const highlightedText = selection.toString();
-
-      const startOffset = getGlobalOffset(containerRef.current, range.startContainer, range.startOffset)
-      const endOffset = getGlobalOffset(containerRef.current, range.endContainer, range.endOffset)
-
-      if (HIGHLIGHT_DEBUG) {
-        console.debug("[HighlightToolbar] computed offsets", {
-          startOffset,
-          endOffset,
-          selectedText: highlightedText.slice(0, 80),
-        })
-      }
-
-      if (startOffset === -1 || endOffset === -1) {
-        toast.error("Selection outside of article content");
-        return;
-      }
-
-      const finalStart = Math.min(startOffset, endOffset);
-      const finalEnd = Math.max(startOffset, endOffset);
-
-      if (finalStart === finalEnd) {
-        toast.error("Empty selection");
-        return;
-      }
-
-      await onCreate({
-        highlightedText,
-        color: highlightColor,
-        range: { start: finalStart, end: finalEnd },
-      });
-
-      toast.success("Highlight created");
-
-      selection.removeAllRanges();
-      if (toolbarRef.current) {
-        toolbarRef.current.style.display = "none";
-      }
-    } catch (error) {
-      toast.error("Failed to create highlight");
-      console.error(error);
-    }
-  };
 
   const handleDeleteHighlight = async (id: number) => {
     try {

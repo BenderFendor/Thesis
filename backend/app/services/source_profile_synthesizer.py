@@ -89,7 +89,7 @@ async def synthesize_source_fields(
         return {}
 
     content = response.choices[0].message.content if response.choices else ""
-    parsed = _parse_json_payload(content)
+    parsed = _parse_json_payload(content or "")
     if not parsed:
         logger.warning("Source synthesis returned invalid JSON for %s", source_name)
         return {}
@@ -108,7 +108,8 @@ def _parse_json_payload(text: str) -> Dict[str, Any]:
     if not match:
         return {}
     try:
-        return json.loads(match.group(0))
+        parsed = json.loads(match.group(0))
+        return parsed if isinstance(parsed, dict) else {}
     except json.JSONDecodeError:
         return {}
 

@@ -20,11 +20,13 @@ import asyncio
 import json
 import re
 from datetime import datetime, timezone
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, Iterable, List, Optional, cast
 
 import httpx
+from openai import OpenAI
+from openai.types.chat import ChatCompletionMessageParam
 
-from app.core.llm_client import get_llm_client
+from app.core.config import get_llamacpp_model, get_openai_client, settings
 from app.core.logging import get_logger
 
 logger = get_logger("funding_researcher")
@@ -333,8 +335,8 @@ KNOWN_ORGS: Dict[str, Dict[str, Any]] = {
 class FundingResearcher:
     """Agent that researches news organization funding and ownership."""
 
-    def __init__(self):
-        self.llm_client = get_llm_client()
+    def __init__(self) -> None:
+        self.client: OpenAI | None = get_openai_client()
         self.http_client = httpx.AsyncClient(
             timeout=30.0,
             headers={
@@ -395,7 +397,7 @@ class FundingResearcher:
         )
 
         # Use AI to synthesize
-        if self.llm_client and use_ai:
+        if self.client and use_ai:
             org_data = await self._ai_enhance_org_data(org_data)
 
         org_data["last_researched_at"] = datetime.now(timezone.utc).isoformat()
@@ -427,13 +429,15 @@ class FundingResearcher:
         try:
             search_query = f"{name} news organization"
             url = "https://en.wikipedia.org/w/api.php"
-            params = {
-                "action": "query",
-                "list": "search",
-                "srsearch": search_query,
-                "format": "json",
-                "srlimit": 3,
-            }
+            params = httpx.QueryParams(
+                {
+                    "action": "query",
+                    "list": "search",
+                    "srsearch": search_query,
+                    "format": "json",
+                    "srlimit": 3,
+                }
+            )
 
             response = await self.http_client.get(url, params=params)
             if response.status_code != 200:
@@ -446,15 +450,17 @@ class FundingResearcher:
                 return {}
 
             page_title = search_results[0]["title"]
-            extract_params = {
-                "action": "query",
-                "titles": page_title,
-                "prop": "extracts|info",
-                "exintro": True,
-                "explaintext": True,
-                "format": "json",
-                "inprop": "url",
-            }
+            extract_params = httpx.QueryParams(
+                {
+                    "action": "query",
+                    "titles": page_title,
+                    "prop": "extracts|info",
+                    "exintro": True,
+                    "explaintext": True,
+                    "format": "json",
+                    "inprop": "url",
+                }
+            )
 
             extract_response = await self.http_client.get(url, params=extract_params)
             if extract_response.status_code != 200:
@@ -521,7 +527,7 @@ class FundingResearcher:
         """Search ProPublica Nonprofit Explorer for 990 data."""
         try:
             search_url = f"{self.propublica_base}/search.json"
-            params = {"q": name}
+            params = httpx.QueryParams({"q": name})
 
             response = await self.http_client.get(search_url, params=params)
             if response.status_code != 200:
@@ -598,15 +604,17 @@ class FundingResearcher:
     async def _fetch_wikidata(self, page_title: str) -> Dict[str, Any]:
         """Fetch structured ownership and metadata from Wikidata."""
         try:
-            params = {
-                "action": "wbgetentities",
-                "sites": "enwiki",
-                "titles": page_title,
-                "props": "claims|labels|descriptions|sitelinks",
-                "format": "json",
-                "formatversion": 2,
-                "languages": "en",
-            }
+            params = httpx.QueryParams(
+                {
+                    "action": "wbgetentities",
+                    "sites": "enwiki",
+                    "titles": page_title,
+                    "props": "claims|labels|descriptions|sitelinks",
+                    "format": "json",
+                    "formatversion": 2,
+                    "languages": "en",
+                }
+            )
             response = await self.http_client.get(
                 "https://www.wikidata.org/w/api.php", params=params
             )
@@ -671,14 +679,16 @@ class FundingResearcher:
         unique_ids = sorted({item_id for item_id in item_ids if item_id})
         if not unique_ids:
             return {}
-        params = {
-            "action": "wbgetentities",
-            "ids": "|".join(unique_ids),
-            "props": "labels",
-            "format": "json",
-            "languages": "en",
-            "formatversion": 2,
-        }
+        params = httpx.QueryParams(
+            {
+                "action": "wbgetentities",
+                "ids": "|".join(unique_ids),
+                "props": "labels",
+                "format": "json",
+                "languages": "en",
+                "formatversion": 2,
+            }
+        )
         response = await self.http_client.get(
             "https://www.wikidata.org/w/api.php", params=params
         )
@@ -722,7 +732,7 @@ class FundingResearcher:
         known: Dict[str, Any],
     ) -> Dict[str, Any]:
         """Merge data from multiple sources."""
-        org = {
+        org: Dict[str, Any] = {
             "name": name,
             "normalized_name": normalized_name,
             "org_type": "publisher",
@@ -806,7 +816,7 @@ class FundingResearcher:
 
     async def _ai_enhance_org_data(self, org: Dict[str, Any]) -> Dict[str, Any]:
         """Use AI to fill gaps in organization data."""
-        if not self.llm_client:
+        if not self.client:
             return org
 
         # Only enhance if we have minimal data
@@ -837,9 +847,16 @@ Respond in JSON:
   "notes": "Brief explanation"
 }}"""
 
-            response = self.llm_client.chat_completions_create(
-                service_name="funding",
-                messages=[{"role": "user", "content": prompt}],
+            response = self.client.chat.completions.create(
+                model=(
+                    get_llamacpp_model()
+                    if settings.llm_backend == "llamacpp"
+                    else settings.open_router_model
+                ),
+                messages=cast(
+                    Iterable[ChatCompletionMessageParam],
+                    [{"role": "user", "content": prompt}],
+                ),
                 max_tokens=400,
                 temperature=0.3,
             )
@@ -896,7 +913,7 @@ Respond in JSON:
 
         return chain
 
-    async def close(self):
+    async def close(self) -> None:
         """Close HTTP client."""
         await self.http_client.aclose()
 
@@ -933,7 +950,7 @@ def _extract_wikidata_time(claims: Dict[str, Any], prop: str) -> Optional[str]:
         value = datavalue.get("value") or {}
         if isinstance(value, dict):
             time_value = value.get("time")
-            if time_value:
+            if isinstance(time_value, str):
                 return time_value
     return None
 

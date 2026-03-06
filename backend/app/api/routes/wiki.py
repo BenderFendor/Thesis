@@ -11,7 +11,7 @@ Provides endpoints for:
 
 from __future__ import annotations
 
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, cast
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel
@@ -33,6 +33,22 @@ from app.database import (
 
 router = APIRouter(prefix="/api/wiki", tags=["wiki"])
 logger = get_logger("wiki_routes")
+
+
+def _required_str(value: Optional[str]) -> str:
+    return cast(str, value)
+
+
+def _required_int(value: Optional[int]) -> int:
+    return cast(int, value)
+
+
+def _optional_float(value: Any) -> Optional[float]:
+    return cast(Optional[float], value)
+
+
+def _string_list(value: Any) -> List[str]:
+    return cast(List[str], value or [])
 
 
 # ── Response Models ──────────────────────────────────────────────────
@@ -177,7 +193,7 @@ async def list_wiki_sources(
     sort: str = Query("name", description="Sort by: name, country, bias"),
     limit: int = Query(200, ge=1, le=500),
     offset: int = Query(0, ge=0),
-):
+) -> List[SourceCardResponse]:
     """List all sources for the wiki index page with optional filtering."""
     sources = get_rss_sources()
 
@@ -193,21 +209,28 @@ async def list_wiki_sources(
     all_scores = score_result.scalars().all()
     scores_by_source: Dict[str, Dict[str, int]] = {}
     for score in all_scores:
-        if score.source_name not in scores_by_source:
-            scores_by_source[score.source_name] = {}
-        scores_by_source[score.source_name][score.filter_name] = score.score
+        score_source_name = _required_str(score.source_name)
+        score_filter_name = _required_str(score.filter_name)
+        if score_source_name not in scores_by_source:
+            scores_by_source[score_source_name] = {}
+        scores_by_source[score_source_name][score_filter_name] = _required_int(
+            score.score
+        )
 
     # Load index status from DB
     status_result = await db.execute(
         select(WikiIndexStatus).where(WikiIndexStatus.entity_type == "source")
     )
-    status_entries = {s.entity_name: s for s in status_result.scalars().all()}
+    status_entries: Dict[str, WikiIndexStatus] = {
+        _required_str(status_entry.entity_name): status_entry
+        for status_entry in status_result.scalars().all()
+    }
 
     # Load source metadata from DB for credibility/parent company
     meta_result = await db.execute(select(SourceMetadata))
-    metadata_by_name: Dict[str, Any] = {}
-    for meta in meta_result.scalars().all():
-        metadata_by_name[meta.source_name] = meta
+    metadata_by_name: Dict[str, SourceMetadata] = {}
+    for metadata_entry in meta_result.scalars().all():
+        metadata_by_name[_required_str(metadata_entry.source_name)] = metadata_entry
 
     # Build response cards
     cards: List[SourceCardResponse] = []
@@ -226,7 +249,7 @@ async def list_wiki_sources(
         if search and search.lower() not in name.lower():
             continue
 
-        meta = metadata_by_name.get(name)
+        meta: Optional[SourceMetadata] = metadata_by_name.get(name)
         status = status_entries.get(name)
 
         cards.append(
@@ -237,7 +260,9 @@ async def list_wiki_sources(
                 bias_rating=source_bias or None,
                 category=config.get("category", "general"),
                 parent_company=meta.parent_company if meta else None,
-                credibility_score=meta.credibility_score if meta else None,
+                credibility_score=_optional_float(meta.credibility_score)
+                if meta
+                else None,
                 filter_scores=scores_by_source.get(name),
                 index_status=status.status if status else "unindexed",
                 last_indexed_at=(
@@ -271,12 +296,12 @@ async def list_wiki_sources(
 async def get_source_wiki(
     source_name: str,
     db: AsyncSession = Depends(get_db),
-):
+) -> SourceWikiResponse:
     """Get full wiki page data for a single source."""
     sources = get_rss_sources()
 
     # Find the source config
-    source_config = None
+    source_config: Optional[Dict[str, Any]] = None
     for name, config in sources.items():
         base_name = name.split(" - ")[0].strip()
         if (
@@ -297,11 +322,11 @@ async def get_source_wiki(
     )
     scores = [
         FilterScoreResponse(
-            filter_name=s.filter_name,
-            score=s.score,
+            filter_name=_required_str(s.filter_name),
+            score=_required_int(s.score),
             confidence=s.confidence,
             prose_explanation=s.prose_explanation,
-            citations=s.citations,
+            citations=cast(Optional[List[Dict[str, str]]], s.citations),
             empirical_basis=s.empirical_basis,
             scored_by=s.scored_by,
             last_scored_at=s.last_scored_at.isoformat() if s.last_scored_at else None,
@@ -336,7 +361,7 @@ async def get_source_wiki(
         .distinct()
         .limit(50)
     )
-    reporters = [
+    reporters: List[Dict[str, Any]] = [
         {
             "id": r.id,
             "name": r.name,
@@ -354,7 +379,7 @@ async def get_source_wiki(
         )
     )
     org = org_result.scalar_one_or_none()
-    org_data = None
+    org_data: Optional[Dict[str, Any]] = None
     if org:
         org_data = {
             "id": org.id,
@@ -387,15 +412,15 @@ async def get_source_wiki(
         bias_rating=source_config.get("bias_rating") or None,
         category=source_config.get("category", "general"),
         parent_company=meta.parent_company if meta else None,
-        credibility_score=meta.credibility_score if meta else None,
+        credibility_score=_optional_float(meta.credibility_score) if meta else None,
         is_state_media=meta.is_state_media if meta else None,
         source_type=meta.source_type if meta else None,
         filter_scores=scores,
         reporters=reporters,
         organization=org_data,
         article_count=article_count,
-        geographic_focus=meta.geographic_focus if meta else [],
-        topic_focus=meta.topic_focus if meta else [],
+        geographic_focus=_string_list(meta.geographic_focus) if meta else [],
+        topic_focus=_string_list(meta.topic_focus) if meta else [],
         index_status=status.status if status else "unindexed",
         last_indexed_at=(
             status.last_indexed_at.isoformat()
@@ -409,7 +434,7 @@ async def get_source_wiki(
 async def get_source_filters(
     source_name: str,
     db: AsyncSession = Depends(get_db),
-):
+) -> List[FilterScoreResponse]:
     """Get propaganda filter scores for a source."""
     result = await db.execute(
         select(PropagandaFilterScore).where(
@@ -424,11 +449,11 @@ async def get_source_filters(
         )
     return [
         FilterScoreResponse(
-            filter_name=s.filter_name,
-            score=s.score,
+            filter_name=_required_str(s.filter_name),
+            score=_required_int(s.score),
             confidence=s.confidence,
             prose_explanation=s.prose_explanation,
-            citations=s.citations,
+            citations=cast(Optional[List[Dict[str, str]]], s.citations),
             empirical_basis=s.empirical_basis,
             scored_by=s.scored_by,
             last_scored_at=s.last_scored_at.isoformat() if s.last_scored_at else None,
@@ -442,7 +467,7 @@ async def get_source_reporters(
     source_name: str,
     db: AsyncSession = Depends(get_db),
     limit: int = Query(50, ge=1, le=200),
-):
+) -> List[ReporterCardResponse]:
     """Get reporters associated with a source."""
     result = await db.execute(
         select(Reporter)
@@ -455,8 +480,8 @@ async def get_source_reporters(
     reporters = result.scalars().all()
     return [
         ReporterCardResponse(
-            id=r.id,
-            name=r.name,
+            id=_required_int(r.id),
+            name=_required_str(r.name),
             normalized_name=r.normalized_name,
             bio=(r.bio[:200] + "..." if r.bio and len(r.bio) > 200 else r.bio),
             topics=r.topics,
@@ -482,7 +507,7 @@ async def list_wiki_reporters(
     leaning: Optional[str] = Query(None, description="Filter by political leaning"),
     limit: int = Query(100, ge=1, le=500),
     offset: int = Query(0, ge=0),
-):
+) -> List[ReporterCardResponse]:
     """List all reporters in the wiki directory."""
     stmt = select(Reporter)
 
@@ -498,8 +523,8 @@ async def list_wiki_reporters(
 
     return [
         ReporterCardResponse(
-            id=r.id,
-            name=r.name,
+            id=_required_int(r.id),
+            name=_required_str(r.name),
             normalized_name=r.normalized_name,
             bio=(r.bio[:200] + "..." if r.bio and len(r.bio) > 200 else r.bio),
             topics=r.topics,
@@ -517,7 +542,7 @@ async def list_wiki_reporters(
 async def get_reporter_dossier(
     reporter_id: int,
     db: AsyncSession = Depends(get_db),
-):
+) -> ReporterDossierResponse:
     """Get full reporter dossier for the wiki page."""
     result = await db.execute(select(Reporter).where(Reporter.id == reporter_id))
     reporter = result.scalar_one_or_none()
@@ -533,7 +558,7 @@ async def get_reporter_dossier(
         .order_by(Article.published_at.desc())
         .limit(20)
     )
-    articles = [
+    articles: List[Dict[str, Any]] = [
         {
             "id": a.id,
             "title": a.title,
@@ -546,8 +571,8 @@ async def get_reporter_dossier(
     ]
 
     return ReporterDossierResponse(
-        id=reporter.id,
-        name=reporter.name,
+        id=_required_int(reporter.id),
+        name=_required_str(reporter.name),
         normalized_name=reporter.normalized_name,
         bio=reporter.bio,
         career_history=reporter.career_history,
@@ -582,7 +607,7 @@ async def get_reporter_articles(
     db: AsyncSession = Depends(get_db),
     limit: int = Query(50, ge=1, le=200),
     offset: int = Query(0, ge=0),
-):
+) -> List[Dict[str, Any]]:
     """Get articles by a specific reporter."""
     result = await db.execute(
         select(Article)
@@ -615,7 +640,7 @@ async def list_wiki_organizations(
     db: AsyncSession = Depends(get_db),
     limit: int = Query(100, ge=1, le=500),
     offset: int = Query(0, ge=0),
-):
+) -> List[Dict[str, Any]]:
     """List all organizations for the wiki."""
     result = await db.execute(
         select(Organization).order_by(Organization.name).limit(limit).offset(offset)
@@ -640,7 +665,7 @@ async def list_wiki_organizations(
 @router.get("/organizations/graph", response_model=OwnershipGraphResponse)
 async def get_ownership_graph(
     db: AsyncSession = Depends(get_db),
-):
+) -> OwnershipGraphResponse:
     """Get the full ownership graph for force-directed visualization.
 
     Returns nodes (sources + organizations) and edges (ownership relationships).
@@ -659,7 +684,7 @@ async def get_ownership_graph(
 
     nodes: List[Dict[str, Any]] = []
     edges: List[Dict[str, Any]] = []
-    seen_nodes: set = set()
+    seen_nodes: set[str] = set()
 
     # Add source nodes
     for name, config in unique_sources.items():
@@ -704,7 +729,7 @@ async def get_ownership_graph(
             )
 
         # Try to link source nodes to their organization
-        org_name_lower = org.name.lower()
+        org_name_lower = _required_str(org.name).lower()
         for source_name in unique_sources:
             if (
                 source_name.lower() in org_name_lower
@@ -729,7 +754,7 @@ async def get_ownership_graph(
 @router.get("/index/status", response_model=WikiIndexStatusResponse)
 async def get_wiki_index_status(
     db: AsyncSession = Depends(get_db),
-):
+) -> WikiIndexStatusResponse:
     """Get wiki indexing status summary."""
     result = await db.execute(select(WikiIndexStatus))
     entries = result.scalars().all()
@@ -737,8 +762,10 @@ async def get_wiki_index_status(
     by_status: Dict[str, int] = {}
     by_type: Dict[str, int] = {}
     for entry in entries:
-        by_status[entry.status] = by_status.get(entry.status, 0) + 1
-        by_type[entry.entity_type] = by_type.get(entry.entity_type, 0) + 1
+        entry_status = _required_str(entry.status)
+        entry_type = _required_str(entry.entity_type)
+        by_status[entry_status] = by_status.get(entry_status, 0) + 1
+        by_type[entry_type] = by_type.get(entry_type, 0) + 1
 
     return WikiIndexStatusResponse(
         total_entries=len(entries),
@@ -748,12 +775,12 @@ async def get_wiki_index_status(
 
 
 @router.post("/index/{source_name}")
-async def trigger_source_index(source_name: str):
+async def trigger_source_index(source_name: str) -> Dict[str, str]:
     """Trigger indexing for a specific source (admin endpoint)."""
     from app.services.wiki_indexer import index_source
 
     sources = get_rss_sources()
-    source_config = None
+    source_config: Optional[Dict[str, Any]] = None
     for name, config in sources.items():
         base_name = name.split(" - ")[0].strip()
         if base_name.lower() == source_name.lower():

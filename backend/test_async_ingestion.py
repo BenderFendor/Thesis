@@ -21,7 +21,7 @@ async def test_resource_config():
     from app.core.resource_config import get_system_resources
 
     config = get_system_resources()
-    print(f"\nResource configuration loaded:")
+    print("\nResource configuration loaded:")
     print(f"   CPU workers: {config['cpu_workers']}")
     print(f"   Fetch concurrency: {config['fetch_concurrency']}")
     print(f"   Fetch queue size: {config['fetch_queue_size']}")
@@ -41,7 +41,7 @@ async def test_metrics():
     reset_metrics()
     metrics = get_metrics()
 
-    print(f"\nMetrics initialized:")
+    print("\nMetrics initialized:")
     print(f"   Fetch count: {metrics.fetch_count}")
     print(f"   Parse count: {metrics.parse_count}")
     print(f"   Persist count: {metrics.persist_count}")
@@ -52,7 +52,7 @@ async def test_metrics():
     metrics.parse_count = 5
     metrics.persist_count = 100
 
-    print(f"\nAfter simulated activity:")
+    print("\nAfter simulated activity:")
     metrics_dict = metrics.to_dict()
     print(f"   Fetch: {metrics_dict['fetch']}")
     print(f"   Parse: {metrics_dict['parse']}")
@@ -89,7 +89,7 @@ async def test_blocking_parse():
         }
 
         articles, stat = _blocking_parse_feed(sample_rss, "Test Source", source_info)
-        print(f"\nParse successful:")
+        print("\nParse successful:")
         print(f"   Articles parsed: {len(articles)}")
         print(f"   Source status: {stat['status']}")
         print(f"   Source category: {stat['category']}")

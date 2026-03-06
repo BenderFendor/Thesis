@@ -50,11 +50,6 @@ export function NotificationsPopup({ notifications, onClear, onClearAll, onActio
   
   const popupRef = useRef<HTMLDivElement>(null);
   const [position, setPosition] = useState({ top: 0, left: 0 });
-  const [mounted, setMounted] = useState(false);
-
-  useEffect(() => {
-    setMounted(true);
-  }, []);
 
   useEffect(() => {
     if (!anchorRef.current) return;
@@ -105,7 +100,7 @@ export function NotificationsPopup({ notifications, onClear, onClearAll, onActio
     };
   }, [onClose, anchorRef]);
 
-  if (!mounted) return null;
+  if (typeof document === "undefined") return null;
 
   const popup = (
     <div

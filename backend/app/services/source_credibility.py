@@ -17,7 +17,7 @@ from __future__ import annotations
 
 import os
 from datetime import datetime, timezone
-from typing import Dict, List, Optional, Tuple
+from typing import Dict, List, Optional, Tuple, cast
 from urllib.parse import urlparse
 
 from sqlalchemy import select
@@ -102,7 +102,7 @@ class CredibilityScorer:
         confidence = scorer.calculate_claim_confidence(sources)
     """
 
-    def __init__(self):
+    def __init__(self) -> None:
         self._cache: Dict[str, Tuple[float, SourceType]] = {}
         self._loaded_from_db = False
         self._load_defaults()
@@ -142,15 +142,17 @@ class CredibilityScorer:
         try:
             result = await db.execute(
                 select(SourceCredibilityModel).where(
-                    SourceCredibilityModel.is_active == True
+                    SourceCredibilityModel.is_active.is_(True)
                 )
             )
             entries = result.scalars().all()
 
             for entry in entries:
                 source_type = self._parse_source_type(entry.source_type)
-                self._cache[entry.domain.lower()] = (
-                    entry.credibility_score,
+                domain = cast(str, entry.domain)
+                credibility_score = cast(float, entry.credibility_score)
+                self._cache[domain.lower()] = (
+                    credibility_score,
                     source_type,
                 )
 

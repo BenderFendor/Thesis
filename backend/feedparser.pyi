@@ -1,0 +1,3 @@
+from typing import Any
+
+def parse(*args: Any, **kwargs: Any) -> Any: ...

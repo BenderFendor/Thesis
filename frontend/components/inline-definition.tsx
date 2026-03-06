@@ -10,19 +10,19 @@ export interface InlineDefinitionPopoverProps {
   } | null;
   open: boolean;
   setOpen: (open: boolean) => void;
-  anchorRef: React.RefObject<{ x: number; y: number } | null>;
+  anchorPosition: { x: number; y: number } | null;
 }
 
 export function InlineDefinitionPopover({
   result,
   open,
   setOpen,
-  anchorRef,
+  anchorPosition,
 }: InlineDefinitionPopoverProps) {
   if (!open || !result) return null;
 
-  const x = anchorRef.current?.x ?? 0;
-  const y = anchorRef.current?.y ?? 0;
+  const x = anchorPosition?.x ?? 0;
+  const y = anchorPosition?.y ?? 0;
 
   return (
     <div

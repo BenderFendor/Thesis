@@ -1,20 +1,22 @@
 from __future__ import annotations
 
 import json
-from typing import Any, Dict, Optional
+from typing import Any, Dict, Optional, cast
+
+from openai.types.chat import ChatCompletion
+from tenacity import retry, retry_if_exception, stop_after_attempt, wait_exponential
 
 from app.core.config import settings
-from app.core.llm_client import get_llm_client
+from app.core.llm_client import LLMClient, get_llm_client
 from app.core.logging import get_logger
 from app.services.article_extraction import extract_article_full_text
-from tenacity import retry, stop_after_attempt, wait_exponential, retry_if_exception
 
 logger = get_logger("article_analysis")
 
 SYSTEM_MESSAGE = "You are an expert news analyst. Return valid JSON."
 
 
-def _is_retryable_error(exception):
+def _is_retryable_error(exception: BaseException) -> bool:
     msg = str(exception)
     return (
         "429" in msg
@@ -29,7 +31,11 @@ def _is_retryable_error(exception):
     stop=stop_after_attempt(5),
     reraise=True,
 )
-def _generate_content_safe(llm_client, model, messages):
+def _generate_content_safe(
+    llm_client: LLMClient,
+    model: str,
+    messages: list[dict[str, str]],
+) -> ChatCompletion:
     return llm_client.chat_completions_create(
         service_name="article_analysis",
         messages=messages,
@@ -166,9 +172,12 @@ def _parse_response_json(response_text: str) -> Optional[Dict[str, Any]]:
         return None
     cleaned = _strip_code_fence(response_text)
     try:
-        return json.loads(cleaned)
+        parsed = json.loads(cleaned)
     except json.JSONDecodeError:
         return None
+    if not isinstance(parsed, dict):
+        return None
+    return cast(Dict[str, Any], parsed)
 
 
 def _strip_code_fence(response_text: str) -> str:

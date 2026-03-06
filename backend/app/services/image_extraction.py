@@ -11,7 +11,7 @@ import re
 from dataclasses import dataclass, field
 from enum import Enum
 from typing import Any, Dict, List, Optional
-from urllib.parse import urljoin, urlparse
+from urllib.parse import urljoin
 
 import httpx
 from bs4 import BeautifulSoup
@@ -20,13 +20,16 @@ from app.core.logging import get_logger
 
 logger = get_logger("image_extraction")
 
-try:  # Optional Rust HTML extraction
-    import rss_parser_rust  # type: ignore
+rss_parser_rust: Any | None = None
 
+try:  # Optional Rust HTML extraction
+    import rss_parser_rust as _rss_parser_rust
+
+    rss_parser_rust = _rss_parser_rust
     RUST_HTML_AVAILABLE = True
 except ImportError:  # pragma: no cover - optional dependency
     RUST_HTML_AVAILABLE = False
-    rss_parser_rust = None  # type: ignore[assignment]
+    rss_parser_rust = None
 
 
 class ImageErrorType(str, Enum):
@@ -317,39 +320,40 @@ def _extract_images_from_html(html: str) -> List[str]:
     return normalized
 
 
-def _resolve_url(url: Any, base_url: Optional[str] = None) -> Optional[str]:
+def _resolve_url(url: object, base_url: Optional[str] = None) -> Optional[str]:
     """Resolve potentially nested or relative URL."""
-    if url is None:
+    url_value: object = url
+    if url_value is None:
         return None
 
     # Handle nested dicts
-    if isinstance(url, dict):
-        url = url.get("url") or url.get("href")
+    if isinstance(url_value, dict):
+        url_value = url_value.get("url") or url_value.get("href")
 
     # Handle lists
-    if isinstance(url, list) and url:
-        url = url[0]
-        if isinstance(url, dict):
-            url = url.get("url") or url.get("href")
+    if isinstance(url_value, list) and url_value:
+        url_value = url_value[0]
+        if isinstance(url_value, dict):
+            url_value = url_value.get("url") or url_value.get("href")
 
-    if not isinstance(url, str):
+    if not isinstance(url_value, str):
         return None
 
-    url = url.strip()
-    if not url:
+    normalized_url = url_value.strip()
+    if not normalized_url:
         return None
 
     # Already absolute
-    if url.startswith(("http://", "https://")):
-        return url
+    if normalized_url.startswith(("http://", "https://")):
+        return normalized_url
 
     # Relative URL - need base
     if base_url:
-        return urljoin(base_url, url)
+        return urljoin(base_url, normalized_url)
 
     # Protocol-relative
-    if url.startswith("//"):
-        return f"https:{url}"
+    if normalized_url.startswith("//"):
+        return f"https:{normalized_url}"
 
     return None
 
@@ -476,7 +480,7 @@ def _populate_candidates_from_rust(result: ImageExtractionResult, html: str) -> 
     if not RUST_HTML_AVAILABLE or rss_parser_rust is None:
         return
     try:
-        payload = rss_parser_rust.extract_og_image_html(html)  # type: ignore[attr-defined]
+        payload = rss_parser_rust.extract_og_image_html(html)
     except Exception as exc:  # pragma: no cover - optional dependency
         logger.debug("Rust og:image extraction failed: %s", exc)
         return

@@ -4,6 +4,17 @@
  */
 
 const isBrowser = typeof window !== "undefined";
+const STORAGE_CHANGE_EVENT = "thesis-storage-change";
+
+function dispatchStorageChange(key?: string): void {
+  if (!isBrowser) return;
+
+  window.dispatchEvent(
+    new CustomEvent<{ key?: string }>(STORAGE_CHANGE_EVENT, {
+      detail: { key },
+    })
+  );
+}
 
 /**
  * Safely retrieve value from localStorage
@@ -34,6 +45,7 @@ export function saveToStorage<T>(key: string, value: T): boolean {
 
   try {
     window.localStorage.setItem(key, JSON.stringify(value));
+    dispatchStorageChange(key);
     return true;
   } catch (error) {
     console.error(`Error setting localStorage key "${key}":`, error);
@@ -51,6 +63,7 @@ export function removeFromStorage(key: string): boolean {
 
   try {
     window.localStorage.removeItem(key);
+    dispatchStorageChange(key);
     return true;
   } catch (error) {
     console.error(`Error removing localStorage key "${key}":`, error);
@@ -67,11 +80,48 @@ export function clearStorage(): boolean {
 
   try {
     window.localStorage.clear();
+    dispatchStorageChange();
     return true;
   } catch (error) {
     console.error("Error clearing localStorage:", error);
     return false;
   }
+}
+
+export function subscribeToStorageKey(
+  key: string,
+  onChange: () => void
+): () => void {
+  if (!isBrowser) {
+    return () => {};
+  }
+
+  const handleStorage = (event: StorageEvent) => {
+    if (event.key === key || event.key === null) {
+      onChange();
+    }
+  };
+
+  const handleCustomEvent = (event: Event) => {
+    const storageEvent = event as CustomEvent<{ key?: string }>;
+    if (!storageEvent.detail?.key || storageEvent.detail.key === key) {
+      onChange();
+    }
+  };
+
+  window.addEventListener("storage", handleStorage);
+  window.addEventListener(
+    STORAGE_CHANGE_EVENT,
+    handleCustomEvent as EventListener
+  );
+
+  return () => {
+    window.removeEventListener("storage", handleStorage);
+    window.removeEventListener(
+      STORAGE_CHANGE_EVENT,
+      handleCustomEvent as EventListener
+    );
+  };
 }
 
 // Storage keys

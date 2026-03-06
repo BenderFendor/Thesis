@@ -12,7 +12,7 @@ export interface InlineDefinitionResult {
 export function useInlineDefinition() {
   const [result, setResult] = useState<InlineDefinitionResult | null>(null);
   const [open, setOpen] = useState(false);
-  const anchorRef = useRef<{ x: number; y: number } | null>(null);
+  const [anchorPosition, setAnchorPosition] = useState<{ x: number; y: number } | null>(null);
   const abortRef = useRef<AbortController | null>(null);
   const lastTermRef = useRef<string | null>(null);
   const lastRequestAtRef = useRef<number>(0);
@@ -42,10 +42,15 @@ export function useInlineDefinition() {
         }
 
         if (rect) {
-          anchorRef.current = { x: rect.left + rect.width / 2 + window.scrollX, y: rect.top + window.scrollY };
+          setAnchorPosition({
+            x: rect.left + rect.width / 2 + window.scrollX,
+            y: rect.top + window.scrollY,
+          });
         } else {
-          // Fallback to mouse coordinates if range rect is unavailable
-          anchorRef.current = { x: e.clientX + window.scrollX, y: e.clientY + window.scrollY };
+          setAnchorPosition({
+            x: e.clientX + window.scrollX,
+            y: e.clientY + window.scrollY,
+          });
         }
 
         const now = Date.now();
@@ -97,5 +102,5 @@ export function useInlineDefinition() {
     };
   }, []);
 
-  return { result, open, setOpen, anchorRef };
+  return { result, open, setOpen, anchorPosition };
 }

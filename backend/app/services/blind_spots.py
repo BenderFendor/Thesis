@@ -6,24 +6,21 @@ Analyzes which news sources are covering which topics and identifies
 
 from __future__ import annotations
 
-import json
 import logging
 from collections import defaultdict
-from datetime import datetime, timedelta, timezone
-from typing import Any, Dict, List, Optional, Sequence, Set, Tuple, cast
+from datetime import timedelta
+from typing import Any, DefaultDict, Dict, List, Optional, Sequence, cast
 
-from sqlalchemy import select, func, and_, or_, desc
+from sqlalchemy import select, func, and_, desc
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import (
     Article,
     SourceMetadata,
     SourceCoverageStats,
-    TopicBlindSpot,
     get_utc_now,
 )
 from app.services.chroma_topics import ChromaTopicService
-from app.core.config import settings
 
 logger = logging.getLogger(__name__)
 
@@ -31,7 +28,7 @@ logger = logging.getLogger(__name__)
 class BlindSpotsAnalyzer:
     """Analyzes source coverage and identifies blind spots."""
 
-    def __init__(self):
+    def __init__(self) -> None:
         self.min_articles_for_blind_spot = 5  # Minimum articles in topic to consider
         self.coverage_threshold = (
             0.3  # Source must cover < 30% of days to be blind spot
@@ -325,11 +322,11 @@ class BlindSpotsAnalyzer:
         service = ChromaTopicService()
 
         for source_name, source_arts in source_articles.items():
-            article_ids = [a.id for a in source_arts]
+            article_ids = [cast(int, a.id) for a in source_arts]
             cluster_ids = article_ids if service.vector_store else []
 
             # Count by category
-            category_counts = defaultdict(int)
+            category_counts: DefaultDict[str, int] = defaultdict(int)
             for article in source_arts:
                 category_counts[article.category or "general"] += 1
 
@@ -344,10 +341,13 @@ class BlindSpotsAnalyzer:
             )
             stats = existing.scalar_one_or_none()
 
+            article_count = len(source_arts)
+            article_count_by_category = dict(category_counts)
+            topics_covered = len(cluster_ids)
             stats_payload = {
-                "article_count": len(source_arts),
-                "article_count_by_category": dict(category_counts),
-                "topics_covered": len(cluster_ids),
+                "article_count": article_count,
+                "article_count_by_category": article_count_by_category,
+                "topics_covered": topics_covered,
                 "cluster_ids": cluster_ids,
             }
             if stats:
@@ -362,11 +362,9 @@ class BlindSpotsAnalyzer:
                 stats = SourceCoverageStats(
                     source_name=source_name,
                     date=today,
-                    article_count=stats_payload["article_count"],
-                    article_count_by_category=stats_payload[
-                        "article_count_by_category"
-                    ],
-                    topics_covered=stats_payload["topics_covered"],
+                    article_count=article_count,
+                    article_count_by_category=article_count_by_category,
+                    topics_covered=topics_covered,
                     cluster_ids=stats_payload["cluster_ids"],
                 )
                 session.add(stats)

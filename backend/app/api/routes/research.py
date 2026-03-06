@@ -2,8 +2,10 @@ from __future__ import annotations
 
 import asyncio
 import json
+from collections.abc import AsyncIterator, Iterator
 from datetime import datetime, timezone
-from typing import Dict, List, Optional
+from importlib import import_module
+from typing import Any, Dict, List, Optional, Protocol, cast
 
 from fastapi import APIRouter, Query
 from fastapi.responses import StreamingResponse
@@ -12,15 +14,81 @@ from starlette.concurrency import iterate_in_threadpool
 
 from app.core.logging import get_logger
 from app.models.research import NewsResearchRequest, NewsResearchResponse, ThinkingStep
-from app.services.news_research import (
-    load_articles_for_research,
-    run_research_agent,
-    stream_research_agent,
-)
 
 logger = get_logger(__name__)
 
 router = APIRouter(prefix="/api/news", tags=["news-research"])
+
+ResearchArticle = Dict[str, Any]
+ChatHistory = List[Dict[str, object]]
+ResearchPayload = Dict[str, Any]
+ResearchResultPayload = Dict[str, Any]
+
+
+class _LoadArticlesForResearch(Protocol):
+    async def __call__(
+        self,
+        query: str,
+        semantic_limit: int = 20,
+        keyword_limit: int = 50,
+        recent_limit: int = 40,
+        max_total: int = 150,
+    ) -> ResearchPayload: ...
+
+
+class _RunResearchAgent(Protocol):
+    def __call__(
+        self,
+        query: str,
+        articles: List[ResearchArticle],
+        verbose: bool = True,
+        chat_history: Optional[ChatHistory] = None,
+    ) -> ResearchResultPayload: ...
+
+
+class _StreamResearchAgent(Protocol):
+    def __call__(
+        self,
+        query: str,
+        articles: List[ResearchArticle],
+        chat_history: Optional[ChatHistory] = None,
+    ) -> Iterator[str]: ...
+
+
+async def load_articles_for_research(query: str) -> ResearchPayload:
+    loader = cast(
+        _LoadArticlesForResearch,
+        getattr(
+            import_module("app.services.news_research"),
+            "load_articles_for_research",
+        ),
+    )
+    return await loader(query)
+
+
+def run_research_agent(
+    query: str,
+    articles: List[ResearchArticle],
+    include_thinking: bool,
+    chat_history: Optional[ChatHistory],
+) -> ResearchResultPayload:
+    runner = cast(
+        _RunResearchAgent,
+        getattr(import_module("app.services.news_research"), "run_research_agent"),
+    )
+    return runner(query, articles, include_thinking, chat_history)
+
+
+def stream_research_agent(
+    query: str,
+    articles: List[ResearchArticle],
+    chat_history: Optional[ChatHistory],
+) -> Iterator[str]:
+    streamer = cast(
+        _StreamResearchAgent,
+        getattr(import_module("app.services.news_research"), "stream_research_agent"),
+    )
+    return streamer(query, articles, chat_history)
 
 
 @router.get("/research/stream")
@@ -30,14 +98,20 @@ async def news_research_stream_endpoint(
     history: str | None = Query(
         None, description="JSON-encoded chat history for context"
     ),
-):
-    async def generate():
+) -> StreamingResponse:
+    async def generate() -> AsyncIterator[str]:
         try:
             yield f"data: {json.dumps({'type': 'status', 'message': 'Starting research...', 'timestamp': datetime.now(timezone.utc).isoformat()})}\n\n"
 
             articles_payload = await load_articles_for_research(query)
-            articles_dict = articles_payload.get("articles", [])
-            retrieval_summary = articles_payload.get("summary", {})
+            articles_dict = cast(
+                List[ResearchArticle],
+                articles_payload.get("articles", []),
+            )
+            retrieval_summary = cast(
+                Dict[str, Any],
+                articles_payload.get("summary", {}),
+            )
             total_articles = retrieval_summary.get("total", len(articles_dict))
 
             status_message = {
@@ -56,13 +130,13 @@ async def news_research_stream_endpoint(
             chat_history: Optional[List[Dict[str, object]]] = None
             if history:
                 try:
-                    chat_history = json.loads(history)
+                    chat_history = cast(Optional[ChatHistory], json.loads(history))
                 except json.JSONDecodeError:
                     chat_history = None
 
             # Stream the research agent events
-            final_result = None
-            last_thought = None
+            final_result: ResearchResultPayload | None = None
+            last_thought: str | None = None
             async for event_raw in iterate_in_threadpool(
                 stream_research_agent(query, articles_dict, chat_history)
             ):
@@ -72,7 +146,7 @@ async def news_research_stream_endpoint(
                     if not json_str:
                         continue
 
-                    event = json.loads(json_str)
+                    event = cast(Dict[str, Any], json.loads(json_str))
                     timestamp = datetime.now(timezone.utc).isoformat()
 
                     if event["type"] == "thinking":
@@ -127,7 +201,7 @@ async def news_research_stream_endpoint(
                     continue
 
             if not final_result:
-                fallback = {
+                fallback: ResearchResultPayload = {
                     "success": False,
                     "query": query,
                     "answer": last_thought or "Answer\nNo answer available.\n",
@@ -158,7 +232,10 @@ async def news_research_stream_endpoint(
 @router.post("/research", response_model=NewsResearchResponse)
 async def news_research_endpoint(request: NewsResearchRequest) -> NewsResearchResponse:
     articles_payload = await load_articles_for_research(request.query)
-    articles_dict = articles_payload.get("articles", [])
+    articles_dict = cast(
+        List[ResearchArticle],
+        articles_payload.get("articles", []),
+    )
 
     # Run blocking research agent in thread pool to avoid blocking event loop
     result = await asyncio.to_thread(
@@ -169,7 +246,10 @@ async def news_research_endpoint(request: NewsResearchRequest) -> NewsResearchRe
         None,
     )
 
-    thinking_steps = [ThinkingStep(**step) for step in result.get("thinking_steps", [])]
+    thinking_steps = [
+        ThinkingStep(**step)
+        for step in cast(List[Dict[str, Any]], result.get("thinking_steps", []))
+    ]
 
     return NewsResearchResponse(
         success=result.get("success", False),

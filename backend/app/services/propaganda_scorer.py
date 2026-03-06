@@ -20,11 +20,12 @@ from __future__ import annotations
 
 import json
 import re
-from datetime import datetime, timezone
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, Iterable, List, Optional, cast
 
-from app.core.config import settings
-from app.core.llm_client import get_llm_client
+from openai import OpenAI
+from openai.types.chat import ChatCompletionMessageParam
+
+from app.core.config import get_llamacpp_model, get_openai_client, settings
 from app.core.logging import get_logger
 
 logger = get_logger("propaganda_scorer")
@@ -161,8 +162,8 @@ class ScoringResult:
 class PropagandaFilterScorer:
     """Scores sources on the six propaganda filters."""
 
-    def __init__(self):
-        self.llm_client = get_llm_client()
+    def __init__(self) -> None:
+        self.client: OpenAI | None = get_openai_client()
 
     async def score_source(
         self,
@@ -493,7 +494,7 @@ class PropagandaFilterScorer:
 
         Returns dict with "scores" (Dict[str, FilterScore]) and optional "org_updates" (Dict).
         """
-        if not self.llm_client:
+        if not self.client:
             logger.warning("No LLM client available; skipping LLM-scored filters")
             return {"scores": {}}
 
@@ -596,9 +597,16 @@ Respond ONLY with valid JSON (no markdown):
 }}"""
 
         try:
-            response = self.llm_client.chat_completions_create(
-                service_name="propaganda",
-                messages=[{"role": "user", "content": prompt}],
+            response = self.client.chat.completions.create(
+                model=(
+                    get_llamacpp_model()
+                    if settings.llm_backend == "llamacpp"
+                    else settings.open_router_model
+                ),
+                messages=cast(
+                    Iterable[ChatCompletionMessageParam],
+                    [{"role": "user", "content": prompt}],
+                ),
                 max_tokens=2500 if include_org_metadata else 2000,
                 temperature=0.3,
             )

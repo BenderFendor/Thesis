@@ -148,17 +148,35 @@ async def get_news_paginated(
                 )
             )
 
-    # Build order clause
-    if sort_order == "desc":
-        order_clause = [desc(Article.published_at), desc(Article.id)]
-    else:
-        order_clause = [asc(Article.published_at), asc(Article.id)]
-
     # Execute query with limit + 1 to check if more pages exist
-    if filters:
-        stmt = select(Article).where(*filters).order_by(*order_clause).limit(limit + 1)
+    if sort_order == "desc":
+        if filters:
+            stmt = (
+                select(Article)
+                .where(*filters)
+                .order_by(desc(Article.published_at), desc(Article.id))
+                .limit(limit + 1)
+            )
+        else:
+            stmt = (
+                select(Article)
+                .order_by(desc(Article.published_at), desc(Article.id))
+                .limit(limit + 1)
+            )
     else:
-        stmt = select(Article).order_by(*order_clause).limit(limit + 1)
+        if filters:
+            stmt = (
+                select(Article)
+                .where(*filters)
+                .order_by(asc(Article.published_at), asc(Article.id))
+                .limit(limit + 1)
+            )
+        else:
+            stmt = (
+                select(Article)
+                .order_by(asc(Article.published_at), asc(Article.id))
+                .limit(limit + 1)
+            )
 
     result = await db.execute(stmt)
     rows = list(result.scalars().all())
@@ -181,7 +199,8 @@ async def get_news_paginated(
     next_cursor = None
     if has_more and rows:
         last = rows[-1]
-        next_cursor = encode_cursor(last.published_at, last.id)
+        if last.published_at is not None and last.id is not None:
+            next_cursor = encode_cursor(last.published_at, last.id)
 
     return PaginatedResponse(
         articles=articles,
@@ -226,7 +245,7 @@ async def get_cached_news_paginated(
             a
             for a in filtered
             if search_lower in (a.title or "").lower()
-            or search_lower in (a.summary or "").lower()
+            or search_lower in (a.description or "").lower()
         ]
 
     total = len(filtered)
@@ -318,7 +337,8 @@ async def get_recent_news(
     next_cursor = None
     if has_more and rows:
         last = rows[-1]
-        next_cursor = encode_cursor(last.published_at, last.id)
+        if last.published_at is not None and last.id is not None:
+            next_cursor = encode_cursor(last.published_at, last.id)
 
     return RecentPageResponse(
         articles=articles,
@@ -358,15 +378,26 @@ async def get_sources() -> List[SourceInfo]:
     sources: List[SourceInfo] = []
     for name, info in get_rss_sources().items():
         url_field = info.get("url")
-        url = url_field[0] if isinstance(url_field, list) and url_field else url_field
+        url = ""
+        if isinstance(url_field, list):
+            first_url = url_field[0] if url_field else None
+            if isinstance(first_url, str):
+                url = first_url
+        elif isinstance(url_field, str):
+            url = url_field
+
+        category = info.get("category")
+        country = info.get("country")
+        funding_type = info.get("funding_type")
+        bias_rating = info.get("bias_rating")
         sources.append(
             SourceInfo(
                 name=name,
                 url=url,
-                category=info.get("category", "general"),
-                country=info.get("country", "US"),
-                funding_type=info.get("funding_type"),
-                bias_rating=info.get("bias_rating"),
+                category=category if isinstance(category, str) else "general",
+                country=country if isinstance(country, str) else "US",
+                funding_type=funding_type if isinstance(funding_type, str) else None,
+                bias_rating=bias_rating if isinstance(bias_rating, str) else None,
             )
         )
     return sources
@@ -387,10 +418,14 @@ async def get_source_stats() -> Dict[str, object]:
     source_stats = news_cache.get_source_stats()
 
     # Create a map of existing stats by name
-    stats_map = {stat["name"]: stat for stat in source_stats}
+    stats_map: Dict[str, Dict[str, object]] = {}
+    for stat in source_stats:
+        stat_name = stat.get("name")
+        if isinstance(stat_name, str):
+            stats_map[stat_name] = stat
 
     # Ensure all configured sources are in the response
-    all_stats = []
+    all_stats: List[Dict[str, object]] = []
     for source_name, source_info in configured_sources.items():
         if source_name in stats_map:
             all_stats.append(stats_map[source_name])

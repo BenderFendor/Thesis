@@ -55,7 +55,9 @@ class SearchResult:
 
 
 class DuckDuckGoSearcher:
-    async def search(self, query: str, max_results: int = MAX_RESULTS_PER_QUERY) -> List[SearchResult]:
+    async def search(
+        self, query: str, max_results: int = MAX_RESULTS_PER_QUERY
+    ) -> List[SearchResult]:
         return await asyncio.to_thread(self._search_sync, query, max_results)
 
     def _search_sync(self, query: str, max_results: int) -> List[SearchResult]:
@@ -192,7 +194,9 @@ def _normalize_url(url: str) -> Optional[str]:
     return None
 
 
-def _is_candidate_url(url: str, official_domain: Optional[str], normalized_name: str) -> bool:
+def _is_candidate_url(
+    url: str, official_domain: Optional[str], normalized_name: str
+) -> bool:
     parsed = urlparse(url)
     host = parsed.netloc.lower()
 

@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import time
 import uuid
-from typing import Callable
+from typing import Awaitable, Callable
 
 from fastapi import Request, Response
 from starlette.middleware.base import BaseHTTPMiddleware
@@ -24,23 +24,29 @@ SKIP_TRACE_PREFIXES = ("/health", "/favicon.ico", "/static/")
 class RequestTracingMiddleware(BaseHTTPMiddleware):
     """Middleware that traces all HTTP requests."""
 
-    async def dispatch(self, request: Request, call_next: Callable) -> Response:
+    async def dispatch(
+        self,
+        request: Request,
+        call_next: Callable[[Request], Awaitable[Response]],
+    ) -> Response:
         # Generate or extract request ID
-        request_id = request.headers.get("X-Request-ID") or f"req_{uuid.uuid4().hex[:12]}"
-        
+        request_id = (
+            request.headers.get("X-Request-ID") or f"req_{uuid.uuid4().hex[:12]}"
+        )
+
         # Store request ID in state for access by route handlers
         request.state.request_id = request_id
-        
+
         # Start tracing
         path = request.url.path
         method = request.method
-        
+
         # Skip tracing for health checks and static assets
         should_trace = not path.startswith(SKIP_TRACE_PREFIXES)
-        
+
         if should_trace:
             debug_logger.start_request(request_id, path, method)
-            
+
             # Log query params and headers for debugging
             debug_logger.log_event(
                 EventType.CUSTOM,
@@ -55,7 +61,7 @@ class RequestTracingMiddleware(BaseHTTPMiddleware):
                     "accept": request.headers.get("Accept"),
                 },
             )
-        
+
         start_time = time.time()
         error = None
         status_code = 500
@@ -78,7 +84,9 @@ class RequestTracingMiddleware(BaseHTTPMiddleware):
                 if duration_ms > 5000:  # 5 seconds
                     logger.warning(
                         "Slow request detected: %s %s took %.1fms",
-                        method, path, duration_ms
+                        method,
+                        path,
+                        duration_ms,
                     )
 
             # Add headers to response if we have one

@@ -4,8 +4,7 @@ Covers: name matching, ProPublica validation, Wikidata dict/list parsing,
 merge priority logic, and null guards.
 """
 
-import json
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import AsyncMock, patch
 
 import httpx
 import pytest

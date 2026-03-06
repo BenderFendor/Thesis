@@ -5,8 +5,9 @@ import concurrent.futures
 import json
 import random
 import time
+from collections.abc import AsyncIterator, Mapping
 from datetime import datetime, timezone
-from typing import Dict, List, Tuple
+from typing import Any, Dict, List, Tuple, TypeAlias
 
 from fastapi import APIRouter, Request
 from fastapi.responses import StreamingResponse
@@ -27,6 +28,8 @@ from app.services.debug_logger import (
 
 router = APIRouter(prefix="/news", tags=["news-stream"])
 stream_logger = get_logger("news_stream")
+SourceResult: TypeAlias = tuple[list[NewsArticle], dict[str, Any]]
+SourceFuture: TypeAlias = asyncio.Future[SourceResult]
 
 
 @router.get("/stream")
@@ -34,7 +37,7 @@ async def stream_news(
     request: Request,
     use_cache: bool = True,
     category: str | None = None,
-):
+) -> StreamingResponse:
     stream_id = f"stream_{int(time.time())}_{random.randint(1000, 9999)}"
     request_id = getattr(request.state, "request_id", None)
     stream_logger.info("NEWS REQUEST: %s, use_cache=%s", stream_id, use_cache)
@@ -65,7 +68,7 @@ async def stream_news(
         )
         end_stream(stream_id, reason="rejected_too_many_streams")
 
-        async def error_stream():
+        async def error_stream() -> AsyncIterator[str]:
             yield f"data: {json.dumps({'status': 'error', 'message': f'Too many active streams ({active_count}). Please try again later.'})}\n\n"
 
         return StreamingResponse(error_stream(), media_type="text/event-stream")
@@ -74,10 +77,10 @@ async def stream_news(
     stream_logger.info("%s using streaming mode", stream_id)
     stream_manager.update_stream(stream_id, status="starting")
 
-    async def event_generator():
+    async def event_generator() -> AsyncIterator[str]:
         fetch_start_time = time.time()
 
-        def format_sse_event(event_name: str, payload: Dict[str, object]) -> str:
+        def format_sse_event(event_name: str, payload: Mapping[str, object]) -> str:
             encode_start = time.perf_counter()
             encoded = f"data: {json.dumps(payload)}\n\n"
             encode_ms = (time.perf_counter() - encode_start) * 1000
@@ -249,11 +252,12 @@ async def stream_news(
             # Use executor WITHOUT context manager to avoid blocking shutdown
             executor = concurrent.futures.ThreadPoolExecutor(max_workers=5)
             try:
-                future_to_source = {}
+                future_to_source: dict[SourceFuture, str] = {}
                 for name, info in sources_to_process:
                     should_throttle, wait_time = stream_manager.should_throttle_source(
                         name
                     )
+                    source_future: SourceFuture
 
                     if should_throttle:
                         stream_logger.info(
@@ -267,7 +271,7 @@ async def stream_news(
                             source_name: str,
                             source_info: Dict[str, object],
                             delay: float,
-                        ):
+                        ) -> SourceResult:
                             await asyncio.sleep(delay)
                             return await loop.run_in_executor(
                                 executor,
@@ -277,15 +281,15 @@ async def stream_news(
                                 stream_id,
                             )
 
-                        future = asyncio.create_task(
+                        source_future = asyncio.create_task(
                             delayed_process(name, info, wait_time)
                         )
                     else:
-                        future = loop.run_in_executor(
+                        source_future = loop.run_in_executor(
                             executor, _process_source_with_debug, name, info, stream_id
                         )
 
-                    future_to_source[future] = name
+                    future_to_source[source_future] = name
 
                 completed_sources = 0
                 total_sources = len(sources_to_process)
@@ -299,7 +303,7 @@ async def stream_news(
                     len(future_to_source),
                 )
 
-                for future in asyncio.as_completed(list(future_to_source.keys())):
+                for completed_future in asyncio.as_completed(tuple(future_to_source)):
                     if await request.is_disconnected():
                         stream_logger.warning(
                             "Stream %s client disconnected", stream_id
@@ -314,7 +318,7 @@ async def stream_news(
 
                     try:
                         source_start_time = time.time()
-                        articles, source_stat = await future
+                        articles, source_stat = await completed_future
                         source_duration_ms = (time.time() - source_start_time) * 1000
 
                         source_name = (
@@ -377,7 +381,7 @@ async def stream_news(
                         yield format_sse_event("source_complete", progress_data)
                     except Exception as exc:  # pragma: no cover - defensive logging
                         completed_sources += 1
-                        source_name = future_to_source.get(future, "unknown")
+                        source_name = future_to_source.get(completed_future, "unknown")
                         stream_logger.error(
                             "Stream %s error for %s: %s", stream_id, source_name, exc
                         )

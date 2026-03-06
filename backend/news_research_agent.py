@@ -12,8 +12,10 @@ from typing import (
     Callable,
     Dict,
     Generator,
+    Iterator,
     List,
     Optional,
+    Protocol,
     Sequence,
     Set,
 )
@@ -67,6 +69,27 @@ MAX_ITERATIONS = 5
 MAX_TOOL_CALLS_PER_SESSION = 15
 MIN_FINAL_ANSWER_CHARS = 120
 MIN_FINAL_ANSWER_SECTIONS = ("answer",)
+
+
+class RunnableMessageInvoker(Protocol):
+    def invoke(self, payload: Sequence[BaseMessage]) -> BaseMessage: ...
+
+
+class ToolBindableLLM(RunnableMessageInvoker, Protocol):
+    def bind_tools(
+        self,
+        tools: Sequence[Any],
+        **kwargs: Any,
+    ) -> RunnableMessageInvoker: ...
+
+
+class CompiledAgentGraph(Protocol):
+    def stream(
+        self,
+        initial_state: "AgentState",
+        stream_mode: str = "updates",
+    ) -> Iterator[Dict[str, Any]]: ...
+
 
 _news_articles_cache: List[Dict[str, Any]] = []
 _referenced_articles_tracker: List[Dict[str, Any]] = []
@@ -323,10 +346,10 @@ TOOL_ROUTER_SYSTEM_PROMPT = (
     "After tool use, answer with a section titled 'Answer'."
 )
 
-_llm_instance = None
-_model_instance = None
-_tool_router_instance = None
-_graph_instance = None
+_llm_instance: ToolBindableLLM | None = None
+_model_instance: RunnableMessageInvoker | None = None
+_tool_router_instance: RunnableMessageInvoker | None = None
+_graph_instance: CompiledAgentGraph | None = None
 
 
 def _reset_llm_instances() -> None:
@@ -415,33 +438,45 @@ def _invoke_with_llamacpp_recovery(
         return invoke_fn(retry_messages)
 
 
-def _get_llm():
+def _get_llm() -> ToolBindableLLM:
     global _llm_instance
     if _llm_instance is None:
         if settings.llm_backend == "llamacpp":
-            _llm_instance = ChatOpenAI(
-                model=get_llamacpp_model(),
-                temperature=0.2,
-                api_key=SecretStr(settings.llamacpp_api_key),
-                base_url=settings.llamacpp_base_url,
+            _llm_instance = cast(
+                ToolBindableLLM,
+                ChatOpenAI(
+                    model=get_llamacpp_model(),
+                    temperature=0.2,
+                    api_key=SecretStr(settings.llamacpp_api_key),
+                    base_url=settings.llamacpp_base_url,
+                ),
             )
         elif settings.open_router_api_key:
-            _llm_instance = ChatOpenAI(
-                model=settings.open_router_model,
-                temperature=0.2,
-                api_key=SecretStr(settings.open_router_api_key),
-                base_url="https://openrouter.ai/api/v1",
+            _llm_instance = cast(
+                ToolBindableLLM,
+                ChatOpenAI(
+                    model=settings.open_router_model,
+                    temperature=0.2,
+                    api_key=SecretStr(settings.open_router_api_key),
+                    base_url="https://openrouter.ai/api/v1",
+                ),
             )
         else:
-            _llm_instance = ChatGoogleGenerativeAI(
-                model=os.getenv("NEWS_RESEARCH_GEMINI_MODEL", "gemini-3-flash-preview"),
-                temperature=0.2,
-                max_retries=2,
+            _llm_instance = cast(
+                ToolBindableLLM,
+                ChatGoogleGenerativeAI(
+                    model=os.getenv(
+                        "NEWS_RESEARCH_GEMINI_MODEL",
+                        "gemini-3-flash-preview",
+                    ),
+                    temperature=0.2,
+                    max_retries=2,
+                ),
             )
     return _llm_instance
 
 
-def _get_model():
+def _get_model() -> RunnableMessageInvoker:
     global _model_instance
     if _model_instance is None:
         llm = _get_llm()
@@ -458,7 +493,7 @@ def _get_model():
     return _model_instance
 
 
-def _get_tool_router():
+def _get_tool_router() -> RunnableMessageInvoker:
     global _tool_router_instance
     if _tool_router_instance is None:
         llm = _get_llm()
@@ -553,7 +588,7 @@ def _dedup_tool_node(state: "AgentState") -> Dict[str, Any]:
     }
 
 
-def _get_graph():
+def _get_graph() -> CompiledAgentGraph:
     global _graph_instance
     if _graph_instance is None:
         builder = StateGraph(AgentState)
@@ -566,7 +601,7 @@ def _get_graph():
             should_continue,
             {"tools": "tools", "agent": "agent", END: END},
         )
-        _graph_instance = builder.compile()
+        _graph_instance = cast(CompiledAgentGraph, builder.compile())
     return _graph_instance
 
 
@@ -885,7 +920,7 @@ def research_news(
         }
         structured_block = f"\n```json:articles\n{json.dumps(payload, indent=2)}\n```\n"
 
-    result = {
+    result: Dict[str, Any] = {
         "success": bool(final_answer),
         "query": query,
         "answer": final_answer,

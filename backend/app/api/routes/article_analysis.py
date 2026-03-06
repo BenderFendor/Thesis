@@ -9,7 +9,7 @@ router = APIRouter(tags=["article-analysis"])
 
 
 @router.get("/article/extract")
-async def extract_article_text(url: str):
+async def extract_article_text(url: str) -> dict[str, object]:
     data = await extract_article_content(url)
     if not data.get("success"):
         return {

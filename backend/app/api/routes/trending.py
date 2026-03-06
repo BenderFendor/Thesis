@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, cast
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Response
 from pydantic import BaseModel
@@ -162,7 +162,7 @@ async def get_all_clusters(
             status="initializing",
         )
 
-    clusters_data: List[Dict[str, Any]] = snapshot.clusters_json or []  # type: ignore[assignment]
+    clusters_data = cast(List[Dict[str, Any]], snapshot.clusters_json or [])
     clusters = [AllCluster(**c) for c in clusters_data]
 
     return AllClustersResponse(

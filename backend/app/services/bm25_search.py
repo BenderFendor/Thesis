@@ -8,12 +8,24 @@ Uses Okapi BM25 ranking function with configurable parameters.
 from __future__ import annotations
 
 import logging
-from typing import Dict, List, Optional, Tuple
+from typing import Mapping, Optional, Sequence, TypedDict
 
 import numpy as np
 from rank_bm25 import BM25Okapi
 
 logger = logging.getLogger(__name__)
+
+
+class BM25Document(TypedDict, total=False):
+    chroma_id: str
+    text: str
+
+
+class BM25SearchResult(TypedDict):
+    chroma_id: str
+    bm25_score: float
+    document: str
+    doc_length: int
 
 
 class BM25Search:
@@ -44,15 +56,15 @@ class BM25Search:
         self.b = b
         self.epsilon = epsilon
         self.bm25: Optional[BM25Okapi] = None
-        self.corpus_ids: List[str] = []
-        self.documents: List[str] = []
-        self.tokenized_corpus: List[List[str]] = []
+        self.corpus_ids: list[str] = []
+        self.documents: list[str] = []
+        self.tokenized_corpus: list[list[str]] = []
         self.avg_doc_length: float = 0.0
-        self.doc_lengths: List[int] = []
+        self.doc_lengths: list[int] = []
 
     def build_index(
         self,
-        documents: List[Dict],
+        documents: Sequence[Mapping[str, object]],
         id_field: str = "chroma_id",
         text_field: str = "text",
     ) -> int:
@@ -77,8 +89,12 @@ class BM25Search:
         self.doc_lengths = []
 
         for doc in documents:
-            doc_id = doc.get(id_field, "")
-            text = doc.get(text_field, "") or ""
+            doc_id_value = doc.get(id_field, "")
+            text_value = doc.get(text_field, "") or ""
+            doc_id = (
+                doc_id_value if isinstance(doc_id_value, str) else str(doc_id_value)
+            )
+            text = text_value if isinstance(text_value, str) else str(text_value)
 
             if not doc_id:
                 continue
@@ -117,7 +133,7 @@ class BM25Search:
         query: str,
         top_k: int = 10,
         score_threshold: float = 0.0,
-    ) -> List[Dict]:
+    ) -> list[BM25SearchResult]:
         """
         Search index with keyword query.
 
@@ -144,7 +160,7 @@ class BM25Search:
             scores = self.bm25.get_scores(tokenized_query)
 
             # Build results with ranking
-            results = []
+            results: list[BM25SearchResult] = []
             for idx, score in enumerate(scores):
                 if score_threshold > 0 and score < score_threshold:
                     continue
@@ -158,7 +174,7 @@ class BM25Search:
                 )
 
             # Sort by score descending
-            results.sort(key=lambda x: x["bm25_score"], reverse=True)
+            results.sort(key=lambda item: item["bm25_score"], reverse=True)
 
             # Return top k
             return results[:top_k]
@@ -170,9 +186,9 @@ class BM25Search:
     def get_scores_for_fusion(
         self,
         query: str,
-        candidate_ids: List[str],
+        candidate_ids: Sequence[str],
         top_k: int = 50,
-    ) -> Dict[str, float]:
+    ) -> dict[str, float]:
         """
         Get BM25 scores for specific candidate IDs (for hybrid fusion).
 
@@ -195,7 +211,7 @@ class BM25Search:
         all_scores = self.bm25.get_scores(tokenized_query)
 
         # Build id -> score mapping for candidates
-        id_to_score = {}
+        id_to_score: dict[str, float] = {}
         for idx, chroma_id in enumerate(self.corpus_ids):
             if chroma_id in candidate_ids:
                 id_to_score[chroma_id] = float(all_scores[idx])
@@ -207,7 +223,7 @@ class BM25Search:
 
         return dict(sorted_scores)
 
-    def get_stats(self) -> Dict:
+    def get_stats(self) -> dict[str, int | float | bool]:
         """Get index statistics."""
         return {
             "document_count": len(self.corpus_ids),
@@ -225,7 +241,7 @@ def compute_bm25_score(
     avg_doc_length: float,
     k1: float = 1.6,
     b: float = 0.7,
-    idf_cache: Optional[Dict[str, float]] = None,
+    idf_cache: Optional[dict[str, float]] = None,
 ) -> float:
     """
     Compute BM25 score for a single query-document pair.

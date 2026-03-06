@@ -6,16 +6,11 @@ triggering mass re-embedding of already-embedded articles on every startup.
 
 from __future__ import annotations
 
-import asyncio
 from datetime import datetime, timezone
-from typing import Any, Dict, List
-from unittest.mock import AsyncMock, MagicMock, patch, call
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
-import pytest_asyncio
-from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine, async_sessionmaker
-
-from app.database import Base, Article
+from sqlalchemy.ext.asyncio import AsyncSession
 
 
 # ---------------------------------------------------------------------------
@@ -217,8 +212,6 @@ async def test_chroma_id_format_change_queues_embedding_but_does_not_reset_db_fl
     mock_vector_store = MagicMock()
 
     queued: list = []
-    db_update_values: list = []
-
     mock_session = AsyncMock(spec=AsyncSession)
     mock_result = MagicMock()
     mock_result.fetchall.return_value = [row]

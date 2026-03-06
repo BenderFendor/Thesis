@@ -27,7 +27,7 @@ export default function SourcePage(props: SourcePageProps) {
   const [selectedArticle, setSelectedArticle] = useState<NewsArticle | null>(null)
   const [modalOpen, setModalOpen] = useState(false)
   const [allArticles, setAllArticles] = useState<NewsArticle[]>([])
-  const [debugMode, setDebugModeState] = useState(false)
+  const [debugMode, setDebugModeState] = useState(() => isDebugMode())
   const { isFavorite, toggleFavorite } = useFavorites()
 
   const { data: source, isLoading: sourceLoading, error: sourceError } = useQuery({
@@ -53,7 +53,6 @@ export default function SourcePage(props: SourcePageProps) {
   const articlesLoading = isStreaming && allArticles.length === 0
 
   useEffect(() => {
-    setDebugModeState(isDebugMode())
     const handleStorage = (event: StorageEvent) => {
       if (event.key === "thesis_debug_mode") {
         setDebugModeState(isDebugMode())

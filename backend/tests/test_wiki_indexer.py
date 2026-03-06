@@ -5,7 +5,7 @@ with mocked LLM/HTTP dependencies (funding_researcher, propaganda_scorer).
 """
 
 import asyncio
-from datetime import datetime, timedelta, timezone
+from datetime import timedelta
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest

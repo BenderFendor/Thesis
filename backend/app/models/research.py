@@ -1,4 +1,4 @@
-from typing import List, Optional
+from typing import Any, List, Optional
 
 from pydantic import Field
 
@@ -22,5 +22,5 @@ class NewsResearchResponse(StrictBaseModel):
     answer: str
     thinking_steps: List[ThinkingStep] = Field(default_factory=list)
     articles_searched: int = 0
-    referenced_articles: List[dict] = Field(default_factory=list)
+    referenced_articles: List[dict[str, Any]] = Field(default_factory=list)
     error: Optional[str] = None

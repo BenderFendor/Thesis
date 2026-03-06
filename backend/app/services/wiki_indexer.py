@@ -16,26 +16,24 @@ from __future__ import annotations
 
 import asyncio
 import time
+from collections.abc import Callable
 from datetime import datetime, timedelta, timezone
-from typing import Any, Dict, List, Optional, cast
+from importlib import import_module
+from typing import Any, Dict, Optional, Protocol, TypedDict, cast
 
-from sqlalchemy import select, update
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
-from app.core.config import settings
 from app.core.logging import get_logger
 from app.database import (
     AsyncSessionLocal,
     Organization,
     PropagandaFilterScore,
-    Reporter,
-    SourceMetadata,
     WikiIndexStatus,
     get_utc_now,
 )
 from app.data.rss_sources import get_rss_sources
 from app.services.funding_researcher import get_funding_researcher
-from app.services.propaganda_scorer import get_propaganda_scorer
 
 logger = get_logger("wiki_indexer")
 
@@ -46,10 +44,60 @@ STALE_THRESHOLD_DAYS = 7
 INDEX_DELAY_SECONDS = float(2.0)
 
 
+class _FilterScorePayload(TypedDict):
+    filter_name: str
+    score: int
+    confidence: str
+    prose_explanation: str
+    citations: list[dict[str, str]]
+    empirical_basis: str
+    scored_by: str
+
+
+class _FilterScoreLike(Protocol):
+    filter_name: str
+    score: int
+
+    def to_dict(self) -> _FilterScorePayload: ...
+
+
+class _ScoringResultLike(Protocol):
+    scores: list[_FilterScoreLike]
+    org_updates: dict[str, Any] | None
+
+
+class _DisabledScoringResult:
+    scores: list[_FilterScoreLike]
+    org_updates: dict[str, Any] | None
+
+    def __init__(self) -> None:
+        self.scores = []
+        self.org_updates = {}
+
+
+class _PropagandaScorerLike(Protocol):
+    async def score_source(
+        self,
+        source_name: str,
+        org_data: Dict[str, Any] | None = None,
+        source_metadata: Dict[str, Any] | None = None,
+        article_corpus_stats: Dict[str, Any] | None = None,
+    ) -> _ScoringResultLike: ...
+
+
+def get_propaganda_scorer() -> _PropagandaScorerLike:
+    scorer_module = import_module("app.services.propaganda_scorer")
+    get_scorer = cast(
+        Callable[[], _PropagandaScorerLike],
+        getattr(scorer_module, "get_propaganda_scorer"),
+    )
+    return get_scorer()
+
+
 async def _get_session() -> AsyncSession:
     if AsyncSessionLocal is None:
         raise RuntimeError("Database not available for wiki indexing")
-    factory = cast(async_sessionmaker, AsyncSessionLocal)
+    factory = cast(async_sessionmaker[AsyncSession], AsyncSessionLocal)
     return factory()
 
 
@@ -106,7 +154,7 @@ async def _upsert_index_status(
 async def _save_filter_scores(
     session: AsyncSession,
     source_name: str,
-    scores: list,
+    scores: list[_FilterScoreLike],
 ) -> None:
     """Persist propaganda filter scores to the database."""
     for score in scores:
@@ -240,7 +288,7 @@ async def index_source(
         }
 
         # Score propaganda filters (LLM call) - only when explicitly enabled
-        result = None
+        result: _ScoringResultLike
         if enable_llm_scoring:
             scorer = get_propaganda_scorer()
             result = await scorer.score_source(
@@ -249,7 +297,7 @@ async def index_source(
                 source_metadata=source_metadata,
             )
         else:
-            result = type("Result", (), {"scores": [], "org_updates": {}})()
+            result = _DisabledScoringResult()
 
         # Apply org metadata updates from the consolidated LLM call
         if result.org_updates:
@@ -444,8 +492,10 @@ async def get_index_status_summary() -> Dict[str, Any]:
         by_status: Dict[str, int] = {}
         by_type: Dict[str, int] = {}
         for entry in entries:
-            by_status[entry.status] = by_status.get(entry.status, 0) + 1
-            by_type[entry.entity_type] = by_type.get(entry.entity_type, 0) + 1
+            status_key = cast(str, entry.status)
+            entity_type_key = cast(str, entry.entity_type)
+            by_status[status_key] = by_status.get(status_key, 0) + 1
+            by_type[entity_type_key] = by_type.get(entity_type_key, 0) + 1
 
         return {
             "total_entries": len(entries),

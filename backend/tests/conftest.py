@@ -6,12 +6,10 @@ a FastAPI TestClient wired to that database, and mock
 RSS source data so tests run without external dependencies.
 """
 
-import asyncio
 from datetime import datetime, timezone, timedelta
 from typing import AsyncGenerator, Dict, Any
 from unittest.mock import patch
 
-import pytest
 import pytest_asyncio
 from httpx import ASGITransport, AsyncClient
 from sqlalchemy.ext.asyncio import (

@@ -8,11 +8,16 @@ Pure algorithm - no model weights, optimized C++ backend.
 from __future__ import annotations
 
 import logging
-from typing import Any, Dict, List, Optional, Tuple
+from importlib import import_module
+from typing import Any, cast
 
 import numpy as np
+import numpy.typing as npt
 
 logger = logging.getLogger(__name__)
+
+FloatArray = npt.NDArray[np.floating[Any]]
+LabelArray = npt.NDArray[np.signedinteger[Any]]
 
 
 class HDBSCANClusterer:
@@ -38,7 +43,7 @@ class HDBSCANClusterer:
         cluster_selection_epsilon: float = 0.0,
         metric: str = "euclidean",
         cluster_selection_method: str = "eom",
-    ):
+    ) -> None:
         """
         Initialize HDBSCAN clusterer.
         """
@@ -48,13 +53,13 @@ class HDBSCANClusterer:
         self.metric = metric
         self.cluster_selection_method = cluster_selection_method
 
-        self.cluster_labels: Optional[np.ndarray] = None
-        self.cluster_probabilities: Optional[np.ndarray] = None
-        self.outlier_scores: Optional[np.ndarray] = None
+        self.cluster_labels: LabelArray | None = None
+        self.cluster_probabilities: FloatArray | None = None
+        self.outlier_scores: FloatArray | None = None
         self.n_clusters: int = 0
         self.n_noise: int = 0
 
-    def fit_predict(self, embeddings: List[List[float]]) -> np.ndarray:
+    def fit_predict(self, embeddings: list[list[float]]) -> LabelArray:
         """
         Fit HDBSCAN and return cluster labels.
 
@@ -65,8 +70,7 @@ class HDBSCANClusterer:
             NumPy array of cluster labels (-1 for noise)
         """
         try:
-            import hdbscan
-
+            hdbscan = import_module("hdbscan")
             embeddings_array = np.array(embeddings, dtype=np.float32)
 
             if embeddings_array.shape[0] < self.min_cluster_size:
@@ -88,14 +92,17 @@ class HDBSCANClusterer:
                 gen_min_span_tree=True,
             )
 
-            self.cluster_labels = clusterer.fit_predict(embeddings_array)
-            self.cluster_probabilities = clusterer.probabilities_
-            self.outlier_scores = clusterer.outlier_scores_
+            self.cluster_labels = cast(
+                LabelArray,
+                clusterer.fit_predict(embeddings_array),
+            )
+            self.cluster_probabilities = cast(FloatArray, clusterer.probabilities_)
+            self.outlier_scores = cast(FloatArray, clusterer.outlier_scores_)
 
             self.n_clusters = len(set(self.cluster_labels)) - (
                 1 if -1 in self.cluster_labels else 0
             )
-            self.n_noise = np.sum(self.cluster_labels == -1)
+            self.n_noise = int(np.sum(self.cluster_labels == -1))
 
             logger.info(
                 f"HDBSCAN found {self.n_clusters} clusters, "
@@ -110,24 +117,26 @@ class HDBSCANClusterer:
             )
             return self._fallback_cluster(embeddings)
 
-    def _fallback_cluster(self, embeddings: List[List[float]]) -> np.ndarray:
+    def _fallback_cluster(self, embeddings: list[list[float]]) -> LabelArray:
         """
         Simple fallback clustering when HDBSCAN not available.
         Uses sklearn's DBSCAN instead.
         """
         try:
-            from sklearn.cluster import DBSCAN
-
+            sklearn_cluster = import_module("sklearn.cluster")
             embeddings_array = np.array(embeddings, dtype=np.float32)
 
             # eps tuned for normalized embeddings (cosine ~ euclidean on sphere)
             eps = 1.0 - 0.75  # Equivalent to 0.75 cosine threshold
 
-            clusterer = DBSCAN(eps=eps, min_samples=self.min_samples)
-            labels = clusterer.fit_predict(embeddings_array)
+            clusterer = sklearn_cluster.DBSCAN(
+                eps=eps,
+                min_samples=self.min_samples,
+            )
+            labels = cast(LabelArray, clusterer.fit_predict(embeddings_array))
 
             self.n_clusters = len(set(labels)) - (1 if -1 in labels else 0)
-            self.n_noise = np.sum(labels == -1)
+            self.n_noise = int(np.sum(labels == -1))
 
             logger.info(
                 f"DBSCAN fallback found {self.n_clusters} clusters, "
@@ -142,9 +151,9 @@ class HDBSCANClusterer:
 
     def get_cluster_info(
         self,
-        embeddings: List[List[float]],
-        article_ids: List[str],
-    ) -> List[Dict[str, Any]]:
+        embeddings: list[list[float]],
+        article_ids: list[str],
+    ) -> list[dict[str, Any]]:
         """
         Get detailed cluster information.
 
@@ -161,18 +170,18 @@ class HDBSCANClusterer:
         if len(embeddings) != len(article_ids):
             raise ValueError("Embeddings and article_ids must have same length")
 
+        cluster_labels = self.cluster_labels
         embeddings_array = np.array(embeddings, dtype=np.float32)
-        cluster_info: Dict[int, Dict[str, Any]] = {}
+        cluster_info: dict[int, dict[str, Any]] = {}
 
-        for idx, (label, embedding) in enumerate(
-            zip(self.cluster_labels, embeddings_array)
-        ):
-            if label == -1:
+        for idx, (label, embedding) in enumerate(zip(cluster_labels, embeddings_array)):
+            cluster_id = int(label)
+            if cluster_id == -1:
                 continue  # Skip noise
 
-            if label not in cluster_info:
-                cluster_info[label] = {
-                    "cluster_id": int(label),
+            if cluster_id not in cluster_info:
+                cluster_info[cluster_id] = {
+                    "cluster_id": cluster_id,
                     "article_ids": [],
                     "centroid": None,
                     "member_embeddings": [],
@@ -180,12 +189,14 @@ class HDBSCANClusterer:
                     "outlier_score_sum": 0.0,
                 }
 
-            cluster_info[label]["article_ids"].append(article_ids[idx])
-            cluster_info[label]["member_embeddings"].append(embedding)
-            cluster_info[label]["size"] += 1
+            cluster_info[cluster_id]["article_ids"].append(article_ids[idx])
+            cluster_info[cluster_id]["member_embeddings"].append(embedding)
+            cluster_info[cluster_id]["size"] += 1
 
             if self.outlier_scores is not None:
-                cluster_info[label]["outlier_score_sum"] += self.outlier_scores[idx]
+                cluster_info[cluster_id]["outlier_score_sum"] += float(
+                    self.outlier_scores[idx]
+                )
 
         # Calculate centroids
         for label, info in cluster_info.items():
@@ -205,9 +216,9 @@ class HDBSCANClusterer:
 
     def get_noise_articles(
         self,
-        article_ids: List[str],
+        article_ids: list[str],
         threshold: float = 0.7,
-    ) -> List[Dict[str, Any]]:
+    ) -> list[dict[str, Any]]:
         """
         Get articles flagged as noise/outliers.
 
@@ -221,41 +232,45 @@ class HDBSCANClusterer:
         if self.cluster_labels is None or self.outlier_scores is None:
             return []
 
-        noise_articles = []
+        cluster_labels = self.cluster_labels
+        outlier_scores = self.outlier_scores
+        noise_articles: list[dict[str, Any]] = []
 
         for idx, (label, outlier_score) in enumerate(
-            zip(self.cluster_labels, self.outlier_scores)
+            zip(cluster_labels, outlier_scores)
         ):
-            if label == -1 or outlier_score >= threshold:
+            label_value = int(label)
+            outlier_score_value = float(outlier_score)
+            if label_value == -1 or outlier_score_value >= threshold:
                 noise_articles.append(
                     {
                         "chroma_id": article_ids[idx],
-                        "outlier_score": float(outlier_score),
-                        "is_noise": label == -1,
+                        "outlier_score": outlier_score_value,
+                        "is_noise": label_value == -1,
                     }
                 )
 
         return noise_articles
 
-    def get_stats(self) -> Dict:
+    def get_stats(self) -> dict[str, int | float]:
         """Get clustering statistics."""
         return {
             "n_clusters": self.n_clusters,
             "n_noise": self.n_noise,
             "noise_ratio": self.n_noise / max(len(self.cluster_labels), 1)
             if self.cluster_labels is not None
-            else 0,
+            else 0.0,
             "min_cluster_size": self.min_cluster_size,
             "min_samples": self.min_samples,
         }
 
 
 def cluster_articles_hdbscan(
-    embeddings: List[List[float]],
-    article_ids: List[str],
+    embeddings: list[list[float]],
+    article_ids: list[str],
     min_cluster_size: int = 5,
     min_samples: int = 3,
-) -> Tuple[List[int], List[Dict[str, Any]]]:
+) -> tuple[LabelArray, list[dict[str, Any]]]:
     """
     Convenience function to cluster articles.
 

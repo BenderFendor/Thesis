@@ -62,9 +62,11 @@ class NewsCache:
             self.articles_by_source = {}
             for article in articles:
                 self.articles_by_source.setdefault(article.source, []).append(article)
-            self.source_stats_by_name = {
-                stat.get("name"): stat for stat in source_stats if stat.get("name")
-            }
+            self.source_stats_by_name = {}
+            for stat in source_stats:
+                stat_name = stat.get("name")
+                if isinstance(stat_name, str) and stat_name:
+                    self.source_stats_by_name[stat_name] = stat
             self.last_updated = datetime.now(timezone.utc)
             self.update_in_progress = False
             self.update_count += 1

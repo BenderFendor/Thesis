@@ -3,8 +3,8 @@ from __future__ import annotations
 from typing import Dict
 
 from fastapi import APIRouter, Depends, HTTPException
-from sqlalchemy import select  # type: ignore[import-unresolved]
-from sqlalchemy.ext.asyncio import AsyncSession  # type: ignore[import-unresolved]
+from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import (
     Article as ArticleRecord,

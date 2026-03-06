@@ -12,7 +12,7 @@ from app.database import (
     fetch_recent_articles,
     search_articles_by_keyword,
 )
-from app.vector_store import get_vector_store
+from app.vector_store import SimilarArticleResult, get_vector_store
 
 logger = get_logger("news_research")
 
@@ -24,10 +24,11 @@ async def load_articles_for_research(
     recent_limit: int = 40,
     max_total: int = 150,
 ) -> Dict[str, Any]:
-    db_enabled = settings.enable_database and AsyncSessionLocal is not None
+    session_factory = AsyncSessionLocal
+    db_enabled = settings.enable_database and session_factory is not None
 
     vector_store = get_vector_store()
-    semantic_results: List[Dict[str, Any]] = []
+    semantic_results: List[SimilarArticleResult] = []
     if vector_store and query:
         try:
             semantic_results = vector_store.search_similar(query, limit=semantic_limit)
@@ -40,21 +41,19 @@ async def load_articles_for_research(
     fetched_lookup: Dict[int, Dict[str, Any]] = {}
     keyword_floor = max(10, keyword_limit // 2)
 
-    if db_enabled:
-        async with AsyncSessionLocal() as session:
+    if db_enabled and session_factory is not None:
+        async with session_factory() as session:
             if query:
                 keyword_articles_raw = await search_articles_by_keyword(
                     session, query=query, limit=keyword_limit
                 )
 
-            article_ids = [
-                result.get("article_id")
-                for result in semantic_results
-                if isinstance(result.get("article_id"), int)
-            ]
+            article_ids = [result["article_id"] for result in semantic_results]
             if article_ids:
                 fetched_articles = await fetch_articles_by_ids(session, article_ids)
-                fetched_lookup = {article["id"]: article for article in fetched_articles}
+                fetched_lookup = {
+                    article["id"]: article for article in fetched_articles
+                }
 
             need_recent = len(keyword_articles_raw) < keyword_floor
             if need_recent:
@@ -72,11 +71,11 @@ async def load_articles_for_research(
     semantic_articles: List[Dict[str, Any]] = []
     if semantic_results:
         for result in semantic_results:
-            article_id = result.get("article_id")
+            article_id = result["article_id"]
             if isinstance(article_id, int) and article_id in fetched_lookup:
                 article_data = {**fetched_lookup[article_id]}
             else:
-                metadata = result.get("metadata", {})
+                metadata = result["metadata"]
                 article_data = {
                     "id": article_id,
                     "title": metadata.get("title")
@@ -93,15 +92,15 @@ async def load_articles_for_research(
                     "country": metadata.get("country"),
                     "bias": metadata.get("bias"),
                     "credibility": metadata.get("credibility"),
-                    "chroma_id": result.get("chroma_id"),
+                    "chroma_id": result["chroma_id"],
                 }
             article_data["retrieval_method"] = "semantic_vector_store"
-            article_data["semantic_score"] = result.get("similarity_score")
-            article_data["semantic_distance"] = result.get("distance")
-            article_data["chroma_id"] = result.get("chroma_id") or article_data.get(
+            article_data["semantic_score"] = result["similarity_score"]
+            article_data["semantic_distance"] = result["distance"]
+            article_data["chroma_id"] = result["chroma_id"] or article_data.get(
                 "chroma_id"
             )
-            article_data["preview"] = result.get("preview")
+            article_data["preview"] = result["preview"]
             semantic_articles.append(article_data)
 
     semantic_count = len(semantic_articles)
@@ -179,7 +178,7 @@ def run_research_agent(
     if backend_path not in sys.path:
         sys.path.insert(0, backend_path)
 
-    from news_research_agent import research_news  # type: ignore[import-not-found]
+    from news_research_agent import research_news
 
     return research_news(
         query=query, articles=articles, verbose=verbose, chat_history=chat_history
@@ -195,6 +194,6 @@ def stream_research_agent(
     if backend_path not in sys.path:
         sys.path.insert(0, backend_path)
 
-    from news_research_agent import research_stream  # type: ignore[import-not-found]
+    from news_research_agent import research_stream
 
     return research_stream(query=query, articles=articles, chat_history=chat_history)

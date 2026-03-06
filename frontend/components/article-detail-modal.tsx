@@ -607,7 +607,7 @@ export function ArticleDetailModal({ article, isOpen, onClose, onBookmarkChange,
   }
 
    // Inline definition hook (Alt+select)
-   const { result: inlineResult, open: inlineOpen, setOpen: setInlineOpen, anchorRef: inlineAnchorRef } = useInlineDefinition()
+   const { result: inlineResult, open: inlineOpen, setOpen: setInlineOpen, anchorPosition: inlineAnchorPosition } = useInlineDefinition()
 
    const handleHighlightClick = (highlightStableId: string, element: HTMLElement) => {
      const found = highlights.find((item) => {
@@ -688,7 +688,7 @@ export function ArticleDetailModal({ article, isOpen, onClose, onBookmarkChange,
          result={inlineResult}
          open={inlineOpen}
          setOpen={setInlineOpen}
-         anchorRef={inlineAnchorRef}
+         anchorPosition={inlineAnchorPosition}
        />
        <HighlightNotePopover
          open={highlightPopoverOpen}

@@ -45,21 +45,22 @@ async def extract_fields_from_documents(
 
     try:
         response = await asyncio.to_thread(
-            client.chat.completions.create,
-            model=settings.source_research_model,
-            messages=[
-                {"role": "system", "content": EXTRACTION_PROMPT},
-                {
-                    "role": "user",
-                    "content": f"Source: {source_name}\n\nDocuments:\n{docs_context}",
-                },
-            ],
-            max_tokens=4000,
-            temperature=0.2,
+            lambda: client.chat.completions.create(
+                model=settings.source_research_model,
+                messages=[
+                    {"role": "system", "content": EXTRACTION_PROMPT},
+                    {
+                        "role": "user",
+                        "content": f"Source: {source_name}\n\nDocuments:\n{docs_context}",
+                    },
+                ],
+                max_tokens=4000,
+                temperature=0.2,
+            ),
         )
 
         content = response.choices[0].message.content if response.choices else ""
-        extracted = _parse_extracted_fields(content)
+        extracted = _parse_extracted_fields(content or "")
 
         if extracted:
             logger.info(

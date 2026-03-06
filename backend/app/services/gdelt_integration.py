@@ -6,25 +6,25 @@ using URL matching and embedding similarity.
 
 from __future__ import annotations
 
-import asyncio
 import csv
-import hashlib
 import io
 import logging
-from datetime import datetime, timedelta, timezone
-from typing import Any, Dict, List, Optional, Tuple
-from urllib.parse import urljoin, urlparse
+from datetime import datetime, timezone
+from typing import TYPE_CHECKING, Any, Dict, List, Optional, Tuple, cast
+from urllib.parse import urlparse
 
 import httpx
 from sqlalchemy import select, func
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.config import settings
 from app.database import (
     GDELTEvent,
     Article,
 )
-from app.vector_store import get_vector_store
+from app.vector_store import VectorStore, get_vector_store
+
+if TYPE_CHECKING:
+    from chromadb.api.types import IncludeEnum
 
 logger = logging.getLogger(__name__)
 
@@ -37,8 +37,8 @@ SIMILARITY_THRESHOLD = 0.75  # Cosine similarity threshold for embedding matches
 class GDELTIntegration:
     """Handles fetching and matching GDELT events to articles."""
 
-    def __init__(self):
-        self.vector_store = None
+    def __init__(self) -> None:
+        self.vector_store: VectorStore | None = None
         self._client: Optional[httpx.AsyncClient] = None
 
     async def _get_client(self) -> httpx.AsyncClient:
@@ -63,12 +63,6 @@ class GDELTIntegration:
         Returns:
             List of GDELT event dictionaries
         """
-        now = datetime.now(timezone.utc)
-        target_time = now - timedelta(minutes=minutes)
-
-        # Format: YYYYMMDDHHMMSS
-        target_str = target_time.strftime("%Y%m%d%H%M%S")
-
         # For last 15 minutes, we use the "lastupdate" API
         # which returns events since a given timestamp
         url = f"{GDELT_BASE_URL}/lastupdate.txt"
@@ -338,7 +332,7 @@ class GDELTIntegration:
             result = self.vector_store.collection.query(
                 query_embeddings=[embedding],
                 n_results=10,
-                include=["distances"],
+                include=cast("list[IncludeEnum]", ["distances"]),
             )
 
             ids_payload = result.get("ids") if result else None
@@ -404,7 +398,7 @@ class GDELTIntegration:
             return  # Already stored
 
         # Calculate similarity score if cluster matched
-        similarity_score = None
+        similarity_score: float | None = None
         if article_id and match_method == "embedding":
             similarity_score = 0.0
 
@@ -425,7 +419,7 @@ class GDELTIntegration:
             article_id=article_id,
             matched_at=datetime.now(timezone.utc) if article_id else None,
             match_method=match_method if article_id else None,
-            similarity_score=similarity_score,
+            similarity_score=cast(Any, similarity_score),
             raw_data=event.get("raw_data"),
         )
 
@@ -440,7 +434,7 @@ class GDELTIntegration:
         )
         return count_result.scalar_one() or 0
 
-    async def close(self):
+    async def close(self) -> None:
         """Close HTTP client."""
         if self._client:
             await self._client.aclose()

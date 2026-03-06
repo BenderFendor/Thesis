@@ -404,7 +404,6 @@ class ResearchTUI(App):
     async def _stream_research(self, query: str, session: ResearchSession) -> None:
         start_time = time.time()
         first_event_time: Optional[float] = None
-        tool_calls = 0
         assistant_message = {
             "id": str(uuid.uuid4()),
             "type": "assistant",

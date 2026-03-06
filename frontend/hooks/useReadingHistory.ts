@@ -1,6 +1,12 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useCallback, useSyncExternalStore } from "react";
+import {
+  getFromStorage,
+  removeFromStorage,
+  saveToStorage,
+  subscribeToStorageKey,
+} from "@/lib/storage";
 
 const STORAGE_KEY = "thesis_reading_history";
 const MAX_HISTORY_SIZE = 100;
@@ -13,55 +19,34 @@ export interface ReadingHistoryEntry {
 }
 
 export function useReadingHistory() {
-  const [history, setHistory] = useState<ReadingHistoryEntry[]>([]);
-
-  useEffect(() => {
-    try {
-      const stored = localStorage.getItem(STORAGE_KEY);
-      if (stored) {
-        const parsed = JSON.parse(stored);
-        if (Array.isArray(parsed)) {
-          setHistory(parsed);
-        }
-      }
-    } catch (err) {
-      console.error("Failed to load reading history:", err);
-    }
-  }, []);
-
-  const saveHistory = useCallback((entries: ReadingHistoryEntry[]) => {
-    try {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(entries));
-    } catch (err) {
-      console.error("Failed to save reading history:", err);
-    }
-  }, []);
+  const history = useSyncExternalStore(
+    (onChange) => subscribeToStorageKey(STORAGE_KEY, onChange),
+    () => getFromStorage<ReadingHistoryEntry[]>(STORAGE_KEY, []),
+    () => []
+  );
 
   const markAsRead = useCallback(
     (articleId: number, title?: string, source?: string) => {
-      setHistory((prev) => {
-        const exists = prev.find((e) => e.articleId === articleId);
-        if (exists) {
-          const updated = [
-            { ...exists, readAt: new Date().toISOString() },
-            ...prev.filter((e) => e.articleId !== articleId),
-          ].slice(0, MAX_HISTORY_SIZE);
-          saveHistory(updated);
-          return updated;
-        }
+      const exists = history.find((entry) => entry.articleId === articleId);
+      if (exists) {
+        const updated = [
+          { ...exists, readAt: new Date().toISOString() },
+          ...history.filter((entry) => entry.articleId !== articleId),
+        ].slice(0, MAX_HISTORY_SIZE);
+        saveToStorage(STORAGE_KEY, updated);
+        return;
+      }
 
-        const newEntry: ReadingHistoryEntry = {
-          articleId,
-          readAt: new Date().toISOString(),
-          title,
-          source,
-        };
-        const updated = [newEntry, ...prev].slice(0, MAX_HISTORY_SIZE);
-        saveHistory(updated);
-        return updated;
-      });
+      const newEntry: ReadingHistoryEntry = {
+        articleId,
+        readAt: new Date().toISOString(),
+        title,
+        source,
+      };
+      const updated = [newEntry, ...history].slice(0, MAX_HISTORY_SIZE);
+      saveToStorage(STORAGE_KEY, updated);
     },
-    [saveHistory]
+    [history]
   );
 
   const isRead = useCallback(
@@ -76,12 +61,7 @@ export function useReadingHistory() {
   }, [history]);
 
   const clearHistory = useCallback(() => {
-    setHistory([]);
-    try {
-      localStorage.removeItem(STORAGE_KEY);
-    } catch (err) {
-      console.error("Failed to clear reading history:", err);
-    }
+    removeFromStorage(STORAGE_KEY);
   }, []);
 
   const getRecentIds = useCallback(

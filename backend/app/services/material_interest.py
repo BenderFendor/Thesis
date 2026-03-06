@@ -10,7 +10,6 @@ This agent analyzes material interests that may influence news coverage:
 Helps identify potential conflicts of interest in news coverage.
 """
 
-import asyncio
 import json
 import re
 from datetime import datetime, timezone
@@ -183,7 +182,7 @@ COUNTRY_PROFILES: Dict[str, Dict[str, Any]] = {
 class MaterialInterestAgent:
     """Agent that analyzes material interests affecting news coverage."""
 
-    def __init__(self):
+    def __init__(self) -> None:
         self.llm_client = get_llm_client()
         self.http_client = httpx.AsyncClient(timeout=30.0)
 
@@ -322,7 +321,7 @@ Respond in JSON:
                 temperature=0.3,
             )
 
-            content = response.choices[0].message.content
+            content = response.choices[0].message.content or ""
             json_match = re.search(r"\{[^{}]*\}", content, re.DOTALL)
 
             if json_match:
@@ -345,7 +344,7 @@ Respond in JSON:
             {"note": "Economic data not available"},
         )
 
-    async def close(self):
+    async def close(self) -> None:
         """Close HTTP client."""
         await self.http_client.aclose()
 

@@ -33,7 +33,7 @@ logger = get_logger("reporter_profiler")
 class ReporterProfiler:
     """Agent that researches and profiles journalists/reporters."""
 
-    def __init__(self):
+    def __init__(self) -> None:
         self.llm_client = get_llm_client()
         self.http_client = httpx.AsyncClient(timeout=30.0)
 
@@ -67,9 +67,15 @@ class ReporterProfiler:
             return_exceptions=True,
         )
 
-        wikipedia_data = results[0] if not isinstance(results[0], Exception) else {}
-        mbfc_data = results[1] if not isinstance(results[1], Exception) else {}
-        inferred_data = results[2] if not isinstance(results[2], Exception) else {}
+        wikipedia_data: Dict[str, Any] = (
+            results[0] if not isinstance(results[0], BaseException) else {}
+        )
+        mbfc_data: Dict[str, Any] = (
+            results[1] if not isinstance(results[1], BaseException) else {}
+        )
+        inferred_data: Dict[str, Any] = (
+            results[2] if not isinstance(results[2], BaseException) else {}
+        )
 
         # Merge data with priority: Wikipedia > MBFC > Inferred
         profile = self._merge_profile_data(
@@ -110,13 +116,15 @@ class ReporterProfiler:
                 search_query += f" {organization}"
 
             url = "https://en.wikipedia.org/w/api.php"
-            params = {
-                "action": "query",
-                "list": "search",
-                "srsearch": search_query,
-                "format": "json",
-                "srlimit": 3,
-            }
+            params = httpx.QueryParams(
+                {
+                    "action": "query",
+                    "list": "search",
+                    "srsearch": search_query,
+                    "format": "json",
+                    "srlimit": 3,
+                }
+            )
 
             response = await self.http_client.get(url, params=params)
             if response.status_code != 200:
@@ -130,15 +138,17 @@ class ReporterProfiler:
 
             # Get the first result's page content
             page_title = search_results[0]["title"]
-            extract_params = {
-                "action": "query",
-                "titles": page_title,
-                "prop": "extracts|info",
-                "exintro": True,
-                "explaintext": True,
-                "format": "json",
-                "inprop": "url",
-            }
+            extract_params = httpx.QueryParams(
+                {
+                    "action": "query",
+                    "titles": page_title,
+                    "prop": "extracts|info",
+                    "exintro": True,
+                    "explaintext": True,
+                    "format": "json",
+                    "inprop": "url",
+                }
+            )
 
             extract_response = await self.http_client.get(url, params=extract_params)
             if extract_response.status_code != 200:
@@ -213,7 +223,7 @@ class ReporterProfiler:
         inferred: Dict[str, Any],
     ) -> Dict[str, Any]:
         """Merge data from multiple sources with priority."""
-        profile = {
+        profile: Dict[str, Any] = {
             "name": name,
             "normalized_name": normalized_name,
             "bio": None,
@@ -306,7 +316,7 @@ Respond in JSON format:
                 temperature=0.3,
             )
 
-            content = response.choices[0].message.content
+            content = response.choices[0].message.content or ""
 
             # Parse JSON from response
             json_match = re.search(r"\{[^{}]*\}", content, re.DOTALL)
@@ -526,7 +536,8 @@ Respond ONLY with valid JSON (no markdown):
                 logger.error("No JSON in deep dossier LLM response for %s", name)
                 return {}
 
-            return json.loads(json_match.group())
+            parsed_dossier: Dict[str, Any] = json.loads(json_match.group())
+            return parsed_dossier
 
         except json.JSONDecodeError as exc:
             logger.error("Failed to parse deep dossier JSON for %s: %s", name, exc)
@@ -535,7 +546,7 @@ Respond ONLY with valid JSON (no markdown):
             logger.error("Deep dossier LLM call failed for %s: %s", name, exc)
             return {}
 
-    async def close(self):
+    async def close(self) -> None:
         """Close HTTP client."""
         await self.http_client.aclose()
 

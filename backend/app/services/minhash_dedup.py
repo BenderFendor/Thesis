@@ -7,9 +7,9 @@ Pure algorithm - no neural network, runs on CPU.
 
 from __future__ import annotations
 
-import logging
 import hashlib
-from typing import Dict, List, Optional, Set, Tuple
+import logging
+from collections.abc import Mapping
 
 logger = logging.getLogger(__name__)
 
@@ -20,7 +20,7 @@ CHAR_NGRAM = 5
 SIMILARITY_THRESHOLD = 0.85
 
 
-def shingle_text(text: str, n: int = CHAR_NGRAM) -> Set[str]:
+def shingle_text(text: str, n: int = CHAR_NGRAM) -> set[str]:
     """
     Create character n-grams (shingles) from text.
 
@@ -47,7 +47,7 @@ def compute_minhash(
     text: str,
     num_hashes: int = NUM_HASH_FUNCTIONS,
     seed: int = 42,
-) -> List[int]:
+) -> list[int]:
     """
     Compute MinHash signature for a document.
 
@@ -90,8 +90,8 @@ def compute_minhash(
 
 
 def estimate_jaccard_similarity(
-    sig1: List[int],
-    sig2: List[int],
+    sig1: list[int],
+    sig2: list[int],
 ) -> float:
     """
     Estimate Jaccard similarity from MinHash signatures.
@@ -116,9 +116,9 @@ def estimate_jaccard_similarity(
 
 
 def compute_similarity_matrix(
-    signatures: Dict[str, List[int]],
+    signatures: dict[str, list[int]],
     threshold: float = SIMILARITY_THRESHOLD,
-) -> Dict[Tuple[str, str], float]:
+) -> dict[tuple[str, str], float]:
     """
     Compute pairwise similarity for all documents.
 
@@ -157,8 +157,8 @@ class MinHashDeduplicator:
         self,
         num_hashes: int = NUM_HASH_FUNCTIONS,
         threshold: float = SIMILARITY_THRESHOLD,
-        bands: Optional[int] = None,
-    ):
+        bands: int | None = None,
+    ) -> None:
         """
         Initialize deduplicator.
 
@@ -170,8 +170,8 @@ class MinHashDeduplicator:
         self.num_hashes = num_hashes
         self.threshold = threshold
         self.bands = bands if bands is not None else 8
-        self.signatures: Dict[str, List[int]] = {}
-        self.documents: Dict[str, str] = {}
+        self.signatures: dict[str, list[int]] = {}
+        self.documents: dict[str, str] = {}
 
     def add_document(self, doc_id: str, text: str) -> None:
         """
@@ -188,7 +188,7 @@ class MinHashDeduplicator:
 
     def add_documents_batch(
         self,
-        documents: Dict[str, str],
+        documents: dict[str, str],
         batch_size: int = 100,
     ) -> int:
         """
@@ -213,9 +213,9 @@ class MinHashDeduplicator:
 
     def find_duplicates(
         self,
-        doc_ids: Optional[List[str]] = None,
-        threshold: Optional[float] = None,
-    ) -> List[Tuple[str, str, float]]:
+        doc_ids: list[str] | None = None,
+        threshold: float | None = None,
+    ) -> list[tuple[str, str, float]]:
         """
         Find near-duplicate document pairs.
 
@@ -253,8 +253,8 @@ class MinHashDeduplicator:
 
     def find_duplicates_lsh(
         self,
-        doc_ids: Optional[List[str]] = None,
-    ) -> List[Tuple[str, str, float]]:
+        doc_ids: list[str] | None = None,
+    ) -> list[tuple[str, str, float]]:
         """
         Find duplicates using Locality-Sensitive Hashing for efficiency.
 
@@ -272,7 +272,7 @@ class MinHashDeduplicator:
             doc_ids = list(self.signatures.keys())
 
         # Build LSH buckets
-        buckets: Dict[Tuple[int, int], List[str]] = {}
+        buckets: dict[tuple[int, tuple[int, ...]], list[str]] = {}
         rows_per_band = self.num_hashes // self.bands
 
         for doc_id in doc_ids:
@@ -287,12 +287,12 @@ class MinHashDeduplicator:
                 buckets[bucket_key].append(doc_id)
 
         # Find candidate pairs from buckets
-        candidate_pairs: Set[Tuple[str, str]] = set()
+        candidate_pairs: set[tuple[str, str]] = set()
         for bucket_docs in buckets.values():
             if len(bucket_docs) > 1:
                 for i, d1 in enumerate(bucket_docs):
                     for d2 in bucket_docs[i + 1 :]:
-                        pair = tuple(sorted((d1, d2)))
+                        pair: tuple[str, str] = (d1, d2) if d1 <= d2 else (d2, d1)
                         candidate_pairs.add(pair)
 
         # Verify candidates with full similarity
@@ -310,11 +310,11 @@ class MinHashDeduplicator:
         logger.info(f"LSH found {len(duplicates)} duplicate pairs")
         return duplicates
 
-    def get_signature(self, doc_id: str) -> Optional[List[int]]:
+    def get_signature(self, doc_id: str) -> list[int] | None:
         """Get MinHash signature for a document."""
         return self.signatures.get(doc_id)
 
-    def get_stats(self) -> Dict:
+    def get_stats(self) -> dict[str, int | float]:
         """Get deduplicator statistics."""
         return {
             "document_count": len(self.signatures),
@@ -330,11 +330,11 @@ class MinHashDeduplicator:
 
 
 def deduplicate_articles(
-    articles: List[Dict],
+    articles: list[Mapping[str, object]],
     text_field: str = "text",
     id_field: str = "chroma_id",
     threshold: float = SIMILARITY_THRESHOLD,
-) -> Dict[str, Set[str]]:
+) -> dict[str, set[str]]:
     """
     Find duplicate groups in a list of articles.
 
@@ -350,10 +350,24 @@ def deduplicate_articles(
     deduplicator = MinHashDeduplicator(threshold=threshold)
 
     # Build mapping from text to IDs (handle exact duplicates)
-    text_to_ids: Dict[str, List[str]] = {}
+    text_to_ids: dict[str, list[str]] = {}
     for article in articles:
-        text = article.get(text_field, "") or ""
-        doc_id = article.get(id_field, "")
+        text_value = article.get(text_field, "") or ""
+        doc_id_value = article.get(id_field, "")
+        text = (
+            text_value
+            if isinstance(text_value, str)
+            else str(text_value)
+            if text_value
+            else ""
+        )
+        doc_id = (
+            doc_id_value
+            if isinstance(doc_id_value, str)
+            else str(doc_id_value)
+            if doc_id_value
+            else ""
+        )
         if doc_id and text:
             text_hash = hashlib.md5(text.encode()).hexdigest()
             if text_hash not in text_to_ids:
@@ -361,7 +375,7 @@ def deduplicate_articles(
             text_to_ids[text_hash].append(doc_id)
 
     # Add one representative per exact duplicate
-    dedup_result: Dict[str, Set[str]] = {}
+    dedup_result: dict[str, set[str]] = {}
     for text_hash, ids in text_to_ids.items():
         representative = ids[0]
         dedup_result[representative] = set(ids)

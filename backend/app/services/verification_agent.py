@@ -15,14 +15,15 @@ from __future__ import annotations
 
 import asyncio
 import hashlib
-import json
 import re
 import time
 from datetime import datetime, timedelta, timezone
-from typing import Any, Dict, List, Optional, Tuple, cast
+from types import TracebackType
+from typing import Any, Dict, List, Optional, cast
 
 from ddgs import DDGS
 from sqlalchemy import delete, select
+from sqlalchemy.engine import CursorResult
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import settings
@@ -34,7 +35,6 @@ from app.models.verification import (
     SourceType,
     VerificationRequest,
     VerificationResult,
-    VerificationStreamEvent,
     VerifiedClaim,
 )
 from app.services.source_credibility import CredibilityScorer, get_scorer_with_db
@@ -73,7 +73,7 @@ class VerificationAgent:
         self,
         db: Optional[AsyncSession] = None,
         session_id: Optional[str] = None,
-    ):
+    ) -> None:
         self.db = db
         self.session_id = session_id
         self.sandbox: Optional[VerificationSandbox] = None
@@ -92,7 +92,12 @@ class VerificationAgent:
             self.scorer = get_scorer()
         return self
 
-    async def __aexit__(self, exc_type, exc_val, exc_tb) -> None:
+    async def __aexit__(
+        self,
+        exc_type: type[BaseException] | None,
+        exc_val: BaseException | None,
+        exc_tb: TracebackType | None,
+    ) -> None:
         if self.sandbox:
             self.sandbox.cleanup()
 
@@ -335,8 +340,8 @@ class VerificationAgent:
 
             return VerifiedClaim(
                 id=claim_hash,
-                claim_text=cached.claim_text,
-                confidence=cached.confidence,
+                claim_text=cast(str, cached.claim_text),
+                confidence=cast(float, cached.confidence),
                 confidence_level=ConfidenceLevel(cached.confidence_level),
                 supporting_sources=[
                     s["id"] for s in sources_data if s.get("supports_claim", True)
@@ -370,7 +375,7 @@ class VerificationAgent:
             cache_entry = VerificationCache(
                 claim_hash=claim.id,
                 claim_text=claim.claim_text,
-                confidence=claim.confidence,
+                confidence=cast(Any, claim.confidence),
                 confidence_level=claim.confidence_level.value,
                 sources_json=sources_json,
                 expires_at=expires_at,
@@ -612,7 +617,7 @@ async def cleanup_expired_cache(db: AsyncSession) -> int:
             )
         )
         await db.commit()
-        deleted = result.rowcount
+        deleted = cast(CursorResult[Any], result).rowcount or 0
         if deleted:
             logger.info("Cleaned up %d expired cache entries", deleted)
         return deleted

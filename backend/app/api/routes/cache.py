@@ -5,6 +5,7 @@ import json
 import queue
 import threading
 from collections import defaultdict
+from collections.abc import AsyncIterator
 from datetime import datetime, timezone
 from typing import Any, Dict
 
@@ -36,7 +37,7 @@ async def stream_cache_refresh() -> StreamingResponse:
     """Stream cache refresh progress as articles are ingested."""
     if news_cache.update_in_progress:
 
-        async def already_running():
+        async def already_running() -> AsyncIterator[str]:
             yield f"data: {json.dumps({'status': 'error', 'message': 'Cache refresh already in progress'})}\n\n"
 
         return StreamingResponse(already_running(), media_type="text/event-stream")
@@ -65,7 +66,10 @@ async def stream_cache_refresh() -> StreamingResponse:
             refresh_news_cache(source_progress_callback=progress_callback)
         finally:
             progress_queue.put(
-                {"type": "complete", "timestamp": datetime.now(timezone.utc).isoformat()}
+                {
+                    "type": "complete",
+                    "timestamp": datetime.now(timezone.utc).isoformat(),
+                }
             )
             refresh_complete.set()
 
@@ -73,7 +77,7 @@ async def stream_cache_refresh() -> StreamingResponse:
     refresh_thread = threading.Thread(target=refresh_thread_func, daemon=True)
     refresh_thread.start()
 
-    async def event_generator():
+    async def event_generator() -> AsyncIterator[str]:
         """Generate SSE events for cache refresh progress."""
         try:
             # Send initial event
@@ -161,15 +165,18 @@ async def get_cache_status() -> Dict[str, object]:
     source_stats = news_cache.get_source_stats()
 
     total_articles = len(articles)
-    sources_with_articles = len(
-        [s for s in source_stats if s.get("article_count", 0) > 0]
+    sources_with_articles = sum(
+        1
+        for stat in source_stats
+        if isinstance(article_count := stat.get("article_count"), int)
+        and article_count > 0
     )
     sources_with_errors = len([s for s in source_stats if s.get("status") == "error"])
     sources_with_warnings = len(
         [s for s in source_stats if s.get("status") == "warning"]
     )
 
-    category_counts = defaultdict(int)
+    category_counts: defaultdict[str, int] = defaultdict(int)
     for article in articles:
         category_counts[article.category] += 1
 

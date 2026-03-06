@@ -10,7 +10,7 @@ Provides endpoints for:
 from __future__ import annotations
 
 import asyncio
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, cast
 from urllib.parse import parse_qs, quote, unquote, urlparse
 
 import httpx
@@ -21,7 +21,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.logging import get_logger
-from app.database import get_db, Reporter, Organization, ArticleAuthor
+from app.database import get_db, Reporter, Organization
 from app.services.reporter_profiler import get_reporter_profiler
 from app.services.funding_researcher import get_funding_researcher
 from app.services.source_research import get_source_profile
@@ -30,6 +30,10 @@ router = APIRouter(prefix="/research/entity", tags=["entity-research"])
 logger = get_logger("entity_research_routes")
 
 _WIKIPEDIA_URL_CACHE: Dict[str, str] = {}
+
+
+def _required_str(value: Optional[str]) -> str:
+    return cast(str, value)
 
 
 def _extract_wikipedia_lang_and_title(url: str) -> tuple[Optional[str], Optional[str]]:
@@ -229,7 +233,7 @@ async def profile_reporter(
     request: ReporterProfileRequest,
     db: AsyncSession = Depends(get_db),
     force_refresh: bool = Query(False, description="Force re-research even if cached"),
-):
+) -> ReporterProfileResponse:
     """
     Profile a reporter/journalist.
 
@@ -252,7 +256,7 @@ async def profile_reporter(
             )
             return ReporterProfileResponse(
                 id=cached.id,
-                name=cached.name,
+                name=_required_str(cached.name),
                 normalized_name=cached.normalized_name,
                 bio=cached.bio,
                 career_history=cached.career_history,
@@ -302,7 +306,7 @@ async def profile_reporter(
 
     return ReporterProfileResponse(
         id=reporter.id,
-        name=reporter.name,
+        name=_required_str(reporter.name),
         normalized_name=reporter.normalized_name,
         bio=reporter.bio,
         career_history=reporter.career_history,
@@ -319,7 +323,10 @@ async def profile_reporter(
 
 
 @router.get("/reporter/{reporter_id}", response_model=ReporterProfileResponse)
-async def get_reporter(reporter_id: int, db: AsyncSession = Depends(get_db)):
+async def get_reporter(
+    reporter_id: int,
+    db: AsyncSession = Depends(get_db),
+) -> ReporterProfileResponse:
     """Get a reporter by ID."""
     stmt = select(Reporter).where(Reporter.id == reporter_id)
     result = await db.execute(stmt)
@@ -333,7 +340,7 @@ async def get_reporter(reporter_id: int, db: AsyncSession = Depends(get_db)):
     )
     return ReporterProfileResponse(
         id=reporter.id,
-        name=reporter.name,
+        name=_required_str(reporter.name),
         normalized_name=reporter.normalized_name,
         bio=reporter.bio,
         career_history=reporter.career_history,
@@ -354,7 +361,7 @@ async def research_organization(
     request: OrganizationResearchRequest,
     db: AsyncSession = Depends(get_db),
     force_refresh: bool = Query(False, description="Force re-research even if cached"),
-):
+) -> OrganizationResearchResponse:
     """
     Research a news organization's funding and ownership.
     """
@@ -375,7 +382,7 @@ async def research_organization(
             )
             return OrganizationResearchResponse(
                 id=cached.id,
-                name=cached.name,
+                name=_required_str(cached.name),
                 normalized_name=cached.normalized_name,
                 org_type=cached.org_type,
                 parent_org=None,
@@ -424,7 +431,7 @@ async def research_organization(
 
     return OrganizationResearchResponse(
         id=organization.id,
-        name=organization.name,
+        name=_required_str(organization.name),
         normalized_name=organization.normalized_name,
         org_type=organization.org_type,
         parent_org=org_data.get("parent_org"),
@@ -450,7 +457,7 @@ async def research_source_profile(
     cache_only: bool = Query(
         False, description="Only return cached data, 404 if not cached"
     ),
-):
+) -> SourceResearchResponse:
     """
     Build a source profile with funding, ownership, bias, and related metadata.
     Uses file-based caching unless force_refresh is requested.
@@ -474,7 +481,7 @@ async def research_source_profile(
 @router.post("/source/batch", response_model=SourceBatchResponse)
 async def research_source_batch(
     request: SourceBatchRequest,
-):
+) -> SourceBatchResponse:
     """
     Research multiple sources in a single request.
     Uses file-based caching unless force_refresh is requested.
@@ -482,7 +489,7 @@ async def research_source_batch(
     """
     from app.services.source_research import get_source_profile
 
-    valid_sources = []
+    valid_sources: List[tuple[SourceResearchRequest, str]] = []
     for source_req in request.sources:
         source_name = source_req.name.strip()
         if not source_name:
@@ -492,7 +499,10 @@ async def research_source_batch(
             )
         valid_sources.append((source_req, source_name))
 
-    async def fetch_profile(source_req: SourceResearchRequest, source_name: str):
+    async def fetch_profile(
+        source_req: SourceResearchRequest,
+        source_name: str,
+    ) -> tuple[str, Optional[Dict[str, Any]]]:
         profile = await get_source_profile(
             source_name=source_name,
             website=source_req.website,
@@ -527,7 +537,10 @@ async def research_source_batch(
 
 
 @router.get("/organization/{org_id}", response_model=OrganizationResearchResponse)
-async def get_organization(org_id: int, db: AsyncSession = Depends(get_db)):
+async def get_organization(
+    org_id: int,
+    db: AsyncSession = Depends(get_db),
+) -> OrganizationResearchResponse:
     """Get an organization by ID."""
     stmt = select(Organization).where(Organization.id == org_id)
     result = await db.execute(stmt)
@@ -539,7 +552,7 @@ async def get_organization(org_id: int, db: AsyncSession = Depends(get_db)):
     normalized_wikipedia_url = await _ensure_english_wikipedia_url(org.wikipedia_url)
     return OrganizationResearchResponse(
         id=org.id,
-        name=org.name,
+        name=_required_str(org.name),
         normalized_name=org.normalized_name,
         org_type=org.org_type,
         parent_org=None,
@@ -559,7 +572,10 @@ async def get_organization(org_id: int, db: AsyncSession = Depends(get_db)):
 @router.get(
     "/organization/{org_name}/ownership-chain", response_model=OwnershipChainResponse
 )
-async def get_ownership_chain(org_name: str, max_depth: int = Query(5, ge=1, le=10)):
+async def get_ownership_chain(
+    org_name: str,
+    max_depth: int = Query(5, ge=1, le=10),
+) -> OwnershipChainResponse:
     """Get the ownership chain for an organization."""
     researcher = get_funding_researcher()
     chain = await researcher.get_ownership_chain(org_name, max_depth)
@@ -572,7 +588,7 @@ async def list_reporters(
     db: AsyncSession = Depends(get_db),
     limit: int = Query(50, ge=1, le=200),
     offset: int = Query(0, ge=0),
-):
+) -> List[ReporterProfileResponse]:
     """List all cached reporters."""
     stmt = select(Reporter).limit(limit).offset(offset)
     result = await db.execute(stmt)
@@ -583,7 +599,7 @@ async def list_reporters(
     return [
         ReporterProfileResponse(
             id=r.id,
-            name=r.name,
+            name=_required_str(r.name),
             normalized_name=r.normalized_name,
             bio=r.bio,
             career_history=r.career_history,
@@ -606,7 +622,7 @@ async def list_organizations(
     db: AsyncSession = Depends(get_db),
     limit: int = Query(50, ge=1, le=200),
     offset: int = Query(0, ge=0),
-):
+) -> List[OrganizationResearchResponse]:
     """List all cached organizations."""
     stmt = select(Organization).limit(limit).offset(offset)
     result = await db.execute(stmt)
@@ -617,7 +633,7 @@ async def list_organizations(
     return [
         OrganizationResearchResponse(
             id=o.id,
-            name=o.name,
+            name=_required_str(o.name),
             normalized_name=o.normalized_name,
             org_type=o.org_type,
             parent_org=None,
@@ -661,7 +677,9 @@ class MaterialContextResponse(BaseModel):
 
 
 @router.post("/material-context", response_model=MaterialContextResponse)
-async def analyze_material_context(request: MaterialContextRequest):
+async def analyze_material_context(
+    request: MaterialContextRequest,
+) -> MaterialContextResponse:
     """
     Analyze material interests that may affect news coverage.
 
@@ -700,7 +718,7 @@ async def analyze_material_context(request: MaterialContextRequest):
 
 
 @router.get("/country/{country_code}/economic-profile")
-async def get_country_economic_profile(country_code: str):
+async def get_country_economic_profile(country_code: str) -> Dict[str, Any]:
     """Get economic profile for a country."""
     from app.services.material_interest import get_material_interest_agent
 

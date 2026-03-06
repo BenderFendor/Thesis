@@ -6,15 +6,14 @@ Provides endpoints for syncing GDELT events and retrieving GDELT-related data.
 from __future__ import annotations
 
 from datetime import datetime, timedelta, timezone
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy import select, func
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.config import settings
 from app.database import get_db, GDELTEvent
-from app.services.gdelt_integration import sync_gdelt_to_articles, get_gdelt_integration
+from app.services.gdelt_integration import sync_gdelt_to_articles
 
 router = APIRouter(prefix="/gdelt", tags=["gdelt"])
 

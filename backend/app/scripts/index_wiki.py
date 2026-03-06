@@ -53,7 +53,7 @@ async def main() -> None:
 
     if args.status:
         summary = await get_index_status_summary()
-        print(f"\nWiki Index Status:")
+        print("\nWiki Index Status:")
         print(f"  Total entries: {summary['total_entries']}")
         print(f"  By status: {summary['by_status']}")
         print(f"  By type: {summary['by_type']}")

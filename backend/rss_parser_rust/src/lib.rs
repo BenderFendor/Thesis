@@ -8,9 +8,9 @@ mod html_extract;
 mod parser;
 mod types;
 
+use crate::html_extract::{extract_article_from_html, extract_og_image_from_html};
 use crate::parser::parse_sources;
 use crate::types::{ensure_source_requests, parse_result_to_pydict};
-use crate::html_extract::{extract_article_from_html, extract_og_image_from_html};
 
 #[pyfunction]
 fn parse_feeds_parallel<'py>(
@@ -18,9 +18,11 @@ fn parse_feeds_parallel<'py>(
     sources: Vec<(String, Vec<String>)>,
     max_concurrent: Option<usize>,
 ) -> PyResult<Bound<'py, PyDict>> {
-    let runtime = Runtime::new().map_err(|err| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(
-        format!("Failed to start Tokio runtime: {err}"),
-    ))?;
+    let runtime = Runtime::new().map_err(|err| {
+        PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(format!(
+            "Failed to start Tokio runtime: {err}"
+        ))
+    })?;
     let source_requests = ensure_source_requests(sources);
     let limit = max_concurrent.unwrap_or(32).max(1);
 

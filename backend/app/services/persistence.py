@@ -1,13 +1,13 @@
 from __future__ import annotations
 
 import asyncio
+import concurrent.futures
 from collections import defaultdict
 from datetime import datetime, timezone
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional, Tuple, cast
 
-from sqlalchemy import bindparam, update  # type: ignore[import-unresolved]
-from sqlalchemy.dialects.postgresql import insert  # type: ignore[import-unresolved]
-from sqlalchemy.ext.asyncio import AsyncSession  # type: ignore[import-unresolved]
+from sqlalchemy import bindparam, update
+from sqlalchemy.dialects.postgresql import insert
 
 from app.core.config import settings
 from app.core.logging import get_logger
@@ -17,16 +17,16 @@ from app.database import (
 )
 from app.models.news import NewsArticle
 from app.services.cache import news_cache
-from app.vector_store import VectorStore, get_vector_store
+from app.vector_store import BatchArticlePayload, get_vector_store
 
 logger = get_logger("persistence")
 
 article_persistence_queue: asyncio.Queue[Tuple[List[NewsArticle], Dict[str, Any]]] = (
     asyncio.Queue()
 )
-embedding_generation_queue: asyncio.Queue[Tuple[List[Dict[str, Any]], List[str]]] = (
-    asyncio.Queue(maxsize=settings.embedding_queue_size)
-)
+embedding_generation_queue: asyncio.Queue[
+    Tuple[List["EmbeddingArticlePayload"], List[str]]
+] = asyncio.Queue(maxsize=settings.embedding_queue_size)
 _main_event_loop: Optional[asyncio.AbstractEventLoop] = None
 
 
@@ -45,6 +45,14 @@ def get_main_event_loop() -> Optional[asyncio.AbstractEventLoop]:
 
 def get_embedding_queue_depth() -> int:
     return embedding_generation_queue.qsize()
+
+
+class EmbeddingArticlePayload(BatchArticlePayload):
+    article_id: int
+
+
+def _get_session_factory() -> Any:
+    return cast(Any, AsyncSessionLocal)
 
 
 def parse_published_datetime(published: Optional[str]) -> datetime:
@@ -113,7 +121,7 @@ async def _persist_articles_async(
         logger.info("Database disabled; skipping persistence for %s", source_info)
         return
     vector_store = get_vector_store()
-    async with AsyncSessionLocal() as session:
+    async with _get_session_factory()() as session:
         try:
             unique_articles: Dict[str, NewsArticle] = {}
             for article in articles:
@@ -169,7 +177,7 @@ async def _persist_articles_async(
                 if row:
                     article.id = row.id
 
-            embedding_payloads: List[Dict[str, Any]] = []
+            embedding_payloads: List[EmbeddingArticlePayload] = []
             chroma_updates: List[Dict[str, Any]] = []
             vector_deletes: List[str] = []
 
@@ -187,8 +195,8 @@ async def _persist_articles_async(
                         )
 
                     if needs_embedding:
-                        article = unique_articles.get(row.url)
-                        if not article:
+                        source_article = unique_articles.get(row.url)
+                        if source_article is None:
                             continue
                         metadata_payload = {
                             "source": row.source,
@@ -260,7 +268,7 @@ def persist_articles_dual_write(
                 target_loop,
             )
 
-            def _log_future_result(fut: asyncio.Future) -> None:
+            def _log_future_result(fut: concurrent.futures.Future[None]) -> None:
                 try:
                     fut.result()
                 except Exception as exc:  # pragma: no cover - best effort logging
@@ -333,10 +341,12 @@ async def embedding_generation_worker() -> None:
                     )
 
             if payloads:
-                added_count = vector_store.batch_add_articles(payloads)
+                added_count = vector_store.batch_add_articles(
+                    cast(List[BatchArticlePayload], payloads)
+                )
                 if added_count:
                     article_ids = [item["article_id"] for item in payloads]
-                    async with AsyncSessionLocal() as session:
+                    async with _get_session_factory()() as session:
                         stmt = (
                             update(ArticleRecord)
                             .where(ArticleRecord.id.in_(article_ids))

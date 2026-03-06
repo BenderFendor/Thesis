@@ -18,30 +18,30 @@ const HorizontalArticleEmbed: React.FC<HorizontalArticleEmbedProps> = ({
   limit = 5,
   onArticleClick
 }) => {
-  const [articles, setArticles] = useState<NewsArticle[]>(providedArticles || []);
-  const [loading, setLoading] = useState(!providedArticles);
+  const [fetchedArticles, setFetchedArticles] = useState<NewsArticle[]>([]);
+  const [isFetching, setIsFetching] = useState(false);
 
   useEffect(() => {
-    // If articles are provided as props, use them directly
     if (providedArticles) {
-      setArticles(providedArticles);
-      setLoading(false);
       return;
     }
 
     // Otherwise, fetch articles
     const getArticles = async () => {
-      setLoading(true);
+      setIsFetching(true);
       try {
         const data = await fetchNews({ category, limit });
-        setArticles(data || []);
+        setFetchedArticles(data || []);
       } catch (err) {
-        setArticles([]);
+        setFetchedArticles([]);
       }
-      setLoading(false);
+      setIsFetching(false);
     };
     getArticles();
   }, [category, limit, providedArticles]);
+
+  const articles = providedArticles ?? fetchedArticles;
+  const loading = !providedArticles && isFetching;
   
   if (loading) return <div className="py-4 text-center text-sm text-muted-foreground">Loading articles...</div>;
   if (!articles.length) return null;

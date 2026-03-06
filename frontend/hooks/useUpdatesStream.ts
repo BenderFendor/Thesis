@@ -32,7 +32,7 @@ export function useUpdatesStream(options: UseUpdatesStreamOptions = {}) {
     const eventSourceRef = useRef<EventSource | null>(null);
     const reconnectTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
-    const connect = useCallback(() => {
+    const connect = useCallback(function connectToStream() {
         if (!enabled) return;
 
         // Close existing connection
@@ -67,7 +67,7 @@ export function useUpdatesStream(options: UseUpdatesStreamOptions = {}) {
 
             // Reconnect after delay
             reconnectTimeoutRef.current = setTimeout(() => {
-                connect();
+                connectToStream();
             }, 5000);
         };
 

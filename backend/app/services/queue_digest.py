@@ -44,7 +44,7 @@ async def generate_queue_digest(
             logger.error("Invalid response from OpenRouter API")
             raise RuntimeError("Failed to generate digest: invalid API response")
 
-        digest = response.choices[0].message.content.strip()
+        digest = (response.choices[0].message.content or "").strip()
 
         # Append a structured JSON block the frontend can parse/embed. This
         # follows the same "```json:articles\n<JSON>\n```" fenced format used

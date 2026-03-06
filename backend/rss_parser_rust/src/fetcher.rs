@@ -18,10 +18,7 @@ fn build_client() -> Client {
         .expect("failed to build reqwest client")
 }
 
-pub async fn fetch_all(
-    sources: Vec<SourceRequest>,
-    max_concurrent: usize,
-) -> Vec<FetchResult> {
+pub async fn fetch_all(sources: Vec<SourceRequest>, max_concurrent: usize) -> Vec<FetchResult> {
     let semaphore = Arc::new(Semaphore::new(max_concurrent.max(1)));
     let client = Arc::new(build_client());
     let mut join_set = JoinSet::new();

@@ -56,7 +56,9 @@ async def test_paginated_cached_offset_pagination():
             if page1["articles"] and page2["articles"]:
                 urls1 = {a["url"] for a in page1["articles"]}
                 urls2 = {a["url"] for a in page2["articles"]}
-                assert urls1.isdisjoint(urls2), "Pages should not have overlapping articles"
+                assert urls1.isdisjoint(urls2), (
+                    "Pages should not have overlapping articles"
+                )
 
 
 @pytest.mark.anyio
