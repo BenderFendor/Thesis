@@ -120,6 +120,16 @@ _referenced_articles_tracker: List[Dict[str, Any]] = []
 _articles_by_id: Dict[str, Dict[str, Any]] = {}
 _fetched_urls_cache: Dict[str, str] = {}
 
+DENIAL_PHRASES = (
+    "provided context does not contain",
+    "without additional details",
+    "impossible to describe",
+    "impossible to summarize",
+    "only repeats the question",
+    "cannot answer from the provided context",
+    "not enough information in the provided context",
+)
+
 
 def _normalize_url(url: Optional[str]) -> Optional[str]:
     if not url or not isinstance(url, str):
@@ -210,6 +220,76 @@ def _track_reference(article: Dict[str, Any]) -> None:
         )
     if not already_seen:
         _referenced_articles_tracker.append(article)
+
+
+def _build_external_reference(
+    *,
+    url: str,
+    title: str,
+    source: str = "External source",
+    summary: str = "",
+    published: str = "",
+    image: str | None = None,
+) -> Dict[str, Any]:
+    return {
+        "id": _normalize_url(url) or url,
+        "url": url,
+        "link": url,
+        "title": title or "Untitled",
+        "source": source or "External source",
+        "summary": summary,
+        "description": summary,
+        "published": published,
+        "image": image,
+        "category": "external",
+    }
+
+
+def _track_reference_by_url(url: str, fallback: Dict[str, Any] | None = None) -> None:
+    normalized = _normalize_url(url)
+    if normalized:
+        article = _articles_by_id.get(normalized)
+        if article:
+            _track_reference(article)
+            return
+    if fallback:
+        _track_reference(fallback)
+
+
+def _track_search_result_references(tool_name: str, content: str) -> None:
+    if tool_name not in {"web_search", "news_search", "search_internal_news"}:
+        return
+    try:
+        payload = json.loads(content)
+    except json.JSONDecodeError:
+        return
+    if not isinstance(payload, list):
+        return
+
+    for item in payload[:5]:
+        if not isinstance(item, dict):
+            continue
+        url = str(item.get("url") or item.get("link") or "").strip()
+        if not url:
+            continue
+        title = str(item.get("title") or item.get("headline") or "Untitled")
+        source = str(item.get("source") or item.get("provider") or "External source")
+        summary = str(
+            item.get("summary") or item.get("body") or item.get("snippet") or ""
+        )
+        published = str(
+            item.get("published") or item.get("date") or item.get("published_at") or ""
+        )
+        image = item.get("image")
+        fallback = _build_external_reference(
+            url=url,
+            title=title,
+            source=source,
+            summary=summary,
+            published=published,
+            image=image if isinstance(image, str) else None,
+        )
+        _track_reference_by_url(url, fallback)
 
 
 @tool
@@ -306,6 +386,17 @@ def fetch_article_content(url: str) -> str:
         return out
     text = result.get("text", "")
     preview = text[:8000]
+    fallback = _build_external_reference(
+        url=url,
+        title=str(result.get("title") or "Untitled"),
+        source=str(
+            result.get("source") or result.get("publisher") or "External source"
+        ),
+        summary=preview[:1200],
+        published=str(result.get("publish_date") or ""),
+        image=str(result.get("top_image") or "") or None,
+    )
+    _track_reference_by_url(url, fallback)
     out = f"Title: {result.get('title', 'Untitled')}\nContent: {preview}"
     if normalized:
         _fetched_urls_cache[normalized] = out
@@ -647,7 +738,7 @@ def call_model(state: AgentState) -> Dict[str, Any]:
     mode = state.get("mode", "research")
     tool_history = set(state.get("tool_history", set()))
     tool_calls_used = int(state.get("tool_calls_used", 0))
-    if mode == "final":
+    if mode in {"final", "final_pending"}:
         messages = list(state["messages"])
         last_user = ""
         for message in reversed(messages):
@@ -683,7 +774,7 @@ def call_model(state: AgentState) -> Dict[str, Any]:
         return {
             "messages": [response],
             "iteration": state.get("iteration", 0),
-            "mode": mode,
+            "mode": "final",
             "tool_history": tool_history,
             "tool_calls_used": tool_calls_used,
         }
@@ -698,10 +789,15 @@ def call_model(state: AgentState) -> Dict[str, Any]:
             messages,
             "tool router invoke",
         )
+        next_mode = "research"
+        if isinstance(response, AIMessage) and not getattr(
+            response, "tool_calls", None
+        ):
+            next_mode = "final_pending"
         return {
             "messages": [response],
             "iteration": state.get("iteration", 0) + 1,
-            "mode": "research",
+            "mode": next_mode,
             "tool_history": tool_history,
             "tool_calls_used": tool_calls_used,
         }
@@ -715,7 +811,9 @@ def call_model(state: AgentState) -> Dict[str, Any]:
     next_mode = "research"
     if isinstance(response, AIMessage):
         content = _extract_text_from_message(response)
-        if _needs_final_answer(content) and not getattr(response, "tool_calls", None):
+        if iteration >= MAX_ITERATIONS:
+            next_mode = "final_pending"
+        elif _needs_final_answer(content) and not getattr(response, "tool_calls", None):
             next_mode = "tool_router"
     return {
         "messages": [response],
@@ -735,24 +833,17 @@ def _extract_text_from_message(message: BaseMessage) -> str:
 
 
 def should_continue(state: AgentState) -> str:
-    iteration = state.get("iteration", 0)
     if state.get("mode") == "tool_router":
         return "agent"
     if state.get("mode") == "final":
         return END
-    if iteration >= MAX_ITERATIONS:
-        state["mode"] = "final"
+    if state.get("mode") == "final_pending":
         return "agent"
     last_message = state["messages"][-1]
     if isinstance(last_message, AIMessage) and getattr(
         last_message, "tool_calls", None
     ):
         return "tools"
-    if isinstance(last_message, AIMessage):
-        content = _extract_text_from_message(last_message)
-        if _needs_final_answer(content):
-            state["mode"] = "final"
-            return "agent"
     return END
 
 
@@ -820,6 +911,13 @@ def _needs_final_answer(answer_text: str) -> bool:
     return not _has_required_sections(content)
 
 
+def _answer_denies_available_context(answer_text: str) -> bool:
+    lower_content = answer_text.strip().lower()
+    if not lower_content:
+        return False
+    return any(phrase in lower_content for phrase in DENIAL_PHRASES)
+
+
 def _build_context_snippet(referenced_articles: List[Dict[str, Any]]) -> str:
     lines: List[str] = []
     for article in referenced_articles[:8]:
@@ -832,20 +930,38 @@ def _build_context_snippet(referenced_articles: List[Dict[str, Any]]) -> str:
     return "\n".join(lines)
 
 
+def _build_tool_evidence_snippet(tool_snippets: List[str]) -> str:
+    if not tool_snippets:
+        return ""
+    evidence_lines: List[str] = []
+    for index, snippet in enumerate(tool_snippets[:6], start=1):
+        compact = snippet.strip()
+        if not compact:
+            continue
+        evidence_lines.append(f"Evidence {index}:\n{compact[:1800]}")
+    return "\n\n".join(evidence_lines)
+
+
 def _finalize_answer(
     query: str,
     referenced_articles: List[Dict[str, Any]],
     tool_snippets: List[str],
 ) -> str:
     context = _build_context_snippet(referenced_articles)
-    tool_context = "\n".join(tool_snippets[:6]) if tool_snippets else ""
+    tool_context = _build_tool_evidence_snippet(tool_snippets)
     prompt_parts = [
         f"Question: {query}",
-        "Context:",
+        (
+            "Write a direct answer from the evidence below. If the evidence is mixed or "
+            "incomplete, say what is confirmed and what remains unclear. Do not claim the "
+            "context is missing if article excerpts or tool evidence are present. Cite the most "
+            "relevant URLs inline."
+        ),
+        "Article references:",
         context or "No article context available.",
     ]
     if tool_context:
-        prompt_parts.extend(["Tool notes:", tool_context])
+        prompt_parts.extend(["Extracted evidence:", tool_context])
     prompt_parts.append("Return the final response.")
     finalizer_messages: List[BaseMessage] = [
         SystemMessage(content=_finalizer_system_prompt()),
@@ -916,6 +1032,7 @@ def research_news(
         if "tools" in update:
             for tool_message in update["tools"]["messages"]:
                 snippet = _content_to_text(tool_message.content)[:2000]
+                tool_name = str(getattr(tool_message, "name", "") or "")
                 thinking_steps.append(
                     {
                         "type": "observation",
@@ -925,12 +1042,16 @@ def research_news(
                 )
                 if snippet:
                     tool_snippets.append(snippet)
+                if tool_name:
+                    _track_search_result_references(tool_name, snippet)
 
     referenced_articles = list(_referenced_articles_tracker)
     if not referenced_articles and final_answer:
         referenced_articles = _match_articles_in_text(final_answer)
 
-    if _needs_final_answer(final_answer):
+    if _needs_final_answer(final_answer) or (
+        referenced_articles and _answer_denies_available_context(final_answer)
+    ):
         synthesized = _finalize_answer(query, referenced_articles, tool_snippets)
         if synthesized:
             final_answer = synthesized
@@ -1018,8 +1139,11 @@ def research_stream(
                 if stop_event is not None and stop_event.is_set():
                     return
                 snippet = _content_to_text(tool_message.content)[:2000]
+                tool_name = str(getattr(tool_message, "name", "") or "")
                 if snippet:
                     tool_snippets.append(snippet)
+                if tool_name:
+                    _track_search_result_references(tool_name, snippet)
                 yield (
                     "data: "
                     + json.dumps(
@@ -1038,7 +1162,9 @@ def research_stream(
     if stop_event is not None and stop_event.is_set():
         return
 
-    if _needs_final_answer(final_answer):
+    if _needs_final_answer(final_answer) or (
+        referenced_articles and _answer_denies_available_context(final_answer)
+    ):
         synthesized = _finalize_answer(query, referenced_articles, tool_snippets)
         if synthesized:
             final_answer = synthesized

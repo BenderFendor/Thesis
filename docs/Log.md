@@ -1,5 +1,20 @@
 # Log
 
+## 2026-03-07: Research Agent Loop Termination And SSE Debug Harness
+
+**Problem:** The research workspace could get stuck in repeated tool-planning cycles, showing many "Checking more sources." steps while llama.cpp kept serving successful completions. The visible loop looked like a frontend issue at first, but the backend agent graph was continuing past its intended stopping conditions.
+
+**What Changed:**
+- Fixed `backend/news_research_agent.py` so finalization is driven by persisted graph state instead of mutating router state in `should_continue()`, which LangGraph does not reliably carry forward.
+- Added an explicit `final_pending` transition so hitting `MAX_ITERATIONS` or a tool-router response with no tool calls triggers one final synthesis pass and then terminates cleanly.
+- Added regression coverage in `backend/tests/test_news_research_agent_stream.py` for both iteration-cap termination and the case where the tool router decides no more tools are needed.
+- Expanded `backend/tools/research_lab.py` into a frontend-parity SSE harness that consumes the same `/api/news/research/stream` route, applies the same step-status mapping used by `frontend/app/search/page.tsx`, and records event counts, tool starts, statuses, and incomplete runs.
+
+**Verification:**
+- `./backend/.venv/bin/python -m pytest backend/tests/test_news_research_agent_stream.py -q` passes with the new regression tests.
+- An in-process graph probe now stops after a single finalizer pass instead of looping indefinitely after the iteration cap.
+- The SSE lab harness now provides a backend-only, frontend-equivalent way to inspect loop behavior safely with a hard timeout.
+
 ## 2026-03-07: RSS Country Coverage Expansion And Ownership Labels
 
 **Problem:** The RSS catalog had large country blindspots across the global south, especially parts of South America, Africa, the Middle East, Central Asia, and smaller Caribbean and Pacific states. It also lacked a compact ownership label in the source JSON, which made it harder to contrast state, private, nonprofit, and independent outlets when handing the catalog to an LLM.

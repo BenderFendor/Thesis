@@ -1,4 +1,5 @@
 from types import SimpleNamespace
+import json
 
 from langchain_core.messages import AIMessage, HumanMessage, SystemMessage
 
@@ -63,3 +64,37 @@ def test_build_initial_messages_collapses_assistant_history_for_llamacpp(
     assert isinstance(messages[-1], HumanMessage)
     assert messages[-1].content == "follow up"
     assert sum(isinstance(message, AIMessage) for message in messages) == 1
+
+
+def test_track_search_result_references_registers_external_results() -> None:
+    agent.set_news_articles([])
+
+    payload = json.dumps(
+        [
+            {
+                "title": "Iran war latest",
+                "source": "AP",
+                "url": "https://example.com/ap-iran",
+                "body": "Airstrikes and retaliatory missile launches continue.",
+                "date": "2026-03-07T00:00:00+00:00",
+            }
+        ]
+    )
+
+    agent._track_search_result_references("news_search", payload)
+
+    assert len(agent._referenced_articles_tracker) == 1
+    article = agent._referenced_articles_tracker[0]
+    assert article["url"] == "https://example.com/ap-iran"
+    assert article["source"] == "AP"
+    assert "Airstrikes" in article["summary"]
+
+
+def test_answer_denial_detection_matches_bad_fallback_copy() -> None:
+    bad_answer = (
+        "Answer\n\nThe provided context does not contain information about what is "
+        "currently happening in Iran. Without additional details, it is impossible "
+        "to describe current events."
+    )
+
+    assert agent._answer_denies_available_context(bad_answer)
