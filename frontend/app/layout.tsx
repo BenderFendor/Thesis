@@ -31,12 +31,12 @@ export default function RootLayout({
   children: React.ReactNode
 }) {
   return (
-    <html lang="en" className="dark" suppressHydrationWarning>
+    <html lang="en" suppressHydrationWarning>
       <body
         className={`font-sans text-foreground antialiased ${GeistMono.variable} ${outfit.variable} ${instrumentSerif.variable}`}
       >
         <Providers>
-          <div className="min-h-screen bg-background">
+          <div className="min-h-screen bg-background text-foreground selection:bg-primary selection:text-primary-foreground">
             {children}
           </div>
         </Providers>

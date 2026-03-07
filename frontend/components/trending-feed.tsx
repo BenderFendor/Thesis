@@ -217,16 +217,16 @@ export function TrendingFeed() {
 
   return (
     <>
-      <div className="bg-[var(--news-bg-secondary)] border border-white/10 overflow-hidden">
+      <div className="bg-card border border-border overflow-hidden">
         {/* Section Header */}
-        <div className="bg-[var(--news-bg-primary)] px-5 py-4 border-b border-white/10 flex items-center justify-between">
+        <div className="bg-background px-5 py-4 border-b border-border flex items-center justify-between">
           <div className="flex items-center gap-3">
             <TrendingUp className="w-5 h-5 text-primary" />
             <span className="font-serif text-lg font-bold tracking-tight">
               Trending & Breaking
             </span>
             {breakingClusters.length > 0 && (
-              <Badge variant="destructive" className="text-[9px] px-1.5 py-0 h-4 animate-pulse">
+              <Badge variant="destructive" className="text-xs px-1.5 py-0 h-4 animate-pulse">
                 {breakingClusters.length} BREAKING
               </Badge>
             )}
@@ -234,7 +234,7 @@ export function TrendingFeed() {
           <div className="flex items-center gap-3">
             <Select value={trendingWindow} onValueChange={(value) => setTrendingWindow(value as "1d" | "1w" | "1m")}>
               <SelectTrigger
-                className="h-8 px-2 text-xs bg-[var(--news-bg-primary)] border border-white/10 rounded-none"
+                className="h-8 px-2 text-xs bg-background border border-border rounded-none"
                 title="Trending window"
               >
                 <SelectValue placeholder="Window" />
@@ -332,12 +332,12 @@ function BreakingCard({
       onClick={handleClick}
       className="group w-full text-left transition-colors duration-200 cursor-pointer"
     >
-      <Card className="h-full overflow-hidden flex flex-col border border-white/10 bg-[var(--news-bg-secondary)] transition-colors duration-200 group-hover:border-red-500/60 rounded-none shadow-none relative">
+      <Card className="h-full overflow-hidden flex flex-col border border-border bg-card transition-colors duration-200 group-hover:border-red-500/60 rounded-none shadow-none relative">
         {/* Red accent for breaking */}
         <div className="absolute top-0 left-0 w-1 h-full bg-red-500 z-10" />
         
         {/* Image or fallback */}
-        <div className="relative aspect-video overflow-hidden bg-[var(--news-bg-primary)]/40 flex-shrink-0">
+        <div className="relative aspect-video overflow-hidden bg-background/40 flex-shrink-0">
           {showImage ? (
             <>
               <img
@@ -395,7 +395,7 @@ function BreakingCard({
           <div className="absolute bottom-2 left-2">
             <Badge
               variant="destructive"
-              className="text-[8px] font-semibold px-1.5 py-0 uppercase tracking-widest"
+              className="text-xs font-semibold px-1.5 py-0 uppercase tracking-widest"
             >
               BREAKING
             </Badge>
@@ -422,10 +422,10 @@ function BreakingCard({
           )}
 
           {/* Meta Info */}
-          <div className="flex items-center gap-1 text-xs text-muted-foreground/70 mt-auto pt-3 border-t border-white/10">
+          <div className="flex items-center gap-1 text-xs text-muted-foreground/70 mt-auto pt-3 border-t border-border">
             <Clock className="w-3 h-3" />
             <span>{formatTimeAgo(article.published_at)}</span>
-            <span className="ml-auto text-red-400 text-[10px] font-mono">
+            <span className="ml-auto text-red-400 text-xs font-mono">
               {cluster.spike_magnitude.toFixed(1)}x spike
             </span>
           </div>
@@ -472,9 +472,9 @@ function TrendingCard({
       onClick={handleClick}
       className="group w-full text-left transition-colors duration-200 cursor-pointer"
     >
-      <Card className="h-full overflow-hidden flex flex-col border border-white/10 bg-[var(--news-bg-secondary)] transition-colors duration-200 group-hover:border-primary/60 rounded-none shadow-none">
+      <Card className="h-full overflow-hidden flex flex-col border border-border bg-card transition-colors duration-200 group-hover:border-primary/60 rounded-none shadow-none">
         {/* Image or fallback */}
-        <div className="relative aspect-video overflow-hidden bg-[var(--news-bg-primary)]/40 flex-shrink-0">
+        <div className="relative aspect-video overflow-hidden bg-background/40 flex-shrink-0">
           {showImage ? (
             <>
               <img
@@ -529,7 +529,7 @@ function TrendingCard({
           </div>
 
           {/* Rank Badge */}
-          <div className="absolute top-2 left-2 bg-black/60 backdrop-blur px-2 py-0.5 text-[10px] font-mono text-white border border-white/10">
+          <div className="absolute top-2 left-2 bg-black/60 backdrop-blur px-2 py-0.5 text-xs font-mono text-white border border-border">
             #{rank}
           </div>
 
@@ -537,7 +537,7 @@ function TrendingCard({
           <div className="absolute bottom-2 left-2">
             <Badge
               variant="outline"
-              className="text-[8px] font-semibold px-1.5 py-0 bg-black/70 text-foreground border-white/20 uppercase tracking-widest"
+              className="text-xs font-semibold px-1.5 py-0 bg-black/70 text-foreground border-white/20 uppercase tracking-widest"
             >
               TRENDING
             </Badge>
@@ -564,10 +564,10 @@ function TrendingCard({
           )}
 
           {/* Meta Info */}
-          <div className="flex items-center gap-1 text-xs text-muted-foreground/70 mt-auto pt-3 border-t border-white/10">
+          <div className="flex items-center gap-1 text-xs text-muted-foreground/70 mt-auto pt-3 border-t border-border">
             <Clock className="w-3 h-3" />
             <span>{formatTimeAgo(article.published_at)}</span>
-            <span className="ml-auto text-[10px] text-muted-foreground">
+            <span className="ml-auto text-xs text-muted-foreground">
               {cluster.source_diversity} sources
             </span>
           </div>
@@ -579,15 +579,15 @@ function TrendingCard({
 
 function TrendingSkeleton() {
   return (
-    <div className="bg-[var(--news-bg-secondary)] border border-white/10 overflow-hidden">
-      <div className="bg-[var(--news-bg-primary)] px-5 py-4 border-b border-white/10 flex items-center gap-3">
+    <div className="bg-card border border-border overflow-hidden">
+      <div className="bg-background px-5 py-4 border-b border-border flex items-center gap-3">
         <Skeleton className="w-5 h-5" />
         <Skeleton className="h-6 w-40" />
       </div>
       <div className="p-3">
         <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
           {[1, 2, 3, 4, 5, 6, 7, 8].map((i) => (
-            <div key={i} className="border border-white/10">
+            <div key={i} className="border border-border">
               <div className="aspect-video bg-white/5" />
               <div className="p-4 space-y-3">
                 <Skeleton className="h-5 w-full" />

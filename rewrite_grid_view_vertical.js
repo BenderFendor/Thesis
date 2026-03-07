@@ -1,4 +1,6 @@
-"use client"
+const fs = require('fs');
+
+const code = `"use client"
 
 import { useState, useEffect, useCallback, useMemo, useRef, lazy, Suspense } from "react"
 import Link from "next/link"
@@ -101,8 +103,8 @@ function SourceArticleCard({
       onClick={() => onArticleClick(article)}
       className="group w-full text-left transition-colors duration-200 cursor-pointer h-full"
     >
-      <Card className="h-full overflow-hidden flex flex-col border border-border bg-card transition-colors duration-200 group-hover:border-primary/60 rounded-none shadow-none relative">
-        <div className="relative aspect-video overflow-hidden bg-background/40 flex-shrink-0">
+      <Card className="h-full overflow-hidden flex flex-col border border-border bg-[var(--news-bg-secondary)] transition-colors duration-200 group-hover:border-primary/60 rounded-none shadow-none relative">
+        <div className="relative aspect-video overflow-hidden bg-[var(--news-bg-primary)]/40 flex-shrink-0">
           {showImage ? (
             <>
               <img
@@ -147,9 +149,9 @@ function SourceArticleCard({
               title={likedIds.has(article.id as number) ? "Unlike" : "Like"}
             >
               <Heart
-                className={`h-3.5 w-3.5 ${
+                className={\`h-3.5 w-3.5 \${
                   likedIds.has(article.id as number) ? "fill-current text-foreground" : "text-muted-foreground"
-                }`}
+                }\`}
               />
             </Button>
           </div>
@@ -168,7 +170,7 @@ function SourceArticleCard({
             <Clock className="w-3 h-3" />
             <span>{new Date(article.publishedAt).toLocaleDateString("en-US", { month: "short", day: "numeric" })}</span>
             {article.category && (
-              <span className="ml-auto uppercase tracking-widest text-xs font-semibold text-muted-foreground">
+              <span className="ml-auto uppercase tracking-widest text-[9px] font-semibold text-muted-foreground">
                 {article.category}
               </span>
             )}
@@ -386,7 +388,7 @@ export function GridView({
 
   return (
     <div className={cn("w-full flex flex-col bg-background", isScrollMode ? "h-full overflow-hidden" : "min-h-screen")}>
-      <div className="flex-shrink-0 px-4 sm:px-6 lg:px-8 py-3 border-b border-border bg-card z-10 sticky top-0">
+      <div className="flex-shrink-0 px-4 sm:px-6 lg:px-8 py-3 border-b border-border bg-[var(--news-bg-secondary)] z-10 sticky top-0">
         <div className="flex items-center gap-4 w-full">
           <div className="relative flex-1">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
@@ -395,11 +397,11 @@ export function GridView({
               placeholder="Search intelligence..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
-              className="w-full pl-9 pr-4 py-2 text-sm rounded-none bg-background border border-border text-foreground placeholder-muted-foreground focus:outline-none focus:ring-1 focus:ring-primary transition-all"
+              className="w-full pl-9 pr-4 py-2 text-sm rounded-none bg-[var(--news-bg-primary)] border border-border text-foreground placeholder-muted-foreground focus:outline-none focus:ring-1 focus:ring-primary transition-all"
             />
           </div>
           <div className="flex items-center gap-2">
-            <div className="flex items-center bg-background border border-border rounded-none p-1">
+            <div className="flex items-center bg-[var(--news-bg-primary)] border border-border rounded-none p-1">
               <Button
                 variant={viewMode === "source" ? "default" : "ghost"}
                 size="sm"
@@ -427,7 +429,7 @@ export function GridView({
             </div>
             {viewMode === "topic" && (
               <Select value={clusterWindow} onValueChange={(v) => setClusterWindow(v as "1d"|"1w"|"1m")}>
-                <SelectTrigger className="h-9 px-2 text-xs bg-background border-border rounded-none uppercase tracking-widest">
+                <SelectTrigger className="h-9 px-2 text-xs bg-[var(--news-bg-primary)] border-border rounded-none uppercase tracking-widest">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent className="rounded-none">
@@ -445,7 +447,7 @@ export function GridView({
         ref={containerRef}
         className={cn("flex-1 overflow-y-auto px-4 sm:px-6 lg:px-8 py-6", isScrollMode ? "snap-y snap-mandatory" : "")}
       >
-        <div className="space-y-6 max-w-screen-2xl mx-auto">
+        <div className="space-y-6 max-w-[1600px] mx-auto">
           {showTrending && <TrendingFeed />}
 
           {displayArticles.length === 0 && !isLoadingState ? (
@@ -464,17 +466,17 @@ export function GridView({
                 <div
                   key={group.sourceId}
                   data-source-id={group.sourceId}
-                  className="grid-source-group bg-card border border-border overflow-hidden"
+                  className="grid-source-group bg-[var(--news-bg-secondary)] border border-border overflow-hidden"
                   style={{
                     scrollSnapAlign: "start",
                     scrollSnapStop: "always",
                     minHeight: shouldRender ? "auto" : "300px",
                   }}
                 >
-                  <div className="bg-background px-5 py-4 border-b border-border flex items-center justify-between">
+                  <div className="bg-[var(--news-bg-primary)] px-5 py-4 border-b border-border flex items-center justify-between">
                     <div className="flex items-center gap-3">
                       <div className="flex items-center gap-2">
-                        <Link href={`/source/${encodeURIComponent(group.sourceId)}`} className="font-serif text-2xl font-bold tracking-tight hover:text-primary transition-colors">
+                        <Link href={\`/source/\${encodeURIComponent(group.sourceId)}\`} className="font-serif text-2xl font-bold tracking-tight hover:text-primary transition-colors">
                           {group.sourceName}
                         </Link>
                         <Button
@@ -516,7 +518,7 @@ export function GridView({
                             onClick={() => setExpandedSourceId(isExpanded ? null : group.sourceId)}
                             className="text-xs uppercase tracking-widest rounded-none bg-transparent"
                           >
-                            {isExpanded ? "Show fewer" : `View all ${group.articles.length} stories`}
+                            {isExpanded ? "Show fewer" : \`View all \${group.articles.length} stories\`}
                           </Button>
                         </div>
                       )}
@@ -543,9 +545,9 @@ export function GridView({
                       <div key={cluster.cluster_id} className="flex flex-col gap-4 grid-source-group" style={{ scrollSnapAlign: "start" }}>
                         <Card 
                           onClick={() => handleExpandCluster(cluster)}
-                          className={cn("h-full overflow-hidden flex flex-col border transition-all duration-200 cursor-pointer rounded-none shadow-none group relative", isExpanded ? "border-primary" : "border-border bg-card hover:border-primary/60")}
+                          className={cn("h-full overflow-hidden flex flex-col border transition-all duration-200 cursor-pointer rounded-none shadow-none group relative", isExpanded ? "border-primary" : "border-border bg-[var(--news-bg-secondary)] hover:border-primary/60")}
                         >
-                           <div className="relative aspect-video overflow-hidden bg-background/40 flex-shrink-0">
+                           <div className="relative aspect-video overflow-hidden bg-[var(--news-bg-primary)]/40 flex-shrink-0">
                              {img ? (
                                <>
                                  <img src={img} alt="Topic" className="w-full h-full object-cover grayscale group-hover:grayscale-0 transition duration-300" />
@@ -569,8 +571,8 @@ export function GridView({
                              </div>
                            </div>
                            <CardContent className="p-3 flex items-center justify-between border-t border-border/50">
-                             <span className="text-xs text-muted-foreground uppercase tracking-widest font-semibold">{cluster.source_diversity} sources</span>
-                             <span className="text-xs text-muted-foreground uppercase tracking-widest font-semibold">{cluster.article_count} stories</span>
+                             <span className="text-[10px] text-muted-foreground uppercase tracking-widest font-semibold">{cluster.source_diversity} sources</span>
+                             <span className="text-[10px] text-muted-foreground uppercase tracking-widest font-semibold">{cluster.article_count} stories</span>
                            </CardContent>
                         </Card>
                       </div>
@@ -594,3 +596,6 @@ export function GridView({
     </div>
   )
 }
+`;
+
+fs.writeFileSync('frontend/components/grid-view.tsx', code);
