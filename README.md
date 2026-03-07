@@ -13,7 +13,7 @@ A full-stack news aggregation platform that blends curated RSS feeds with AI-ass
 ## Quick Start
 
 ```bash
-docker-compose up -d
+./runlocal.sh or docker-compose up -d
 ```
 
 Frontend: http://localhost:3000  
