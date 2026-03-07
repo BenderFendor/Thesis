@@ -525,34 +525,34 @@ function NewsPage() {
       )}
 
 
-      <aside className="hidden lg:flex w-60 shrink-0 border-r border-white/10 bg-[var(--news-bg-secondary)] sticky top-0 h-screen flex-col">
-        <div className="px-4 py-5 border-b border-white/10">
-          <div className="flex items-center gap-3">
-            <Globe className="w-5 h-5 text-primary" strokeWidth={1.4} />
-            <div>
-              <div className="text-[9px] font-mono uppercase tracking-[0.35em] text-muted-foreground">Scoop</div>
-              <div className="font-serif text-lg font-semibold tracking-tight">Dashboard</div>
+      <aside className="group hidden lg:flex w-16 hover:w-64 shrink-0 border-r border-white/10 bg-[var(--news-bg-secondary)] sticky top-0 h-screen flex-col transition-all duration-300 ease-[cubic-bezier(0.25,0.1,0.25,1.0)] z-50 overflow-hidden">
+        <div className="px-4 py-5 border-b border-white/10 min-w-[16rem]">
+          <div className="flex items-center gap-4">
+            <Globe className="w-6 h-6 text-primary shrink-0 transition-transform duration-300 group-hover:scale-105" strokeWidth={1.5} />
+            <div className="opacity-0 group-hover:opacity-100 transition-opacity duration-300 shrink-0">
+              <div className="text-[10px] font-mono uppercase tracking-[0.35em] text-muted-foreground">Scoop</div>
+              <div className="font-serif text-xl font-semibold tracking-tight text-foreground/90">Dashboard</div>
             </div>
           </div>
         </div>
-        <div className="px-4 py-4 border-b border-white/10">
-          <div className="text-[10px] font-mono uppercase tracking-[0.3em] text-muted-foreground">Search</div>
-          <div className="relative mt-2">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+        <div className="px-3 py-4 border-b border-white/10 min-w-[16rem]">
+          <div className="text-[10px] font-mono uppercase tracking-[0.3em] text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity duration-300 mb-2 px-1">Search</div>
+          <div className="relative flex items-center">
+            <Search className="absolute left-2.5 w-4 h-4 text-muted-foreground shrink-0 z-10" />
             <input
               type="text"
-              placeholder="Search research workspace..."
+              placeholder="Search workspace..."
               value={searchQuery}
               onChange={(event) => setSearchQuery(event.target.value)}
               onKeyDown={handleSearchSubmit}
-              className="w-full bg-[var(--news-bg-primary)] border border-white/10 px-9 py-2 text-xs text-foreground placeholder:text-muted-foreground/70 focus:outline-none focus:border-primary"
+              className="w-full bg-[var(--news-bg-primary)] border border-white/10 pl-9 pr-3 py-2 text-xs text-foreground placeholder:text-muted-foreground/70 focus:outline-none focus:border-primary opacity-0 group-hover:opacity-100 transition-opacity duration-300 rounded-md"
             />
           </div>
         </div>
-        <div className="flex-1 overflow-y-auto px-4 py-4 space-y-6">
+        <div className="flex-1 overflow-y-auto px-3 py-6 space-y-8 min-w-[16rem] no-scrollbar">
           <div>
-            <div className="text-[10px] font-mono uppercase tracking-[0.3em] text-muted-foreground">Views</div>
-            <div className="mt-3 space-y-2">
+            <div className="text-[10px] font-mono uppercase tracking-[0.3em] text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity duration-300 px-2 mb-3">Views</div>
+            <div className="space-y-1">
               {[
                 { key: "globe", label: "Globe", Icon: Globe },
                 { key: "grid", label: "Grid", Icon: Grid3X3 },
@@ -562,48 +562,51 @@ function NewsPage() {
                 <button
                   key={key}
                   onClick={() => setCurrentView(key as ViewMode)}
-                  className={`w-full flex items-center gap-3 px-3 py-2 border border-white/10 text-[10px] font-mono uppercase tracking-[0.32em] transition-colors ${
+                  className={`w-full flex items-center gap-4 px-2.5 py-2.5 rounded-lg text-xs font-mono uppercase tracking-[0.2em] transition-all duration-200 ${
                     currentView === key
-                      ? "bg-primary/15 text-primary border-primary/40"
-                      : "text-muted-foreground hover:text-foreground hover:border-white/30"
+                      ? "bg-primary/10 text-primary"
+                      : "text-muted-foreground hover:bg-white/5 hover:text-foreground"
                   }`}
+                  title={label}
                 >
-                  <Icon className="w-4 h-4" />
-                  {label}
+                  <Icon className="w-5 h-5 shrink-0" strokeWidth={1.5} />
+                  <span className="opacity-0 group-hover:opacity-100 transition-opacity duration-300 whitespace-nowrap">{label}</span>
                 </button>
               ))}
             </div>
           </div>
           <div>
-            <div className="text-[10px] font-mono uppercase tracking-[0.3em] text-muted-foreground">Filters</div>
-            <div className="mt-3 space-y-2">
+            <div className="text-[10px] font-mono uppercase tracking-[0.3em] text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity duration-300 px-2 mb-3">Filters</div>
+            <div className="space-y-1">
               <button
                 onClick={() => setSidebarOpen(true)}
-                className="w-full flex items-center gap-3 px-3 py-2 border border-white/10 text-[10px] font-mono uppercase tracking-[0.32em] text-muted-foreground hover:text-foreground hover:border-white/30 transition-colors"
+                className="w-full flex items-center gap-4 px-2.5 py-2.5 rounded-lg text-xs font-mono uppercase tracking-[0.2em] text-muted-foreground hover:bg-white/5 hover:text-foreground transition-all duration-200"
+                title="Sources"
               >
-                <SlidersHorizontal className="w-4 h-4" />
-                Sources
+                <SlidersHorizontal className="w-5 h-5 shrink-0" strokeWidth={1.5} />
+                <span className="opacity-0 group-hover:opacity-100 transition-opacity duration-300 whitespace-nowrap">Sources</span>
               </button>
             </div>
           </div>
 
         </div>
-        <div className="px-4 py-4 border-t border-white/10">
+        <div className="px-3 py-4 border-t border-white/10 min-w-[16rem]">
           <button
             ref={alertsButtonRef}
             type="button"
             onClick={() => setShowNotifications(!showNotifications)}
-            className="w-full flex items-center gap-3 px-3 py-2 border border-white/10 text-[10px] font-mono uppercase tracking-[0.32em] text-muted-foreground hover:text-foreground hover:border-white/30 transition-colors"
+            className="w-full flex items-center gap-4 px-2.5 py-2.5 rounded-lg text-xs font-mono uppercase tracking-[0.2em] text-muted-foreground hover:bg-white/5 hover:text-foreground transition-all duration-200"
+            title="Alerts"
           >
-            <div className="relative">
-              <Bell className="w-4 h-4" />
+            <div className="relative shrink-0 flex items-center justify-center">
+              <Bell className="w-5 h-5" strokeWidth={1.5} />
               {actionableNotificationCount > 0 && (
-                <span className="absolute -top-2 -right-2 flex h-4 w-4 items-center justify-center rounded-full bg-primary text-[9px] text-primary-foreground">
+                <span className="absolute -top-1.5 -right-1.5 flex h-3.5 w-3.5 items-center justify-center rounded-full bg-primary text-[8px] font-bold text-primary-foreground">
                   {actionableNotificationCount}
                 </span>
               )}
             </div>
-            Alerts
+            <span className="opacity-0 group-hover:opacity-100 transition-opacity duration-300 whitespace-nowrap">Alerts</span>
           </button>
         </div>
       </aside>

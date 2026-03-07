@@ -217,9 +217,12 @@ export function TrendingFeed() {
 
   return (
     <>
-      <div className="bg-card border border-border overflow-hidden">
+      <div 
+        className="bg-black/20 hover:bg-white/[0.02] transition-colors duration-500 border border-white/5 rounded-2xl overflow-hidden snap-start scroll-mt-6"
+        style={{ scrollSnapStop: "normal" }}
+      >
         {/* Section Header */}
-        <div className="bg-background px-5 py-4 border-b border-border flex items-center justify-between">
+        <div className="bg-white/[0.02] px-6 py-5 border-b border-white/5 flex items-center justify-between">
           <div className="flex items-center gap-3">
             <TrendingUp className="w-5 h-5 text-primary" />
             <span className="font-serif text-lg font-bold tracking-tight">
@@ -330,14 +333,14 @@ function BreakingCard({
   return (
     <div
       onClick={handleClick}
-      className="group w-full text-left transition-colors duration-200 cursor-pointer"
+      className="group w-full text-left transition-all duration-500 ease-out cursor-pointer hover:-translate-y-1"
     >
-      <Card className="h-full overflow-hidden flex flex-col border border-border bg-card transition-colors duration-200 group-hover:border-red-500/60 rounded-none shadow-none relative">
+      <Card className="h-full overflow-hidden flex flex-col border border-white/5 bg-black/20 transition-all duration-500 group-hover:bg-white/[0.03] group-hover:border-red-500/30 rounded-2xl shadow-lg hover:shadow-xl relative">
         {/* Red accent for breaking */}
-        <div className="absolute top-0 left-0 w-1 h-full bg-red-500 z-10" />
+        <div className="absolute top-0 left-0 w-1 h-full bg-red-500/80 z-10" />
         
         {/* Image or fallback */}
-        <div className="relative aspect-video overflow-hidden bg-background/40 flex-shrink-0">
+        <div className="relative aspect-video overflow-hidden bg-white/5 m-2 rounded-xl flex-shrink-0">
           {showImage ? (
             <>
               <img
@@ -470,11 +473,11 @@ function TrendingCard({
   return (
     <div
       onClick={handleClick}
-      className="group w-full text-left transition-colors duration-200 cursor-pointer"
+      className="group w-full text-left transition-all duration-500 ease-out cursor-pointer hover:-translate-y-1"
     >
-      <Card className="h-full overflow-hidden flex flex-col border border-border bg-card transition-colors duration-200 group-hover:border-primary/60 rounded-none shadow-none">
+      <Card className="h-full overflow-hidden flex flex-col border border-white/5 bg-black/20 transition-all duration-500 group-hover:bg-white/[0.03] group-hover:border-primary/30 rounded-2xl shadow-lg hover:shadow-xl">
         {/* Image or fallback */}
-        <div className="relative aspect-video overflow-hidden bg-background/40 flex-shrink-0">
+        <div className="relative aspect-video overflow-hidden bg-white/5 m-2 rounded-xl flex-shrink-0">
           {showImage ? (
             <>
               <img
