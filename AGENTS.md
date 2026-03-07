@@ -102,6 +102,9 @@ Code should be self-documenting. If you need a comment to explain WHAT the code 
 - Use props for feature toggling rather than conditional imports or wrapper components.
 - When converting layouts (grid to scroll, vertical to horizontal), update both the container and all child elements for consistent sizing.
 - When mapping countries from third-party GeoJSON, do not trust `ISO_A2` blindly. Some Natural Earth features expose `-99` for real countries like France and Norway. Normalize from verified fallback fields before wiring clicks, labels, or counts.
+- Horizontal article rails are not allowed in grid views. Grid and source-group browsing must stay vertical with no sideways scrollbars.
+- Prefer moderate corner radii over soft pill-heavy surfaces. Rounded is fine, but avoid overly soft card and panel shapes.
+- Increase visual contrast with clearer dark/light surface separation before adding more accent color. Do not solve weak hierarchy by making the UI greener.
 
 ## Route Removal Checklist
 - When removing a route, search the repo for entry points: `rg -n "\"/route\"|/route\b"` and update links/actions.

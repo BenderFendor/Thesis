@@ -1,6 +1,7 @@
 "use client"
 
 import { useState, useEffect, useMemo, useRef, useCallback } from "react"
+import { AnimatePresence, motion } from "framer-motion"
 import { logUserAction } from "@/lib/performance-logger"
 import Link from "next/link"
 import { X, ExternalLink, Heart, Bookmark, AlertTriangle, DollarSign, Bug, Link as LinkIcon, Rss, Sparkles, Maximize2, Minimize2, Loader2, Search, RefreshCw, CheckCircle2, XCircle, Copy, PlusCircle, MinusCircle, Star, Edit2, Trash2, Eye, EyeOff, Download, BookOpen } from "lucide-react"
@@ -64,9 +65,10 @@ interface ArticleDetailModalProps {
   onClose: () => void
   onBookmarkChange?: (articleId: number, isBookmarked: boolean) => void
   onNavigate?: (direction: "prev" | "next") => void
+  layoutIdPrefix?: string
 }
 
-export function ArticleDetailModal({ article, isOpen, onClose, onBookmarkChange, onNavigate }: ArticleDetailModalProps) {
+export function ArticleDetailModal({ article, isOpen, onClose, onBookmarkChange, onNavigate, layoutIdPrefix }: ArticleDetailModalProps) {
   const { isLiked, toggleLike } = useLikedArticles()
   const { isBookmarked, toggleBookmark } = useBookmarks()
   const { addArticleToQueue, removeArticleFromQueue, isArticleInQueue, queuedArticles } = useReadingQueue()
@@ -668,6 +670,8 @@ export function ArticleDetailModal({ article, isOpen, onClose, onBookmarkChange,
   }
 
   const heroImage = hasRealImage(article.image) ? article.image : null
+  const heroLayoutId = layoutIdPrefix && article ? `${layoutIdPrefix}-image-${article.id}` : undefined
+  const titleLayoutId = layoutIdPrefix && article ? `${layoutIdPrefix}-title-${article.id}` : undefined
   const articleTextForMetrics = (fullArticleText || article.content || article.summary || "").trim()
   const wordCount = articleTextForMetrics ? articleTextForMetrics.split(/\s+/).filter(Boolean).length : 0
   const estimatedReadMinutes = Math.max(1, Math.ceil(wordCount / 230))
@@ -682,7 +686,14 @@ export function ArticleDetailModal({ article, isOpen, onClose, onBookmarkChange,
   const articleHost = isExtractableUrl(article.url) ? new URL(article.url).hostname : undefined
 
   return (
-    <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4 animate-in fade-in-0 duration-200">
+    <AnimatePresence>
+      <motion.div
+        className="fixed inset-0 z-50 flex items-center justify-center bg-background/70 p-4 backdrop-blur-xl"
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        exit={{ opacity: 0 }}
+        transition={{ duration: 0.2, ease: "easeOut" }}
+      >
       {/* Inline Definition Popover */}
        <InlineDefinition
          result={inlineResult}
@@ -698,19 +709,23 @@ export function ArticleDetailModal({ article, isOpen, onClose, onBookmarkChange,
          onSave={handleSaveHighlightNote}
        />
 
-      <div className={`bg-black border border-white/10 shadow-2xl shadow-black/80 transition-all duration-300 animate-in zoom-in-95 fade-in-0 duration-200 flex flex-col ${isExpanded
-        ? 'w-[calc(100vw-1rem)] h-[calc(100vh-1rem)] rounded-xl overflow-hidden'
-        : 'max-w-6xl w-full max-h-[85vh] rounded-2xl overflow-hidden'
-        }`}>
+       <motion.div
+         layout
+         transition={{ type: "spring", stiffness: 240, damping: 28 }}
+          className={`flex flex-col overflow-hidden border border-border/50 bg-background/95 shadow-2xl shadow-black/60 ${isExpanded
+            ? 'h-[calc(100vh-1rem)] w-[calc(100vw-1rem)] rounded-2xl'
+            : 'max-h-[85vh] w-full max-w-6xl rounded-2xl'
+            }`}
+       >
         {/* Header Controls */}
-         <div className="flex items-center justify-between gap-2 p-4 sticky top-0 bg-black/80 backdrop-blur-md z-20">
+          <div className="sticky top-0 z-20 flex items-center justify-between gap-2 border-b border-border/40 bg-background/75 p-4 backdrop-blur-xl">
           <div className="flex items-center gap-2 flex-1">
             <Button
               variant="ghost"
               size="sm"
               onClick={() => handleNavigate("prev")}
               disabled={!onNavigate}
-              className="bg-white/5 hover:bg-white/10 text-white border border-white/10 rounded-md font-mono text-[10px] uppercase tracking-widest px-4"
+              className="rounded-md border border-border/40 bg-card/60 px-4 text-xs uppercase tracking-wider text-foreground transition-all duration-300 ease-out hover:bg-card active:scale-95"
               title="Previous (ArrowLeft)"
             >
               Prev
@@ -720,7 +735,7 @@ export function ArticleDetailModal({ article, isOpen, onClose, onBookmarkChange,
               size="sm"
               onClick={() => handleNavigate("next")}
               disabled={!onNavigate}
-              className="bg-white/5 hover:bg-white/10 text-white border border-white/10 rounded-md font-mono text-[10px] uppercase tracking-widest px-4"
+              className="rounded-md border border-border/40 bg-card/60 px-4 text-xs uppercase tracking-wider text-foreground transition-all duration-300 ease-out hover:bg-card active:scale-95"
               title="Next (ArrowRight)"
             >
               Next
@@ -731,7 +746,7 @@ export function ArticleDetailModal({ article, isOpen, onClose, onBookmarkChange,
               variant="ghost"
               size="icon"
               onClick={() => setIsExpanded(!isExpanded)}
-              className="bg-white/5 hover:bg-white/10 text-white border border-white/10 rounded-md h-8 w-8"
+              className="h-9 w-9 rounded-md border border-border/40 bg-card/60 text-foreground transition-all duration-300 ease-out hover:bg-card active:scale-95"
             >
               {isExpanded ? <Minimize2 className="h-4 w-4" /> : <Maximize2 className="h-4 w-4" />}
             </Button>
@@ -741,33 +756,34 @@ export function ArticleDetailModal({ article, isOpen, onClose, onBookmarkChange,
               variant="ghost"
               size="icon"
               onClick={onClose}
-              className="bg-white/5 hover:bg-white/10 text-white border border-white/10 rounded-md h-8 w-8"
+              className="h-9 w-9 rounded-md border border-border/40 bg-card/60 text-foreground transition-all duration-300 ease-out hover:bg-card active:scale-95"
             >
               <X className="h-4 w-4" />
             </Button>
           </div>
-        </div>
+         </div>
 
         {/* Content Wrapper */}
-        <div className="flex-1 overflow-y-auto no-scrollbar relative bg-[#0a0a0a]">
+        <div className="no-scrollbar relative flex-1 overflow-y-auto bg-background">
           {/* Hero Section */}
-          <div className={`relative overflow-hidden ${isExpanded ? 'h-[60vh] min-h-[400px]' : 'h-48'} ${heroImage ? "bg-[var(--news-bg-secondary)]" : "bg-[var(--news-bg-primary)]"}`}>
+          <div className={`relative overflow-hidden ${isExpanded ? 'min-h-96 h-[60vh]' : 'h-56'} ${heroImage ? "bg-card" : "editorial-modal-fallback"}`}>
             {heroImage ? (
               <>
-                <img
+                <motion.img
+                  layoutId={heroLayoutId}
                   src={heroImage}
                   alt={article.title}
-                  className="w-full h-full object-cover opacity-60"
+                  className="h-full w-full object-cover opacity-70"
                 />
-                <div className="absolute inset-0 bg-gradient-to-t from-[var(--news-bg-primary)] via-[var(--news-bg-primary)]/70 to-transparent" />
+                <div className="absolute inset-0 bg-gradient-to-t from-background via-background/80 to-transparent" />
               </>
             ) : (
-              <div className="absolute inset-0 bg-[radial-gradient(circle_at_top,_rgba(255,255,255,0.08),_transparent_60%)]" />
+              <div className="editorial-modal-fallback absolute inset-0" />
             )}
 
             {/* Hero Content */}
             <div className="absolute inset-0 flex flex-col justify-end">
-              <div className="max-w-5xl mx-auto w-full px-8 pb-12">
+              <div className="mx-auto w-full max-w-6xl px-6 pb-10 md:px-8 md:pb-12">
                 {/* Badges */}
                 <div className="flex flex-wrap items-center gap-3 mb-6">
                   <Badge className={getCredibilityColor(article.credibility)}>
@@ -782,10 +798,13 @@ export function ArticleDetailModal({ article, isOpen, onClose, onBookmarkChange,
                 </div>
 
                 {/* Title */}
-                <h1 className={`font-bold text-foreground mb-6 leading-tight font-serif ${isExpanded ? 'text-5xl md:text-6xl' : 'text-2xl md:text-3xl'
-                  }`}>
+                <motion.h1
+                  layoutId={titleLayoutId}
+                  className={`mb-6 font-serif leading-tight text-foreground ${isExpanded ? 'text-4xl md:text-6xl' : 'text-2xl md:text-4xl'
+                    }`}
+                >
                   {article.title}
-                </h1>
+                </motion.h1>
 
                 {/* Meta */}
                 <div className="flex flex-wrap items-center gap-3 text-sm text-muted-foreground">
@@ -844,11 +863,11 @@ export function ArticleDetailModal({ article, isOpen, onClose, onBookmarkChange,
           </div>
 
           {/* Main Content Area */}
-          <div className={isExpanded ? "max-w-5xl mx-auto px-8 py-12" : "px-6 py-6"}>
+          <div className={isExpanded ? "mx-auto max-w-6xl px-6 py-10 md:px-8 md:py-12" : "px-6 py-8 md:px-8"}>
             {/* Summary Quote */}
             {showSummary && (
-              <div className={isExpanded ? "mb-12 border-l-4 border-primary pl-6 py-2" : "mb-6 border-l-4 border-primary pl-4 py-2"}>
-                <p className={`text-foreground/80 leading-relaxed font-light italic ${isExpanded ? 'text-2xl' : 'text-lg'
+              <div className={isExpanded ? "mb-12 border-l-4 border-primary bg-card/50 px-6 py-4" : "mb-8 border-l-4 border-primary bg-card/50 px-5 py-4"}>
+                <p className={`text-foreground/80 leading-relaxed italic ${isExpanded ? 'text-2xl' : 'text-lg'
                   }`}>
                   {article.summary}
                 </p>
@@ -861,33 +880,33 @@ export function ArticleDetailModal({ article, isOpen, onClose, onBookmarkChange,
               {/* Main Article Content - 2/3 width */}
               <div className={isExpanded ? "lg:col-span-2 space-y-8" : "space-y-6"}>
                 {/* Full Article Content - Show immediately */}
-                <div className={isExpanded ? "prose prose-invert prose-lg max-w-none" : "prose prose-invert max-w-none"}>
+                <div className="space-y-6">
                   <h2 className={`font-bold text-foreground mb-6 font-serif ${isExpanded ? 'text-3xl' : 'text-xl'
                     }`}>Full Article</h2>
 
                   {articleLoading && fullArticleText && (
-                    <div className="flex items-center gap-3 p-4 bg-[var(--news-bg-secondary)]/60 rounded-lg border border-border/60 mb-4">
+                    <div className="mb-4 flex items-center gap-3 rounded-2xl border border-border/50 bg-card/60 p-4">
                       <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-primary"></div>
                       <p className="text-muted-foreground text-sm">Updating full article text...</p>
                     </div>
                   )}
 
                   {articleLoading && !fullArticleText ? (
-                    <div className="flex items-center gap-3 p-6 bg-[var(--news-bg-secondary)]/60 rounded-lg border border-border/60">
+                    <div className="flex items-center gap-3 rounded-2xl border border-border/50 bg-card/60 p-6">
                       <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-primary"></div>
                       <p className="text-muted-foreground">Loading full article text...</p>
                     </div>
                   ) : (
                     <>
                        <ArticleContent
-                         ref={articleContentRef}
-                         content={fullArticleText || article.content || article.summary || ""}
-                          highlights={showHighlights ? toRemoteHighlights(highlights.filter((h) => !h.deleted)) : []}
+                          ref={articleContentRef}
+                          content={fullArticleText || article.content || article.summary || ""}
+                           highlights={showHighlights ? toRemoteHighlights(highlights.filter((h) => !h.deleted)) : []}
 
-                         activeHighlightId={activeHighlightId}
-                         onHighlightClick={handleHighlightClick}
-                         className={isExpanded ? 'text-lg space-y-6' : 'text-base space-y-4'}
-                       />
+                          activeHighlightId={activeHighlightId}
+                          onHighlightClick={handleHighlightClick}
+                          className={`reading-prose ${isExpanded ? 'space-y-6' : 'space-y-5'}`}
+                        />
                       <HighlightToolbar
                         articleUrl={article.url}
                         containerRef={articleContentRef}
@@ -2013,7 +2032,8 @@ export function ArticleDetailModal({ article, isOpen, onClose, onBookmarkChange,
             </div>
           </div>
         </div>
-      </div>
-    </div >
+      </motion.div>
+    </motion.div>
+    </AnimatePresence>
   )
 }

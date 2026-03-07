@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback, useRef, useMemo } from "react";
+import { motion } from "framer-motion";
 import { type NewsArticle, fetchOGImage } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -13,23 +14,22 @@ import {
   ChevronUp,
 } from "lucide-react";
 import { ArticleDetailModal } from "./article-detail-modal";
-import { get_logger } from "@/lib/utils";
 import { useFavorites } from "@/hooks/useFavorites";
 import { useLikedArticles } from "@/hooks/useLikedArticles";
 import { useBookmarks } from "@/hooks/useBookmarks";
 import { cn } from "@/lib/utils";
 
-const logger = get_logger("FeedView");
 const OG_FETCH_CONCURRENCY = 4;
 const OG_LOOKAHEAD = 6;
 
 const hasRealImage = (image: string) => {
   if (!image) return false;
   const trimmed = image.trim();
-  if (!trimmed) return false;
-  if (trimmed === "none") return false;
+  if (!trimmed || trimmed === "none") return false;
+
   const lower = image.toLowerCase();
   if (lower.includes("placeholder") || lower.endsWith(".svg")) return false;
+
   return (
     !lower.includes("logo") &&
     !lower.includes("punch") &&
@@ -43,6 +43,11 @@ interface FeedViewProps {
   loading: boolean;
 }
 
+const cardReveal = {
+  hidden: { opacity: 0, y: 24 },
+  visible: { opacity: 1, y: 0 },
+};
+
 export function FeedView({ articles: propArticles, loading }: FeedViewProps) {
   const { likedIds, toggleLike } = useLikedArticles();
   const { bookmarkIds, toggleBookmark } = useBookmarks();
@@ -50,19 +55,17 @@ export function FeedView({ articles: propArticles, loading }: FeedViewProps) {
 
   const articles = useMemo(() => {
     return [...propArticles].sort((a, b) => {
-      // 1. Prioritize favorited sources
       const aFav = isFavorite(a.sourceId);
       const bFav = isFavorite(b.sourceId);
       if (aFav && !bFav) return -1;
       if (!aFav && bFav) return 1;
 
-      // 2. Prioritize articles with real images
       const aHasImage = hasRealImage(a.image);
       const bHasImage = hasRealImage(b.image);
       if (aHasImage && !bHasImage) return -1;
       if (!aHasImage && bHasImage) return 1;
 
-      return 0; // Keep original relative order otherwise
+      return 0;
     });
   }, [propArticles, isFavorite]);
 
@@ -71,35 +74,36 @@ export function FeedView({ articles: propArticles, loading }: FeedViewProps) {
   );
   const [isArticleModalOpen, setIsArticleModalOpen] = useState(false);
   const [activeIndex, setActiveIndex] = useState(0);
-  const containerRef = useRef<HTMLDivElement | null>(null);
   const [ogImages, setOgImages] = useState<Record<number, string>>({});
+  const containerRef = useRef<HTMLDivElement | null>(null);
 
   const displaySource = useCallback((article: NewsArticle) => {
     if (!article.source) return "";
-    return article.source.length > 24
-      ? `${article.source.slice(0, 24)}…`
+    return article.source.length > 28
+      ? `${article.source.slice(0, 28)}...`
       : article.source;
   }, []);
 
-  // Fetch OG images for articles missing images
+  const formatDate = useCallback((publishedAt: string) => {
+    return new Date(publishedAt).toLocaleDateString("en-US", {
+      month: "short",
+      day: "numeric",
+      year: "numeric",
+    });
+  }, []);
+
   useEffect(() => {
     let cancelled = false;
 
     const fetchImages = async () => {
       const start = Math.max(0, activeIndex - OG_LOOKAHEAD);
       const end = Math.min(articles.length, activeIndex + OG_LOOKAHEAD + 1);
-      const candidates = articles
-        .slice(start, end)
-        .filter(
-          (article) =>
-            !hasRealImage(article.image) &&
-            article.url &&
-            !ogImages[article.id],
-        );
+      const candidates = articles.slice(start, end).filter(
+        (article) =>
+          !hasRealImage(article.image) && article.url && !ogImages[article.id],
+      );
 
-      if (candidates.length === 0) {
-        return;
-      }
+      if (candidates.length === 0) return;
 
       const pending = [...candidates];
       const newImages: Record<number, string> = {};
@@ -107,9 +111,7 @@ export function FeedView({ articles: propArticles, loading }: FeedViewProps) {
       const worker = async () => {
         while (pending.length > 0 && !cancelled) {
           const article = pending.shift();
-          if (!article) {
-            return;
-          }
+          if (!article) return;
 
           const imageUrl = await fetchOGImage(article.url);
           if (imageUrl) {
@@ -136,52 +138,25 @@ export function FeedView({ articles: propArticles, loading }: FeedViewProps) {
     };
   }, [articles, activeIndex, ogImages]);
 
-  const handleLike = (articleId: number) => {
-    void toggleLike(articleId);
-  };
-
-  const handleBookmark = async (articleId: number) => {
-    if (!articleId) return;
-    await toggleBookmark(articleId);
-  };
-
-  const handleModalBookmarkChange = (
-    articleId: number,
-    isBookmarked: boolean,
-  ) => {
-    if (isBookmarked !== bookmarkIds.has(articleId)) {
-      void toggleBookmark(articleId);
-    }
-  };
-
-  const handleArticlePreview = useCallback((article: NewsArticle) => {
-    setSelectedArticle(article);
-    setIsArticleModalOpen(true);
-  }, []);
-
-  // Use Intersection Observer to track active index
   useEffect(() => {
     const container = containerRef.current;
     if (!container) return;
 
-    const observerOptions = {
-      root: container,
-      threshold: 0.6, // Trigger when 60% of the article is visible
-    };
-
-    const observerCallback = (entries: IntersectionObserverEntry[]) => {
-      entries.forEach((entry) => {
-        if (entry.isIntersecting) {
-          const index = Number(entry.target.getAttribute("data-index"));
-          setActiveIndex(index);
-        }
-      });
-    };
-
     const observer = new IntersectionObserver(
-      observerCallback,
-      observerOptions,
+      (entries) => {
+        entries.forEach((entry) => {
+          if (entry.isIntersecting) {
+            const index = Number(entry.target.getAttribute("data-index"));
+            setActiveIndex(index);
+          }
+        });
+      },
+      {
+        root: container,
+        threshold: 0.6,
+      },
     );
+
     const children = container.querySelectorAll("[data-index]");
     children.forEach((child) => observer.observe(child));
 
@@ -194,6 +169,7 @@ export function FeedView({ articles: propArticles, loading }: FeedViewProps) {
   const scrollToNext = useCallback(() => {
     const container = containerRef.current;
     if (!container || activeIndex >= articles.length - 1) return;
+
     const nextElement = container.querySelector(
       `[data-index="${activeIndex + 1}"]`,
     );
@@ -203,6 +179,7 @@ export function FeedView({ articles: propArticles, loading }: FeedViewProps) {
   const scrollToPrev = useCallback(() => {
     const container = containerRef.current;
     if (!container || activeIndex <= 0) return;
+
     const prevElement = container.querySelector(
       `[data-index="${activeIndex - 1}"]`,
     );
@@ -224,13 +201,22 @@ export function FeedView({ articles: propArticles, loading }: FeedViewProps) {
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, [scrollToNext, scrollToPrev]);
 
+  const handleModalBookmarkChange = (
+    articleId: number,
+    isBookmarked: boolean,
+  ) => {
+    if (isBookmarked !== bookmarkIds.has(articleId)) {
+      void toggleBookmark(articleId);
+    }
+  };
+
   if (loading) {
     return (
-      <div className="flex-1 h-full w-full flex items-center justify-center bg-[var(--news-bg-primary)]">
-        <div className="flex flex-col items-center gap-4">
+      <div className="flex h-full w-full flex-1 items-center justify-center bg-background">
+        <div className="flex flex-col items-center gap-4 rounded-3xl border border-border/40 bg-card/50 px-8 py-10 text-center backdrop-blur-xl">
           <div className="h-8 w-8 animate-spin rounded-full border-2 border-primary border-t-transparent" />
-          <span className="font-mono text-[10px] uppercase tracking-[0.3em] text-muted-foreground">
-            Indexing articles...
+          <span className="font-mono text-xs uppercase tracking-widest text-muted-foreground">
+            Indexing articles
           </span>
         </div>
       </div>
@@ -239,89 +225,105 @@ export function FeedView({ articles: propArticles, loading }: FeedViewProps) {
 
   if (articles.length === 0) {
     return (
-      <div className="flex-1 h-full w-full flex items-center justify-center bg-[var(--news-bg-primary)]">
-        <span className="font-mono text-[10px] uppercase tracking-[0.3em] text-muted-foreground">
-          No coverage found for this category.
-        </span>
+      <div className="flex h-full w-full flex-1 items-center justify-center bg-background">
+        <div className="rounded-3xl border border-border/40 bg-card/40 px-8 py-10 text-center backdrop-blur-xl">
+          <span className="font-mono text-xs uppercase tracking-widest text-muted-foreground">
+            No coverage found for this category
+          </span>
+        </div>
       </div>
     );
   }
 
   return (
-    <div className="relative flex-1 h-full min-h-0 w-full overflow-hidden bg-[var(--news-bg-primary)]">
+    <div className="relative flex h-full min-h-0 w-full flex-1 overflow-hidden bg-background">
       <div
         ref={containerRef}
-        className="h-full w-full overflow-y-auto snap-y snap-mandatory no-scrollbar"
+        className="no-scrollbar h-full w-full snap-y snap-mandatory overflow-y-auto"
       >
-        {articles.map((article, index) => (
-          <section
-            key={`${article.id}-${index}`}
-            data-index={index}
-            className="snap-start h-[calc(100vh-64px)] w-full relative cursor-pointer group"
-            onClick={() => handleArticlePreview(article)}
-          >
-            <div className="absolute inset-0 w-full h-full overflow-hidden">
-              <img
-                src={
-                  article.image || ogImages[article.id] || "/placeholder.svg"
-                }
-                alt={article.title}
-                className="w-full h-full object-cover opacity-40 transition-transform duration-700 group-hover:scale-105"
-                onError={(e) => {
-                  const target = e.target as HTMLImageElement;
-                  if (
-                    target.src !== ogImages[article.id] &&
-                    ogImages[article.id]
-                  ) {
-                    target.src = ogImages[article.id];
-                  } else if (target.src !== "/placeholder.svg") {
-                    target.src = "/placeholder.svg";
-                  }
-                }}
-              />
-            </div>
-            <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-black/20 pointer-events-none" />
+        {articles.map((article, index) => {
+          const imageSrc = article.image || ogImages[article.id] || "/placeholder.svg";
+          const showImage = hasRealImage(imageSrc);
 
-            <div className="relative z-10 h-full flex flex-col justify-end p-6 md:p-10 lg:p-12">
-              <div className="absolute top-6 left-6 md:top-8 md:left-8 flex flex-wrap items-center gap-3">
-                <Badge className="bg-primary/20 text-primary border-primary/30 hover:bg-primary/30 px-3 py-1 font-mono text-[10px] uppercase tracking-[0.2em]">
+          return (
+            <motion.section
+              key={`${article.id}-${index}`}
+              data-index={index}
+              variants={cardReveal}
+              initial="hidden"
+              whileInView="visible"
+              viewport={{ amount: 0.45, once: true }}
+              transition={{ duration: 0.45, ease: "easeOut" }}
+              className="group relative flex min-h-full w-full cursor-pointer snap-start items-end overflow-hidden"
+              onClick={() => {
+                setSelectedArticle(article);
+                setIsArticleModalOpen(true);
+              }}
+            >
+              <div className="absolute inset-0 overflow-hidden">
+                {showImage ? (
+                  <motion.img
+                    layoutId={`feed-image-${article.id}`}
+                    src={imageSrc}
+                    alt={article.title}
+                    className="h-full w-full object-cover opacity-70 transition-transform duration-700 ease-out group-hover:scale-105"
+                    onError={(event) => {
+                      const target = event.target as HTMLImageElement;
+                      if (
+                        target.src !== ogImages[article.id] &&
+                        ogImages[article.id]
+                      ) {
+                        target.src = ogImages[article.id];
+                      } else if (target.src !== "/placeholder.svg") {
+                        target.src = "/placeholder.svg";
+                      }
+                    }}
+                  />
+                ) : (
+                  <div className="editorial-fallback-surface h-full w-full" />
+                )}
+              </div>
+
+              <div className="absolute inset-0 bg-gradient-to-b from-background/10 via-background/30 to-background" />
+
+              <div className="absolute left-4 top-4 flex flex-wrap items-center gap-2 md:left-8 md:top-8">
+                <Badge className="border border-primary/40 bg-primary/15 px-3 py-1 text-xs uppercase tracking-wider text-primary">
                   {article.category}
                 </Badge>
                 <Badge
                   variant="outline"
-                  className="text-[10px] font-mono uppercase tracking-[0.2em] border-white/10 bg-black/40 backdrop-blur-sm text-white/70 px-3 py-1"
+                  className="border-border/40 bg-background/50 px-3 py-1 text-xs uppercase tracking-wider text-muted-foreground backdrop-blur-xl"
                 >
                   {article.credibility} credibility
                 </Badge>
               </div>
 
-              <div className="absolute top-6 right-6 md:top-8 md:right-8 font-mono text-[10px] uppercase tracking-[0.3em] text-white/50 bg-black/20 backdrop-blur-md px-3 py-1 border border-white/5">
+              <div className="absolute right-4 top-4 rounded-md border border-border/50 bg-background/60 px-3 py-1 text-xs uppercase tracking-wider text-muted-foreground backdrop-blur-xl md:right-8 md:top-8">
                 {index + 1} / {articles.length}
               </div>
 
-              <div className="flex flex-col md:flex-row md:items-end gap-6 md:gap-10">
-                <div className="flex-1 space-y-4">
-                  <div className="flex items-center gap-3 font-mono text-[10px] uppercase tracking-[0.4em] text-primary font-bold">
-                    <span className="w-8 h-px bg-primary" />
-                    {displaySource(article)}
+              <div className="relative z-10 mx-4 mb-4 flex w-full flex-col gap-6 rounded-2xl border border-border/50 bg-background/70 p-6 shadow-2xl backdrop-blur-xl md:mx-8 md:mb-8 md:p-8 lg:mx-12 lg:mb-12 lg:flex-row lg:items-end lg:gap-10 lg:p-10">
+                <div className="flex-1 space-y-5">
+                  <div className="flex items-center gap-3 text-xs font-semibold uppercase tracking-widest text-primary">
+                    <span className="h-px w-8 bg-primary" />
+                    <span>{displaySource(article)}</span>
                   </div>
 
-                  <h1 className="text-3xl md:text-5xl lg:text-6xl font-bold leading-tight text-balance text-white drop-shadow-lg tracking-tight">
+                  <motion.h1
+                    layoutId={`feed-title-${article.id}`}
+                    className="max-w-5xl font-serif text-3xl leading-tight text-foreground md:text-5xl lg:text-6xl"
+                  >
                     {article.title}
-                  </h1>
+                  </motion.h1>
 
-                  <p className="text-base md:text-xl text-white/80 line-clamp-3 max-w-3xl drop-shadow font-serif italic">
+                  <p className="max-w-3xl text-base leading-relaxed text-foreground/80 md:text-xl">
                     {article.summary}
                   </p>
 
-                  <div className="flex flex-wrap items-center gap-4 pt-2">
-                    <span className="font-mono text-[10px] text-white/80 tracking-widest uppercase">
-                      {new Date(article.publishedAt).toLocaleDateString(
-                        "en-US",
-                        { month: "short", day: "numeric", year: "numeric" },
-                      )}
-                    </span>
-
+                  <div className="flex flex-wrap items-center gap-4 text-xs uppercase tracking-wider text-muted-foreground">
+                    <span>{formatDate(article.publishedAt)}</span>
+                    <span className="hidden h-1 w-1 rounded-full bg-border md:inline-flex" />
+                    <span className="hidden md:inline-flex">{article.country}</span>
                     <a
                       href={article.url}
                       target="_blank"
@@ -331,31 +333,31 @@ export function FeedView({ articles: propArticles, loading }: FeedViewProps) {
                       <Button
                         size="sm"
                         variant="outline"
-                        className="bg-white/5 text-white border-white/20 hover:bg-white/10 font-mono text-[10px] uppercase tracking-[0.3em]"
+                        className="gap-2 rounded-full border-border/40 bg-card/40 px-4 text-xs uppercase tracking-wider text-foreground transition-all duration-300 ease-out active:scale-95"
                       >
-                        <ExternalLink className="w-3.5 h-3.5 mr-2" />
+                        <ExternalLink className="h-4 w-4" />
                         Source
                       </Button>
                     </a>
                   </div>
                 </div>
 
-                <div className="flex flex-row md:flex-col items-center gap-2 md:gap-4 md:bg-black/20 md:backdrop-blur-xl md:p-3 md:border md:border-white/10 md:rounded-full">
+                <div className="flex items-center gap-2 rounded-2xl border border-border/50 bg-card/70 p-2 backdrop-blur-xl lg:flex-col">
                   <Button
                     variant="ghost"
                     size="icon"
-                    className="h-12 w-12 rounded-full hover:bg-white/10 transition-all active:scale-90"
+                    className="h-12 w-12 rounded-xl text-muted-foreground transition-all duration-300 ease-out hover:bg-background/80 hover:text-primary active:scale-95"
                     onClick={(event) => {
                       event.stopPropagation();
-                      handleLike(article.id);
+                      void toggleLike(article.id);
                     }}
                   >
                     <Heart
                       className={cn(
-                        "w-6 h-6 transition-all",
+                        "h-5 w-5 transition-all duration-300 ease-out",
                         likedIds.has(article.id)
-                          ? "fill-primary text-primary scale-110"
-                          : "text-white/60",
+                          ? "fill-primary text-primary"
+                          : "text-muted-foreground",
                       )}
                     />
                   </Button>
@@ -363,7 +365,7 @@ export function FeedView({ articles: propArticles, loading }: FeedViewProps) {
                   <Button
                     variant="ghost"
                     size="icon"
-                    className="h-12 w-12 rounded-full hover:bg-white/10 transition-all active:scale-90"
+                    className="h-12 w-12 rounded-xl text-muted-foreground transition-all duration-300 ease-out hover:bg-background/80 hover:text-primary active:scale-95"
                     onClick={(event) => {
                       event.stopPropagation();
                       toggleFavorite(article.sourceId);
@@ -371,10 +373,10 @@ export function FeedView({ articles: propArticles, loading }: FeedViewProps) {
                   >
                     <Star
                       className={cn(
-                        "w-6 h-6 transition-all",
+                        "h-5 w-5 transition-all duration-300 ease-out",
                         isFavorite(article.sourceId)
-                          ? "fill-amber-400 text-amber-400 scale-110"
-                          : "text-white/60",
+                          ? "fill-primary text-primary"
+                          : "text-muted-foreground",
                       )}
                     />
                   </Button>
@@ -382,47 +384,46 @@ export function FeedView({ articles: propArticles, loading }: FeedViewProps) {
                   <Button
                     variant="ghost"
                     size="icon"
-                    className="h-12 w-12 rounded-full hover:bg-white/10 transition-all active:scale-90"
+                    className="h-12 w-12 rounded-xl text-muted-foreground transition-all duration-300 ease-out hover:bg-background/80 hover:text-primary active:scale-95"
                     onClick={(event) => {
                       event.stopPropagation();
-                      void handleBookmark(article.id);
+                      void toggleBookmark(article.id);
                     }}
                   >
                     <Bookmark
                       className={cn(
-                        "w-6 h-6 transition-all",
+                        "h-5 w-5 transition-all duration-300 ease-out",
                         bookmarkIds.has(article.id)
-                          ? "fill-white text-white scale-110"
-                          : "text-white/60",
+                          ? "fill-primary text-primary"
+                          : "text-muted-foreground",
                       )}
                     />
                   </Button>
                 </div>
               </div>
-            </div>
-          </section>
-        ))}
+            </motion.section>
+          );
+        })}
       </div>
 
-      {/* Navigation Controls */}
-      <div className="absolute right-8 top-1/2 -translate-y-1/2 flex flex-col gap-4 z-20 hidden md:flex">
+      <div className="absolute right-4 top-1/2 z-20 hidden -translate-y-1/2 flex-col gap-3 md:flex lg:right-8">
         <Button
           variant="outline"
           size="icon"
           onClick={scrollToPrev}
           disabled={activeIndex === 0}
-          className="rounded-full border-white/10 bg-black/40 backdrop-blur-md hover:bg-primary hover:border-primary text-white disabled:opacity-20 transition-all"
+          className="h-12 w-12 rounded-xl border-border/50 bg-background/70 text-foreground backdrop-blur-xl transition-all duration-300 ease-out hover:bg-card active:scale-95 disabled:opacity-30"
         >
-          <ChevronUp className="w-5 h-5" />
+          <ChevronUp className="h-5 w-5" />
         </Button>
         <Button
           variant="outline"
           size="icon"
           onClick={scrollToNext}
           disabled={activeIndex === articles.length - 1}
-          className="rounded-full border-white/10 bg-black/40 backdrop-blur-md hover:bg-primary hover:border-primary text-white disabled:opacity-20 transition-all"
+          className="h-12 w-12 rounded-xl border-border/50 bg-background/70 text-foreground backdrop-blur-xl transition-all duration-300 ease-out hover:bg-card active:scale-95 disabled:opacity-30"
         >
-          <ChevronDown className="w-5 h-5" />
+          <ChevronDown className="h-5 w-5" />
         </Button>
       </div>
 
@@ -431,17 +432,8 @@ export function FeedView({ articles: propArticles, loading }: FeedViewProps) {
         isOpen={isArticleModalOpen}
         onClose={() => setIsArticleModalOpen(false)}
         onBookmarkChange={handleModalBookmarkChange}
+        layoutIdPrefix="feed"
       />
-
-      <style jsx global>{`
-        .no-scrollbar::-webkit-scrollbar {
-          display: none;
-        }
-        .no-scrollbar {
-          -ms-overflow-style: none;
-          scrollbar-width: none;
-        }
-      `}</style>
     </div>
   );
 }

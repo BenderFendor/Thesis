@@ -9,93 +9,96 @@
     -apple-system,
     BlinkMacSystemFont,
     sans-serif;
-  --border-color: rgba(255, 255, 255, 0.1);
-  --text-primary: #e0e0e0;
-  --text-secondary: #a0a0a0;
-  --bg-active: rgba(255, 255, 255, 0.08);
-  --error-bg: rgba(255, 82, 82, 0.1);
-  --error-border: #ff5252;
+  --pitch-black: #111408;
+  --dark-spruce: #2e3c23;
+  --sand: #b6a97d;
+  --sand-2: #d3c494;
+  --fern: #68793b;
+  --dusty-olive: #70805a;
 
-  /* Editorial dark theme with warm accent */
-  --background: #050505;
-  --foreground: #e0e0e0;
-  --card: #080808;
-  --card-foreground: #e0e0e0;
-  --popover: #080808;
-  --popover-foreground: #e0e0e0;
-  --primary: #ff3b30;
-  --primary-foreground: #050505;
-  --secondary: #121212;
-  --secondary-foreground: #e0e0e0;
-  --muted: #0f0f0f;
-  --muted-foreground: #a0a0a0;
-  --accent: #121212;
-  --accent-foreground: #e0e0e0;
+  --border-color: rgb(112 128 90 / 0.35);
+  --text-primary: var(--sand);
+  --text-secondary: var(--dusty-olive);
+  --bg-active: rgb(112 128 90 / 0.18);
+  --error-bg: rgb(255 69 58 / 0.14);
+  --error-border: var(--destructive);
+
+  --background: var(--pitch-black);
+  --foreground: var(--sand);
+  --card: #1c2414;
+  --card-foreground: var(--sand);
+  --popover: var(--pitch-black);
+  --popover-foreground: var(--sand);
+  --primary: var(--sand);
+  --primary-foreground: var(--sand-2);
+  --secondary: #222b18;
+  --secondary-foreground: var(--sand);
+  --muted: #202817;
+  --muted-foreground: var(--dusty-olive);
+  --accent: var(--fern);
+  --accent-foreground: var(--sand-2);
   --destructive: #ff453a;
-  --destructive-foreground: #050505;
-  --border: #2a2a2a;
-  --input: #121212;
-  --ring: #ff3b30;
-  --chart-1: #ff3b30;
-  --chart-2: #ff6b61;
-  --chart-3: #ff8f86;
-  --chart-4: #ff3b30;
-  --chart-5: #a0a0a0;
-  --radius: 0.5rem;
-  --sidebar: #121212;
-  --sidebar-foreground: #e0e0e0;
-  --sidebar-primary: #ff3b30;
-  --sidebar-primary-foreground: #050505;
-  --sidebar-accent: #121212;
-  --sidebar-accent-foreground: #e0e0e0;
-  --sidebar-border: #333333;
-  --sidebar-ring: #ff3b30;
+  --destructive-foreground: var(--pitch-black);
+  --border: #5d6b4b;
+  --input: #1e2715;
+  --ring: var(--sand);
+  --chart-1: var(--sand);
+  --chart-2: var(--sand-2);
+  --chart-3: var(--fern);
+  --chart-4: var(--dusty-olive);
+  --chart-5: var(--dark-spruce);
+  --radius: 0.75rem;
+  --sidebar: var(--pitch-black);
+  --sidebar-foreground: var(--sand);
+  --sidebar-primary: var(--sand);
+  --sidebar-primary-foreground: var(--sand-2);
+  --sidebar-accent: var(--dark-spruce);
+  --sidebar-accent-foreground: var(--sand);
+  --sidebar-border: var(--dusty-olive);
+  --sidebar-ring: var(--sand);
 
-  /* Custom theme colors for news app */
-  --news-bg-primary: #050505;
-  --news-bg-secondary: #080808;
-  --news-card-bg: #121212;
+  --news-bg-primary: var(--background);
+  --news-bg-secondary: #161d10;
+  --news-card-bg: var(--card);
 }
 
 .dark {
-  /* Dark mode uses the editorial palette */
-  --background: #050505;
-  --foreground: #e0e0e0;
-  --card: #080808;
-  --card-foreground: #e0e0e0;
-  --popover: #080808;
-  --popover-foreground: #e0e0e0;
-  --primary: #ff3b30;
-  --primary-foreground: #050505;
-  --secondary: #121212;
-  --secondary-foreground: #e0e0e0;
-  --muted: #0f0f0f;
-  --muted-foreground: #a0a0a0;
-  --accent: #121212;
-  --accent-foreground: #e0e0e0;
+  --background: var(--pitch-black);
+  --foreground: var(--sand);
+  --card: #1c2414;
+  --card-foreground: var(--sand);
+  --popover: var(--pitch-black);
+  --popover-foreground: var(--sand);
+  --primary: var(--sand);
+  --primary-foreground: var(--sand-2);
+  --secondary: #222b18;
+  --secondary-foreground: var(--sand);
+  --muted: #202817;
+  --muted-foreground: var(--dusty-olive);
+  --accent: var(--fern);
+  --accent-foreground: var(--sand-2);
   --destructive: #ff453a;
-  --destructive-foreground: #050505;
-  --border: #2a2a2a;
-  --input: #121212;
-  --ring: #ff3b30;
-  --chart-1: #ff3b30;
-  --chart-2: #ff6b61;
-  --chart-3: #ff8f86;
-  --chart-4: #ff3b30;
-  --chart-5: #a0a0a0;
-  --sidebar: #121212;
-  --sidebar-foreground: #e0e0e0;
-  --sidebar-primary: #ff3b30;
-  --sidebar-primary-foreground: #050505;
-  --sidebar-accent: #121212;
-  --sidebar-accent-foreground: #e0e0e0;
-  --sidebar-border: #333333;
-  --sidebar-ring: #ff3b30;
+  --destructive-foreground: var(--pitch-black);
+  --border: #5d6b4b;
+  --input: #1e2715;
+  --ring: var(--sand);
+  --chart-1: var(--sand);
+  --chart-2: var(--sand-2);
+  --chart-3: var(--fern);
+  --chart-4: var(--dusty-olive);
+  --chart-5: var(--dark-spruce);
+  --sidebar: var(--pitch-black);
+  --sidebar-foreground: var(--sand);
+  --sidebar-primary: var(--sand);
+  --sidebar-primary-foreground: var(--sand-2);
+  --sidebar-accent: var(--dark-spruce);
+  --sidebar-accent-foreground: var(--sand);
+  --sidebar-border: var(--dusty-olive);
+  --sidebar-ring: var(--sand);
 }
 
 @theme inline {
-  --font-sans:
-    system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  --font-sans: var(--font-outfit), "Outfit", system-ui, sans-serif;
   --font-mono: var(--font-geist-mono), "Fira Mono", "Menlo", monospace;
   --font-serif:
     var(--font-instrument-serif), "Instrument Serif", Georgia, serif;
@@ -142,13 +145,13 @@
     @apply border-border outline-ring/50;
   }
   body {
-    @apply bg-background text-foreground text-base md:text-lg;
+    @apply bg-background text-base text-foreground md:text-lg;
     color-scheme: dark;
   }
 
   ::selection {
-    background-color: #ff3b30;
-    color: #050505;
+    background-color: var(--primary);
+    color: var(--background);
   }
 }
 
@@ -235,6 +238,31 @@
 
 /* Scroll Snap Styles for Modern Grid View */
 @layer components {
+  .no-scrollbar::-webkit-scrollbar {
+    display: none;
+  }
+
+  .no-scrollbar {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+
+  .editorial-fallback-surface {
+    background-image:
+      radial-gradient(circle at top, rgb(211 196 148 / 0.12), transparent 60%),
+      linear-gradient(160deg, rgb(104 121 59 / 0.24), rgb(17 20 8 / 0.96));
+  }
+
+  .editorial-modal-fallback {
+    background-image:
+      radial-gradient(circle at top, rgb(211 196 148 / 0.12), transparent 60%),
+      linear-gradient(180deg, rgb(46 60 35 / 0.48), rgb(17 20 8 / 0.96));
+  }
+
+  .reading-prose {
+    @apply mx-auto max-w-prose text-base leading-relaxed text-foreground md:text-lg;
+  }
+
   .scroll-snap-container {
     @apply scroll-smooth;
     scroll-snap-type: y mandatory;

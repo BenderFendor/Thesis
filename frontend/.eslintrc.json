@@ -4,6 +4,7 @@
     "next/typescript"
   ],
   "rules": {
-    "@typescript-eslint/no-explicit-any": "error"
+    "@typescript-eslint/no-explicit-any": "error",
+    "tailwindcss/no-arbitrary-value": "error"
   }
 }
