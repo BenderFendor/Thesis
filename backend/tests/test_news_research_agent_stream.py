@@ -99,6 +99,112 @@ def test_dedup_tool_node_enforces_session_cap(monkeypatch) -> None:
     assert out["tool_calls_used"] == agent.MAX_TOOL_CALLS_PER_SESSION
 
 
+def test_dedup_tool_node_blocks_external_search_before_internal_search(
+    monkeypatch,
+) -> None:
+    class FakeToolNode:
+        def __init__(self, *_args, **_kwargs) -> None:
+            pass
+
+        def invoke(self, _state):
+            raise AssertionError(
+                "External search should be blocked before internal search"
+            )
+
+    monkeypatch.setattr(agent, "ToolNode", FakeToolNode)
+
+    state = cast(
+        Any,
+        {
+            "messages": [
+                AIMessage(
+                    content="",
+                    tool_calls=[
+                        {
+                            "id": "external-first",
+                            "name": "news_search",
+                            "args": {"keywords": "iran latest"},
+                        }
+                    ],
+                )
+            ],
+            "tool_history": set(),
+            "tool_calls_used": 0,
+        },
+    )
+
+    out = agent._dedup_tool_node(state)
+
+    assert len(out["messages"]) == 1
+    assert "Use search_internal_news first" in str(out["messages"][0].content)
+    assert out["tool_calls_used"] == 0
+
+
+def test_dedup_tool_node_requires_internal_fetches_before_external_search(
+    monkeypatch,
+) -> None:
+    class FakeToolNode:
+        def __init__(self, *_args, **_kwargs) -> None:
+            pass
+
+        def invoke(self, _state):
+            raise AssertionError(
+                "External search should be blocked until internal reads happen"
+            )
+
+    monkeypatch.setattr(agent, "ToolNode", FakeToolNode)
+    agent.set_news_articles(
+        [
+            {
+                "id": 1,
+                "title": "Internal Iran update",
+                "url": "https://internal.example/iran-1",
+                "source": "Internal Feed",
+                "summary": "Internal coverage",
+                "retrieval_method": "keyword_postgres",
+            }
+        ]
+    )
+
+    state = cast(
+        Any,
+        {
+            "messages": [
+                ToolMessage(
+                    content='[{"title":"Internal Iran update","source":"Internal Feed","url":"https://internal.example/iran-1","summary":"Internal coverage"}]',
+                    tool_call_id="internal-search",
+                    name="search_internal_news",
+                ),
+                ToolMessage(
+                    content='[{"title":"Internal Iran update","source":"Internal Feed","url":"https://internal.example/iran-1","summary":"Internal coverage"}]',
+                    tool_call_id="internal-search-duplicate-view",
+                    name="search_internal_news",
+                ),
+                AIMessage(
+                    content="",
+                    tool_calls=[
+                        {
+                            "id": "external-too-early",
+                            "name": "web_search",
+                            "args": {"query": "iran latest developments"},
+                        }
+                    ],
+                ),
+            ],
+            "tool_history": {
+                'search_internal_news:{"query": "iran latest", "top_k": 5}'
+            },
+            "tool_calls_used": 1,
+        },
+    )
+
+    out = agent._dedup_tool_node(state)
+
+    assert len(out["messages"]) == 1
+    assert "Read the internal article URLs" in str(out["messages"][0].content)
+    assert out["tool_calls_used"] == 1
+
+
 def test_research_stream_emits_unique_tool_start_events(monkeypatch) -> None:
     duplicate_tool_calls = [
         {

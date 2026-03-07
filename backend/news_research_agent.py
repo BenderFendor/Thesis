@@ -65,12 +65,15 @@ def _system_prompt() -> str:
         role="news research agent",
         task=(
             "Work for a multi-perspective news platform. Always begin with "
-            "search_internal_news to ground yourself in cached coverage, then use "
-            "web_search or news_search for fresh context. When you find useful "
-            "articles that are missing from the archive, call rag_index_documents to "
-            "update the store. Avoid tool commentary and focus on answering the user. "
-            "Note differing viewpoints and mention bias or funding details when "
-            "relevant."
+            "search_internal_news to ground yourself in cached coverage from the "
+            "database and RSS-backed archive. If internal search finds relevant "
+            "articles, inspect those internal URLs with fetch_article_content before "
+            "using web_search or news_search. Use external search only when internal "
+            "coverage is missing, stale, or clearly insufficient for the user's "
+            "question. When you find useful articles that are missing from the "
+            "archive, call rag_index_documents to update the store. Avoid tool "
+            "commentary and focus on answering the user. Note differing viewpoints "
+            "and mention bias or funding details when relevant."
         ),
         grounding_rules=FACT_GROUNDING_RULES,
         output_rules=compose_prompt_blocks(ANSWER_SECTION_RULE, TEXT_OUTPUT_RULES),
@@ -93,6 +96,7 @@ MAX_ITERATIONS = 5
 MAX_TOOL_CALLS_PER_SESSION = 15
 MIN_FINAL_ANSWER_CHARS = 120
 MIN_FINAL_ANSWER_SECTIONS = ("answer",)
+EXTERNAL_SEARCH_TOOLS = {"web_search", "news_search"}
 
 
 class RunnableMessageInvoker(Protocol):
@@ -292,6 +296,82 @@ def _track_search_result_references(tool_name: str, content: str) -> None:
         _track_reference_by_url(url, fallback)
 
 
+def _is_internal_article(article: Dict[str, Any]) -> bool:
+    retrieval_method = str(article.get("retrieval_method") or "")
+    if retrieval_method in {
+        "keyword_postgres",
+        "recent_postgres",
+        "semantic_vector_store",
+    }:
+        return True
+
+    article_id = article.get("id") or article.get("article_id")
+    if article_id is not None and str(article_id) in _articles_by_id:
+        return True
+
+    normalized = _normalize_url(article.get("url") or article.get("link"))
+    if normalized and normalized in _articles_by_id:
+        return True
+    return False
+
+
+def _count_internal_references() -> int:
+    return sum(
+        1 for article in _referenced_articles_tracker if _is_internal_article(article)
+    )
+
+
+def _internal_search_found_results(content: str) -> bool:
+    text = content.strip()
+    if not text:
+        return False
+    known_empty_responses = {
+        "No cached articles available for internal search.",
+        "Query too vague for internal search.",
+        "No relevant articles found in cache.",
+    }
+    if text in known_empty_responses:
+        return False
+    try:
+        payload = json.loads(text)
+    except json.JSONDecodeError:
+        return bool(text)
+    return isinstance(payload, list) and len(payload) > 0
+
+
+def _is_internal_fetch_call(call: Dict[str, Any]) -> bool:
+    if str(call.get("name", "")) != "fetch_article_content":
+        return False
+    args = call.get("args", {})
+    if not isinstance(args, dict):
+        return False
+    normalized = _normalize_url(args.get("url"))
+    if not normalized:
+        return False
+    article = _articles_by_id.get(normalized)
+    return bool(article and _is_internal_article(article))
+
+
+def _required_internal_fetches_before_external() -> int:
+    internal_reference_count = _count_internal_references()
+    if internal_reference_count <= 0:
+        return 0
+    return min(2, internal_reference_count)
+
+
+def _required_internal_fetches_for_state(
+    *, internal_search_succeeded: bool, current_message_internal_hits: int
+) -> int:
+    if not internal_search_succeeded:
+        return 0
+    internal_reference_count = max(
+        _count_internal_references(), current_message_internal_hits
+    )
+    if internal_reference_count <= 0:
+        return 0
+    return min(2, internal_reference_count)
+
+
 @tool
 def search_internal_news(query: str, top_k: int = 5) -> str:
     """Semantic-ish search over cached news articles."""
@@ -459,8 +539,10 @@ def _tool_router_system_prompt() -> str:
         role="research tool planner",
         task=(
             "Decide which tools to use for the query. Always use "
-            "search_internal_news first, then web_search or news_search. If you need "
-            "full text, call fetch_article_content on selected URLs."
+            "search_internal_news first. If it returns relevant internal articles, "
+            "read those internal URLs with fetch_article_content before any external "
+            "search. Use web_search or news_search only after internal coverage has "
+            "been checked and found insufficient."
         ),
         grounding_rules=FACT_GROUNDING_RULES,
         output_rules=ANSWER_SECTION_RULE,
@@ -652,6 +734,41 @@ def _dedup_tool_node(state: "AgentState") -> Dict[str, Any]:
     tool_calls = getattr(last_msg, "tool_calls", None) or []
     tool_history = set(state.get("tool_history", set()))
     tool_calls_used = int(state.get("tool_calls_used", 0))
+    internal_search_done = any(
+        key.startswith("search_internal_news:") for key in tool_history
+    )
+    internal_search_succeeded = False
+    internal_fetch_calls_done = 0
+    current_message_internal_hits = 0
+
+    for message in state.get("messages", []):
+        if not isinstance(message, ToolMessage):
+            continue
+        tool_name = str(getattr(message, "name", "") or "")
+        content = _content_to_text(message.content)
+        if tool_name == "search_internal_news" and _internal_search_found_results(
+            content
+        ):
+            internal_search_succeeded = True
+            try:
+                payload = json.loads(content)
+            except json.JSONDecodeError:
+                payload = None
+            if isinstance(payload, list):
+                current_message_internal_hits = max(
+                    current_message_internal_hits, len(payload)
+                )
+
+    for key in tool_history:
+        if key.startswith("fetch_article_content:"):
+            try:
+                _tool_name, serialized_args = key.split(":", 1)
+                args = json.loads(serialized_args)
+            except (ValueError, json.JSONDecodeError):
+                continue
+            call = {"name": "fetch_article_content", "args": args}
+            if _is_internal_fetch_call(call):
+                internal_fetch_calls_done += 1
 
     results: List[ToolMessage] = []
     unique_calls = []
@@ -673,7 +790,9 @@ def _dedup_tool_node(state: "AgentState") -> Dict[str, Any]:
                 )
             )
             logger.debug("dedup_tool_node: duplicate call key=%s", key)
-        elif tool_calls_used >= MAX_TOOL_CALLS_PER_SESSION:
+            continue
+
+        if tool_calls_used >= MAX_TOOL_CALLS_PER_SESSION:
             results.append(
                 ToolMessage(
                     content=(
@@ -689,10 +808,47 @@ def _dedup_tool_node(state: "AgentState") -> Dict[str, Any]:
                 MAX_TOOL_CALLS_PER_SESSION,
                 tool_name,
             )
-        else:
-            tool_history.add(key)
-            tool_calls_used += 1
-            unique_calls.append(call)
+            continue
+
+        if tool_name in EXTERNAL_SEARCH_TOOLS and not internal_search_done:
+            results.append(
+                ToolMessage(
+                    content=(
+                        "Use search_internal_news first. Check the internal archive before "
+                        "using external search."
+                    ),
+                    tool_call_id=tool_call_id,
+                    name=tool_name,
+                )
+            )
+            continue
+
+        required_internal_fetches = _required_internal_fetches_for_state(
+            internal_search_succeeded=internal_search_succeeded,
+            current_message_internal_hits=current_message_internal_hits,
+        )
+        if (
+            tool_name in EXTERNAL_SEARCH_TOOLS
+            and internal_search_succeeded
+            and internal_fetch_calls_done < required_internal_fetches
+        ):
+            results.append(
+                ToolMessage(
+                    content=(
+                        "Internal search found relevant archive coverage. Read the internal "
+                        "article URLs with fetch_article_content before using external search."
+                    ),
+                    tool_call_id=tool_call_id,
+                    name=tool_name,
+                )
+            )
+            continue
+
+        tool_history.add(key)
+        tool_calls_used += 1
+        unique_calls.append(call)
+        if _is_internal_fetch_call(call):
+            internal_fetch_calls_done += 1
 
     if unique_calls:
         # Build a trimmed AIMessage with only the unique calls so ToolNode
