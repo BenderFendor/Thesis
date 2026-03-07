@@ -26,6 +26,23 @@ ResearchPayload = Dict[str, Any]
 ResearchResultPayload = Dict[str, Any]
 
 
+def _status_message_for_tool(tool_name: str, args: Dict[str, Any]) -> str:
+    if tool_name == "web_search":
+        query = str(args.get("query", "")).strip()
+        return f"Web search: {query}" if query else "Web search"
+    if tool_name == "news_search":
+        keywords = str(args.get("keywords", "")).strip()
+        return f"News search: {keywords}" if keywords else "News search"
+    if tool_name == "search_internal_news":
+        return "Checking saved coverage"
+    if tool_name == "fetch_article_content":
+        url = str(args.get("url", "")).strip()
+        return f"Reading article: {url}" if url else "Reading article"
+    if tool_name == "rag_index_documents":
+        return "Saving new sources"
+    return f"Running {tool_name}"
+
+
 class _LoadArticlesForResearch(Protocol):
     async def __call__(
         self,
@@ -106,7 +123,7 @@ async def news_research_stream_endpoint(
     async def generate() -> AsyncIterator[str]:
         stop_event = threading.Event()
         try:
-            yield f"data: {json.dumps({'type': 'status', 'message': 'Starting research...', 'timestamp': datetime.now(timezone.utc).isoformat()})}\n\n"
+            yield f"data: {json.dumps({'type': 'status', 'message': 'Starting research.', 'timestamp': datetime.now(timezone.utc).isoformat()})}\n\n"
 
             articles_payload = await load_articles_for_research(query)
             articles_dict = cast(
@@ -122,7 +139,7 @@ async def news_research_stream_endpoint(
             status_message = {
                 "type": "status",
                 "message": (
-                    f"Searching {total_articles} articles "
+                    f"Reviewing {total_articles} articles "
                     f"(semantic: {retrieval_summary.get('semantic_count', 0)}, "
                     f"keyword: {retrieval_summary.get('keyword_count', 0)}, "
                     f"recent: {retrieval_summary.get('recent_count', 0)})"
@@ -168,31 +185,17 @@ async def news_research_stream_endpoint(
                         tool_name = event["tool"]
                         args = event["args"]
 
-                        # Generate verbose status message
-                        status_msg = f"Using tool: {tool_name}..."
-                        if tool_name == "web_search":
-                            q = args.get("query", "")
-                            status_msg = f"Searching web for: {q}..."
-                        elif tool_name == "news_search":
-                            k = args.get("keywords", "")
-                            status_msg = f"Searching news for: {k}..."
-                        elif tool_name == "search_internal_news":
-                            status_msg = "Searching internal knowledge base..."
-                        elif tool_name == "fetch_article_content":
-                            u = args.get("url", "url")
-                            status_msg = f"Reading article: {u}..."
-                        elif tool_name == "rag_index_documents":
-                            status_msg = "Indexing new documents..."
+                        status_msg = _status_message_for_tool(tool_name, args)
 
                         yield f"data: {json.dumps({'type': 'status', 'message': status_msg, 'timestamp': timestamp})}\n\n"
                         yield f"data: {json.dumps({'type': 'tool_start', 'tool': tool_name, 'args': args, 'timestamp': timestamp})}\n\n"
 
                         if include_thinking:
-                            content = f"Calling {tool_name} with {json.dumps(args)}"
+                            content = f"Tool request: {tool_name} {json.dumps(args)}"
                             yield f"data: {json.dumps({'type': 'thinking_step', 'step': {'type': 'tool_start', 'content': content, 'timestamp': timestamp}, 'timestamp': timestamp})}\n\n"
 
                     elif event["type"] == "tool_result":
-                        yield f"data: {json.dumps({'type': 'status', 'message': 'Processing tool results...', 'timestamp': timestamp})}\n\n"
+                        yield f"data: {json.dumps({'type': 'status', 'message': 'Reviewing results.', 'timestamp': timestamp})}\n\n"
                         yield f"data: {json.dumps({'type': 'tool_result', 'content': event['content'], 'timestamp': timestamp})}\n\n"
                         if include_thinking:
                             yield f"data: {json.dumps({'type': 'thinking_step', 'step': {'type': 'observation', 'content': event['content'], 'timestamp': timestamp}, 'timestamp': timestamp})}\n\n"
@@ -217,7 +220,7 @@ async def news_research_stream_endpoint(
                 fallback: ResearchResultPayload = {
                     "success": False,
                     "query": query,
-                    "answer": last_thought or "Answer\nNo answer available.\n",
+                    "answer": last_thought or "Answer\nNo answer found.\n",
                     "structured_articles": "",
                     "articles_searched": len(articles_dict),
                     "referenced_articles": [],

@@ -130,6 +130,20 @@ const isErrorMessage = (
   message: ResearchStreamMessage,
 ): message is ErrorMessage => message.type === "error";
 
+const stepStatusLabel = (stepType: string): string => {
+  switch (stepType) {
+    case "thought":
+      return "Working through the question.";
+    case "tool_start":
+    case "action":
+      return "Checking more sources.";
+    case "observation":
+      return "Reviewing results.";
+    default:
+      return "Working.";
+  }
+};
+
 const CHAT_STORAGE_KEY = "news-research.chat-state";
 const CHAT_STORAGE_VERSION = 1;
 
@@ -486,7 +500,7 @@ export default function NewsResearchPage() {
         const toolMessage: Message = {
           id: semanticToolId,
           type: "assistant",
-          content: "Semantic search surfaced related coverage.",
+          content: "Found related coverage.",
           timestamp: new Date(),
           toolType: "semantic_search",
           semanticResults: relevant,
@@ -530,7 +544,7 @@ export default function NewsResearchPage() {
             msg.id === assistantId
               ? {
                   ...msg,
-                  streamingStatus: "Still working — gathering more coverage...",
+                  streamingStatus: "Still working. Gathering more coverage.",
                 }
               : msg,
           ),
@@ -561,7 +575,7 @@ export default function NewsResearchPage() {
                   : {
                       ...msg,
                       thinking_steps: [...thinkingSteps],
-                      streamingStatus: `Processing: ${data.step.type}...`,
+                      streamingStatus: stepStatusLabel(data.step.type),
                     },
               ),
             );
@@ -588,7 +602,7 @@ export default function NewsResearchPage() {
                       : {
                           ...msg,
                           structured_articles_json: structuredArticles,
-                          streamingStatus: "Received article data...",
+                          streamingStatus: "Article data ready.",
                         },
                   ),
                 );
@@ -632,7 +646,7 @@ export default function NewsResearchPage() {
                   : {
                       ...msg,
                       referenced_articles: referencedArticles,
-                      streamingStatus: "Processing articles...",
+                      streamingStatus: "Reviewing articles.",
                     },
               ),
             );
@@ -690,7 +704,7 @@ export default function NewsResearchPage() {
           } else if (isErrorMessage(data)) {
             window.clearTimeout(stallTimeout);
             let errorMessage =
-              data.message || "The research agent encountered an error.";
+              data.message || "Research hit an error.";
             const lowered = errorMessage.toLowerCase();
             if (
               lowered.includes("rate limit") ||
@@ -763,7 +777,7 @@ export default function NewsResearchPage() {
                 content:
                   error instanceof Error
                     ? error.message
-                    : "An error occurred while starting the research stream.",
+                    : "Could not start research.",
                 error: true,
                 isStreaming: false,
                 streamingStatus: undefined,
@@ -1363,7 +1377,7 @@ export default function NewsResearchPage() {
                       >
                         {conversationMessages.length === 0 ? (
                           <div className="rounded-xl border border-border/10 bg-[var(--news-bg-secondary)]/70 p-6 text-sm text-muted-foreground">
-                            Start a query to build a multi-turn session.
+                            Ask a question to start.
                           </div>
                         ) : (
                           conversationMessages.map((message) => {

@@ -1266,11 +1266,11 @@ export function GridView({
           Use ↑/↓ keys, PageUp/PageDown, mouse wheel or swipe to move between
           {viewMode === "source" ? (
             <>
-              sources — {currentGroupIndex + 1} / {sourceGroups.length}
+              sources: {currentGroupIndex + 1} / {sourceGroups.length}
             </>
           ) : (
             <>
-              topics — {sortedClusters.length}
+              topics: {sortedClusters.length}
             </>
           )}
         </div>

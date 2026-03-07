@@ -26,8 +26,33 @@ import httpx
 from app.core.config import settings
 from app.core.llm_client import get_llm_client
 from app.core.logging import get_logger
+from app.services.prompting import (
+    COPY_STYLE_GUIDE,
+    build_json_system_prompt,
+    compose_prompt_blocks,
+)
 
 logger = get_logger("reporter_profiler")
+
+PROFILE_SYSTEM_PROMPT = build_json_system_prompt(
+    role="reporter profile researcher",
+    task=(
+        "Build concise, evidence-aware reporter profiles from supplied context and "
+        "return structured JSON."
+    ),
+)
+
+DOSSIER_SYSTEM_PROMPT = build_json_system_prompt(
+    role="reporter dossier analyst",
+    task=(
+        "Build a reporter dossier from supplied employer and corpus context and "
+        "return structured JSON."
+    ),
+    output_rules=compose_prompt_blocks(
+        "Return valid JSON only. No markdown fences or extra prose.",
+        "Keep analysis fields concise and grounded.",
+    ),
+)
 
 
 class ReporterProfiler:
@@ -288,9 +313,7 @@ class ReporterProfiler:
             return profile
 
         try:
-            prompt = f"""You are a research assistant analyzing a journalist's profile.
-
-Reporter Name: {profile["name"]}
+            prompt = f"""Reporter Name: {profile["name"]}
 Organization: {organization or "Unknown"}
 Current Bio: {profile.get("bio", "None")}
 Wikipedia URL: {profile.get("wikipedia_url", "None")}
@@ -306,11 +329,16 @@ Respond in JSON format:
   "political_leaning": "center" or null,
   "leaning_confidence": "low",
   "assessment_notes": "Brief explanation"
-}}"""
+}}
+
+{COPY_STYLE_GUIDE}"""
 
             response = self.llm_client.chat_completions_create(
                 service_name="reporter",
-                messages=[{"role": "user", "content": prompt}],
+                messages=[
+                    {"role": "system", "content": PROFILE_SYSTEM_PROMPT},
+                    {"role": "user", "content": prompt},
+                ],
                 model=settings.open_router_model,
                 max_tokens=500,
                 temperature=0.3,
@@ -474,11 +502,7 @@ Article corpus from our database:
 - Topic distribution: {cat_str}
 - Outlets published in: {", ".join(corpus_analysis.get("outlets_published_in", {}).keys())}"""
 
-        prompt = f"""You are a media research analyst building a comprehensive dossier
-on a journalist, applying the analytical frameworks from Chomsky's
-Manufacturing Consent and Parenti's Inventing Reality.
-
-JOURNALIST: {name}
+        prompt = f"""JOURNALIST: {name}
 CURRENT EMPLOYER: {organization or "Unknown"}
 {org_context}
 {corpus_context}
@@ -519,12 +543,17 @@ Respond ONLY with valid JSON (no markdown):
     "notable_shifts": [],
     "confidence": "low"
   }}
-}}"""
+}}
+
+{COPY_STYLE_GUIDE}"""
 
         try:
             response = self.llm_client.chat_completions_create(
                 service_name="reporter",
-                messages=[{"role": "user", "content": prompt}],
+                messages=[
+                    {"role": "system", "content": DOSSIER_SYSTEM_PROMPT},
+                    {"role": "user", "content": prompt},
+                ],
                 model=settings.open_router_model,
                 max_tokens=2000,
                 temperature=0.3,

@@ -131,7 +131,7 @@ class TestPropagandaFilterScorer:
 
         # Verify the prompt sent to the LLM contains org metadata section
         call_args = scorer.client.chat.completions.create.call_args
-        prompt = call_args.kwargs["messages"][0]["content"]
+        prompt = call_args.kwargs["messages"][1]["content"]
         assert "ORGANIZATION METADATA" in prompt
         assert "funding_type" in prompt
 
@@ -147,7 +147,7 @@ class TestPropagandaFilterScorer:
         await scorer.score_source(source_name="BBC", org_data=org_data)
 
         call_args = scorer.client.chat.completions.create.call_args
-        prompt = call_args.kwargs["messages"][0]["content"]
+        prompt = call_args.kwargs["messages"][1]["content"]
         assert "ORGANIZATION METADATA" not in prompt
 
     async def test_no_llm_client_returns_defaults(self):

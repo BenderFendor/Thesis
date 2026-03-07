@@ -27,8 +27,25 @@ from openai.types.chat import ChatCompletionMessageParam
 
 from app.core.config import get_llamacpp_model, get_openai_client, settings
 from app.core.logging import get_logger
+from app.services.prompting import (
+    COPY_STYLE_GUIDE,
+    build_json_system_prompt,
+    compose_prompt_blocks,
+)
 
 logger = get_logger("propaganda_scorer")
+
+SCORER_SYSTEM_PROMPT = build_json_system_prompt(
+    role="media systems analyst",
+    task=(
+        "Score a news source against propaganda-model filters and class-interest "
+        "analysis using the supplied context."
+    ),
+    output_rules=compose_prompt_blocks(
+        "Return valid JSON only. No markdown fences or extra prose.",
+        "Keep prose fields direct and evidence-based.",
+    ),
+)
 
 FILTER_NAMES = [
     "ownership",
@@ -522,11 +539,7 @@ Currently known:
     "factual_reporting": "very-high|high|mixed|low|very-low"
   }}"""
 
-        prompt = f"""You are a media analyst applying Noam Chomsky's propaganda model
-(from Manufacturing Consent) and Michael Parenti's class analysis
-(from Inventing Reality) to evaluate a news source.
-
-SOURCE: {source_name}
+        prompt = f"""SOURCE: {source_name}
 
 AVAILABLE CONTEXT:
 {context_summary}
@@ -563,6 +576,8 @@ FILTERS TO SCORE:
    Does this source cover labor issues, wealth inequality, corporate
    accountability, and class dynamics? Or does it systematically normalize
    existing power structures and avoid class analysis?
+
+{COPY_STYLE_GUIDE}
 
 Respond ONLY with valid JSON (no markdown):
 {{
@@ -605,7 +620,10 @@ Respond ONLY with valid JSON (no markdown):
                 ),
                 messages=cast(
                     Iterable[ChatCompletionMessageParam],
-                    [{"role": "user", "content": prompt}],
+                    [
+                        {"role": "system", "content": SCORER_SYSTEM_PROMPT},
+                        {"role": "user", "content": prompt},
+                    ],
                 ),
                 max_tokens=2500 if include_org_metadata else 2000,
                 temperature=0.3,

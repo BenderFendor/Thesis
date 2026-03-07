@@ -1,5 +1,26 @@
 # Log
 
+## 2026-03-07: Copy Style Cleanup And Shared Prompt Blocks
+
+**Problem:** User-facing copy drifted into AI narrator phrasing, jargon, banned words, and em dashes. Backend prompt rules were repeated across many services, which made generated prose inconsistent and harder to maintain.
+
+**What Changed:**
+- Added shared prompt helpers in `backend/app/services/prompting.py` for Scoop role identity, current date injection, grounding rules, copy style rules, and reusable text or JSON system prompts.
+- Refactored `backend/news_research_agent.py`, `backend/app/services/article_analysis.py`, `backend/app/services/queue_digest.py`, `backend/app/services/propaganda_scorer.py`, `backend/app/services/reporter_profiler.py`, and `backend/app/services/material_interest.py` to use the shared prompt blocks.
+- Cleaned static copy in `frontend/app/search/page.tsx`, `frontend/components/article-detail-modal.tsx`, `frontend/components/globe-view.tsx`, `frontend/components/grid-view.tsx`, and `frontend/app/wiki/reporter/[id]/page.tsx` to remove em dashes, heavy jargon, and AI process narration.
+- Simplified backend research stream status text in `backend/app/api/routes/research.py` and updated fallback wording in `backend/news_research_agent.py`.
+- Updated tests in `backend/tests/test_news_research_agent_stream.py` and `backend/tests/test_propaganda_scorer.py` for the new prompt structure and fallback strings.
+
+**Reflection:**
+- Shared prompt composition is the safer pattern here. It keeps date, role, grounding, and style consistent without forcing unrelated tasks into one oversized system prompt.
+- Prompt refactors can break tests that assert raw message ordering or index-based payload access even when runtime behavior is fine.
+- This repo does not provide a `frontend` npm `tsc` script, so the reliable direct type-check command is `npx tsc --noEmit` from `frontend/`.
+
+**Verification:**
+- `./verify.sh` passes.
+- `next build` passes through `./verify.sh`.
+- `eslint` passes with existing warnings only.
+
 ## 2026-03-06: Global View And Local Lens Overhaul
 
 **Problem:** The globe view was mostly cosmetic. It colored the map by outlet origin only, filtered country focus from the current frontend article subset, and the old "global view" lens often returned unrelated foreign stories instead of outside coverage about the selected country.

@@ -10,10 +10,17 @@ from app.core.config import settings
 from app.core.llm_client import LLMClient, get_llm_client
 from app.core.logging import get_logger
 from app.services.article_extraction import extract_article_full_text
+from app.services.prompting import build_json_system_prompt, compose_prompt_blocks
 
 logger = get_logger("article_analysis")
 
-SYSTEM_MESSAGE = "You are an expert news analyst. Return valid JSON."
+SYSTEM_MESSAGE = build_json_system_prompt(
+    role="news analyst",
+    task=(
+        "Analyze a news article, assess source and framing, and return the result "
+        "as structured data."
+    ),
+)
 
 
 def _is_retryable_error(exception: BaseException) -> bool:
@@ -95,7 +102,7 @@ def _build_analysis_prompt(
     text = (article_data.get("text") or "")[:4000]
 
     return f"""
-You are an expert media analyst and fact-checker. Analyze the following news article comprehensively and use Google Search to verify ALL factual claims, numbers, quotes, and statements:
+You are an expert media analyst and fact-checker. Analyze the following news article comprehensively.
 
 **Article Title:** {title}
 **Source:** {source_name or "Unknown"}
@@ -105,7 +112,7 @@ You are an expert media analyst and fact-checker. Analyze the following news art
 **Article Text:**
 {text}  
 
-IMPORTANT: Use Google Search to verify EVERY factual claim in the article. For each claim, search for corroborating or contradicting sources.
+Work from the article text provided in this request. If verification is incomplete, mark it clearly in the JSON fields instead of guessing.
 
 Please provide a detailed analysis in the following JSON format:
 
@@ -158,7 +165,13 @@ CRITICAL: For fact_check_results, verify ALL specific details including:
 - Events and their descriptions
 - Any claims that can be objectively verified
 
-Provide only the JSON response, no additional text.
+{
+        compose_prompt_blocks(
+            "Write direct field values with plain wording.",
+            "Keep summaries and notes concise.",
+            "Provide only the JSON response, no additional text.",
+        )
+    }
 """
 
 

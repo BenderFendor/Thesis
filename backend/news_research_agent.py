@@ -42,6 +42,14 @@ from typing_extensions import TypedDict
 from app.core.config import get_llamacpp_model, settings
 from app.core.logging import get_logger
 from app.services.article_extraction import extract_article_content
+from app.services.prompting import (
+    ANSWER_SECTION_RULE,
+    FACT_GROUNDING_RULES,
+    PROVIDED_CONTEXT_ONLY_RULES,
+    TEXT_OUTPUT_RULES,
+    build_text_system_prompt,
+    compose_prompt_blocks,
+)
 from app.vector_store import get_vector_store
 
 logger = get_logger("news_research_agent")
@@ -51,21 +59,36 @@ if settings.gemini_api_key:
 if settings.open_router_api_key:
     os.environ.setdefault("OPEN_ROUTER_API_KEY", settings.open_router_api_key)
 
-SYSTEM_PROMPT = (
-    "You are an expert news research agent working for a multi-perspective platform.\n"
-    "Always begin with search_internal_news to ground yourself in cached coverage,\n"
-    "then use web_search or news_search for fresh context. When you find useful\n"
-    "articles that are missing from the archive, call rag_index_documents to update\n"
-    "the store. Avoid meta commentary about tools; focus on answering the user.\n"
-    "Respond with a section titled 'Answer'.\n"
-    "Cite sources with URLs, highlight differing viewpoints, and mention\n"
-    "bias or funding details when relevant. Current date: {date}."
-)
-FINALIZER_SYSTEM_PROMPT = (
-    "You are a careful news analyst. Produce the final response with a section titled "
-    "'Answer'. Use the provided context only. "
-    "Include URLs in citations when possible. Keep the answer concise but complete."
-)
+
+def _system_prompt() -> str:
+    return build_text_system_prompt(
+        role="news research agent",
+        task=(
+            "Work for a multi-perspective news platform. Always begin with "
+            "search_internal_news to ground yourself in cached coverage, then use "
+            "web_search or news_search for fresh context. When you find useful "
+            "articles that are missing from the archive, call rag_index_documents to "
+            "update the store. Avoid tool commentary and focus on answering the user. "
+            "Note differing viewpoints and mention bias or funding details when "
+            "relevant."
+        ),
+        grounding_rules=FACT_GROUNDING_RULES,
+        output_rules=compose_prompt_blocks(ANSWER_SECTION_RULE, TEXT_OUTPUT_RULES),
+    )
+
+
+def _finalizer_system_prompt() -> str:
+    return build_text_system_prompt(
+        role="news analyst",
+        task="Produce the final response from the research context.",
+        grounding_rules=compose_prompt_blocks(
+            PROVIDED_CONTEXT_ONLY_RULES,
+            "Include URLs in citations when possible.",
+        ),
+        output_rules=compose_prompt_blocks(ANSWER_SECTION_RULE, TEXT_OUTPUT_RULES),
+    )
+
+
 MAX_ITERATIONS = 5
 MAX_TOOL_CALLS_PER_SESSION = 15
 MIN_FINAL_ANSWER_CHARS = 120
@@ -340,12 +363,18 @@ tools = [
 ]
 
 
-TOOL_ROUTER_SYSTEM_PROMPT = (
-    "Decide which tools to use for the query. "
-    "Always use search_internal_news first, then web_search or news_search. "
-    "If you need full text, call fetch_article_content on selected URLs. "
-    "After tool use, answer with a section titled 'Answer'."
-)
+def _tool_router_system_prompt() -> str:
+    return build_text_system_prompt(
+        role="research tool planner",
+        task=(
+            "Decide which tools to use for the query. Always use "
+            "search_internal_news first, then web_search or news_search. If you need "
+            "full text, call fetch_article_content on selected URLs."
+        ),
+        grounding_rules=FACT_GROUNDING_RULES,
+        output_rules=ANSWER_SECTION_RULE,
+    )
+
 
 _llm_instance: ToolBindableLLM | None = None
 _model_instance: RunnableMessageInvoker | None = None
@@ -637,7 +666,7 @@ def call_model(state: AgentState) -> Dict[str, Any]:
         context_blob = "\n\n".join(snippets[-6:])
 
         messages = [
-            SystemMessage(content=FINALIZER_SYSTEM_PROMPT),
+            SystemMessage(content=_finalizer_system_prompt()),
             HumanMessage(
                 content=(
                     "Return the final response with a section titled 'Answer'. "
@@ -661,7 +690,7 @@ def call_model(state: AgentState) -> Dict[str, Any]:
 
     if mode == "tool_router":
         messages = [
-            SystemMessage(content=TOOL_ROUTER_SYSTEM_PROMPT),
+            SystemMessage(content=_tool_router_system_prompt()),
             *state["messages"],
         ]
         response = _invoke_with_llamacpp_recovery(
@@ -730,11 +759,7 @@ def should_continue(state: AgentState) -> str:
 def _build_initial_messages(
     query: str, chat_history: Optional[List[Dict[str, str]]] = None
 ) -> List[BaseMessage]:
-    system_message = SystemMessage(
-        content=SYSTEM_PROMPT.format(
-            date=datetime.now(timezone.utc).strftime("%Y-%m-%d")
-        )
-    )
+    system_message = SystemMessage(content=_system_prompt())
     history_messages: List[BaseMessage] = []
     if chat_history:
         for entry in chat_history:
@@ -823,7 +848,7 @@ def _finalize_answer(
         prompt_parts.extend(["Tool notes:", tool_context])
     prompt_parts.append("Return the final response.")
     finalizer_messages: List[BaseMessage] = [
-        SystemMessage(content=FINALIZER_SYSTEM_PROMPT),
+        SystemMessage(content=_finalizer_system_prompt()),
         HumanMessage(content="\n\n".join(prompt_parts)),
     ]
     try:
@@ -842,7 +867,7 @@ def _sanitize_final_answer(answer_text: str) -> str:
     if _has_required_sections(content):
         return content
     if not content:
-        content = "No answer available."
+        content = "No answer found."
     return "Answer\n" + content + "\n"
 
 
@@ -884,7 +909,7 @@ def research_news(
                 thinking_steps.append(
                     {
                         "type": "action",
-                        "content": f"Calling {tool_call['name']} with {tool_call.get('args', {})}",
+                        "content": f"Tool request: {tool_call['name']} {tool_call.get('args', {})}",
                         "timestamp": datetime.now(timezone.utc).isoformat(),
                     }
                 )

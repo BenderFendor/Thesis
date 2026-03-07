@@ -313,7 +313,7 @@ export default function ReporterProfilePage() {
 
         {/* Advertiser Alignment */}
         {data.advertiser_alignment && Object.keys(data.advertiser_alignment).length > 0 && (
-          <DossierSection title="Advertiser / Owner Alignment" icon={<Building2 className="w-4 h-4" />}>
+          <DossierSection title="Advertiser and Owner Interests" icon={<Building2 className="w-4 h-4" />}>
             {renderJsonSection(data.advertiser_alignment)}
           </DossierSection>
         )}

@@ -1,7 +1,9 @@
 import json
 import threading
+from typing import Any, cast
 
 import pytest
+from fastapi import Request
 from langchain_core.messages import AIMessage, ToolMessage
 
 import news_research_agent as agent
@@ -39,11 +41,14 @@ def test_dedup_tool_node_blocks_duplicate_calls(monkeypatch) -> None:
             "args": {"url": "https://example.com/story/"},
         },
     ]
-    state = {
-        "messages": [AIMessage(content="", tool_calls=tool_calls)],
-        "tool_history": set(),
-        "tool_calls_used": 0,
-    }
+    state = cast(
+        Any,
+        {
+            "messages": [AIMessage(content="", tool_calls=tool_calls)],
+            "tool_history": set(),
+            "tool_calls_used": 0,
+        },
+    )
 
     out = agent._dedup_tool_node(state)
     contents = [str(message.content) for message in out["messages"]]
@@ -68,18 +73,25 @@ def test_dedup_tool_node_enforces_session_cap(monkeypatch) -> None:
 
     monkeypatch.setattr(agent, "ToolNode", FakeToolNode)
 
-    state = {
-        "messages": [
-            AIMessage(
-                content="",
-                tool_calls=[
-                    {"id": "cap-call", "name": "web_search", "args": {"query": "test"}},
-                ],
-            )
-        ],
-        "tool_history": set(),
-        "tool_calls_used": agent.MAX_TOOL_CALLS_PER_SESSION,
-    }
+    state = cast(
+        Any,
+        {
+            "messages": [
+                AIMessage(
+                    content="",
+                    tool_calls=[
+                        {
+                            "id": "cap-call",
+                            "name": "web_search",
+                            "args": {"query": "test"},
+                        },
+                    ],
+                )
+            ],
+            "tool_history": set(),
+            "tool_calls_used": agent.MAX_TOOL_CALLS_PER_SESSION,
+        },
+    )
 
     out = agent._dedup_tool_node(state)
     assert len(out["messages"]) == 1
@@ -195,7 +207,7 @@ async def test_stream_route_fallback_answer_contract(monkeypatch) -> None:
     monkeypatch.setattr(research_route, "stream_research_agent", fake_stream_agent)
 
     response = await research_route.news_research_stream_endpoint(
-        request=FakeRequest(),
+        request=cast(Request[Any], FakeRequest()),
         query="test fallback",
         include_thinking=True,
         history=None,
@@ -203,7 +215,7 @@ async def test_stream_route_fallback_answer_contract(monkeypatch) -> None:
 
     complete_payload = None
     async for chunk in response.body_iterator:
-        text = chunk.decode() if isinstance(chunk, bytes) else chunk
+        text = chunk.decode() if isinstance(chunk, (bytes, bytearray)) else str(chunk)
         for line in text.splitlines():
             if not line.startswith("data: "):
                 continue
@@ -212,7 +224,7 @@ async def test_stream_route_fallback_answer_contract(monkeypatch) -> None:
                 complete_payload = event["result"]
 
     assert complete_payload is not None
-    assert complete_payload["answer"] == "Answer\nNo answer available.\n"
+    assert complete_payload["answer"] == "Answer\nNo answer found.\n"
     assert "Follow-up questions" not in complete_payload["answer"]
 
 
@@ -254,7 +266,7 @@ async def test_stream_route_stops_when_client_disconnects(monkeypatch) -> None:
     monkeypatch.setattr(research_route, "stream_research_agent", fake_stream_agent)
 
     response = await research_route.news_research_stream_endpoint(
-        request=FakeRequest(),
+        request=cast(Request[Any], FakeRequest()),
         query="disconnect",
         include_thinking=True,
         history=None,
@@ -262,7 +274,7 @@ async def test_stream_route_stops_when_client_disconnects(monkeypatch) -> None:
 
     parsed_events = []
     async for chunk in response.body_iterator:
-        text = chunk.decode() if isinstance(chunk, bytes) else chunk
+        text = chunk.decode() if isinstance(chunk, (bytes, bytearray)) else str(chunk)
         for line in text.splitlines():
             if line.startswith("data: "):
                 parsed_events.append(json.loads(line[6:]))

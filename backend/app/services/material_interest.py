@@ -19,8 +19,17 @@ import httpx
 
 from app.core.llm_client import get_llm_client
 from app.core.logging import get_logger
+from app.services.prompting import COPY_STYLE_GUIDE, build_json_system_prompt
 
 logger = get_logger("material_interest")
+
+MATERIAL_INTEREST_SYSTEM_PROMPT = build_json_system_prompt(
+    role="material interest analyst",
+    task=(
+        "Assess potential material interests, conflicts, blind spots, and reader "
+        "warnings from the supplied source and trade context."
+    ),
+)
 
 KNOWN_TRADE_RELATIONSHIPS: Dict[str, Dict[str, Any]] = {
     "US-CN": {
@@ -312,11 +321,16 @@ Respond in JSON:
   "analysis_summary": "Brief summary of material context",
   "reader_warnings": ["things readers should know"],
   "confidence": "high/medium/low"
-}}"""
+}}
+
+{COPY_STYLE_GUIDE}"""
 
             response = self.llm_client.chat_completions_create(
                 service_name="material",
-                messages=[{"role": "user", "content": context}],
+                messages=[
+                    {"role": "system", "content": MATERIAL_INTEREST_SYSTEM_PROMPT},
+                    {"role": "user", "content": context},
+                ],
                 max_tokens=600,
                 temperature=0.3,
             )

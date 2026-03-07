@@ -271,13 +271,13 @@ export function GlobeView({ articles, loading }: GlobeViewProps) {
             </div>
           ) : (
             <div className="rounded-none border border-white/10 bg-[var(--news-bg-primary)]/40 p-3 text-xs leading-relaxed text-muted-foreground">
-              The map is now colored by recent country coverage, not just outlet origin. Click a country to open a local lens and compare domestic framing with outside reporting.
+              The map shows recent coverage volume. Click a country to view local and foreign reporting.
             </div>
           )}
 
           <div className="border border-white/10 bg-[var(--news-bg-primary)]/30 p-3 text-xs leading-relaxed text-muted-foreground">
             {selectedCountry
-              ? `Globe focus is locked on ${focusLabel}. Spin or click another country on the map to compare lenses without leaving this desk.`
+              ? `Focus locked on ${focusLabel}. Select another country on the map to compare reporting.`
               : "Use the globe as the country navigator. Hover to inspect coverage heat, then click a country to open its local and world lens."}
           </div>
 

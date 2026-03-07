@@ -957,9 +957,9 @@ export function ArticleDetailModal({ article, isOpen, onClose, onBookmarkChange,
                   <div className="bg-primary/10 border border-primary/30 rounded-lg p-4">
                     <div className="flex items-center gap-2 mb-2">
                       <Sparkles className="h-4 w-4 text-primary" />
-                      <h3 className="text-sm font-semibold text-white">AI Enhanced Version Available</h3>
+                      <h3 className="text-sm font-semibold text-white">Clean Reading View</h3>
                     </div>
-                    <p className="text-sm text-gray-400 mb-3">AI has extracted an enhanced version of this article with better formatting.</p>
+                    <p className="text-sm text-gray-400 mb-3">A clean text version is available.</p>
                     <details className="text-sm">
                       <summary className="cursor-pointer text-primary hover:text-primary/80">Show AI Version</summary>
                       <div className="mt-3 text-gray-300 leading-relaxed whitespace-pre-wrap">
@@ -1637,7 +1637,7 @@ export function ArticleDetailModal({ article, isOpen, onClose, onBookmarkChange,
                                 Verified Claims
                               </DialogTitle>
                               <p className="text-xs text-foreground/70">
-                                Cross-check statements, filter by confidence, and trigger live agentic research for additional corroboration.
+                                Check statements, filter by confidence, and run live searches for evidence.
                               </p>
                             </DialogHeader>
 
@@ -1774,10 +1774,10 @@ export function ArticleDetailModal({ article, isOpen, onClose, onBookmarkChange,
                                       <div className="mb-3 flex items-start justify-between gap-3">
                                         <div>
                                           <h4 className="flex items-center gap-2 text-sm font-semibold text-foreground">
-                                            <Search className="h-4 w-4" /> Live Agentic Research
+                                            <Search className="h-4 w-4" /> Live Research
                                           </h4>
                                           <p className="text-xs text-foreground/70">
-                                            Run the LangChain agent with enriched context to surface the latest corroborating evidence.
+                                            Search for recent evidence.
                                           </p>
                                         </div>
                                         {agenticHistory.length > 0 && (
@@ -1800,7 +1800,7 @@ export function ArticleDetailModal({ article, isOpen, onClose, onBookmarkChange,
                                           ) : (
                                             <>
                                               <Sparkles className="h-4 w-4" />
-                                              Agentic Research
+                                              Live Research
                                             </>
                                           )}
                                         </Button>

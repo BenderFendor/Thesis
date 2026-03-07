@@ -9,7 +9,14 @@
 - Keep writing concise: avoid filler, keep sentences focused, avoid jargon when simpler terms work.
 - Add minimal, thoughtful debugging to support future troubleshooting.
 - Prefer a single LLM API call per feature flow when feasible to reduce rate-limit risk; consolidate prompts instead of chaining calls.
-- **NEVER create markdown summary files.** Log changes to Log.md instead. Do not create *_SUMMARY.md, *-summary.md, or similar files.
+- **NEVER create markdown summary files.** Log changes to `docs/Log.md` instead. Do not create *_SUMMARY.md, *-summary.md, or similar files.
+- Do not write standalone session logs to `./log/` for normal code changes. Use `docs/Log.md`.
+
+## LLM Prompt Architecture
+- Centralize shared prompt rules in reusable helpers instead of repeating full system prompts across services.
+- Shared prompt blocks must carry the current date, Scoop role identity, grounding rules, and copy style rules.
+- Keep task-specific instructions separate from shared identity and style blocks so prompts stay consistent without losing task control.
+- When prompt message structure changes from one message to system plus user messages, update tests that inspect raw LLM payloads.
 
 ## Frontend Performance
 - When using `next/dynamic`, keep the loading component as a single React element. Complex JSX structures in the `loading` option can cause lazy element type errors.
@@ -143,7 +150,7 @@ When seeing `UndefinedColumnError`:
 Run `./verify.sh` before ending any session. It exits on first failure (`set -e`).
 
 ### TypeScript / Frontend
-- `npm --prefix frontend run tsc -- --noEmit` — catches type violations the build might miss
+- `npx tsc --noEmit` (run in `frontend/`) — catches type violations the build might miss
 - `npm --prefix frontend run lint` — enforces `@typescript-eslint/no-explicit-any` and related rules
 
 ### Python / Backend

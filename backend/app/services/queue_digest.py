@@ -8,8 +8,22 @@ from typing import Any
 from app.core.config import settings
 from app.core.llm_client import get_llm_client
 from app.core.logging import get_logger
+from app.services.prompting import (
+    COPY_STYLE_GUIDE,
+    build_text_system_prompt,
+    compose_prompt_blocks,
+)
 
 logger = get_logger("queue_digest")
+
+DIGEST_SYSTEM_PROMPT = build_text_system_prompt(
+    role="news digest writer",
+    task="Write a clean reading digest from the supplied article set.",
+    output_rules=compose_prompt_blocks(
+        "Write in markdown.",
+        "Keep the digest skimmable without listicle filler.",
+    ),
+)
 
 
 async def generate_queue_digest(
@@ -34,7 +48,7 @@ async def generate_queue_digest(
         response = llm_client.chat_completions_create(
             service_name="queue_digest",
             messages=[
-                {"role": "system", "content": "You are a helpful news assistant."},
+                {"role": "system", "content": DIGEST_SYSTEM_PROMPT},
                 {"role": "user", "content": _build_digest_prompt(articles, grouped)},
             ],
             model=settings.open_router_model,
@@ -123,7 +137,7 @@ include a Markdown link using the article title that points to the article URL (
 parentheses after the title.
 
 Create a professional digest that:
-1. Starts with an executive summary (2-3 sentences highlighting the day's key themes)
+1. Starts with an executive summary (2-3 sentences noting the day's key themes)
 2. Organizes insights by category/theme with clear subheadings
 3. Uses bullet points for easy scanning
 4. Highlights 3-5 key takeaways and implications
@@ -132,6 +146,8 @@ Create a professional digest that:
 
 Format using clean Markdown for maximum readability. Focus on synthesizing connections
 between articles rather than summarizing each individually.
+
+{COPY_STYLE_GUIDE}
 
 REFERENCE LINKS:
 {reference_links}
