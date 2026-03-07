@@ -7,6 +7,7 @@ set -euo pipefail
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 BACKEND_DIR="$ROOT_DIR/backend"
 FRONTEND_DIR="$ROOT_DIR/frontend"
+LOG_DIR="${LOG_DIR:-$ROOT_DIR/log}"
 
 BACKEND_PORT="${BACKEND_PORT:-8000}"
 FRONTEND_PORT="${FRONTEND_PORT:-3000}"
@@ -19,7 +20,7 @@ DATABASE_URL="${DATABASE_URL:-postgresql+asyncpg://${POSTGRES_USER}:${POSTGRES_P
 CHROMA_HOST="${CHROMA_HOST:-localhost}"
 CHROMA_PORT="${CHROMA_PORT:-8001}"
 CHROMA_DATA_DIR="${CHROMA_DATA_DIR:-$ROOT_DIR/.chroma}"
-CHROMA_LOG_FILE="${CHROMA_LOG_FILE:-$CHROMA_DATA_DIR/chroma.log}"
+CHROMA_LOG_FILE="${CHROMA_LOG_FILE:-$LOG_DIR/chroma.log}"
 AUTO_INSTALL="${AUTO_INSTALL:-1}"
 GUNICORN_WORKERS="${GUNICORN_WORKERS:-4}"
 NEXT_PUBLIC_API_URL="${NEXT_PUBLIC_API_URL:-http://localhost:${BACKEND_PORT}}"
@@ -36,6 +37,9 @@ log() {
 log "ROOT_DIR: $ROOT_DIR"
 log "BACKEND_DIR: $BACKEND_DIR"
 log "FRONTEND_DIR: $FRONTEND_DIR"
+log "LOG_DIR: $LOG_DIR"
+
+mkdir -p "$LOG_DIR"
 
 # Source API keys from backend/.env (needed by wiki indexer and LLM scoring)
 if [[ -f "$BACKEND_DIR/.env" ]]; then
@@ -73,7 +77,8 @@ Usage: ./runlocal.sh [setup|services|backend|frontend|all|killall|help]
   CHROMA_HOST    Hostname for ChromaDB (default localhost)
   CHROMA_PORT    Port for ChromaDB (default 8001)
   CHROMA_DATA_DIR Persistent directory for Chroma data (default ./.chroma)
-  CHROMA_LOG_FILE Log file for Chroma server (default ./.chroma/chroma.log)
+  CHROMA_LOG_FILE Log file for Chroma server (default ./logs/chroma.log)
+  LOG_DIR         Directory for all log files (default ./logs)
   AUTO_INSTALL   Set to 1 to auto-install Postgres if missing (default 1)
   GUNICORN_WORKERS Worker count for backend (default 4)
   NEXT_PUBLIC_API_URL        Frontend base URL for local backend (default http://localhost:<BACKEND_PORT>)

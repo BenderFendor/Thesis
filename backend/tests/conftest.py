@@ -122,6 +122,9 @@ async def seeded_db(db_session: AsyncSession) -> AsyncSession:
             url="https://testnews.example.com/a",
             published_at=_utc(1),
             category="politics",
+            country="US",
+            summary="Washington says domestic policy remains the top story in the United States.",
+            content="Washington says domestic policy remains the top story in the United States.",
         ),
         Article(
             id=2,
@@ -130,6 +133,9 @@ async def seeded_db(db_session: AsyncSession) -> AsyncSession:
             url="https://testnews.example.com/b",
             published_at=_utc(2),
             category="world",
+            country="US",
+            summary="China and the United States remain central to this trade briefing.",
+            content="China and the United States remain central to this trade briefing.",
         ),
         Article(
             id=3,
@@ -138,6 +144,20 @@ async def seeded_db(db_session: AsyncSession) -> AsyncSession:
             url="https://stategazette.example.com/c",
             published_at=_utc(0),
             category="politics",
+            country="GB",
+            summary="Editors are closely watching China policy from Beijing.",
+            content="Editors are closely watching China policy from Beijing.",
+        ),
+        Article(
+            id=4,
+            title="Article D",
+            source="Independent Wire",
+            url="https://indwire.example.com/d",
+            published_at=_utc(0),
+            category="world",
+            country="DE",
+            summary="Berlin analysis says China is reshaping European supply chains.",
+            content="Berlin analysis says China is reshaping European supply chains.",
         ),
     ]
     db_session.add_all(articles)

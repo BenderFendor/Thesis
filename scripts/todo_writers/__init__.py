@@ -1,1 +1,0 @@
-"""Writers package"""

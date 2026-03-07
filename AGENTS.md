@@ -22,6 +22,7 @@
 2. **Compiler-Driven Development:** Before marking code as done, run the type checker (`mypy` or `tsc --noEmit`). Fix all type errors. `Any` or `# type: ignore` are forbidden without written justification.
 3. **Visual Verification:** If you change a UI component, use the Playwright MCP to take a screenshot, analyze it with vision capabilities, and confirm the visual hierarchy is unbroken.
 4. **Epistemic Honesty:** If you do not know the shape of an API payload, do not guess. Use `curl`, `fetch`, or web-search tools to observe the actual raw data before writing parsing logic.
+5. **List/Detail/Snapshot Consistency:** For topic or cluster bugs, compare the live list payload, detail payload, and persisted snapshot source before changing UI logic.
 
 ## Epistemology
 - Assumptions are the enemy.
@@ -42,6 +43,8 @@
 - If multiple distinct articles show identical full text, validate `/article/extract` against at least two URLs from the same source before touching UI.
 - When extractor output is wrong, identify the publisher platform and add a site-specific extraction path before modifying front-end caching.
 - Log the extractor chosen and the requested URL when extraction succeeds or fails.
+- For clustering or ranking bugs, inspect token extraction and real overlap from the running backend on sampled articles before changing thresholds or stopwords.
+- If a preview card renders snapshot articles, its badges must describe that preview set rather than hidden full-cluster totals.
 
 ## Backfill & Data Migration
 - After creating a backfill endpoint, run it. The endpoint existing is not enough.
@@ -58,6 +61,7 @@
 - URLs ending in `.svg` or containing `placeholder` are not valid article images.
 - Frontend `hasRealImage()` helpers must return false for marker values like `"none"`.
 - Run `/debug/backfill/images` after adding new sources or if images are missing.
+- Topic and cluster cards should fall back to the first real image in the preview article list when the representative article has none.
 
 ## Abstractions
 Consciously constrained, pragmatically parameterised, doggedly documented.

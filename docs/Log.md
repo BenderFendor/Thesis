@@ -1,5 +1,42 @@
 # Log
 
+## 2026-03-06: Global View And Local Lens Overhaul
+
+**Problem:** The globe view was mostly cosmetic. It colored the map by outlet origin only, filtered country focus from the current frontend article subset, and the old "global view" lens often returned unrelated foreign stories instead of outside coverage about the selected country.
+
+**What Changed:**
+- Reworked `backend/app/api/routes/news_by_country.py` so the heatmap is driven by recent country mentions in article text, while still exposing `source_counts` for outlet-origin comparison.
+- Upgraded `/news/country/{code}` to return a real local lens payload with `country_name`, `matching_strategy`, `source_count`, `window_hours`, `source_country`, and inferred `mentioned_countries`.
+- Added mention-based country matching with a controlled source-origin fallback when internal self-coverage is absent.
+- Normalized frontend country handling to ISO codes in `frontend/lib/api.ts` so globe clicks, backend payloads, and mapped articles all use the same country identity.
+- Rebuilt `frontend/components/globe-view.tsx` to use backend-driven local/world lens data, country coverage metrics, and a clearer country drill-in sidebar.
+- Updated `frontend/components/interactive-globe.tsx` so globe intensity comes from backend coverage counts instead of the local article subset.
+- Added regression coverage in `backend/tests/test_news_by_country.py` and `frontend/__tests__/country-mapping.test.ts`.
+
+**Verification:**
+- `backend/.venv/bin/pytest backend/tests/test_news_by_country.py` passes.
+- `npm --prefix frontend test -- --runTestsByPath __tests__/country-mapping.test.ts` passes.
+- `./frontend/node_modules/.bin/tsc -p frontend/tsconfig.json --noEmit` passes.
+- `npm --prefix frontend run build` passes.
+- `./verify.sh` passes, including the backend test suite.
+- Live endpoint checks confirm `/news/by-country` now returns `counts`, `source_counts`, and `window_hours`, while `/news/country/{code}` returns `matching_strategy`, `country_name`, `source_country`, and `mentioned_countries`.
+- Chrome DevTools desktop validation confirms the globe screen renders with populated `COVERAGE HEAT`, `COUNTRIES LIT`, and `MAPPED ARTICLES` metrics.
+
+### Follow-up: Robust Alias Generation And Country Picker
+
+**What Changed:**
+- Added `backend/scripts/generate_country_aliases.py` to generate `backend/app/data/country_aliases.json` from ISO country metadata, alternate spellings, and demonyms instead of relying on a hardcoded alias dict.
+- Added `backend/app/data/demonyms.json` as the source dataset used during alias generation.
+- Switched backend country mention matching to load the generated alias file.
+- Added a searchable country index to `frontend/components/globe-view.tsx` so country drill-in works through DOM controls as well as globe clicks.
+- Expanded the focus sidebar with a country dossier, stored-source totals, recent mention totals, and latest indexed timestamps.
+- Decoupled the country picker from the heatmap request so country search remains usable even if the globe metrics are still loading.
+- Reduced the default live heatmap window to 24 hours to keep the globe responsive under current data volume.
+
+**Verification:**
+- Live browser verification confirmed end-to-end country drill-in for `US` through the new picker.
+- Live backend checks confirmed the optimized `/news/by-country?hours=24` endpoint returns within a few seconds instead of timing out.
+
 ## 2026-02-26: ChromaDB Schema Mismatch Fix
 
 **Problem:** ChromaDB client (0.4.24) failed to connect with error:
@@ -243,4 +280,3 @@ curl http://localhost:8000/trending/diagnostics
 - Implemented lexical fallback for topic clustering and snapshot-first detail lookup so the by-topic view remains available when Chroma is unstable.
 - Frontend now reports initialization state and auto-retries while snapshots build.
 - Added targeted backend tests and adjusted sync wait to provide faster developer feedback.
-

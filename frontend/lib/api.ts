@@ -110,6 +110,74 @@ export interface NewsArticle {
   };
 }
 
+const COUNTRY_NAME_TO_CODE: Record<string, string> = {
+  "united states": "US",
+  usa: "US",
+  america: "US",
+  "united kingdom": "GB",
+  britain: "GB",
+  england: "GB",
+  china: "CN",
+  germany: "DE",
+  france: "FR",
+  india: "IN",
+  japan: "JP",
+  canada: "CA",
+  australia: "AU",
+  russia: "RU",
+  ukraine: "UA",
+  taiwan: "TW",
+  "south korea": "KR",
+  "north korea": "KP",
+  "hong kong": "HK",
+  hongkong: "HK",
+  israel: "IL",
+  palestine: "PS",
+  qatar: "QA",
+  turkey: "TR",
+  nigeria: "NG",
+  singapore: "SG",
+  pakistan: "PK",
+  indonesia: "ID",
+  vietnam: "VN",
+  thailand: "TH",
+  philippines: "PH",
+  mexico: "MX",
+  "new zealand": "NZ",
+  newzealand: "NZ",
+  greece: "GR",
+  "south africa": "ZA",
+  egypt: "EG",
+  argentina: "AR",
+  bangladesh: "BD",
+  kenya: "KE",
+  myanmar: "MM",
+  venezuela: "VE",
+  colombia: "CO",
+  kazakhstan: "KZ",
+  international: "International",
+};
+
+function normalizeCountryCode(value?: string | null): string {
+  if (!value) return "International";
+  const trimmed = value.trim();
+  if (!trimmed) return "International";
+  if (trimmed === "International") return trimmed;
+
+  const compactUpper = trimmed.toUpperCase();
+  if (/^[A-Z]{2}$/.test(compactUpper)) {
+    return compactUpper;
+  }
+
+  const normalizedName = trimmed
+    .toLowerCase()
+    .replace(/[.]/g, "")
+    .replace(/\s+/g, " ")
+    .trim();
+  const noSpace = normalizedName.replace(/\s+/g, "");
+  return COUNTRY_NAME_TO_CODE[normalizedName] || COUNTRY_NAME_TO_CODE[noSpace] || compactUpper;
+}
+
 const BackendArticleSchema = z
   .object({
     id: z.number().optional(),
@@ -305,14 +373,14 @@ export async function fetchNews(params?: {
 // Helper functions to map source to metadata
 function getCountryFromSource(source: string): string {
   const countryMap: { [key: string]: string } = {
-    BBC: "United Kingdom",
-    CNN: "United States",
-    Reuters: "United Kingdom",
-    NPR: "United States",
-    "Fox News": "United States",
-    "Associated Press": "United States",
+    BBC: "GB",
+    CNN: "US",
+    Reuters: "GB",
+    NPR: "US",
+    "Fox News": "US",
+    "Associated Press": "US",
   };
-  return countryMap[source] || "United States";
+  return countryMap[source] || "US";
 }
 
 function getCredibilityFromSource(source: string): "high" | "medium" | "low" {
@@ -842,8 +910,9 @@ export async function getArticlesByCountry(
   if (cachedArticles.length === 0) {
     cachedArticles = await fetchNews({ limit: 3000 }); // Get more articles for filtering
   }
+  const normalized = normalizeCountryCode(country);
   return cachedArticles.filter(
-    (article) => article.country.toLowerCase() === country.toLowerCase(),
+    (article) => normalizeCountryCode(article.country) === normalized,
   );
 }
 
@@ -1958,7 +2027,18 @@ export function mapBackendArticles(
       article.author ||
       (Array.isArray(article.authors) ? article.authors[0] : undefined);
 
-    const country = article.country || getCountryFromSource(sourceName);
+    const rawCountry = typeof article.country === "string" ? article.country : undefined;
+    const country = normalizeCountryCode(rawCountry || getCountryFromSource(sourceName));
+    const sourceCountry = normalizeCountryCode(
+      typeof article.source_country === "string"
+        ? article.source_country
+        : rawCountry || getCountryFromSource(sourceName),
+    );
+    const mentionedCountries = Array.isArray(article.mentioned_countries)
+      ? article.mentioned_countries
+          .filter((value): value is string => typeof value === "string")
+          .map((value) => normalizeCountryCode(value))
+      : [];
     const credibilityValue =
       typeof article.credibility === "string"
         ? article.credibility.toLowerCase()
@@ -1994,6 +2074,8 @@ export function mapBackendArticles(
       originalLanguage: article.original_language || "en",
       translated: article.translated ?? false,
       author: author || undefined,
+      source_country: sourceCountry,
+      mentioned_countries: mentionedCountries,
     };
 
     return mappedArticle;
@@ -2782,10 +2864,12 @@ export async function fetchCachedNewsPaginated(
 
 export interface CountryArticleCounts {
   counts: Record<string, number>;
+  source_counts?: Record<string, number>;
   total_articles: number;
   articles_with_country: number;
   articles_without_country: number;
   country_count: number;
+  window_hours?: number;
 }
 
 export interface CountryGeoData {
@@ -2804,15 +2888,28 @@ export interface CountryListResponse {
   total_countries: number;
 }
 
+export interface CountryPickerItem {
+  code: string;
+  name: string;
+  article_count: number;
+  latest_article: string | null;
+  heat_count: number;
+  source_count: number;
+}
+
 export interface LocalLensResponse {
   country_code: string;
+  country_name?: string;
   view: "internal" | "external";
   view_description: string;
+  matching_strategy?: string;
   total: number;
   limit: number;
   offset: number;
   returned: number;
   has_more: boolean;
+  source_count?: number;
+  window_hours?: number | null;
   articles: NewsArticle[];
 }
 
@@ -2820,7 +2917,7 @@ export interface LocalLensResponse {
  * Get article counts grouped by country for globe heatmap
  */
 export async function fetchArticleCountsByCountry(): Promise<CountryArticleCounts> {
-  const response = await fetch(`${API_BASE_URL}/news/by-country`);
+  const response = await fetch(`${API_BASE_URL}/news/by-country?hours=24`);
   if (!response.ok) {
     throw new Error(`HTTP error! status: ${response.status}`);
   }
@@ -2849,6 +2946,22 @@ export async function fetchCountryList(): Promise<CountryListResponse> {
   return response.json();
 }
 
+export async function fetchCountryPickerItems(): Promise<CountryPickerItem[]> {
+  const [countryList, geoData] = await Promise.all([
+    fetchCountryList(),
+    fetchCountryGeoData(),
+  ]);
+
+  return countryList.countries.map((country) => ({
+    code: country.code,
+    name: geoData.countries[country.code]?.name || country.code,
+    article_count: country.article_count,
+    latest_article: country.latest_article,
+    heat_count: 0,
+    source_count: country.article_count,
+  }));
+}
+
 /**
  * Local Lens: Get news for a specific country
  * @param code ISO country code
@@ -2859,15 +2972,19 @@ export async function fetchNewsForCountry(
   view: "internal" | "external" = "internal",
   limit: number = 50,
   offset: number = 0,
+  hours?: number,
 ): Promise<LocalLensResponse> {
   const params = new URLSearchParams({
     view,
     limit: limit.toString(),
     offset: offset.toString(),
   });
+  if (typeof hours === "number") {
+    params.set("hours", hours.toString());
+  }
 
   const response = await fetch(
-    `${API_BASE_URL}/news/country/${code}?${params}`,
+    `${API_BASE_URL}/news/country/${normalizeCountryCode(code)}?${params}`,
   );
   if (!response.ok) {
     throw new Error(`HTTP error! status: ${response.status}`);
