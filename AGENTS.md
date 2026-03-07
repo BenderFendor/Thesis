@@ -12,6 +12,18 @@
 - **NEVER create markdown summary files.** Log changes to `docs/Log.md` instead. Do not create *_SUMMARY.md, *-summary.md, or similar files.
 - Do not write standalone session logs to `./log/` for normal code changes. Use `docs/Log.md`.
 
+## RSS Source Catalog
+- `backend/app/data/rss_sources.json` is a curated catalog, not a dump. Quality beats country-count inflation.
+- For new RSS sources, prefer first-party English-language feeds from outlets that shape domestic discourse in that country.
+- Validate every candidate feed with a live fetch that returns real RSS or Atom XML and non-zero items before adding it.
+- Reject feeds that return HTML, malformed XML, empty channels, stale content, or anti-bot challenge pages.
+- When possible, add contrasting source pairs for the same country instead of multiple outlets with the same editorial position.
+- State or state-affiliated outlets are allowed only when clearly labeled and ideally paired with an independent, nonprofit, or private domestic source.
+- Every new source entry should include `url`, `category`, `country`, `funding_type`, `bias_rating`, and `ownership_label`.
+- Use compact ownership labels in `ownership_label`, for example `state-owned news agency`, `public broadcaster`, `private media group`, `family-owned newspaper`, `independent digital outlet`, or `NGO-owned investigative outlet`.
+- Prefer ISO-style two-letter country codes in `country`.
+- After changing RSS sources, run a machine check that the JSON still loads and that newly added feeds still parse successfully.
+
 ## LLM Prompt Architecture
 - Centralize shared prompt rules in reusable helpers instead of repeating full system prompts across services.
 - Shared prompt blocks must carry the current date, Scoop role identity, grounding rules, and copy style rules.

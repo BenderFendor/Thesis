@@ -390,6 +390,7 @@ async def get_sources() -> List[SourceInfo]:
         country = info.get("country")
         funding_type = info.get("funding_type")
         bias_rating = info.get("bias_rating")
+        ownership_label = info.get("ownership_label")
         sources.append(
             SourceInfo(
                 name=name,
@@ -398,6 +399,9 @@ async def get_sources() -> List[SourceInfo]:
                 country=country if isinstance(country, str) else "US",
                 funding_type=funding_type if isinstance(funding_type, str) else None,
                 bias_rating=bias_rating if isinstance(bias_rating, str) else None,
+                ownership_label=(
+                    ownership_label if isinstance(ownership_label, str) else None
+                ),
             )
         )
     return sources
@@ -438,6 +442,7 @@ async def get_source_stats() -> Dict[str, object]:
                     "country": source_info.get("country", ""),
                     "funding_type": source_info.get("funding_type"),
                     "bias_rating": source_info.get("bias_rating"),
+                    "ownership_label": source_info.get("ownership_label"),
                     "article_count": 0,
                     "status": "pending",
                     "error_message": None,

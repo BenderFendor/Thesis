@@ -33,4 +33,5 @@ class SourceInfo(StrictBaseModel):
     country: str = "US"
     funding_type: Optional[str] = None
     bias_rating: Optional[str] = None
+    ownership_label: Optional[str] = None
     extra: Dict[str, Any] | None = None

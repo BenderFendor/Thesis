@@ -41,6 +41,7 @@ MOCK_RSS_SOURCES: Dict[str, Dict[str, Any]] = {
         "country": "US",
         "funding_type": "commercial",
         "bias_rating": "center",
+        "ownership_label": "private publisher",
     },
     "State Gazette": {
         "url": "https://stategazette.example.com/rss",
@@ -48,6 +49,7 @@ MOCK_RSS_SOURCES: Dict[str, Dict[str, Any]] = {
         "country": "GB",
         "funding_type": "state",
         "bias_rating": "left",
+        "ownership_label": "state-owned newspaper",
     },
     "Independent Wire": {
         "url": "https://indwire.example.com/rss",
@@ -55,6 +57,7 @@ MOCK_RSS_SOURCES: Dict[str, Dict[str, Any]] = {
         "country": "DE",
         "funding_type": "nonprofit",
         "bias_rating": "center",
+        "ownership_label": "nonprofit newswire",
     },
     "Right Report - 1": {
         "url": "https://rightreport.example.com/rss/1",
@@ -62,6 +65,7 @@ MOCK_RSS_SOURCES: Dict[str, Dict[str, Any]] = {
         "country": "US",
         "funding_type": "commercial",
         "bias_rating": "right",
+        "ownership_label": "private publisher",
     },
     "Right Report - 2": {
         "url": "https://rightreport.example.com/rss/2",
@@ -69,6 +73,7 @@ MOCK_RSS_SOURCES: Dict[str, Dict[str, Any]] = {
         "country": "US",
         "funding_type": "commercial",
         "bias_rating": "right",
+        "ownership_label": "private publisher",
     },
 }
 

@@ -24,6 +24,7 @@ async def get_sources() -> list[dict[str, Any]]:
             "country": source_data.get("country", ""),
             "funding_type": source_data.get("funding_type", ""),
             "bias_rating": source_data.get("bias_rating", ""),
+            "ownership_label": source_data.get("ownership_label", ""),
         }
         for name, source_data in rss_sources.items()
     ]

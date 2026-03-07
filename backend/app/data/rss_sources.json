@@ -1,5 +1,5 @@
 {
-      "BBC": {
+    "BBC": {
         "url": "https://feeds.bbci.co.uk/news/rss.xml",
         "category": "general",
         "country": "GB",
@@ -43,7 +43,7 @@
     },
     "CNN": {
         "url": "https://news.google.com/rss/search?q=site:cnn.com&hl=en-US&gl=US&ceid=US:en",
-        "category": "general", 
+        "category": "general",
         "country": "US",
         "funding_type": "Commercial",
         "bias_rating": "Left-Center"
@@ -51,7 +51,7 @@
     "Reuters": {
         "url": "https://www.reuters.com/tools/rss",
         "category": "general",
-        "country": "GB", 
+        "country": "GB",
         "funding_type": "Commercial",
         "bias_rating": "Center"
     },
@@ -73,25 +73,25 @@
         "url": "https://feeds.foxnews.com/foxnews/latest",
         "category": "politics",
         "country": "US",
-        "funding_type": "Commercial", 
+        "funding_type": "Commercial",
         "bias_rating": "Right"
     },
     "Associated Press": {
         "url": [
-        "http://associated-press.s3-website-us-east-1.amazonaws.com/business.xml",
-        "http://associated-press.s3-website-us-east-1.amazonaws.com/climate-and-environment.xml",
-        "http://associated-press.s3-website-us-east-1.amazonaws.com/entertainment.xml",
-        "http://associated-press.s3-website-us-east-1.amazonaws.com/health.xml",
-        "http://associated-press.s3-website-us-east-1.amazonaws.com/lifestyle.xml",
-        "http://associated-press.s3-website-us-east-1.amazonaws.com/oddities.xml",
-        "http://associated-press.s3-website-us-east-1.amazonaws.com/politics.xml",
-        "http://associated-press.s3-website-us-east-1.amazonaws.com/religion.xml",
-        "http://associated-press.s3-website-us-east-1.amazonaws.com/science.xml",
-        "http://associated-press.s3-website-us-east-1.amazonaws.com/sports.xml",
-        "http://associated-press.s3-website-us-east-1.amazonaws.com/technology.xml",
-        "http://associated-press.s3-website-us-east-1.amazonaws.com/travel.xml",
-        "http://associated-press.s3-website-us-east-1.amazonaws.com/us-news.xml",
-        "http://associated-press.s3-website-us-east-1.amazonaws.com/world-news.xml"
+            "http://associated-press.s3-website-us-east-1.amazonaws.com/business.xml",
+            "http://associated-press.s3-website-us-east-1.amazonaws.com/climate-and-environment.xml",
+            "http://associated-press.s3-website-us-east-1.amazonaws.com/entertainment.xml",
+            "http://associated-press.s3-website-us-east-1.amazonaws.com/health.xml",
+            "http://associated-press.s3-website-us-east-1.amazonaws.com/lifestyle.xml",
+            "http://associated-press.s3-website-us-east-1.amazonaws.com/oddities.xml",
+            "http://associated-press.s3-website-us-east-1.amazonaws.com/politics.xml",
+            "http://associated-press.s3-website-us-east-1.amazonaws.com/religion.xml",
+            "http://associated-press.s3-website-us-east-1.amazonaws.com/science.xml",
+            "http://associated-press.s3-website-us-east-1.amazonaws.com/sports.xml",
+            "http://associated-press.s3-website-us-east-1.amazonaws.com/technology.xml",
+            "http://associated-press.s3-website-us-east-1.amazonaws.com/travel.xml",
+            "http://associated-press.s3-website-us-east-1.amazonaws.com/us-news.xml",
+            "http://associated-press.s3-website-us-east-1.amazonaws.com/world-news.xml"
         ],
         "category": "general",
         "country": "US",
@@ -845,7 +845,7 @@
         "funding_type": "Non-profit",
         "bias_rating": "Center"
     },
-    "El País": {
+    "El Pa\u00eds": {
         "url": "https://english.elpais.com/rss",
         "category": "general",
         "country": "ES",
@@ -1124,6 +1124,509 @@
         "country": "GB",
         "funding_type": "Commercial",
         "bias_rating": "Center"
+    },
+    "Haaretz": {
+        "url": "https://www.haaretz.com/srv/israel-news-rss",
+        "category": "general",
+        "country": "IL",
+        "funding_type": "Commercial",
+        "bias_rating": "Left-Center",
+        "ownership_label": "Private family-controlled newspaper"
+    },
+    "Jerusalem Post": {
+        "url": "https://www.jpost.com/rss/rssfeedsisraelnews.aspx",
+        "category": "general",
+        "country": "IL",
+        "funding_type": "Commercial",
+        "bias_rating": "Center-Right",
+        "ownership_label": "Private owner-controlled newspaper"
+    },
+    "IranWire": {
+        "url": "https://iranwire.com/en/feed/",
+        "category": "general",
+        "country": "IR",
+        "funding_type": "Independent",
+        "bias_rating": "Left-Center",
+        "ownership_label": "Independent diaspora newsroom"
+    },
+    "Express Tribune": {
+        "url": "https://tribune.com.pk/feed/pakistan",
+        "category": "general",
+        "country": "PK",
+        "funding_type": "Commercial",
+        "bias_rating": "Center",
+        "ownership_label": "Private media network"
+    },
+    "Malay Mail": {
+        "url": "https://www.malaymail.com/feed/rss/malaysia",
+        "category": "general",
+        "country": "MY",
+        "funding_type": "Commercial",
+        "bias_rating": "Center",
+        "ownership_label": "Private digital newspaper"
+    },
+    "Premium Times": {
+        "url": "https://www.premiumtimesng.com/feed",
+        "category": "general",
+        "country": "NG",
+        "funding_type": "Independent",
+        "bias_rating": "Center",
+        "ownership_label": "Private independent digital publisher"
+    },
+    "Nation Africa": {
+        "url": "https://nation.africa/kenya/rss.xml",
+        "category": "general",
+        "country": "KE",
+        "funding_type": "Commercial",
+        "bias_rating": "Center",
+        "ownership_label": "Publicly listed independent media group"
+    },
+    "The Chanzo": {
+        "url": "https://thechanzo.com/feed/",
+        "category": "general",
+        "country": "TZ",
+        "funding_type": "Independent",
+        "bias_rating": "Center",
+        "ownership_label": "Journalist-owned independent outlet"
+    },
+    "Mail & Guardian": {
+        "url": "https://mg.co.za/feed/",
+        "category": "general",
+        "country": "ZA",
+        "funding_type": "Independent",
+        "bias_rating": "Left-Center",
+        "ownership_label": "Private domestic publisher"
+    },
+    "The Fiji Times": {
+        "url": "https://www.fijitimes.com.fj/feed/",
+        "category": "general",
+        "country": "FJ",
+        "funding_type": "Commercial",
+        "bias_rating": "Center",
+        "ownership_label": "Private newspaper"
+    },
+    "Jamaica Observer": {
+        "url": "https://www.jamaicaobserver.com/feed/",
+        "category": "general",
+        "country": "JM",
+        "funding_type": "Commercial",
+        "bias_rating": "Center",
+        "ownership_label": "Private local owner-controlled newspaper"
+    },
+    "Trinidad and Tobago Newsday": {
+        "url": "https://newsday.co.tt/feed/",
+        "category": "general",
+        "country": "TT",
+        "funding_type": "Commercial",
+        "bias_rating": "Center",
+        "ownership_label": "Private domestic company"
+    },
+    "Kaieteur News": {
+        "url": "https://www.kaieteurnewsonline.com/feed/",
+        "category": "general",
+        "country": "GY",
+        "funding_type": "Commercial",
+        "bias_rating": "Center",
+        "ownership_label": "Private newspaper"
+    },
+    "Guyana Chronicle": {
+        "url": "https://guyanachronicle.com/feed/",
+        "category": "general",
+        "country": "GY",
+        "funding_type": "State-funded",
+        "bias_rating": "Center",
+        "ownership_label": "Government-owned daily newspaper"
+    },
+    "Barbados Today": {
+        "url": "https://barbadostoday.bb/feed/",
+        "category": "general",
+        "country": "BB",
+        "funding_type": "Commercial",
+        "bias_rating": "Center",
+        "ownership_label": "Private local company"
+    },
+    "Amandala": {
+        "url": "https://amandala.com.bz/news/feed/",
+        "category": "general",
+        "country": "BZ",
+        "funding_type": "Commercial",
+        "bias_rating": "Center",
+        "ownership_label": "Independent local family-run outlet"
+    },
+    "Breaking Belize News": {
+        "url": "https://www.breakingbelizenews.com/feed/",
+        "category": "general",
+        "country": "BZ",
+        "funding_type": "Commercial",
+        "bias_rating": "Center",
+        "ownership_label": "Private local digital outlet"
+    },
+    "Eyewitness News Bahamas": {
+        "url": "https://ewnews.com/feed/",
+        "category": "general",
+        "country": "BS",
+        "funding_type": "Commercial",
+        "bias_rating": "Center",
+        "ownership_label": "Private TV-linked digital outlet"
+    },
+    "Antigua Observer": {
+        "url": "https://antiguaobserver.com/feed/",
+        "category": "general",
+        "country": "AG",
+        "funding_type": "Commercial",
+        "bias_rating": "Center",
+        "ownership_label": "Private local media group"
+    },
+    "St. Lucia Times": {
+        "url": "https://stluciatimes.com/feed/",
+        "category": "general",
+        "country": "LC",
+        "funding_type": "Commercial",
+        "bias_rating": "Center",
+        "ownership_label": "Private digital outlet"
+    },
+    "Searchlight": {
+        "url": "https://www.searchlight.vc/feed/",
+        "category": "general",
+        "country": "VC",
+        "funding_type": "Independent",
+        "bias_rating": "Center",
+        "ownership_label": "Independent shareholder-owned outlet"
+    },
+    "Dominica News Online": {
+        "url": "https://dominicanewsonline.com/news/feed/",
+        "category": "general",
+        "country": "DM",
+        "funding_type": "Commercial",
+        "bias_rating": "Center",
+        "ownership_label": "Private local company"
+    },
+    "NOW Grenada": {
+        "url": "https://www.nowgrenada.com/feed/",
+        "category": "general",
+        "country": "GD",
+        "funding_type": "Commercial",
+        "bias_rating": "Center",
+        "ownership_label": "Private local company"
+    },
+    "Libya Herald": {
+        "url": "https://libyaherald.com/feed/",
+        "category": "general",
+        "country": "LY",
+        "funding_type": "Independent",
+        "bias_rating": "Center",
+        "ownership_label": "Private independent outlet"
+    },
+    "Yemen Monitor": {
+        "url": "https://www.yemenmonitor.com/en/feed",
+        "category": "general",
+        "country": "YE",
+        "funding_type": "Independent",
+        "bias_rating": "Center",
+        "ownership_label": "Private independent outlet"
+    },
+    "Shafaq News": {
+        "url": "https://shafaq.com/en/Iraq?rss=1",
+        "category": "general",
+        "country": "IQ",
+        "funding_type": "Independent",
+        "bias_rating": "Center",
+        "ownership_label": "Foundation-affiliated news outlet"
+    },
+    "Muscat Daily": {
+        "url": "https://www.muscatdaily.com/category/oman/feed/",
+        "category": "general",
+        "country": "OM",
+        "funding_type": "Commercial",
+        "bias_rating": "Center",
+        "ownership_label": "Private media company"
+    },
+    "Oman Observer": {
+        "url": "https://www.omanobserver.om/rssFeed/1",
+        "category": "general",
+        "country": "OM",
+        "funding_type": "State-funded",
+        "bias_rating": "Center",
+        "ownership_label": "State-owned newspaper"
+    },
+    "Doha News": {
+        "url": "https://dohanews.co/feed/",
+        "category": "general",
+        "country": "QA",
+        "funding_type": "Independent",
+        "bias_rating": "Center",
+        "ownership_label": "Private independent digital outlet"
+    },
+    "Qatar News Agency": {
+        "url": "https://qna.org.qa/en/Pages/RSS-Feeds/Qatar",
+        "category": "general",
+        "country": "QA",
+        "funding_type": "State-funded",
+        "bias_rating": "Center",
+        "ownership_label": "State-owned news agency"
+    },
+    "Kuwait Times": {
+        "url": "https://kuwaittimes.com/rssFeed/0/",
+        "category": "general",
+        "country": "KW",
+        "funding_type": "Commercial",
+        "bias_rating": "Center-Right",
+        "ownership_label": "Family-owned newspaper"
+    },
+    "Arab Times": {
+        "url": "https://www.arabtimesonline.com/rssFeed/29/",
+        "category": "general",
+        "country": "KW",
+        "funding_type": "Commercial",
+        "bias_rating": "Center-Right",
+        "ownership_label": "Owner-operated newspaper"
+    },
+    "Morocco World News": {
+        "url": "https://www.moroccoworldnews.com/feed/",
+        "category": "general",
+        "country": "MA",
+        "funding_type": "Commercial",
+        "bias_rating": "Center",
+        "ownership_label": "Founder-owned private outlet"
+    },
+    "Saudi Gazette": {
+        "url": "https://saudigazette.com.sa/rssFeed/0",
+        "category": "general",
+        "country": "SA",
+        "funding_type": "State-affiliated",
+        "bias_rating": "Center",
+        "ownership_label": "State-affiliated newspaper"
+    },
+    "MyJoyOnline": {
+        "url": "https://www.myjoyonline.com/feed/",
+        "category": "general",
+        "country": "GH",
+        "funding_type": "Commercial",
+        "bias_rating": "Center",
+        "ownership_label": "Private media group"
+    },
+    "Ghanaian Times": {
+        "url": "https://ghanaiantimes.com.gh/feed/",
+        "category": "general",
+        "country": "GH",
+        "funding_type": "State-funded",
+        "bias_rating": "Center",
+        "ownership_label": "State-owned newspaper"
+    },
+    "The Observer Uganda": {
+        "url": "https://observer.ug/feed/",
+        "category": "general",
+        "country": "UG",
+        "funding_type": "Commercial",
+        "bias_rating": "Center",
+        "ownership_label": "Private publisher"
+    },
+    "News Diggers": {
+        "url": "https://diggers.news/feed/",
+        "category": "general",
+        "country": "ZM",
+        "funding_type": "Independent",
+        "bias_rating": "Center",
+        "ownership_label": "Independent investigative outlet"
+    },
+    "ZimLive": {
+        "url": "https://www.zimlive.com/feed/",
+        "category": "general",
+        "country": "ZW",
+        "funding_type": "Independent",
+        "bias_rating": "Center",
+        "ownership_label": "Independent digital outlet"
+    },
+    "Nyasa Times": {
+        "url": "https://www.nyasatimes.com/feed/",
+        "category": "general",
+        "country": "MW",
+        "funding_type": "Independent",
+        "bias_rating": "Center",
+        "ownership_label": "Independent digital newspaper"
+    },
+    "The Namibian": {
+        "url": "https://www.namibian.com.na/feed/",
+        "category": "general",
+        "country": "NA",
+        "funding_type": "Independent",
+        "bias_rating": "Center",
+        "ownership_label": "Trust-owned newspaper"
+    },
+    "FrontPage Africa": {
+        "url": "https://frontpageafricaonline.com/feed/",
+        "category": "general",
+        "country": "LR",
+        "funding_type": "Commercial",
+        "bias_rating": "Center",
+        "ownership_label": "Private digital publisher"
+    },
+    "Eye Radio": {
+        "url": "https://www.eyeradio.org/feed/",
+        "category": "general",
+        "country": "SS",
+        "funding_type": "Non-profit",
+        "bias_rating": "Center",
+        "ownership_label": "NGO-partnered broadcaster"
+    },
+    "The Standard - Gambia": {
+        "url": "https://standard.gm/feed/",
+        "category": "general",
+        "country": "GM",
+        "funding_type": "Commercial",
+        "bias_rating": "Center",
+        "ownership_label": "Private newspaper company"
+    },
+    "KT Press": {
+        "url": "https://www.ktpress.rw/feed/",
+        "category": "general",
+        "country": "RW",
+        "funding_type": "Commercial",
+        "bias_rating": "Center",
+        "ownership_label": "Private media group"
+    },
+    "Lesotho Times": {
+        "url": "https://lestimes.com/?feed=rss2",
+        "category": "general",
+        "country": "LS",
+        "funding_type": "Commercial",
+        "bias_rating": "Center",
+        "ownership_label": "Private weekly newspaper"
+    },
+    "Hiiraan Online": {
+        "url": "https://hiiraan.com/news.xml",
+        "category": "general",
+        "country": "SO",
+        "funding_type": "Independent",
+        "bias_rating": "Center",
+        "ownership_label": "Independent digital publisher"
+    },
+    "Club of Mozambique": {
+        "url": "https://clubofmozambique.com/feed/",
+        "category": "general",
+        "country": "MZ",
+        "funding_type": "Commercial",
+        "bias_rating": "Center",
+        "ownership_label": "Company-backed private outlet"
+    },
+    "The Voice Botswana": {
+        "url": "https://thevoicebw.com/feed/",
+        "category": "general",
+        "country": "BW",
+        "funding_type": "Commercial",
+        "bias_rating": "Center",
+        "ownership_label": "Private newspaper"
+    },
+    "Hetq": {
+        "url": "https://hetq.am/en/rss",
+        "category": "general",
+        "country": "AM",
+        "funding_type": "Non-profit",
+        "bias_rating": "Center",
+        "ownership_label": "NGO-owned investigative outlet"
+    },
+    "Report.az": {
+        "url": "https://report.az/en/rss/",
+        "category": "general",
+        "country": "AZ",
+        "funding_type": "Commercial",
+        "bias_rating": "Center",
+        "ownership_label": "Private media group"
+    },
+    "Bhutan Broadcasting Service": {
+        "url": "https://www.bbs.bt/feed/",
+        "category": "general",
+        "country": "BT",
+        "funding_type": "Public",
+        "bias_rating": "Center",
+        "ownership_label": "Public broadcaster"
+    },
+    "Civil Georgia": {
+        "url": "https://civil.ge/feed/",
+        "category": "general",
+        "country": "GE",
+        "funding_type": "Independent",
+        "bias_rating": "Center",
+        "ownership_label": "Independent local newsroom"
+    },
+    "24.kg": {
+        "url": "https://24.kg/english/rss/",
+        "category": "general",
+        "country": "KG",
+        "funding_type": "Commercial",
+        "bias_rating": "Center",
+        "ownership_label": "Private news agency"
+    },
+    "Khmer Times": {
+        "url": "https://www.khmertimeskh.com/feed/",
+        "category": "general",
+        "country": "KH",
+        "funding_type": "Commercial",
+        "bias_rating": "Center",
+        "ownership_label": "Private media company"
+    },
+    "EconomyNext": {
+        "url": "https://economynext.com/feed/",
+        "category": "general",
+        "country": "LK",
+        "funding_type": "Commercial",
+        "bias_rating": "Center",
+        "ownership_label": "Private media company"
+    },
+    "Sun Online Maldives": {
+        "url": "https://en.sun.mv/feed",
+        "category": "general",
+        "country": "MV",
+        "funding_type": "Commercial",
+        "bias_rating": "Center",
+        "ownership_label": "Private media group"
+    },
+    "Post-Courier": {
+        "url": "https://www.postcourier.com.pg/feed/",
+        "category": "general",
+        "country": "PG",
+        "funding_type": "Commercial",
+        "bias_rating": "Center",
+        "ownership_label": "Corporate newspaper"
+    },
+    "Matangi Tonga": {
+        "url": "https://matangitonga.to/rss.xml",
+        "category": "general",
+        "country": "TO",
+        "funding_type": "Independent",
+        "bias_rating": "Center",
+        "ownership_label": "Independent private publisher"
+    },
+    "Asia-Plus": {
+        "url": "https://asiaplustj.info/en/rss.xml",
+        "category": "general",
+        "country": "TJ",
+        "funding_type": "Commercial",
+        "bias_rating": "Center",
+        "ownership_label": "Private media group"
+    },
+    "Gazeta.uz": {
+        "url": "https://www.gazeta.uz/en/rss/",
+        "category": "general",
+        "country": "UZ",
+        "funding_type": "Commercial",
+        "bias_rating": "Center",
+        "ownership_label": "Private independent outlet"
+    },
+    "ANDINA": {
+        "url": "https://andina.pe/ingles/rss/noticia.aspx",
+        "category": "general",
+        "country": "PE",
+        "funding_type": "State-funded",
+        "bias_rating": "Center",
+        "ownership_label": "State-owned news agency"
+    },
+    "Peru Reports": {
+        "url": "https://perureports.com/feed/",
+        "category": "general",
+        "country": "PE",
+        "funding_type": "Independent",
+        "bias_rating": "Center",
+        "ownership_label": "Independent digital outlet"
     }
-
 }
