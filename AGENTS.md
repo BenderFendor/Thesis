@@ -23,6 +23,8 @@
 - Use compact ownership labels in `ownership_label`, for example `state-owned news agency`, `public broadcaster`, `private media group`, `family-owned newspaper`, `independent digital outlet`, or `NGO-owned investigative outlet`.
 - Prefer ISO-style two-letter country codes in `country`.
 - After changing RSS sources, run a machine check that the JSON still loads and that newly added feeds still parse successfully.
+- When a previously validated feed later fails live validation, replace or remove it before ending the task. Do not leave known-broken feed URLs in the catalog.
+- Use `backend/scripts/backfill_rss_ownership_labels.py` to backfill compact ownership labels and `backend/scripts/validate_rss_sources.py` to verify live feed health when the catalog changes.
 
 ## LLM Prompt Architecture
 - Centralize shared prompt rules in reusable helpers instead of repeating full system prompts across services.
@@ -99,6 +101,7 @@ Code should be self-documenting. If you need a comment to explain WHAT the code 
 - New components should adopt existing styling patterns from sibling components (card sizes, scroll behavior, spacing).
 - Use props for feature toggling rather than conditional imports or wrapper components.
 - When converting layouts (grid to scroll, vertical to horizontal), update both the container and all child elements for consistent sizing.
+- When mapping countries from third-party GeoJSON, do not trust `ISO_A2` blindly. Some Natural Earth features expose `-99` for real countries like France and Norway. Normalize from verified fallback fields before wiring clicks, labels, or counts.
 
 ## Route Removal Checklist
 - When removing a route, search the repo for entry points: `rg -n "\"/route\"|/route\b"` and update links/actions.

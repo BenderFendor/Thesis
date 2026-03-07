@@ -1,5 +1,7 @@
 import { mapBackendArticles } from "@/lib/api"
 
+const globeModulePath = "@/components/interactive-globe"
+
 describe("country mapping", () => {
   it("normalizes backend country names to ISO codes and preserves lens fields", () => {
     const [mapped] = mapBackendArticles([
@@ -19,5 +21,22 @@ describe("country mapping", () => {
     expect(mapped.country).toBe("GB")
     expect(mapped.source_country).toBe("GB")
     expect(mapped.mentioned_countries).toEqual(["CN", "US"])
+  })
+
+  it("maps known globe fallback countries away from -99 ISO codes", async () => {
+    const { __testUtils } = await import(globeModulePath)
+
+    expect(
+      __testUtils.getCountryIso({ properties: { ISO_A2: "-99", ADM0_A3: "FRA", NAME: "France" } }),
+    ).toBe("FR")
+    expect(
+      __testUtils.getCountryIso({ properties: { ISO_A2: "-99", ADM0_A3: "NOR", NAME: "Norway" } }),
+    ).toBe("NO")
+    expect(
+      __testUtils.getCountryIso({ properties: { ISO_A2: "DE", ADM0_A3: "DEU", NAME: "Germany" } }),
+    ).toBe("DE")
+    expect(
+      __testUtils.getCountryIso({ properties: { ISO_A2: "-99", ADM0_A3: "CYN", NAME: "N. Cyprus" } }),
+    ).toBeNull()
   })
 })

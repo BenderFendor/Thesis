@@ -9,13 +9,44 @@
 - Expanded `backend/app/data/rss_sources.json` with 63 vetted English-language RSS sources across Israel, Iran, Pakistan, Malaysia, Nigeria, Kenya, Tanzania, South Africa, Fiji, Peru, Guyana, Jamaica, Trinidad and Tobago, Belize, Barbados, Antigua and Barbuda, Saint Lucia, Saint Vincent and the Grenadines, Dominica, Grenada, Libya, Yemen, Iraq, Oman, Qatar, Kuwait, Morocco, Saudi Arabia, Ghana, Uganda, Zambia, Zimbabwe, Malawi, Namibia, Liberia, South Sudan, Gambia, Rwanda, Lesotho, Somalia, Mozambique, Botswana, Armenia, Azerbaijan, Bhutan, Georgia, Kyrgyzstan, Cambodia, Sri Lanka, Maldives, Papua New Guinea, Tonga, Tajikistan, and Uzbekistan.
 - Added `ownership_label` to mocked RSS fixtures in `backend/tests/conftest.py` so tests using source mocks keep the new metadata shape.
 - Added both contrast pairs and new domestic anchors where possible, including `Haaretz` + `Jerusalem Post` for Israel, `IranWire` next to existing Iran feeds, `Oman Observer` + `Muscat Daily`, `Qatar News Agency` + `Doha News`, `Ghanaian Times` + `MyJoyOnline`, and `ANDINA` + `Peru Reports`.
+- Replaced the initially researched Kenya candidate with `The Standard Kenya` after a later live validation pass showed the earlier `Nation Africa` RSS endpoint had drifted to `404`.
 
 **Verification:**
 - Re-fetched and parsed a broad candidate set with live XML checks; 55 of 56 tested candidate feeds returned non-empty RSS/Atom successfully, with `The Kathmandu Post` rejected due to malformed XML.
+- Re-validated the final accepted source list after swapping in `The Standard Kenya`; the checked expansion set now passes at 62 of 62 feeds.
 - Verified the updated JSON still loads cleanly with Python `json.load`, and all entries still contain the core fields `url`, `category`, `country`, `funding_type`, and `bias_rating`.
 - Confirmed `ownership_label` is now present on all newly added entries.
 - `./verify.sh` passes after the catalog expansion and metadata plumbing.
 - Country coverage in `rss_sources.json` increased to 94 country buckets.
+
+### Follow-up: Ownership Backfill, Feed Validator, And Reusable Research Prompt
+
+**What Changed:**
+- Added `backend/scripts/backfill_rss_ownership_labels.py` and used it to backfill compact `ownership_label` values across all current `rss_sources.json` entries.
+- Added `backend/scripts/validate_rss_sources.py` so the catalog can be checked with live RSS or Atom fetches instead of ad hoc manual probes.
+- Added `backend/app/services/rss_source_prompt.py` to generate a reusable LLM research prompt that embeds the current catalog JSON and asks for conservative, country-by-country RSS expansion.
+
+**Verification:**
+- `backfill_rss_ownership_labels.py --write` filled the remaining 156 missing ownership labels; the catalog now has `ownership_label` on all entries.
+- `validate_rss_sources.py` passes on the newly added 62-source expansion set after the Kenya replacement.
+- A validator smoke test on legacy entries surfaced older feed drift in `Reuters`, `NPR`, and the current `Associated Press` feed bundle, which now has a repeatable check instead of guesswork.
+
+### Follow-up: English Europe, Nordics, And Central America Expansion
+
+**Problem:** The catalog still had sharp blindspots in the Nordics, much of the EU, and Central America. Some earlier candidate lists also mixed in non-English sources, which would have weakened country coverage if added blindly. Separately, the globe's third-party Natural Earth dataset reported France and Norway as `ISO_A2 = -99`, which broke country clicks and labels.
+
+**What Changed:**
+- Added 26 more live-validated English-language domestic feeds to `backend/app/data/rss_sources.json` across Denmark, Sweden, Norway, Finland, Iceland, Netherlands, Belgium, Ireland, Poland, Latvia, Lithuania, Cyprus, Romania, Bulgaria, Croatia, Austria, Switzerland, Malta, Portugal, Slovakia, Costa Rica, Panama, El Salvador, and Nicaragua.
+- Prioritized domestic English outlets and public-service anchors where they were available, including `Radio Sweden`, `Yle News`, `RUV English`, `RTÉ News`, `LSM`, and `LRT English`, then paired them with private or independent outlets where possible.
+- Updated stale legacy feed URLs for `Reuters` and `NPR`, and removed the current `Associated Press` catalog entry after repeatable validation showed the old bundle no longer returned usable items.
+- Fixed `frontend/components/interactive-globe.tsx` to normalize Natural Earth `-99` country codes through verified fallbacks so France and Norway resolve to `FR` and `NO` instead of disappearing into an invalid code.
+- Added a regression test in `frontend/__tests__/country-mapping.test.ts` that proves the globe fallback mapping works for France, Norway, normal ISO codes, and leaves non-country regions unresolved.
+- Added a durable rule to `AGENTS.md` to treat third-party GeoJSON country codes as untrusted input when `ISO_A2` is `-99`.
+
+**Verification:**
+- Live XML validation passed for all newly added feeds before they were written to the catalog, including Nordic, EU, and Central American additions.
+- `backend/scripts/validate_rss_sources.py` now passes for the newly added entries plus the refreshed `Reuters` and `NPR` feeds.
+- The Natural Earth globe dataset was checked directly and confirmed to expose `ISO_A2 = -99` for France and Norway, while `ADM0_A3` still carried `FRA` and `NOR`.
 
 ## 2026-03-07: Copy Style Cleanup And Shared Prompt Blocks
 

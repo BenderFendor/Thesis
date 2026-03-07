@@ -23,6 +23,7 @@ interface InteractiveGlobeProps {
 
 interface CountryFeatureProperties {
   ISO_A2?: string
+  ADM0_A3?: string
   NAME?: string
   [key: string]: unknown
 }
@@ -77,6 +78,25 @@ function toCountryFeature(polygon: object | null): CountryFeature | null {
   const feature = polygon as CountryFeature
   if (!feature.properties || typeof feature.properties !== "object") return null
   return feature
+}
+
+const GEOJSON_ISO_FALLBACKS: Record<string, string> = {
+  FRA: "FR",
+  NOR: "NO",
+}
+
+function getCountryIso(feature: CountryFeature | null): string | null {
+  if (!feature) return null
+  const iso = feature.properties.ISO_A2?.trim()
+  if (iso && iso !== "-99") return iso
+
+  const adm0 = feature.properties.ADM0_A3?.trim()
+  if (!adm0) return null
+  return GEOJSON_ISO_FALLBACKS[adm0] ?? null
+}
+
+export const __testUtils = {
+  getCountryIso,
 }
 
 function heatColor(count: number, maxCount: number) {
@@ -136,7 +156,7 @@ export function InteractiveGlobe({
   const countryCenters = useMemo(() => {
     const centers: Record<string, { lat: number; lng: number }> = {}
     countries.features.forEach((feature) => {
-      const iso = feature?.properties?.ISO_A2
+      const iso = getCountryIso(feature)
       if (!iso) return
       const center = getFeatureCenter(feature.geometry)
       if (center) {
@@ -204,16 +224,17 @@ export function InteractiveGlobe({
         atmosphereColor="#e9762b"
         atmosphereAltitude={0.12}
         lineHoverPrecision={0}
-        polygonsData={countries.features.filter((feature) => feature.properties.ISO_A2 !== "AQ")}
+        polygonsData={countries.features.filter((feature) => getCountryIso(feature) !== "AQ")}
         polygonAltitude={(polygon: object) => {
           const feature = toCountryFeature(polygon)
           if (!feature) return 0.01
-          return feature === hoverD ? 0.12 : selectedCountry === feature.properties.ISO_A2 ? 0.08 : 0.01
+          const iso = getCountryIso(feature)
+          return feature === hoverD ? 0.12 : selectedCountry === iso ? 0.08 : 0.01
         }}
         polygonCapColor={(polygon: object) => {
           const feature = toCountryFeature(polygon)
           if (!feature) return "rgba(255, 255, 255, 0.03)"
-          const iso = feature.properties.ISO_A2 ?? ""
+          const iso = getCountryIso(feature) ?? ""
           const count = iso ? displayCounts[iso] || 0 : 0
 
           if (feature === hoverD) return "rgba(255, 255, 255, 0.2)"
@@ -227,9 +248,11 @@ export function InteractiveGlobe({
           const feature = toCountryFeature(polygon)
           if (!feature) return ""
           const d = feature.properties
-          const iso = d.ISO_A2 ?? "--"
-          const coverageCount = d.ISO_A2 ? displayCounts[d.ISO_A2] || 0 : 0
-          const originCount = d.ISO_A2 ? countryMetrics?.source_counts?.[d.ISO_A2] || fallbackSourceCounts[d.ISO_A2] || 0 : 0
+          const iso = getCountryIso(feature) ?? "--"
+          const coverageCount = iso !== "--" ? displayCounts[iso] || 0 : 0
+          const originCount = iso !== "--"
+            ? countryMetrics?.source_counts?.[iso] || fallbackSourceCounts[iso] || 0
+            : 0
           return `
           <div style="background: rgba(10,10,10,0.92); color: #EAEAEA; padding: 12px; border: 1px solid rgba(255,255,255,0.12); box-shadow: 0 20px 40px rgba(0,0,0,0.35); min-width: 180px;">
             <p style="margin: 0; font-family: var(--font-instrument-serif); font-size: 16px; color: #e9762b;">${d.NAME}</p>
@@ -249,7 +272,7 @@ export function InteractiveGlobe({
         onPolygonClick={(polygon: object) => {
           const feature = toCountryFeature(polygon)
           if (!feature) return
-          const iso = feature.properties.ISO_A2
+          const iso = getCountryIso(feature)
           if (!iso) return
           const name = feature.properties.NAME
           if (selectedCountry === iso) {
