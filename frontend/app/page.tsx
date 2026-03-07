@@ -29,6 +29,7 @@ import { GridView } from "@/components/grid-view"
 import { FeedView } from "@/components/feed-view"
 import { ListView } from "@/components/list-view"
 import { ArticleDetailModal } from "@/components/article-detail-modal"
+import { ThemeToggle } from "@/components/theme-toggle"
 
 const GlobeView = dynamic(
   () => import("@/components/globe-view").then((mod) => mod.GlobeView),
@@ -621,6 +622,7 @@ function NewsPage() {
       <div className={cn("flex-1 flex flex-col min-w-0", currentView === "scroll" ? "h-screen overflow-hidden" : "")}>
       <header className="sticky top-0 z-40 border-b border-white/10 bg-[var(--news-bg-primary)]/95 backdrop-blur">
         <div className="flex items-center justify-end px-6 py-3 gap-2">
+          <ThemeToggle />
           <Button asChild variant="outline" size="sm" className="border-white/10 bg-transparent text-[10px] font-mono uppercase tracking-[0.32em]">
             <Link href="/search">
               <Search className="w-3.5 h-3.5 mr-2" />

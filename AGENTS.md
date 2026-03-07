@@ -105,6 +105,10 @@ Code should be self-documenting. If you need a comment to explain WHAT the code 
 - Horizontal article rails are not allowed in grid views. Grid and source-group browsing must stay vertical with no sideways scrollbars.
 - Prefer moderate corner radii over soft pill-heavy surfaces. Rounded is fine, but avoid overly soft card and panel shapes.
 - Increase visual contrast with clearer dark/light surface separation before adding more accent color. Do not solve weak hierarchy by making the UI greener.
+- Avoid monochrome green UI. Dark mode should be anchored by neutral charcoals and clearer tonal separation, with warmer accent colors used sparingly.
+- Grid view scrolling should snap by source section so each scroll step lands on a source block rather than arbitrary positions.
+- Within each source section, grid view should present article cards in clear vertical rows/grids so users get an overview of that source at a glance.
+- Source-section grid view should not use a dominant lead card. Keep article cards in consistent rows/grids so the source overview stays balanced.
 
 ## Route Removal Checklist
 - When removing a route, search the repo for entry points: `rg -n "\"/route\"|/route\b"` and update links/actions.

@@ -1080,15 +1080,15 @@ export function ArticleDetailModal({ article, isOpen, onClose, onBookmarkChange,
                   {/* Sidebar - 1/3 width - Only show in expanded mode */}
               {isExpanded && (
                 <div className="lg:col-span-1 space-y-6">
-                  <div className="rounded-lg border border-border/60 bg-[var(--news-bg-secondary)]/70 p-4">
+                  <div className="rounded-lg border border-border/60 bg-secondary/70 p-4">
                     <div className="flex items-center justify-between">
                       <div>
-                        <div className="text-[10px] uppercase tracking-[0.24em] text-muted-foreground">Reader</div>
+                        <div className="text-xs uppercase tracking-widest text-muted-foreground">Reader</div>
                         <h2 className="text-lg font-semibold text-foreground">Annotations</h2>
                       </div>
                       <div className="flex flex-col items-end gap-1">
                         <span className="text-xs text-muted-foreground">{highlights.length}</span>
-                        <div className="text-[10px] uppercase tracking-[0.24em] text-muted-foreground">
+                        <div className="text-xs uppercase tracking-widest text-muted-foreground">
                           {highlightSyncStatus === "syncing"
                             ? "Saving"
                             : highlightSyncStatus === "offline"
@@ -1227,7 +1227,7 @@ export function ArticleDetailModal({ article, isOpen, onClose, onBookmarkChange,
                           
                           logUserAction("highlight_sent_to_obsidian", { url: article.url })
                         }}
-                        className="gap-2 bg-purple-500/10 hover:bg-purple-500/20 border-purple-500/30 text-purple-200 col-span-2"
+                        className="col-span-2 gap-2 border-accent/40 bg-accent/15 text-accent-foreground hover:bg-accent/25"
                       >
                         <PlusCircle className="h-4 w-4" />
                         Add to Obsidian
@@ -1373,7 +1373,7 @@ export function ArticleDetailModal({ article, isOpen, onClose, onBookmarkChange,
                         .sort((a, b) => a.character_start - b.character_start)
                         .map((highlight, idx) => (
                            <div key={highlight.id ? `server:${highlight.id}` : `client:${highlight.client_id}`} className="relative rounded-lg border border-border/60 bg-background/60 p-4 space-y-3">
-                            <div className="absolute -left-2 -top-2 w-5 h-5 bg-background border border-border/60 rounded-full flex items-center justify-center text-[10px] text-muted-foreground font-mono font-bold shadow-sm">
+                            <div className="absolute -left-2 -top-2 flex h-5 w-5 items-center justify-center rounded-full border border-border/60 bg-background font-mono text-xs font-bold text-muted-foreground shadow-sm">
                               {idx + 1}
                             </div>
                             <button
@@ -1512,7 +1512,7 @@ export function ArticleDetailModal({ article, isOpen, onClose, onBookmarkChange,
 
                   {!aiAnalysisRequested && (
                     <div className="rounded-sm border border-white/10 bg-white/5 p-5 text-sm text-muted-foreground">
-                      <p className="font-mono text-[10px] uppercase tracking-[0.3em] text-muted-foreground">AI Analysis</p>
+                      <p className="font-mono text-xs uppercase tracking-widest text-muted-foreground">AI Analysis</p>
                       <p className="mt-2 text-foreground/80 font-serif">
                         AI analysis is off by default. Use the “Run Analysis” button when you need it.
                       </p>
@@ -1533,7 +1533,7 @@ export function ArticleDetailModal({ article, isOpen, onClose, onBookmarkChange,
                   />
 
                   {aiAnalysisRequested && aiAnalysisLoading && (
-                    <div className="rounded-lg border border-border/60 bg-[var(--news-bg-secondary)]/70 p-5 text-sm text-muted-foreground">
+                    <div className="rounded-lg border border-border/60 bg-secondary/70 p-5 text-sm text-muted-foreground">
                       Running AI analysis…
                     </div>
                   )}
@@ -1613,7 +1613,7 @@ export function ArticleDetailModal({ article, isOpen, onClose, onBookmarkChange,
                                   setSelectedClaim(factCheckResults[0])
                                 }
                               }}
-                              className="group relative w-full overflow-hidden rounded-xl border border-primary/30 bg-gradient-to-br from-primary/15 via-primary/10 to-transparent p-6 text-left transition-all duration-300 hover:-translate-y-1 hover:border-primary/60 hover:shadow-[0_0_30px_rgba(233,118,43,0.25)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
+                              className="group relative w-full overflow-hidden rounded-xl border border-primary/30 bg-gradient-to-br from-primary/15 via-primary/10 to-transparent p-6 text-left transition-all duration-300 hover:-translate-y-1 hover:border-primary/60 hover:shadow-xl hover:shadow-black/20 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
                               aria-label="Open verified claims report"
                             >
                               <div className="pointer-events-none absolute -right-20 -top-20 h-40 w-40 rounded-full bg-primary/10 blur-3xl transition-opacity duration-500 group-hover:opacity-60" />
@@ -1632,7 +1632,7 @@ export function ArticleDetailModal({ article, isOpen, onClose, onBookmarkChange,
                                     key={`${result.claim}-${index}`}
                                     className="flex items-start gap-3 rounded-lg border border-transparent bg-primary/10 p-3 transition-all duration-300 group-hover:border-primary/40"
                                   >
-                                    <Badge className={`${VERIFICATION_STYLE_MAP[result.verification_status]} text-[0.65rem] uppercase tracking-wide`}>
+                                    <Badge className={`${VERIFICATION_STYLE_MAP[result.verification_status]} text-xs uppercase tracking-wide`}>
                                       {VERIFICATION_LABEL_MAP[result.verification_status]}
                                     </Badge>
                                     <p className="text-sm text-foreground/80 line-clamp-2">&quot;{result.claim}&quot;</p>
@@ -1660,7 +1660,7 @@ export function ArticleDetailModal({ article, isOpen, onClose, onBookmarkChange,
                               </p>
                             </DialogHeader>
 
-                            <div className="grid gap-6 md:grid-cols-[minmax(0,15rem)_1fr]">
+                            <div className="grid gap-6 md:grid-cols-3">
                               <div className="space-y-4">
                                 <div className="flex flex-wrap gap-2">
                                   {STATUS_FILTERS.map((status) => {
@@ -1673,14 +1673,14 @@ export function ArticleDetailModal({ article, isOpen, onClose, onBookmarkChange,
                                       <button
                                         key={status}
                                         type="button"
-                                        className={`rounded-full border px-3 py-1 text-xs font-semibold uppercase tracking-wide transition-all ${isActive ? "border-primary/60 bg-primary/15 text-foreground shadow-[0_0_18px_rgba(233,118,43,0.25)]" : "border-primary/30 text-foreground/75 hover:border-primary/60 hover:text-foreground"} ${isDisabled ? "cursor-not-allowed opacity-40 hover:border-primary/30 hover:text-foreground/75" : "cursor-pointer"}`}
+                                        className={`rounded-full border px-3 py-1 text-xs font-semibold uppercase tracking-wide transition-all ${isActive ? "border-primary/60 bg-primary/15 text-foreground shadow-lg shadow-black/20" : "border-primary/30 text-foreground/75 hover:border-primary/60 hover:text-foreground"} ${isDisabled ? "cursor-not-allowed opacity-40 hover:border-primary/30 hover:text-foreground/75" : "cursor-pointer"}`}
                                         onClick={() => {
                                           if (isDisabled) return
                                           setActiveStatusFilter(status)
                                         }}
                                       >
                                         {status === "all" ? "All" : VERIFICATION_LABEL_MAP[status as FactCheckStatus]}
-                                        <span className="ml-2 rounded-full bg-primary/15 px-2 py-0.5 text-[10px] font-bold text-foreground/80">
+                                        <span className="ml-2 rounded-full bg-primary/15 px-2 py-0.5 text-xs font-bold text-foreground/80">
                                           {count}
                                         </span>
                                       </button>
@@ -1705,7 +1705,7 @@ export function ArticleDetailModal({ article, isOpen, onClose, onBookmarkChange,
                                           }}
                                         >
                                           <div className="flex items-center gap-2">
-                                            <Badge className={`${VERIFICATION_STYLE_MAP[claim.verification_status]} text-[0.6rem] uppercase tracking-wide`}>
+                                            <Badge className={`${VERIFICATION_STYLE_MAP[claim.verification_status]} text-xs uppercase tracking-wide`}>
                                               {VERIFICATION_LABEL_MAP[claim.verification_status]}
                                             </Badge>
                                             <span className="text-xs text-foreground/80 line-clamp-2">{claim.claim}</span>
@@ -1728,10 +1728,10 @@ export function ArticleDetailModal({ article, isOpen, onClose, onBookmarkChange,
                                   <div className="space-y-4">
                                     <div className="rounded-xl border border-slate-800/80 bg-slate-900/70 p-5 shadow-inner shadow-primary/10">
                                       <div className="mb-4 flex items-start justify-between gap-3">
-                                        <Badge className={`${VERIFICATION_STYLE_MAP[selectedClaim.verification_status]} text-[0.65rem] uppercase tracking-wide`}>
+                                        <Badge className={`${VERIFICATION_STYLE_MAP[selectedClaim.verification_status]} text-xs uppercase tracking-wide`}>
                                           {VERIFICATION_LABEL_MAP[selectedClaim.verification_status]}
                                         </Badge>
-                                        <Badge className={`${getConfidenceColor(selectedClaim.confidence)} text-[0.65rem] uppercase tracking-wide`}>
+                                        <Badge className={`${getConfidenceColor(selectedClaim.confidence)} text-xs uppercase tracking-wide`}>
                                           confidence: {selectedClaim.confidence}
                                         </Badge>
                                       </div>
@@ -1744,7 +1744,7 @@ export function ArticleDetailModal({ article, isOpen, onClose, onBookmarkChange,
                                         <div className="rounded-lg border border-slate-800 bg-slate-950/70 p-3 text-xs text-slate-200/80">
                                           {selectedClaim.evidence || "Evidence details not provided."}
                                         </div>
-                                        <div className="flex flex-wrap gap-2 text-[11px] text-slate-300/70">
+                                        <div className="flex flex-wrap gap-2 text-xs text-slate-300/70">
                                           {selectedClaim.sources?.slice(0, 4).map((source, idx) => (
                                             <a
                                               key={`${source}-${idx}`}
@@ -1754,7 +1754,7 @@ export function ArticleDetailModal({ article, isOpen, onClose, onBookmarkChange,
                                               className="group/link inline-flex items-center gap-1 rounded-full border border-slate-700 bg-slate-800/60 px-3 py-1 transition hover:border-primary/60 hover:text-foreground"
                                             >
                                               <LinkIcon className="h-3 w-3" />
-                                              <span className="max-w-[12rem] truncate">{source}</span>
+                                              <span className="max-w-48 truncate">{source}</span>
                                               <ExternalLink className="h-3 w-3 transition group-hover/link:translate-x-0.5" />
                                             </a>
                                           ))}
@@ -1800,7 +1800,7 @@ export function ArticleDetailModal({ article, isOpen, onClose, onBookmarkChange,
                                           </p>
                                         </div>
                                         {agenticHistory.length > 0 && (
-                                          <div className="rounded-lg border border-primary/30 bg-primary/10 px-3 py-1 text-[10px] uppercase tracking-wide text-foreground/80">
+                                          <div className="rounded-lg border border-primary/30 bg-primary/10 px-3 py-1 text-xs uppercase tracking-wide text-foreground/80">
                                             Last run {new Date(agenticHistory[0].timestamp).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
                                           </div>
                                         )}
