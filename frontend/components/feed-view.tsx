@@ -249,7 +249,7 @@ export function FeedView({ articles: propArticles, loading }: FeedViewProps) {
     <div className="relative flex-1 h-full min-h-0 w-full overflow-hidden bg-background">
       <div
         ref={containerRef}
-        className="h-full w-full overflow-y-auto snap-y snap-mandatory no-scrollbar"
+        className="h-full w-full overflow-y-auto snap-y snap-proximity no-scrollbar"
       >
         {articles.map((article, index) => (
           <section

@@ -18,6 +18,10 @@ from app.services.cache import news_cache
 router = APIRouter(prefix="/news", tags=["news"])
 
 
+def _source_slug(name: str) -> str:
+    return "-".join(name.lower().split())
+
+
 # --- Pagination Models ---
 
 
@@ -393,6 +397,8 @@ async def get_sources() -> List[SourceInfo]:
         ownership_label = info.get("ownership_label")
         sources.append(
             SourceInfo(
+                id=_source_slug(name),
+                slug=_source_slug(name),
                 name=name,
                 url=url,
                 category=category if isinstance(category, str) else "general",

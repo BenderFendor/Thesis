@@ -2,6 +2,10 @@
 
 import { useState, useRef, useEffect, useMemo } from "react";
 import {
+  Copy,
+  Pencil,
+  RotateCcw,
+  Trash2,
   Loader2,
   Home,
   ChevronLeft,
@@ -20,7 +24,6 @@ import {
   type NewsArticle,
   semanticSearch,
   type SemanticSearchResult,
-  type SearchSuggestion,
 } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import { ArticleDetailModal } from "@/components/article-detail-modal";
@@ -89,6 +92,7 @@ interface Message {
   streamingStatus?: string;
   toolType?: "semantic_search";
   semanticResults?: SemanticSearchResult[];
+  retryOfMessageId?: string;
 }
 
 type StatusMessage = { type: "status"; message: string };
@@ -239,6 +243,7 @@ export default function NewsResearchPage() {
     const nextChatId =
       activeChatId === id ? (remainingChats[0]?.id ?? null) : activeChatId;
     const { [id]: _removed, ...restMessages } = chatMessagesMap;
+    void _removed;
 
     setChats(remainingChats);
     setChatMessagesMap(restMessages);
@@ -804,12 +809,44 @@ export default function NewsResearchPage() {
       .find((message) => message.type === "user");
     if (!retryUserMessage || !retryUserMessage.content.trim()) return;
 
-    setMessages(contextMessages);
+    const retryIndex = contextMessages.findIndex(
+      (message) => message.id === retryUserMessage.id,
+    );
+    const preservedContext =
+      retryIndex >= 0
+        ? contextMessages.slice(0, retryIndex + 1)
+        : contextMessages;
+
+    setMessages(preservedContext);
     setQuery(retryUserMessage.content);
 
     window.setTimeout(() => {
       composerFormRef.current?.requestSubmit();
     }, 0);
+  };
+
+  const handleDeleteMessage = (messageId: string) => {
+    if (isSearching) return;
+    setMessages((prev) => prev.filter((message) => message.id !== messageId));
+  };
+
+  const handleEditMessage = (messageId: string) => {
+    if (isSearching) return;
+    const index = messages.findIndex((message) => message.id === messageId);
+    if (index === -1) return;
+    const target = messages[index];
+    if (target.type !== "user") return;
+    setQuery(target.content);
+    setMessages(messages.slice(0, index));
+    inputRef.current?.focus();
+  };
+
+  const handleCopyMessage = async (content: string) => {
+    try {
+      await navigator.clipboard.writeText(content);
+    } catch (error) {
+      console.error("Failed to copy message:", error);
+    }
   };
 
   const sampleQueries = [
@@ -823,14 +860,6 @@ export default function NewsResearchPage() {
   const handleSampleQuery = (sampleQuery: string) => {
     setQuery(sampleQuery);
     inputRef.current?.focus();
-  };
-
-  const extractUrls = (text: string): string[] => {
-    // Enhanced regex to capture URLs including those in parentheses and markdown links
-    const urlRegex = /https?:\/\/[^\s\)]+/gi;
-    const matches = text.match(urlRegex) || [];
-    // de-duplicate and clean up
-    return Array.from(new Set(matches.map((url) => url.replace(/[,\.]$/, ""))));
   };
 
   const formatShortDate = (date: string) => {
@@ -1451,6 +1480,59 @@ export default function NewsResearchPage() {
                                   )}
                                 </div>
 
+                                {!message.isStreaming && !message.toolType && (
+                                  <div className="mt-3 flex items-center justify-end gap-1.5 text-muted-foreground">
+                                    <Button
+                                      type="button"
+                                      variant="ghost"
+                                      size="sm"
+                                      onClick={() =>
+                                        void handleCopyMessage(message.content)
+                                      }
+                                      className="h-8 px-2 text-xs"
+                                    >
+                                      <Copy className="mr-1 h-3.5 w-3.5" />
+                                      Copy
+                                    </Button>
+                                    {!isAssistant && (
+                                      <Button
+                                        type="button"
+                                        variant="ghost"
+                                        size="sm"
+                                        onClick={() => handleEditMessage(message.id)}
+                                        className="h-8 px-2 text-xs"
+                                      >
+                                        <Pencil className="mr-1 h-3.5 w-3.5" />
+                                        Edit
+                                      </Button>
+                                    )}
+                                    {isAssistant && (
+                                      <Button
+                                        type="button"
+                                        variant="ghost"
+                                        size="sm"
+                                        onClick={() => handleResetMessage(message.id)}
+                                        disabled={isSearching}
+                                        className="h-8 px-2 text-xs"
+                                      >
+                                        <RotateCcw className="mr-1 h-3.5 w-3.5" />
+                                        Retry
+                                      </Button>
+                                    )}
+                                    <Button
+                                      type="button"
+                                      variant="ghost"
+                                      size="sm"
+                                      onClick={() => handleDeleteMessage(message.id)}
+                                      disabled={isSearching}
+                                      className="h-8 px-2 text-xs"
+                                    >
+                                      <Trash2 className="mr-1 h-3.5 w-3.5" />
+                                      Delete
+                                    </Button>
+                                  </div>
+                                )}
+
                                 {isAssistant &&
                                   !message.isStreaming &&
                                   stepCount > 0 && (
@@ -1494,24 +1576,6 @@ export default function NewsResearchPage() {
                                     </div>
                                   )}
 
-                                {isAssistant &&
-                                  !message.isStreaming &&
-                                  message.error && (
-                                    <div className="mt-3">
-                                      <Button
-                                        type="button"
-                                        variant="outline"
-                                        size="sm"
-                                        onClick={() =>
-                                          handleResetMessage(message.id)
-                                        }
-                                        disabled={isSearching}
-                                        className="border-border/10"
-                                      >
-                                        Reset
-                                      </Button>
-                                    </div>
-                                  )}
                               </motion.div>
                              );
                            })

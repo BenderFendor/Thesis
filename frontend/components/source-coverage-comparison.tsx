@@ -7,7 +7,6 @@ import { Badge } from "@/components/ui/badge";
 import {
   fetchSourceCoverage,
   SourceCoverageResponse,
-  SourceCoverageStats,
 } from "@/lib/api";
 
 interface SourceCoverageComparisonProps {
@@ -103,7 +102,7 @@ export function SourceCoverageComparison({
       <div className="flex items-center justify-between mb-4">
         <div className="flex items-center gap-2">
           <BarChart3 className="w-4 h-4 text-muted-foreground" />
-          <h4 className="text-sm font-medium">Topic Coverage Comparison</h4>
+          <h4 className="text-sm font-medium">Source Coverage Diversity</h4>
         </div>
         <Button variant="ghost" size="sm" onClick={loadCoverage}>
           <RefreshCw className="w-3 h-3" />
@@ -142,8 +141,8 @@ export function SourceCoverageComparison({
       </div>
 
       <p className="mt-4 text-xs text-muted-foreground">
-        Coverage diversity measures how broadly each source covers different topics.
-        Higher diversity means more varied content.
+        This compares each selected outlet&apos;s overall topic spread, not how the
+        same story was framed across two outlets.
       </p>
     </div>
   );

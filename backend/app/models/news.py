@@ -27,6 +27,8 @@ class NewsResponse(StrictBaseModel):
 
 
 class SourceInfo(StrictBaseModel):
+    id: Optional[str] = None
+    slug: Optional[str] = None
     name: str
     url: str
     category: str

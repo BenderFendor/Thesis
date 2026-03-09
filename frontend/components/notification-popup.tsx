@@ -27,7 +27,7 @@ interface NotificationsPopupProps {
   onClearAll: () => void;
   onAction?: (type: NotificationActionType, notification: Notification) => void;
   onClose: () => void;
-  anchorRef: React.RefObject<HTMLButtonElement | null>;
+  anchorRef?: React.RefObject<HTMLButtonElement | null>;
 }
 
 const getTypeIcon = (type: Notification['type']) => {
@@ -52,14 +52,27 @@ export function NotificationsPopup({ notifications, onClear, onClearAll, onActio
   const [position, setPosition] = useState({ top: 0, left: 0 });
 
   useEffect(() => {
-    if (!anchorRef.current) return;
-    
     const updatePosition = () => {
-      if (!anchorRef.current) return;
-      const rect = anchorRef.current.getBoundingClientRect();
+      const rect = anchorRef?.current?.getBoundingClientRect();
+      const popupWidth = 384;
+      const viewportPadding = 16;
+      const defaultTop = 72;
+      const defaultLeft = Math.max(
+        viewportPadding,
+        window.innerWidth - popupWidth - viewportPadding,
+      );
+
+      if (!rect) {
+        setPosition({ top: defaultTop, left: defaultLeft });
+        return;
+      }
+
       setPosition({
-        top: rect.top - 8,
-        left: rect.right + 8,
+        top: Math.max(defaultTop, rect.top),
+        left: Math.min(
+          defaultLeft,
+          Math.max(viewportPadding, rect.right - popupWidth + 16),
+        ),
       });
     };
     
@@ -78,8 +91,8 @@ export function NotificationsPopup({ notifications, onClear, onClearAll, onActio
       if (
         popupRef.current &&
         !popupRef.current.contains(event.target as Node) &&
-        anchorRef.current &&
-        !anchorRef.current.contains(event.target as Node)
+        (!anchorRef?.current ||
+          !anchorRef.current.contains(event.target as Node))
       ) {
         onClose();
       }

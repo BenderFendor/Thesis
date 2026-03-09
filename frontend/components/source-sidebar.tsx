@@ -5,7 +5,7 @@ import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
-import { X, Star, Search, ChevronDown, ExternalLink, BookOpen } from "lucide-react";
+import { X, Star, Search, ChevronDown, AlertTriangle, BookOpen } from "lucide-react";
 import { useFavorites } from "@/hooks/useFavorites";
 import { useSourceFilter } from "@/hooks/useSourceFilter";
 import { fetchSources, NewsSource } from "@/lib/api";
@@ -20,6 +20,7 @@ interface SourceSidebarProps {
 export function SourceSidebar({ isOpen, onClose, sourceRecency }: SourceSidebarProps) {
   const [sources, setSources] = useState<NewsSource[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
   const [expandedSections, setExpandedSections] = useState({
     favorites: true,
@@ -42,10 +43,15 @@ export function SourceSidebar({ isOpen, onClose, sourceRecency }: SourceSidebarP
     const loadSources = async () => {
       try {
         setLoading(true);
+        setLoadError(null);
         const fetchedSources = await fetchSources();
         setSources(fetchedSources);
       } catch (error) {
         console.error("Failed to load sources:", error);
+        setLoadError(
+          error instanceof Error ? error.message : "Failed to load sources.",
+        );
+        setSources([]);
       } finally {
         setLoading(false);
       }
@@ -92,9 +98,19 @@ export function SourceSidebar({ isOpen, onClose, sourceRecency }: SourceSidebarP
     const lookup: Record<string, string> = {};
     sources.forEach((source) => {
       lookup[source.id] = source.name;
+      lookup[source.slug] = source.name;
     });
     return lookup;
   }, [sources]);
+
+  const selectedSourceIds = useMemo(() => {
+    const ids = Array.from(selectedSources);
+    return sources
+      .filter(
+        (source) => ids.includes(source.id) || ids.includes(source.slug),
+      )
+      .map((source) => source.id);
+  }, [selectedSources, sources]);
 
   const toggleSection = (section: "favorites" | "allSources") => {
     setExpandedSections((prev) => ({
@@ -151,10 +167,10 @@ export function SourceSidebar({ isOpen, onClose, sourceRecency }: SourceSidebarP
         )}
 
         {/* Coverage Comparison - Show when 2+ sources are selected */}
-        {selectedSources.size >= 2 && (
+        {selectedSourceIds.length >= 2 && (
           <div className="px-4 py-3 border-b border-white/10">
             <SourceCoverageComparison
-              sourceIds={Array.from(selectedSources)}
+              sourceIds={selectedSourceIds}
               sourceNames={sourceNameLookup}
             />
           </div>
@@ -178,6 +194,26 @@ export function SourceSidebar({ isOpen, onClose, sourceRecency }: SourceSidebarP
           {loading ? (
             <div className="p-4 text-center text-muted-foreground">
               Loading sources...
+            </div>
+          ) : loadError ? (
+            <div className="space-y-3 p-4">
+              <div className="flex items-start gap-3 rounded-none border border-white/10 bg-[var(--news-bg-primary)]/40 p-4 text-sm text-muted-foreground">
+                <AlertTriangle className="mt-0.5 h-4 w-4 text-primary" />
+                <div>
+                  <div className="font-medium text-foreground">Source catalog unavailable</div>
+                  <p className="mt-1 text-xs leading-relaxed text-muted-foreground">
+                    {loadError}
+                  </p>
+                </div>
+              </div>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setLoadError(null)}
+                className="w-full rounded-none border-white/10"
+              >
+                Dismiss
+              </Button>
             </div>
           ) : (
             <div className="divide-y divide-white/10">
@@ -277,11 +313,13 @@ export function SourceSidebar({ isOpen, onClose, sourceRecency }: SourceSidebarP
                         />
                       ))
                     ) : (
-                      <div className="text-xs text-muted-foreground py-2">
-                        No sources found
-                      </div>
-                    )}
-                  </div>
+                       <div className="text-xs text-muted-foreground py-2">
+                         {searchQuery.trim()
+                           ? "No sources match this search"
+                           : "No sources available"}
+                       </div>
+                     )}
+                   </div>
                 )}
               </div>
             </div>

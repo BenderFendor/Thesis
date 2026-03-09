@@ -69,6 +69,7 @@ const pruneOgImageCache = () => {
 
 export interface NewsSource {
   id: string;
+  slug: string;
   name: string;
   country: string;
   url: string;
@@ -159,7 +160,7 @@ const COUNTRY_NAME_TO_CODE: Record<string, string> = {
 };
 
 function normalizeCountryCode(value?: string | null): string {
-  if (!value) return "International";
+  if (typeof value !== "string") return "International";
   const trimmed = value.trim();
   if (!trimmed) return "International";
   if (trimmed === "International") return trimmed;
@@ -211,12 +212,16 @@ const BackendArticleSchema = z
 
 const BackendSourceSchema = z
   .object({
+    id: z.string().optional(),
+    slug: z.string().optional(),
     name: z.string(),
     country: z.string().default("US"),
     url: z.string(),
+    rssUrl: z.string().optional(),
     bias_rating: z.string().optional(),
     category: z.string().optional(),
     funding_type: z.string().optional(),
+    ownership_label: z.string().optional(),
   })
   .passthrough();
 
@@ -423,7 +428,7 @@ export async function fetchNewsByCategory(
 
 export async function fetchSources(): Promise<NewsSource[]> {
   try {
-    const response = await fetch(`${API_BASE_URL}/sources`);
+    const response = await fetch(`${API_BASE_URL}/news/sources`);
 
     if (!response.ok) {
       throw new Error(`HTTP error! status: ${response.status}`);
@@ -439,16 +444,21 @@ export async function fetchSources(): Promise<NewsSource[]> {
 
     // Convert backend source format to frontend format
     return sources.map((source) => ({
-      id: source.name.toLowerCase().replace(/\s+/g, "-"),
+      id:
+        source.id || source.slug || source.name.toLowerCase().replace(/\s+/g, "-"),
+      slug:
+        source.slug ||
+        source.id ||
+        source.name.toLowerCase().replace(/\s+/g, "-"),
       name: source.name,
       country: source.country,
       url: source.url,
-      rssUrl: source.url, // Backend doesn't separate RSS URL
+      rssUrl: source.rssUrl || source.url,
       credibility: mapCredibility(source.bias_rating),
       bias: mapBias(source.bias_rating),
       category: source.category ? [source.category] : ["general"],
       language: "en",
-      funding: [source.funding_type || "Unknown"],
+      funding: [source.funding_type || source.ownership_label || "Unknown"],
     }));
   } catch (error) {
     console.error("Failed to fetch sources:", error);
@@ -901,7 +911,15 @@ export async function getSourceById(
   if (cachedSources.length === 0) {
     cachedSources = await fetchSources();
   }
-  return cachedSources.find((source) => source.id === id);
+  const normalizedId = id.trim().toLowerCase();
+  return cachedSources.find(
+    (source) =>
+      source.id === id ||
+      source.slug === id ||
+      source.id.toLowerCase() === normalizedId ||
+      source.slug.toLowerCase() === normalizedId ||
+      source.name.toLowerCase() === normalizedId,
+  );
 }
 
 export async function getArticlesByCountry(
@@ -3495,6 +3513,7 @@ export interface ClusterDetail {
     id: number;
     title: string;
     source: string;
+    source_id?: string;
     url: string;
     image_url?: string | null;
     published_at?: string | null;
@@ -3601,6 +3620,7 @@ const ClusterDetailArticleSchema = z.object({
   id: z.number(),
   title: z.string(),
   source: z.string(),
+  source_id: z.string().optional(),
   url: z.string(),
   image_url: z.string().nullish(),
   published_at: z.string().nullish(),

@@ -937,6 +937,9 @@ class ChromaTopicService:
             "id": article.id,
             "title": article.title,
             "source": article.source,
+            "source_id": "-".join(article.source.lower().split())
+            if article.source
+            else None,
             "url": article.url,
             "image_url": article.image_url,
             "published_at": article.published_at.isoformat()

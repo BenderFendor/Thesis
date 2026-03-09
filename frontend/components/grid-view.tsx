@@ -662,7 +662,10 @@ export function GridView({
 
       <div
         ref={containerRef}
-        className="flex-1 overflow-y-auto snap-y snap-mandatory scroll-smooth pb-24"
+        className={cn(
+          "flex-1 overflow-y-auto scroll-smooth pb-24",
+          expandedSourceId || expandedClusterId ? "snap-y snap-proximity" : "snap-y snap-mandatory",
+        )}
         style={{ scrollPaddingTop: "1rem" }}
       >
         <div className="mx-auto flex w-full flex-col gap-16 px-6 py-8 lg:px-8" style={{ maxWidth: "1800px" }}>
@@ -686,7 +689,10 @@ export function GridView({
                 <section
                   key={group.sourceId}
                   data-source-id={group.sourceId}
-                  className="grid-source-group snap-start scroll-mt-6 flex flex-col"
+                  className={cn(
+                    "grid-source-group scroll-mt-6 flex flex-col",
+                    isExpanded ? "snap-none" : "snap-start",
+                  )}
                   style={{ scrollSnapStop: "normal", minHeight: "calc(100vh - 160px)" }}
                 >
                   <div className="mb-6 flex flex-col gap-4 border-b border-white/5 pb-4 lg:flex-row lg:items-end lg:justify-between">

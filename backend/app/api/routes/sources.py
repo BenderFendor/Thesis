@@ -6,6 +6,11 @@ from fastapi import APIRouter
 
 from app.data.rss_sources import get_rss_sources
 
+
+def _source_slug(name: str) -> str:
+    return "-".join(name.lower().split())
+
+
 router = APIRouter(prefix="/sources", tags=["sources"])
 
 
@@ -17,6 +22,8 @@ async def get_sources() -> list[dict[str, Any]]:
     # Convert to list of sources with proper structure
     return [
         {
+            "id": _source_slug(name),
+            "slug": _source_slug(name),
             "name": name,
             "url": source_data.get("url"),
             "rssUrl": source_data.get("url"),  # Same as url for RSS feeds

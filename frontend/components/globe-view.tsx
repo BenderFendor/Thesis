@@ -15,10 +15,12 @@ import {
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import {
   AlertCircle,
+  ChevronDown,
   Globe2,
   MapPin,
   Newspaper,
   Radio,
+  PanelRight,
   ShieldCheck,
   Signal,
   X,
@@ -70,6 +72,8 @@ export function GlobeView({ articles, loading }: GlobeViewProps) {
   const [isArticleModalOpen, setIsArticleModalOpen] = useState(false)
   const [viewMode, setViewMode] = useState<"internal" | "external">("internal")
   const [sidebarTab, setSidebarTab] = useState("briefing")
+  const [isFocusExpanded, setIsFocusExpanded] = useState(false)
+  const [lensLimit, setLensLimit] = useState(40)
 
   const { data: countryMetrics } = useQuery({
     queryKey: ["globe-country-metrics", DEFAULT_WINDOW_HOURS],
@@ -88,8 +92,8 @@ export function GlobeView({ articles, loading }: GlobeViewProps) {
   })
 
   const localLensQuery = useQuery({
-    queryKey: ["globe-country-news", selectedCountry, viewMode, DEFAULT_WINDOW_HOURS],
-    queryFn: () => fetchNewsForCountry(selectedCountry || "", viewMode, 40, 0, DEFAULT_WINDOW_HOURS),
+    queryKey: ["globe-country-news", selectedCountry, viewMode, DEFAULT_WINDOW_HOURS, lensLimit],
+    queryFn: () => fetchNewsForCountry(selectedCountry || "", viewMode, lensLimit, 0, DEFAULT_WINDOW_HOURS),
     enabled: Boolean(selectedCountry),
   })
 
@@ -99,6 +103,8 @@ export function GlobeView({ articles, loading }: GlobeViewProps) {
     setSelectedCountryName(country ? resolvedName || name || country : null)
     setViewMode("internal")
     setSidebarTab("briefing")
+    setIsFocusExpanded(false)
+    setLensLimit(40)
   }
 
   const handleArticleSelect = (article: NewsArticle) => {
@@ -164,6 +170,7 @@ export function GlobeView({ articles, loading }: GlobeViewProps) {
 
   return (
     <div className="relative flex h-[calc(100vh-60px)] w-full overflow-hidden bg-[var(--news-bg-primary)]">
+      {!isFocusExpanded && (
       <div className="relative z-0 flex-1">
         <InteractiveGlobe
           articles={articles}
@@ -226,8 +233,9 @@ export function GlobeView({ articles, loading }: GlobeViewProps) {
           </div>
         </div>
       </div>
+      )}
 
-      <div className="relative z-50 flex w-[420px] shrink-0 flex-col border-l border-white/10 bg-[var(--news-bg-secondary)]/95 shadow-2xl backdrop-blur-xl">
+      <div className={`relative z-50 flex shrink-0 flex-col border-l border-white/10 bg-[var(--news-bg-secondary)]/95 shadow-2xl backdrop-blur-xl ${isFocusExpanded ? "w-full" : "w-[420px]"}`}>
         <div className="space-y-3 border-b border-white/10 p-4">
           <div className="flex items-center justify-between">
             <div>
@@ -238,9 +246,34 @@ export function GlobeView({ articles, loading }: GlobeViewProps) {
               </p>
             </div>
             {selectedCountry && (
-              <Button variant="outline" size="sm" onClick={() => handleCountrySelect(null)}>
-                Reset
-              </Button>
+              <div className="flex items-center gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setIsFocusExpanded((prev) => !prev)}
+                  className="rounded-none border-white/10 bg-transparent"
+                >
+                  {isFocusExpanded ? (
+                    <>
+                      <PanelRight className="mr-2 h-4 w-4" />
+                      Show Global
+                    </>
+                  ) : (
+                    <>
+                      <ChevronDown className="mr-2 h-4 w-4" />
+                      Expand Focus
+                    </>
+                  )}
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => handleCountrySelect(null)}
+                  className="rounded-none border-white/10 bg-transparent"
+                >
+                  Reset
+                </Button>
+              </div>
             )}
           </div>
 
@@ -369,8 +402,8 @@ export function GlobeView({ articles, loading }: GlobeViewProps) {
                     </div>
 
                     {lensArticles.length > 0 ? (
-                      lensArticles.map((article) => (
-                        <div
+                       lensArticles.map((article) => (
+                         <div
                           key={article.id}
                           onClick={() => handleArticleSelect(article)}
                           className="group cursor-pointer border border-white/10 bg-[var(--news-bg-primary)]/40 p-4 transition-all hover:border-white/40 hover:bg-[var(--news-bg-primary)]"
@@ -405,16 +438,27 @@ export function GlobeView({ articles, loading }: GlobeViewProps) {
                               </div>
                             )}
                           </div>
+                         </div>
+                       ))
+                      ) : (
+                        <div className="flex flex-col items-center justify-center py-12 text-muted-foreground">
+                          <Radio className="mb-3 h-8 w-8 opacity-20" />
+                          <p className="text-xs uppercase tracking-widest">No articles found</p>
                         </div>
-                      ))
-                    ) : (
-                      <div className="flex flex-col items-center justify-center py-12 text-muted-foreground">
-                        <Radio className="mb-3 h-8 w-8 opacity-20" />
-                        <p className="text-xs uppercase tracking-widest">No articles found</p>
-                      </div>
-                    )}
-                  </>
-                )}
+                      )}
+
+                      {selectedCountry && localLensQuery.data?.has_more && (
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => setLensLimit((prev) => prev + 20)}
+                          className="w-full rounded-none border-white/10"
+                        >
+                          Show More Articles
+                        </Button>
+                      )}
+                    </>
+                  )}
               </div>
             </div>
           )}
