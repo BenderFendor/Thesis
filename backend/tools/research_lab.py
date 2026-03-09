@@ -13,7 +13,7 @@ import httpx
 BASE_DIR = Path(__file__).resolve().parents[1]
 DEFAULT_API_BASE = "http://localhost:8000"
 DEFAULT_QUERIES = [
-    "what is going on with trump and israeli right now",
+    "what is going on with trump and iran right now",
     "latest updates on ukraine war negotiations",
     "state of us inflation and jobs this week",
 ]
