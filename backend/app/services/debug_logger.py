@@ -245,6 +245,12 @@ class DebugLoggerService:
                 with open(self._log_file, "a") as f:
                     f.write(event.to_json() + "\n")
             except Exception as e:
+                if isinstance(e, OSError) and e.errno == 24:
+                    logger.error(
+                        "Failed to write debug event to file due to file descriptor exhaustion; suppressing further file write attempts for this session"
+                    )
+                    self._log_file = None
+                    return
                 logger.error("Failed to write debug event to file: %s", e)
 
     def _check_performance(self, event: DebugEvent) -> None:

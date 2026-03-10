@@ -1,6 +1,7 @@
 "use client"
 
 import {
+  Fragment,
   useState,
   useEffect,
   useCallback,
@@ -53,7 +54,7 @@ import {
   hasRealClusterImage,
   pickClusterImageUrl,
 } from "@/lib/cluster-display"
-import { fetchAllClusters } from "@/lib/api"
+import { fetchAllClusters, fetchClusterArticles } from "@/lib/api"
 
 const VirtualizedGrid = lazy(() =>
   import("./virtualized-grid").then((module) => ({
@@ -493,17 +494,33 @@ export function GridView({
   }, [clusters, getClusterTime, topicSortMode])
 
   const handleExpandCluster = useCallback(
-    (cluster: AllCluster) => {
+    async (cluster: AllCluster) => {
       const clusterId = cluster.cluster_id
       if (expandedClusterId === clusterId) {
         setExpandedClusterId(null)
         return
       }
 
+      const section = document.querySelector<HTMLElement>(
+        `[data-cluster-id="${clusterId}"]`,
+      )
       setExpandedClusterId(clusterId)
-      if (!clusterArticlesCache.has(clusterId)) {
-        const clusterArticles = clusterArticlesToNewsArticles(cluster.articles)
-        setClusterArticlesCache((prev) => new Map(prev).set(clusterId, clusterArticles))
+      window.setTimeout(() => {
+        section?.scrollIntoView({ behavior: "smooth", block: "start" })
+      }, 0)
+      if (!clusterArticlesCache.has(clusterId) || clusterArticlesCache.get(clusterId)?.length === 0) {
+        const previewArticles = clusterArticlesToNewsArticles(cluster.articles)
+        setClusterArticlesCache((prev) => new Map(prev).set(clusterId, previewArticles))
+
+        try {
+          const fullArticles = await fetchClusterArticles(clusterId)
+          setClusterArticlesCache((prev) => new Map(prev).set(clusterId, fullArticles))
+        } catch (error) {
+          logger.warn("Failed to load full topic cluster articles", {
+            clusterId,
+            error,
+          })
+        }
       }
     },
     [expandedClusterId, clusterArticlesCache],
@@ -797,126 +814,134 @@ export function GridView({
                       const previewStats = getClusterPreviewStats(cluster)
 
                       return (
-                        <motion.div
-                          initial={{ opacity: 0, scale: 0.95 }}
-                          animate={{ opacity: 1, scale: 1 }}
-                          transition={{ delay: index * 0.05 }}
-                          key={cluster.cluster_id}
-                          className={cn(
-                            "group flex cursor-pointer flex-col overflow-hidden rounded-2xl border bg-black/20 transition-all duration-500 hover:bg-white/[0.03] snap-start scroll-mt-6",
-                            isExpanded ? "border-primary/50 ring-1 ring-primary/40" : "border-white/5",
-                          )}
-                          style={{ scrollSnapStop: "normal" }}
-                          onClick={() => handleExpandCluster(cluster)}
-                        >
-                          <div className="relative m-2 aspect-video overflow-hidden rounded-xl bg-white/5">
-                            {imageUrl ? (
-                              <img
-                                src={imageUrl}
-                                alt={representative.title}
-                                className="h-full w-full object-cover grayscale transition duration-700 group-hover:scale-105 group-hover:grayscale-0"
-                              />
-                            ) : (
-                              <div className="editorial-fallback-surface h-full w-full opacity-50 transition duration-700 group-hover:scale-105" />
+                        <Fragment key={cluster.cluster_id}>
+                          <motion.div
+                            initial={{ opacity: 0, scale: 0.95 }}
+                            animate={{ opacity: 1, scale: 1 }}
+                            transition={{ delay: index * 0.05 }}
+                            data-cluster-id={cluster.cluster_id}
+                            className={cn(
+                              "group flex cursor-pointer flex-col overflow-hidden rounded-2xl border bg-black/20 transition-all duration-500 hover:bg-white/[0.03] snap-start scroll-mt-6",
+                              isExpanded ? "border-primary/50 ring-1 ring-primary/40" : "border-white/5",
                             )}
-                            <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/30 to-transparent" />
-                            <div className="absolute right-4 top-4 z-10 text-white drop-shadow-md">
-                              {isExpanded ? (
-                                <ChevronDown className="h-5 w-5" />
+                            style={{ scrollSnapStop: "normal" }}
+                            onClick={() => handleExpandCluster(cluster)}
+                          >
+                            <div className="relative m-2 aspect-video overflow-hidden rounded-xl bg-white/5">
+                              {imageUrl ? (
+                                <img
+                                  src={imageUrl}
+                                  alt={representative.title}
+                                  className="h-full w-full object-cover grayscale transition duration-700 group-hover:scale-105 group-hover:grayscale-0"
+                                />
                               ) : (
-                                <ChevronRight className="h-5 w-5 text-white/75 group-hover:text-white" />
+                                <div className="editorial-fallback-surface h-full w-full opacity-50 transition duration-700 group-hover:scale-105" />
                               )}
+                              <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/30 to-transparent" />
+                              <div className="absolute right-4 top-4 z-10 text-white drop-shadow-md">
+                                {isExpanded ? (
+                                  <ChevronDown className="h-5 w-5" />
+                                ) : (
+                                  <ChevronRight className="h-5 w-5 text-white/75 group-hover:text-white" />
+                                )}
+                              </div>
+                              <div className="absolute bottom-4 left-4 right-4">
+                                <h3 className="font-serif text-xl font-medium leading-snug text-white drop-shadow-md">
+                                  {getClusterDisplayLabel(cluster)}
+                                </h3>
+                              </div>
                             </div>
-                            <div className="absolute bottom-4 left-4 right-4">
-                              <h3 className="font-serif text-xl font-medium leading-snug text-white drop-shadow-md">
-                                {getClusterDisplayLabel(cluster)}
-                              </h3>
+                            <CardContent className="flex items-center justify-between p-5 pt-3 text-xs uppercase tracking-widest text-muted-foreground/70">
+                              <span className="flex items-center gap-2">
+                                <Newspaper className="h-3.5 w-3.5 text-primary/70" /> {previewStats.sourceCount} sources
+                              </span>
+                              <span className="flex items-center gap-2">
+                                <List className="h-3.5 w-3.5 text-primary/70" /> {previewStats.articleCount} stories
+                              </span>
+                            </CardContent>
+                          </motion.div>
+
+                          {isExpanded && expandedCluster && (
+                            <div
+                              data-cluster-expanded-for={cluster.cluster_id}
+                              className="col-span-full overflow-hidden rounded-2xl border border-primary/30 bg-black/20"
+                            >
+                              <div className="flex flex-col gap-4 border-b border-white/10 bg-black/30 px-6 py-5 lg:flex-row lg:items-center lg:justify-between">
+                                <div className="flex flex-wrap items-center gap-3">
+                                  <Layers className="h-5 w-5 text-primary" />
+                                  <h3 className="font-serif text-2xl text-foreground">
+                                    {getClusterDisplayLabel(expandedCluster)}
+                                  </h3>
+                                  <Badge
+                                    variant="outline"
+                                    className="border-white/10 bg-white/5 text-xs uppercase tracking-widest text-muted-foreground"
+                                  >
+                                    {getClusterPreviewStats(expandedCluster).sourceCount} sources
+                                  </Badge>
+                                  <Badge
+                                    variant="outline"
+                                    className="border-white/10 bg-white/5 text-xs uppercase tracking-widest text-muted-foreground"
+                                  >
+                                    {getClusterPreviewStats(expandedCluster).articleCount} stories
+                                  </Badge>
+                                </div>
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  onClick={(event) => {
+                                    event.stopPropagation()
+                                    setExpandedClusterId(null)
+                                  }}
+                                  className="w-fit rounded-full border border-white/10 bg-transparent px-4 text-xs uppercase tracking-widest text-muted-foreground hover:bg-white/5 hover:text-white"
+                                >
+                                  Close topic
+                                </Button>
+                              </div>
+
+                              <div className="space-y-6 px-6 py-6">
+                                {expandedClusterArticles.length > 0 ? (
+                                  <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+                                    {expandedClusterArticles.map((article, index) => (
+                                      <SourceArticleCard
+                                        key={article.url ? `cluster-url:${article.url}` : `cluster-id:${article.id}`}
+                                        article={article}
+                                        index={index}
+                                        likedIds={likedIds}
+                                        hasRealImage={hasRealImage}
+                                        isArticleInQueue={isArticleInQueue}
+                                        onArticleClick={handleArticleClick}
+                                        onLike={handleLike}
+                                        onQueueToggle={handleQueueToggle}
+                                      />
+                                    ))}
+                                  </div>
+                                ) : (
+                                  <div className="py-12 text-center text-xs uppercase tracking-widest text-muted-foreground">
+                                    No articles found for this topic
+                                  </div>
+                                )}
+
+                                {expandedCluster.keywords.length > 0 && (
+                                  <div className="flex flex-wrap items-center gap-2 border-t border-white/10 pt-4">
+                                    <span className="text-xs uppercase tracking-widest text-muted-foreground">Keywords</span>
+                                    {expandedCluster.keywords.slice(0, 8).map((keyword) => (
+                                      <Badge
+                                        key={keyword}
+                                        variant="outline"
+                                        className="border-white/10 bg-white/5 text-xs uppercase tracking-widest text-muted-foreground"
+                                      >
+                                        {keyword}
+                                      </Badge>
+                                    ))}
+                                  </div>
+                                )}
+                              </div>
                             </div>
-                          </div>
-                          <CardContent className="flex items-center justify-between p-5 pt-3 text-xs uppercase tracking-widest text-muted-foreground/70">
-                            <span className="flex items-center gap-2">
-                              <Newspaper className="h-3.5 w-3.5 text-primary/70" /> {previewStats.sourceCount} sources
-                            </span>
-                            <span className="flex items-center gap-2">
-                              <List className="h-3.5 w-3.5 text-primary/70" /> {previewStats.articleCount} stories
-                            </span>
-                          </CardContent>
-                        </motion.div>
+                          )}
+                        </Fragment>
                       )
                     })}
                   </div>
-
-                  {expandedCluster && (
-                    <div className="overflow-hidden rounded-2xl border border-primary/30 bg-black/20">
-                      <div className="flex flex-col gap-4 border-b border-white/10 bg-black/30 px-6 py-5 lg:flex-row lg:items-center lg:justify-between">
-                        <div className="flex flex-wrap items-center gap-3">
-                          <Layers className="h-5 w-5 text-primary" />
-                          <h3 className="font-serif text-2xl text-foreground">
-                            {getClusterDisplayLabel(expandedCluster)}
-                          </h3>
-                          <Badge
-                            variant="outline"
-                            className="border-white/10 bg-white/5 text-xs uppercase tracking-widest text-muted-foreground"
-                          >
-                            {getClusterPreviewStats(expandedCluster).sourceCount} sources
-                          </Badge>
-                          <Badge
-                            variant="outline"
-                            className="border-white/10 bg-white/5 text-xs uppercase tracking-widest text-muted-foreground"
-                          >
-                            {getClusterPreviewStats(expandedCluster).articleCount} stories
-                          </Badge>
-                        </div>
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => setExpandedClusterId(null)}
-                          className="w-fit rounded-full border border-white/10 bg-transparent px-4 text-xs uppercase tracking-widest text-muted-foreground hover:bg-white/5 hover:text-white"
-                        >
-                          Close topic
-                        </Button>
-                      </div>
-
-                      <div className="space-y-6 px-6 py-6">
-                        {expandedClusterArticles.length > 0 ? (
-                          <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-                            {expandedClusterArticles.map((article, index) => (
-                              <SourceArticleCard
-                                key={article.url ? `cluster-url:${article.url}` : `cluster-id:${article.id}`}
-                                article={article}
-                                index={index}
-                                likedIds={likedIds}
-                                hasRealImage={hasRealImage}
-                                isArticleInQueue={isArticleInQueue}
-                                onArticleClick={handleArticleClick}
-                                onLike={handleLike}
-                                onQueueToggle={handleQueueToggle}
-                              />
-                            ))}
-                          </div>
-                        ) : (
-                          <div className="py-12 text-center text-xs uppercase tracking-widest text-muted-foreground">
-                            No articles found for this topic
-                          </div>
-                        )}
-
-                        {expandedCluster.keywords.length > 0 && (
-                          <div className="flex flex-wrap items-center gap-2 border-t border-white/10 pt-4">
-                            <span className="text-xs uppercase tracking-widest text-muted-foreground">Keywords</span>
-                            {expandedCluster.keywords.slice(0, 8).map((keyword) => (
-                              <Badge
-                                key={keyword}
-                                variant="outline"
-                                className="border-white/10 bg-white/5 text-xs uppercase tracking-widest text-muted-foreground"
-                              >
-                                {keyword}
-                              </Badge>
-                            ))}
-                          </div>
-                        )}
-                      </div>
-                    </div>
-                  )}
                 </>
               )}
             </div>

@@ -68,11 +68,8 @@ export function NotificationsPopup({ notifications, onClear, onClearAll, onActio
       }
 
       setPosition({
-        top: Math.max(defaultTop, rect.top),
-        left: Math.min(
-          defaultLeft,
-          Math.max(viewportPadding, rect.right - popupWidth + 16),
-        ),
+        top: defaultTop,
+        left: defaultLeft,
       });
     };
     

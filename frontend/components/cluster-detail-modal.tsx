@@ -142,6 +142,10 @@ interface ComparisonData {
   };
 }
 
+function buildComparisonRequestKey(articleIds: number[]): string {
+  return articleIds.slice().sort((a, b) => a - b).join(":");
+}
+
 function formatDate(dateStr?: string | null): string {
   if (!dateStr) return "";
   const date = new Date(dateStr);
@@ -205,6 +209,7 @@ export function ClusterDetailModal({
   const [selectedArticlesForComparison, setSelectedArticlesForComparison] = useState<number[]>([]);
   const [comparisonError, setComparisonError] = useState<string | null>(null);
   const articleContentRef = useRef<HTMLDivElement>(null);
+  const comparisonRequestKeyRef = useRef<string | null>(null);
   const clusterId = cluster?.cluster_id ?? null;
 
   const { addArticleToQueue, removeArticleFromQueue, isArticleInQueue } = useReadingQueue();
@@ -221,6 +226,7 @@ export function ClusterDetailModal({
       setComparisonLoading(false);
       setComparisonError(null);
       setSelectedArticlesForComparison([]);
+      comparisonRequestKeyRef.current = null;
       return;
     }
 
@@ -232,6 +238,7 @@ export function ClusterDetailModal({
       setComparisonLoading(false);
       setComparisonError(null);
       setSelectedArticlesForComparison([]);
+      comparisonRequestKeyRef.current = null;
       try {
         const detail = await fetchClusterDetail(clusterId);
         setClusterDetail(detail);
@@ -278,6 +285,11 @@ export function ClusterDetailModal({
   const loadComparisonData = useCallback(async (articleIds: number[]) => {
     if (articleIds.length < 2 || !clusterDetail) return;
 
+    const requestKey = buildComparisonRequestKey(articleIds);
+    if (comparisonRequestKeyRef.current === requestKey) {
+      return;
+    }
+
     setComparisonError(null);
     const comparisonArticles = getSelectedComparisonArticles(
       clusterDetail.articles,
@@ -298,6 +310,7 @@ export function ClusterDetailModal({
       return;
     }
 
+    comparisonRequestKeyRef.current = requestKey;
     setComparisonLoading(true);
     try {
       const contentEntries = await Promise.all(
@@ -387,6 +400,7 @@ export function ClusterDetailModal({
     setSelectedArticlesForComparison(comparisonIds);
     setComparisonData(null);
     setComparisonMode(true);
+    comparisonRequestKeyRef.current = null;
   }, [clusterDetail]);
 
   const handleQueueToggle = useCallback(
@@ -435,6 +449,7 @@ export function ClusterDetailModal({
           return articleSourceId !== sourceId;
         });
 
+        comparisonRequestKeyRef.current = null;
         return [...nextArticles.map((article) => article.id), parsedId];
       });
     },
@@ -458,6 +473,10 @@ export function ClusterDetailModal({
         selectedArticlesForComparison,
       )
     : [];
+  const primaryComparisonArticle = comparisonArticles[0] ?? null;
+  const secondaryComparisonArticle = comparisonArticles[1] ?? null;
+  const hasComparisonPair =
+    primaryComparisonArticle !== null && secondaryComparisonArticle !== null;
   const comparisonSourceOptions = clusterDetail
     ? buildComparisonSourceOptions(clusterDetail.articles)
     : [];
@@ -755,24 +774,30 @@ export function ClusterDetailModal({
                     )}
 
                     {/* Comparison Header */}
-                    <div className="text-center mb-6">
-                      <h3 className="font-serif text-2xl font-bold mb-2">
-                        Compare: {comparisonArticles[0].source} vs {comparisonArticles[1].source}
-                      </h3>
-                      <p className="text-sm text-muted-foreground">
-                        How different sources report the same story
-                      </p>
-                      {comparisonData && (
-                        <div className="mt-3 inline-flex items-center gap-2 px-3 py-1 bg-[var(--news-bg-secondary)] rounded-full text-xs">
-                          <span>Content Similarity:</span>
-                          <span className={`font-bold ${comparisonData.similarity.overall_match_percent > 70 ? 'text-green-400' : comparisonData.similarity.overall_match_percent > 40 ? 'text-yellow-400' : 'text-red-400'}`}>
-                            {comparisonData.similarity.overall_match_percent}%
-                          </span>
-                        </div>
-                      )}
-                    </div>
+                    {hasComparisonPair ? (
+                      <div className="text-center mb-6">
+                        <h3 className="font-serif text-2xl font-bold mb-2">
+                          Compare: {primaryComparisonArticle.source} vs {secondaryComparisonArticle.source}
+                        </h3>
+                        <p className="text-sm text-muted-foreground">
+                          How different sources report the same story
+                        </p>
+                        {comparisonData && (
+                          <div className="mt-3 inline-flex items-center gap-2 px-3 py-1 bg-[var(--news-bg-secondary)] rounded-full text-xs">
+                            <span>Content Similarity:</span>
+                            <span className={`font-bold ${comparisonData.similarity.overall_match_percent > 70 ? 'text-green-400' : comparisonData.similarity.overall_match_percent > 40 ? 'text-yellow-400' : 'text-red-400'}`}>
+                              {comparisonData.similarity.overall_match_percent}%
+                            </span>
+                          </div>
+                        )}
+                      </div>
+                    ) : (
+                      <div className="rounded-lg border border-border/60 bg-[var(--news-bg-secondary)] px-4 py-3 text-sm text-muted-foreground">
+                        Select one article from each outlet to compare the coverage.
+                      </div>
+                    )}
 
-                    {comparisonLoading ? (
+                    {!hasComparisonPair ? null : comparisonLoading ? (
                       <div className="flex items-center justify-center py-12">
                         <Loader2 className="w-8 h-8 animate-spin text-primary" />
                         <span className="ml-3 text-muted-foreground">Analyzing articles...</span>
@@ -819,7 +844,7 @@ export function ClusterDetailModal({
                           <div className="grid grid-cols-2 gap-3 mt-4 pt-3 border-t border-border/60">
                             <div>
                               <span className="text-xs text-muted-foreground block mb-2">
-                                Unique to {comparisonArticles[0].source}:
+                                Unique to {primaryComparisonArticle.source}:
                               </span>
                               <div className="space-y-1">
                                 {[...comparisonData.entities.comparison.unique_to_source_1.persons.slice(0, 3), 
@@ -832,7 +857,7 @@ export function ClusterDetailModal({
                             </div>
                             <div>
                               <span className="text-xs text-muted-foreground block mb-2">
-                                Unique to {comparisonArticles[1].source}:
+                                Unique to {secondaryComparisonArticle.source}:
                               </span>
                               <div className="space-y-1">
                                 {[...comparisonData.entities.comparison.unique_to_source_2.persons.slice(0, 3), 
@@ -873,7 +898,7 @@ export function ClusterDetailModal({
                                     </span>
                                     {kw.emphasis !== 'equal' && (
                                       <Badge className={`text-[9px] ${kw.emphasis === 'source_1' ? 'bg-blue-500/20 text-blue-400' : 'bg-orange-500/20 text-orange-400'}`}>
-                                        {kw.emphasis === 'source_1' ? comparisonArticles[0].source.slice(0, 8) : comparisonArticles[1].source.slice(0, 8)}
+                                         {kw.emphasis === 'source_1' ? primaryComparisonArticle.source.slice(0, 8) : secondaryComparisonArticle.source.slice(0, 8)}
                                       </Badge>
                                     )}
                                   </div>
@@ -885,7 +910,7 @@ export function ClusterDetailModal({
                           {/* Unique Keywords */}
                           <div className="grid grid-cols-2 gap-3">
                             <div>
-                              <span className="text-xs text-muted-foreground">Unique to {comparisonArticles[0].source}:</span>
+                              <span className="text-xs text-muted-foreground">Unique to {primaryComparisonArticle.source}:</span>
                               <div className="flex flex-wrap gap-1 mt-1">
                                 {comparisonData.keywords.comparison.unique_to_source_1.slice(0, 6).map((kw, idx) => (
                                   <Badge key={idx} variant="outline" className="text-[9px]">
@@ -895,7 +920,7 @@ export function ClusterDetailModal({
                               </div>
                             </div>
                             <div>
-                              <span className="text-xs text-muted-foreground">Unique to {comparisonArticles[1].source}:</span>
+                              <span className="text-xs text-muted-foreground">Unique to {secondaryComparisonArticle.source}:</span>
                               <div className="flex flex-wrap gap-1 mt-1">
                                 {comparisonData.keywords.comparison.unique_to_source_2.slice(0, 6).map((kw, idx) => (
                                   <Badge key={idx} variant="outline" className="text-[9px]">
@@ -1020,13 +1045,13 @@ export function ClusterDetailModal({
                               <div className="text-2xl font-bold text-blue-400">
                                 {comparisonData.summary.unique_entities_source_1}
                               </div>
-                              <div className="text-xs text-muted-foreground">Unique to {comparisonArticles[0].source}</div>
+                              <div className="text-xs text-muted-foreground">Unique to {primaryComparisonArticle.source}</div>
                             </div>
                             <div className="text-center">
                               <div className="text-2xl font-bold text-orange-400">
                                 {comparisonData.summary.unique_entities_source_2}
                               </div>
-                              <div className="text-xs text-muted-foreground">Unique to {comparisonArticles[1].source}</div>
+                              <div className="text-xs text-muted-foreground">Unique to {secondaryComparisonArticle.source}</div>
                             </div>
                             <div className="text-center">
                               <div className="text-2xl font-bold text-primary">
