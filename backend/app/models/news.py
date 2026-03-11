@@ -36,4 +36,6 @@ class SourceInfo(StrictBaseModel):
     funding_type: Optional[str] = None
     bias_rating: Optional[str] = None
     ownership_label: Optional[str] = None
+    factual_rating: Optional[str] = None
+    credibility_score: Optional[float] = None
     extra: Dict[str, Any] | None = None

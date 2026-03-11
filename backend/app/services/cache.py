@@ -1,9 +1,11 @@
 from __future__ import annotations
 
 import threading
+from collections import defaultdict
 from datetime import datetime, timezone
 from typing import Dict, List
 
+from app.core.config import settings
 from app.core.logging import get_logger
 from app.models.news import NewsArticle
 
@@ -32,6 +34,52 @@ class NewsCache:
     def _published_key(self, article: NewsArticle) -> str:
         return article.published or ""
 
+    def _shape_articles(self, articles: List[NewsArticle]) -> List[NewsArticle]:
+        max_articles = max(0, settings.news_cache_max_articles)
+        max_per_source = max(0, settings.news_cache_max_per_source)
+
+        if not articles or max_articles == 0 or max_per_source == 0:
+            return []
+
+        grouped: Dict[str, List[NewsArticle]] = defaultdict(list)
+        for article in sorted(articles, key=self._published_key, reverse=True):
+            grouped[article.source].append(article)
+
+        trimmed_groups = {
+            source: source_articles[:max_per_source]
+            for source, source_articles in grouped.items()
+            if source_articles
+        }
+
+        source_order = sorted(
+            trimmed_groups.keys(),
+            key=lambda source: self._published_key(trimmed_groups[source][0]),
+            reverse=True,
+        )
+
+        shaped: List[NewsArticle] = []
+        round_index = 0
+        while len(shaped) < max_articles:
+            appended = False
+            for source in source_order:
+                source_articles = trimmed_groups[source]
+                if round_index >= len(source_articles):
+                    continue
+                shaped.append(source_articles[round_index])
+                appended = True
+                if len(shaped) >= max_articles:
+                    break
+            if not appended:
+                break
+            round_index += 1
+
+        return shaped
+
+    def _rebuild_source_index(self) -> None:
+        self.articles_by_source = {}
+        for article in self.articles:
+            self.articles_by_source.setdefault(article.source, []).append(article)
+
     def get_articles(self) -> List[NewsArticle]:
         with self.lock:
             self._assert_invariants()
@@ -57,11 +105,9 @@ class NewsCache:
         assert isinstance(source_stats, list), "update_cache requires list source_stats"
         with self.lock:
             old_count = len(self.articles)
-            self.articles = articles
+            self.articles = self._shape_articles(articles)
             self.source_stats = source_stats
-            self.articles_by_source = {}
-            for article in articles:
-                self.articles_by_source.setdefault(article.source, []).append(article)
+            self._rebuild_source_index()
             self.source_stats_by_name = {}
             for stat in source_stats:
                 stat_name = stat.get("name")
@@ -130,8 +176,8 @@ class NewsCache:
                 if j < len(new_articles):
                     merged.extend(new_articles[j:])
 
-                self.articles = merged
-                self.articles_by_source[source_name] = new_articles
+                self.articles = self._shape_articles(merged)
+                self._rebuild_source_index()
 
             if source_name:
                 self.source_stats_by_name[source_name] = source_stat

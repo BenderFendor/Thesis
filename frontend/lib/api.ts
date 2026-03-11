@@ -79,6 +79,8 @@ export interface NewsSource {
   category: string[];
   language: string;
   funding: string[];
+  credibilityScore?: number;
+  factualRating?: string;
 }
 
 export interface NewsArticle {
@@ -222,6 +224,8 @@ const BackendSourceSchema = z
     category: z.string().optional(),
     funding_type: z.string().optional(),
     ownership_label: z.string().optional(),
+    factual_rating: z.string().optional(),
+    credibility_score: z.number().optional(),
   })
   .passthrough();
 
@@ -454,11 +458,17 @@ export async function fetchSources(): Promise<NewsSource[]> {
       country: source.country,
       url: source.url,
       rssUrl: source.rssUrl || source.url,
-      credibility: mapCredibility(source.bias_rating),
+      credibility: mapCredibilityScoreToLevel(
+        source.credibility_score,
+        source.factual_rating,
+        source.bias_rating,
+      ),
       bias: mapBias(source.bias_rating),
       category: source.category ? [source.category] : ["general"],
       language: "en",
       funding: [source.funding_type || source.ownership_label || "Unknown"],
+      credibilityScore: source.credibility_score,
+      factualRating: source.factual_rating,
     }));
   } catch (error) {
     console.error("Failed to fetch sources:", error);
@@ -472,6 +482,26 @@ function mapCredibility(biasRating?: string): "high" | "medium" | "low" {
   if (biasRating.toLowerCase().includes("high")) return "high";
   if (biasRating.toLowerCase().includes("low")) return "low";
   return "medium";
+}
+
+function mapCredibilityScoreToLevel(
+  score?: number,
+  factualRating?: string,
+  biasRating?: string,
+): "high" | "medium" | "low" {
+  if (typeof score === "number") {
+    if (score >= 0.75) return "high"
+    if (score <= 0.4) return "low"
+    return "medium"
+  }
+
+  const normalizedFactual = factualRating?.toLowerCase()
+  if (normalizedFactual?.includes("high")) return "high"
+  if (normalizedFactual?.includes("low") || normalizedFactual?.includes("mixed")) {
+    return "low"
+  }
+
+  return mapCredibility(biasRating)
 }
 
 function mapBias(biasRating?: string): "left" | "center" | "right" {
@@ -2583,6 +2613,7 @@ export async function getQueueOverview(): Promise<QueueOverview> {
 export interface Highlight {
   id?: number;
   user_id?: number;
+  client_id?: string;
   article_url: string;
   highlighted_text: string;
   color: "yellow" | "blue" | "red" | "green" | "purple";

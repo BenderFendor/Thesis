@@ -39,6 +39,47 @@ export function createHighlightFingerprint(highlight: {
   )}`
 }
 
+function getHighlightRecencyValue(highlight: Partial<LocalHighlight>) {
+  const timestamp =
+    highlight.updated_at ??
+    highlight.created_at ??
+    highlight.local_updated_at ??
+    ""
+
+  const parsed = Date.parse(timestamp)
+  return Number.isNaN(parsed) ? 0 : parsed
+}
+
+export function dedupeLocalHighlights(highlights: LocalHighlight[]): LocalHighlight[] {
+  const byFingerprint = new Map<string, LocalHighlight>()
+
+  for (const highlight of highlights) {
+    const fingerprint = createHighlightFingerprint(highlight)
+    const existing = byFingerprint.get(fingerprint)
+
+    if (!existing) {
+      byFingerprint.set(fingerprint, highlight)
+      continue
+    }
+
+    const existingHasServerId = Boolean(getServerId(existing))
+    const nextHasServerId = Boolean(getServerId(highlight))
+
+    if (nextHasServerId && !existingHasServerId) {
+      byFingerprint.set(fingerprint, highlight)
+      continue
+    }
+
+    if (nextHasServerId === existingHasServerId) {
+      if (getHighlightRecencyValue(highlight) >= getHighlightRecencyValue(existing)) {
+        byFingerprint.set(fingerprint, highlight)
+      }
+    }
+  }
+
+  return [...byFingerprint.values()].sort((a, b) => a.character_start - b.character_start)
+}
+
 function safeNowIso() {
   return new Date().toISOString()
 }
@@ -176,17 +217,19 @@ export function mergeHighlights({
     upsert(item)
   }
 
-  return merged
+  return dedupeLocalHighlights(
+    merged
     .filter((item) => item.article_url === articleUrl)
     .sort((a, b) => a.character_start - b.character_start)
+  )
 }
 
 export function toRemoteHighlights(local: LocalHighlight[]): Highlight[] {
-  return local
+  return dedupeLocalHighlights(local)
     .filter((item) => !item.deleted)
     .map(({ client_id, server_id, sync_status, pending_op, last_error, local_updated_at, deleted, ...rest }) => {
       const id = rest.id ?? server_id
-      return id ? { ...rest, id } : rest
+      return id ? { ...rest, id, client_id } : { ...rest, client_id }
     })
 }
 

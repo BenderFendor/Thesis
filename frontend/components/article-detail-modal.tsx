@@ -10,7 +10,7 @@ import { Badge } from "@/components/ui/badge"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
 import { type NewsArticle, getSourceById, type NewsSource, fetchSourceDebugData, type SourceDebugData, analyzeArticle, type ArticleAnalysis, API_BASE_URL, performAgenticSearch, type FactCheckResult, type Highlight, getHighlightsForArticle, createHighlight, updateHighlight, deleteHighlight } from "@/lib/api"
 import { useLikedArticles } from "@/hooks/useLikedArticles"
-import { loadHighlightStore, mergeHighlights, saveHighlightStore, toRemoteHighlights, type LocalHighlight, type HighlightSyncStatus, generateClientId, markFailed, markPending, markSynced } from "@/lib/highlight-store"
+import { loadHighlightStore, mergeHighlights, saveHighlightStore, toRemoteHighlights, type LocalHighlight, type HighlightSyncStatus, generateClientId, markFailed, markPending, markSynced, createHighlightFingerprint, dedupeLocalHighlights } from "@/lib/highlight-store"
 import { isDebugMode } from "@/lib/logger"
 import { useReadingQueue } from "@/hooks/useReadingQueue"
 import { useFavorites } from "@/hooks/useFavorites"
@@ -24,7 +24,7 @@ import { toast } from "sonner"
 import { ArticleContent } from "@/components/article-content"
 import { HighlightToolbar } from "@/components/highlight-toolbar"
 import { HighlightNotePopover } from "@/components/highlight-note-popover"
-import { getMarkdownWithHighlights } from "@/lib/highlight-utils"
+import { buildObsidianMarkdown } from "@/lib/highlight-utils"
 
 type FactCheckStatus = FactCheckResult["verification_status"]
 type FactCheckStatusFilter = FactCheckStatus | "all"
@@ -124,6 +124,8 @@ export function ArticleDetailModal({ article, isOpen, onClose, onBookmarkChange,
   const [highlightPopoverAnchorEl, setHighlightPopoverAnchorEl] = useState<HTMLElement | null>(null)
   const [highlightPopoverHighlight, setHighlightPopoverHighlight] = useState<Highlight | null>(null)
   const lastCreatedClientIdRef = useRef<string | null>(null)
+  const contentScrollRef = useRef<HTMLDivElement>(null)
+  const [articleScrollProgress, setArticleScrollProgress] = useState(0)
 
   const pushToHistory = useCallback((currentHighlights: LocalHighlight[]) => {
     setHighlightsHistory((prev) => [...prev, currentHighlights].slice(-20)) // keep last 20 states
@@ -648,8 +650,6 @@ export function ArticleDetailModal({ article, isOpen, onClose, onBookmarkChange,
     }
   }
 
-  if (!isOpen || !article) return null
-
   const hasRealImage = (src?: string | null) => {
     if (!src) return false
     const trimmed = src.trim()
@@ -669,21 +669,67 @@ export function ArticleDetailModal({ article, isOpen, onClose, onBookmarkChange,
     })
   }
 
-  const heroImage = hasRealImage(article.image) ? article.image : null
-  const heroLayoutId = layoutIdPrefix && article ? `${layoutIdPrefix}-image-${article.id}` : undefined
-  const titleLayoutId = layoutIdPrefix && article ? `${layoutIdPrefix}-title-${article.id}` : undefined
-  const articleTextForMetrics = (fullArticleText || article.content || article.summary || "").trim()
+  const currentArticle = article
+  const heroImage = currentArticle && hasRealImage(currentArticle.image) ? currentArticle.image : null
+  const heroLayoutId = layoutIdPrefix && currentArticle ? `${layoutIdPrefix}-image-${currentArticle.id}` : undefined
+  const titleLayoutId = layoutIdPrefix && currentArticle ? `${layoutIdPrefix}-title-${currentArticle.id}` : undefined
+  const articleTextForMetrics = (fullArticleText || currentArticle?.content || currentArticle?.summary || "").trim()
   const wordCount = articleTextForMetrics ? articleTextForMetrics.split(/\s+/).filter(Boolean).length : 0
   const estimatedReadMinutes = Math.max(1, Math.ceil(wordCount / 230))
-  const summaryText = (article.summary || "").trim()
-  const contentText = (article.content || "").trim()
+  const summaryText = (currentArticle?.summary || "").trim()
+  const contentText = (currentArticle?.content || "").trim()
   const fullText = (fullArticleText || "").trim()
   const showSummary = Boolean(
     summaryText &&
       summaryText !== fullText &&
       summaryText !== contentText
   )
-  const articleHost = isExtractableUrl(article.url) ? new URL(article.url).hostname : undefined
+  const articleHost = currentArticle && isExtractableUrl(currentArticle.url) ? new URL(currentArticle.url).hostname : undefined
+  const visibleHighlights = useMemo(
+    () => toRemoteHighlights(highlights.filter((h) => !h.deleted)),
+    [highlights],
+  )
+  const obsidianMarkdown = useMemo(
+    () =>
+      buildObsidianMarkdown({
+        article: {
+          url: currentArticle?.url || "",
+          title: currentArticle?.title || "",
+          author: currentArticle?.author,
+          publishedAt: currentArticle?.publishedAt || "",
+          content: currentArticle?.content,
+          summary: currentArticle?.summary || "",
+        },
+        fullArticleText,
+        highlights: visibleHighlights,
+      }),
+    [currentArticle, fullArticleText, visibleHighlights],
+  )
+
+  useEffect(() => {
+    const container = contentScrollRef.current
+    if (!container || !isOpen) return
+
+    const updateProgress = () => {
+      const maxScroll = Math.max(0, container.scrollHeight - container.clientHeight)
+      if (maxScroll === 0) {
+        setArticleScrollProgress(0)
+        return
+      }
+      setArticleScrollProgress(Math.min(1, container.scrollTop / maxScroll))
+    }
+
+    updateProgress()
+    container.addEventListener("scroll", updateProgress, { passive: true })
+    window.addEventListener("resize", updateProgress)
+
+    return () => {
+      container.removeEventListener("scroll", updateProgress)
+      window.removeEventListener("resize", updateProgress)
+    }
+  }, [isOpen, isExpanded, currentArticle?.url, fullArticleText])
+
+  if (!isOpen || !currentArticle) return null
 
   return (
     <AnimatePresence>
@@ -764,7 +810,13 @@ export function ArticleDetailModal({ article, isOpen, onClose, onBookmarkChange,
          </div>
 
         {/* Content Wrapper */}
-        <div className="no-scrollbar relative flex-1 overflow-y-auto bg-background">
+        <div ref={contentScrollRef} className="no-scrollbar relative flex-1 overflow-y-auto bg-background">
+          <div className="pointer-events-none absolute inset-y-24 right-2 z-10 hidden w-2 rounded-full bg-white/5 lg:block">
+            <div
+              className="w-full rounded-full bg-primary/80 transition-[height] duration-150"
+              style={{ height: `${Math.max(articleScrollProgress * 100, 8)}%` }}
+            />
+          </div>
           {/* Hero Section */}
           <div className={`relative overflow-hidden ${isExpanded ? 'min-h-96 h-[60vh]' : 'h-56'} ${heroImage ? "bg-card" : "editorial-modal-fallback"}`}>
             {heroImage ? (
@@ -898,22 +950,43 @@ export function ArticleDetailModal({ article, isOpen, onClose, onBookmarkChange,
                     </div>
                   ) : (
                     <>
-                       <ArticleContent
+                        <ArticleContent
                           ref={articleContentRef}
                           content={fullArticleText || article.content || article.summary || ""}
-                           highlights={showHighlights ? toRemoteHighlights(highlights.filter((h) => !h.deleted)) : []}
+                            highlights={showHighlights ? visibleHighlights : []}
 
                           activeHighlightId={activeHighlightId}
                           onHighlightClick={handleHighlightClick}
                           className={`reading-prose ${isExpanded ? 'space-y-6' : 'space-y-5'}`}
                         />
-                      <HighlightToolbar
+                        <HighlightToolbar
                         articleUrl={article.url}
                         containerRef={articleContentRef}
                         highlightColor={highlightColor}
                         autoCreate
-                        highlights={toRemoteHighlights(highlights)}
+                         highlights={visibleHighlights}
                         onCreate={async ({ highlightedText, color, range }) => {
+                          const nextFingerprint = createHighlightFingerprint({
+                            character_start: range.start,
+                            character_end: range.end,
+                            highlighted_text: highlightedText,
+                          })
+                          const hasDuplicate = highlights.some((item) => {
+                            if (item.deleted) return false
+                            return (
+                              createHighlightFingerprint({
+                                character_start: item.character_start,
+                                character_end: item.character_end,
+                                highlighted_text: item.highlighted_text,
+                              }) === nextFingerprint
+                            )
+                          })
+
+                          if (hasDuplicate) {
+                            toast.error("That exact text is already highlighted")
+                            return
+                          }
+
                           const clientId = generateClientId()
                           lastCreatedClientIdRef.current = clientId
 
@@ -935,7 +1008,7 @@ export function ArticleDetailModal({ article, isOpen, onClose, onBookmarkChange,
                           let newlyCreatedLocal: LocalHighlight | null = null;
                           updateHighlightsWithHistory((prev) => {
                             newlyCreatedLocal = nextLocal;
-                            return [...prev, nextLocal]
+                            return dedupeLocalHighlights([...prev, nextLocal])
                           })
 
                           setTimeout(() => {
@@ -1170,48 +1243,7 @@ export function ArticleDetailModal({ article, isOpen, onClose, onBookmarkChange,
                         variant="outline"
                         size="sm"
                         onClick={async () => {
-                          const getObsidianMarkdown = () => {
-                            const lines: string[] = [
-                              "---",
-                              `source: "${article.url}"`,
-                              `author:`,
-                              article.author ? `  - "[[${article.author}]]"` : `  - ""`,
-                              `published: "${article.publishedAt}"`,
-                              `tags:`,
-                              `  - "news"`,
-                              `backlinks: ""`,
-                              "---",
-                              ""
-                            ]
-
-                            const validHighlights = highlights.filter((h) => !h.deleted)
-                            
-                            // 1. Highlights Summary
-                            if (validHighlights.length > 0) {
-                              lines.push("## Highlights\n")
-                              validHighlights.forEach((highlight) => {
-                                const text = highlight.highlighted_text.replace(/\s+/g, " ").trim()
-                                if (!text) return
-                                lines.push(`> ${text}`)
-                                if (highlight.note) {
-                                  lines.push(`\nNote: ${highlight.note.trim()}\n`)
-                                } else {
-                                  lines.push("\n")
-                                }
-                              })
-                              lines.push("\n---\n")
-                            }
-
-                            // 2. Full Article with inline highlights
-                            lines.push("## Full Article\n")
-                            const fullContent = fullArticleText || article.content || article.summary || ""
-                            const contentWithHighlights = getMarkdownWithHighlights(fullContent, highlights)
-                            lines.push(contentWithHighlights)
-
-                            return [...lines, "", "[[News Clippings]]"].join("\n")
-                          }
-
-                          const markdown = getObsidianMarkdown()
+                          const markdown = obsidianMarkdown
                           const title = article.title.replace(/[:\\/]/g, "-")
                           
                           try {
@@ -1237,48 +1269,7 @@ export function ArticleDetailModal({ article, isOpen, onClose, onBookmarkChange,
                         variant="outline"
                         size="sm"
                         onClick={async () => {
-                          const getObsidianMarkdown = () => {
-                            const lines: string[] = [
-                              "---",
-                              `source: "${article.url}"`,
-                              `author:`,
-                              article.author ? `  - "[[${article.author}]]"` : `  - ""`,
-                              `published: "${article.publishedAt}"`,
-                              `tags:`,
-                              `  - "news"`,
-                              `backlinks: ""`,
-                              "---",
-                              ""
-                            ]
-
-                            const validHighlights = highlights.filter((h) => !h.deleted)
-                            
-                            // 1. Highlights Summary
-                            if (validHighlights.length > 0) {
-                              lines.push("## Highlights\n")
-                              validHighlights.forEach((highlight) => {
-                                const text = highlight.highlighted_text.replace(/\s+/g, " ").trim()
-                                if (!text) return
-                                lines.push(`> ${text}`)
-                                if (highlight.note) {
-                                  lines.push(`\nNote: ${highlight.note.trim()}\n`)
-                                } else {
-                                  lines.push("\n")
-                                }
-                              })
-                              lines.push("\n---\n")
-                            }
-
-                            // 2. Full Article with inline highlights
-                            lines.push("## Full Article\n")
-                            const fullContent = fullArticleText || article.content || article.summary || ""
-                            const contentWithHighlights = getMarkdownWithHighlights(fullContent, highlights)
-                            lines.push(contentWithHighlights)
-
-                            return [...lines, "", "[[News Clippings]]"].join("\n")
-                          }
-
-                          await navigator.clipboard.writeText(getObsidianMarkdown())
+                          await navigator.clipboard.writeText(obsidianMarkdown)
                           toast.success("Obsidian Markdown copied")
                           logUserAction("highlight_markdown_copied", { url: article.url })
                         }}
@@ -1299,48 +1290,7 @@ export function ArticleDetailModal({ article, isOpen, onClose, onBookmarkChange,
                               .replace(/(^-|-$)+/g, "")
                               .slice(0, 80) || "annotations"
 
-                          const getObsidianMarkdown = () => {
-                            const lines: string[] = [
-                              "---",
-                              `source: "${article.url}"`,
-                              `author:`,
-                              article.author ? `  - "[[${article.author}]]"` : `  - ""`,
-                              `published: "${article.publishedAt}"`,
-                              `tags:`,
-                              `  - "news"`,
-                              `backlinks: ""`,
-                              "---",
-                              ""
-                            ]
-
-                            const validHighlights = highlights.filter((h) => !h.deleted)
-                            
-                            // 1. Highlights Summary
-                            if (validHighlights.length > 0) {
-                              lines.push("## Highlights\n")
-                              validHighlights.forEach((highlight) => {
-                                const text = highlight.highlighted_text.replace(/\s+/g, " ").trim()
-                                if (!text) return
-                                lines.push(`> ${text}`)
-                                if (highlight.note) {
-                                  lines.push(`\nNote: ${highlight.note.trim()}\n`)
-                                } else {
-                                  lines.push("\n")
-                                }
-                              })
-                              lines.push("\n---\n")
-                            }
-
-                            // 2. Full Article with inline highlights
-                            lines.push("## Full Article\n")
-                            const fullContent = fullArticleText || article.content || article.summary || ""
-                            const contentWithHighlights = getMarkdownWithHighlights(fullContent, highlights)
-                            lines.push(contentWithHighlights)
-
-                            return [...lines, "", "[[News Clippings]]"].join("\n")
-                          }
-
-                          const blob = new Blob([getObsidianMarkdown()], { type: "text/markdown" })
+                          const blob = new Blob([obsidianMarkdown], { type: "text/markdown" })
                           const fileName = `${sanitizeFilename(article.title)}.md`
                           const link = document.createElement("a")
                           link.href = URL.createObjectURL(blob)
@@ -1360,6 +1310,20 @@ export function ArticleDetailModal({ article, isOpen, onClose, onBookmarkChange,
                     <p className="mt-2 text-xs text-muted-foreground">
                       Select text to highlight. Click a highlight to add a note.
                     </p>
+                    <div className="mt-3 flex items-center justify-between gap-3 rounded-lg border border-border/60 bg-background/40 px-3 py-2 text-xs text-muted-foreground">
+                      <div>Reading progress</div>
+                      <div className="font-mono text-foreground">{Math.round(articleScrollProgress * 100)}%</div>
+                    </div>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={() => contentScrollRef.current?.scrollTo({ top: 0, behavior: "smooth" })}
+                      className="mt-2 w-full gap-2"
+                    >
+                      <Minimize2 className="h-4 w-4 rotate-180" />
+                      Back to top
+                    </Button>
                   </div>
 
                   <div className="space-y-3">
@@ -1381,13 +1345,12 @@ export function ArticleDetailModal({ article, isOpen, onClose, onBookmarkChange,
                               className="w-full text-left"
                               onClick={() => {
                                  const stableId = highlight.id ? `server:${highlight.id}` : `client:${highlight.client_id}`
-                                 const el = articleContentRef.current?.querySelector(
-                                   `mark[data-highlight-stable-id=\"${stableId}\"]`
-                                 ) as HTMLElement | null
-                                 if (el) {
-                                   el.scrollIntoView({ behavior: "smooth", block: "center" })
-                                   handleHighlightClick(stableId, el)
-                                 }
+                                  const el = articleContentRef.current?.querySelector(
+                                    `mark[data-highlight-stable-id=\"${stableId}\"]`
+                                  ) as HTMLElement | null
+                                  if (el) {
+                                    handleHighlightClick(stableId, el)
+                                  }
 
                               }}
                             >

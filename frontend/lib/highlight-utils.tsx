@@ -1,207 +1,234 @@
+import React from "react"
 
-import { Highlight } from "./api";
-import React from "react";
+import { Highlight } from "./api"
+import { createHighlightFingerprint } from "./highlight-store"
 
-/**
- * Calculates the absolute character offset of a point (node, offset) relative to a root element.
- * 
- * @param root The root element containing the text.
- * @param node The node where the selection starts or ends.
- * @param offset The offset within that node.
- * @returns The global character offset or -1 if the node is not inside root.
- */
-export function getGlobalOffset(root: HTMLElement, node: Node, offset: number): number {
-  // If node is the root itself, the offset refers to child index, not characters.
-  // We need to sum up text lengths of all children before that index.
-  if (node === root) {
-      let globalOffset = 0;
-      for (let i = 0; i < offset; i++) {
-          globalOffset += root.childNodes[i].textContent?.length || 0;
-      }
-      return globalOffset;
-  }
-
-  let current: Node | null = node;
-  let globalOffset = 0;
-
-  // Add the local offset if it's a text node. 
-  // If it's an element node (unlikely for selection anchor usually, but possible), 
-  // 'offset' is child index, so we should sum children before it? 
-  // Standard getSelection() usually gives text node for text selection.
-  if (current.nodeType === Node.TEXT_NODE) {
-      globalOffset += offset;
-  } else {
-      // If it's an element, offset is child index. 
-      // This is rare for text selection but happens if selecting "element" as a whole.
-      // For simplicity, let's just try to find the start of that element.
-      // Or we can traverse children.
-      // Let's iterate children up to offset.
-      for (let i = 0; i < offset; i++) {
-        globalOffset += current.childNodes[i].textContent?.length || 0;
-      }
-  }
-
-  // Traverse up to the root
-  while (current && current !== root) {
-    let prev = current.previousSibling;
-    while (prev) {
-      globalOffset += prev.textContent?.length || 0;
-      prev = prev.previousSibling;
-    }
-    current = current.parentNode;
-  }
-  
-  if (current !== root) {
-      return -1; // Node not found inside root
-  }
-
-  return globalOffset;
-}
-
-/**
- * Renders the text with highlights applied.
- * Uses a simple non-overlapping approach. If highlights overlap, visual results might be mixed,
- * but this handles the basic case of sequential highlights.
- */
 export type HighlightStableId = string
+
+export function getGlobalOffset(root: HTMLElement, node: Node, offset: number): number {
+  if (!root.contains(node) && node !== root) {
+    return -1
+  }
+
+  const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT)
+  let currentNode = walker.nextNode()
+  let globalOffset = 0
+
+  while (currentNode) {
+    if (currentNode === node) {
+      return globalOffset + Math.min(offset, currentNode.textContent?.length ?? 0)
+    }
+
+    if (node.nodeType === Node.ELEMENT_NODE && node === currentNode.parentNode) {
+      const parent = node as HTMLElement
+      const childOffset = Math.min(offset, parent.childNodes.length)
+      for (let i = 0; i < childOffset; i += 1) {
+        const child = parent.childNodes[i]
+        if (child === currentNode) {
+          return globalOffset
+        }
+        globalOffset += child.textContent?.length ?? 0
+      }
+    }
+
+    globalOffset += currentNode.textContent?.length ?? 0
+    currentNode = walker.nextNode()
+  }
+
+  return node === root ? Math.min(offset, root.textContent?.length ?? 0) : -1
+}
 
 export function highlightStableId(highlight: Highlight): HighlightStableId {
   if (highlight.id !== undefined && highlight.id !== null) {
     return `server:${highlight.id}`
   }
-  const anyHighlight = highlight as unknown as { client_id?: string }
+  const anyHighlight = highlight as Highlight & { client_id?: string }
   if (anyHighlight.client_id) {
     return `client:${anyHighlight.client_id}`
   }
-  return `range:${highlight.character_start}:${highlight.character_end}:${(highlight.highlighted_text || '').slice(0, 32)}`
+  return `range:${highlight.character_start}:${highlight.character_end}:${(highlight.highlighted_text || "").slice(0, 32)}`
+}
+
+function getRenderableHighlights(textLength: number, highlights: Highlight[]): Highlight[] {
+  const deduped = new Map<string, Highlight>()
+
+  ;[...highlights]
+    .filter((highlight) => highlight.character_end > highlight.character_start)
+    .map((highlight) => ({
+      ...highlight,
+      character_start: Math.max(0, Math.min(highlight.character_start, textLength)),
+      character_end: Math.max(0, Math.min(highlight.character_end, textLength)),
+    }))
+    .filter((highlight) => highlight.character_end > highlight.character_start)
+    .sort((a, b) => a.character_start - b.character_start)
+    .forEach((highlight) => {
+      const key = createHighlightFingerprint(highlight)
+      const existing = deduped.get(key)
+      if (!existing) {
+        deduped.set(key, highlight)
+        return
+      }
+
+      if ((highlight.id ?? 0) > (existing.id ?? 0)) {
+        deduped.set(key, highlight)
+      }
+    })
+
+  return [...deduped.values()].sort((a, b) => a.character_start - b.character_start)
+}
+
+function renderTextWithHighlights(
+  text: string,
+  highlights: Highlight[],
+  onHighlightClick?: (id: HighlightStableId, element: HTMLElement) => void,
+  activeHighlightId?: HighlightStableId | null,
+): React.ReactNode[] {
+  if (!text) return []
+
+  const safeHighlights = getRenderableHighlights(text.length, highlights)
+  if (safeHighlights.length === 0) {
+    return [text]
+  }
+
+  const nodes: React.ReactNode[] = []
+  let cursor = 0
+
+  safeHighlights.forEach((highlight) => {
+    const start = Math.max(cursor, highlight.character_start)
+    const end = highlight.character_end
+    if (start > cursor) {
+      nodes.push(text.slice(cursor, start))
+    }
+
+    const stableId = highlightStableId(highlight)
+    nodes.push(
+      <mark
+        key={stableId}
+        data-highlight-stable-id={stableId}
+        className={`cursor-pointer rounded-sm transition-colors hover:opacity-80 ${getHighlightColorClass(highlight.color)} ${stableId === activeHighlightId ? "ring-2 ring-primary/70" : ""}`}
+        onClick={(event) => {
+          event.stopPropagation()
+          onHighlightClick?.(stableId, event.currentTarget)
+        }}
+        title={highlight.note || "Click to edit"}
+        style={{ WebkitBoxDecorationBreak: "clone", boxDecorationBreak: "clone" }}
+      >
+        {text.slice(start, end)}
+      </mark>,
+    )
+    cursor = end
+  })
+
+  if (cursor < text.length) {
+    nodes.push(text.slice(cursor))
+  }
+
+  return nodes
 }
 
 export function renderHighlightedContent(
   text: string,
   highlights: Highlight[],
   onHighlightClick?: (id: HighlightStableId, element: HTMLElement) => void,
-  activeHighlightId?: HighlightStableId | null
+  activeHighlightId?: HighlightStableId | null,
 ): React.ReactNode[] {
-  if (!text) return [];
+  if (!text) return []
 
-  const renderTextSegment = (str: string, keyPrefix: string) => {
-    if (!str) return [];
-    // Split by single newlines but filter out completely empty segments if they are trailing/leading
-    return str.split('\n').map((line, index) => {
-      const trimmed = line.trim();
-      if (trimmed === '') {
-        return <div key={`${keyPrefix}-${index}`} className="h-4" aria-hidden="true" />;
-      }
-      return (
-        <div key={`${keyPrefix}-${index}`} className="mb-4 last:mb-0 leading-relaxed text-foreground/90">
-          {line}
-        </div>
-      );
-    });
-  };
-
-  if (!highlights || highlights.length === 0) {
-    return renderTextSegment(text, "plain");
-  }
-
-  // Sort highlights by start position
-  const sortedHighlights = [...highlights].sort((a, b) => a.character_start - b.character_start);
-  
-  const nodes: React.ReactNode[] = [];
-  let currentPosition = 0;
-
-  sortedHighlights.forEach((highlight, i) => {
-    const start = Math.max(highlight.character_start, currentPosition)
-    const end = highlight.character_end
-
-    if (start >= text.length) return
-    if (end <= start) return
-
-    if (start > currentPosition) {
-      nodes.push(...renderTextSegment(text.slice(currentPosition, start), `pre-${i}`));
-    }
-
-    const highlightedText = text.slice(start, Math.min(end, text.length))
-    const stableId = highlightStableId(highlight)
-
-    nodes.push(
-      <mark
-        key={stableId}
-        data-highlight-stable-id={stableId}
-        className={`cursor-pointer transition-colors hover:opacity-80 rounded-sm px-0.5 ${getHighlightColorClass(highlight.color)} ${stableId === activeHighlightId ? "ring-2 ring-primary/70" : ""}`}
-        onClick={(e) => {
-          e.stopPropagation()
-          onHighlightClick?.(stableId, e.currentTarget)
-        }}
-        title={highlight.note || "Click to edit"}
-      >
-        <sup className="select-none text-[9px] font-mono opacity-50 mr-0.5 font-bold">{i + 1}</sup>
-        {highlightedText}
-      </mark>
-    )
-
-    currentPosition = Math.min(end, text.length)
-  })
-
-  // Add remaining text
-  if (currentPosition < text.length) {
-    nodes.push(...renderTextSegment(text.slice(currentPosition), "post"));
-  }
-
-  return nodes;
+  return renderTextWithHighlights(text, highlights, onHighlightClick, activeHighlightId)
 }
 
 export function getHighlightColorClass(color: string) {
-    switch (color) {
-      case "yellow":
-        return "bg-yellow-200 dark:bg-yellow-900/60 text-yellow-900 dark:text-yellow-100";
-      case "blue":
-        return "bg-blue-200 dark:bg-blue-900/60 text-blue-900 dark:text-blue-100";
-      case "red":
-        return "bg-red-200 dark:bg-red-900/60 text-red-900 dark:text-red-100";
-      case "green": // Adding extra colors just in case
-        return "bg-green-200 dark:bg-green-900/60 text-green-900 dark:text-green-100";
-      case "purple":
-        return "bg-purple-200 dark:bg-purple-900/60 text-purple-900 dark:text-purple-100";
-      default:
-        return "bg-yellow-200 dark:bg-yellow-900/60 text-yellow-900 dark:text-yellow-100";
-    }
+  switch (color) {
+    case "yellow":
+      return "bg-yellow-200 dark:bg-yellow-900/60 text-yellow-900 dark:text-yellow-100"
+    case "blue":
+      return "bg-blue-200 dark:bg-blue-900/60 text-blue-900 dark:text-blue-100"
+    case "red":
+      return "bg-red-200 dark:bg-red-900/60 text-red-900 dark:text-red-100"
+    case "green":
+      return "bg-green-200 dark:bg-green-900/60 text-green-900 dark:text-green-100"
+    case "purple":
+      return "bg-purple-200 dark:bg-purple-900/60 text-purple-900 dark:text-purple-100"
+    default:
+      return "bg-yellow-200 dark:bg-yellow-900/60 text-yellow-900 dark:text-yellow-100"
   }
+}
 
-/**
- * Converts text and highlights into Markdown with inline markers.
- */
 export function getMarkdownWithHighlights(text: string, highlights: Highlight[]): string {
-  if (!text) return "";
-  const validHighlights = highlights || [];
-  if (validHighlights.length === 0) return text;
+  if (!text) return ""
 
-  // Sort highlights by start position
-  const sortedHighlights = [...validHighlights].sort((a, b) => a.character_start - b.character_start);
-  
-  let result = "";
-  let currentPosition = 0;
+  const validHighlights = getRenderableHighlights(text.length, highlights || [])
+  if (validHighlights.length === 0) return text
 
-  sortedHighlights.forEach((highlight) => {
-    const start = Math.max(highlight.character_start, currentPosition);
-    const end = highlight.character_end;
+  let result = ""
+  let cursor = 0
 
-    if (start >= text.length) return;
-    if (end <= start) return;
-
-    if (start > currentPosition) {
-      result += text.slice(currentPosition, start);
+  validHighlights.forEach((highlight) => {
+    const start = Math.max(cursor, highlight.character_start)
+    const end = highlight.character_end
+    if (start > cursor) {
+      result += text.slice(cursor, start)
     }
+    result += `==${text.slice(start, end)}==`
+    cursor = end
+  })
 
-    const highlightedText = text.slice(start, Math.min(end, text.length));
-    result += `==${highlightedText}==`;
-
-    currentPosition = Math.min(end, text.length);
-  });
-
-  if (currentPosition < text.length) {
-    result += text.slice(currentPosition);
+  if (cursor < text.length) {
+    result += text.slice(cursor)
   }
 
-  return result;
+  return result
+}
+
+export function buildObsidianMarkdown(params: {
+  article: {
+    url: string
+    title: string
+    author?: string
+    publishedAt: string
+    content?: string
+    summary: string
+  }
+  fullArticleText?: string | null
+  highlights: Highlight[]
+}) {
+  const { article, fullArticleText, highlights } = params
+  const lines: string[] = [
+    "---",
+    `source: \"${article.url}\"`,
+    "author:",
+    article.author ? `  - \"[[${article.author}]]\"` : '  - ""',
+    `published: \"${article.publishedAt}\"`,
+    'tags:',
+    '  - "news"',
+    'backlinks: ""',
+    "---",
+    "",
+  ]
+
+  const activeHighlights = highlights
+    .filter((highlight) => highlight.character_end > highlight.character_start)
+    .sort((a, b) => a.character_start - b.character_start)
+
+  if (activeHighlights.length > 0) {
+    lines.push("## Highlights\n")
+    activeHighlights.forEach((highlight) => {
+      const text = highlight.highlighted_text.replace(/\s+/g, " ").trim()
+      if (!text) return
+      lines.push(`> ${text}`)
+      lines.push("")
+      lines.push(`- Color: ${highlight.color}`)
+      if (highlight.note?.trim()) {
+        lines.push(`- Note: ${highlight.note.trim()}`)
+      }
+      lines.push("")
+    })
+    lines.push("---", "")
+  }
+
+  lines.push("## Full Article\n")
+  const fullContent = fullArticleText || article.content || article.summary || ""
+  lines.push(getMarkdownWithHighlights(fullContent, activeHighlights))
+
+  return [...lines, "", "[[News Clippings]]"].join("\n")
 }

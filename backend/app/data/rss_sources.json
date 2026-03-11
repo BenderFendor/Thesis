@@ -5,7 +5,8 @@
         "country": "GB",
         "funding_type": "Public",
         "bias_rating": "Center",
-        "ownership_label": "public broadcaster"
+        "ownership_label": "public broadcaster",
+        "factual_reporting": "high"
     },
     "BBC News - Home": {
         "url": "http://feeds.bbci.co.uk/news/rss.xml",
@@ -13,7 +14,8 @@
         "country": "GB",
         "funding_type": "Public",
         "bias_rating": "Center",
-        "ownership_label": "public broadcaster"
+        "ownership_label": "public broadcaster",
+        "factual_reporting": "high"
     },
     "BBC News - India": {
         "url": "http://feeds.bbci.co.uk/news/world/asia/india/rss.xml",
@@ -21,7 +23,8 @@
         "country": "IN",
         "funding_type": "Public",
         "bias_rating": "Center",
-        "ownership_label": "public broadcaster"
+        "ownership_label": "public broadcaster",
+        "factual_reporting": "high"
     },
     "BBC News - Science & Environment": {
         "url": "http://feeds.bbci.co.uk/news/science_and_environment/rss.xml",
@@ -29,7 +32,8 @@
         "country": "GB",
         "funding_type": "Public",
         "bias_rating": "Center",
-        "ownership_label": "public broadcaster"
+        "ownership_label": "public broadcaster",
+        "factual_reporting": "high"
     },
     "BBC News - World": {
         "url": "http://feeds.bbci.co.uk/news/world/rss.xml",
@@ -37,7 +41,8 @@
         "country": "GB",
         "funding_type": "Public",
         "bias_rating": "Center",
-        "ownership_label": "public broadcaster"
+        "ownership_label": "public broadcaster",
+        "factual_reporting": "high"
     },
     "BBC Sport - Sport": {
         "url": "http://feeds.bbci.co.uk/sport/rss.xml",
@@ -45,7 +50,8 @@
         "country": "GB",
         "funding_type": "Public",
         "bias_rating": "Center",
-        "ownership_label": "public broadcaster"
+        "ownership_label": "public broadcaster",
+        "factual_reporting": "high"
     },
     "CNN": {
         "url": "https://news.google.com/rss/search?q=site:cnn.com&hl=en-US&gl=US&ceid=US:en",
@@ -53,7 +59,8 @@
         "country": "US",
         "funding_type": "Commercial",
         "bias_rating": "Left-Center",
-        "ownership_label": "private broadcast network"
+        "ownership_label": "private broadcast network",
+        "factual_reporting": "mixed"
     },
     "Reuters": {
         "url": "https://reutersbest.com/feed/",
@@ -61,7 +68,8 @@
         "country": "GB",
         "funding_type": "Commercial",
         "bias_rating": "Center",
-        "ownership_label": "private news and data company"
+        "ownership_label": "private news and data company",
+        "factual_reporting": "very-high"
     },
     "NPR": {
         "url": "https://feeds.npr.org/1001/rss.xml",
@@ -69,7 +77,8 @@
         "country": "US",
         "funding_type": "Non-profit",
         "bias_rating": "Left-Center",
-        "ownership_label": "nonprofit broadcaster"
+        "ownership_label": "nonprofit broadcaster",
+        "factual_reporting": "very-high"
     },
     "National Post": {
         "url": "https://nationalpost.com/feed/",
@@ -77,7 +86,8 @@
         "country": "CA",
         "funding_type": "Commercial",
         "bias_rating": "Right-Center",
-        "ownership_label": "private newspaper"
+        "ownership_label": "private newspaper",
+        "factual_reporting": "high"
     },
     "Fox News": {
         "url": "https://feeds.foxnews.com/foxnews/latest",
@@ -85,7 +95,8 @@
         "country": "US",
         "funding_type": "Commercial",
         "bias_rating": "Right",
-        "ownership_label": "private broadcast network"
+        "ownership_label": "private broadcast network",
+        "factual_reporting": "mixed"
     },
     "New York Times": {
         "url": [
@@ -100,7 +111,8 @@
         "funding_type": "Commercial",
         "bias_rating": "Left",
         "consolidate": true,
-        "ownership_label": "private newspaper"
+        "ownership_label": "private newspaper",
+        "factual_reporting": "high"
     },
     "The Guardian": {
         "url": "https://www.theguardian.com/world/rss",
@@ -108,7 +120,8 @@
         "country": "GB",
         "funding_type": "Trust-owned",
         "bias_rating": "Left",
-        "ownership_label": "trust-owned newspaper"
+        "ownership_label": "trust-owned newspaper",
+        "factual_reporting": "high"
     },
     "The Washington Post": {
         "url": "http://feeds.washingtonpost.com/rss/national",
@@ -116,7 +129,8 @@
         "country": "US",
         "funding_type": "Commercial",
         "bias_rating": "Left-Center",
-        "ownership_label": "private owner-controlled newspaper"
+        "ownership_label": "private owner-controlled newspaper",
+        "factual_reporting": "high"
     },
     "Al Jazeera": {
         "url": "https://www.aljazeera.com/xml/rss/all.xml",
@@ -124,7 +138,8 @@
         "country": "QA",
         "funding_type": "State-funded",
         "bias_rating": "Left-Center",
-        "ownership_label": "state-owned media network"
+        "ownership_label": "state-owned media network",
+        "factual_reporting": "mixed"
     },
     "972mag.com": {
         "url": "https://972mag.com/feed/",
@@ -132,7 +147,8 @@
         "country": "IL",
         "funding_type": "Independent",
         "bias_rating": "Left",
-        "ownership_label": "independent outlet"
+        "ownership_label": "independent outlet",
+        "factual_reporting": "unknown"
     },
     "NGO Monitor": {
         "url": "https://ngo-monitor.org/feed/",
@@ -140,7 +156,8 @@
         "country": "IL",
         "funding_type": "Non-profit",
         "bias_rating": "Right-Center",
-        "ownership_label": "nonprofit advocacy organization"
+        "ownership_label": "nonprofit advocacy organization",
+        "factual_reporting": "unknown"
     },
     "Truth Out": {
         "url": "https://truthout.org/feed/",
@@ -148,7 +165,8 @@
         "country": "US",
         "funding_type": "Non-profit",
         "bias_rating": "Left",
-        "ownership_label": "nonprofit news organization"
+        "ownership_label": "nonprofit news organization",
+        "factual_reporting": "unknown"
     },
     "Psychology Today": {
         "url": "https://www.psychologytoday.com/intl/rss",
@@ -156,7 +174,8 @@
         "country": "US",
         "funding_type": "Commercial",
         "bias_rating": "Center",
-        "ownership_label": "private media company"
+        "ownership_label": "private media company",
+        "factual_reporting": "unknown"
     },
     "Novara Media": {
         "url": "https://novaramedia.com/feed/",
@@ -164,7 +183,8 @@
         "country": "GB",
         "funding_type": "Independent",
         "bias_rating": "Left",
-        "ownership_label": "independent digital outlet"
+        "ownership_label": "independent digital outlet",
+        "factual_reporting": "unknown"
     },
     "Democracy Now!": {
         "url": "https://www.democracynow.org/democracynow.rss",
@@ -172,7 +192,8 @@
         "country": "US",
         "funding_type": "Non-profit",
         "bias_rating": "Left",
-        "ownership_label": "nonprofit broadcaster"
+        "ownership_label": "nonprofit broadcaster",
+        "factual_reporting": "mixed"
     },
     "The Wall Street Journal": {
         "url": "https://feeds.content.dowjones.io/public/rss/RSSWorldNews",
@@ -180,7 +201,8 @@
         "country": "US",
         "funding_type": "Commercial",
         "bias_rating": "Right-Center",
-        "ownership_label": "private newspaper"
+        "ownership_label": "private newspaper",
+        "factual_reporting": "unknown"
     },
     "Monthly Review": {
         "url": "https://monthlyreview.org/feed/",
@@ -188,7 +210,8 @@
         "country": "US",
         "funding_type": "Independent",
         "bias_rating": "Left",
-        "ownership_label": "independent magazine"
+        "ownership_label": "independent magazine",
+        "factual_reporting": "unknown"
     },
     "Big Think": {
         "url": "https://bigthink.com/feed/",
@@ -196,7 +219,8 @@
         "country": "US",
         "funding_type": "Commercial",
         "bias_rating": "Center",
-        "ownership_label": "private media company"
+        "ownership_label": "private media company",
+        "factual_reporting": "high"
     },
     "Beautiful Pixels": {
         "url": "https://beautifulpixels.com/feed/",
@@ -204,7 +228,8 @@
         "country": "US",
         "funding_type": "Independent",
         "bias_rating": "Center",
-        "ownership_label": "independent digital outlet"
+        "ownership_label": "independent digital outlet",
+        "factual_reporting": "unknown"
     },
     "National Geographic": {
         "url": "https://rss-bridge.org/bridge01/?action=display&bridge=NationalGeographicBridge&context=By+Topic&topic=latest-stories&full=on&format=Mrss",
@@ -212,7 +237,8 @@
         "country": "US",
         "funding_type": "Commercial",
         "bias_rating": "Center",
-        "ownership_label": "private media brand"
+        "ownership_label": "private media brand",
+        "factual_reporting": "very-high"
     },
     "WSWS": {
         "url": "https://www.wsws.org/en/rss.xml",
@@ -220,7 +246,8 @@
         "country": "US",
         "funding_type": "Independent",
         "bias_rating": "Left",
-        "ownership_label": "independent digital outlet"
+        "ownership_label": "independent digital outlet",
+        "factual_reporting": "unknown"
     },
     "CounterPunch": {
         "url": "https://www.counterpunch.org/feed/",
@@ -228,7 +255,8 @@
         "country": "US",
         "funding_type": "Independent",
         "bias_rating": "Left",
-        "ownership_label": "independent magazine"
+        "ownership_label": "independent magazine",
+        "factual_reporting": "unknown"
     },
     "Project Syndicate": {
         "url": "https://www.project-syndicate.org/rss",
@@ -236,7 +264,8 @@
         "country": "International",
         "funding_type": "Non-profit",
         "bias_rating": "Center",
-        "ownership_label": "nonprofit commentary network"
+        "ownership_label": "nonprofit commentary network",
+        "factual_reporting": "unknown"
     },
     "Japan Today": {
         "url": "https://japantoday.com/rss",
@@ -244,7 +273,8 @@
         "country": "JP",
         "funding_type": "Commercial",
         "bias_rating": "Center",
-        "ownership_label": "private media company"
+        "ownership_label": "private media company",
+        "factual_reporting": "unknown"
     },
     "The Japan Times": {
         "url": "https://www.japantimes.co.jp/feed/",
@@ -252,7 +282,8 @@
         "country": "JP",
         "funding_type": "Commercial",
         "bias_rating": "Center",
-        "ownership_label": "private newspaper"
+        "ownership_label": "private newspaper",
+        "factual_reporting": "unknown"
     },
     "Japan Times latest articles": {
         "url": "https://www.japantimes.co.jp/feed/topstories/",
@@ -260,7 +291,8 @@
         "country": "JP",
         "funding_type": "Commercial",
         "bias_rating": "Center",
-        "ownership_label": "private newspaper"
+        "ownership_label": "private newspaper",
+        "factual_reporting": "very-low"
     },
     "Axios": {
         "url": "https://www.axios.com/feeds/feed.rss",
@@ -268,7 +300,8 @@
         "country": "US",
         "funding_type": "Commercial",
         "bias_rating": "Center",
-        "ownership_label": "private media company"
+        "ownership_label": "private media company",
+        "factual_reporting": "high"
     },
     "Hacker News": {
         "url": "https://news.ycombinator.com/rss",
@@ -276,7 +309,8 @@
         "country": "US",
         "funding_type": "Commercial",
         "bias_rating": "Center",
-        "ownership_label": "platform-owned link aggregator"
+        "ownership_label": "platform-owned link aggregator",
+        "factual_reporting": "high"
     },
     "Hacker News Frontpage": {
         "url": "https://hnrss.org/frontpage",
@@ -284,7 +318,8 @@
         "country": "US",
         "funding_type": "Commercial",
         "bias_rating": "Center",
-        "ownership_label": "platform-owned link aggregator"
+        "ownership_label": "platform-owned link aggregator",
+        "factual_reporting": "high"
     },
     "IGN": {
         "url": "https://feeds.ign.com/ign/all",
@@ -292,7 +327,8 @@
         "country": "US",
         "funding_type": "Commercial",
         "bias_rating": "Center",
-        "ownership_label": "private media company"
+        "ownership_label": "private media company",
+        "factual_reporting": "high"
     },
     "PC Gamer": {
         "url": "https://www.pcgamer.com/rss/",
@@ -300,7 +336,8 @@
         "country": "US",
         "funding_type": "Commercial",
         "bias_rating": "Center",
-        "ownership_label": "private media company"
+        "ownership_label": "private media company",
+        "factual_reporting": "unknown"
     },
     "Human Rights Watch": {
         "url": "https://www.hrw.org/rss/news",
@@ -308,7 +345,8 @@
         "country": "US",
         "funding_type": "Non-profit",
         "bias_rating": "Left-Center",
-        "ownership_label": "NGO-owned advocacy organization"
+        "ownership_label": "NGO-owned advocacy organization",
+        "factual_reporting": "unknown"
     },
     "Amnesty International": {
         "url": "https://www.amnesty.org/en/latest/feed/",
@@ -316,7 +354,8 @@
         "country": "International",
         "funding_type": "Non-profit",
         "bias_rating": "Left-Center",
-        "ownership_label": "NGO-owned advocacy organization"
+        "ownership_label": "NGO-owned advocacy organization",
+        "factual_reporting": "unknown"
     },
     "Doctors Without Borders": {
         "url": "https://www.doctorswithoutborders.org/rss.xml",
@@ -324,7 +363,8 @@
         "country": "International",
         "funding_type": "Non-profit",
         "bias_rating": "Center",
-        "ownership_label": "NGO-owned humanitarian organization"
+        "ownership_label": "NGO-owned humanitarian organization",
+        "factual_reporting": "unknown"
     },
     "Liberation News": {
         "url": "https://www.liberationnews.org/feed/",
@@ -332,7 +372,8 @@
         "country": "US",
         "funding_type": "Independent",
         "bias_rating": "Left",
-        "ownership_label": "independent digital outlet"
+        "ownership_label": "independent digital outlet",
+        "factual_reporting": "unknown"
     },
     "Electronic Intifada": {
         "url": "https://electronicintifada.net/rss.xml",
@@ -340,7 +381,8 @@
         "country": "US",
         "funding_type": "Independent",
         "bias_rating": "Left",
-        "ownership_label": "independent digital outlet"
+        "ownership_label": "independent digital outlet",
+        "factual_reporting": "unknown"
     },
     "WHYY": {
         "url": "https://whyy.org/feed/",
@@ -348,7 +390,8 @@
         "country": "US",
         "funding_type": "Public",
         "bias_rating": "Center",
-        "ownership_label": "public broadcaster"
+        "ownership_label": "public broadcaster",
+        "factual_reporting": "unknown"
     },
     "PhillyVoice": {
         "url": "https://www.phillyvoice.com/feed/",
@@ -356,7 +399,8 @@
         "country": "US",
         "funding_type": "Commercial",
         "bias_rating": "Center",
-        "ownership_label": "private media company"
+        "ownership_label": "private media company",
+        "factual_reporting": "unknown"
     },
     "Financial Times": {
         "url": "https://www.ft.com/myft/following/7d5b226f-2da0-4530-b9ab-15675a1b5f22.rss",
@@ -364,7 +408,8 @@
         "country": "International",
         "funding_type": "Commercial",
         "bias_rating": "Center",
-        "ownership_label": "private newspaper group"
+        "ownership_label": "private newspaper group",
+        "factual_reporting": "unknown"
     },
     "The Economist": {
         "url": "https://www.economist.com/the-world-this-week/rss.xml",
@@ -372,7 +417,8 @@
         "country": "GB",
         "funding_type": "Commercial",
         "bias_rating": "Center",
-        "ownership_label": "private news magazine group"
+        "ownership_label": "private news magazine group",
+        "factual_reporting": "high"
     },
     "Bloomberg": {
         "url": [
@@ -386,7 +432,8 @@
         "funding_type": "Commercial",
         "bias_rating": "Center",
         "consolidate": true,
-        "ownership_label": "private financial media company"
+        "ownership_label": "private financial media company",
+        "factual_reporting": "high"
     },
     "Jacobin": {
         "url": "jacobin.com/feed/rss.xml",
@@ -394,7 +441,8 @@
         "country": "US",
         "funding_type": "Independent",
         "bias_rating": "Left",
-        "ownership_label": "independent digital outlet"
+        "ownership_label": "independent digital outlet",
+        "factual_reporting": "unknown"
     },
     "Current Affairs": {
         "url": "https://currentaffairs.org/news/rss.xml",
@@ -402,7 +450,8 @@
         "country": "US",
         "funding_type": "Independent",
         "bias_rating": "Left",
-        "ownership_label": "independent magazine"
+        "ownership_label": "independent magazine",
+        "factual_reporting": "unknown"
     },
     "Aeon": {
         "url": "https://aeon.co/feed.rss",
@@ -410,7 +459,8 @@
         "country": "International",
         "funding_type": "Independent",
         "bias_rating": "Center",
-        "ownership_label": "independent outlet"
+        "ownership_label": "independent outlet",
+        "factual_reporting": "unknown"
     },
     "Responsible Statecraft": {
         "url": "https://responsiblestatecraft.org/feed/",
@@ -418,7 +468,8 @@
         "country": "US",
         "funding_type": "Non-profit",
         "bias_rating": "Center",
-        "ownership_label": "nonprofit media organization"
+        "ownership_label": "nonprofit media organization",
+        "factual_reporting": "unknown"
     },
     "Religion Dispatches": {
         "url": "https://religiondispatches.org/feed/",
@@ -426,7 +477,8 @@
         "country": "US",
         "funding_type": "Non-profit",
         "bias_rating": "Left-Center",
-        "ownership_label": "nonprofit media organization"
+        "ownership_label": "nonprofit media organization",
+        "factual_reporting": "unknown"
     },
     "Common Dreams": {
         "url": "https://www.commondreams.org/feeds/feed.rss",
@@ -434,7 +486,8 @@
         "country": "US",
         "funding_type": "Non-profit",
         "bias_rating": "Left",
-        "ownership_label": "nonprofit media organization"
+        "ownership_label": "nonprofit media organization",
+        "factual_reporting": "unknown"
     },
     "Le Monde": {
         "url": "https://www.lemonde.fr/en/rss/une.xml",
@@ -442,7 +495,8 @@
         "country": "FR",
         "funding_type": "Commercial",
         "bias_rating": "Center",
-        "ownership_label": "private media company"
+        "ownership_label": "private media company",
+        "factual_reporting": "high"
     },
     "ABC News": {
         "url": "https://abcnews.go.com/abcnews/topstories",
@@ -450,7 +504,8 @@
         "country": "US",
         "funding_type": "Commercial",
         "bias_rating": "Center",
-        "ownership_label": "private broadcast network"
+        "ownership_label": "private broadcast network",
+        "factual_reporting": "high"
     },
     "CBS News": {
         "url": "https://www.cbsnews.com/latest/rss/main",
@@ -458,7 +513,8 @@
         "country": "US",
         "funding_type": "Commercial",
         "bias_rating": "Center",
-        "ownership_label": "private broadcast network"
+        "ownership_label": "private broadcast network",
+        "factual_reporting": "unknown"
     },
     "The Atlantic - National": {
         "url": "https://feeds.feedburner.com/AtlanticNational",
@@ -466,7 +522,8 @@
         "country": "US",
         "funding_type": "Commercial",
         "bias_rating": "Center",
-        "ownership_label": "private magazine publisher"
+        "ownership_label": "private magazine publisher",
+        "factual_reporting": "high"
     },
     "The Atlantic Wire": {
         "url": "https://feeds.feedburner.com/TheAtlanticWire",
@@ -474,7 +531,8 @@
         "country": "US",
         "funding_type": "Commercial",
         "bias_rating": "Center",
-        "ownership_label": "private magazine publisher"
+        "ownership_label": "private magazine publisher",
+        "factual_reporting": "high"
     },
     "The Nation": {
         "url": [
@@ -487,7 +545,8 @@
         "funding_type": "Independent",
         "bias_rating": "Left",
         "consolidate": true,
-        "ownership_label": "independent digital outlet"
+        "ownership_label": "independent digital outlet",
+        "factual_reporting": "mixed"
     },
     "Washington Times - Politics": {
         "url": "http://www.washingtontimes.com/rss/headlines/news/politics/",
@@ -495,7 +554,8 @@
         "country": "US",
         "funding_type": "Commercial",
         "bias_rating": "Right",
-        "ownership_label": "religious movement-owned newspaper"
+        "ownership_label": "religious movement-owned newspaper",
+        "factual_reporting": "mixed"
     },
     "RealClearPolitics": {
         "url": "http://feeds.feedburner.com/realclearpolitics/qlMj",
@@ -503,7 +563,8 @@
         "country": "US",
         "funding_type": "Commercial",
         "bias_rating": "Center-Right",
-        "ownership_label": "private media company"
+        "ownership_label": "private media company",
+        "factual_reporting": "mixed"
     },
     "Breitbart": {
         "url": "http://feeds.feedburner.com/BreitbartFeed",
@@ -511,7 +572,8 @@
         "country": "US",
         "funding_type": "Commercial",
         "bias_rating": "Right",
-        "ownership_label": "private media company"
+        "ownership_label": "private media company",
+        "factual_reporting": "very-low"
     },
     "Variety": {
         "url": "http://variety.com/feed/",
@@ -519,7 +581,8 @@
         "country": "US",
         "funding_type": "Commercial",
         "bias_rating": "Center",
-        "ownership_label": "private media company"
+        "ownership_label": "private media company",
+        "factual_reporting": "high"
     },
     "Leader Post": {
         "url": "http://leaderpost.com/feed/",
@@ -527,7 +590,8 @@
         "country": "CA",
         "funding_type": "Commercial",
         "bias_rating": "Center",
-        "ownership_label": "private newspaper"
+        "ownership_label": "private newspaper",
+        "factual_reporting": "unknown"
     },
     "StarPhoenix": {
         "url": "http://thestarphoenix.com/feed/",
@@ -535,7 +599,8 @@
         "country": "CA",
         "funding_type": "Commercial",
         "bias_rating": "Center",
-        "ownership_label": "private newspaper"
+        "ownership_label": "private newspaper",
+        "factual_reporting": "unknown"
     },
     "Windsor Star": {
         "url": "http://windsorstar.com/feed/",
@@ -543,7 +608,8 @@
         "country": "CA",
         "funding_type": "Commercial",
         "bias_rating": "Center",
-        "ownership_label": "private newspaper"
+        "ownership_label": "private newspaper",
+        "factual_reporting": "unknown"
     },
     "Economic Times India": {
         "url": "https://economictimes.indiatimes.com/News/rssfeeds/1715249553.cms",
@@ -551,7 +617,8 @@
         "country": "IN",
         "funding_type": "Commercial",
         "bias_rating": "Center",
-        "ownership_label": "private newspaper"
+        "ownership_label": "private newspaper",
+        "factual_reporting": "unknown"
     },
     "Oxford Mail": {
         "url": "https://www.oxfordmail.co.uk/news/rss/",
@@ -559,7 +626,8 @@
         "country": "GB",
         "funding_type": "Commercial",
         "bias_rating": "Center",
-        "ownership_label": "private newspaper"
+        "ownership_label": "private newspaper",
+        "factual_reporting": "unknown"
     },
     "Newsmax": {
         "url": "https://www.newsmax.com/rss/",
@@ -567,7 +635,8 @@
         "country": "US",
         "funding_type": "Commercial",
         "bias_rating": "Right",
-        "ownership_label": "private media company"
+        "ownership_label": "private media company",
+        "factual_reporting": "unknown"
     },
     "Washington Times": {
         "url": "https://www.washingtontimes.com/rss/headlines/news/",
@@ -575,7 +644,8 @@
         "country": "US",
         "funding_type": "Commercial",
         "bias_rating": "Right",
-        "ownership_label": "religious movement-owned newspaper"
+        "ownership_label": "religious movement-owned newspaper",
+        "factual_reporting": "mixed"
     },
     "National Review": {
         "url": "http://www.nationalreview.com/feed",
@@ -583,7 +653,8 @@
         "country": "US",
         "funding_type": "Non-profit",
         "bias_rating": "Right",
-        "ownership_label": "nonprofit media organization"
+        "ownership_label": "nonprofit media organization",
+        "factual_reporting": "mixed"
     },
     "Washington Examiner": {
         "url": "https://www.washingtonexaminer.com/section/news/feed",
@@ -591,7 +662,8 @@
         "country": "US",
         "funding_type": "Commercial",
         "bias_rating": "Right",
-        "ownership_label": "private media company"
+        "ownership_label": "private media company",
+        "factual_reporting": "unknown"
     },
     "American Spectator": {
         "url": "http://spectator.org/feed",
@@ -599,7 +671,8 @@
         "country": "US",
         "funding_type": "Non-profit",
         "bias_rating": "Right",
-        "ownership_label": "nonprofit media organization"
+        "ownership_label": "nonprofit media organization",
+        "factual_reporting": "mixed"
     },
     "The Dispatch": {
         "url": "https://thedispatch.com/feed/",
@@ -607,7 +680,8 @@
         "country": "US",
         "funding_type": "Commercial",
         "bias_rating": "Center-Right",
-        "ownership_label": "private media company"
+        "ownership_label": "private media company",
+        "factual_reporting": "high"
     },
     "Reason": {
         "url": "https://reason.com/feed",
@@ -615,7 +689,8 @@
         "country": "US",
         "funding_type": "Non-profit",
         "bias_rating": "Libertarian",
-        "ownership_label": "nonprofit media organization"
+        "ownership_label": "nonprofit media organization",
+        "factual_reporting": "high"
     },
     "NewsNation": {
         "url": "http://www.newsnationnow.com/feed",
@@ -623,7 +698,8 @@
         "country": "US",
         "funding_type": "Commercial",
         "bias_rating": "Center",
-        "ownership_label": "private broadcaster"
+        "ownership_label": "private broadcaster",
+        "factual_reporting": "unknown"
     },
     "Mother Jones": {
         "url": "https://www.motherjones.com/feed",
@@ -631,7 +707,8 @@
         "country": "US",
         "funding_type": "Non-profit",
         "bias_rating": "Left",
-        "ownership_label": "nonprofit media organization"
+        "ownership_label": "nonprofit media organization",
+        "factual_reporting": "high"
     },
     "The Federalist": {
         "url": "https://thefederalist.com/feed/",
@@ -639,7 +716,8 @@
         "country": "US",
         "funding_type": "Commercial",
         "bias_rating": "Right",
-        "ownership_label": "private media company"
+        "ownership_label": "private media company",
+        "factual_reporting": "unknown"
     },
     "Deutsche Welle": {
         "url": "https://rss.dw.com/rdf/rss-en-all",
@@ -647,7 +725,8 @@
         "country": "DE",
         "funding_type": "Public",
         "bias_rating": "Center",
-        "ownership_label": "public broadcaster"
+        "ownership_label": "public broadcaster",
+        "factual_reporting": "unknown"
     },
     "NBC10 Philadelphia": {
         "url": "https://news.google.com/rss/search?q=site:nbcphiladelphia.com",
@@ -655,7 +734,8 @@
         "country": "US",
         "funding_type": "Commercial",
         "bias_rating": "Center",
-        "ownership_label": "private broadcast affiliate"
+        "ownership_label": "private broadcast affiliate",
+        "factual_reporting": "unknown"
     },
     "CBC": {
         "url": "https://www.cbc.ca/cmlink/rss-topstories",
@@ -663,7 +743,8 @@
         "country": "CA",
         "funding_type": "Public",
         "bias_rating": "Center",
-        "ownership_label": "public broadcaster"
+        "ownership_label": "public broadcaster",
+        "factual_reporting": "high"
     },
     "The Guardian - UK": {
         "url": "https://www.theguardian.com/uk/rss",
@@ -671,7 +752,8 @@
         "country": "GB",
         "funding_type": "Trust-owned",
         "bias_rating": "Left",
-        "ownership_label": "trust-owned newspaper"
+        "ownership_label": "trust-owned newspaper",
+        "factual_reporting": "high"
     },
     "France24": {
         "url": "https://www.france24.com/en/rss",
@@ -679,7 +761,8 @@
         "country": "FR",
         "funding_type": "Public",
         "bias_rating": "Center",
-        "ownership_label": "public broadcaster"
+        "ownership_label": "public broadcaster",
+        "factual_reporting": "unknown"
     },
     "The Local Denmark": {
         "url": "https://feeds.thelocal.com/rss/builder/dk",
@@ -687,7 +770,8 @@
         "country": "DK",
         "funding_type": "Commercial",
         "bias_rating": "Center",
-        "ownership_label": "private cross-border publisher"
+        "ownership_label": "private cross-border publisher",
+        "factual_reporting": "unknown"
     },
     "Denmark News": {
         "url": "https://www.denmarknews.dk/en/feed/",
@@ -695,7 +779,8 @@
         "country": "DK",
         "funding_type": "Commercial",
         "bias_rating": "Center",
-        "ownership_label": "UAE-owned news portal"
+        "ownership_label": "UAE-owned news portal",
+        "factual_reporting": "unknown"
     },
     "Radio Sweden": {
         "url": "https://api.sr.se/api/rss/program/2054",
@@ -703,7 +788,8 @@
         "country": "SE",
         "funding_type": "Public",
         "bias_rating": "Center",
-        "ownership_label": "public broadcaster"
+        "ownership_label": "public broadcaster",
+        "factual_reporting": "unknown"
     },
     "Norway's News in English": {
         "url": "https://www.newsinenglish.no/feed/",
@@ -711,7 +797,8 @@
         "country": "NO",
         "funding_type": "Independent",
         "bias_rating": "Center",
-        "ownership_label": "independent digital outlet"
+        "ownership_label": "independent digital outlet",
+        "factual_reporting": "unknown"
     },
     "Yle News": {
         "url": "https://yle.fi/rss/news",
@@ -719,7 +806,8 @@
         "country": "FI",
         "funding_type": "Public",
         "bias_rating": "Center",
-        "ownership_label": "public broadcaster"
+        "ownership_label": "public broadcaster",
+        "factual_reporting": "unknown"
     },
     "RUV English": {
         "url": "https://www.ruv.is/rss/english",
@@ -727,7 +815,8 @@
         "country": "IS",
         "funding_type": "Public",
         "bias_rating": "Center",
-        "ownership_label": "public broadcaster"
+        "ownership_label": "public broadcaster",
+        "factual_reporting": "unknown"
     },
     "Iceland Monitor": {
         "url": "https://icelandmonitor.mbl.is/rss/",
@@ -735,7 +824,8 @@
         "country": "IS",
         "funding_type": "Commercial",
         "bias_rating": "Center",
-        "ownership_label": "private publishing company"
+        "ownership_label": "private publishing company",
+        "factual_reporting": "unknown"
     },
     "DutchNews.nl": {
         "url": "https://www.dutchnews.nl/feed/",
@@ -743,7 +833,8 @@
         "country": "NL",
         "funding_type": "Commercial",
         "bias_rating": "Center",
-        "ownership_label": "private media company"
+        "ownership_label": "private media company",
+        "factual_reporting": "unknown"
     },
     "The Bulletin": {
         "url": "https://www.thebulletin.be/rss.xml",
@@ -751,7 +842,8 @@
         "country": "BE",
         "funding_type": "Independent",
         "bias_rating": "Center",
-        "ownership_label": "independent private publisher"
+        "ownership_label": "independent private publisher",
+        "factual_reporting": "unknown"
     },
     "RTÉ News": {
         "url": "https://www.rte.ie/feeds/rss/?index=/news/",
@@ -759,7 +851,8 @@
         "country": "IE",
         "funding_type": "Public",
         "bias_rating": "Center",
-        "ownership_label": "public broadcaster"
+        "ownership_label": "public broadcaster",
+        "factual_reporting": "very-low"
     },
     "Notes from Poland": {
         "url": "https://notesfrompoland.com/feed/",
@@ -767,7 +860,8 @@
         "country": "PL",
         "funding_type": "Non-profit",
         "bias_rating": "Center",
-        "ownership_label": "nonprofit foundation newsroom"
+        "ownership_label": "nonprofit foundation newsroom",
+        "factual_reporting": "unknown"
     },
     "LSM": {
         "url": "https://eng.lsm.lv/rss/",
@@ -775,7 +869,8 @@
         "country": "LV",
         "funding_type": "Public",
         "bias_rating": "Center",
-        "ownership_label": "public media portal"
+        "ownership_label": "public media portal",
+        "factual_reporting": "unknown"
     },
     "LRT English": {
         "url": "https://www.lrt.lt/en/news-in-english?rss",
@@ -783,7 +878,8 @@
         "country": "LT",
         "funding_type": "Public",
         "bias_rating": "Center",
-        "ownership_label": "public broadcaster"
+        "ownership_label": "public broadcaster",
+        "factual_reporting": "very-low"
     },
     "The Kyiv Independent": {
         "url": "https://kyivindependent.com/feed/",
@@ -791,7 +887,8 @@
         "country": "UA",
         "funding_type": "Independent",
         "bias_rating": "Center",
-        "ownership_label": "independent outlet"
+        "ownership_label": "independent outlet",
+        "factual_reporting": "unknown"
     },
     "The Times of Israel": {
         "url": "https://www.timesofisrael.com/feed/",
@@ -799,7 +896,8 @@
         "country": "IL",
         "funding_type": "Commercial",
         "bias_rating": "Center",
-        "ownership_label": "private newspaper"
+        "ownership_label": "private newspaper",
+        "factual_reporting": "unknown"
     },
     "South China Morning Post": {
         "url": "https://www.scmp.com/rss/91/feed",
@@ -807,7 +905,8 @@
         "country": "HK",
         "funding_type": "Commercial",
         "bias_rating": "Center",
-        "ownership_label": "private newspaper"
+        "ownership_label": "private newspaper",
+        "factual_reporting": "unknown"
     },
     "The Times of India": {
         "url": "https://timesofindia.indiatimes.com/rssfeedstopstories.cms",
@@ -815,7 +914,8 @@
         "country": "IN",
         "funding_type": "Commercial",
         "bias_rating": "Center",
-        "ownership_label": "private newspaper"
+        "ownership_label": "private newspaper",
+        "factual_reporting": "unknown"
     },
     "The Straits Times": {
         "url": "https://www.straitstimes.com/news/asia/rss",
@@ -823,7 +923,8 @@
         "country": "SG",
         "funding_type": "Commercial",
         "bias_rating": "Center",
-        "ownership_label": "private newspaper"
+        "ownership_label": "private newspaper",
+        "factual_reporting": "unknown"
     },
     "Africanews": {
         "url": "https://www.africanews.com/feed/rss",
@@ -831,7 +932,8 @@
         "country": "International",
         "funding_type": "Commercial",
         "bias_rating": "Center",
-        "ownership_label": "private media company"
+        "ownership_label": "private media company",
+        "factual_reporting": "unknown"
     },
     "News24": {
         "url": "http://feeds.news24.com/articles/news24/TopStories/rss",
@@ -839,7 +941,8 @@
         "country": "ZA",
         "funding_type": "Commercial",
         "bias_rating": "Center",
-        "ownership_label": "private media company"
+        "ownership_label": "private media company",
+        "factual_reporting": "unknown"
     },
     "MercoPress": {
         "url": "https://en.mercopress.com/rss",
@@ -847,7 +950,8 @@
         "country": "International",
         "funding_type": "Independent",
         "bias_rating": "Center",
-        "ownership_label": "independent outlet"
+        "ownership_label": "independent outlet",
+        "factual_reporting": "unknown"
     },
     "Mexico News Daily": {
         "url": "https://mexiconewsdaily.com/feed/",
@@ -855,7 +959,8 @@
         "country": "MX",
         "funding_type": "Commercial",
         "bias_rating": "Center",
-        "ownership_label": "private media company"
+        "ownership_label": "private media company",
+        "factual_reporting": "unknown"
     },
     "ABC News Australia": {
         "url": "https://www.abc.net.au/news/feed/51120/rss.xml",
@@ -863,7 +968,8 @@
         "country": "AU",
         "funding_type": "Public",
         "bias_rating": "Center",
-        "ownership_label": "public broadcaster"
+        "ownership_label": "public broadcaster",
+        "factual_reporting": "high"
     },
     "RNZ": {
         "url": "https://www.rnz.co.nz/rss/pacific.xml",
@@ -871,7 +977,8 @@
         "country": "NZ",
         "funding_type": "Public",
         "bias_rating": "Center",
-        "ownership_label": "public broadcaster"
+        "ownership_label": "public broadcaster",
+        "factual_reporting": "unknown"
     },
     "Global Voices": {
         "url": "https://globalvoices.org/feed/",
@@ -879,7 +986,8 @@
         "country": "International",
         "funding_type": "Non-profit",
         "bias_rating": "Center",
-        "ownership_label": "nonprofit international media network"
+        "ownership_label": "nonprofit international media network",
+        "factual_reporting": "unknown"
     },
     "The Indian Express": {
         "url": "https://indianexpress.com/section/india/feed/",
@@ -887,7 +995,8 @@
         "country": "IN",
         "funding_type": "Commercial",
         "bias_rating": "Center",
-        "ownership_label": "private newspaper"
+        "ownership_label": "private newspaper",
+        "factual_reporting": "unknown"
     },
     "Antara News": {
         "url": "https://en.antaranews.com/rss/news.xml",
@@ -895,7 +1004,8 @@
         "country": "ID",
         "funding_type": "State-funded",
         "bias_rating": "Center",
-        "ownership_label": "state-funded outlet"
+        "ownership_label": "state-funded outlet",
+        "factual_reporting": "unknown"
     },
     "Dawn": {
         "url": "https://www.dawn.com/feeds/home",
@@ -903,7 +1013,8 @@
         "country": "PK",
         "funding_type": "Commercial",
         "bias_rating": "Center",
-        "ownership_label": "private media company"
+        "ownership_label": "private media company",
+        "factual_reporting": "unknown"
     },
     "The Punch": {
         "url": "https://rss.punchng.com/v1/category/latest_news",
@@ -911,7 +1022,8 @@
         "country": "NG",
         "funding_type": "Commercial",
         "bias_rating": "Center",
-        "ownership_label": "private media company"
+        "ownership_label": "private media company",
+        "factual_reporting": "unknown"
     },
     "The Daily Star": {
         "url": "https://www.thedailystar.net/frontpage/rss.xml",
@@ -919,7 +1031,8 @@
         "country": "BD",
         "funding_type": "Commercial",
         "bias_rating": "Center",
-        "ownership_label": "private newspaper"
+        "ownership_label": "private newspaper",
+        "factual_reporting": "unknown"
     },
     "The Moscow Times": {
         "url": "https://www.themoscowtimes.com/page/rss",
@@ -927,7 +1040,8 @@
         "country": "RU",
         "funding_type": "Independent",
         "bias_rating": "Left-Center",
-        "ownership_label": "independent outlet"
+        "ownership_label": "independent outlet",
+        "factual_reporting": "unknown"
     },
     "Cyprus Mail": {
         "url": "https://cyprus-mail.com/feed/",
@@ -935,7 +1049,8 @@
         "country": "CY",
         "funding_type": "Commercial",
         "bias_rating": "Center",
-        "ownership_label": "private publishing company"
+        "ownership_label": "private publishing company",
+        "factual_reporting": "unknown"
     },
     "Romania Insider": {
         "url": "https://www.romania-insider.com/feed",
@@ -943,7 +1058,8 @@
         "country": "RO",
         "funding_type": "Commercial",
         "bias_rating": "Center",
-        "ownership_label": "private media company"
+        "ownership_label": "private media company",
+        "factual_reporting": "unknown"
     },
     "Novinite": {
         "url": "https://www.novinite.com/services/rss.php?cat=0",
@@ -951,7 +1067,8 @@
         "country": "BG",
         "funding_type": "Commercial",
         "bias_rating": "Center",
-        "ownership_label": "private news agency"
+        "ownership_label": "private news agency",
+        "factual_reporting": "unknown"
     },
     "Total Croatia News": {
         "url": "https://total-croatia-news.com/feed/",
@@ -959,7 +1076,8 @@
         "country": "HR",
         "funding_type": "Commercial",
         "bias_rating": "Center",
-        "ownership_label": "private digital outlet"
+        "ownership_label": "private digital outlet",
+        "factual_reporting": "unknown"
     },
     "Vindobona": {
         "url": "https://www.vindobona.org/rss",
@@ -967,7 +1085,8 @@
         "country": "AT",
         "funding_type": "Commercial",
         "bias_rating": "Center",
-        "ownership_label": "private business-information publisher"
+        "ownership_label": "private business-information publisher",
+        "factual_reporting": "unknown"
     },
     "Le News": {
         "url": "https://lenews.ch/feed/",
@@ -975,7 +1094,8 @@
         "country": "CH",
         "funding_type": "Commercial",
         "bias_rating": "Center",
-        "ownership_label": "private Swiss publisher"
+        "ownership_label": "private Swiss publisher",
+        "factual_reporting": "unknown"
     },
     "Newsbook Malta": {
         "url": "https://newsbook.com.mt/en/feed/",
@@ -983,7 +1103,8 @@
         "country": "MT",
         "funding_type": "Commercial",
         "bias_rating": "Center",
-        "ownership_label": "Catholic Church-owned media company"
+        "ownership_label": "Catholic Church-owned media company",
+        "factual_reporting": "unknown"
     },
     "The Portugal News": {
         "url": "https://www.theportugalnews.com/rss",
@@ -991,7 +1112,8 @@
         "country": "PT",
         "funding_type": "Commercial",
         "bias_rating": "Center",
-        "ownership_label": "private newspaper"
+        "ownership_label": "private newspaper",
+        "factual_reporting": "very-low"
     },
     "The Slovak Spectator": {
         "url": "https://spectator.sme.sk/rss",
@@ -999,7 +1121,8 @@
         "country": "SK",
         "funding_type": "Commercial",
         "bias_rating": "Center",
-        "ownership_label": "private newspaper publisher"
+        "ownership_label": "private newspaper publisher",
+        "factual_reporting": "unknown"
     },
     "Addis Standard": {
         "url": "https://addisstandard.com/feed/",
@@ -1007,7 +1130,8 @@
         "country": "ET",
         "funding_type": "Independent",
         "bias_rating": "Center",
-        "ownership_label": "independent outlet"
+        "ownership_label": "independent outlet",
+        "factual_reporting": "unknown"
     },
     "Inquirer.net": {
         "url": "https://inquirer.net/feed",
@@ -1015,7 +1139,8 @@
         "country": "PH",
         "funding_type": "Commercial",
         "bias_rating": "Center",
-        "ownership_label": "private newspaper"
+        "ownership_label": "private newspaper",
+        "factual_reporting": "unknown"
     },
     "Daily News Egypt": {
         "url": "https://dailynewsegypt.com/feed/",
@@ -1023,7 +1148,8 @@
         "country": "EG",
         "funding_type": "Commercial",
         "bias_rating": "Center",
-        "ownership_label": "private media company"
+        "ownership_label": "private media company",
+        "factual_reporting": "unknown"
     },
     "Radio Okapi": {
         "url": "https://www.radiookapi.net/rss",
@@ -1031,7 +1157,8 @@
         "country": "CD",
         "funding_type": "Non-profit",
         "bias_rating": "Center",
-        "ownership_label": "nonprofit broadcaster"
+        "ownership_label": "nonprofit broadcaster",
+        "factual_reporting": "unknown"
     },
     "VnExpress International": {
         "url": "https://e.vnexpress.net/rss/home.rss",
@@ -1039,7 +1166,8 @@
         "country": "VN",
         "funding_type": "Commercial",
         "bias_rating": "Center",
-        "ownership_label": "private newspaper"
+        "ownership_label": "private newspaper",
+        "factual_reporting": "unknown"
     },
     "Radio Farda": {
         "url": "https://en.radiofarda.com/rssfeeds",
@@ -1047,7 +1175,8 @@
         "country": "IR",
         "funding_type": "Non-profit",
         "bias_rating": "Left-Center",
-        "ownership_label": "government-funded broadcaster"
+        "ownership_label": "government-funded broadcaster",
+        "factual_reporting": "unknown"
     },
     "Duvar English": {
         "url": "https://www.duvarenglish.com/rss",
@@ -1055,7 +1184,8 @@
         "country": "TR",
         "funding_type": "Independent",
         "bias_rating": "Center",
-        "ownership_label": "independent outlet"
+        "ownership_label": "independent outlet",
+        "factual_reporting": "unknown"
     },
     "Bangkok Post": {
         "url": "https://www.bangkokpost.com/rss/data/topstories.xml",
@@ -1063,7 +1193,8 @@
         "country": "TH",
         "funding_type": "Commercial",
         "bias_rating": "Center",
-        "ownership_label": "private newspaper"
+        "ownership_label": "private newspaper",
+        "factual_reporting": "unknown"
     },
     "ANSA": {
         "url": "https://www.ansa.it/english/sito/notizie/topnews/topnews_rss.xml",
@@ -1071,7 +1202,8 @@
         "country": "IT",
         "funding_type": "Commercial",
         "bias_rating": "Center",
-        "ownership_label": "news cooperative"
+        "ownership_label": "news cooperative",
+        "factual_reporting": "unknown"
     },
     "The Citizen": {
         "url": "https://www.thecitizen.co.tz/rss",
@@ -1079,7 +1211,8 @@
         "country": "TZ",
         "funding_type": "Commercial",
         "bias_rating": "Center",
-        "ownership_label": "private newspaper"
+        "ownership_label": "private newspaper",
+        "factual_reporting": "unknown"
     },
     "Myanmar Now": {
         "url": "https://myanmar-now.org/en/feed",
@@ -1087,7 +1220,8 @@
         "country": "MM",
         "funding_type": "Independent",
         "bias_rating": "Left-Center",
-        "ownership_label": "independent outlet"
+        "ownership_label": "independent outlet",
+        "factual_reporting": "unknown"
     },
     "The Standard": {
         "url": "https://www.standardmedia.co.ke/rss/headlines.php",
@@ -1095,7 +1229,8 @@
         "country": "KE",
         "funding_type": "Commercial",
         "bias_rating": "Center",
-        "ownership_label": "private newspaper"
+        "ownership_label": "private newspaper",
+        "factual_reporting": "unknown"
     },
     "The Korea Herald": {
         "url": "https://m.koreaherald.com/rss/newsAll",
@@ -1103,7 +1238,8 @@
         "country": "KR",
         "funding_type": "Commercial",
         "bias_rating": "Center",
-        "ownership_label": "private newspaper"
+        "ownership_label": "private newspaper",
+        "factual_reporting": "unknown"
     },
     "Colombia Reports": {
         "url": "https://colombiareports.com/feed/",
@@ -1111,15 +1247,17 @@
         "country": "CO",
         "funding_type": "Non-profit",
         "bias_rating": "Center",
-        "ownership_label": "nonprofit media organization"
+        "ownership_label": "nonprofit media organization",
+        "factual_reporting": "very-low"
     },
-    "El Pa\u00eds": {
+    "El País": {
         "url": "https://english.elpais.com/rss",
         "category": "general",
         "country": "ES",
         "funding_type": "Commercial",
         "bias_rating": "Center",
-        "ownership_label": "private media company"
+        "ownership_label": "private media company",
+        "factual_reporting": "unknown"
     },
     "Xinhua News Agency": {
         "url": "http://www.xinhuanet.com/english/rss/chinanews.xml",
@@ -1127,7 +1265,8 @@
         "country": "CN",
         "funding_type": "State-funded",
         "bias_rating": "Right",
-        "ownership_label": "state-owned news agency"
+        "ownership_label": "state-owned news agency",
+        "factual_reporting": "unknown"
     },
     "Xinhua World News": {
         "url": "http://www.xinhuanet.com/english/rss/world.xml",
@@ -1135,7 +1274,8 @@
         "country": "CN",
         "funding_type": "State-funded",
         "bias_rating": "Center",
-        "ownership_label": "state-owned news agency"
+        "ownership_label": "state-owned news agency",
+        "factual_reporting": "unknown"
     },
     "TASS": {
         "url": "https://tass.com/rss",
@@ -1143,7 +1283,8 @@
         "country": "RU",
         "funding_type": "State-funded",
         "bias_rating": "Right",
-        "ownership_label": "state-owned news agency"
+        "ownership_label": "state-owned news agency",
+        "factual_reporting": "unknown"
     },
     "RT": {
         "url": "https://www.rt.com/rss/",
@@ -1151,7 +1292,8 @@
         "country": "RU",
         "funding_type": "State-funded",
         "bias_rating": "Right",
-        "ownership_label": "state media network"
+        "ownership_label": "state media network",
+        "factual_reporting": "very-low"
     },
     "Press TV": {
         "url": "https://www.presstv.ir/rss",
@@ -1159,7 +1301,8 @@
         "country": "IR",
         "funding_type": "State-funded",
         "bias_rating": "Left",
-        "ownership_label": "state media network"
+        "ownership_label": "state media network",
+        "factual_reporting": "unknown"
     },
     "Anadolu Agency": {
         "url": "https://www.aa.com.tr/en/rss/default?cat=live",
@@ -1167,7 +1310,8 @@
         "country": "TR",
         "funding_type": "State-funded",
         "bias_rating": "Center",
-        "ownership_label": "state-owned news agency"
+        "ownership_label": "state-owned news agency",
+        "factual_reporting": "unknown"
     },
     "Saudi Press Agency": {
         "url": "https://www.spa.gov.sa/rss",
@@ -1175,7 +1319,8 @@
         "country": "SA",
         "funding_type": "State-funded",
         "bias_rating": "Right",
-        "ownership_label": "state-owned news agency"
+        "ownership_label": "state-owned news agency",
+        "factual_reporting": "unknown"
     },
     "Vietnam News Agency": {
         "url": "https://vnanet.vn/en/rss/",
@@ -1183,7 +1328,8 @@
         "country": "VN",
         "funding_type": "State-funded",
         "bias_rating": "Center",
-        "ownership_label": "state-owned news agency"
+        "ownership_label": "state-owned news agency",
+        "factual_reporting": "unknown"
     },
     "Ahram Online": {
         "url": "https://english.ahram.org.eg/RSS/",
@@ -1191,7 +1337,8 @@
         "country": "EG",
         "funding_type": "State-funded",
         "bias_rating": "Center",
-        "ownership_label": "state-funded outlet"
+        "ownership_label": "state-funded outlet",
+        "factual_reporting": "unknown"
     },
     "KCNA Watch": {
         "url": "https://kcnawatch.org/feed/",
@@ -1199,7 +1346,8 @@
         "country": "KP",
         "funding_type": "State-funded",
         "bias_rating": "Right",
-        "ownership_label": "state media monitoring project"
+        "ownership_label": "state media monitoring project",
+        "factual_reporting": "unknown"
     },
     "Prensa Latina": {
         "url": "https://www.plenglish.com/feed/",
@@ -1207,7 +1355,8 @@
         "country": "CU",
         "funding_type": "State-funded",
         "bias_rating": "Left",
-        "ownership_label": "state-owned news agency"
+        "ownership_label": "state-owned news agency",
+        "factual_reporting": "unknown"
     },
     "Dominican Today": {
         "url": "https://dominicantoday.com/feed/",
@@ -1215,7 +1364,8 @@
         "country": "DO",
         "funding_type": "Commercial",
         "bias_rating": "Center",
-        "ownership_label": "private media company"
+        "ownership_label": "private media company",
+        "factual_reporting": "unknown"
     },
     "Channel NewsAsia": {
         "url": "https://www.channelnewsasia.com/api/v1/rss-outbound-feed?_format=xml",
@@ -1223,7 +1373,8 @@
         "country": "SG",
         "funding_type": "State-affiliated",
         "bias_rating": "Center",
-        "ownership_label": "state-affiliated broadcaster"
+        "ownership_label": "state-affiliated broadcaster",
+        "factual_reporting": "unknown"
     },
     "Malaysiakini": {
         "url": "https://www.malaysiakini.com/rss/en/news.xml",
@@ -1231,7 +1382,8 @@
         "country": "MY",
         "funding_type": "Independent",
         "bias_rating": "Center",
-        "ownership_label": "independent outlet"
+        "ownership_label": "independent outlet",
+        "factual_reporting": "unknown"
     },
     "Hong Kong Free Press": {
         "url": "https://hongkongfp.com/feed/",
@@ -1239,7 +1391,8 @@
         "country": "HK",
         "funding_type": "Non-profit",
         "bias_rating": "Left-Center",
-        "ownership_label": "nonprofit media organization"
+        "ownership_label": "nonprofit media organization",
+        "factual_reporting": "unknown"
     },
     "Rappler": {
         "url": "https://www.rappler.com/feed",
@@ -1247,7 +1400,8 @@
         "country": "PH",
         "funding_type": "Commercial",
         "bias_rating": "Center",
-        "ownership_label": "private media company"
+        "ownership_label": "private media company",
+        "factual_reporting": "unknown"
     },
     "Fijivillage": {
         "url": "https://www.fijivillage.com/rss/news.xml",
@@ -1255,7 +1409,8 @@
         "country": "FJ",
         "funding_type": "Commercial",
         "bias_rating": "Center",
-        "ownership_label": "private media company"
+        "ownership_label": "private media company",
+        "factual_reporting": "unknown"
     },
     "Focus Taiwan": {
         "url": "https://focustaiwan.tw/rss",
@@ -1263,7 +1418,8 @@
         "country": "TW",
         "funding_type": "State-funded",
         "bias_rating": "Center",
-        "ownership_label": "state-owned news agency"
+        "ownership_label": "state-owned news agency",
+        "factual_reporting": "unknown"
     },
     "Taipei Times": {
         "url": "https://www.taipeitimes.com/xml/index.rss",
@@ -1271,7 +1427,8 @@
         "country": "TW",
         "funding_type": "Commercial",
         "bias_rating": "Center",
-        "ownership_label": "private newspaper"
+        "ownership_label": "private newspaper",
+        "factual_reporting": "unknown"
     },
     "The Astana Times": {
         "url": "https://astanatimes.com/feed/",
@@ -1279,7 +1436,8 @@
         "country": "KZ",
         "funding_type": "Commercial",
         "bias_rating": "Center",
-        "ownership_label": "private newspaper"
+        "ownership_label": "private newspaper",
+        "factual_reporting": "unknown"
     },
     "Ekathimerini": {
         "url": "https://feeds.feedburner.com/ekathimerini/sKip",
@@ -1287,7 +1445,8 @@
         "country": "GR",
         "funding_type": "Commercial",
         "bias_rating": "Center",
-        "ownership_label": "private media company"
+        "ownership_label": "private media company",
+        "factual_reporting": "unknown"
     },
     "Caracas Chronicles": {
         "url": "https://www.caracaschronicles.com/feed/",
@@ -1295,7 +1454,8 @@
         "country": "VE",
         "funding_type": "Independent",
         "bias_rating": "Left-Center",
-        "ownership_label": "independent outlet"
+        "ownership_label": "independent outlet",
+        "factual_reporting": "unknown"
     },
     "Buenos Aires Times": {
         "url": "https://www.batimes.com.ar/feed",
@@ -1303,7 +1463,8 @@
         "country": "AR",
         "funding_type": "Commercial",
         "bias_rating": "Center",
-        "ownership_label": "private newspaper"
+        "ownership_label": "private newspaper",
+        "factual_reporting": "unknown"
     },
     "Venezuelanalysis": {
         "url": "https://venezuelanalysis.com/feed",
@@ -1311,7 +1472,8 @@
         "country": "VE",
         "funding_type": "Independent",
         "bias_rating": "Left",
-        "ownership_label": "independent outlet"
+        "ownership_label": "independent outlet",
+        "factual_reporting": "unknown"
     },
     "NK News": {
         "url": "https://www.nknews.org/rss",
@@ -1319,7 +1481,8 @@
         "country": "KP",
         "funding_type": "Independent",
         "bias_rating": "Center",
-        "ownership_label": "independent outlet"
+        "ownership_label": "independent outlet",
+        "factual_reporting": "unknown"
     },
     "Telesur English": {
         "url": "https://www.telesurenglish.net/feed",
@@ -1327,7 +1490,8 @@
         "country": "International",
         "funding_type": "State-funded",
         "bias_rating": "Left",
-        "ownership_label": "state-funded outlet"
+        "ownership_label": "state-funded outlet",
+        "factual_reporting": "unknown"
     },
     "Resumen Latinoamericano": {
         "url": "https://resumen-english.org/feed",
@@ -1335,7 +1499,8 @@
         "country": "International",
         "funding_type": "Independent",
         "bias_rating": "Left",
-        "ownership_label": "independent outlet"
+        "ownership_label": "independent outlet",
+        "factual_reporting": "unknown"
     },
     "Al Mayadeen": {
         "url": "https://english.almayadeen.net/feed.rss",
@@ -1343,7 +1508,8 @@
         "country": "LB",
         "funding_type": "Commercial",
         "bias_rating": "Left",
-        "ownership_label": "private media company"
+        "ownership_label": "private media company",
+        "factual_reporting": "unknown"
     },
     "Jamestown Foundation": {
         "url": "https://jamestown.org/feed",
@@ -1351,7 +1517,8 @@
         "country": "US",
         "funding_type": "Non-profit",
         "bias_rating": "Center-Right",
-        "ownership_label": "nonprofit think tank publication"
+        "ownership_label": "nonprofit think tank publication",
+        "factual_reporting": "unknown"
     },
     "War on the Rocks": {
         "url": "http://warontherocks.com/feed",
@@ -1359,7 +1526,8 @@
         "country": "US",
         "funding_type": "Non-profit",
         "bias_rating": "Center",
-        "ownership_label": "nonprofit analysis outlet"
+        "ownership_label": "nonprofit analysis outlet",
+        "factual_reporting": "unknown"
     },
     "Geopolitical Futures": {
         "url": "http://geopoliticalfutures.com/feed",
@@ -1367,7 +1535,8 @@
         "country": "US",
         "funding_type": "Commercial",
         "bias_rating": "Center",
-        "ownership_label": "private media company"
+        "ownership_label": "private media company",
+        "factual_reporting": "unknown"
     },
     "The New Humanitarian": {
         "url": "https://www.thenewhumanitarian.org/feed",
@@ -1375,7 +1544,8 @@
         "country": "International",
         "funding_type": "Non-profit",
         "bias_rating": "Center",
-        "ownership_label": "nonprofit media organization"
+        "ownership_label": "nonprofit media organization",
+        "factual_reporting": "unknown"
     },
     "The Diplomat": {
         "url": "https://thediplomat.com/feed",
@@ -1383,7 +1553,8 @@
         "country": "International",
         "funding_type": "Commercial",
         "bias_rating": "Center",
-        "ownership_label": "private media company"
+        "ownership_label": "private media company",
+        "factual_reporting": "unknown"
     },
     "38 North": {
         "url": "https://www.38north.org/feed",
@@ -1391,7 +1562,8 @@
         "country": "US",
         "funding_type": "Non-profit",
         "bias_rating": "Center",
-        "ownership_label": "nonprofit media organization"
+        "ownership_label": "nonprofit media organization",
+        "factual_reporting": "very-low"
     },
     "The Hindu": {
         "url": "https://www.thehindu.com/feeder/default.rss",
@@ -1399,7 +1571,8 @@
         "country": "IN",
         "funding_type": "Commercial",
         "bias_rating": "Center",
-        "ownership_label": "private media company"
+        "ownership_label": "private media company",
+        "factual_reporting": "unknown"
     },
     "Africa Check": {
         "url": "http://africacheck.org/feed",
@@ -1407,7 +1580,8 @@
         "country": "International",
         "funding_type": "Non-profit",
         "bias_rating": "Center",
-        "ownership_label": "nonprofit media organization"
+        "ownership_label": "nonprofit media organization",
+        "factual_reporting": "unknown"
     },
     "Canada News Online": {
         "url": "https://cananewsonline.com/main/category/news/full-news/rss",
@@ -1415,7 +1589,8 @@
         "country": "CA",
         "funding_type": "Commercial",
         "bias_rating": "Center",
-        "ownership_label": "private media company"
+        "ownership_label": "private media company",
+        "factual_reporting": "unknown"
     },
     "The Economist - Finance": {
         "url": "https://www.economist.com/finance-and-economics/rss.xml",
@@ -1423,7 +1598,8 @@
         "country": "GB",
         "funding_type": "Commercial",
         "bias_rating": "Center",
-        "ownership_label": "private news magazine group"
+        "ownership_label": "private news magazine group",
+        "factual_reporting": "high"
     },
     "The Economist - International": {
         "url": "https://www.economist.com/international/rss.xml",
@@ -1431,7 +1607,8 @@
         "country": "GB",
         "funding_type": "Commercial",
         "bias_rating": "Center",
-        "ownership_label": "private news magazine group"
+        "ownership_label": "private news magazine group",
+        "factual_reporting": "high"
     },
     "Haaretz": {
         "url": "https://www.haaretz.com/srv/israel-news-rss",
@@ -1439,7 +1616,8 @@
         "country": "IL",
         "funding_type": "Commercial",
         "bias_rating": "Left-Center",
-        "ownership_label": "Private family-controlled newspaper"
+        "ownership_label": "Private family-controlled newspaper",
+        "factual_reporting": "unknown"
     },
     "Jerusalem Post": {
         "url": "https://www.jpost.com/rss/rssfeedsisraelnews.aspx",
@@ -1447,7 +1625,8 @@
         "country": "IL",
         "funding_type": "Commercial",
         "bias_rating": "Center-Right",
-        "ownership_label": "Private owner-controlled newspaper"
+        "ownership_label": "Private owner-controlled newspaper",
+        "factual_reporting": "unknown"
     },
     "IranWire": {
         "url": "https://iranwire.com/en/feed/",
@@ -1455,7 +1634,8 @@
         "country": "IR",
         "funding_type": "Independent",
         "bias_rating": "Left-Center",
-        "ownership_label": "Independent diaspora newsroom"
+        "ownership_label": "Independent diaspora newsroom",
+        "factual_reporting": "unknown"
     },
     "Express Tribune": {
         "url": "https://tribune.com.pk/feed/pakistan",
@@ -1463,7 +1643,8 @@
         "country": "PK",
         "funding_type": "Commercial",
         "bias_rating": "Center",
-        "ownership_label": "Private media network"
+        "ownership_label": "Private media network",
+        "factual_reporting": "unknown"
     },
     "Malay Mail": {
         "url": "https://www.malaymail.com/feed/rss/malaysia",
@@ -1471,7 +1652,8 @@
         "country": "MY",
         "funding_type": "Commercial",
         "bias_rating": "Center",
-        "ownership_label": "Private digital newspaper"
+        "ownership_label": "Private digital newspaper",
+        "factual_reporting": "unknown"
     },
     "Premium Times": {
         "url": "https://www.premiumtimesng.com/feed",
@@ -1479,7 +1661,8 @@
         "country": "NG",
         "funding_type": "Independent",
         "bias_rating": "Center",
-        "ownership_label": "Private independent digital publisher"
+        "ownership_label": "Private independent digital publisher",
+        "factual_reporting": "unknown"
     },
     "The Chanzo": {
         "url": "https://thechanzo.com/feed/",
@@ -1487,7 +1670,8 @@
         "country": "TZ",
         "funding_type": "Independent",
         "bias_rating": "Center",
-        "ownership_label": "Journalist-owned independent outlet"
+        "ownership_label": "Journalist-owned independent outlet",
+        "factual_reporting": "unknown"
     },
     "Mail & Guardian": {
         "url": "https://mg.co.za/feed/",
@@ -1495,7 +1679,8 @@
         "country": "ZA",
         "funding_type": "Independent",
         "bias_rating": "Left-Center",
-        "ownership_label": "Private domestic publisher"
+        "ownership_label": "Private domestic publisher",
+        "factual_reporting": "unknown"
     },
     "The Fiji Times": {
         "url": "https://www.fijitimes.com.fj/feed/",
@@ -1503,7 +1688,17 @@
         "country": "FJ",
         "funding_type": "Commercial",
         "bias_rating": "Center",
-        "ownership_label": "Private newspaper"
+        "ownership_label": "Private newspaper",
+        "factual_reporting": "unknown"
+    },
+    "ProPublica": {
+        "url": "https://www.propublica.org/feeds/propublica/main",
+        "category": "politics",
+        "country": "US",
+        "funding_type": "Non-profit",
+        "bias_rating": "Left-Center",
+        "ownership_label": "nonprofit investigative newsroom",
+        "factual_reporting": "unknown"
     },
     "Jamaica Observer": {
         "url": "https://www.jamaicaobserver.com/feed/",
@@ -1511,7 +1706,8 @@
         "country": "JM",
         "funding_type": "Commercial",
         "bias_rating": "Center",
-        "ownership_label": "Private local owner-controlled newspaper"
+        "ownership_label": "Private local owner-controlled newspaper",
+        "factual_reporting": "unknown"
     },
     "Trinidad and Tobago Newsday": {
         "url": "https://newsday.co.tt/feed/",
@@ -1519,7 +1715,8 @@
         "country": "TT",
         "funding_type": "Commercial",
         "bias_rating": "Center",
-        "ownership_label": "Private domestic company"
+        "ownership_label": "Private domestic company",
+        "factual_reporting": "unknown"
     },
     "Kaieteur News": {
         "url": "https://www.kaieteurnewsonline.com/feed/",
@@ -1527,7 +1724,8 @@
         "country": "GY",
         "funding_type": "Commercial",
         "bias_rating": "Center",
-        "ownership_label": "Private newspaper"
+        "ownership_label": "Private newspaper",
+        "factual_reporting": "unknown"
     },
     "Guyana Chronicle": {
         "url": "https://guyanachronicle.com/feed/",
@@ -1535,7 +1733,8 @@
         "country": "GY",
         "funding_type": "State-funded",
         "bias_rating": "Center",
-        "ownership_label": "Government-owned daily newspaper"
+        "ownership_label": "Government-owned daily newspaper",
+        "factual_reporting": "unknown"
     },
     "Barbados Today": {
         "url": "https://barbadostoday.bb/feed/",
@@ -1543,7 +1742,8 @@
         "country": "BB",
         "funding_type": "Commercial",
         "bias_rating": "Center",
-        "ownership_label": "Private local company"
+        "ownership_label": "Private local company",
+        "factual_reporting": "unknown"
     },
     "Amandala": {
         "url": "https://amandala.com.bz/news/feed/",
@@ -1551,7 +1751,8 @@
         "country": "BZ",
         "funding_type": "Commercial",
         "bias_rating": "Center",
-        "ownership_label": "Independent local family-run outlet"
+        "ownership_label": "Independent local family-run outlet",
+        "factual_reporting": "unknown"
     },
     "Breaking Belize News": {
         "url": "https://www.breakingbelizenews.com/feed/",
@@ -1559,7 +1760,8 @@
         "country": "BZ",
         "funding_type": "Commercial",
         "bias_rating": "Center",
-        "ownership_label": "Private local digital outlet"
+        "ownership_label": "Private local digital outlet",
+        "factual_reporting": "unknown"
     },
     "Eyewitness News Bahamas": {
         "url": "https://ewnews.com/feed/",
@@ -1567,7 +1769,8 @@
         "country": "BS",
         "funding_type": "Commercial",
         "bias_rating": "Center",
-        "ownership_label": "Private TV-linked digital outlet"
+        "ownership_label": "Private TV-linked digital outlet",
+        "factual_reporting": "unknown"
     },
     "Antigua Observer": {
         "url": "https://antiguaobserver.com/feed/",
@@ -1575,7 +1778,8 @@
         "country": "AG",
         "funding_type": "Commercial",
         "bias_rating": "Center",
-        "ownership_label": "Private local media group"
+        "ownership_label": "Private local media group",
+        "factual_reporting": "unknown"
     },
     "St. Lucia Times": {
         "url": "https://stluciatimes.com/feed/",
@@ -1583,7 +1787,8 @@
         "country": "LC",
         "funding_type": "Commercial",
         "bias_rating": "Center",
-        "ownership_label": "Private digital outlet"
+        "ownership_label": "Private digital outlet",
+        "factual_reporting": "unknown"
     },
     "Searchlight": {
         "url": "https://www.searchlight.vc/feed/",
@@ -1591,7 +1796,8 @@
         "country": "VC",
         "funding_type": "Independent",
         "bias_rating": "Center",
-        "ownership_label": "Independent shareholder-owned outlet"
+        "ownership_label": "Independent shareholder-owned outlet",
+        "factual_reporting": "unknown"
     },
     "Dominica News Online": {
         "url": "https://dominicanewsonline.com/news/feed/",
@@ -1599,7 +1805,8 @@
         "country": "DM",
         "funding_type": "Commercial",
         "bias_rating": "Center",
-        "ownership_label": "Private local company"
+        "ownership_label": "Private local company",
+        "factual_reporting": "unknown"
     },
     "NOW Grenada": {
         "url": "https://www.nowgrenada.com/feed/",
@@ -1607,7 +1814,8 @@
         "country": "GD",
         "funding_type": "Commercial",
         "bias_rating": "Center",
-        "ownership_label": "Private local company"
+        "ownership_label": "Private local company",
+        "factual_reporting": "unknown"
     },
     "Libya Herald": {
         "url": "https://libyaherald.com/feed/",
@@ -1615,7 +1823,8 @@
         "country": "LY",
         "funding_type": "Independent",
         "bias_rating": "Center",
-        "ownership_label": "Private independent outlet"
+        "ownership_label": "Private independent outlet",
+        "factual_reporting": "unknown"
     },
     "Yemen Monitor": {
         "url": "https://www.yemenmonitor.com/en/feed",
@@ -1623,7 +1832,8 @@
         "country": "YE",
         "funding_type": "Independent",
         "bias_rating": "Center",
-        "ownership_label": "Private independent outlet"
+        "ownership_label": "Private independent outlet",
+        "factual_reporting": "unknown"
     },
     "Shafaq News": {
         "url": "https://shafaq.com/en/Iraq?rss=1",
@@ -1631,7 +1841,8 @@
         "country": "IQ",
         "funding_type": "Independent",
         "bias_rating": "Center",
-        "ownership_label": "Foundation-affiliated news outlet"
+        "ownership_label": "Foundation-affiliated news outlet",
+        "factual_reporting": "unknown"
     },
     "Muscat Daily": {
         "url": "https://www.muscatdaily.com/category/oman/feed/",
@@ -1639,7 +1850,8 @@
         "country": "OM",
         "funding_type": "Commercial",
         "bias_rating": "Center",
-        "ownership_label": "Private media company"
+        "ownership_label": "Private media company",
+        "factual_reporting": "unknown"
     },
     "Oman Observer": {
         "url": "https://www.omanobserver.om/rssFeed/1",
@@ -1647,7 +1859,8 @@
         "country": "OM",
         "funding_type": "State-funded",
         "bias_rating": "Center",
-        "ownership_label": "State-owned newspaper"
+        "ownership_label": "State-owned newspaper",
+        "factual_reporting": "unknown"
     },
     "Doha News": {
         "url": "https://dohanews.co/feed/",
@@ -1655,7 +1868,8 @@
         "country": "QA",
         "funding_type": "Independent",
         "bias_rating": "Center",
-        "ownership_label": "Private independent digital outlet"
+        "ownership_label": "Private independent digital outlet",
+        "factual_reporting": "unknown"
     },
     "Qatar News Agency": {
         "url": "https://qna.org.qa/en/Pages/RSS-Feeds/Qatar",
@@ -1663,7 +1877,8 @@
         "country": "QA",
         "funding_type": "State-funded",
         "bias_rating": "Center",
-        "ownership_label": "State-owned news agency"
+        "ownership_label": "State-owned news agency",
+        "factual_reporting": "unknown"
     },
     "Kuwait Times": {
         "url": "https://kuwaittimes.com/rssFeed/0/",
@@ -1671,7 +1886,8 @@
         "country": "KW",
         "funding_type": "Commercial",
         "bias_rating": "Center-Right",
-        "ownership_label": "Family-owned newspaper"
+        "ownership_label": "Family-owned newspaper",
+        "factual_reporting": "unknown"
     },
     "Arab Times": {
         "url": "https://www.arabtimesonline.com/rssFeed/29/",
@@ -1679,7 +1895,8 @@
         "country": "KW",
         "funding_type": "Commercial",
         "bias_rating": "Center-Right",
-        "ownership_label": "Owner-operated newspaper"
+        "ownership_label": "Owner-operated newspaper",
+        "factual_reporting": "unknown"
     },
     "Morocco World News": {
         "url": "https://www.moroccoworldnews.com/feed/",
@@ -1687,7 +1904,8 @@
         "country": "MA",
         "funding_type": "Commercial",
         "bias_rating": "Center",
-        "ownership_label": "Founder-owned private outlet"
+        "ownership_label": "Founder-owned private outlet",
+        "factual_reporting": "unknown"
     },
     "Saudi Gazette": {
         "url": "https://saudigazette.com.sa/rssFeed/0",
@@ -1695,7 +1913,8 @@
         "country": "SA",
         "funding_type": "State-affiliated",
         "bias_rating": "Center",
-        "ownership_label": "State-affiliated newspaper"
+        "ownership_label": "State-affiliated newspaper",
+        "factual_reporting": "unknown"
     },
     "MyJoyOnline": {
         "url": "https://www.myjoyonline.com/feed/",
@@ -1703,7 +1922,8 @@
         "country": "GH",
         "funding_type": "Commercial",
         "bias_rating": "Center",
-        "ownership_label": "Private media group"
+        "ownership_label": "Private media group",
+        "factual_reporting": "unknown"
     },
     "Ghanaian Times": {
         "url": "https://ghanaiantimes.com.gh/feed/",
@@ -1711,7 +1931,8 @@
         "country": "GH",
         "funding_type": "State-funded",
         "bias_rating": "Center",
-        "ownership_label": "State-owned newspaper"
+        "ownership_label": "State-owned newspaper",
+        "factual_reporting": "unknown"
     },
     "The Observer Uganda": {
         "url": "https://observer.ug/feed/",
@@ -1719,7 +1940,8 @@
         "country": "UG",
         "funding_type": "Commercial",
         "bias_rating": "Center",
-        "ownership_label": "Private publisher"
+        "ownership_label": "Private publisher",
+        "factual_reporting": "unknown"
     },
     "News Diggers": {
         "url": "https://diggers.news/feed/",
@@ -1727,7 +1949,8 @@
         "country": "ZM",
         "funding_type": "Independent",
         "bias_rating": "Center",
-        "ownership_label": "Independent investigative outlet"
+        "ownership_label": "Independent investigative outlet",
+        "factual_reporting": "unknown"
     },
     "ZimLive": {
         "url": "https://www.zimlive.com/feed/",
@@ -1735,7 +1958,8 @@
         "country": "ZW",
         "funding_type": "Independent",
         "bias_rating": "Center",
-        "ownership_label": "Independent digital outlet"
+        "ownership_label": "Independent digital outlet",
+        "factual_reporting": "unknown"
     },
     "Nyasa Times": {
         "url": "https://www.nyasatimes.com/feed/",
@@ -1743,7 +1967,8 @@
         "country": "MW",
         "funding_type": "Independent",
         "bias_rating": "Center",
-        "ownership_label": "Independent digital newspaper"
+        "ownership_label": "Independent digital newspaper",
+        "factual_reporting": "unknown"
     },
     "The Namibian": {
         "url": "https://www.namibian.com.na/feed/",
@@ -1751,7 +1976,8 @@
         "country": "NA",
         "funding_type": "Independent",
         "bias_rating": "Center",
-        "ownership_label": "Trust-owned newspaper"
+        "ownership_label": "Trust-owned newspaper",
+        "factual_reporting": "unknown"
     },
     "FrontPage Africa": {
         "url": "https://frontpageafricaonline.com/feed/",
@@ -1759,7 +1985,8 @@
         "country": "LR",
         "funding_type": "Commercial",
         "bias_rating": "Center",
-        "ownership_label": "Private digital publisher"
+        "ownership_label": "Private digital publisher",
+        "factual_reporting": "unknown"
     },
     "Eye Radio": {
         "url": "https://www.eyeradio.org/feed/",
@@ -1767,7 +1994,8 @@
         "country": "SS",
         "funding_type": "Non-profit",
         "bias_rating": "Center",
-        "ownership_label": "NGO-partnered broadcaster"
+        "ownership_label": "NGO-partnered broadcaster",
+        "factual_reporting": "unknown"
     },
     "The Standard - Gambia": {
         "url": "https://standard.gm/feed/",
@@ -1775,7 +2003,8 @@
         "country": "GM",
         "funding_type": "Commercial",
         "bias_rating": "Center",
-        "ownership_label": "Private newspaper company"
+        "ownership_label": "Private newspaper company",
+        "factual_reporting": "unknown"
     },
     "KT Press": {
         "url": "https://www.ktpress.rw/feed/",
@@ -1783,7 +2012,8 @@
         "country": "RW",
         "funding_type": "Commercial",
         "bias_rating": "Center",
-        "ownership_label": "Private media group"
+        "ownership_label": "Private media group",
+        "factual_reporting": "unknown"
     },
     "Lesotho Times": {
         "url": "https://lestimes.com/?feed=rss2",
@@ -1791,7 +2021,8 @@
         "country": "LS",
         "funding_type": "Commercial",
         "bias_rating": "Center",
-        "ownership_label": "Private weekly newspaper"
+        "ownership_label": "Private weekly newspaper",
+        "factual_reporting": "unknown"
     },
     "Hiiraan Online": {
         "url": "https://hiiraan.com/news.xml",
@@ -1799,7 +2030,8 @@
         "country": "SO",
         "funding_type": "Independent",
         "bias_rating": "Center",
-        "ownership_label": "Independent digital publisher"
+        "ownership_label": "Independent digital publisher",
+        "factual_reporting": "unknown"
     },
     "Club of Mozambique": {
         "url": "https://clubofmozambique.com/feed/",
@@ -1807,7 +2039,8 @@
         "country": "MZ",
         "funding_type": "Commercial",
         "bias_rating": "Center",
-        "ownership_label": "Company-backed private outlet"
+        "ownership_label": "Company-backed private outlet",
+        "factual_reporting": "unknown"
     },
     "The Voice Botswana": {
         "url": "https://thevoicebw.com/feed/",
@@ -1815,7 +2048,8 @@
         "country": "BW",
         "funding_type": "Commercial",
         "bias_rating": "Center",
-        "ownership_label": "Private newspaper"
+        "ownership_label": "Private newspaper",
+        "factual_reporting": "unknown"
     },
     "Hetq": {
         "url": "https://hetq.am/en/rss",
@@ -1823,7 +2057,8 @@
         "country": "AM",
         "funding_type": "Non-profit",
         "bias_rating": "Center",
-        "ownership_label": "NGO-owned investigative outlet"
+        "ownership_label": "NGO-owned investigative outlet",
+        "factual_reporting": "unknown"
     },
     "Report.az": {
         "url": "https://report.az/en/rss/",
@@ -1831,7 +2066,8 @@
         "country": "AZ",
         "funding_type": "Commercial",
         "bias_rating": "Center",
-        "ownership_label": "Private media group"
+        "ownership_label": "Private media group",
+        "factual_reporting": "very-low"
     },
     "Bhutan Broadcasting Service": {
         "url": "https://www.bbs.bt/feed/",
@@ -1839,7 +2075,8 @@
         "country": "BT",
         "funding_type": "Public",
         "bias_rating": "Center",
-        "ownership_label": "Public broadcaster"
+        "ownership_label": "Public broadcaster",
+        "factual_reporting": "unknown"
     },
     "Civil Georgia": {
         "url": "https://civil.ge/feed/",
@@ -1847,7 +2084,8 @@
         "country": "GE",
         "funding_type": "Independent",
         "bias_rating": "Center",
-        "ownership_label": "Independent local newsroom"
+        "ownership_label": "Independent local newsroom",
+        "factual_reporting": "unknown"
     },
     "24.kg": {
         "url": "https://24.kg/english/rss/",
@@ -1855,7 +2093,8 @@
         "country": "KG",
         "funding_type": "Commercial",
         "bias_rating": "Center",
-        "ownership_label": "Private news agency"
+        "ownership_label": "Private news agency",
+        "factual_reporting": "unknown"
     },
     "Khmer Times": {
         "url": "https://www.khmertimeskh.com/feed/",
@@ -1863,7 +2102,8 @@
         "country": "KH",
         "funding_type": "Commercial",
         "bias_rating": "Center",
-        "ownership_label": "Private media company"
+        "ownership_label": "Private media company",
+        "factual_reporting": "unknown"
     },
     "EconomyNext": {
         "url": "https://economynext.com/feed/",
@@ -1871,7 +2111,8 @@
         "country": "LK",
         "funding_type": "Commercial",
         "bias_rating": "Center",
-        "ownership_label": "Private media company"
+        "ownership_label": "Private media company",
+        "factual_reporting": "unknown"
     },
     "Sun Online Maldives": {
         "url": "https://en.sun.mv/feed",
@@ -1879,7 +2120,8 @@
         "country": "MV",
         "funding_type": "Commercial",
         "bias_rating": "Center",
-        "ownership_label": "Private media group"
+        "ownership_label": "Private media group",
+        "factual_reporting": "unknown"
     },
     "Post-Courier": {
         "url": "https://www.postcourier.com.pg/feed/",
@@ -1887,7 +2129,8 @@
         "country": "PG",
         "funding_type": "Commercial",
         "bias_rating": "Center",
-        "ownership_label": "Corporate newspaper"
+        "ownership_label": "Corporate newspaper",
+        "factual_reporting": "unknown"
     },
     "Matangi Tonga": {
         "url": "https://matangitonga.to/rss.xml",
@@ -1895,7 +2138,8 @@
         "country": "TO",
         "funding_type": "Independent",
         "bias_rating": "Center",
-        "ownership_label": "Independent private publisher"
+        "ownership_label": "Independent private publisher",
+        "factual_reporting": "unknown"
     },
     "Asia-Plus": {
         "url": "https://asiaplustj.info/en/rss.xml",
@@ -1903,7 +2147,8 @@
         "country": "TJ",
         "funding_type": "Commercial",
         "bias_rating": "Center",
-        "ownership_label": "Private media group"
+        "ownership_label": "Private media group",
+        "factual_reporting": "unknown"
     },
     "Gazeta.uz": {
         "url": "https://www.gazeta.uz/en/rss/",
@@ -1911,7 +2156,8 @@
         "country": "UZ",
         "funding_type": "Commercial",
         "bias_rating": "Center",
-        "ownership_label": "Private independent outlet"
+        "ownership_label": "Private independent outlet",
+        "factual_reporting": "unknown"
     },
     "Costa Rica News": {
         "url": "https://news.co.cr/feed/",
@@ -1919,7 +2165,8 @@
         "country": "CR",
         "funding_type": "Independent",
         "bias_rating": "Center",
-        "ownership_label": "independent digital outlet"
+        "ownership_label": "independent digital outlet",
+        "factual_reporting": "unknown"
     },
     "Newsroom Panama": {
         "url": "https://newsroompanama.com/feed/",
@@ -1927,7 +2174,8 @@
         "country": "PA",
         "funding_type": "Commercial",
         "bias_rating": "Center",
-        "ownership_label": "private digital outlet"
+        "ownership_label": "private digital outlet",
+        "factual_reporting": "unknown"
     },
     "El Salvador in English": {
         "url": "https://elsalvadorinenglish.com/feed/",
@@ -1935,7 +2183,8 @@
         "country": "SV",
         "funding_type": "Independent",
         "bias_rating": "Center",
-        "ownership_label": "independently managed outlet"
+        "ownership_label": "independently managed outlet",
+        "factual_reporting": "unknown"
     },
     "Confidencial English": {
         "url": "https://confidencial.digital/english/feed/",
@@ -1943,7 +2192,8 @@
         "country": "NI",
         "funding_type": "Non-profit",
         "bias_rating": "Center",
-        "ownership_label": "independent journalism association"
+        "ownership_label": "independent journalism association",
+        "factual_reporting": "unknown"
     },
     "ANDINA": {
         "url": "https://andina.pe/ingles/rss/noticia.aspx",
@@ -1951,7 +2201,8 @@
         "country": "PE",
         "funding_type": "State-funded",
         "bias_rating": "Center",
-        "ownership_label": "State-owned news agency"
+        "ownership_label": "State-owned news agency",
+        "factual_reporting": "unknown"
     },
     "Peru Reports": {
         "url": "https://perureports.com/feed/",
@@ -1959,7 +2210,8 @@
         "country": "PE",
         "funding_type": "Independent",
         "bias_rating": "Center",
-        "ownership_label": "Independent digital outlet"
+        "ownership_label": "Independent digital outlet",
+        "factual_reporting": "very-low"
     },
     "The Standard Kenya": {
         "url": "https://www.standardmedia.co.ke/rss/headlines.php",
@@ -1967,6 +2219,7 @@
         "country": "KE",
         "funding_type": "Commercial",
         "bias_rating": "Center",
-        "ownership_label": "Private media group"
+        "ownership_label": "Private media group",
+        "factual_reporting": "unknown"
     }
 }

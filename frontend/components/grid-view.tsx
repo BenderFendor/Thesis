@@ -36,12 +36,14 @@ import {
   Layers,
   ChevronDown,
   ChevronRight,
+  ChevronUp,
   Loader2,
 } from "lucide-react"
 import { motion, AnimatePresence } from "framer-motion"
 import { ArticleDetailModal } from "./article-detail-modal"
+import { ClusterDetailModal } from "./cluster-detail-modal"
 import { TrendingFeed } from "./trending-feed"
-import type { NewsArticle, AllCluster } from "@/lib/api"
+import type { NewsArticle, AllCluster, TrendingCluster } from "@/lib/api"
 import { get_logger, cn } from "@/lib/utils"
 import { useReadingQueue } from "@/hooks/useReadingQueue"
 import { useLikedArticles } from "@/hooks/useLikedArticles"
@@ -248,6 +250,9 @@ export function GridView({
   const [clusterArticlesCache, setClusterArticlesCache] = useState<Map<number, NewsArticle[]>>(new Map())
   const [selectedArticle, setSelectedArticle] = useState<NewsArticle | null>(null)
   const [isArticleModalOpen, setIsArticleModalOpen] = useState(false)
+  const [selectedCluster, setSelectedCluster] = useState<TrendingCluster | null>(null)
+  const [isClusterModalOpen, setIsClusterModalOpen] = useState(false)
+  const [showScrollTop, setShowScrollTop] = useState(false)
   const { likedIds, toggleLike } = useLikedArticles()
   const { addArticleToQueue, removeArticleFromQueue, isArticleInQueue } = useReadingQueue()
   const { isFavorite, toggleFavorite } = useFavorites()
@@ -535,6 +540,37 @@ export function GridView({
     if (!expandedCluster) return []
     return clusterArticlesCache.get(expandedCluster.cluster_id) ?? []
   }, [clusterArticlesCache, expandedCluster])
+
+  useEffect(() => {
+    const container = containerRef.current
+    if (!container) return
+
+    const handleScroll = () => {
+      setShowScrollTop(container.scrollTop > 640)
+    }
+
+    handleScroll()
+    container.addEventListener("scroll", handleScroll, { passive: true })
+    return () => container.removeEventListener("scroll", handleScroll)
+  }, [])
+
+  const handleOpenClusterCompare = useCallback(
+    (cluster: AllCluster, event: MouseEvent<HTMLButtonElement>) => {
+      event.stopPropagation()
+      setSelectedCluster({
+        ...cluster,
+        trending_score: cluster.source_diversity,
+        velocity: cluster.window_count,
+        articles: cluster.articles ?? [],
+      })
+      setIsClusterModalOpen(true)
+    },
+    [],
+  )
+
+  const scrollToTop = useCallback(() => {
+    containerRef.current?.scrollTo({ top: 0, behavior: "smooth" })
+  }, [])
 
   const displayArticles = useVirtualization ? paginatedArticles : filteredNews
   const isLoadingState = useVirtualization ? paginatedLoading : loading
@@ -845,6 +881,16 @@ export function GridView({
                                   <ChevronRight className="h-5 w-5 text-white/75 group-hover:text-white" />
                                 )}
                               </div>
+                              <div className="absolute left-4 top-4 z-10">
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  onClick={(event) => handleOpenClusterCompare(cluster, event)}
+                                  className="h-8 rounded-full bg-black/50 px-3 text-xs uppercase tracking-widest text-white backdrop-blur hover:bg-black/70"
+                                >
+                                  Compare
+                                </Button>
+                              </div>
                               <div className="absolute bottom-4 left-4 right-4">
                                 <h3 className="font-serif text-xl font-medium leading-snug text-white drop-shadow-md">
                                   {getClusterDisplayLabel(cluster)}
@@ -955,6 +1001,25 @@ export function GridView({
         onClose={() => {
           setIsArticleModalOpen(false)
           setSelectedArticle(null)
+        }}
+      />
+      {showScrollTop && (
+        <Button
+          type="button"
+          size="icon"
+          onClick={scrollToTop}
+          className="absolute bottom-8 right-8 z-40 h-12 w-12 rounded-full border border-white/10 bg-background/85 shadow-xl backdrop-blur"
+        >
+          <ChevronUp className="h-5 w-5" />
+        </Button>
+      )}
+      <ClusterDetailModal
+        cluster={selectedCluster}
+        isBreaking={false}
+        isOpen={isClusterModalOpen}
+        onClose={() => {
+          setIsClusterModalOpen(false)
+          setSelectedCluster(null)
         }}
       />
     </div>

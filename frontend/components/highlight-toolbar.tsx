@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Highlighter, X } from "lucide-react";
 import { toast } from "sonner";
 import { getGlobalOffset } from "@/lib/highlight-utils";
+import { createHighlightFingerprint } from "@/lib/highlight-store";
 
 interface HighlightToolbarProps {
   articleUrl: string;
@@ -37,6 +38,7 @@ export function HighlightToolbar({
   const toolbarRef = useRef<HTMLDivElement>(null);
   const [editingId, setEditingId] = useState<number | null>(null);
   const [editingNote, setEditingNote] = useState("");
+  const selectionHandledRef = useRef(false)
 
   const handleCreateHighlight = async () => {
     const selection = window.getSelection()
@@ -73,6 +75,30 @@ export function HighlightToolbar({
         return;
       }
 
+      const fingerprint = createHighlightFingerprint({
+        character_start: finalStart,
+        character_end: finalEnd,
+        highlighted_text: highlightedText,
+      })
+      const hasExactDuplicate = highlights.some((highlight) => {
+        if ((highlight as Highlight & { deleted?: boolean }).deleted) {
+          return false
+        }
+
+        return (
+          createHighlightFingerprint({
+            character_start: highlight.character_start,
+            character_end: highlight.character_end,
+            highlighted_text: highlight.highlighted_text,
+          }) === fingerprint
+        )
+      })
+
+      if (hasExactDuplicate) {
+        toast.error("That exact text is already highlighted")
+        return
+      }
+
       await onCreate({
         highlightedText,
         color: highlightColor,
@@ -81,7 +107,11 @@ export function HighlightToolbar({
 
       toast.success("Highlight created");
 
-      selection.removeAllRanges();
+      selectionHandledRef.current = true
+      window.setTimeout(() => {
+        selectionHandledRef.current = false
+      }, 120)
+
       if (toolbarRef.current) {
         toolbarRef.current.style.display = "none";
       }
@@ -142,10 +172,10 @@ export function HighlightToolbar({
          return
        }
 
-       if (autoCreate) {
-         void handleCreateHighlight()
-         hideToolbar()
-         return
+       if (autoCreate && !selectionHandledRef.current) {
+          void handleCreateHighlight()
+          hideToolbar()
+          return
        }
 
       const range = selection.getRangeAt(0)

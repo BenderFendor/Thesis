@@ -15,6 +15,7 @@ import {
   Bell,
   Bug,
   SlidersHorizontal,
+  Bookmark,
   Building2,
   Gamepad2,
   Shirt,
@@ -579,6 +580,14 @@ function NewsPage() {
             <div className="text-[10px] font-mono uppercase tracking-[0.3em] text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity duration-300 px-2 mb-3">Filters</div>
             <div className="space-y-1">
               <button
+                onClick={() => router.push("/saved")}
+                className="w-full flex items-center gap-4 px-2.5 py-2.5 rounded-lg text-xs font-mono uppercase tracking-[0.2em] text-muted-foreground hover:bg-white/5 hover:text-foreground transition-all duration-200"
+                title="Saved"
+              >
+                <Bookmark className="w-5 h-5 shrink-0" strokeWidth={1.5} />
+                <span className="opacity-0 group-hover:opacity-100 transition-opacity duration-300 whitespace-nowrap">Saved</span>
+              </button>
+              <button
                 onClick={() => setSidebarOpen(true)}
                 className="w-full flex items-center gap-4 px-2.5 py-2.5 rounded-lg text-xs font-mono uppercase tracking-[0.2em] text-muted-foreground hover:bg-white/5 hover:text-foreground transition-all duration-200"
                 title="Sources"
@@ -626,6 +635,12 @@ function NewsPage() {
       <header className="sticky top-0 z-40 border-b border-white/10 bg-[var(--news-bg-primary)]/95 backdrop-blur">
         <div className="flex items-center justify-end px-6 py-3 gap-2">
           <ThemeToggle />
+          <Button asChild variant="outline" size="sm" className="border-white/10 bg-transparent text-[10px] font-mono uppercase tracking-[0.32em]">
+            <Link href="/saved">
+              <Bookmark className="w-3.5 h-3.5 mr-2" />
+              Saved
+            </Link>
+          </Button>
           <Button asChild variant="outline" size="sm" className="border-white/10 bg-transparent text-[10px] font-mono uppercase tracking-[0.32em]">
             <Link href="/search">
               <Search className="w-3.5 h-3.5 mr-2" />

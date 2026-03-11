@@ -3,7 +3,7 @@ from __future__ import annotations
 import base64
 import json
 from datetime import datetime
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, cast
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Response
 from pydantic import BaseModel
@@ -11,7 +11,7 @@ from sqlalchemy import and_, desc, asc, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.data.rss_sources import get_rss_sources
-from app.database import Article, article_record_to_dict, get_db
+from app.database import Article, SourceMetadata, article_record_to_dict, get_db
 from app.models.news import NewsArticle, NewsResponse, SourceInfo
 from app.services.cache import news_cache
 
@@ -378,7 +378,20 @@ async def get_news_by_category(category_name: str) -> NewsResponse:
 
 
 @router.get("/sources", response_model=List[SourceInfo])
-async def get_sources() -> List[SourceInfo]:
+async def get_sources(db: AsyncSession = Depends(get_db)) -> List[SourceInfo]:
+    metadata_by_name: Dict[str, SourceMetadata] = {}
+    try:
+        meta_result = await db.execute(select(SourceMetadata))
+        for metadata_entry in meta_result.scalars().all():
+            source_name = cast(
+                Optional[str], getattr(metadata_entry, "source_name", None)
+            )
+            if not isinstance(source_name, str) or source_name == "":
+                continue
+            metadata_by_name[source_name] = metadata_entry
+    except Exception:
+        metadata_by_name = {}
+
     sources: List[SourceInfo] = []
     for name, info in get_rss_sources().items():
         url_field = info.get("url")
@@ -395,6 +408,15 @@ async def get_sources() -> List[SourceInfo]:
         funding_type = info.get("funding_type")
         bias_rating = info.get("bias_rating")
         ownership_label = info.get("ownership_label")
+        meta: Optional[SourceMetadata] = metadata_by_name.get(name)
+        factual_rating = (
+            cast(Optional[str], getattr(meta, "factual_rating", None)) if meta else None
+        )
+        credibility_score = (
+            float(cast(float, meta.credibility_score))
+            if meta and meta.credibility_score is not None
+            else None
+        )
         sources.append(
             SourceInfo(
                 id=_source_slug(name),
@@ -408,6 +430,8 @@ async def get_sources() -> List[SourceInfo]:
                 ownership_label=(
                     ownership_label if isinstance(ownership_label, str) else None
                 ),
+                factual_rating=factual_rating,
+                credibility_score=credibility_score,
             )
         )
     return sources
