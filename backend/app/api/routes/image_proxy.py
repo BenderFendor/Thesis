@@ -64,6 +64,12 @@ def _is_cache_valid(meta_path: Path) -> bool:
         return False
 
 
+def _read_cached_response(content_path: Path, meta_path: Path) -> tuple[bytes, str]:
+    content = content_path.read_bytes()
+    content_type = meta_path.read_text().strip()
+    return content, content_type
+
+
 @router.get("/proxy")
 async def proxy_image(
     url: str = Query(..., description="URL of the image to proxy"),
@@ -90,14 +96,14 @@ async def proxy_image(
     # Check cache
     if content_path.exists() and _is_cache_valid(meta_path):
         try:
-            content = content_path.read_bytes()
-            content_type = meta_path.read_text().strip()
+            content, content_type = _read_cached_response(content_path, meta_path)
             logger.debug("Cache HIT for %s", url[:50])
             return Response(
                 content=content,
                 media_type=content_type,
                 headers={
                     "Cache-Control": f"public, max-age={CACHE_MAX_AGE}, stale-while-revalidate={CACHE_STALE_WHILE_REVALIDATE}",
+                    "Content-Length": str(len(content)),
                     "X-Cache": "HIT",
                     "X-Cache-Age": str(int(time.time() - meta_path.stat().st_mtime)),
                 },
@@ -153,6 +159,7 @@ async def proxy_image(
                 media_type=content_type,
                 headers={
                     "Cache-Control": f"public, max-age={CACHE_MAX_AGE}, stale-while-revalidate={CACHE_STALE_WHILE_REVALIDATE}",
+                    "Content-Length": str(len(content)),
                     "X-Cache": "MISS",
                 },
             )
