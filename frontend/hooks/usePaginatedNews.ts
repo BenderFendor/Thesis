@@ -1,7 +1,7 @@
 "use client";
 
 import { useInfiniteQuery, useQueryClient } from "@tanstack/react-query";
-import { useCallback, useMemo, useEffect } from "react";
+import { useCallback, useMemo } from "react";
 import {
   fetchNewsPaginated,
   fetchCachedNewsPaginated,
@@ -56,7 +56,7 @@ export function usePaginatedNews(
       {
         category: category || null,
         source: source || null,
-        sources: sources?.length ? sources.sort().join(",") : null,
+        sources: sources?.length ? [...sources].sort().join(",") : null,
         search: search || null,
         useCached,
       },
@@ -68,7 +68,6 @@ export function usePaginatedNews(
     data,
     fetchNextPage,
     hasNextPage,
-    isFetching,
     isFetchingNextPage,
     isLoading,
     error,
