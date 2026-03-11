@@ -388,11 +388,24 @@ build_rust_parser() {
 		return 0
 	fi
 
+	local maturin_bin="$BACKEND_DIR/.venv/bin/maturin"
+	if [[ ! -x "$maturin_bin" ]]; then
+		log "Skipping Rust RSS parser build: maturin is not installed in $BACKEND_DIR/.venv"
+		return 0
+	fi
+
+	if ! command -v cargo >/dev/null 2>&1 || ! command -v rustc >/dev/null 2>&1; then
+		log "Skipping Rust RSS parser build: Rust toolchain not found; Python fallback will be used"
+		return 0
+	fi
+
 	log "Building Rust RSS parser extension..."
-	(
+	if ! (
 		cd "$BACKEND_DIR/rss_parser_rust"
-		"$BACKEND_DIR/.venv/bin/maturin" develop --release
-	)
+		"$maturin_bin" develop --release
+	); then
+		log "Rust RSS parser build failed; continuing with Python fallback"
+	fi
 }
 
 postgres_ready() {

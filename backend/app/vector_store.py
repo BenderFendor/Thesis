@@ -69,7 +69,7 @@ class ChromaClientProtocol(Protocol):
         self,
         *,
         name: str,
-        metadata: Mapping[str, MetadataScalar],
+        metadata: Mapping[str, MetadataScalar] | None = None,
     ) -> "Collection": ...
 
 
@@ -356,19 +356,7 @@ class VectorStore:
                     name="news_articles"
                 )
             except Exception:
-                try:
-                    self.collection = self.client.get_or_create_collection(
-                        name="news_articles",
-                        metadata={"hnsw:space": "cosine"},
-                    )
-                except Exception as collection_error:
-                    logger.warning(
-                        "Falling back to plain Chroma collection creation: %s",
-                        collection_error,
-                    )
-                    self.collection = self.client.get_or_create_collection(
-                        name="news_articles"
-                    )
+                self.collection = self._get_or_create_cosine_collection()
 
             logger.info(f"Connected to ChromaDB at {CHROMA_HOST}:{CHROMA_PORT}")
             collection_count = self.collection.count()
@@ -396,6 +384,22 @@ class VectorStore:
             logger.error("Failed to connect to ChromaDB: %s", e)
             startup_metrics.add_note("vector_store_error", str(e))
             raise
+
+    def _get_or_create_cosine_collection(self) -> "Collection":
+        try:
+            return self.client.get_or_create_collection(
+                name="news_articles",
+                metadata={"hnsw:space": "cosine"},
+            )
+        except Exception as collection_error:
+            logger.error(
+                "Failed to create cosine Chroma collection 'news_articles': %s",
+                collection_error,
+            )
+            raise RuntimeError(
+                "Unable to initialize Chroma collection 'news_articles' with cosine distance. "
+                "Delete or recreate the collection with cosine metadata before starting the backend."
+            ) from collection_error
 
     @property
     def embedding_model(self) -> EmbeddingModelProtocol:

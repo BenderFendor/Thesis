@@ -59,6 +59,27 @@ def test_remote_embedding_model_encodes_batches_without_local_model(
     }
 
 
+def test_remote_embedding_model_wraps_single_string(monkeypatch) -> None:
+    dummy_client = _DummyHttpClient()
+    monkeypatch.setattr(
+        "app.embedding_client.httpx.Client",
+        lambda *args, **kwargs: dummy_client,
+    )
+
+    model = RemoteEmbeddingModel(
+        EmbeddingServiceClient("http://embedding-service", timeout_seconds=5)
+    )
+
+    encoded = model.encode("alpha", batch_size=4)
+
+    assert isinstance(encoded, np.ndarray)
+    assert encoded.shape == (3,)
+    assert dummy_client.request_json == {
+        "texts": ["alpha"],
+        "batch_size": 4,
+    }
+
+
 def test_embedding_service_health_reports_lazy_load_state(monkeypatch) -> None:
     monkeypatch.setattr("app.embedding_service._embedding_model", None)
     assert health()["loaded"] is False

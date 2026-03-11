@@ -6,7 +6,7 @@ merge priority logic, and null guards.
 
 import asyncio
 
-from unittest.mock import AsyncMock, patch
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import httpx
 import pytest
@@ -611,6 +611,33 @@ async def test_research_organization_uses_limited_parallelism(researcher):
     await researcher.research_organization("Example News", use_ai=False)
 
     assert max_active_calls <= 2
+
+
+@pytest.mark.asyncio
+async def test_research_organization_awaits_awaitable_dependency_results(researcher):
+    async def _delayed(payload: dict[str, str]) -> dict[str, str]:
+        await asyncio.sleep(0)
+        return payload
+
+    researcher._search_wikipedia = AsyncMock(
+        side_effect=lambda name: _delayed(
+            {"wikipedia_url": "https://example.com/wiki", "page_title": "Example News"}
+        )
+    )
+    researcher._search_propublica_nonprofit = AsyncMock(
+        side_effect=lambda name: _delayed({"ein": "123"})
+    )
+    researcher._get_known_org_data = MagicMock(
+        side_effect=lambda name: _delayed({"funding_type": "commercial"})
+    )
+    researcher._fetch_wikidata = AsyncMock(return_value={})
+
+    result = await researcher.research_organization("Example News", use_ai=False)
+
+    assert result["funding_type"] == "commercial"
+    assert result["ein"] == "123"
+    assert result["research_sources"] == ["known_data", "wikipedia", "propublica"]
+    researcher._fetch_wikidata.assert_awaited_once_with("Example News")
 
 
 # ── KNOWN_ORGS coverage ──────────────────────────────────────
