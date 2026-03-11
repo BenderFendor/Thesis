@@ -28,7 +28,11 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import settings
 from app.core.logging import get_logger
-from app.database import VerificationCache
+from app.database import (
+    VerificationCache,
+    fetch_article_records_by_ids,
+    search_article_records_by_keyword,
+)
 from app.models.verification import (
     ConfidenceLevel,
     SourceInfo,
@@ -433,9 +437,26 @@ class VerificationAgent:
         Returns SourceInfo objects for matching internal articles.
         """
         from app.vector_store import get_vector_store
-        from app.database import Article as ArticleRecord
 
         sources: List[SourceInfo] = []
+        seen_article_ids: set[int] = set()
+
+        if self.db:
+            try:
+                keyword_articles = await search_article_records_by_keyword(
+                    self.db,
+                    query=claim_text,
+                    limit=5,
+                )
+                for article in keyword_articles:
+                    if article.id is None or not article.url:
+                        continue
+                    seen_article_ids.add(article.id)
+                    sources.append(
+                        self._article_to_source_info(article, similarity_score=0.7)
+                    )
+            except Exception as exc:
+                logger.warning("Internal keyword search failed: %s", exc)
 
         vector_store = get_vector_store()
         if vector_store:
@@ -451,16 +472,26 @@ class VerificationAgent:
                 ]
 
                 if article_ids and self.db:
-                    result = await self.db.execute(
-                        select(ArticleRecord).where(ArticleRecord.id.in_(article_ids))
+                    fetched_articles = await fetch_article_records_by_ids(
+                        self.db,
+                        [
+                            article_id
+                            for article_id in article_ids
+                            if isinstance(article_id, int)
+                        ],
                     )
-                    articles = result.scalars().all()
-                    article_map = {a.id: a for a in articles}
+                    article_map = {
+                        article.id: article
+                        for article in fetched_articles
+                        if article.id is not None
+                    }
 
                     for vr in vector_results:
                         article_id = vr.get("article_id")
                         article = article_map.get(article_id) if article_id else None
                         if not article or not article.url:
+                            continue
+                        if article.id in seen_article_ids:
                             continue
 
                         source = self._article_to_source_info(
@@ -468,6 +499,8 @@ class VerificationAgent:
                             similarity_score=vr.get("similarity_score", 0.5),
                         )
                         sources.append(source)
+                        if article.id is not None:
+                            seen_article_ids.add(article.id)
 
                         logger.debug(
                             "Internal source found: %s (similarity=%.2f)",
