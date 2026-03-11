@@ -1,4 +1,5 @@
 from sqlalchemy import (
+    and_,
     Column,
     Float,
     Index,
@@ -15,6 +16,7 @@ from sqlalchemy import (
     text as sqlalchemy_text,
 )
 from importlib import import_module
+import re
 from sqlalchemy.dialects import postgresql
 from sqlalchemy.engine import Connection, Dialect
 from sqlalchemy.ext.asyncio import (
@@ -793,6 +795,34 @@ async def init_db() -> None:
             async with db_engine.begin() as new_conn:
                 await _do(new_conn)
 
+    async def _ensure_search_indexes(
+        conn: AsyncConnection | None = None,
+    ) -> None:
+        create_index_sql = sqlalchemy_text(
+            """
+            CREATE INDEX IF NOT EXISTS idx_articles_search
+            ON articles
+            USING GIN ((
+                setweight(to_tsvector('english', COALESCE(title, '')), 'A') ||
+                setweight(to_tsvector('english', COALESCE(summary, '')), 'B') ||
+                setweight(to_tsvector('english', COALESCE(source, '')), 'B') ||
+                setweight(to_tsvector('english', COALESCE(category, '')), 'C') ||
+                setweight(to_tsvector('english', COALESCE(content, '')), 'D')
+            ))
+            """
+        )
+
+        async def _do(c: AsyncConnection) -> None:
+            if c.dialect.name != "postgresql":
+                return
+            await c.execute(create_index_sql)
+
+        if conn is not None:
+            await _do(conn)
+        else:
+            async with db_engine.begin() as new_conn:
+                await _do(new_conn)
+
     def _iter_exception_chain(exc: BaseException) -> Iterator[BaseException]:
         current: BaseException | None = exc
         seen: set[int] = set()
@@ -854,6 +884,7 @@ async def init_db() -> None:
                 await conn.run_sync(Base.metadata.create_all)
                 logger.info("Database tables initialized successfully")
                 await _add_missing_columns(conn)
+                await _ensure_search_indexes(conn)
             return
         except asyncio.CancelledError:
             raise
@@ -863,6 +894,7 @@ async def init_db() -> None:
                 logger.info("Database objects already exist, continuing startup")
                 await _create_missing_tables()
                 await _add_missing_columns()
+                await _ensure_search_indexes()
                 return
 
             if not _is_transient_startup_error(exc) or time.monotonic() >= deadline:
@@ -940,6 +972,162 @@ def article_record_to_dict(record: Article) -> Dict[str, Any]:
     }
 
 
+def _normalize_search_query(query: str) -> str:
+    return " ".join(query.split())
+
+
+def get_session_dialect_name(session: AsyncSession) -> str:
+    bind = session.get_bind()
+    if bind is None:
+        return ""
+    return str(bind.dialect.name)
+
+
+def _article_search_vector() -> Any:
+    title_vector = func.setweight(
+        func.to_tsvector("english", func.coalesce(Article.title, "")),
+        "A",
+    )
+    summary_vector = func.setweight(
+        func.to_tsvector("english", func.coalesce(Article.summary, "")),
+        "B",
+    )
+    source_vector = func.setweight(
+        func.to_tsvector("english", func.coalesce(Article.source, "")),
+        "B",
+    )
+    category_vector = func.setweight(
+        func.to_tsvector("english", func.coalesce(Article.category, "")),
+        "C",
+    )
+    content_vector = func.setweight(
+        func.to_tsvector("english", func.coalesce(Article.content, "")),
+        "D",
+    )
+
+    return (
+        title_vector.op("||")(summary_vector)
+        .op("||")(source_vector)
+        .op("||")(category_vector)
+        .op("||")(content_vector)
+    )
+
+
+def _fallback_keyword_filter(query: str) -> Any:
+    terms = [term for term in re.findall(r"[\w-]+", query) if term]
+    if not terms:
+        terms = [query]
+
+    per_term_filters = []
+    for term in terms:
+        pattern = f"%{term}%"
+        per_term_filters.append(
+            or_(
+                Article.title.ilike(pattern),
+                Article.summary.ilike(pattern),
+                Article.content.ilike(pattern),
+                Article.source.ilike(pattern),
+                Article.category.ilike(pattern),
+            )
+        )
+
+    return and_(*per_term_filters)
+
+
+def build_article_keyword_search(
+    query: str,
+    dialect_name: str,
+) -> tuple[Any, Any | None, tuple[Any, ...]]:
+    if dialect_name == "postgresql":
+        search_vector = _article_search_vector()
+        ts_query = func.websearch_to_tsquery("english", query)
+        rank = func.ts_rank_cd(search_vector, ts_query).label("search_rank")
+        return (
+            search_vector.op("@@")(ts_query),
+            rank,
+            (rank.desc(), Article.published_at.desc(), Article.id.desc()),
+        )
+
+    return (
+        _fallback_keyword_filter(query),
+        None,
+        (Article.published_at.desc(), Article.id.desc()),
+    )
+
+
+async def search_article_records_by_keyword(
+    session: AsyncSession,
+    query: str,
+    limit: int = 50,
+    offset: int = 0,
+    filters: Optional[List[Any]] = None,
+) -> List[Article]:
+    normalized_query = _normalize_search_query(query)
+    if not normalized_query:
+        return []
+
+    dialect_name = get_session_dialect_name(session)
+    match_filter, rank, order_by = build_article_keyword_search(
+        normalized_query,
+        dialect_name,
+    )
+    clauses = list(filters or [])
+    clauses.append(match_filter)
+
+    if rank is not None:
+        stmt = (
+            select(Article, rank)
+            .where(*clauses)
+            .order_by(*order_by)
+            .limit(limit)
+            .offset(offset)
+        )
+        result = await session.execute(stmt)
+        return [row[0] for row in result.all()]
+
+    stmt = (
+        select(Article).where(*clauses).order_by(*order_by).limit(limit).offset(offset)
+    )
+    result = await session.execute(stmt)
+    return list(result.scalars().all())
+
+
+async def count_articles_by_keyword(
+    session: AsyncSession,
+    query: str,
+    filters: Optional[List[Any]] = None,
+) -> int:
+    normalized_query = _normalize_search_query(query)
+    if not normalized_query:
+        return 0
+
+    dialect_name = get_session_dialect_name(session)
+    match_filter, _, _ = build_article_keyword_search(normalized_query, dialect_name)
+    clauses = list(filters or [])
+    clauses.append(match_filter)
+
+    stmt = select(func.count()).select_from(Article).where(*clauses)
+    return int((await session.execute(stmt)).scalar_one())
+
+
+async def fetch_article_records_by_ids(
+    session: AsyncSession,
+    article_ids: List[int],
+) -> List[Article]:
+    """Fetch article ORM rows by ID, preserving the requested order."""
+    if not article_ids:
+        return []
+
+    stmt = select(Article).where(Article.id.in_(article_ids))
+    result = await session.execute(stmt)
+    articles = {
+        record.id: record for record in result.scalars().all() if record.id is not None
+    }
+    return [
+        articles[article_id] for article_id in article_ids if article_id in articles
+    ]
+
+
 async def fetch_all_articles(
     session: AsyncSession,
     limit: int = 2000,
@@ -978,29 +1166,18 @@ async def search_articles_by_keyword(
     session: AsyncSession,
     query: str,
     limit: int = 50,
+    offset: int = 0,
+    filters: Optional[List[Any]] = None,
 ) -> List[Dict[str, Any]]:
-    """Perform a simple keyword search against article title, summary, and content."""
-    if not query:
-        return []
-
-    pattern = f"%{query}%"
-    stmt = (
-        select(Article)
-        .where(
-            or_(
-                Article.title.ilike(pattern),
-                Article.summary.ilike(pattern),
-                Article.content.ilike(pattern),
-                Article.source.ilike(pattern),
-                Article.category.ilike(pattern),
-            )
-        )
-        .order_by(Article.published_at.desc(), Article.id.desc())
-        .limit(limit)
+    """Perform keyword search against article metadata and body text."""
+    records = await search_article_records_by_keyword(
+        session,
+        query=query,
+        limit=limit,
+        offset=offset,
+        filters=filters,
     )
-
-    result = await session.execute(stmt)
-    return [article_record_to_dict(record) for record in result.scalars().all()]
+    return [article_record_to_dict(record) for record in records]
 
 
 async def fetch_articles_by_ids(

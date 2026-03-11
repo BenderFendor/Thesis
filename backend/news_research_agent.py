@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import json
 import os
 import re
@@ -41,6 +42,7 @@ from typing_extensions import TypedDict
 
 from app.core.config import get_llamacpp_model, settings
 from app.core.logging import get_logger
+from app.database import AsyncSessionLocal, search_articles_by_keyword
 from app.services.article_extraction import extract_article_content
 from app.services.prompting import (
     ANSWER_SECTION_RULE,
@@ -206,6 +208,41 @@ def _extract_query_terms(query: str) -> List[str]:
     return [token for token in tokens if len(token) > 2]
 
 
+def _run_async_blocking(coro: Any) -> Any:
+    try:
+        asyncio.get_running_loop()
+    except RuntimeError:
+        return asyncio.run(coro)
+
+    result: Dict[str, Any] = {}
+    error: Dict[str, BaseException] = {}
+
+    def _runner() -> None:
+        try:
+            result["value"] = asyncio.run(coro)
+        except BaseException as exc:  # pragma: no cover - defensive bridge
+            error["value"] = exc
+
+    thread = threading.Thread(target=_runner, daemon=True)
+    thread.start()
+    thread.join()
+
+    if "value" in error:
+        raise error["value"]
+    return result.get("value")
+
+
+async def _search_internal_news_from_db(
+    query: str,
+    top_k: int,
+) -> List[Dict[str, Any]]:
+    if not settings.enable_database or AsyncSessionLocal is None:
+        return []
+
+    async with AsyncSessionLocal() as session:
+        return await search_articles_by_keyword(session, query=query, limit=top_k)
+
+
 def _track_reference(article: Dict[str, Any]) -> None:
     if not article:
         return
@@ -329,6 +366,7 @@ def _internal_search_found_results(content: str) -> bool:
         "No cached articles available for internal search.",
         "Query too vague for internal search.",
         "No relevant articles found in cache.",
+        "No relevant articles found in internal archive.",
     }
     if text in known_empty_responses:
         return False
@@ -374,13 +412,36 @@ def _required_internal_fetches_for_state(
 
 @tool
 def search_internal_news(query: str, top_k: int = 5) -> str:
-    """Semantic-ish search over cached news articles."""
-    if not _news_articles_cache:
-        return "No cached articles available for internal search."
-
+    """Search internal news with database-first fallback to cached articles."""
     query_terms = _extract_query_terms(query)
     if not query_terms:
         return "Query too vague for internal search."
+
+    try:
+        db_matches = _run_async_blocking(_search_internal_news_from_db(query, top_k))
+    except Exception as exc:
+        logger.warning("Internal DB search failed: %s", exc)
+        db_matches = []
+
+    if db_matches:
+        for match in db_matches:
+            _register_article_lookup(match)
+            _track_reference(match)
+
+        payload = [
+            {
+                "title": article.get("title"),
+                "source": article.get("source"),
+                "url": article.get("url") or article.get("link"),
+                "published": article.get("published"),
+                "summary": article.get("summary") or article.get("description"),
+            }
+            for article in db_matches[:top_k]
+        ]
+        return json.dumps(payload, indent=2)
+
+    if not _news_articles_cache:
+        return "No relevant articles found in internal archive."
 
     scored: List[tuple[int, Dict[str, Any]]] = []
     for article in _news_articles_cache:
@@ -397,7 +458,7 @@ def search_internal_news(query: str, top_k: int = 5) -> str:
             scored.append((score, article))
 
     if not scored:
-        return "No relevant articles found in cache."
+        return "No relevant articles found in internal archive."
 
     scored.sort(key=lambda item: item[0], reverse=True)
     matches = [item[1] for item in scored[:top_k]]

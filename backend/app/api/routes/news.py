@@ -7,11 +7,20 @@ from typing import Any, Dict, List, Optional, cast
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Response
 from pydantic import BaseModel
-from sqlalchemy import and_, desc, asc, func, or_, select
+from sqlalchemy import and_, asc, desc, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.data.rss_sources import get_rss_sources
-from app.database import Article, SourceMetadata, article_record_to_dict, get_db
+from app.database import (
+    Article,
+    SourceMetadata,
+    article_record_to_dict,
+    build_article_keyword_search,
+    count_articles_by_keyword,
+    get_session_dialect_name,
+    get_db,
+    search_article_records_by_keyword,
+)
 from app.models.news import NewsArticle, NewsResponse, SourceInfo
 from app.services.cache import news_cache
 
@@ -46,6 +55,7 @@ class CursorData(BaseModel):
 
     published_at: str
     id: int
+    search_rank: Optional[float] = None
 
 
 class PaginatedResponse(BaseModel):
@@ -68,9 +78,17 @@ class RecentPageResponse(BaseModel):
     has_more: bool = False
 
 
-def encode_cursor(published_at: datetime, article_id: int) -> str:
+def encode_cursor(
+    published_at: datetime,
+    article_id: int,
+    search_rank: Optional[float] = None,
+) -> str:
     """Encode pagination cursor as base64 string."""
-    data = {"published_at": published_at.isoformat(), "id": article_id}
+    data = {
+        "published_at": published_at.isoformat(),
+        "id": article_id,
+        "search_rank": search_rank,
+    }
     return base64.urlsafe_b64encode(json.dumps(data).encode()).decode()
 
 
@@ -78,7 +96,11 @@ def decode_cursor(cursor: str) -> CursorData:
     """Decode pagination cursor from base64 string."""
     try:
         data = json.loads(base64.urlsafe_b64decode(cursor.encode()).decode())
-        return CursorData(published_at=data["published_at"], id=data["id"])
+        return CursorData(
+            published_at=data["published_at"],
+            id=data["id"],
+            search_rank=data.get("search_rank"),
+        )
     except Exception as e:
         raise HTTPException(status_code=400, detail=f"Invalid cursor: {e}")
 
@@ -120,6 +142,9 @@ async def get_news_paginated(
 
     # Build base query filters
     filters = []
+    cursor_data: Optional[CursorData] = None
+    cursor_dt: Optional[datetime] = None
+    search_dialect_name = get_session_dialect_name(db) if search else ""
 
     if category:
         filters.append(Article.category == category)
@@ -128,17 +153,8 @@ async def get_news_paginated(
     if selected_sources:
         filters.append(Article.source.in_(selected_sources))
 
-    if search:
-        pattern = f"%{search}%"
-        filters.append(
-            or_(
-                Article.title.ilike(pattern),
-                Article.summary.ilike(pattern),
-            )
-        )
-
     # Apply cursor for keyset pagination
-    if cursor:
+    if cursor and search_dialect_name != "postgresql":
         cursor_data = decode_cursor(cursor)
         cursor_dt = datetime.fromisoformat(cursor_data.published_at)
 
@@ -163,49 +179,104 @@ async def get_news_paginated(
                 )
             )
 
-    # Execute query with limit + 1 to check if more pages exist
-    if sort_order == "desc":
-        if filters:
-            stmt = (
-                select(Article)
-                .where(*filters)
-                .order_by(desc(Article.published_at), desc(Article.id))
-                .limit(limit + 1)
-            )
-        else:
-            stmt = (
-                select(Article)
-                .order_by(desc(Article.published_at), desc(Article.id))
-                .limit(limit + 1)
-            )
-    else:
-        if filters:
-            stmt = (
-                select(Article)
-                .where(*filters)
-                .order_by(asc(Article.published_at), asc(Article.id))
-                .limit(limit + 1)
-            )
-        else:
-            stmt = (
-                select(Article)
-                .order_by(asc(Article.published_at), asc(Article.id))
-                .limit(limit + 1)
-            )
+    if search:
+        normalized_search = " ".join(search.split())
+        match_filter, rank, order_by = build_article_keyword_search(
+            normalized_search,
+            search_dialect_name,
+        )
+        search_filters = [*filters, match_filter]
 
-    result = await db.execute(stmt)
-    rows = list(result.scalars().all())
+        if rank is not None:
+            if cursor:
+                cursor_data = decode_cursor(cursor)
+                cursor_dt = datetime.fromisoformat(cursor_data.published_at)
+            if (
+                cursor_data is not None
+                and cursor_dt is not None
+                and cursor_data.search_rank is not None
+            ):
+                search_filters.append(
+                    or_(
+                        rank < cursor_data.search_rank,
+                        and_(
+                            rank == cursor_data.search_rank,
+                            Article.published_at < cursor_dt,
+                        ),
+                        and_(
+                            rank == cursor_data.search_rank,
+                            Article.published_at == cursor_dt,
+                            Article.id < cursor_data.id,
+                        ),
+                    )
+                )
+            stmt = (
+                select(Article, rank)
+                .where(*search_filters)
+                .order_by(*order_by)
+                .limit(limit + 1)
+            )
+            result = await db.execute(stmt)
+            ranked_rows = result.all()
+            rows = [row[0] for row in ranked_rows]
+            row_ranks = [float(row[1]) for row in ranked_rows]
+        else:
+            rows = await search_article_records_by_keyword(
+                db,
+                query=normalized_search,
+                limit=limit + 1,
+                filters=filters,
+            )
+            row_ranks = []
+    else:
+        # Execute query with limit + 1 to check if more pages exist
+        if sort_order == "desc":
+            if filters:
+                stmt = (
+                    select(Article)
+                    .where(*filters)
+                    .order_by(desc(Article.published_at), desc(Article.id))
+                    .limit(limit + 1)
+                )
+            else:
+                stmt = (
+                    select(Article)
+                    .order_by(desc(Article.published_at), desc(Article.id))
+                    .limit(limit + 1)
+                )
+        else:
+            if filters:
+                stmt = (
+                    select(Article)
+                    .where(*filters)
+                    .order_by(asc(Article.published_at), asc(Article.id))
+                    .limit(limit + 1)
+                )
+            else:
+                stmt = (
+                    select(Article)
+                    .order_by(asc(Article.published_at), asc(Article.id))
+                    .limit(limit + 1)
+                )
+
+        result = await db.execute(stmt)
+        rows = list(result.scalars().all())
+        row_ranks = []
 
     # Check if there are more results
     has_more = len(rows) > limit
     if has_more:
         rows = rows[:limit]
+        row_ranks = row_ranks[:limit]
 
     # Get total count (cached for performance)
-    count_stmt = select(func.count()).select_from(Article)
-    if filters:
-        count_stmt = count_stmt.where(*filters)
-    total = (await db.execute(count_stmt)).scalar_one()
+    if search:
+        total = await count_articles_by_keyword(db, query=search, filters=filters)
+    else:
+        count_stmt = select(func.count()).select_from(Article)
+        if filters:
+            count_stmt = count_stmt.where(*filters)
+        total = (await db.execute(count_stmt)).scalar_one()
 
     # Build response
     articles = [article_record_to_dict(row) for row in rows]
@@ -215,7 +286,8 @@ async def get_news_paginated(
     if has_more and rows:
         last = rows[-1]
         if last.published_at is not None and last.id is not None:
-            next_cursor = encode_cursor(last.published_at, last.id)
+            last_rank = row_ranks[-1] if row_ranks else None
+            next_cursor = encode_cursor(last.published_at, last.id, last_rank)
 
     return PaginatedResponse(
         articles=articles,

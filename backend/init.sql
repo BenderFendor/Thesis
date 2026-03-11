@@ -29,8 +29,14 @@ CREATE INDEX IF NOT EXISTS idx_articles_published ON articles(published_at DESC)
 CREATE INDEX IF NOT EXISTS idx_articles_url ON articles(url);
 CREATE INDEX IF NOT EXISTS idx_articles_chroma_id ON articles(chroma_id);
 
--- Full-text search index (for fallback search)
-CREATE INDEX IF NOT EXISTS idx_articles_search ON articles USING GIN(to_tsvector('english', title || ' ' || COALESCE(summary, '')));
+-- Full-text search index covering the weighted backend search vector.
+CREATE INDEX IF NOT EXISTS idx_articles_search ON articles USING GIN((
+  setweight(to_tsvector('english', COALESCE(title, '')), 'A') ||
+  setweight(to_tsvector('english', COALESCE(summary, '')), 'B') ||
+  setweight(to_tsvector('english', COALESCE(source, '')), 'B') ||
+  setweight(to_tsvector('english', COALESCE(category, '')), 'C') ||
+  setweight(to_tsvector('english', COALESCE(content, '')), 'D')
+));
 
 -- Bookmarks (no user auth needed for self-hosted)
 CREATE TABLE IF NOT EXISTS bookmarks (
