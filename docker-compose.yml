@@ -50,6 +50,23 @@ services:
     networks:
       - thesis_network
 
+  embedding-worker:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+    command: uvicorn app.embedding_service:app --host 0.0.0.0 --port 8002
+    environment:
+      - PYTHONPATH=/app
+      - PYTHONUNBUFFERED=1
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8002/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+    networks:
+      - thesis_network
+
   backend:
     build: 
       context: .
@@ -62,6 +79,7 @@ services:
       - DATABASE_URL=postgresql+asyncpg://newsuser:newspass@postgres:5432/newsdb
       - CHROMA_HOST=chromadb
       - CHROMA_PORT=8000
+      - EMBEDDING_SERVICE_URL=http://embedding-worker:8002
     volumes:
       - ./backend:/app
       - backend_cache:/app/.venv
@@ -72,6 +90,8 @@ services:
         condition: service_healthy
       chromadb:
         condition: service_started
+      embedding-worker:
+        condition: service_healthy
     networks:
       - thesis_network
     dns:

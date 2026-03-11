@@ -19,8 +19,12 @@ POSTGRES_DB="${POSTGRES_DB:-newsdb}"
 DATABASE_URL="${DATABASE_URL:-postgresql+asyncpg://${POSTGRES_USER}:${POSTGRES_PASSWORD}@${POSTGRES_HOST}:${POSTGRES_PORT}/${POSTGRES_DB}}"
 CHROMA_HOST="${CHROMA_HOST:-localhost}"
 CHROMA_PORT="${CHROMA_PORT:-8001}"
+EMBEDDING_SERVICE_HOST="${EMBEDDING_SERVICE_HOST:-127.0.0.1}"
+EMBEDDING_SERVICE_PORT="${EMBEDDING_SERVICE_PORT:-8002}"
+EMBEDDING_SERVICE_URL="${EMBEDDING_SERVICE_URL:-http://${EMBEDDING_SERVICE_HOST}:${EMBEDDING_SERVICE_PORT}}"
 CHROMA_DATA_DIR="${CHROMA_DATA_DIR:-$ROOT_DIR/.chroma}"
 CHROMA_LOG_FILE="${CHROMA_LOG_FILE:-$LOG_DIR/chroma.log}"
+EMBEDDING_SERVICE_LOG_FILE="${EMBEDDING_SERVICE_LOG_FILE:-$LOG_DIR/embedding-service.log}"
 AUTO_INSTALL="${AUTO_INSTALL:-1}"
 GUNICORN_WORKERS="${GUNICORN_WORKERS:-4}"
 NEXT_PUBLIC_API_URL="${NEXT_PUBLIC_API_URL:-http://localhost:${BACKEND_PORT}}"
@@ -28,7 +32,7 @@ NEXT_PUBLIC_DOCKER_API_URL="${NEXT_PUBLIC_DOCKER_API_URL:-$NEXT_PUBLIC_API_URL}"
 RUNLOCAL_STATE_DIR="${RUNLOCAL_STATE_DIR:-$ROOT_DIR/.runlocal}"
 RUNLOCAL_PID_FILE="${RUNLOCAL_PID_FILE:-$RUNLOCAL_STATE_DIR/pids}"
 
-export DATABASE_URL CHROMA_HOST CHROMA_PORT GUNICORN_WORKERS NEXT_PUBLIC_API_URL NEXT_PUBLIC_DOCKER_API_URL
+export DATABASE_URL CHROMA_HOST CHROMA_PORT EMBEDDING_SERVICE_URL GUNICORN_WORKERS NEXT_PUBLIC_API_URL NEXT_PUBLIC_DOCKER_API_URL
 
 log() {
 	echo "[runlocal] $*"
@@ -76,8 +80,12 @@ Usage: ./runlocal.sh [setup|services|backend|frontend|all|killall|help]
   DATABASE_URL   Override Postgres connection string for the backend
   CHROMA_HOST    Hostname for ChromaDB (default localhost)
   CHROMA_PORT    Port for ChromaDB (default 8001)
+  EMBEDDING_SERVICE_HOST Hostname for embedding service (default 127.0.0.1)
+  EMBEDDING_SERVICE_PORT Port for embedding service (default 8002)
+  EMBEDDING_SERVICE_URL  Override embedding service URL for the backend
   CHROMA_DATA_DIR Persistent directory for Chroma data (default ./.chroma)
   CHROMA_LOG_FILE Log file for Chroma server (default ./logs/chroma.log)
+  EMBEDDING_SERVICE_LOG_FILE Log file for embedding service (default ./logs/embedding-service.log)
   LOG_DIR         Directory for all log files (default ./logs)
   AUTO_INSTALL   Set to 1 to auto-install Postgres if missing (default 1)
   GUNICORN_WORKERS Worker count for backend (default 4)
@@ -104,6 +112,7 @@ stop_backend_processes() {
 	# Ensure gunicorn launched from the backend venv does not linger after shutdown.
 	pkill -9 -f "$BACKEND_DIR/.venv/bin/gunicorn" >/dev/null 2>&1 || true
 	pkill -9 -f "$BACKEND_DIR/.venv/bin/python3 $BACKEND_DIR/.venv/bin/uvicorn app.main" >/dev/null 2>&1 || true
+	pkill -9 -f "$BACKEND_DIR/.venv/bin/uvicorn app.embedding_service:app" >/dev/null 2>&1 || true
 }
 
 ensure_runlocal_state_dir() {
@@ -516,6 +525,7 @@ run_backend() {
 	require_cmd python
 	ensure_uv_setup
 	free_port "$BACKEND_PORT"
+	free_port "$EMBEDDING_SERVICE_PORT"
 
 	pushd "$BACKEND_DIR" >/dev/null
 
@@ -528,7 +538,14 @@ run_backend() {
 	uv pip install gunicorn
 	log "Using DATABASE_URL=$DATABASE_URL"
 	log "Using Chroma at $CHROMA_HOST:$CHROMA_PORT"
+	log "Using embedding service at $EMBEDDING_SERVICE_URL"
 	log "Using GUNICORN_WORKERS=$GUNICORN_WORKERS"
+
+	log "Starting embedding service on ${EMBEDDING_SERVICE_HOST}:${EMBEDDING_SERVICE_PORT}"
+	.venv/bin/uvicorn app.embedding_service:app --host "$EMBEDDING_SERVICE_HOST" --port "$EMBEDDING_SERVICE_PORT" >>"$EMBEDDING_SERVICE_LOG_FILE" 2>&1 &
+	local embedding_pid=$!
+	PIDS+=("$embedding_pid")
+	record_pid "$embedding_pid" "embedding_service"
 
 	log "Starting FastAPI with Gunicorn on port $BACKEND_PORT"
 	gunicorn -c gunicorn.conf.py app.main:app &
