@@ -130,6 +130,7 @@ async def seeded_db(db_session: AsyncSession) -> AsyncSession:
             country="US",
             summary="Washington says domestic policy remains the top story in the United States.",
             content="Washington says domestic policy remains the top story in the United States.",
+            mentioned_countries=["US"],
         ),
         Article(
             id=2,
@@ -141,6 +142,7 @@ async def seeded_db(db_session: AsyncSession) -> AsyncSession:
             country="US",
             summary="China and the United States remain central to this trade briefing.",
             content="China and the United States remain central to this trade briefing.",
+            mentioned_countries=["CN", "US"],
         ),
         Article(
             id=3,
@@ -152,6 +154,7 @@ async def seeded_db(db_session: AsyncSession) -> AsyncSession:
             country="GB",
             summary="Editors are closely watching China policy from Beijing.",
             content="Editors are closely watching China policy from Beijing.",
+            mentioned_countries=["CN"],
         ),
         Article(
             id=4,
@@ -161,8 +164,9 @@ async def seeded_db(db_session: AsyncSession) -> AsyncSession:
             published_at=_utc(0),
             category="world",
             country="DE",
-            summary="Berlin analysis says China is reshaping European supply chains.",
-            content="Berlin analysis says China is reshaping European supply chains.",
+            summary="Berlin analysis says regional supply chains are shifting.",
+            content="Berlin analysis says regional supply chains are shifting.",
+            mentioned_countries=["CN"],
         ),
     ]
     db_session.add_all(articles)

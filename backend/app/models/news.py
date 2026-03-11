@@ -1,5 +1,7 @@
 from typing import Any, Dict, List, Optional
 
+from pydantic import Field
+
 from app.models.base import StrictBaseModel
 
 
@@ -14,6 +16,7 @@ class NewsArticle(StrictBaseModel):
     category: str = "general"
     country: Optional[str] = None
     image: Optional[str] = None
+    mentioned_countries: List[str] = Field(default_factory=list)
 
 
 class BookmarkCreateRequest(StrictBaseModel):

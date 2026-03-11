@@ -52,6 +52,17 @@ class TestNewsByCountry:
             "CN" in article["mentioned_countries"] for article in data["articles"]
         )
 
+    async def test_external_view_uses_stored_mentions_not_rescanned_text(
+        self, client: AsyncClient
+    ):
+        resp = await client.get("/news/country/CN?view=external&limit=10&hours=720")
+        assert resp.status_code == 200
+        data = resp.json()
+
+        article_d = next(article for article in data["articles"] if article["id"] == 4)
+        assert article_d["mentioned_countries"] == ["CN"]
+        assert "China" not in (article_d["summary"] or "")
+
     async def test_internal_view_falls_back_to_source_origin_when_no_self_mentions(
         self, client: AsyncClient
     ):

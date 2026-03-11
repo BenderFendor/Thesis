@@ -22,6 +22,7 @@ from app.core.resource_config import get_system_resources, ResourceConfig
 from app.data.rss_sources import get_rss_sources
 from app.models.news import NewsArticle
 from app.services.cache import news_cache
+from app.services.country_mentions import extract_article_mentioned_countries
 from app.services.metrics import get_metrics, reset_metrics
 from app.services.og_image import enrich_articles_with_og_images
 from app.services.image_extraction import is_valid_image_url
@@ -163,6 +164,11 @@ def parse_rss_feed(
                 category=source_info.get("category", "general"),
                 country=source_info.get("country"),
                 image=image_url,
+                mentioned_countries=extract_article_mentioned_countries(
+                    title,
+                    description,
+                    description,
+                ),
             )
             articles.append(article)
 
@@ -934,6 +940,11 @@ async def _refresh_news_cache_with_rust(
             category=category,
             country=source_info.get("country"),
             image=image_url,
+            mentioned_countries=extract_article_mentioned_countries(
+                item.get("title", "No title"),
+                item.get("description", "No description"),
+                item.get("description", "No description"),
+            ),
         )
         articles_by_source.setdefault(source_name, []).append(article)
 
@@ -1226,6 +1237,11 @@ def parse_rss_feed_entries(
             country=source_info.get("country"),
             category=source_info.get("category", "general"),
             image=image_url,
+            mentioned_countries=extract_article_mentioned_countries(
+                title,
+                description,
+                description,
+            ),
         )
         articles.append(article)
 

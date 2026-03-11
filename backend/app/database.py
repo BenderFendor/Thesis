@@ -156,6 +156,36 @@ class TagListType(TypeDecorator[List[str]]):
         return value or []
 
 
+class MentionedCountriesType(TypeDecorator[List[str]]):
+    """Stores mentioned-country arrays as TEXT[] on Postgres and JSON elsewhere."""
+
+    impl = JSON
+    cache_ok = True
+
+    def load_dialect_impl(self, dialect: Dialect) -> TypeEngine[Any]:
+        if dialect.name == "postgresql":
+            return dialect.type_descriptor(postgresql.ARRAY(Text))
+        return dialect.type_descriptor(JsonType())
+
+    def process_bind_param(
+        self,
+        value: List[str] | None,
+        dialect: Dialect,
+    ) -> Any:
+        if value is None:
+            return []
+        if isinstance(value, list):
+            return value
+        return list(value)
+
+    def process_result_value(
+        self,
+        value: Any | None,
+        dialect: Dialect,
+    ) -> List[str]:
+        return value or []
+
+
 # Database Models
 class Article(Base):
     __tablename__ = "articles"
@@ -174,6 +204,7 @@ class Article(Base):
     category = Column(String, index=True)
     url = Column(String, unique=True, nullable=False, index=True)
     tags = Column(TagListType(), default=list)
+    mentioned_countries = Column(MentionedCountriesType(), default=list)
     original_language = Column(String, default="en")
     translated = Column(Boolean, default=False)
     chroma_id = Column(String, unique=True)
@@ -189,6 +220,11 @@ class Article(Base):
         Index("ix_articles_category_published", category, published_at.desc()),
         # Source filtering with date ordering
         Index("ix_articles_source_published", source, published_at.desc()),
+        Index(
+            "ix_articles_mentioned_countries_gin",
+            mentioned_countries,
+            postgresql_using="gin",
+        ),
     )
 
 
@@ -745,16 +781,6 @@ async def init_db() -> None:
         Uses ADD COLUMN IF NOT EXISTS so it is safe to call repeatedly.
         If *conn* is provided, reuses it to avoid opening a second connection.
         """
-        sa_type_to_pg = {
-            "INTEGER": "INTEGER",
-            "VARCHAR": "VARCHAR",
-            "TEXT": "TEXT",
-            "BOOLEAN": "BOOLEAN",
-            "FLOAT": "FLOAT",
-            "DATETIME": "TIMESTAMP WITHOUT TIME ZONE",
-            "JSON": "JSON",
-            "JSONB": "JSONB",
-        }
 
         async def _do(c: AsyncConnection) -> None:
             def _get_existing_columns(
@@ -780,8 +806,21 @@ async def init_db() -> None:
                 for col in table.columns:
                     if col.name in db_cols:
                         continue
-                    col_type_str = str(col.type).upper().split("(")[0]
-                    pg_type = sa_type_to_pg.get(col_type_str, "TEXT")
+                    try:
+                        pg_type = cast(str, col.type.compile(dialect=c.dialect))
+                    except Exception:
+                        col_type_str = str(col.type).upper().split("(")[0]
+                        sa_type_to_pg = {
+                            "INTEGER": "INTEGER",
+                            "VARCHAR": "VARCHAR",
+                            "TEXT": "TEXT",
+                            "BOOLEAN": "BOOLEAN",
+                            "FLOAT": "FLOAT",
+                            "DATETIME": "TIMESTAMP WITHOUT TIME ZONE",
+                            "JSON": "JSON",
+                            "JSONB": "JSONB",
+                        }
+                        pg_type = sa_type_to_pg.get(col_type_str, "TEXT")
                     stmt = f'ALTER TABLE "{table.name}" ADD COLUMN IF NOT EXISTS "{col.name}" {pg_type}'
                     await c.execute(sqlalchemy_text(stmt))
                     added += 1
@@ -816,6 +855,15 @@ async def init_db() -> None:
             if c.dialect.name != "postgresql":
                 return
             await c.execute(create_index_sql)
+            await c.execute(
+                sqlalchemy_text(
+                    """
+                    CREATE INDEX IF NOT EXISTS ix_articles_mentioned_countries_gin
+                    ON articles
+                    USING GIN (mentioned_countries)
+                    """
+                )
+            )
 
         if conn is not None:
             await _do(conn)
@@ -921,20 +969,8 @@ def article_record_to_dict(record: Article) -> Dict[str, Any]:
 
     published_at = record.published_at
     published = published_at.isoformat() if published_at is not None else None
-    missing_fields = []
-    if not hasattr(record, "source_country"):
-        missing_fields.append("source_country")
-    if not hasattr(record, "mentioned_countries"):
-        missing_fields.append("mentioned_countries")
-    if missing_fields:
-        logger.debug(
-            "Article missing fields %s; defaulting to None/empty. id=%s",
-            ",".join(missing_fields),
-            record.id,
-        )
-
-    source_country = getattr(record, "source_country", None)
-    mentioned_countries = getattr(record, "mentioned_countries", None)
+    source_country = record.country
+    mentioned_countries = record.mentioned_countries or []
 
     return {
         "id": record.id,

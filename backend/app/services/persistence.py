@@ -17,6 +17,7 @@ from app.database import (
 )
 from app.models.news import NewsArticle
 from app.services.cache import news_cache
+from app.services.country_mentions import extract_article_mentioned_countries
 from app.vector_store import BatchArticlePayload, get_vector_store
 
 logger = get_logger("persistence")
@@ -108,6 +109,12 @@ def _build_article_values(
         "category": article.category,
         "url": article.link,
         "tags": tags if tags else None,
+        "mentioned_countries": article.mentioned_countries
+        or extract_article_mentioned_countries(
+            article.title,
+            article.description,
+            article.description,
+        ),
         "updated_at": datetime.now(timezone.utc).replace(tzinfo=None),
     }
 
@@ -152,6 +159,7 @@ async def _persist_articles_async(
                     "credibility": insert_stmt.excluded.credibility,
                     "bias": insert_stmt.excluded.bias,
                     "tags": insert_stmt.excluded.tags,
+                    "mentioned_countries": insert_stmt.excluded.mentioned_countries,
                     "updated_at": insert_stmt.excluded.updated_at,
                 },
             ).returning(
