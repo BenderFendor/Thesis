@@ -2812,21 +2812,22 @@ export async function getDailyDigest(): Promise<QueueDigest> {
 
 export interface PaginatedResponse {
   articles: NewsArticle[];
-  total: number;
-  limit: number;
-  next_cursor: string | null;
-  prev_cursor: string | null;
-  has_more: boolean;
+  total: OpenApiPaginatedResponse["total"];
+  limit: OpenApiPaginatedResponse["limit"];
+  next_cursor: NonNullable<OpenApiPaginatedResponse["next_cursor"]> | null;
+  prev_cursor: NonNullable<OpenApiPaginatedResponse["prev_cursor"]> | null;
+  has_more: OpenApiPaginatedResponse["has_more"];
 }
 
-export interface PaginationParams {
-  limit?: number;
-  cursor?: string;
-  category?: string;
-  source?: string;
-  sources?: string; // Comma-separated source names for multi-select
-  search?: string;
-}
+export type PaginationParams = Pick<
+  NewsPageQueryParams,
+  "limit" | "cursor" | "category" | "source" | "sources" | "search"
+>;
+
+type CachedPaginationParams = Pick<
+  CachedNewsPageQueryParams,
+  "limit" | "offset" | "category" | "source" | "sources" | "search"
+>;
 
 // --- Paginated Fetch Functions ---
 
@@ -2872,7 +2873,7 @@ export async function fetchNewsPaginated(
 }
 
 export async function fetchCachedNewsPaginated(
-  params: PaginationParams & { offset?: number } = {},
+  params: CachedPaginationParams = {},
 ): Promise<PaginatedResponse> {
   const searchParams = new URLSearchParams();
 
@@ -3405,6 +3406,13 @@ type OpenApiClusterDetailResponse =
   OpenApiComponents["schemas"]["ClusterDetailResponse"];
 type OpenApiTrendingStats =
   OpenApiPaths["/trending/stats"]["get"]["responses"][200]["content"]["application/json"];
+type OpenApiPaginatedResponse = OpenApiComponents["schemas"]["PaginatedResponse"];
+type NewsPageQueryParams = NonNullable<
+  OpenApiPaths["/news/page"]["get"]["parameters"]["query"]
+>;
+type CachedNewsPageQueryParams = NonNullable<
+  OpenApiPaths["/news/page/cached"]["get"]["parameters"]["query"]
+>;
 
 const MaterialContextSchema = z.object({
   source: z.string(),
