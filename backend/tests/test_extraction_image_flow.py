@@ -9,7 +9,7 @@ import pytest
 from hypothesis import given, strategies as st
 
 
-def test_extract_article_prefers_rust_html_before_newspaper(monkeypatch) -> None:
+def test_extract_article_prefers_rust_html_before_soup(monkeypatch) -> None:
     from app.services import article_extraction
 
     html = """
@@ -39,9 +39,9 @@ def test_extract_article_prefers_rust_html_before_newspaper(monkeypatch) -> None
     )
 
     def _fail_if_called(*args, **kwargs):
-        raise AssertionError("newspaper fallback should not run when rust succeeds")
+        raise AssertionError("soup fallback should not run when rust succeeds")
 
-    monkeypatch.setattr(article_extraction, "_extract_with_newspaper", _fail_if_called)
+    monkeypatch.setattr(article_extraction, "_extract_with_soup", _fail_if_called)
 
     result = article_extraction.extract_article_content("https://example.com/story")
 
@@ -51,7 +51,7 @@ def test_extract_article_prefers_rust_html_before_newspaper(monkeypatch) -> None
     assert result["text"] == "Rust extracted body text."
 
 
-def test_extract_article_falls_back_to_newspaper_after_direct_fetch_failure(
+def test_extract_article_returns_error_after_direct_fetch_failure_without_fallback(
     monkeypatch,
 ) -> None:
     from app.services import article_extraction
@@ -62,31 +62,11 @@ def test_extract_article_falls_back_to_newspaper_after_direct_fetch_failure(
         raise RuntimeError("network blocked")
 
     monkeypatch.setattr(article_extraction, "_fetch_article_html", _raise_fetch)
-    monkeypatch.setattr(
-        article_extraction,
-        "_extract_with_newspaper",
-        lambda url, html, allow_download: (
-            {
-                "text": "Downloaded article text",
-                "title": "Downloaded title",
-                "authors": [],
-                "publish_date": None,
-                "top_image": None,
-                "images": [],
-                "keywords": [],
-                "meta_description": None,
-                "html": "<html></html>",
-            }
-            if allow_download
-            else {}
-        ),
-    )
 
     result = article_extraction.extract_article_content("https://example.com/story")
 
-    assert result["success"] is True
-    assert result["extractor"] == "newspaper_download"
-    assert result["text"] == "Downloaded article text"
+    assert result["success"] is False
+    assert result["error"] == "No article text extracted"
 
 
 @pytest.mark.asyncio

@@ -13,7 +13,6 @@ from urllib.parse import urljoin
 
 import requests
 from bs4 import BeautifulSoup
-from newspaper import Article, Config
 
 from app.core.logging import get_logger
 from app.services.debug_logger import debug_logger, EventType
@@ -38,7 +37,7 @@ except ImportError:  # pragma: no cover - optional dependency
 
 async def extract_article_full_text(url: str) -> Dict[str, Any]:
     """
-    Extract full article content from a URL using newspaper3k.
+    Extract full article content from a URL.
 
     Returns a dictionary with:
         - success: bool indicating if extraction was successful
@@ -63,8 +62,8 @@ def _extract_sync(url: str) -> Dict[str, Any]:
     """
     Synchronous extraction helper (runs in executor).
 
-    This is a blocking operation that uses newspaper3k to download and
-    parse the article.
+    This is a blocking operation that fetches article HTML and applies
+    site-specific, Rust, and soup-based extraction.
     """
     if _is_paywalled_source(url):
         return {
@@ -102,26 +101,6 @@ def _extract_sync(url: str) -> Dict[str, Any]:
                     "soup_html",
                     {"success": True, **soup_payload, "html": html},
                 )
-
-            newspaper_payload = _extract_with_newspaper(
-                url, html=html, allow_download=False
-            )
-            if _has_extracted_text(newspaper_payload):
-                return _log_success(
-                    url,
-                    "newspaper_html",
-                    {"success": True, **newspaper_payload, "html": html},
-                )
-
-        newspaper_download_payload = _extract_with_newspaper(
-            url, html=None, allow_download=True
-        )
-        if _has_extracted_text(newspaper_download_payload):
-            return _log_success(
-                url,
-                "newspaper_download",
-                {"success": True, **newspaper_download_payload},
-            )
 
         logger.warning("Article extraction produced no text for %s", url)
         return {
@@ -168,68 +147,6 @@ def _log_success(url: str, extractor: str, payload: Dict[str, Any]) -> Dict[str,
 def _has_extracted_text(payload: Dict[str, Any]) -> bool:
     text = payload.get("text")
     return isinstance(text, str) and bool(text.strip())
-
-
-def _newspaper_config() -> Config:
-    config = Config()
-    config.browser_user_agent = ARTICLE_USER_AGENT
-    config.request_timeout = DEFAULT_REQUEST_TIMEOUT
-    return config
-
-
-def _extract_with_newspaper(
-    url: str,
-    *,
-    html: str | None,
-    allow_download: bool,
-) -> Dict[str, Any]:
-    article = Article(url, config=_newspaper_config())
-    if html:
-        _assign_article_html(article, html)
-        article.parse()
-        if _has_article_text(article.text):
-            return _article_to_payload(article, html)
-
-    if not allow_download:
-        return {}
-
-    article.download()
-    downloaded_html = article.html or html or ""
-    if downloaded_html:
-        rebelmouse_payload = _extract_rebelmouse_article(url, downloaded_html)
-        if rebelmouse_payload:
-            return rebelmouse_payload
-        _assign_article_html(article, downloaded_html)
-        article.parse()
-    if _has_article_text(article.text):
-        return _article_to_payload(article, downloaded_html)
-    return {}
-
-
-def _has_article_text(text: Optional[str]) -> bool:
-    return isinstance(text, str) and bool(text.strip())
-
-
-def _assign_article_html(article: Article, html: str) -> None:
-    setter = getattr(article, "set_html", None)
-    if callable(setter):
-        setter(html)
-        return
-    article.html = html
-
-
-def _article_to_payload(article: Article, html: str) -> Dict[str, Any]:
-    return {
-        "text": article.text,
-        "title": article.title,
-        "authors": article.authors,
-        "publish_date": str(article.publish_date) if article.publish_date else None,
-        "top_image": article.top_image,
-        "images": list(article.images),
-        "keywords": getattr(article, "keywords", []),
-        "meta_description": getattr(article, "meta_description", None),
-        "html": html,
-    }
 
 
 def extract_article_content(url: str) -> Dict[str, Any]:
