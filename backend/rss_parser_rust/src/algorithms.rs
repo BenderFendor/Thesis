@@ -188,12 +188,25 @@ fn sentence_word_overlap(text1: &str, text2: &str) -> f64 {
 }
 
 pub fn calculate_text_similarity(text1: &str, text2: &str) -> f64 {
+    if text1 == text2 {
+        return 1.0;
+    }
+
     if text1.trim().is_empty() || text2.trim().is_empty() {
         return 0.0;
     }
 
     let left = normalize_similarity_input(text1);
     let right = normalize_similarity_input(text2);
+
+    if left == right {
+        return 1.0;
+    }
+
+    if left.is_empty() || right.is_empty() {
+        return 0.0;
+    }
+
     normalized_levenshtein(&left, &right)
 }
 
@@ -427,6 +440,11 @@ mod tests {
     #[test]
     fn text_similarity_respects_empty_inputs() {
         assert_eq!(calculate_text_similarity("", "alpha"), 0.0);
+    }
+
+    #[test]
+    fn text_similarity_treats_identical_control_whitespace_as_exact_match() {
+        assert_eq!(calculate_text_similarity("\u{0085}", "\u{0085}"), 1.0);
     }
 
     #[test]
