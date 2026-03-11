@@ -8,6 +8,8 @@ import pytest
 from httpx import AsyncClient, ASGITransport
 
 from app.main import app
+from app.models.news import NewsArticle
+from app.services.cache import news_cache
 
 
 @pytest.fixture
@@ -90,6 +92,69 @@ async def test_paginated_cached_search_filter():
         # Search should return results or empty list, not error
         assert isinstance(data["articles"], list)
         assert data["total"] >= 0
+
+
+@pytest.mark.anyio
+async def test_paginated_cached_multi_source_filter():
+    """Test multi-source filtering on cached pagination endpoint."""
+    original_articles = news_cache.get_articles()
+    original_source_stats = news_cache.get_source_stats()
+
+    try:
+        news_cache.update_cache(
+            [
+                NewsArticle(
+                    id=101,
+                    title="Alpha article",
+                    link="https://example.com/alpha",
+                    description="alpha description",
+                    published="2026-01-03T00:00:00Z",
+                    source="Source Alpha",
+                    category="technology",
+                    country="US",
+                    image="https://example.com/alpha.jpg",
+                ),
+                NewsArticle(
+                    id=102,
+                    title="Beta article",
+                    link="https://example.com/beta",
+                    description="beta description",
+                    published="2026-01-02T00:00:00Z",
+                    source="Source Beta",
+                    category="technology",
+                    country="US",
+                    image="https://example.com/beta.jpg",
+                ),
+                NewsArticle(
+                    id=103,
+                    title="Gamma article",
+                    link="https://example.com/gamma",
+                    description="gamma description",
+                    published="2026-01-01T00:00:00Z",
+                    source="Source Gamma",
+                    category="technology",
+                    country="US",
+                    image="https://example.com/gamma.jpg",
+                ),
+            ],
+            [],
+        )
+
+        transport = ASGITransport(app=app)
+        async with AsyncClient(transport=transport, base_url="http://test") as client:
+            response = await client.get(
+                "/news/page/cached?sources=Source%20Alpha,Source%20Gamma&limit=10"
+            )
+            assert response.status_code == 200
+            data = response.json()
+
+        assert data["total"] == 2
+        assert {article["source"] for article in data["articles"]} == {
+            "Source Alpha",
+            "Source Gamma",
+        }
+    finally:
+        news_cache.update_cache(original_articles, original_source_stats)
 
 
 @pytest.mark.anyio

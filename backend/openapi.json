@@ -369,6 +369,24 @@
             }
           },
           {
+            "name": "sources",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Comma-separated source names for multi-select",
+              "title": "Sources"
+            },
+            "description": "Comma-separated source names for multi-select"
+          },
+          {
             "name": "search",
             "in": "query",
             "required": false,

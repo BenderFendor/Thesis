@@ -156,6 +156,37 @@ describe("usePaginatedNews", () => {
     );
   });
 
+  it("should pass multi-source filters to cached pagination", async () => {
+    (fetchCachedNewsPaginated as jest.Mock).mockResolvedValue({
+      articles: mockArticles,
+      total: 2,
+      limit: 50,
+      next_cursor: null,
+      prev_cursor: null,
+      has_more: false,
+    });
+
+    const { result } = renderHook(
+      () =>
+        usePaginatedNews({
+          limit: 50,
+          useCached: true,
+          sources: ["Source Alpha", "Source Beta"],
+        }),
+      { wrapper: createWrapper() }
+    );
+
+    await waitFor(() => {
+      expect(result.current.isLoading).toBe(false);
+    });
+
+    expect(fetchCachedNewsPaginated).toHaveBeenCalledWith(
+      expect.objectContaining({
+        sources: "Source Alpha,Source Beta",
+      })
+    );
+  });
+
   it("should not fetch when disabled", async () => {
     const { result } = renderHook(
       () =>

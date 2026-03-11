@@ -22,6 +22,22 @@ def _source_slug(name: str) -> str:
     return "-".join(name.lower().split())
 
 
+def _selected_sources(
+    source: Optional[str],
+    sources: Optional[str],
+) -> Optional[List[str]]:
+    if sources:
+        parsed_sources = [candidate.strip() for candidate in sources.split(",")]
+        selected = [candidate for candidate in parsed_sources if candidate]
+        if selected:
+            return selected
+
+    if source:
+        return [source]
+
+    return None
+
+
 # --- Pagination Models ---
 
 
@@ -108,14 +124,9 @@ async def get_news_paginated(
     if category:
         filters.append(Article.category == category)
 
-    # Multi-source filter (comma-separated)
-    if sources:
-        source_list = [s.strip() for s in sources.split(",") if s.strip()]
-        if source_list:
-            filters.append(Article.source.in_(source_list))
-    elif source:
-        # Legacy single source filter
-        filters.append(Article.source == source)
+    selected_sources = _selected_sources(source=source, sources=sources)
+    if selected_sources:
+        filters.append(Article.source.in_(selected_sources))
 
     if search:
         pattern = f"%{search}%"
@@ -221,6 +232,9 @@ async def get_cached_news_paginated(
     offset: int = Query(default=0, ge=0),
     category: Optional[str] = Query(default=None),
     source: Optional[str] = Query(default=None),
+    sources: Optional[str] = Query(
+        default=None, description="Comma-separated source names for multi-select"
+    ),
     search: Optional[str] = Query(default=None),
 ) -> PaginatedResponse:
     """
@@ -240,8 +254,10 @@ async def get_cached_news_paginated(
     if category:
         filtered = [a for a in filtered if a.category == category]
 
-    if source:
-        filtered = [a for a in filtered if a.source == source]
+    selected_sources = _selected_sources(source=source, sources=sources)
+    if selected_sources:
+        selected_source_names = set(selected_sources)
+        filtered = [a for a in filtered if a.source in selected_source_names]
 
     if search:
         search_lower = search.lower()

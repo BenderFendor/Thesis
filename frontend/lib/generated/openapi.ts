@@ -4356,6 +4356,8 @@ export interface operations {
                 offset?: number;
                 category?: string | null;
                 source?: string | null;
+                /** @description Comma-separated source names for multi-select */
+                sources?: string | null;
                 search?: string | null;
             };
             header?: never;

@@ -14,7 +14,7 @@ interface UsePaginatedNewsOptions {
   limit?: number;
   category?: string;
   source?: string;
-  sources?: string[];  // NEW: Multi-source selection
+  sources?: string[];
   search?: string;
   useCached?: boolean;
   enabled?: boolean;
@@ -28,8 +28,16 @@ interface UsePaginatedNewsReturn {
   hasNextPage: boolean;
   fetchNextPage: () => void;
   refetch: () => void;
-  invalidate: () => void;  // NEW: Explicit invalidation
+  invalidate: () => void;
   error: Error | null;
+}
+
+function serializeSources(sources?: string[]): string | null {
+  if (!sources?.length) {
+    return null;
+  }
+
+  return [...sources].sort().join(",");
 }
 
 export function usePaginatedNews(
@@ -47,8 +55,6 @@ export function usePaginatedNews(
 
   const queryClient = useQueryClient();
 
-  // Build query key from ALL filter options for proper cache management
-  // When filters change, React Query will refetch with new filters
   const queryKey = useMemo(
     () => [
       "news",
@@ -56,7 +62,7 @@ export function usePaginatedNews(
       {
         category: category || null,
         source: source || null,
-        sources: sources?.length ? sources.sort().join(",") : null,
+        sources: serializeSources(sources),
         search: search || null,
         useCached,
       },
@@ -76,26 +82,23 @@ export function usePaginatedNews(
   } = useInfiniteQuery<PaginatedResponse, Error>({
     queryKey,
     queryFn: async ({ pageParam }) => {
-      // Build params with multi-source support
-      const params: PaginationParams & { offset?: number; sources?: string } = {
+      const params: PaginationParams & { offset?: number } = {
         limit,
         category,
         search,
       };
 
-      // Use sources array if provided, otherwise fall back to single source
-      if (sources?.length) {
-        params.sources = sources.join(",");
+      const serializedSources = serializeSources(sources);
+      if (serializedSources) {
+        params.sources = serializedSources;
       } else if (source) {
         params.source = source;
       }
 
       if (useCached) {
-        // Offset-based pagination for cached endpoint
         params.offset = typeof pageParam === "number" ? pageParam : 0;
         return fetchCachedNewsPaginated(params);
       } else {
-        // Cursor-based pagination for database endpoint
         params.cursor = typeof pageParam === "string" ? pageParam : undefined;
         return fetchNewsPaginated(params);
       }
@@ -105,10 +108,8 @@ export function usePaginatedNews(
       if (!lastPage.has_more) return undefined;
 
       if (useCached) {
-        // For offset pagination, calculate next offset
         return parseInt(lastPage.next_cursor || "0", 10);
       } else {
-        // For cursor pagination, return the cursor string
         return lastPage.next_cursor;
       }
     },
@@ -118,13 +119,11 @@ export function usePaginatedNews(
     enabled,
   });
 
-  // Flatten all pages into a single array
   const articles = useMemo(() => {
     if (!data?.pages) return [];
     return data.pages.flatMap((page) => page.articles);
   }, [data]);
 
-  // Get total count from first page
   const totalCount = useMemo(() => {
     return data?.pages[0]?.total ?? 0;
   }, [data]);
@@ -135,7 +134,6 @@ export function usePaginatedNews(
     }
   }, [hasNextPage, isFetchingNextPage, fetchNextPage]);
 
-  // Invalidate all news queries (used when SSE signals new content)
   const invalidate = useCallback(() => {
     queryClient.invalidateQueries({ queryKey: ["news"] });
   }, [queryClient]);
