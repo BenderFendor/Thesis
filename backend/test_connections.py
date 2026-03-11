@@ -71,10 +71,10 @@ def test_chromadb():
             f"ChromaDB connected: {stats['total_articles']} documents in '{stats['collection_name']}'"
         )
 
-        # Test embedding generation
+        # Test embedding generation via dedicated service boundary
         print("Testing embedding generation...")
         test_text = "This is a test article about technology and AI."
-        embedding = vector_store.embedding_model.encode(test_text).tolist()
+        embedding = vector_store.get_embedding_for_query(test_text)
         print(f"Generated embedding: {len(embedding)} dimensions")
 
         print("ChromaDB test passed!\n")

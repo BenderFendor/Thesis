@@ -323,8 +323,7 @@ class GDELTIntegration:
             return None
 
         try:
-            # Generate embedding
-            embedding = self.vector_store.embedding_model.encode(text).tolist()
+            embedding = self.vector_store.get_embedding_for_query(text)
 
             best_article_id = None
             best_similarity = 0.0

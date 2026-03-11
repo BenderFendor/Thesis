@@ -67,6 +67,13 @@ class Settings:
     enable_incremental_cache: bool = _env_enabled("ENABLE_INCREMENTAL_CACHE", "1")
     news_cache_max_articles: int = int(os.getenv("NEWS_CACHE_MAX_ARTICLES", "3000"))
     news_cache_max_per_source: int = int(os.getenv("NEWS_CACHE_MAX_PER_SOURCE", "20"))
+    embedding_model_name: str = os.getenv("EMBEDDING_MODEL_NAME", "all-MiniLM-L6-v2")
+    embedding_service_url: str = os.getenv(
+        "EMBEDDING_SERVICE_URL", "http://127.0.0.1:8002"
+    )
+    embedding_service_timeout_seconds: float = float(
+        os.getenv("EMBEDDING_SERVICE_TIMEOUT_SECONDS", "30")
+    )
     embedding_batch_size: int = int(os.getenv("EMBEDDING_BATCH_SIZE", "64"))
     embedding_max_per_minute: int = int(os.getenv("EMBEDDING_MAX_PER_MINUTE", "240"))
     embedding_queue_size: int = int(os.getenv("EMBEDDING_QUEUE_SIZE", "2000"))

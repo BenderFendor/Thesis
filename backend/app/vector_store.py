@@ -8,6 +8,8 @@ from collections.abc import Mapping, Sequence
 from importlib import import_module
 from typing import TYPE_CHECKING, Any, Protocol, TypedDict, cast
 
+from app.embedding_client import create_remote_embedding_model
+
 if TYPE_CHECKING:
     from numpy.typing import NDArray
 
@@ -20,7 +22,6 @@ if TYPE_CHECKING:
         QueryResult,
     )
     from chromadb.api.types import Where
-    from sentence_transformers import SentenceTransformer
 
 logger = logging.getLogger(__name__)
 
@@ -29,8 +30,6 @@ CHROMA_PORT = int(os.getenv("CHROMA_PORT", "8001"))
 
 _vector_store: VectorStore | None = None
 _vector_store_lock = threading.Lock()
-
-EMBEDDING_MODEL_NAME = "all-MiniLM-L6-v2"
 
 # Connection state tracking to prevent log flooding
 _last_connection_attempt: float = 0.0
@@ -195,18 +194,6 @@ def _create_chroma_client() -> ChromaClientProtocol:
     )
 
 
-def _get_sentence_transformer_class() -> type["SentenceTransformer"]:
-    try:
-        transformer_module = import_module("sentence_transformers")
-    except ImportError as exc:  # pragma: no cover - optional at import time
-        raise RuntimeError(
-            "sentence-transformers is not installed; cannot generate embeddings."
-        ) from exc
-    return cast(
-        type["SentenceTransformer"], getattr(transformer_module, "SentenceTransformer")
-    )
-
-
 def _get_chroma_include(*values: str) -> list["IncludeEnum"]:
     include_enum = cast(
         Any, getattr(import_module("chromadb.api.types"), "IncludeEnum")
@@ -357,7 +344,6 @@ class VectorStore:
         init_start = time.time()
         startup_metrics = _get_startup_metrics()
         self._embedding_model: EmbeddingModelProtocol | None = None
-        self._embedding_cache_dir: str | None = None
         try:
             self.client: ChromaClientProtocol = _create_chroma_client()
 
@@ -374,15 +360,6 @@ class VectorStore:
                     name="news_articles",
                     metadata={"hnsw:space": "cosine"},  # Cosine similarity for text
                 )
-
-            # Configure local cache for HuggingFace model
-            self._embedding_cache_dir = os.path.expanduser(
-                "~/.cache/sentence_transformers"
-            )
-            os.makedirs(self._embedding_cache_dir, exist_ok=True)
-
-            # Lazy load embedding model on first use (avoids startup blocking)
-            # Model will be loaded when first embedding request is made
 
             logger.info(f"Connected to ChromaDB at {CHROMA_HOST}:{CHROMA_PORT}")
             collection_count = self.collection.count()
@@ -413,18 +390,15 @@ class VectorStore:
 
     @property
     def embedding_model(self) -> EmbeddingModelProtocol:
-        """Lazy load embedding model on first access."""
+        """Lazy load remote embedding client on first access."""
         if self._embedding_model is None:
-            sentence_transformer = _get_sentence_transformer_class()
+            settings = _get_settings()
             logger.info(
-                f"Loading embedding model ({EMBEDDING_MODEL_NAME}) on first use..."
+                "Using embedding service at %s for vector embeddings",
+                getattr(settings, "embedding_service_url", "unknown"),
             )
             self._embedding_model = cast(
-                EmbeddingModelProtocol,
-                sentence_transformer(
-                    EMBEDDING_MODEL_NAME,
-                    cache_folder=self._embedding_cache_dir,
-                ),
+                EmbeddingModelProtocol, create_remote_embedding_model()
             )
         assert self._embedding_model is not None
         return self._embedding_model
@@ -646,6 +620,7 @@ class VectorStore:
                 "collection_name": self.collection.name,
                 "embedding_dimension": 384,  # For all-MiniLM-L6-v2
                 "similarity_metric": "cosine",
+                "embedding_backend": "service",
             }
         except Exception as e:
             logger.error("Failed to get stats: %s", e)
