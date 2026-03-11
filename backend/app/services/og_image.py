@@ -11,10 +11,15 @@ different sources while being polite to each individual domain.
 from __future__ import annotations
 
 import asyncio
+import hashlib
+import json
+import os
 import re
+import time
 from collections import defaultdict
+from pathlib import Path
 from typing import Dict, List, Optional, Tuple
-from urllib.parse import urlparse
+from urllib.parse import urljoin, urlparse
 
 import httpx
 from sqlalchemy import select, or_, update
@@ -33,6 +38,19 @@ USER_AGENT = "Mozilla/5.0 (compatible; ScoopBot/1.0; +https://scoop.news)"
 FETCH_TIMEOUT = 4.0
 MAX_CONCURRENT_PER_DOMAIN = 5
 MAX_RESPONSE_SIZE = 100_000
+OG_CACHE_MAX_AGE = 7 * 86400
+OG_CACHE_DIR = Path(os.getenv("OG_IMAGE_CACHE_DIR", "/tmp/thesis_og_image_cache"))
+OG_CACHE_DIR.mkdir(parents=True, exist_ok=True)
+
+rss_parser_rust = None
+
+try:  # Optional Rust HTML extraction
+    import rss_parser_rust as _rss_parser_rust
+
+    rss_parser_rust = _rss_parser_rust
+    RUST_HTML_AVAILABLE = True
+except ImportError:  # pragma: no cover - optional dependency
+    RUST_HTML_AVAILABLE = False
 
 OG_IMAGE_PATTERN = re.compile(
     r'<meta[^>]+(?:property|name)=["\']og:image["\'][^>]+content=["\']([^"\']+)["\']',
@@ -46,12 +64,18 @@ TWITTER_IMAGE_PATTERN = re.compile(
     r'<meta[^>]+(?:property|name)=["\']twitter:image["\'][^>]+content=["\']([^"\']+)["\']',
     re.IGNORECASE,
 )
+LINK_IMAGE_PATTERN = re.compile(
+    r'<link[^>]+rel=["\']image_src["\'][^>]+href=["\']([^"\']+)["\']',
+    re.IGNORECASE,
+)
 
 
 def _needs_image(article: NewsArticle) -> bool:
-    if not article.image or article.image == "none":
+    if not article.image:
         return True
     img = article.image.lower()
+    if img == "none":
+        return False
     return "placeholder" in img or img.endswith(".svg")
 
 
@@ -62,41 +86,162 @@ def _get_domain(url: str) -> str:
         return "unknown"
 
 
-def _update_cache_images(found_images: Dict[int, str]) -> None:
-    """Update in-memory cache with newly fetched images."""
-    if not found_images:
+def _update_cache_images(updated_images: Dict[int, str]) -> None:
+    """Update in-memory cache with newly fetched image values."""
+    if not updated_images:
         return
 
     with news_cache.lock:
         for article in news_cache.articles:
-            if article.id in found_images:
-                article.image = found_images[article.id]
+            if article.id in updated_images:
+                article.image = updated_images[article.id]
 
         for source_articles in news_cache.articles_by_source.values():
             for article in source_articles:
-                if article.id in found_images:
-                    article.image = found_images[article.id]
+                if article.id in updated_images:
+                    article.image = updated_images[article.id]
+
+
+def _og_cache_path(url: str) -> Path:
+    url_hash = hashlib.sha256(url.encode("utf-8")).hexdigest()
+    return OG_CACHE_DIR / f"{url_hash}.json"
+
+
+def _load_cached_og_metadata(url: str) -> Optional[Dict[str, str]]:
+    cache_path = _og_cache_path(url)
+    if not cache_path.exists():
+        return None
+
+    try:
+        payload = json.loads(cache_path.read_text())
+    except Exception as exc:
+        logger.debug("Failed to read OG cache for %s: %s", url, exc)
+        return None
+
+    fetched_at = payload.get("fetched_at")
+    try:
+        fetched_ts = (
+            float(fetched_at) if fetched_at is not None else cache_path.stat().st_mtime
+        )
+    except Exception:
+        fetched_ts = cache_path.stat().st_mtime
+
+    if (time.time() - fetched_ts) > OG_CACHE_MAX_AGE:
+        return None
+
+    return payload if isinstance(payload, dict) else None
+
+
+def _store_cached_og_metadata(
+    url: str,
+    *,
+    image_url: str,
+    selected_source: str | None,
+    error: str | None,
+    error_details: str | None,
+) -> None:
+    cache_path = _og_cache_path(url)
+    payload = {
+        "url": url,
+        "image_url": image_url,
+        "selected_source": selected_source,
+        "error": error,
+        "error_details": error_details,
+        "fetched_at": time.time(),
+    }
+    try:
+        cache_path.write_text(json.dumps(payload, separators=(",", ":")))
+    except Exception as exc:
+        logger.debug("Failed to write OG cache for %s: %s", url, exc)
+
+
+def _normalize_cached_image_value(value: object) -> Optional[str]:
+    if not isinstance(value, str):
+        return None
+    cleaned = value.strip()
+    if not cleaned or cleaned.lower() == "none":
+        return None
+    return cleaned if _is_valid_image_url(cleaned) else None
+
+
+def _is_valid_image_url(url: str) -> bool:
+    lowered = url.lower()
+    return not (lowered.endswith(".svg") or "placeholder" in lowered)
 
 
 def _extract_og_image_from_html(html: str) -> Optional[str]:
+    image_url, _ = _extract_og_image_candidate_from_html(html, "")
+    return image_url
+
+
+def _extract_og_image_candidate_from_html(
+    html: str, article_url: str
+) -> tuple[Optional[str], Optional[str]]:
+    rust_candidate = _extract_og_image_with_rust(html, article_url)
+    if rust_candidate is not None:
+        return rust_candidate
+
     match = OG_IMAGE_PATTERN.search(html)
     if match:
-        return match.group(1)
+        return _normalize_candidate_url(match.group(1), article_url), "og:image"
 
     match = OG_IMAGE_PATTERN_ALT.search(html)
     if match:
-        return match.group(1)
+        return _normalize_candidate_url(match.group(1), article_url), "og:image"
 
     match = TWITTER_IMAGE_PATTERN.search(html)
     if match:
-        return match.group(1)
+        return _normalize_candidate_url(match.group(1), article_url), "twitter:image"
 
+    match = LINK_IMAGE_PATTERN.search(html)
+    if match:
+        return _normalize_candidate_url(match.group(1), article_url), "link:image_src"
+
+    return None, None
+
+
+def _extract_og_image_with_rust(
+    html: str, article_url: str
+) -> tuple[Optional[str], Optional[str]] | None:
+    if not RUST_HTML_AVAILABLE or rss_parser_rust is None:
+        return None
+    try:
+        payload = rss_parser_rust.extract_og_image_html(html)
+    except Exception as exc:  # pragma: no cover - optional dependency
+        logger.debug("Rust og:image extraction failed: %s", exc)
+        return None
+
+    for candidate in payload.get("candidates", []) or []:
+        url = _normalize_candidate_url(candidate.get("url"), article_url)
+        if not url:
+            continue
+        source = candidate.get("source") or "og:image"
+        return url, source
     return None
+
+
+def _normalize_candidate_url(candidate: object, article_url: str) -> Optional[str]:
+    if not isinstance(candidate, str):
+        return None
+    cleaned = candidate.strip()
+    if not cleaned:
+        return None
+    if cleaned.startswith("//"):
+        cleaned = f"https:{cleaned}"
+    elif article_url and not cleaned.startswith(("http://", "https://")):
+        cleaned = urljoin(article_url, cleaned)
+    return cleaned if _is_valid_image_url(cleaned) else None
 
 
 async def fetch_og_image(url: str, client: httpx.AsyncClient) -> Optional[str]:
     if not url or not url.startswith(("http://", "https://")):
         return None
+
+    cached = _load_cached_og_metadata(url)
+    if cached is not None:
+        cached_image = _normalize_cached_image_value(cached.get("image_url"))
+        logger.debug("OG cache hit for %s", url)
+        return cached_image
 
     try:
         async with client.stream(
@@ -127,17 +272,46 @@ async def fetch_og_image(url: str, client: httpx.AsyncClient) -> Optional[str]:
             if head_end > 0:
                 html = html[: head_end + 7]
 
-            image_url = _extract_og_image_from_html(html)
+            image_url, selected_source = _extract_og_image_candidate_from_html(
+                html, url
+            )
             if image_url:
-                img_lower = image_url.lower()
-                if img_lower.endswith(".svg") or "placeholder" in img_lower:
-                    return None
+                _store_cached_og_metadata(
+                    url,
+                    image_url=image_url,
+                    selected_source=selected_source,
+                    error=None,
+                    error_details=None,
+                )
+                return image_url
+
+            _store_cached_og_metadata(
+                url,
+                image_url="none",
+                selected_source=None,
+                error="OG_IMAGE_NOT_FOUND",
+                error_details="No og:image or twitter:image found",
+            )
             return image_url
 
     except httpx.TimeoutException:
         logger.debug("Timeout fetching OG image from %s", url)
+        _store_cached_og_metadata(
+            url,
+            image_url="none",
+            selected_source=None,
+            error="IMAGE_FETCH_TIMEOUT",
+            error_details=f"Timeout fetching {url}",
+        )
     except Exception as e:
         logger.debug("Error fetching OG image from %s: %s", url, type(e).__name__)
+        _store_cached_og_metadata(
+            url,
+            image_url="none",
+            selected_source=None,
+            error="IMAGE_FETCH_FAILED",
+            error_details=type(e).__name__,
+        )
 
     return None
 
@@ -171,8 +345,8 @@ async def enrich_articles_with_og_images(
             domain = _get_domain(article.link)
             async with domain_semaphores[domain]:
                 image_url = await fetch_og_image(article.link, client)
+                articles[idx].image = image_url or "none"
                 if image_url:
-                    articles[idx].image = image_url
                     found_count += 1
 
         await asyncio.gather(
@@ -278,6 +452,7 @@ async def backfill_missing_images(
                 lambda: asyncio.Semaphore(MAX_CONCURRENT_PER_DOMAIN)
             )
             found_images: Dict[int, str] = {}
+            updated_images: Dict[int, str] = {}
             failed_ids: List[int] = []
 
             async with httpx.AsyncClient() as client:
@@ -289,10 +464,13 @@ async def backfill_missing_images(
                             image_url = await fetch_og_image(url, client)
                             if image_url:
                                 found_images[article_id] = image_url
+                                updated_images[article_id] = image_url
                             else:
                                 failed_ids.append(article_id)
+                                updated_images[article_id] = "none"
                     except Exception:
                         failed_ids.append(article_id)
+                        updated_images[article_id] = "none"
 
                 await asyncio.gather(
                     *[fetch_one(row.id, row.url) for row in rows],
@@ -316,7 +494,7 @@ async def backfill_missing_images(
             await session.commit()
 
             # Update in-memory cache so frontend sees new images immediately
-            _update_cache_images(found_images)
+            _update_cache_images(updated_images)
 
             # Safety: if we processed rows but none were updated, something is wrong - break to avoid infinite loop
             batch_updated = len(found_images) + len(failed_ids)
