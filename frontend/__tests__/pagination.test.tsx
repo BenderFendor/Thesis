@@ -156,7 +156,7 @@ describe("usePaginatedNews", () => {
     );
   });
 
-  it("should pass multi-source filters to cached pagination", async () => {
+  it("should forward multi-source filters without mutating the input array", async () => {
     (fetchCachedNewsPaginated as jest.Mock).mockResolvedValue({
       articles: mockArticles,
       total: 2,
@@ -166,12 +166,14 @@ describe("usePaginatedNews", () => {
       has_more: false,
     });
 
+    const sources = ["zeta-news", "alpha-news"];
+
     const { result } = renderHook(
       () =>
         usePaginatedNews({
           limit: 50,
+          sources,
           useCached: true,
-          sources: ["Source Alpha", "Source Beta"],
         }),
       { wrapper: createWrapper() }
     );
@@ -182,9 +184,10 @@ describe("usePaginatedNews", () => {
 
     expect(fetchCachedNewsPaginated).toHaveBeenCalledWith(
       expect.objectContaining({
-        sources: "Source Alpha,Source Beta",
+        sources: "zeta-news,alpha-news",
       })
     );
+    expect(sources).toEqual(["zeta-news", "alpha-news"]);
   });
 
   it("should not fetch when disabled", async () => {

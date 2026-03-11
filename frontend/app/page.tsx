@@ -42,6 +42,7 @@ const GlobeView = dynamic(
 
 import { useNewsStream } from "@/hooks/useNewsStream"
 import { useFavorites } from "@/hooks/useFavorites"
+import { usePaginatedNews } from "@/hooks/usePaginatedNews"
 import { useSourceFilter } from "@/hooks/useSourceFilter"
 import { fetchCategories, NewsArticle } from "@/lib/api"
 import { isDebugMode, logger } from "@/lib/logger"
@@ -49,6 +50,7 @@ import { ErrorBoundary } from '@/components/ErrorBoundary';
 import { NotificationsPopup, Notification, type NotificationActionType } from '@/components/notification-popup';
 import { SourceSidebar } from "@/components/source-sidebar";
 import { cn } from "@/lib/utils";
+import { FEATURE_FLAGS } from "@/lib/constants"
 
 type ViewMode = "globe" | "grid" | "scroll" | "list"
 
@@ -100,18 +102,8 @@ function NewsPage() {
     return saved === "topic" ? "topic" : "source"
   });
 
-  // New: State for articles per category to avoid reloading on view switches
-  // Initialize with default structure to enable parallel fetching
   const [articlesByCategory, setArticlesByCategory] = useState<Record<string, NewsArticle[]>>({
     all: [],
-    politics: [],
-    technology: [],
-    sports: [],
-    general: [],
-    business: [],
-    entertainment: [],
-    health: [],
-    science: [],
   })
   const [loading, setLoading] = useState(true)
   const [apiUrl, setApiUrl] = useState<string | null>(null)
@@ -120,6 +112,25 @@ function NewsPage() {
   // Source filtering and favorites
   const { favorites, isFavorite } = useFavorites()
   const { selectedSources, isFilterActive, isSelected } = useSourceFilter()
+  const selectedSourceIds = useMemo(() => Array.from(selectedSources), [selectedSources])
+  const usePaginatedBrowse = currentView !== "globe"
+
+  const {
+    articles: paginatedArticles,
+    totalCount: paginatedTotalCount,
+    isLoading: paginatedLoading,
+    isFetchingNextPage,
+    hasNextPage,
+    fetchNextPage,
+    error: paginatedError,
+    refetch: refetchPaginatedNews,
+  } = usePaginatedNews({
+    limit: FEATURE_FLAGS.PAGINATION_PAGE_SIZE,
+    category: activeCategory === "all" ? undefined : activeCategory,
+    sources: selectedSourceIds.length > 0 ? selectedSourceIds : undefined,
+    useCached: true,
+    enabled: usePaginatedBrowse,
+  })
 
   // Fetch categories in background, don't block stream
   useEffect(() => {
@@ -183,36 +194,9 @@ function NewsPage() {
     setLoading(false);
   }, []);
 
-  const sourceRecency = useMemo(() => {
-    const articles = articlesByCategory[activeCategory]
-    if (!articles || articles.length === 0) return {}
-
-    const recency: Record<string, number> = {}
-    for (const article of articles) {
-      const sourceKey = article.sourceId || article.source
-      if (!sourceKey) continue
-      const ts = new Date(article.publishedAt).getTime()
-      if (!Number.isNaN(ts) && (!recency[sourceKey] || ts > recency[sourceKey])) {
-        recency[sourceKey] = ts
-      }
-    }
-    return recency
-  }, [articlesByCategory, activeCategory])
-
-  /**
-   * Filter and sort articles by favorites and source selection
-   */
-  const filterAndSortArticles = useCallback(
+  const sortArticles = useCallback(
     (articles: NewsArticle[]): NewsArticle[] => {
-      // Apply source filter if active
-      let filtered = articles;
-      if (isFilterActive()) {
-        filtered = articles.filter((article) =>
-          isSelected(article.sourceId)
-        );
-      }
-
-      const items = [...filtered];
+      const items = [...articles];
       const sourceFreshness = sortMode === "source-freshness";
       const localRecency: Record<string, number> | null = sourceFreshness
         ? items.reduce((acc, article) => {
@@ -225,6 +209,7 @@ function NewsPage() {
             return acc;
           }, {} as Record<string, number>)
         : null;
+
       const getTime = (value: string) => {
         const ts = new Date(value).getTime();
         return Number.isNaN(ts) ? 0 : ts;
@@ -257,8 +242,37 @@ function NewsPage() {
 
       return items;
     },
-    [isFilterActive, isSelected, isFavorite, sortMode]
-  );
+    [isFavorite, sortMode]
+  )
+
+  const globeArticles = useMemo(() => {
+    const items = articlesByCategory[activeCategory] || []
+    const filtered = isFilterActive()
+      ? items.filter((article) => isSelected(article.sourceId))
+      : items
+
+    return sortArticles(filtered)
+  }, [activeCategory, articlesByCategory, isFilterActive, isSelected, sortArticles])
+
+  const browseArticles = useMemo(() => sortArticles(paginatedArticles), [paginatedArticles, sortArticles])
+
+  const activeViewArticles = currentView === "globe" ? globeArticles : browseArticles
+
+  const sourceRecency = useMemo(() => {
+    const articles = activeViewArticles
+    if (!articles || articles.length === 0) return {}
+
+    const recency: Record<string, number> = {}
+    for (const article of articles) {
+      const sourceKey = article.sourceId || article.source
+      if (!sourceKey) continue
+      const ts = new Date(article.publishedAt).getTime()
+      if (!Number.isNaN(ts) && (!recency[sourceKey] || ts > recency[sourceKey])) {
+        recency[sourceKey] = ts
+      }
+    }
+    return recency
+  }, [activeViewArticles])
 
   const streamHook = useNewsStream({
     onUpdate,
@@ -278,7 +292,8 @@ function NewsPage() {
   }, [streamHook.isStreaming, streamHook.abortStream, streamHook.startStream]);
 
   useEffect(() => {
-    // Only run when activeCategory changes
+    if (currentView !== "globe") return
+
     const loadCategory = async () => {
       if (streamIsActiveRef.current) {
         abortStreamRef.current(true);
@@ -299,13 +314,27 @@ function NewsPage() {
     };
 
     loadCategory();
-  }, [activeCategory]);
+  }, [activeCategory, currentView]);
 
   useEffect(() => {
     if (streamHook.apiUrl) {
       setApiUrl(streamHook.apiUrl);
     }
   }, [streamHook.apiUrl]);
+
+  useEffect(() => {
+    if (currentView === "globe") {
+      setLoading(streamHook.isStreaming || articlesByCategory[activeCategory]?.length === 0)
+      return
+    }
+
+    setLoading(paginatedLoading)
+  }, [currentView, streamHook.isStreaming, articlesByCategory, activeCategory, paginatedLoading])
+
+  useEffect(() => {
+    if (currentView === "globe") return
+    setArticleCount(paginatedTotalCount || browseArticles.length)
+  }, [browseArticles.length, currentView, paginatedTotalCount])
 
 
   const handleClearNotification = (id: string) => {
@@ -338,10 +367,6 @@ function NewsPage() {
       setShowNotifications(false);
     }
   };
-
-  const filteredArticles = useMemo(() => {
-    return filterAndSortArticles(articlesByCategory[activeCategory] || [])
-  }, [articlesByCategory, activeCategory, filterAndSortArticles])
 
   const notifications = useMemo(() => {
     const items: Notification[] = [];
@@ -412,7 +437,18 @@ function NewsPage() {
       });
     }
 
-    if (!loading && filteredArticles.length === 0) {
+    if (paginatedError) {
+      items.push({
+        id: "paginated-error",
+        title: "Browse path unavailable",
+        description: paginatedError.message,
+        type: "error",
+        timestamp: now,
+        action: { label: "Retry", type: "retry" },
+      });
+    }
+
+    if (!loading && activeViewArticles.length === 0) {
       items.push({
         id: "empty-feed",
         title: "No articles found",
@@ -436,7 +472,8 @@ function NewsPage() {
     isFilterActive,
     selectedSources.size,
     loading,
-    filteredArticles.length,
+    activeViewArticles.length,
+    paginatedError,
   ]);
 
   const actionableNotificationCount = useMemo(
@@ -448,24 +485,29 @@ function NewsPage() {
   );
 
   useEffect(() => {
-    if (filteredArticles.length > 0) {
-      setLeadArticle(filteredArticles[0])
+    if (activeViewArticles.length > 0) {
+      setLeadArticle(activeViewArticles[0])
     } else {
       setLeadArticle(null)
     }
-  }, [filteredArticles])
+  }, [activeViewArticles])
 
   const handleRetry = () => {
-    setArticlesByCategory(prev => ({
-      ...prev,
-      [activeCategory]: []
-    }));
-    setLoading(true);
-    streamHook.startStream({ 
-      category: activeCategory === 'all' ? undefined : activeCategory 
-    }).finally(() => {
-      setLoading(false);
-    });
+    if (currentView === "globe") {
+      setArticlesByCategory(prev => ({
+        ...prev,
+        [activeCategory]: []
+      }));
+      setLoading(true);
+      streamHook.startStream({ 
+        category: activeCategory === 'all' ? undefined : activeCategory 
+      }).finally(() => {
+        setLoading(false);
+      });
+      return;
+    }
+
+    void refetchPaginatedNews();
   };
 
   const handleSearchSubmit = (event: KeyboardEvent<HTMLInputElement>) => {
@@ -495,27 +537,35 @@ function NewsPage() {
     <div className="min-h-screen flex bg-[var(--news-bg-primary)] text-foreground">
       <HalftoneOverlay />
       {/* Loading state */}
-      {(loading || (streamHook.isStreaming && articlesByCategory[activeCategory]?.length === 0)) && (
+      {(currentView === "globe"
+        ? (loading || (streamHook.isStreaming && articlesByCategory[activeCategory]?.length === 0))
+        : (loading && activeViewArticles.length === 0)) && (
         <div className="fixed inset-0 z-50 grid place-items-center bg-[var(--news-bg-primary)]/95 backdrop-blur">
           <div className="relative w-[min(420px,90vw)] overflow-hidden rounded-none border border-white/10 bg-[var(--news-bg-secondary)] p-8 shadow-2xl">
             <div className="absolute inset-0 bg-[radial-gradient(circle_at_top,_rgba(255,255,255,0.08),_transparent_60%)]" />
             <div className="relative">
               <div className="flex items-center justify-between">
-                <span className="rounded-full border border-primary/30 bg-primary/15 px-3 py-1 text-[10px] font-mono uppercase tracking-[0.3em] text-primary">
-                  Live ingest
-                </span>
-                <span className="text-[10px] uppercase tracking-[0.3em] text-muted-foreground">
-                  {streamHook.progress.completed}/{streamHook.progress.total}
-                </span>
-              </div>
-              <h3 className="mt-6 font-serif text-2xl text-foreground">Refreshing the news index</h3>
-              <p className="mt-2 text-sm text-muted-foreground">
-                {streamHook.currentMessage || "Scanning global sources and clustering coverage."}
-              </p>
+                  <span className="rounded-full border border-primary/30 bg-primary/15 px-3 py-1 text-[10px] font-mono uppercase tracking-[0.3em] text-primary">
+                    {currentView === "globe" ? "Live ingest" : "Browse index"}
+                  </span>
+                  <span className="text-[10px] uppercase tracking-[0.3em] text-muted-foreground">
+                    {currentView === "globe"
+                      ? `${streamHook.progress.completed}/${streamHook.progress.total}`
+                      : `${activeViewArticles.length}/${paginatedTotalCount}`}
+                  </span>
+                </div>
+                <h3 className="mt-6 font-serif text-2xl text-foreground">
+                  {currentView === "globe" ? "Refreshing the news index" : "Loading the browse index"}
+                </h3>
+                <p className="mt-2 text-sm text-muted-foreground">
+                  {currentView === "globe"
+                    ? (streamHook.currentMessage || "Scanning global sources and clustering coverage.")
+                    : "Loading paginated article records from the backend."}
+                </p>
               <div className="mt-6 h-2 w-full overflow-hidden rounded-full bg-muted/40">
                 <div className="h-full w-1/2 animate-[shimmer_2s_infinite] bg-gradient-to-r from-primary/20 via-primary/60 to-primary/20" />
               </div>
-              {streamHook.retryCount > 0 && (
+              {currentView === "globe" && streamHook.retryCount > 0 && (
                 <div className="mt-4 rounded-none border border-white/10 bg-[var(--news-bg-primary)]/50 px-3 py-2 text-xs text-muted-foreground">
                   Retry attempt {streamHook.retryCount}/{streamHook.maxRetries}
                 </div>
@@ -870,11 +920,11 @@ function NewsPage() {
                   {activeCategory === category.id && (
                     <>
                       {currentView === "globe" && (
-                        <GlobeView key={`${category.id}-globe`} articles={filterAndSortArticles(articlesByCategory[category.id] || [])} loading={loading} />
+                        <GlobeView key={`${category.id}-globe`} articles={globeArticles} loading={loading} />
                       )}
                       {currentView === "grid" && (
                         <GridView
-                          articles={filterAndSortArticles(articlesByCategory[activeCategory] || [])}
+                          articles={browseArticles}
                           loading={loading}
                           onCountChange={setArticleCount}
                           apiUrl={apiUrl}
@@ -883,13 +933,33 @@ function NewsPage() {
                           viewMode={gridMode}
                           onViewModeChange={setGridMode}
                           isScrollMode={false}
+                          totalCount={paginatedTotalCount}
+                          hasNextPage={hasNextPage}
+                          isFetchingNextPage={isFetchingNextPage}
+                          fetchNextPage={fetchNextPage}
                         />
                       )}
                       {currentView === "scroll" && (
-                        <FeedView key={`${category.id}-scroll`} articles={filterAndSortArticles(articlesByCategory[category.id] || [])} loading={loading} />
+                        <FeedView
+                          key={`${category.id}-scroll`}
+                          articles={browseArticles}
+                          loading={loading}
+                          totalCount={paginatedTotalCount}
+                          hasNextPage={hasNextPage}
+                          isFetchingNextPage={isFetchingNextPage}
+                          fetchNextPage={fetchNextPage}
+                        />
                       )}
                       {currentView === "list" && (
-                        <ListView key={`${category.id}-list`} articles={filterAndSortArticles(articlesByCategory[category.id] || [])} loading={loading} />
+                        <ListView
+                          key={`${category.id}-list`}
+                          articles={browseArticles}
+                          loading={loading}
+                          totalCount={paginatedTotalCount}
+                          hasNextPage={hasNextPage}
+                          isFetchingNextPage={isFetchingNextPage}
+                          fetchNextPage={fetchNextPage}
+                        />
                       )}
                     </>
                   )}

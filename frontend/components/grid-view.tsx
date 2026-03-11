@@ -77,6 +77,10 @@ interface GridViewProps {
   viewMode?: "source" | "topic"
   onViewModeChange?: (mode: "source" | "topic") => void
   isScrollMode?: boolean
+  totalCount?: number
+  hasNextPage?: boolean
+  isFetchingNextPage?: boolean
+  fetchNextPage?: () => void
 }
 
 interface SourceGroup {
@@ -234,6 +238,10 @@ export function GridView({
   viewMode: controlledViewMode,
   onViewModeChange,
   isScrollMode: _isScrollMode = false,
+  totalCount,
+  hasNextPage: paginatedHasNextPage = false,
+  isFetchingNextPage: paginatedIsFetchingNextPage = false,
+  fetchNextPage: paginatedFetchNextPage,
 }: GridViewProps) {
   void _apiUrl
   void _isScrollMode
@@ -314,7 +322,7 @@ export function GridView({
 
   const {
     articles: paginatedArticles,
-    totalCount,
+    totalCount: virtualizedTotalCount,
     isLoading: paginatedLoading,
     isFetchingNextPage,
     hasNextPage,
@@ -574,6 +582,10 @@ export function GridView({
 
   const displayArticles = useVirtualization ? paginatedArticles : filteredNews
   const isLoadingState = useVirtualization ? paginatedLoading : loading
+  const resolvedTotalCount = useVirtualization ? virtualizedTotalCount : totalCount ?? filteredNews.length
+  const resolvedHasNextPage = useVirtualization ? hasNextPage : paginatedHasNextPage
+  const resolvedIsFetchingNextPage = useVirtualization ? isFetchingNextPage : paginatedIsFetchingNextPage
+  const resolvedFetchNextPage = useVirtualization ? fetchNextPage : paginatedFetchNextPage
 
   if (isLoadingState && displayArticles.length === 0) {
     return (
@@ -619,7 +631,7 @@ export function GridView({
               isFetchingNextPage={isFetchingNextPage}
               fetchNextPage={fetchNextPage}
               onArticleClick={handleArticleClick}
-              totalCount={totalCount}
+              totalCount={virtualizedTotalCount}
             />
           </Suspense>
         )}
@@ -990,6 +1002,21 @@ export function GridView({
                   </div>
                 </>
               )}
+            </div>
+          )}
+
+          {!useVirtualization && viewMode === "source" && resolvedHasNextPage && (
+            <div className="flex justify-center pb-8">
+              <Button
+                variant="outline"
+                onClick={() => resolvedFetchNextPage?.()}
+                disabled={resolvedIsFetchingNextPage}
+                className="rounded-full border-white/10 bg-transparent px-8 py-5 text-xs font-semibold uppercase tracking-widest text-muted-foreground transition-all duration-300 hover:bg-white/5 hover:text-white disabled:opacity-60"
+              >
+                {resolvedIsFetchingNextPage
+                  ? "Loading more stories"
+                  : `Load more stories (${displayArticles.length}/${resolvedTotalCount})`}
+              </Button>
             </div>
           )}
         </div>

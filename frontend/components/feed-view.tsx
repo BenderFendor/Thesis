@@ -39,9 +39,20 @@ const hasRealImage = (image: string) => {
 interface FeedViewProps {
   articles: NewsArticle[];
   loading: boolean;
+  totalCount?: number;
+  hasNextPage?: boolean;
+  isFetchingNextPage?: boolean;
+  fetchNextPage?: () => void;
 }
 
-export function FeedView({ articles: propArticles, loading }: FeedViewProps) {
+export function FeedView({
+  articles: propArticles,
+  loading,
+  totalCount,
+  hasNextPage = false,
+  isFetchingNextPage = false,
+  fetchNextPage,
+}: FeedViewProps) {
   const { likedIds, toggleLike } = useLikedArticles();
   const { bookmarkIds, toggleBookmark } = useBookmarks();
   const { isFavorite, toggleFavorite } = useFavorites();
@@ -191,12 +202,24 @@ export function FeedView({ articles: propArticles, loading }: FeedViewProps) {
 
   const scrollToNext = useCallback(() => {
     const container = containerRef.current;
-    if (!container || activeIndex >= articles.length - 1) return;
+    if (!container) return;
+
+    if (activeIndex >= articles.length - 2 && hasNextPage && !isFetchingNextPage) {
+      fetchNextPage?.();
+    }
+
+    if (activeIndex >= articles.length - 1) return;
     const nextElement = container.querySelector(
       `[data-index="${activeIndex + 1}"]`,
     );
     nextElement?.scrollIntoView({ behavior: "smooth" });
-  }, [activeIndex, articles.length]);
+  }, [activeIndex, articles.length, fetchNextPage, hasNextPage, isFetchingNextPage]);
+
+  useEffect(() => {
+    if (activeIndex >= articles.length - 2 && hasNextPage && !isFetchingNextPage) {
+      fetchNextPage?.();
+    }
+  }, [activeIndex, articles.length, fetchNextPage, hasNextPage, isFetchingNextPage]);
 
   const scrollToPrev = useCallback(() => {
     const container = containerRef.current;
@@ -403,6 +426,14 @@ export function FeedView({ articles: propArticles, loading }: FeedViewProps) {
             </div>
           </section>
         ))}
+
+        {(hasNextPage || isFetchingNextPage) && (
+          <div className="flex min-h-28 items-center justify-center border-t border-white/10 bg-black/40 px-6 py-8 text-center text-xs uppercase tracking-widest text-white/70">
+            {isFetchingNextPage
+              ? "Loading more coverage..."
+              : `More coverage available${typeof totalCount === "number" ? ` (${articles.length}/${totalCount})` : ""}`}
+          </div>
+        )}
       </div>
 
       {/* Navigation Controls */}

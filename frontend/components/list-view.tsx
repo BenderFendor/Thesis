@@ -8,9 +8,20 @@ import { ArticleDetailModal } from "./article-detail-modal"
 interface ListViewProps {
   articles: NewsArticle[]
   loading: boolean
+  totalCount?: number
+  hasNextPage?: boolean
+  isFetchingNextPage?: boolean
+  fetchNextPage?: () => void
 }
 
-export function ListView({ articles, loading }: ListViewProps) {
+export function ListView({
+  articles,
+  loading,
+  totalCount,
+  hasNextPage = false,
+  isFetchingNextPage = false,
+  fetchNextPage,
+}: ListViewProps) {
   const [selectedArticle, setSelectedArticle] = useState<NewsArticle | null>(null)
   const [isArticleModalOpen, setIsArticleModalOpen] = useState(false)
   const [sortBy, setSortBy] = useState<"newest" | "oldest" | "source" | "credibility" | "title" | "left" | "center" | "right">("newest")
@@ -33,23 +44,6 @@ export function ListView({ articles, loading }: ListViewProps) {
           return 3
       }
     }
-    const biasRank = (value?: string) => {
-      switch ((value || "").toLowerCase()) {
-        case "left":
-          return 0
-        case "center-left":
-          return 1
-        case "center":
-          return 2
-        case "center-right":
-          return 3
-        case "right":
-          return 4
-        default:
-          return 5
-      }
-    }
-
     switch (sortBy) {
       case "oldest":
         return sorted.sort(byDateAsc)
@@ -94,7 +88,7 @@ export function ListView({ articles, loading }: ListViewProps) {
         <div>
           <h2 className="font-serif text-2xl text-foreground mb-2">Records</h2>
           <p className="font-mono text-xs text-muted-foreground uppercase tracking-widest">
-            Live records • {articles.length} entries
+            Live records • {articles.length}{typeof totalCount === "number" ? ` / ${totalCount}` : ""} entries
           </p>
         </div>
         <div className="flex items-center gap-2 text-[10px] font-mono uppercase tracking-[0.3em] text-muted-foreground">
@@ -180,6 +174,19 @@ export function ListView({ articles, loading }: ListViewProps) {
         {sortedArticles.length === 0 && (
           <div className="py-12 text-center text-muted-foreground font-mono text-xs uppercase tracking-widest">
             No records found
+          </div>
+        )}
+
+        {hasNextPage && (
+          <div className="flex justify-center py-8">
+            <button
+              type="button"
+              onClick={() => fetchNextPage?.()}
+              disabled={isFetchingNextPage}
+              className="border border-white/10 bg-[var(--news-bg-secondary)] px-4 py-2 text-[10px] font-mono uppercase tracking-[0.24em] text-foreground transition-colors hover:border-primary disabled:opacity-60"
+            >
+              {isFetchingNextPage ? "Loading more" : "Load more"}
+            </button>
           </div>
         )}
       </div>
