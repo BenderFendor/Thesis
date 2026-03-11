@@ -64,7 +64,7 @@ class RemoteEmbeddingModel:
         single_input = isinstance(sentences, str)
         texts: list[str]
         if single_input:
-            texts = [sentences]
+            texts = [cast(str, sentences)]
         else:
             texts = list(sentences)
         if not texts:

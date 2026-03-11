@@ -54,6 +54,9 @@ import { FEATURE_FLAGS } from "@/lib/constants"
 
 type ViewMode = "globe" | "grid" | "scroll" | "list"
 
+const GRID_SOURCE_PAGE_SIZE = 500
+const ARTICLE_PAGE_SIZE = FEATURE_FLAGS.PAGINATION_PAGE_SIZE
+
 const categoryIcons: { [key: string]: React.ElementType } = {
   politics: Building2,
   games: Gamepad2,
@@ -114,6 +117,7 @@ function NewsPage() {
   const { selectedSources, isFilterActive, isSelected } = useSourceFilter()
   const selectedSourceIds = useMemo(() => Array.from(selectedSources), [selectedSources])
   const usePaginatedBrowse = currentView !== "globe"
+  const browsePageSize = currentView === "grid" && gridMode === "source" ? GRID_SOURCE_PAGE_SIZE : ARTICLE_PAGE_SIZE
 
   const {
     articles: paginatedArticles,
@@ -125,7 +129,7 @@ function NewsPage() {
     error: paginatedError,
     refetch: refetchPaginatedNews,
   } = usePaginatedNews({
-    limit: FEATURE_FLAGS.PAGINATION_PAGE_SIZE,
+    limit: browsePageSize,
     category: activeCategory === "all" ? undefined : activeCategory,
     sources: selectedSourceIds.length > 0 ? selectedSourceIds : undefined,
     useCached: true,

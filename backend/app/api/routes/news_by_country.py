@@ -1,10 +1,10 @@
 """News by country endpoints for globe visualization and Local Lens feature."""
 
 from datetime import datetime, timedelta, timezone
-from typing import Any, cast
+from typing import Any
 
 from fastapi import APIRouter, Depends, Query
-from sqlalchemy import func, select
+from sqlalchemy import any_, func, literal, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.logging import get_logger
@@ -42,7 +42,10 @@ async def _fetch_country_filtered_articles(
     dialect_name = get_session_dialect_name(db)
 
     if dialect_name == "postgresql":
-        filters = [*base_filters, Article.mentioned_countries.contains([code_upper])]
+        filters = [
+            *base_filters,
+            literal(code_upper) == any_(Article.mentioned_countries),
+        ]
         if view == "internal":
             filters.insert(len(base_filters), Article.country == code_upper)
         else:
@@ -133,12 +136,12 @@ async def get_article_counts_by_country(
     mention_stmt = select(Article.mentioned_countries).where(
         Article.published_at >= since
     )
-    mention_rows = (await db.execute(mention_stmt)).all()
+    mention_rows = list((await db.execute(mention_stmt)).scalars().all())
 
     counts: dict[str, int] = {}
     covered_article_count = 0
-    for row in mention_rows:
-        mentions = cast(list[str] | None, row[0]) or []
+    for mentions in mention_rows:
+        mentions = mentions or []
         if not mentions:
             continue
         covered_article_count += 1

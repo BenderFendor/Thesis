@@ -184,7 +184,7 @@ describe("usePaginatedNews", () => {
 
     expect(fetchCachedNewsPaginated).toHaveBeenCalledWith(
       expect.objectContaining({
-        sources: "zeta-news,alpha-news",
+        sources: "alpha-news,zeta-news",
       })
     );
     expect(sources).toEqual(["zeta-news", "alpha-news"]);

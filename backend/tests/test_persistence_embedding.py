@@ -62,6 +62,7 @@ def _make_news_article(url: str, title: str = "Test Title") -> MagicMock:
     article.category = "general"
     article.source = "Test Source"
     article.id = None
+    article.mentioned_countries = []
     return article
 
 

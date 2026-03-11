@@ -35,14 +35,38 @@ def _selected_sources(
     source: Optional[str],
     sources: Optional[str],
 ) -> Optional[List[str]]:
+    rss_sources = get_rss_sources()
+    exact_name_lookup = {name.lower(): name for name in rss_sources.keys()}
+    slug_lookup = {_source_slug(name): name for name in rss_sources.keys()}
+
+    def resolve_source_name(candidate: str) -> str:
+        stripped = candidate.strip()
+        if not stripped:
+            return ""
+
+        if stripped in rss_sources:
+            return stripped
+
+        lowered = stripped.lower()
+        if lowered in exact_name_lookup:
+            return exact_name_lookup[lowered]
+
+        return slug_lookup.get(lowered, stripped)
+
     if sources:
         parsed_sources = [candidate.strip() for candidate in sources.split(",")]
-        selected = [candidate for candidate in parsed_sources if candidate]
+        selected = [
+            resolved
+            for candidate in parsed_sources
+            if (resolved := resolve_source_name(candidate))
+        ]
         if selected:
-            return selected
+            return list(dict.fromkeys(selected))
 
     if source:
-        return [source]
+        resolved = resolve_source_name(source)
+        if resolved:
+            return [resolved]
 
     return None
 
@@ -108,7 +132,7 @@ def decode_cursor(cursor: str) -> CursorData:
 @router.get("/page", response_model=PaginatedResponse)
 async def get_news_paginated(
     response: Response,
-    limit: int = Query(default=50, ge=1, le=200),
+    limit: int = Query(default=50, ge=1, le=500),
     cursor: Optional[str] = Query(default=None),
     category: Optional[str] = Query(default=None),
     source: Optional[str] = Query(default=None),
@@ -300,7 +324,7 @@ async def get_news_paginated(
 
 @router.get("/page/cached", response_model=PaginatedResponse)
 async def get_cached_news_paginated(
-    limit: int = Query(default=50, ge=1, le=200),
+    limit: int = Query(default=50, ge=1, le=500),
     offset: int = Query(default=0, ge=0),
     category: Optional[str] = Query(default=None),
     source: Optional[str] = Query(default=None),
@@ -351,7 +375,7 @@ async def get_cached_news_paginated(
             "id": a.id,
             "title": a.title,
             "source": a.source,
-            "source_id": a.source,
+            "source_id": _source_slug(a.source),
             "country": a.country,
             "credibility": "UNKNOWN",
             "bias": "UNKNOWN",
@@ -384,7 +408,7 @@ async def get_cached_news_paginated(
 
 @router.get("/recent", response_model=RecentPageResponse)
 async def get_recent_news(
-    limit: int = Query(default=50, ge=1, le=200),
+    limit: int = Query(default=50, ge=1, le=500),
     cursor: Optional[str] = Query(default=None),
     category: Optional[str] = Query(default=None),
     source: Optional[str] = Query(default=None),

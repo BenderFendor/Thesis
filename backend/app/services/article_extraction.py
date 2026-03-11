@@ -275,6 +275,7 @@ def _first_meta_content(
     *,
     attribute: str = "content",
 ) -> Optional[str]:
+    value: Optional[str]
     for selector in selectors:
         element = soup.select_one(selector)
         if element is None:
@@ -282,8 +283,9 @@ def _first_meta_content(
         if selector == "title":
             value = element.get_text(" ", strip=True)
         else:
-            value = element.get(attribute)
-        if isinstance(value, str) and value.strip():
+            raw_value = element.get(attribute)
+            value = raw_value if isinstance(raw_value, str) else None
+        if value and value.strip():
             return value.strip()
     return None
 

@@ -1,5 +1,6 @@
 from sqlalchemy import (
     and_,
+    cast as sa_cast,
     Column,
     Float,
     Index,
@@ -807,7 +808,7 @@ async def init_db() -> None:
                     if col.name in db_cols:
                         continue
                     try:
-                        pg_type = cast(str, col.type.compile(dialect=c.dialect))
+                        pg_type = col.type.compile(dialect=c.dialect)
                     except Exception:
                         col_type_str = str(col.type).upper().split("(")[0]
                         sa_type_to_pg = {
@@ -1020,25 +1021,26 @@ def get_session_dialect_name(session: AsyncSession) -> str:
 
 
 def _article_search_vector() -> Any:
+    config = sa_cast(sqlalchemy_text("'english'"), postgresql.REGCONFIG)
     title_vector = func.setweight(
-        func.to_tsvector("english", func.coalesce(Article.title, "")),
-        "A",
+        func.to_tsvector(config, func.coalesce(Article.title, "")),
+        sqlalchemy_text("'A'"),
     )
     summary_vector = func.setweight(
-        func.to_tsvector("english", func.coalesce(Article.summary, "")),
-        "B",
+        func.to_tsvector(config, func.coalesce(Article.summary, "")),
+        sqlalchemy_text("'B'"),
     )
     source_vector = func.setweight(
-        func.to_tsvector("english", func.coalesce(Article.source, "")),
-        "B",
+        func.to_tsvector(config, func.coalesce(Article.source, "")),
+        sqlalchemy_text("'B'"),
     )
     category_vector = func.setweight(
-        func.to_tsvector("english", func.coalesce(Article.category, "")),
-        "C",
+        func.to_tsvector(config, func.coalesce(Article.category, "")),
+        sqlalchemy_text("'C'"),
     )
     content_vector = func.setweight(
-        func.to_tsvector("english", func.coalesce(Article.content, "")),
-        "D",
+        func.to_tsvector(config, func.coalesce(Article.content, "")),
+        sqlalchemy_text("'D'"),
     )
 
     return (

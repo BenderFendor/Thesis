@@ -2104,11 +2104,16 @@ export function mapBackendArticles(
         ? (biasValue as "left" | "center" | "right")
         : getBiasFromSource(sourceName);
 
+    const normalizedSourceId =
+      typeof article.source_id === "string" && article.source_id.trim().length > 0
+        ? article.source_id.trim().toLowerCase()
+        : sourceName.toLowerCase().replace(/\s+/g, "-")
+
     const mappedArticle: NewsArticle = {
       id: resolvedId,
       title: article.title || "No title",
       source: sourceName,
-      sourceId: sourceName.toLowerCase().replace(/\s+/g, "-"),
+      sourceId: normalizedSourceId,
       country,
       credibility,
       bias,

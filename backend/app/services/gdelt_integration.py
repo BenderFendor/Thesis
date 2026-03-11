@@ -10,7 +10,7 @@ import csv
 import io
 import logging
 from datetime import datetime, timezone
-from typing import TYPE_CHECKING, Any, Dict, List, Optional, Tuple, cast
+from typing import TYPE_CHECKING, Any, Dict, List, Optional, Sequence, Tuple, cast
 from urllib.parse import urlparse
 
 import httpx
@@ -304,7 +304,7 @@ class GDELTIntegration:
         article_id = article.id
         if article_id is None:
             return None
-        return int(article_id)
+        return article_id
 
     async def _match_by_embedding(
         self, session: AsyncSession, event: Dict[str, Any]
@@ -328,8 +328,9 @@ class GDELTIntegration:
             best_article_id = None
             best_similarity = 0.0
 
+            query_embeddings: list[Sequence[float]] = [embedding]
             result = self.vector_store.collection.query(
-                query_embeddings=[embedding],
+                query_embeddings=query_embeddings,
                 n_results=10,
                 include=cast("list[IncludeEnum]", ["distances"]),
             )

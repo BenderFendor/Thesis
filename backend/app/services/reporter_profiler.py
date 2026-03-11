@@ -15,7 +15,6 @@ Uses a layered source strategy:
 5. SEC filings (for business journalists)
 """
 
-import asyncio
 import json
 import re
 from datetime import datetime, timezone

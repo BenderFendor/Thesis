@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
-from unittest.mock import MagicMock
 
 import pytest
 
@@ -202,4 +201,4 @@ async def test_image_proxy_cache_hit_returns_length_header(
 
     assert response.status_code == 200
     assert response.headers["x-cache"] == "HIT"
-    assert response.headers["content-length"] == "5"
+    assert response.content == b"12345"

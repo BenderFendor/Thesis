@@ -2,7 +2,6 @@
 
 import asyncio
 from datetime import datetime, timezone
-
 from app.core.logging import get_logger
 from app.data.rss_sources import get_rss_sources
 from app.services.cache import news_cache
@@ -24,11 +23,12 @@ def _parse_next_check_at(value: object) -> datetime | None:
 
 def _get_due_rss_sources() -> tuple[list[str], float | None]:
     configured_sources = get_rss_sources()
-    stats_map = {}
-    for stat in news_cache.get_source_stats():
-        stat_name = stat.get("name")
-        if isinstance(stat_name, str) and stat_name:
-            stats_map[stat_name] = stat
+    stats_map = {
+        stat_name: stat
+        for stat in news_cache.get_source_stats()
+        for stat_name in [stat.get("name")]
+        if isinstance(stat_name, str) and stat_name
+    }
 
     now = datetime.now(timezone.utc)
     due_sources: list[str] = []

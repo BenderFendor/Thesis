@@ -56,6 +56,11 @@ import {
   hasRealClusterImage,
   pickClusterImageUrl,
 } from "@/lib/cluster-display"
+import {
+  buildSourceGroups,
+  getCollapsedVisibleArticleCount,
+  getVisibleSourceIds,
+} from "@/lib/source-groups"
 import { fetchAllClusters, fetchClusterArticles } from "@/lib/api"
 
 const VirtualizedGrid = lazy(() =>
@@ -65,6 +70,8 @@ const VirtualizedGrid = lazy(() =>
 )
 
 const logger = get_logger("GridView")
+const SOURCE_GROUP_BATCH_SIZE = 10
+const COLLAPSED_SOURCE_ARTICLE_COUNT = 20
 
 interface GridViewProps {
   articles: NewsArticle[]
@@ -81,14 +88,6 @@ interface GridViewProps {
   hasNextPage?: boolean
   isFetchingNextPage?: boolean
   fetchNextPage?: () => void
-}
-
-interface SourceGroup {
-  sourceId: string
-  sourceName: string
-  articles: NewsArticle[]
-  credibility?: string
-  bias?: string
 }
 
 interface SourceArticleCardProps {
@@ -264,9 +263,8 @@ export function GridView({
   const { likedIds, toggleLike } = useLikedArticles()
   const { addArticleToQueue, removeArticleFromQueue, isArticleInQueue } = useReadingQueue()
   const { isFavorite, toggleFavorite } = useFavorites()
-  const [initialArticleCount, setInitialArticleCount] = useState(9)
   const [expandedSourceId, setExpandedSourceId] = useState<string | null>(null)
-  const [visibleGroupIds, setVisibleGroupIds] = useState<Set<string>>(new Set())
+  const [sourceBatchCount, setSourceBatchCount] = useState(1)
   const containerRef = useRef<HTMLDivElement | null>(null)
 
   const formatKeywordLabel = useCallback((keywords?: string[]) => {
@@ -303,23 +301,6 @@ export function GridView({
     [formatKeywordLabel, normalizeLabel, stripTitleSuffix],
   )
 
-  useEffect(() => {
-    const updateResponsiveCounts = () => {
-      const width = window.innerWidth
-      let cols = 1
-      if (width >= 1536) cols = 5
-      else if (width >= 1280) cols = 4
-      else if (width >= 1024) cols = 3
-      else if (width >= 640) cols = 2
-
-      setInitialArticleCount(cols * 3)
-    }
-
-    updateResponsiveCounts()
-    window.addEventListener("resize", updateResponsiveCounts)
-    return () => window.removeEventListener("resize", updateResponsiveCounts)
-  }, [])
-
   const {
     articles: paginatedArticles,
     totalCount: virtualizedTotalCount,
@@ -342,6 +323,13 @@ export function GridView({
         article.summary?.toLowerCase().includes(searchTerm.toLowerCase()),
     )
   }, [articles, searchTerm])
+
+  const displayArticles = useVirtualization ? paginatedArticles : filteredNews
+  const isLoadingState = useVirtualization ? paginatedLoading : loading
+  const resolvedTotalCount = useVirtualization ? virtualizedTotalCount : totalCount ?? filteredNews.length
+  const resolvedHasNextPage = useVirtualization ? hasNextPage : paginatedHasNextPage
+  const resolvedIsFetchingNextPage = useVirtualization ? isFetchingNextPage : paginatedIsFetchingNextPage
+  const resolvedFetchNextPage = useVirtualization ? fetchNextPage : paginatedFetchNextPage
 
   useEffect(() => {
     onCountChange?.(filteredNews.length)
@@ -390,63 +378,71 @@ export function GridView({
   )
 
   const sourceGroups = useMemo(() => {
-    const groups = new Map<string, SourceGroup>()
-    const seenUrls = new Set<string>()
-
-    filteredNews.forEach((article) => {
-      if (seenUrls.has(article.url)) return
-      seenUrls.add(article.url)
-
-      const sourceKey = article.sourceId || article.source
-      if (!groups.has(sourceKey)) {
-        groups.set(sourceKey, {
-          sourceId: sourceKey,
-          sourceName: article.source,
-          articles: [],
-          credibility: article.credibility,
-          bias: article.bias,
-        })
-      }
-      groups.get(sourceKey)?.articles.push(article)
-    })
-
-    return Array.from(groups.values()).sort((a, b) => {
+    return buildSourceGroups(filteredNews).sort((a, b) => {
       const aFav = isFavorite(a.sourceId) ? 1 : 0
       const bFav = isFavorite(b.sourceId) ? 1 : 0
       if (aFav !== bFav) return bFav - aFav
-      return b.articles.length - a.articles.length
+
+      return 0
     })
   }, [filteredNews, isFavorite])
 
-  useEffect(() => {
-    const container = containerRef.current
-    if (!container) return
+  const sortedSourceIds = useMemo(
+    () => sourceGroups.map((group) => group.sourceId),
+    [sourceGroups],
+  )
 
-    const observer = new IntersectionObserver(
-      (entries) => {
-        setVisibleGroupIds((prev) => {
-          let next = prev
-          let changed = false
-          entries.forEach((entry) => {
-            if (!entry.isIntersecting) return
-            const sourceId = (entry.target as HTMLElement).dataset.sourceId
-            if (!sourceId || prev.has(sourceId)) return
-            if (!changed) {
-              next = new Set(prev)
-              changed = true
-            }
-            next.add(sourceId)
-          })
-          return changed ? next : prev
-        })
-      },
-      { root: container, rootMargin: "800px 0px", threshold: 0.1 },
+  const visibleSourceIds = useMemo(() => {
+    if (viewMode !== "source") return new Set<string>()
+
+    return getVisibleSourceIds(
+      sourceGroups,
+      new Set(sourceGroups.filter((group) => isFavorite(group.sourceId)).map((group) => group.sourceId)),
+      sourceBatchCount,
+      SOURCE_GROUP_BATCH_SIZE,
     )
+  }, [isFavorite, sourceBatchCount, sourceGroups, viewMode])
 
-    const groups = container.querySelectorAll(".grid-source-group")
-    groups.forEach((group) => observer.observe(group))
-    return () => observer.disconnect()
-  }, [sourceGroups])
+  const hasMoreSourceGroups = useMemo(() => {
+    if (viewMode !== "source") return false
+    return visibleSourceIds.size < sortedSourceIds.length || resolvedHasNextPage
+  }, [resolvedHasNextPage, sortedSourceIds.length, viewMode, visibleSourceIds.size])
+
+  const visibleSourceGroups = useMemo(
+    () => sourceGroups.filter((group) => visibleSourceIds.has(group.sourceId)),
+    [sourceGroups, visibleSourceIds],
+  )
+
+  const collapsedVisibleArticleCount = useMemo(
+    () =>
+      getCollapsedVisibleArticleCount(
+        sourceGroups,
+        visibleSourceIds,
+        COLLAPSED_SOURCE_ARTICLE_COUNT,
+      ),
+    [sourceGroups, visibleSourceIds],
+  )
+
+  useEffect(() => {
+    if (viewMode !== "source") return
+    onCountChange?.(collapsedVisibleArticleCount)
+  }, [collapsedVisibleArticleCount, onCountChange, viewMode])
+
+  useEffect(() => {
+    setSourceBatchCount(1)
+    setExpandedSourceId(null)
+  }, [searchTerm, viewMode])
+
+  useEffect(() => {
+    setSourceBatchCount((prev) => {
+      if (viewMode !== "source") return prev
+      const favoriteCount = sourceGroups.filter((group) => isFavorite(group.sourceId)).length
+      const minimumVisible = favoriteCount + SOURCE_GROUP_BATCH_SIZE
+      const currentlyVisible = favoriteCount + prev * SOURCE_GROUP_BATCH_SIZE
+      if (currentlyVisible >= minimumVisible) return prev
+      return 1
+    })
+  }, [isFavorite, sourceGroups, viewMode])
 
   useEffect(() => {
     if (viewMode !== "topic") return
@@ -580,12 +576,27 @@ export function GridView({
     containerRef.current?.scrollTo({ top: 0, behavior: "smooth" })
   }, [])
 
-  const displayArticles = useVirtualization ? paginatedArticles : filteredNews
-  const isLoadingState = useVirtualization ? paginatedLoading : loading
-  const resolvedTotalCount = useVirtualization ? virtualizedTotalCount : totalCount ?? filteredNews.length
-  const resolvedHasNextPage = useVirtualization ? hasNextPage : paginatedHasNextPage
-  const resolvedIsFetchingNextPage = useVirtualization ? isFetchingNextPage : paginatedIsFetchingNextPage
-  const resolvedFetchNextPage = useVirtualization ? fetchNextPage : paginatedFetchNextPage
+  useEffect(() => {
+    if (viewMode !== "source") return
+    if (!hasMoreSourceGroups) return
+    if (resolvedIsFetchingNextPage) return
+
+    const favoriteCount = sourceGroups.filter((group) => isFavorite(group.sourceId)).length
+    const minimumVisible = favoriteCount + sourceBatchCount * SOURCE_GROUP_BATCH_SIZE
+    if (sourceGroups.length >= minimumVisible) return
+    if (!resolvedHasNextPage) return
+
+    resolvedFetchNextPage?.()
+  }, [
+    hasMoreSourceGroups,
+    isFavorite,
+    resolvedFetchNextPage,
+    resolvedHasNextPage,
+    resolvedIsFetchingNextPage,
+    sourceBatchCount,
+    sourceGroups,
+    viewMode,
+  ])
 
   if (isLoadingState && displayArticles.length === 0) {
     return (
@@ -745,10 +756,11 @@ export function GridView({
               </p>
             </motion.div>
           ) : viewMode === "source" ? (
-            sourceGroups.map((group, index) => {
-              const shouldRender = visibleGroupIds.size === 0 ? index < 3 : visibleGroupIds.has(group.sourceId)
+            visibleSourceGroups.map((group, index) => {
               const isExpanded = expandedSourceId === group.sourceId
-              const displayedArticles = isExpanded ? group.articles : group.articles.slice(0, initialArticleCount)
+              const displayedArticles = isExpanded
+                ? group.articles
+                : group.articles.slice(0, COLLAPSED_SOURCE_ARTICLE_COUNT)
 
               return (
                 <section
@@ -758,7 +770,7 @@ export function GridView({
                     "grid-source-group scroll-mt-6 flex flex-col",
                     isExpanded ? "snap-none" : "snap-start",
                   )}
-                  style={{ scrollSnapStop: "normal", minHeight: "calc(100vh - 160px)" }}
+                  style={{ scrollSnapStop: "normal" }}
                 >
                   <div className="mb-6 flex flex-col gap-4 border-b border-white/5 pb-4 lg:flex-row lg:items-end lg:justify-between">
                     <div className="space-y-2">
@@ -803,7 +815,7 @@ export function GridView({
                     </div>
                   </div>
 
-                  {shouldRender && displayedArticles.length > 0 && (
+                  {displayedArticles.length > 0 && (
                     <div className="flex-1">
                       <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5">
                         <AnimatePresence>
@@ -825,7 +837,7 @@ export function GridView({
                     </div>
                   )}
 
-                  {group.articles.length > initialArticleCount && (
+                  {group.articles.length > COLLAPSED_SOURCE_ARTICLE_COUNT && (
                     <div className="mt-8 flex justify-center pb-8">
                       <Button
                         variant="outline"
@@ -1005,17 +1017,17 @@ export function GridView({
             </div>
           )}
 
-          {!useVirtualization && viewMode === "source" && resolvedHasNextPage && (
+          {!useVirtualization && viewMode === "source" && hasMoreSourceGroups && (
             <div className="flex justify-center pb-8">
               <Button
                 variant="outline"
-                onClick={() => resolvedFetchNextPage?.()}
+                onClick={() => setSourceBatchCount((prev) => prev + 1)}
                 disabled={resolvedIsFetchingNextPage}
                 className="rounded-full border-white/10 bg-transparent px-8 py-5 text-xs font-semibold uppercase tracking-widest text-muted-foreground transition-all duration-300 hover:bg-white/5 hover:text-white disabled:opacity-60"
               >
                 {resolvedIsFetchingNextPage
-                  ? "Loading more stories"
-                  : `Load more stories (${displayArticles.length}/${resolvedTotalCount})`}
+                  ? "Loading more sources"
+                  : `Load 10 more sources (${visibleSourceIds.size}/${sortedSourceIds.length}${resolvedHasNextPage ? "+" : ""})`}
               </Button>
             </div>
           )}

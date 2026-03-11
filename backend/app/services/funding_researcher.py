@@ -16,9 +16,9 @@ Uses a layered source strategy:
 5. ProPublica Nonprofit Explorer (990 data)
 """
 
-import asyncio
 import json
 import re
+import inspect
 from datetime import datetime, timezone
 from typing import Any, Dict, Iterable, List, Optional, cast
 
@@ -385,6 +385,14 @@ class FundingResearcher:
         known_data: Dict[str, Any] = (
             results[2] if not isinstance(results[2], BaseException) else {}
         )
+
+        if inspect.isawaitable(wikipedia_data):
+            wikipedia_data = await wikipedia_data
+        if inspect.isawaitable(nonprofit_data):
+            nonprofit_data = await nonprofit_data
+        if inspect.isawaitable(known_data):
+            known_data = await known_data
+
         wikidata_data = await self._fetch_wikidata(
             wikipedia_data.get("page_title") or name
         )

@@ -26,7 +26,7 @@ CHROMA_DATA_DIR="${CHROMA_DATA_DIR:-$ROOT_DIR/.chroma}"
 CHROMA_LOG_FILE="${CHROMA_LOG_FILE:-$LOG_DIR/chroma.log}"
 EMBEDDING_SERVICE_LOG_FILE="${EMBEDDING_SERVICE_LOG_FILE:-$LOG_DIR/embedding-service.log}"
 AUTO_INSTALL="${AUTO_INSTALL:-1}"
-GUNICORN_WORKERS="${GUNICORN_WORKERS:-4}"
+GUNICORN_WORKERS="${GUNICORN_WORKERS:-1}"
 NEXT_PUBLIC_API_URL="${NEXT_PUBLIC_API_URL:-http://localhost:${BACKEND_PORT}}"
 NEXT_PUBLIC_DOCKER_API_URL="${NEXT_PUBLIC_DOCKER_API_URL:-$NEXT_PUBLIC_API_URL}"
 RUNLOCAL_STATE_DIR="${RUNLOCAL_STATE_DIR:-$ROOT_DIR/.runlocal}"
@@ -88,7 +88,7 @@ Usage: ./runlocal.sh [setup|services|backend|frontend|all|killall|help]
   EMBEDDING_SERVICE_LOG_FILE Log file for embedding service (default ./logs/embedding-service.log)
   LOG_DIR         Directory for all log files (default ./logs)
   AUTO_INSTALL   Set to 1 to auto-install Postgres if missing (default 1)
-  GUNICORN_WORKERS Worker count for backend (default 4)
+  GUNICORN_WORKERS Worker count for backend (default 1)
   NEXT_PUBLIC_API_URL        Frontend base URL for local backend (default http://localhost:<BACKEND_PORT>)
   NEXT_PUBLIC_DOCKER_API_URL Overrides API URL when frontend runs in Docker (default matches NEXT_PUBLIC_API_URL)
 USAGE
@@ -383,6 +383,18 @@ install_chroma() {
 	install_backend_deps
 }
 
+build_rust_parser() {
+	if [[ ! -f "$BACKEND_DIR/rss_parser_rust/pyproject.toml" ]]; then
+		return 0
+	fi
+
+	log "Building Rust RSS parser extension..."
+	(
+		cd "$BACKEND_DIR/rss_parser_rust"
+		"$BACKEND_DIR/.venv/bin/maturin" develop --release
+	)
+}
+
 postgres_ready() {
 	if command -v pg_isready >/dev/null 2>&1; then
 		pg_isready -h "$POSTGRES_HOST" -p "$POSTGRES_PORT" >/dev/null 2>&1
@@ -536,6 +548,7 @@ run_backend() {
 	log "Installing backend dependencies..."
 	uv pip install -r requirements.txt
 	uv pip install gunicorn
+	build_rust_parser
 	log "Using DATABASE_URL=$DATABASE_URL"
 	log "Using Chroma at $CHROMA_HOST:$CHROMA_PORT"
 	log "Using embedding service at $EMBEDDING_SERVICE_URL"

@@ -356,10 +356,19 @@ class VectorStore:
                     name="news_articles"
                 )
             except Exception:
-                self.collection = self.client.get_or_create_collection(
-                    name="news_articles",
-                    metadata={"hnsw:space": "cosine"},  # Cosine similarity for text
-                )
+                try:
+                    self.collection = self.client.get_or_create_collection(
+                        name="news_articles",
+                        metadata={"hnsw:space": "cosine"},
+                    )
+                except Exception as collection_error:
+                    logger.warning(
+                        "Falling back to plain Chroma collection creation: %s",
+                        collection_error,
+                    )
+                    self.collection = self.client.get_or_create_collection(
+                        name="news_articles"
+                    )
 
             logger.info(f"Connected to ChromaDB at {CHROMA_HOST}:{CHROMA_PORT}")
             collection_count = self.collection.count()

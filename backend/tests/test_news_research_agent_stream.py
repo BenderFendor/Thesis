@@ -306,12 +306,17 @@ def test_graph_finishes_after_iteration_cap(monkeypatch) -> None:
                 ],
             )
 
+    class FakeFinalRunner:
+        def invoke(self, _payload):
+            return AIMessage(content="Answer\nDone.", tool_calls=[])
+
     monkeypatch.setattr(agent, "ToolNode", FakeToolNode)
     monkeypatch.setattr(agent, "_model_instance", None)
     monkeypatch.setattr(agent, "_tool_router_instance", None)
     monkeypatch.setattr(agent, "_graph_instance", None)
     monkeypatch.setattr(agent, "_get_model", lambda: FakeRunner())
     monkeypatch.setattr(agent, "_get_tool_router", lambda: FakeRunner())
+    monkeypatch.setattr(agent, "_get_llm", lambda: FakeFinalRunner())
 
     graph = agent._get_graph()
     initial_state = cast(

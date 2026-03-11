@@ -480,18 +480,26 @@ class VerificationAgent:
                             if isinstance(article_id, int)
                         ],
                     )
-                    article_map = {
-                        article.id: article
-                        for article in fetched_articles
-                        if article.id is not None
-                    }
+                    article_map: dict[int, Any] = {}
+                    for fetched_article in fetched_articles:
+                        fetched_article_id = getattr(fetched_article, "id", None)
+                        if not isinstance(fetched_article_id, int):
+                            continue
+                        article_map[fetched_article_id] = fetched_article
 
                     for vr in vector_results:
                         article_id = vr.get("article_id")
-                        article = article_map.get(article_id) if article_id else None
-                        if not article or not article.url:
+                        if not isinstance(article_id, int):
                             continue
-                        if article.id in seen_article_ids:
+                        maybe_article = article_map.get(article_id)
+                        if maybe_article is None:
+                            continue
+                        article = maybe_article
+                        article_url = getattr(article, "url", None)
+                        if not article_url:
+                            continue
+                        article_record_id = article_id
+                        if article_record_id in seen_article_ids:
                             continue
 
                         source = self._article_to_source_info(
@@ -499,12 +507,15 @@ class VerificationAgent:
                             similarity_score=vr.get("similarity_score", 0.5),
                         )
                         sources.append(source)
-                        if article.id is not None:
-                            seen_article_ids.add(article.id)
+                        seen_article_ids.add(article_record_id)
+
+                        article_title = getattr(article, "title", None)
 
                         logger.debug(
                             "Internal source found: %s (similarity=%.2f)",
-                            article.title[:50] if article.title else "Untitled",
+                            article_title[:50]
+                            if isinstance(article_title, str) and article_title
+                            else "Untitled",
                             vr.get("similarity_score", 0),
                         )
 
