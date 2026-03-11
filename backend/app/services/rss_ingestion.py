@@ -6,9 +6,9 @@ import json
 import random
 import threading
 import time
-from collections.abc import Callable, Iterable
+from collections.abc import Callable, Collection, Iterable
 from concurrent.futures import ProcessPoolExecutor
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from typing import Any, Dict, List, Optional, Tuple, TypeGuard, cast
 from urllib.parse import urljoin
 
@@ -21,6 +21,7 @@ from app.core.logging import get_logger
 from app.core.resource_config import get_system_resources, ResourceConfig
 from app.data.rss_sources import get_rss_sources
 from app.models.news import NewsArticle
+from app.services.async_utils import gather_limited
 from app.services.cache import news_cache
 from app.services.metrics import get_metrics, reset_metrics
 from app.services.og_image import enrich_articles_with_og_images
@@ -62,6 +63,10 @@ ParseErrorItem = tuple[None, str, SourceStat]
 ParseQueueItem = ParseSuccessItem | ParseErrorItem | None
 PersistQueueItem = tuple[list[NewsArticle], SourceStat] | None
 
+DEFAULT_POLL_INTERVAL_SECONDS = 600
+MIN_POLL_INTERVAL_SECONDS = 300
+MAX_POLL_INTERVAL_SECONDS = 3600
+
 
 def _is_fetch_poison_pill(item: FetchQueueItem) -> TypeGuard[tuple[None, None]]:
     return item[0] is None
@@ -84,6 +89,190 @@ def _iter_source_urls(url_field: Any) -> Iterable[str]:
         for url in url_field:
             if isinstance(url, str):
                 yield url
+
+
+def _utc_now() -> datetime:
+    return datetime.now(timezone.utc)
+
+
+def _parse_article_datetime(value: str | None) -> datetime | None:
+    if not value or not isinstance(value, str):
+        return None
+    candidate = value.strip().replace("Z", "+00:00")
+    if not candidate:
+        return None
+    try:
+        parsed = datetime.fromisoformat(candidate)
+    except ValueError:
+        return None
+    if parsed.tzinfo is None:
+        return parsed.replace(tzinfo=timezone.utc)
+    return parsed.astimezone(timezone.utc)
+
+
+def _coerce_int(value: object) -> int:
+    if isinstance(value, bool):
+        return int(value)
+    if isinstance(value, int):
+        return value
+    if isinstance(value, float):
+        return int(value)
+    if isinstance(value, str):
+        try:
+            return int(value)
+        except ValueError:
+            return 0
+    return 0
+
+
+def _clamp_poll_interval(interval_seconds: int) -> int:
+    return max(
+        MIN_POLL_INTERVAL_SECONDS,
+        min(MAX_POLL_INTERVAL_SECONDS, interval_seconds),
+    )
+
+
+def _get_source_activity_snapshot(
+    source_name: str,
+    articles: Collection[NewsArticle],
+) -> tuple[int, float | None, str | None]:
+    relevant_articles = list(articles) or news_cache.get_articles_for_source(
+        source_name
+    )
+    if not relevant_articles:
+        return 0, None, None
+
+    now = _utc_now()
+    recent_cutoff = now - timedelta(hours=24)
+    published_times = [
+        published_at
+        for published_at in (
+            _parse_article_datetime(article.published) for article in relevant_articles
+        )
+        if published_at is not None
+    ]
+    if not published_times:
+        return 0, None, None
+
+    freshest = max(published_times)
+    recent_count = sum(
+        1 for published_at in published_times if published_at >= recent_cutoff
+    )
+    freshest_age_hours = max(0.0, (now - freshest).total_seconds() / 3600)
+    return recent_count, freshest_age_hours, freshest.isoformat()
+
+
+def _next_poll_metadata(
+    source_name: str,
+    stat: SourceStat,
+    articles: Collection[NewsArticle],
+    *,
+    base_interval_seconds: int = DEFAULT_POLL_INTERVAL_SECONDS,
+) -> SourceStat:
+    previous_stat = news_cache.get_source_stat(source_name) or {}
+    previous_failures = _coerce_int(previous_stat.get("consecutive_failures"))
+    previous_idle = _coerce_int(previous_stat.get("consecutive_idle_checks"))
+    status = str(stat.get("status") or "pending")
+    article_count = _coerce_int(stat.get("article_count"))
+    recent_count, freshest_age_hours, freshest_published_at = (
+        _get_source_activity_snapshot(source_name, articles)
+    )
+
+    consecutive_failures = 0
+    consecutive_idle_checks = 0
+    reason = "scheduled_default"
+    interval_seconds = _clamp_poll_interval(base_interval_seconds)
+
+    if status == "error":
+        consecutive_failures = previous_failures + 1
+        interval_seconds = _clamp_poll_interval(
+            base_interval_seconds * (2 ** min(consecutive_failures, 2))
+        )
+        reason = "error_backoff"
+    elif status == "not_modified":
+        consecutive_idle_checks = previous_idle + 1
+        interval_seconds = _clamp_poll_interval(
+            base_interval_seconds * min(consecutive_idle_checks + 1, 4)
+        )
+        reason = "not_modified_backoff"
+    elif article_count <= 0:
+        consecutive_idle_checks = previous_idle + 1
+        interval_seconds = _clamp_poll_interval(
+            base_interval_seconds * min(consecutive_idle_checks + 1, 3)
+        )
+        reason = "empty_feed_backoff"
+    else:
+        if recent_count >= 8 or (
+            freshest_age_hours is not None and freshest_age_hours <= 2
+        ):
+            interval_seconds = MIN_POLL_INTERVAL_SECONDS
+            reason = "high_activity"
+        elif recent_count >= 3 or (
+            freshest_age_hours is not None and freshest_age_hours <= 6
+        ):
+            interval_seconds = _clamp_poll_interval(base_interval_seconds)
+            reason = "steady_activity"
+        else:
+            interval_seconds = _clamp_poll_interval(base_interval_seconds * 2)
+            reason = "low_activity"
+
+    next_check_at = (_utc_now() + timedelta(seconds=interval_seconds)).isoformat()
+    stat["poll_interval_seconds"] = interval_seconds
+    stat["next_check_at"] = next_check_at
+    stat["adaptive_reason"] = reason
+    stat["consecutive_failures"] = consecutive_failures
+    stat["consecutive_idle_checks"] = consecutive_idle_checks
+    stat["recent_publication_count_24h"] = recent_count
+    stat["freshest_article_age_hours"] = freshest_age_hours
+    stat["latest_article_published_at"] = freshest_published_at
+    return stat
+
+
+def _merge_partial_cache_update(
+    updated_articles: List[NewsArticle],
+    updated_source_stats: List[Dict[str, Any]],
+) -> None:
+    updated_names = {
+        str(stat_name)
+        for stat_name in (stat.get("name") for stat in updated_source_stats)
+        if isinstance(stat_name, str) and stat_name
+    }
+    existing_articles = [
+        article
+        for article in news_cache.get_articles()
+        if article.source not in updated_names
+    ]
+    merged_articles = existing_articles + updated_articles
+    try:
+        merged_articles.sort(key=lambda article: article.published, reverse=True)
+    except Exception:
+        pass
+
+    stats_by_name: Dict[str, Dict[str, object]] = {}
+    for existing_stat in news_cache.get_source_stats():
+        existing_name = existing_stat.get("name")
+        if isinstance(existing_name, str) and existing_name:
+            stats_by_name[existing_name] = existing_stat
+    for updated_stat in updated_source_stats:
+        updated_name = updated_stat.get("name")
+        if isinstance(updated_name, str) and updated_name:
+            stats_by_name[updated_name] = updated_stat
+
+    news_cache.update_cache(merged_articles, list(stats_by_name.values()))
+
+
+def _select_rss_sources(
+    rss_sources: Dict[str, Dict[str, Any]],
+    source_names: Collection[str] | None,
+) -> Dict[str, Dict[str, Any]]:
+    if source_names is None:
+        return rss_sources
+    selected = set(source_names)
+    return {
+        source_name: source_info
+        for source_name, source_info in rss_sources.items()
+        if source_name in selected
+    }
 
 
 def parse_rss_feed(
@@ -404,6 +593,7 @@ def _process_source(
         "is_consolidated": source_info.get("consolidate", False),
         "sub_feeds": sub_feed_stats if source_info.get("consolidate") else None,
     }
+    _next_poll_metadata(source_name, source_stat, articles)
     return articles, source_stat
 
 
@@ -487,6 +677,7 @@ def _blocking_parse_feed(
     # Parse entries (reuse existing parse_rss_feed_entries logic)
     articles = parse_rss_feed_entries(feed.entries, source_name, source_info)
     source_stat["article_count"] = len(articles)
+    _next_poll_metadata(source_name, source_stat, articles)
 
     return articles, source_stat
 
@@ -554,8 +745,8 @@ async def _fetch_worker(
                             "article_count": 0,
                             "last_checked": datetime.now(timezone.utc).isoformat(),
                         }
+                        _next_poll_metadata(source_name, not_modified_stat, [])
                         await parse_queue.put((None, source_name, not_modified_stat))
-                        fetch_queue.task_done()
                         continue
 
                     response.raise_for_status()
@@ -585,6 +776,7 @@ async def _fetch_worker(
                         "error_message": str(e),
                         "article_count": 0,
                     }
+                    _next_poll_metadata(source_name, error_stat, [])
                     # Skip parsing, go straight to persistence (for stat tracking)
                     await parse_queue.put((None, source_name, error_stat))
 
@@ -641,6 +833,7 @@ async def _parse_worker(
                 if articles:
                     await enrich_articles_with_og_images(articles)
 
+                _next_poll_metadata(source_name, stat, articles)
                 await persist_queue.put((articles, stat))
 
             except Exception as e:
@@ -652,6 +845,7 @@ async def _parse_worker(
                     "error_message": str(e),
                     "article_count": 0,
                 }
+                _next_poll_metadata(source_name, error_stat, [])
                 await persist_queue.put(([], error_stat))
 
             finally:
@@ -739,6 +933,7 @@ async def _persist_worker(
 
 async def refresh_news_cache_async(
     source_progress_callback: SourceProgressCallback | None = None,
+    source_names: Collection[str] | None = None,
 ) -> None:
     """Refresh the news cache, preferring the Rust pipeline when available."""
     global _shutdown_event, _process_pool, _resources
@@ -747,14 +942,21 @@ async def refresh_news_cache_async(
         logger.info("Cache update already in progress, skipping...")
         return
 
-    rss_sources = get_rss_sources()
+    rss_sources = _select_rss_sources(get_rss_sources(), source_names)
+    if source_names is not None and not rss_sources:
+        logger.info("No RSS sources selected for refresh; skipping")
+        return
+
+    is_partial_refresh = source_names is not None
     news_cache.update_in_progress = True
 
     try:
         if RUST_RSS_AVAILABLE:
             try:
                 await _refresh_news_cache_with_rust(
-                    rss_sources, source_progress_callback
+                    rss_sources,
+                    source_progress_callback,
+                    is_partial_refresh=is_partial_refresh,
                 )
                 return
             except Exception as rust_exc:  # pragma: no cover - fallback path
@@ -764,7 +966,11 @@ async def refresh_news_cache_async(
                     exc_info=True,
                 )
 
-        await _refresh_news_cache_with_python(rss_sources, source_progress_callback)
+        await _refresh_news_cache_with_python(
+            rss_sources,
+            source_progress_callback,
+            is_partial_refresh=is_partial_refresh,
+        )
     finally:
         news_cache.update_in_progress = False
 
@@ -772,6 +978,8 @@ async def refresh_news_cache_async(
 async def _refresh_news_cache_with_python(
     rss_sources: Dict[str, Dict[str, Any]],
     source_progress_callback: SourceProgressCallback | None,
+    *,
+    is_partial_refresh: bool,
 ) -> None:
     """Original async pipeline leveraging Python workers."""
     global _shutdown_event, _process_pool, _resources
@@ -868,13 +1076,22 @@ async def _refresh_news_cache_with_python(
             total_sources = len(news_cache.get_source_stats())
             await _broadcast_cache_update(total_articles, total_sources)
         else:
-            try:
-                all_articles.sort(key=lambda article: article.published, reverse=True)
-            except Exception:
-                pass
+            if is_partial_refresh:
+                _merge_partial_cache_update(all_articles, source_stats)
+                total_articles = len(news_cache.get_articles())
+                total_sources = len(news_cache.get_source_stats())
+            else:
+                try:
+                    all_articles.sort(
+                        key=lambda article: article.published, reverse=True
+                    )
+                except Exception:
+                    pass
 
-            news_cache.update_cache(all_articles, source_stats)
-            await _broadcast_cache_update(len(all_articles), len(source_stats))
+                news_cache.update_cache(all_articles, source_stats)
+                total_articles = len(all_articles)
+                total_sources = len(source_stats)
+            await _broadcast_cache_update(total_articles, total_sources)
 
         metrics = get_metrics()
         metrics.end_time = datetime.now(timezone.utc)
@@ -891,6 +1108,8 @@ async def _refresh_news_cache_with_python(
 async def _refresh_news_cache_with_rust(
     rss_sources: Dict[str, Dict[str, Any]],
     source_progress_callback: SourceProgressCallback | None,
+    *,
+    is_partial_refresh: bool,
 ) -> None:
     logger.info("Using Rust RSS ingestion pipeline")
 
@@ -976,6 +1195,7 @@ async def _refresh_news_cache_with_rust(
             "is_consolidated": source_info.get("consolidate", False),
             "sub_feeds": rust_stat.get("sub_feeds"),
         }
+        _next_poll_metadata(name, stat, articles_by_source.get(name, []))
         source_stats.append(stat)
         if settings.enable_incremental_cache:
             replace_articles = stat.get("status") in {"success", "warning"}
@@ -1004,20 +1224,30 @@ async def _refresh_news_cache_with_rust(
         )
 
     if persist_tasks:
-        await asyncio.gather(*persist_tasks)
+        await gather_limited(
+            persist_tasks,
+            limit=max(2, min(8, len(persist_tasks))),
+        )
 
     if settings.enable_incremental_cache:
         total_articles = len(news_cache.get_articles())
         total_sources = len(news_cache.get_source_stats())
         await _broadcast_cache_update(total_articles, total_sources)
     else:
-        try:
-            all_articles.sort(key=lambda article: article.published, reverse=True)
-        except Exception:
-            pass
+        if is_partial_refresh:
+            _merge_partial_cache_update(all_articles, source_stats)
+            total_articles = len(news_cache.get_articles())
+            total_sources = len(news_cache.get_source_stats())
+        else:
+            try:
+                all_articles.sort(key=lambda article: article.published, reverse=True)
+            except Exception:
+                pass
 
-        news_cache.update_cache(all_articles, source_stats)
-        await _broadcast_cache_update(len(all_articles), len(source_stats))
+            news_cache.update_cache(all_articles, source_stats)
+            total_articles = len(all_articles)
+            total_sources = len(source_stats)
+        await _broadcast_cache_update(total_articles, total_sources)
 
     logger.info(
         "Rust parser complete: %s articles (fetch=%sms, parse=%sms, total=%sms)",

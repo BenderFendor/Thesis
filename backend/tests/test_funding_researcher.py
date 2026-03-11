@@ -4,10 +4,13 @@ Covers: name matching, ProPublica validation, Wikidata dict/list parsing,
 merge priority logic, and null guards.
 """
 
+import asyncio
+
 from unittest.mock import AsyncMock, patch
 
 import httpx
 import pytest
+from hypothesis import given, strategies as st
 
 from app.services.funding_researcher import FundingResearcher, KNOWN_ORGS
 
@@ -579,6 +582,37 @@ class TestHttpClientSetup:
         assert "ScoopNewsApp" in r.http_client.headers["User-Agent"]
 
 
+@pytest.mark.asyncio
+async def test_research_organization_uses_limited_parallelism(researcher):
+    active_calls = 0
+    max_active_calls = 0
+
+    async def _tracked_result(payload: dict[str, str]) -> dict[str, str]:
+        nonlocal active_calls, max_active_calls
+        active_calls += 1
+        max_active_calls = max(max_active_calls, active_calls)
+        await asyncio.sleep(0)
+        active_calls -= 1
+        return payload
+
+    researcher._search_wikipedia = AsyncMock(
+        side_effect=lambda name: _tracked_result(
+            {"wikipedia_url": "https://example.com/wiki"}
+        )
+    )
+    researcher._search_propublica_nonprofit = AsyncMock(
+        side_effect=lambda name: _tracked_result({"ein": "123"})
+    )
+    researcher._get_known_org_data = AsyncMock(
+        side_effect=lambda name: _tracked_result({"funding_type": "commercial"})
+    )
+    researcher._fetch_wikidata = AsyncMock(return_value={})
+
+    await researcher.research_organization("Example News", use_ai=False)
+
+    assert max_active_calls <= 2
+
+
 # ── KNOWN_ORGS coverage ──────────────────────────────────────
 
 
@@ -661,4 +695,11 @@ class TestKnownOrgsExpanded:
         )
         assert result["funding_type"] == "commercial"
         assert result["parent_org"] == "Bloomberg L.P."
-        assert result["ein"] == "999"  # EIN still captured
+        assert result["ein"] == "999"
+
+
+@given(st.text())
+def test_normalize_name_never_crashes(name: str):
+    researcher = FundingResearcher.__new__(FundingResearcher)
+    normalized = researcher._normalize_name(name)
+    assert isinstance(normalized, str)

@@ -4,7 +4,6 @@ import asyncio
 import json
 import os
 import signal
-import threading
 import time
 from datetime import datetime, timezone
 from types import FrameType
@@ -34,7 +33,6 @@ from app.services.persistence import (
 )
 from app.services.rss_ingestion import (
     refresh_news_cache_async,
-    start_cache_refresh_scheduler,
     _shutdown_event,
     _process_pool,
 )
@@ -78,8 +76,6 @@ app.add_middleware(GZipMiddleware, minimum_size=1000)
 app.include_router(api_router)
 
 _background_tasks: list[asyncio.Task[Any]] = []
-_scheduler_lock = threading.Lock()
-_schedulers_started = False
 _leader_lock_file: str | None = None  # Set only in the leader worker
 
 
@@ -119,16 +115,6 @@ def _handle_shutdown_signal(signum: int, frame: FrameType | None) -> None:
         _process_pool.shutdown(wait=True, cancel_futures=True)
 
     logger.info("Shutdown complete")
-
-
-def _start_schedulers_once() -> None:
-    global _schedulers_started
-    with _scheduler_lock:
-        if _schedulers_started:
-            return
-        start_cache_refresh_scheduler()
-        _schedulers_started = True
-        logger.info("Background schedulers initialised")
 
 
 async def _load_cache_from_db_fast() -> None:
@@ -316,9 +302,6 @@ async def on_startup() -> None:
     else:
         logger.info("Database disabled; skipping initialisation and persistence")
         startup_metrics.add_note("database_disabled", True)
-    _start_schedulers_once()
-    startup_metrics.add_note("schedulers_started_at", time.time())
-
     # Use file-based lock to ensure startup tasks run only once across all workers
     import os
 
@@ -384,15 +367,14 @@ async def on_startup() -> None:
         _register_background_task(cache_preload_task)
         startup_metrics.add_note("cache_preload_task", cache_preload_task.get_name())
 
-    # Start async RSS refresh scheduler (delayed first run) - ALL workers
-    scheduler_task = asyncio.create_task(
-        periodic_rss_refresh(interval_seconds=600), name="rss_refresh_scheduler"
-    )
-    _register_background_task(scheduler_task)
-    startup_metrics.add_note("rss_scheduler_task", scheduler_task.get_name())
-
     # Only leader runs initial RSS refresh
     if is_leader:
+        scheduler_task = asyncio.create_task(
+            periodic_rss_refresh(interval_seconds=600), name="rss_refresh_scheduler"
+        )
+        _register_background_task(scheduler_task)
+        startup_metrics.add_note("rss_scheduler_task", scheduler_task.get_name())
+
         refresh_task = asyncio.create_task(
             _start_initial_rss_refresh(), name="initial_rss_refresh"
         )
@@ -426,7 +408,7 @@ async def on_startup() -> None:
         _register_background_task(migration_task)
 
     # Start blind spots analysis scheduler
-    if settings.enable_database and settings.enable_vector_store:
+    if settings.enable_database and settings.enable_vector_store and is_leader:
         blind_spots_task = asyncio.create_task(
             periodic_blind_spots_update(interval_seconds=86400),
             name="blind_spots_scheduler",
@@ -435,7 +417,7 @@ async def on_startup() -> None:
         startup_metrics.add_note("blind_spots_task", blind_spots_task.get_name())
 
     # Start wiki indexer refresh (daily, re-indexes stale entries)
-    if settings.enable_database:
+    if settings.enable_database and is_leader:
         wiki_task = asyncio.create_task(
             periodic_wiki_refresh(interval_seconds=86400),
             name="wiki_refresh_scheduler",

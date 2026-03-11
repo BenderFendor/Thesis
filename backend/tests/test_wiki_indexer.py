@@ -9,6 +9,7 @@ from datetime import timedelta
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
+from hypothesis import given, strategies as st
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 
@@ -650,6 +651,52 @@ class TestPeriodicWikiRefresh:
             await periodic_wiki_refresh(interval_seconds=1, stale_days=7)
 
         assert call_count == 2
+
+
+@given(st.integers(min_value=1, max_value=7200))
+def test_poll_interval_clamp_bounds(interval_seconds: int):
+    from app.services.rss_ingestion import (
+        MAX_POLL_INTERVAL_SECONDS,
+        MIN_POLL_INTERVAL_SECONDS,
+        _clamp_poll_interval,
+    )
+
+    bounded = _clamp_poll_interval(interval_seconds)
+    assert MIN_POLL_INTERVAL_SECONDS <= bounded <= MAX_POLL_INTERVAL_SECONDS
+
+
+def test_due_rss_sources_respects_next_check_times():
+    from datetime import datetime, timedelta, timezone
+
+    with (
+        patch(
+            "app.services.scheduler.get_rss_sources",
+            return_value={"Fast Feed": {}, "Slow Feed": {}},
+        ),
+        patch(
+            "app.services.scheduler.news_cache.get_source_stats",
+            return_value=[
+                {
+                    "name": "Fast Feed",
+                    "next_check_at": (
+                        datetime.now(timezone.utc) - timedelta(seconds=5)
+                    ).isoformat(),
+                },
+                {
+                    "name": "Slow Feed",
+                    "next_check_at": (
+                        datetime.now(timezone.utc) + timedelta(minutes=10)
+                    ).isoformat(),
+                },
+            ],
+        ),
+    ):
+        from app.services.scheduler import _get_due_rss_sources
+
+        due_sources, next_wait_seconds = _get_due_rss_sources()
+
+    assert due_sources == ["Fast Feed"]
+    assert next_wait_seconds is not None
 
 
 # ---------------------------------------------------------------------------
