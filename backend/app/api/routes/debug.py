@@ -25,6 +25,7 @@ from app.services.startup_metrics import startup_metrics
 from app.services.stream_manager import stream_manager
 from app.services.debug_logger import debug_logger, DEBUG_LOG_DIR
 from app.services.image_extraction import ImageErrorType
+from app.services.country_mentions import backfill_article_mentioned_countries
 from app.vector_store import get_vector_store
 
 router = APIRouter(prefix="/debug", tags=["debug"])
@@ -962,5 +963,26 @@ async def backfill_article_images(
 
     return {
         "message": "Image backfill completed",
+        **stats,
+    }
+
+
+@router.post("/backfill/mentioned-countries")
+async def backfill_article_mentions(
+    batch_size: int = Query(500, ge=10, le=2000, description="Articles per batch"),
+    max_batches: int | None = Query(None, ge=1, description="Max batches (None = all)"),
+) -> Dict[str, object]:
+    if not settings.enable_database or AsyncSessionLocal is None:
+        raise HTTPException(status_code=503, detail="Database unavailable")
+
+    async with AsyncSessionLocal() as session:
+        stats = await backfill_article_mentioned_countries(
+            session=session,
+            batch_size=batch_size,
+            max_batches=max_batches,
+        )
+
+    return {
+        "message": "Mentioned-country backfill completed",
         **stats,
     }

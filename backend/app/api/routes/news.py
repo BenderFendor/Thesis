@@ -363,6 +363,7 @@ async def get_cached_news_paginated(
             "category": a.category,
             "url": a.link,
             "tags": None,
+            "mentioned_countries": a.mentioned_countries,
             "original_language": None,
             "translated": False,
         }
