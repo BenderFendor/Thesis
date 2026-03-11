@@ -8,8 +8,22 @@ Pure algorithm - no neural network, runs on CPU.
 from __future__ import annotations
 
 import hashlib
+import importlib
 import logging
 from collections.abc import Mapping
+
+rss_parser_rust = None
+
+try:  # Optional Rust acceleration
+    _rss_parser_rust = importlib.import_module("rss_parser_rust")
+    _required_attrs = {"minhash_duplicate_pairs"}
+    if _required_attrs.issubset(set(dir(_rss_parser_rust))):
+        rss_parser_rust = _rss_parser_rust
+        RUST_MINHASH_AVAILABLE = True
+    else:  # pragma: no cover - import path can resolve to source dir namespace package
+        RUST_MINHASH_AVAILABLE = False
+except ImportError:  # pragma: no cover - optional dependency
+    RUST_MINHASH_AVAILABLE = False
 
 logger = logging.getLogger(__name__)
 
@@ -18,6 +32,39 @@ NUM_HASH_FUNCTIONS = 128
 MINHASH_LENGTH = 256
 CHAR_NGRAM = 5
 SIMILARITY_THRESHOLD = 0.85
+MAX_MD5_INT = 2**128 - 1
+
+
+def _rust_duplicate_pairs(
+    documents: list[tuple[str, str]],
+    threshold: float,
+    num_hashes: int,
+) -> list[tuple[str, str, float]] | None:
+    if not RUST_MINHASH_AVAILABLE or rss_parser_rust is None:
+        return None
+    try:
+        minhash_duplicate_pairs = getattr(rss_parser_rust, "minhash_duplicate_pairs")
+        payload = minhash_duplicate_pairs(
+            documents,
+            threshold,
+            num_hashes,
+        )
+    except Exception as exc:  # pragma: no cover - optional dependency
+        logger.debug("Rust MinHash duplicate detection failed: %s", exc)
+        return None
+
+    result: list[tuple[str, str, float]] = []
+    for item in payload:
+        doc_id_1 = item.get("doc_id_1")
+        doc_id_2 = item.get("doc_id_2")
+        similarity = item.get("similarity")
+        if (
+            isinstance(doc_id_1, str)
+            and isinstance(doc_id_2, str)
+            and isinstance(similarity, (int, float))
+        ):
+            result.append((doc_id_1, doc_id_2, float(similarity)))
+    return result
 
 
 def shingle_text(text: str, n: int = CHAR_NGRAM) -> set[str]:
@@ -77,7 +124,7 @@ def compute_minhash(
 
     minhash = []
     for a, b in hash_params:
-        min_val = 2**64 - 1
+        min_val = MAX_MD5_INT
         for shingle in shingles:
             # Compute hash for each shingle
             combined = f"{shingle}:{a}:{b}".encode()
@@ -231,6 +278,24 @@ class MinHashDeduplicator:
         if doc_ids is None:
             doc_ids = list(self.signatures.keys())
 
+        rust_documents = [
+            (doc_id, self.documents[doc_id])
+            for doc_id in doc_ids
+            if doc_id in self.documents and self.documents[doc_id]
+        ]
+        rust_duplicates = _rust_duplicate_pairs(
+            rust_documents,
+            threshold,
+            self.num_hashes,
+        )
+        if rust_duplicates is not None:
+            logger.info(
+                "Found %s duplicate pairs above threshold %s via Rust",
+                len(rust_duplicates),
+                threshold,
+            )
+            return rust_duplicates
+
         duplicates = []
 
         for i, id1 in enumerate(doc_ids):
@@ -351,6 +416,7 @@ def deduplicate_articles(
 
     # Build mapping from text to IDs (handle exact duplicates)
     text_to_ids: dict[str, list[str]] = {}
+    text_by_hash: dict[str, str] = {}
     for article in articles:
         text_value = article.get(text_field, "") or ""
         doc_id_value = article.get(id_field, "")
@@ -372,6 +438,7 @@ def deduplicate_articles(
             text_hash = hashlib.md5(text.encode()).hexdigest()
             if text_hash not in text_to_ids:
                 text_to_ids[text_hash] = []
+                text_by_hash[text_hash] = text
             text_to_ids[text_hash].append(doc_id)
 
     # Add one representative per exact duplicate
@@ -379,10 +446,7 @@ def deduplicate_articles(
     for text_hash, ids in text_to_ids.items():
         representative = ids[0]
         dedup_result[representative] = set(ids)
-        deduplicator.add_document(
-            representative,
-            list(text_to_ids.keys())[list(text_to_ids.keys()).index(text_hash)],
-        )
+        deduplicator.add_document(representative, text_by_hash[text_hash])
 
     # Find near-duplicates
     duplicates = deduplicator.find_duplicates()

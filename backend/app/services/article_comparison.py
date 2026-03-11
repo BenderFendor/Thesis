@@ -3,9 +3,23 @@
 from __future__ import annotations
 
 import re
+import importlib
 from collections import Counter
 from difflib import SequenceMatcher
 from typing import Any, TypedDict
+
+rss_parser_rust = None
+
+try:  # Optional Rust acceleration
+    _rss_parser_rust = importlib.import_module("rss_parser_rust")
+    _required_attrs = {"text_similarity", "sentence_diff"}
+    if _required_attrs.issubset(set(dir(_rss_parser_rust))):
+        rss_parser_rust = _rss_parser_rust
+        RUST_COMPARISON_AVAILABLE = True
+    else:  # pragma: no cover - import path can resolve to source dir namespace package
+        RUST_COMPARISON_AVAILABLE = False
+except ImportError:  # pragma: no cover - optional dependency
+    RUST_COMPARISON_AVAILABLE = False
 
 
 class CommonKeywordDiff(TypedDict):
@@ -352,13 +366,22 @@ def extract_keywords(text: str, top_n: int = 20) -> list[tuple[str, int]]:
 
 
 def calculate_text_similarity(text1: str, text2: str) -> float:
-    """Calculate similarity ratio between two texts using SequenceMatcher.
+    """Calculate similarity ratio between two texts.
+
+    Uses the Rust helper when available and falls back to `SequenceMatcher`.
 
     Returns:
         Float between 0.0 and 1.0
     """
     if not text1 or not text2:
         return 0.0
+
+    if RUST_COMPARISON_AVAILABLE and rss_parser_rust is not None:
+        try:
+            text_similarity = getattr(rss_parser_rust, "text_similarity")
+            return float(text_similarity(text1, text2))
+        except Exception:  # pragma: no cover - optional dependency
+            pass
 
     # Normalize texts
     t1 = " ".join(text1.lower().split())
@@ -471,12 +494,37 @@ def generate_diff_highlights(
 ) -> dict[str, list[dict[str, Any]]]:
     """Generate visual diff highlights between two texts.
 
+    Uses the Rust helper when available and falls back to Python sentence matching.
+
     Returns:
         Dict with added, removed, and unchanged sections
     """
+    if RUST_COMPARISON_AVAILABLE and rss_parser_rust is not None:
+        try:
+            sentence_diff = getattr(rss_parser_rust, "sentence_diff")
+            payload = sentence_diff(text1, text2)
+            return {
+                "added": list(payload.get("added", [])),
+                "removed": list(payload.get("removed", [])),
+                "similar": list(payload.get("similar", [])),
+            }
+        except Exception:  # pragma: no cover - optional dependency
+            pass
+
     # Split into sentences for comparison
     sentences1 = re.split(r"(?<=[.!?])\s+", text1)
     sentences2 = re.split(r"(?<=[.!?])\s+", text2)
+
+    def _word_overlap_ratio(left: str, right: str) -> float:
+        left_words = {
+            token.lower() for token in re.findall(r"\b\w+\b", left) if token.strip()
+        }
+        right_words = {
+            token.lower() for token in re.findall(r"\b\w+\b", right) if token.strip()
+        }
+        if not left_words or not right_words:
+            return 0.0
+        return len(left_words & right_words) / max(len(left_words), len(right_words))
 
     added = []
     removed = []
@@ -489,7 +537,8 @@ def generate_diff_highlights(
 
         for j, s2 in enumerate(sentences2):
             ratio = SequenceMatcher(None, s1.lower(), s2.lower()).ratio()
-            if ratio > best_ratio and ratio > 0.6:  # Threshold for similarity
+            overlap = _word_overlap_ratio(s1, s2)
+            if ratio > best_ratio and ratio > 0.6 and overlap >= 0.5:
                 best_ratio = ratio
                 best_match = (j, s2)
 
