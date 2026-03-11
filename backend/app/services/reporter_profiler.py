@@ -26,6 +26,7 @@ import httpx
 from app.core.config import settings
 from app.core.llm_client import get_llm_client
 from app.core.logging import get_logger
+from app.services.async_utils import gather_limited
 from app.services.prompting import (
     COPY_STYLE_GUIDE,
     build_json_system_prompt,
@@ -85,10 +86,13 @@ class ReporterProfiler:
         normalized_name = self._normalize_name(name)
 
         # Gather data from multiple sources in parallel
-        results = await asyncio.gather(
-            self._search_wikipedia(name, organization),
-            self._search_mbfc_author(name),
-            self._infer_from_context(name, organization, article_context),
+        results = await gather_limited(
+            [
+                self._search_wikipedia(name, organization),
+                self._search_mbfc_author(name),
+                self._infer_from_context(name, organization, article_context),
+            ],
+            limit=2,
             return_exceptions=True,
         )
 

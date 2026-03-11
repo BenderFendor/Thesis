@@ -28,6 +28,7 @@ from openai.types.chat import ChatCompletionMessageParam
 
 from app.core.config import get_llamacpp_model, get_openai_client, settings
 from app.core.logging import get_logger
+from app.services.async_utils import gather_limited
 
 logger = get_logger("funding_researcher")
 
@@ -365,10 +366,13 @@ class FundingResearcher:
         normalized_name = self._normalize_name(name)
 
         # Gather data from multiple sources in parallel
-        results = await asyncio.gather(
-            self._search_wikipedia(name),
-            self._search_propublica_nonprofit(name),
-            self._get_known_org_data(name),
+        results = await gather_limited(
+            [
+                self._search_wikipedia(name),
+                self._search_propublica_nonprofit(name),
+                self._get_known_org_data(name),
+            ],
+            limit=2,
             return_exceptions=True,
         )
 

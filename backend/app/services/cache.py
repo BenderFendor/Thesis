@@ -98,6 +98,17 @@ class NewsCache:
             )
             return snapshot
 
+    def get_source_stat(self, source_name: str) -> Dict[str, object] | None:
+        with self.lock:
+            stat = self.source_stats_by_name.get(source_name)
+            if stat is None:
+                return None
+            return dict(stat)
+
+    def get_articles_for_source(self, source_name: str) -> List[NewsArticle]:
+        with self.lock:
+            return list(self.articles_by_source.get(source_name, []))
+
     def update_cache(
         self, articles: List[NewsArticle], source_stats: List[Dict[str, object]]
     ) -> None:
