@@ -19,6 +19,7 @@ import {
   AlertCircle,
   ChevronDown,
   Globe2,
+  Lamp,
   MapPin,
   Newspaper,
   Radio,
@@ -76,6 +77,7 @@ export function GlobeView({ articles, loading }: GlobeViewProps) {
   const [sidebarTab, setSidebarTab] = useState("briefing")
   const [isFocusExpanded, setIsFocusExpanded] = useState(false)
   const [lensLimit, setLensLimit] = useState(40)
+  const [earthLightingMode, setEarthLightingMode] = useState<"all-lit" | "day-night">("all-lit")
 
   const { data: countryMetrics } = useQuery({
     queryKey: ["globe-country-metrics", DEFAULT_WINDOW_HOURS],
@@ -178,6 +180,7 @@ export function GlobeView({ articles, loading }: GlobeViewProps) {
           countryMetrics={countryMetrics}
           onCountrySelect={handleCountrySelect}
           selectedCountry={selectedCountry}
+          lightingMode={earthLightingMode}
         />
       </div>
 
@@ -231,6 +234,34 @@ export function GlobeView({ articles, loading }: GlobeViewProps) {
               <div className="h-1.5 w-3 rounded-sm bg-primary/60" />
               <div className="h-1.5 w-3 rounded-sm bg-primary/80" />
               <div className="h-1.5 w-3 rounded-sm bg-primary" />
+            </div>
+          </div>
+          <div className="h-4 w-px bg-white/10" />
+          <div className="flex items-center gap-2">
+            <Lamp className="h-3.5 w-3.5 text-foreground/55" />
+            <div className="inline-flex rounded-full border border-white/10 bg-black/20 p-1">
+              <button
+                onClick={() => setEarthLightingMode("all-lit")}
+                className={cn(
+                  "rounded-full px-3 py-1 text-[9px] font-mono uppercase tracking-[0.18em] transition-colors",
+                  earthLightingMode === "all-lit"
+                    ? "bg-white/10 text-foreground"
+                    : "text-muted-foreground hover:text-foreground",
+                )}
+              >
+                All Lit
+              </button>
+              <button
+                onClick={() => setEarthLightingMode("day-night")}
+                className={cn(
+                  "rounded-full px-3 py-1 text-[9px] font-mono uppercase tracking-[0.18em] transition-colors",
+                  earthLightingMode === "day-night"
+                    ? "bg-white/10 text-foreground"
+                    : "text-muted-foreground hover:text-foreground",
+                )}
+              >
+                Day/Night
+              </button>
             </div>
           </div>
         </div>

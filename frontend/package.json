@@ -89,6 +89,7 @@
     "@types/react": "^19.2.0",
     "@types/react-dom": "^19.2.0",
     "@types/react-window": "^1.8.8",
+    "@types/three": "^0.169.0",
     "eslint": "^9.39.2",
     "eslint-config-next": "16.1.2",
     "fast-check": "^4.5.3",

@@ -1,5 +1,22 @@
 # Log
 
+## 2026-03-12: Photoreal Globe Shader And Lighting Modes
+
+**Problem:** The globe looked like a glossy marble. The first shader pass also drifted out of sync with the country overlay because the photoreal Earth surface was mounted as a separate mesh instead of sharing the internal globe transform. That made the visible Earth, polygon click layer, and country focus overlay feel disconnected.
+
+**What Changed:**
+- Reworked `frontend/components/interactive-globe.tsx` so the photoreal Earth now runs directly on the internal `react-globe.gl` globe material with a custom shader, keeping the Earth texture locked to the same sphere as the clickable country overlay.
+- Added a richer globe shading model with tuned ocean reflectance, terrain-driven land response, cloud shell animation, and atmospheric wrap while reducing the overly glossy water highlight.
+- Added an Earth lighting mode toggle in `frontend/components/globe-view.tsx` with `All Lit` as the default view and `Day/Night` as the alternate mode.
+- Moved the ISO fallback helper into `frontend/lib/globe-country.ts` so the country mapping test no longer has to import the full globe component.
+- Replaced the local handwritten Three.js shim with `@types/three` in `frontend/package.json` and removed `frontend/types/three-shims.d.ts` so the shader work uses real Three typings.
+
+**Verification:**
+- `cd frontend && ./node_modules/.bin/tsc --noEmit`
+- `cd frontend && npm test -- --runTestsByPath __tests__/country-mapping.test.ts`
+- `cd frontend && npm run build`
+- Browser validation confirmed the new `All Lit` and `Day/Night` controls render in the globe view. Full live data validation is currently blocked when the backend on `localhost:8000` is unavailable.
+
 ## 2026-03-12: Scroll Feed Personalization, Buffered Queue, And Mobile Access Fix
 
 **Problem:** Scroll view only applied a simple favorite-source and image sort to the currently loaded page, so personalization did not affect what later pagination batches surfaced. On smaller screens, the main path to switch views and open source filters could also disappear once the layout tightened or the user entered scroll mode.

@@ -6,6 +6,7 @@ import dynamic from "next/dynamic"
 import type { GlobeMethods } from "react-globe.gl"
 import type { CountryArticleCounts, NewsArticle } from "@/lib/api"
 import { geoCentroid } from "d3-geo"
+import { getCountryIso, type CountryFeature, type CountryFeatureCollection } from "@/lib/globe-country"
 
 const Globe = dynamic(() => import("react-globe.gl").then((mod) => mod.default), {
   ssr: false,
@@ -21,23 +22,10 @@ interface InteractiveGlobeProps {
   countryMetrics?: CountryArticleCounts
   onCountrySelect: (countryCode: string | null, countryName?: string | null) => void
   selectedCountry: string | null
+  lightingMode: EarthLightingMode
 }
 
-interface CountryFeatureProperties {
-  ISO_A2?: string
-  ADM0_A3?: string
-  NAME?: string
-  [key: string]: unknown
-}
-
-interface CountryFeature {
-  properties: CountryFeatureProperties
-  geometry?: { coordinates?: unknown } | null
-}
-
-interface CountryFeatureCollection {
-  features: CountryFeature[]
-}
+export type EarthLightingMode = "all-lit" | "day-night"
 
 function getFeatureCenter(geometry?: { coordinates?: unknown } | null) {
   if (!geometry || !geometry.coordinates) return null
@@ -82,30 +70,339 @@ function toCountryFeature(polygon: object | null): CountryFeature | null {
   return feature
 }
 
-const GEOJSON_ISO_FALLBACKS: Record<string, string> = {
-  FRA: "FR",
-  NOR: "NO",
-}
-
-function getCountryIso(feature: CountryFeature | null): string | null {
-  if (!feature) return null
-  const iso = feature.properties.ISO_A2?.trim()
-  if (iso && iso !== "-99") return iso
-
-  const adm0 = feature.properties.ADM0_A3?.trim()
-  if (!adm0) return null
-  return GEOJSON_ISO_FALLBACKS[adm0] ?? null
-}
-
 export const __testUtils = {
   getCountryIso,
 }
 
 function heatColor(count: number, maxCount: number) {
-  if (count <= 0 || maxCount <= 0) return "rgba(255, 255, 255, 0.03)"
+  if (count <= 0 || maxCount <= 0) return "rgba(214, 154, 92, 0.018)"
   const ratio = Math.min(1, count / maxCount)
-  const alpha = 0.12 + ratio * 0.72
-  return `rgba(233, 118, 43, ${alpha.toFixed(2)})`
+  const alpha = 0.035 + ratio * 0.2
+  return `rgba(225, 131, 62, ${alpha.toFixed(3)})`
+}
+
+const EARTH_RADIUS = 100
+const GLOBE_TEXTURE_ROTATION_Y = -Math.PI / 2
+
+const EARTH_VERTEX_SHADER = `
+  varying vec2 vUv;
+  varying vec3 vWorldPosition;
+  varying vec3 vWorldNormal;
+
+  void main() {
+    vUv = uv;
+    vec4 worldPosition = modelMatrix * vec4(position, 1.0);
+    vWorldPosition = worldPosition.xyz;
+    vWorldNormal = normalize(mat3(modelMatrix) * normal);
+    gl_Position = projectionMatrix * viewMatrix * worldPosition;
+  }
+`
+
+const EARTH_FRAGMENT_SHADER = `
+  uniform sampler2D uDayTexture;
+  uniform sampler2D uNightTexture;
+  uniform sampler2D uBumpTexture;
+  uniform sampler2D uSurfaceMask;
+  uniform sampler2D uCloudTexture;
+  uniform vec3 uSunDirection;
+  uniform float uTime;
+  uniform float uCloudOffset;
+  uniform float uLightingMode;
+
+  varying vec2 vUv;
+  varying vec3 vWorldPosition;
+  varying vec3 vWorldNormal;
+
+  #include <common>
+
+  float clamp01(float value) {
+    return clamp(value, 0.0, 1.0);
+  }
+
+  float luma(vec3 color) {
+    return dot(color, vec3(0.2126, 0.7152, 0.0722));
+  }
+
+  void main() {
+    vec3 normal = normalize(vWorldNormal);
+    vec3 viewDirection = normalize(cameraPosition - vWorldPosition);
+    vec3 sunDirection = normalize(uSunDirection);
+
+    vec2 surfaceUv = vec2(fract(vUv.x), vUv.y);
+    vec2 cloudUv = vec2(fract(vUv.x + uCloudOffset), vUv.y);
+
+    vec3 dayColor = texture2D(uDayTexture, surfaceUv).rgb;
+    float terrainHeight = texture2D(uBumpTexture, surfaceUv).r;
+    float landMask = texture2D(uSurfaceMask, surfaceUv).r;
+    float oceanMask = 1.0 - landMask;
+    float nightMask = texture2D(uNightTexture, surfaceUv).r;
+    float cloudMask = smoothstep(0.28, 0.82, luma(texture2D(uCloudTexture, cloudUv).rgb));
+    float lightingMix = clamp01(uLightingMode);
+
+    float sunFacing = dot(normal, sunDirection);
+    float daylight = smoothstep(-0.18, 0.22, sunFacing);
+    float diffuse = smoothstep(-0.08, 0.8, sunFacing);
+    float displayDaylight = mix(1.0, daylight, lightingMix);
+    float nightSide = (1.0 - daylight) * lightingMix;
+
+    float viewFacing = clamp01(dot(normal, viewDirection));
+    float fresnel = pow(1.0 - viewFacing, 5.0);
+    float microWaves = 0.94 + 0.06 * sin(surfaceUv.x * 320.0 + uTime * 0.28) * sin(surfaceUv.y * 180.0 - uTime * 0.2);
+    float terrainAccent = smoothstep(0.26, 0.78, terrainHeight);
+
+    vec3 landDay = mix(dayColor, vec3(luma(dayColor)), 0.05);
+    landDay *= mix(1.02 + terrainAccent * 0.08, 0.9 + diffuse * 0.16 + terrainAccent * 0.12, lightingMix);
+
+    vec3 oceanDay = mix(dayColor, dayColor * vec3(0.18, 0.44, 0.84), 0.22);
+    oceanDay = mix(oceanDay, vec3(0.006, 0.038, 0.11), 0.34);
+    oceanDay *= mix(0.84, 0.35 + diffuse * 0.58, lightingMix);
+
+    vec3 daySurface = mix(oceanDay, landDay, landMask);
+    daySurface *= 1.0 - cloudMask * mix(0.06, daylight * 0.16, lightingMix);
+
+    vec3 nightBase = mix(dayColor * 0.03, vec3(0.003, 0.005, 0.01), 0.55);
+    vec3 cityLights = vec3(1.08, 0.77, 0.46) * pow(nightMask, 1.35) * nightSide * landMask * 1.85;
+
+    vec3 halfVector = normalize(sunDirection + viewDirection);
+    float specular = pow(clamp01(dot(normal, halfVector)), mix(220.0, 180.0, lightingMix));
+    float specularStrength = mix(0.012 + fresnel * 0.08, mix(0.04, 0.58, fresnel), lightingMix);
+    float oceanSpecular = specular * oceanMask * mix(0.35, daylight, lightingMix) * microWaves * specularStrength * 0.82;
+
+    float twilight = smoothstep(-0.22, 0.02, sunFacing) * (1.0 - smoothstep(0.02, 0.22, sunFacing));
+    twilight *= (0.45 + 0.55 * fresnel) * lightingMix;
+    vec3 twilightColor = vec3(0.94, 0.39, 0.08) * twilight * 0.55;
+
+    vec3 atmosphereWrap = mix(
+      vec3(0.06, 0.12, 0.22) * fresnel * 0.16,
+      vec3(0.10, 0.18, 0.32) * fresnel * daylight * 0.18,
+      lightingMix
+    );
+
+    vec3 color = mix(nightBase, daySurface, displayDaylight);
+    color += cityLights;
+    color += vec3(oceanSpecular);
+    color += twilightColor;
+    color += atmosphereWrap;
+
+    gl_FragColor = vec4(color, 1.0);
+    #include <tonemapping_fragment>
+    #include <colorspace_fragment>
+  }
+`
+
+const CLOUD_FRAGMENT_SHADER = `
+  uniform sampler2D uCloudTexture;
+  uniform vec3 uSunDirection;
+  uniform float uCloudOffset;
+  uniform float uLightingMode;
+
+  varying vec2 vUv;
+  varying vec3 vWorldPosition;
+  varying vec3 vWorldNormal;
+
+  #include <common>
+
+  float clamp01(float value) {
+    return clamp(value, 0.0, 1.0);
+  }
+
+  float luma(vec3 color) {
+    return dot(color, vec3(0.2126, 0.7152, 0.0722));
+  }
+
+  void main() {
+    vec3 normal = normalize(vWorldNormal);
+    vec3 viewDirection = normalize(cameraPosition - vWorldPosition);
+    vec3 sunDirection = normalize(uSunDirection);
+
+    vec2 cloudUv = vec2(fract(vUv.x + uCloudOffset), vUv.y);
+    float cloudMask = smoothstep(0.24, 0.8, luma(texture2D(uCloudTexture, cloudUv).rgb));
+    float daylight = clamp01(dot(normal, sunDirection));
+    float lightingMix = clamp01(uLightingMode);
+    float rim = pow(1.0 - clamp01(dot(normal, viewDirection)), 3.0);
+    float silverLining = pow(clamp01(dot(reflect(-sunDirection, normal), viewDirection)), 6.0);
+
+    vec3 litColor = mix(vec3(0.08, 0.10, 0.14), vec3(0.92, 0.96, 1.0), 0.18 + daylight * 0.82);
+    vec3 allLitColor = mix(vec3(0.72, 0.78, 0.84), vec3(0.96, 0.98, 1.0), 0.46 + rim * 0.24);
+    vec3 color = mix(allLitColor, litColor, lightingMix);
+    color += vec3(0.28, 0.36, 0.48) * rim * 0.25;
+    color += vec3(1.0) * silverLining * mix(0.08, 0.18, lightingMix);
+
+    float alpha = cloudMask * mix(0.22 + rim * 0.1, 0.16 + daylight * 0.42 + rim * 0.14, lightingMix);
+    if (alpha < 0.01) discard;
+
+    gl_FragColor = vec4(color, alpha);
+    #include <tonemapping_fragment>
+    #include <colorspace_fragment>
+  }
+`
+
+const ATMOSPHERE_FRAGMENT_SHADER = `
+  uniform vec3 uSunDirection;
+  uniform float uLightingMode;
+
+  varying vec2 vUv;
+  varying vec3 vWorldPosition;
+  varying vec3 vWorldNormal;
+
+  #include <common>
+
+  float clamp01(float value) {
+    return clamp(value, 0.0, 1.0);
+  }
+
+  void main() {
+    vec3 normal = normalize(vWorldNormal);
+    vec3 viewDirection = normalize(cameraPosition - vWorldPosition);
+    vec3 sunDirection = normalize(uSunDirection);
+
+    float horizon = pow(1.0 - clamp01(dot(normal, viewDirection)), 3.4);
+    float sunFacing = clamp01(dot(normal, sunDirection));
+    float lightingMix = clamp01(uLightingMode);
+    float forwardScatter = pow(clamp01(dot(viewDirection, sunDirection)), 6.0) * lightingMix;
+
+    float alpha = mix(
+      horizon * 0.26,
+      horizon * (0.18 + sunFacing * 0.72) + horizon * forwardScatter * 0.12,
+      lightingMix
+    );
+    vec3 color = mix(
+      vec3(0.18, 0.42, 0.74),
+      mix(vec3(0.08, 0.24, 0.52), vec3(0.44, 0.74, 1.0), sunFacing),
+      lightingMix
+    );
+
+    gl_FragColor = vec4(color, alpha * 0.68);
+    #include <tonemapping_fragment>
+    #include <colorspace_fragment>
+  }
+`
+
+function configureTexture(texture: THREE.Texture, options: { color?: boolean; anisotropy: number }) {
+  texture.anisotropy = options.anisotropy
+  texture.colorSpace = options.color ? THREE.SRGBColorSpace : THREE.NoColorSpace
+  texture.minFilter = THREE.LinearMipmapLinearFilter
+  texture.magFilter = THREE.LinearFilter
+  texture.wrapS = THREE.RepeatWrapping
+  texture.wrapT = THREE.ClampToEdgeWrapping
+  texture.generateMipmaps = true
+  texture.needsUpdate = true
+}
+
+async function loadManagedTexture(
+  textureLoader: THREE.TextureLoader,
+  path: string,
+  options: { color?: boolean; anisotropy: number; maxTextureSize: number },
+) {
+  let texture = await textureLoader.loadAsync(path)
+  const sourceImage = texture.image as
+    | HTMLImageElement
+    | HTMLCanvasElement
+    | ImageBitmap
+    | undefined
+
+  if (sourceImage) {
+    const { width, height } = sourceImage
+    if (width > options.maxTextureSize || height > options.maxTextureSize) {
+      const scale = Math.min(options.maxTextureSize / width, options.maxTextureSize / height)
+      const canvas = document.createElement("canvas")
+      canvas.width = Math.max(1, Math.floor(width * scale))
+      canvas.height = Math.max(1, Math.floor(height * scale))
+
+      const context = canvas.getContext("2d")
+      if (context) {
+        context.drawImage(sourceImage as unknown as CanvasImageSource, 0, 0, canvas.width, canvas.height)
+        texture.dispose()
+        texture = new THREE.CanvasTexture(canvas)
+      }
+    }
+  }
+
+  configureTexture(texture, { color: options.color, anisotropy: options.anisotropy })
+  return texture
+}
+
+function createStarField(count: number, spread: number) {
+  const positions = new Float32Array(count * 3)
+  const colors = new Float32Array(count * 3)
+
+  for (let index = 0; index < count; index += 1) {
+    const cursor = index * 3
+    positions[cursor] = (Math.random() - 0.5) * spread
+    positions[cursor + 1] = (Math.random() - 0.5) * spread
+    positions[cursor + 2] = (Math.random() - 0.5) * spread
+
+    const brightness = 0.55 + Math.random() * 0.4
+    const warmth = Math.random() * 0.08
+    colors[cursor] = brightness
+    colors[cursor + 1] = brightness - warmth * 0.5
+    colors[cursor + 2] = brightness + warmth
+  }
+
+  const geometry = new THREE.BufferGeometry()
+  geometry.setAttribute("position", new THREE.BufferAttribute(positions, 3))
+  geometry.setAttribute("color", new THREE.BufferAttribute(colors, 3))
+
+  const material = new THREE.PointsMaterial({
+    size: 1.15,
+    vertexColors: true,
+    transparent: true,
+    opacity: 0.72,
+    sizeAttenuation: true,
+    depthWrite: false,
+  })
+
+  return new THREE.Points(geometry, material)
+}
+
+function createPlaceholderTexture(color: [number, number, number, number], options: { color?: boolean }) {
+  const texture = new THREE.DataTexture(new Uint8Array(color), 1, 1, THREE.RGBAFormat)
+  configureTexture(texture, { color: options.color, anisotropy: 1 })
+  return texture
+}
+
+function applyGlobeTextures(
+  material: THREE.ShaderMaterial,
+  textures: {
+    dayTexture: THREE.Texture
+    nightTexture: THREE.Texture
+    bumpTexture: THREE.Texture
+    surfaceMaskTexture: THREE.Texture
+    cloudTexture: THREE.Texture
+  },
+) {
+  material.uniforms.uDayTexture.value = textures.dayTexture
+  material.uniforms.uNightTexture.value = textures.nightTexture
+  material.uniforms.uBumpTexture.value = textures.bumpTexture
+  material.uniforms.uSurfaceMask.value = textures.surfaceMaskTexture
+  material.uniforms.uCloudTexture.value = textures.cloudTexture
+  material.needsUpdate = true
+}
+
+function restorePlaceholderGlobeTextures(material: THREE.ShaderMaterial, placeholderTextures: THREE.Texture[]) {
+  material.uniforms.uDayTexture.value = placeholderTextures[0]
+  material.uniforms.uNightTexture.value = placeholderTextures[1]
+  material.uniforms.uBumpTexture.value = placeholderTextures[2]
+  material.uniforms.uSurfaceMask.value = placeholderTextures[3]
+  material.uniforms.uCloudTexture.value = placeholderTextures[4]
+  material.needsUpdate = true
+}
+
+function setLightingModeUniform(material: THREE.ShaderMaterial, lightingMode: EarthLightingMode) {
+  material.uniforms.uLightingMode.value = lightingMode === "day-night" ? 1 : 0
+}
+
+function updateAnimationUniforms(material: THREE.ShaderMaterial, elapsed: number) {
+  material.uniforms.uTime.value = elapsed
+  material.uniforms.uCloudOffset.value = (elapsed * 0.0032) % 1
+}
+
+function findGlobeAnchor(scene: THREE.Scene) {
+  return (
+    scene.children.find(
+      (child) => (child as THREE.Object3D & { __globeObjType?: string }).__globeObjType === "globe",
+    ) ?? scene
+  )
 }
 
 export function InteractiveGlobe({
@@ -113,96 +410,51 @@ export function InteractiveGlobe({
   countryMetrics,
   onCountrySelect,
   selectedCountry,
+  lightingMode,
 }: InteractiveGlobeProps) {
   const globeEl = useRef<GlobeMethods | undefined>(undefined)
   const containerRef = useRef<HTMLDivElement | null>(null)
   const [dimensions, setDimensions] = useState({ width: 0, height: 0 })
   const [countries, setCountries] = useState<CountryFeatureCollection>({ features: [] })
   const [hoverD, setHoverD] = useState<CountryFeature | null>(null)
-
-  const shaderUniforms = useRef({
-    uTime: { value: 0 },
-    sunLightDirection: { value: new THREE.Vector3(-5, 3, 5).normalize() }
-  })
+  const [isGlobeReady, setIsGlobeReady] = useState(false)
 
   const customGlobeMaterial = useMemo(() => {
-    const textureLoader = new THREE.TextureLoader()
-    const emptyTexture = new THREE.Texture()
-    
-    const material = new THREE.MeshStandardMaterial({
-      color: 0xffffff,
-      map: emptyTexture,
-      bumpMap: emptyTexture,
-      roughnessMap: emptyTexture,
-      emissiveMap: emptyTexture,
-      roughness: 1.0,
-      metalness: 0.1,
-      bumpScale: 1.5,
-      emissive: new THREE.Color(0xffffee),
-      emissiveIntensity: 2.0
+    const placeholderDay = createPlaceholderTexture([5, 16, 34, 255], { color: true })
+    const placeholderNight = createPlaceholderTexture([0, 0, 0, 255], {})
+    const placeholderBump = createPlaceholderTexture([96, 96, 96, 255], {})
+    const placeholderMask = createPlaceholderTexture([0, 0, 0, 255], {})
+    const placeholderClouds = createPlaceholderTexture([0, 0, 0, 255], {})
+
+    const material = new THREE.ShaderMaterial({
+      uniforms: {
+        uDayTexture: { value: placeholderDay },
+        uNightTexture: { value: placeholderNight },
+        uBumpTexture: { value: placeholderBump },
+        uSurfaceMask: { value: placeholderMask },
+        uCloudTexture: { value: placeholderClouds },
+        uSunDirection: { value: new THREE.Vector3(-0.84, 0.42, 0.74).normalize() },
+        uTime: { value: 0 },
+        uCloudOffset: { value: 0 },
+        uLightingMode: { value: 0 },
+      },
+      vertexShader: EARTH_VERTEX_SHADER,
+      fragmentShader: EARTH_FRAGMENT_SHADER,
     })
-
-    if (typeof window !== 'undefined') {
-      textureLoader.load('/3dmodel/textures/earth albedo.jpg', (tex) => { material.map = tex; material.needsUpdate = true; })
-      textureLoader.load('/3dmodel/textures/earth bump.jpg', (tex) => { material.bumpMap = tex; material.needsUpdate = true; })
-      textureLoader.load('/3dmodel/textures/earth land ocean mask.png', (tex) => { material.roughnessMap = tex; material.needsUpdate = true; })
-      textureLoader.load('/3dmodel/textures/earth night_lights_modified.png', (tex) => { material.emissiveMap = tex; material.needsUpdate = true; })
-    }
-
-    material.onBeforeCompile = (shader) => {
-      shader.uniforms.sunLightDirection = shaderUniforms.current.sunLightDirection
-      shader.uniforms.uTime = shaderUniforms.current.uTime
-      
-      shader.vertexShader = shader.vertexShader.replace(
-        'varying vec3 vViewPosition;',
-        `varying vec3 vViewPosition;
-         varying vec3 vWorldNormalCustom;
-         varying vec2 vUvCustom;`
-      )
-      shader.vertexShader = shader.vertexShader.replace(
-        '#include <defaultnormal_vertex>',
-        `#include <defaultnormal_vertex>
-         vWorldNormalCustom = normalize( (modelMatrix * vec4(objectNormal, 0.0)).xyz );
-         vUvCustom = uv;`
-      )
-      shader.fragmentShader = shader.fragmentShader.replace(
-        '#include <common>',
-        `#include <common>
-         uniform vec3 sunLightDirection;
-         uniform float uTime;
-         varying vec3 vWorldNormalCustom;
-         varying vec2 vUvCustom;`
-      )
-      shader.fragmentShader = shader.fragmentShader.replace(
-        '#include <emissivemap_fragment>',
-        `
-        #ifdef USE_EMISSIVEMAP
-          vec4 emissiveColor = texture2D( emissiveMap, vEmissiveMapUv );
-          float dayNight = dot(normalize(vWorldNormalCustom), sunLightDirection);
-          float nightIntensity = smoothstep(0.0, -0.2, dayNight);
-          emissiveColor.rgb *= emissive * nightIntensity;
-          totalEmissiveRadiance *= emissiveColor.rgb;
-        #endif
-        `
-      )
-      shader.fragmentShader = shader.fragmentShader.replace(
-        '#include <roughnessmap_fragment>',
-        `
-        float roughnessFactor = roughness;
-        #ifdef USE_ROUGHNESSMAP
-          vec4 texelRoughness = texture2D( roughnessMap, vRoughnessMapUv );
-          float isOcean = 1.0 - texelRoughness.g;
-          
-          float shimmer = sin(vUvCustom.x * 200.0 + uTime * 2.0) * sin(vUvCustom.y * 200.0 + uTime * 2.0) * 0.1;
-          
-          roughnessFactor = mix(1.0, 0.15 + shimmer * isOcean, isOcean);
-        #endif
-        `
-      )
-    }
-    
+    material.userData.placeholderTextures = [
+      placeholderDay,
+      placeholderNight,
+      placeholderBump,
+      placeholderMask,
+      placeholderClouds,
+    ]
+    setLightingModeUniform(material, lightingMode)
     return material
-  }, [])
+  }, [lightingMode])
+
+  useEffect(() => {
+    setLightingModeUniform(customGlobeMaterial, lightingMode)
+  }, [customGlobeMaterial, lightingMode])
 
   useEffect(() => {
     fetch("https://raw.githubusercontent.com/vasturiano/react-globe.gl/master/example/datasets/ne_110m_admin_0_countries.geojson")
@@ -253,6 +505,7 @@ export function InteractiveGlobe({
   }, [countries])
 
   useEffect(() => {
+    if (!isGlobeReady || !globeEl.current) return
     if (!globeEl.current) return
     const controls = globeEl.current.controls() as {
       autoRotate?: boolean
@@ -265,9 +518,10 @@ export function InteractiveGlobe({
     controls.enableZoom = false
     controls.enablePan = false
     globeEl.current.pointOfView({ altitude: 2.5 })
-  }, [])
+  }, [isGlobeReady])
 
   useEffect(() => {
+    if (!isGlobeReady || !globeEl.current) return
     if (!globeEl.current) return
     const controls = globeEl.current.controls() as { autoRotate?: boolean }
     if (!selectedCountry) {
@@ -281,7 +535,7 @@ export function InteractiveGlobe({
     if (center) {
       globeEl.current.pointOfView({ lat: center.lat, lng: center.lng, altitude: 1.5 }, 900)
     }
-  }, [countryCenters, selectedCountry])
+  }, [countryCenters, isGlobeReady, selectedCountry])
 
   useEffect(() => {
     if (!containerRef.current) return
@@ -300,152 +554,204 @@ export function InteractiveGlobe({
   }, [])
 
   useEffect(() => {
+    if (!isGlobeReady || !globeEl.current) return
     if (!globeEl.current) return
-    const globe = globeEl.current as unknown as { 
-      scene: () => THREE.Scene; 
-      getGlobeRadius: () => number; 
-    }
+    const globeMaterial = customGlobeMaterial
+    if (!globeMaterial) return
+    const globe = globeEl.current
     const scene = globe.scene()
-    if (!scene) return
+    const renderer = globe.renderer()
+    if (!scene || !renderer) return
 
-    // Setup ambient and directional light
-    const ambientLight = new THREE.AmbientLight(0xffffff, 0.05)
+    renderer.outputColorSpace = THREE.SRGBColorSpace
+    renderer.toneMapping = THREE.ACESFilmicToneMapping
+    renderer.toneMappingExposure = 1.05
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1.6))
+
+    const sunDirection = globeMaterial.uniforms.uSunDirection.value as THREE.Vector3
+    const globeAnchor = findGlobeAnchor(scene)
+    const ambientLight = new THREE.AmbientLight(0x152131, 0.16)
+    const hemisphereLight = new THREE.HemisphereLight(0x325d87, 0x04070d, 0.14)
+    const sunLight = new THREE.DirectionalLight(0xfff4db, 2.4)
+    sunLight.position.copy(sunDirection).multiplyScalar(EARTH_RADIUS * 6)
+
     scene.add(ambientLight)
-
-    const sunLight = new THREE.DirectionalLight(0xffffff, 3.5)
-    sunLight.position.copy(shaderUniforms.current.sunLightDirection).multiplyScalar(500)
+    scene.add(hemisphereLight)
     scene.add(sunLight)
 
+    const sceneObjects: THREE.Object3D[] = []
+    const sceneMaterials: THREE.Material[] = []
+    const sceneTextures: THREE.Texture[] = []
     const textureLoader = new THREE.TextureLoader()
-
-    // Stars
-    const starsGeo = new THREE.BufferGeometry()
-    const starsCount = 4000
-    const posArray = new Float32Array(starsCount * 3)
-    const colorArray = new Float32Array(starsCount * 3)
-    for (let i = 0; i < starsCount * 3; i += 3) {
-      posArray[i] = (Math.random() - 0.5) * 3000
-      posArray[i + 1] = (Math.random() - 0.5) * 3000
-      posArray[i + 2] = (Math.random() - 0.5) * 3000
-      const starBrightness = 0.5 + Math.random() * 0.5
-      colorArray[i] = starBrightness
-      colorArray[i + 1] = starBrightness
-      colorArray[i + 2] = starBrightness
-    }
-    starsGeo.setAttribute('position', new THREE.BufferAttribute(posArray, 3))
-    starsGeo.setAttribute('color', new THREE.BufferAttribute(colorArray, 3))
-    const starsMat = new THREE.PointsMaterial({
-      size: 1.2,
-      vertexColors: true,
-      transparent: true,
-      opacity: 0.6,
-      sizeAttenuation: true
-    })
-    const starMesh = new THREE.Points(starsGeo, starsMat)
-    scene.add(starMesh)
-
     const clock = new THREE.Clock()
-    const globeRadius = 100 // react-globe.gl defaults to 100
+    const globeRadius = globe.getGlobeRadius()
+    const maxTextureSize = Math.min(renderer.capabilities.maxTextureSize || 8192, 8192)
+    const anisotropy = renderer.capabilities.getMaxAnisotropy()
+    const starField = createStarField(5000, globeRadius * 34)
+    starField.renderOrder = -20
+    scene.add(starField)
+    sceneObjects.push(starField)
+    sceneMaterials.push(starField.material as THREE.Material)
 
-    // Realistic Atmosphere
-    const atmosphereVertexShader = `
-      varying vec3 vNormalWorld;
-      varying vec3 vPositionWorld;
-      void main() {
-        vNormalWorld = normalize((modelMatrix * vec4(normal, 0.0)).xyz);
-        vec4 worldPosition = modelMatrix * vec4(position, 1.0);
-        vPositionWorld = worldPosition.xyz;
-        gl_Position = projectionMatrix * viewMatrix * worldPosition;
+    let animationFrameId = 0
+    let disposed = false
+
+    const initEarth = async () => {
+      try {
+        const [dayTexture, bumpTexture, nightTexture, surfaceMaskTexture, cloudTexture] = await Promise.all([
+          loadManagedTexture(textureLoader, "/3dmodel/textures/earth albedo.jpg", {
+            color: true,
+            anisotropy,
+            maxTextureSize,
+          }),
+          loadManagedTexture(textureLoader, "/3dmodel/textures/earth bump.jpg", {
+            anisotropy,
+            maxTextureSize,
+          }),
+          loadManagedTexture(textureLoader, "/3dmodel/textures/earth night_lights_modified.png", {
+            anisotropy,
+            maxTextureSize,
+          }),
+          loadManagedTexture(textureLoader, "/3dmodel/textures/earth land ocean mask.png", {
+            anisotropy,
+            maxTextureSize,
+          }),
+          loadManagedTexture(textureLoader, "/3dmodel/textures/clouds earth.png", {
+            anisotropy,
+            maxTextureSize,
+          }),
+        ])
+
+        if (disposed) {
+          dayTexture.dispose()
+          bumpTexture.dispose()
+          nightTexture.dispose()
+          surfaceMaskTexture.dispose()
+          cloudTexture.dispose()
+          return
+        }
+
+        sceneTextures.push(dayTexture, bumpTexture, nightTexture, surfaceMaskTexture, cloudTexture)
+
+        applyGlobeTextures(globeMaterial, {
+          dayTexture,
+          nightTexture,
+          bumpTexture,
+          surfaceMaskTexture,
+          cloudTexture,
+        })
+
+        const cloudsMaterial = new THREE.ShaderMaterial({
+          uniforms: {
+            uCloudTexture: { value: cloudTexture },
+            uSunDirection: globeMaterial.uniforms.uSunDirection,
+            uCloudOffset: globeMaterial.uniforms.uCloudOffset,
+            uLightingMode: globeMaterial.uniforms.uLightingMode,
+          },
+          vertexShader: EARTH_VERTEX_SHADER,
+          fragmentShader: CLOUD_FRAGMENT_SHADER,
+          transparent: true,
+          depthWrite: false,
+          blending: THREE.NormalBlending,
+        })
+
+        const atmosphereMaterial = new THREE.ShaderMaterial({
+          uniforms: {
+            uSunDirection: globeMaterial.uniforms.uSunDirection,
+            uLightingMode: globeMaterial.uniforms.uLightingMode,
+          },
+          vertexShader: EARTH_VERTEX_SHADER,
+          fragmentShader: ATMOSPHERE_FRAGMENT_SHADER,
+          transparent: true,
+          blending: THREE.AdditiveBlending,
+          side: THREE.BackSide,
+          depthWrite: false,
+        })
+
+        const cloudsMesh = new THREE.Mesh(new THREE.SphereGeometry(globeRadius * 1.008, 160, 160), cloudsMaterial)
+        const atmosphereMesh = new THREE.Mesh(
+          new THREE.SphereGeometry(globeRadius * 1.03, 160, 160),
+          atmosphereMaterial,
+        )
+
+        cloudsMesh.rotation.y = GLOBE_TEXTURE_ROTATION_Y
+        cloudsMesh.renderOrder = -1
+        atmosphereMesh.renderOrder = 1
+
+        globeAnchor.add(cloudsMesh)
+        globeAnchor.add(atmosphereMesh)
+
+        sceneObjects.push(cloudsMesh, atmosphereMesh)
+        sceneMaterials.push(cloudsMaterial, atmosphereMaterial)
+      } catch {
+        // Keep the globe usable even if shader textures fail.
       }
-    `;
+    }
 
-    const atmosphereFragmentShader = `
-      uniform vec3 sunDirection;
-      uniform vec3 atmosphereColor;
-      varying vec3 vNormalWorld;
-      varying vec3 vPositionWorld;
+    initEarth()
 
-      void main() {
-        vec3 viewDirection = normalize(cameraPosition - vPositionWorld);
-        vec3 normal = normalize(vNormalWorld);
-        
-        float fresnel = dot(viewDirection, normal);
-        fresnel = clamp(1.0 - fresnel, 0.0, 1.0);
-        
-        float rayleigh = pow(fresnel, 3.5);
-        
-        float sunGlow = dot(sunDirection, viewDirection);
-        sunGlow = clamp(sunGlow, 0.0, 1.0);
-        float mie = pow(sunGlow, 40.0) * 0.5;
-        
-        float dayNight = dot(normal, sunDirection);
-        float terminator = smoothstep(-0.2, 0.2, dayNight);
-        
-        vec3 color = atmosphereColor * (rayleigh + mie) * terminator;
-        float alpha = (rayleigh + mie) * terminator;
-        
-        gl_FragColor = vec4(color, alpha);
-      }
-    `;
+    const animate = () => {
+      if (disposed) return
+      const elapsed = clock.getElapsedTime()
+      updateAnimationUniforms(globeMaterial, elapsed)
+      animationFrameId = requestAnimationFrame(animate)
+    }
 
-    const atmosGeo = new THREE.SphereGeometry(globeRadius * 1.03, 72, 72)
-    const atmosMat = new THREE.ShaderMaterial({
-      vertexShader: atmosphereVertexShader,
-      fragmentShader: atmosphereFragmentShader,
-      uniforms: {
-        sunDirection: shaderUniforms.current.sunLightDirection,
-        atmosphereColor: { value: new THREE.Color(0x3a82f6) }
-      },
-      transparent: true,
-      blending: THREE.AdditiveBlending,
-      side: THREE.BackSide,
-      depthWrite: false
-    })
-    const atmosphereMesh = new THREE.Mesh(atmosGeo, atmosMat)
-    scene.add(atmosphereMesh)
-
-    // Add clouds
-    let animationFrameId: number;
-    textureLoader.load('/3dmodel/textures/clouds earth.png', (cloudsTexture) => {
-      const cloudsGeo = new THREE.SphereGeometry(globeRadius * 1.012, 72, 72)
-      const cloudsMat = new THREE.MeshStandardMaterial({
-        map: cloudsTexture,
-        transparent: true,
-        opacity: 0.4,
-        blending: THREE.NormalBlending,
-        depthWrite: false,
-      })
-      const cloudsMesh = new THREE.Mesh(cloudsGeo, cloudsMat)
-      scene.add(cloudsMesh)
-      
-      const animate = () => {
-        shaderUniforms.current.uTime.value = clock.getElapsedTime()
-        cloudsMesh.rotation.y += 0.0003
-        animationFrameId = requestAnimationFrame(animate)
-      }
-      animate()
-    })
+    animate()
 
     return () => {
+      disposed = true
       if (animationFrameId) cancelAnimationFrame(animationFrameId)
+
+      scene.remove(ambientLight)
+      scene.remove(hemisphereLight)
+      scene.remove(sunLight)
+
+      sceneObjects.forEach((object) => {
+        object.parent?.remove(object)
+        if (object instanceof THREE.Mesh) {
+          object.geometry.dispose()
+        }
+        if (object instanceof THREE.Points) {
+          object.geometry.dispose()
+        }
+      })
+
+      const placeholderTextures = globeMaterial.userData.placeholderTextures as THREE.Texture[] | undefined
+      if (placeholderTextures) {
+        restorePlaceholderGlobeTextures(globeMaterial, placeholderTextures)
+      }
+
+      sceneMaterials.forEach((material) => material.dispose())
+      sceneTextures.forEach((texture) => texture.dispose())
     }
-  }, [])
+  }, [customGlobeMaterial, isGlobeReady])
+
+  useEffect(() => {
+    return () => {
+      const placeholderTextures = customGlobeMaterial.userData.placeholderTextures as THREE.Texture[] | undefined
+      placeholderTextures?.forEach((texture) => texture.dispose())
+      customGlobeMaterial.dispose()
+    }
+  }, [customGlobeMaterial])
 
   return (
     <div ref={containerRef} className="relative h-full w-full overflow-hidden bg-[var(--news-bg-primary)]">
       <Globe
         ref={globeEl}
+        onGlobeReady={() => setIsGlobeReady(true)}
         globeMaterial={customGlobeMaterial}
         backgroundImageUrl={null}
         backgroundColor="rgba(0,0,0,0)"
+        showAtmosphere={false}
         atmosphereAltitude={0}
         lineHoverPrecision={0}
         polygonsData={countries.features.filter((feature) => getCountryIso(feature) !== "AQ")}
         polygonAltitude={(polygon: object) => {
           const feature = toCountryFeature(polygon)
-          if (!feature) return 0.01
+          if (!feature) return 0.006
           const iso = getCountryIso(feature)
-          return feature === hoverD ? 0.12 : selectedCountry === iso ? 0.08 : 0.01
+          return feature === hoverD ? 0.09 : selectedCountry === iso ? 0.05 : 0.006
         }}
         polygonCapColor={(polygon: object) => {
           const feature = toCountryFeature(polygon)
@@ -453,13 +759,13 @@ export function InteractiveGlobe({
           const iso = getCountryIso(feature) ?? ""
           const count = iso ? displayCounts[iso] || 0 : 0
 
-          if (feature === hoverD) return "rgba(255, 255, 255, 0.2)"
-          if (selectedCountry === iso) return "#e9762b"
+          if (feature === hoverD) return "rgba(255, 255, 255, 0.18)"
+          if (selectedCountry === iso) return "rgba(233, 118, 43, 0.82)"
 
           return heatColor(count, maxCount)
         }}
-        polygonSideColor={() => "rgba(255, 255, 255, 0.05)"}
-        polygonStrokeColor={() => "rgba(255, 255, 255, 0.08)"}
+        polygonSideColor={() => "rgba(255, 255, 255, 0.028)"}
+        polygonStrokeColor={() => "rgba(255, 255, 255, 0.05)"}
         polygonLabel={(polygon: object) => {
           const feature = toCountryFeature(polygon)
           if (!feature) return ""

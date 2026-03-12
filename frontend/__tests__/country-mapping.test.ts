@@ -1,6 +1,6 @@
 import { mapBackendArticles } from "@/lib/api"
 
-const globeModulePath = "@/components/interactive-globe"
+const globeCountryModulePath = "@/lib/globe-country"
 
 describe("country mapping", () => {
   it("normalizes backend country names to ISO codes and preserves lens fields", () => {
@@ -24,19 +24,19 @@ describe("country mapping", () => {
   })
 
   it("maps known globe fallback countries away from -99 ISO codes", async () => {
-    const { __testUtils } = await import(globeModulePath)
+    const { getCountryIso } = await import(globeCountryModulePath)
 
     expect(
-      __testUtils.getCountryIso({ properties: { ISO_A2: "-99", ADM0_A3: "FRA", NAME: "France" } }),
+      getCountryIso({ properties: { ISO_A2: "-99", ADM0_A3: "FRA", NAME: "France" } }),
     ).toBe("FR")
     expect(
-      __testUtils.getCountryIso({ properties: { ISO_A2: "-99", ADM0_A3: "NOR", NAME: "Norway" } }),
+      getCountryIso({ properties: { ISO_A2: "-99", ADM0_A3: "NOR", NAME: "Norway" } }),
     ).toBe("NO")
     expect(
-      __testUtils.getCountryIso({ properties: { ISO_A2: "DE", ADM0_A3: "DEU", NAME: "Germany" } }),
+      getCountryIso({ properties: { ISO_A2: "DE", ADM0_A3: "DEU", NAME: "Germany" } }),
     ).toBe("DE")
     expect(
-      __testUtils.getCountryIso({ properties: { ISO_A2: "-99", ADM0_A3: "CYN", NAME: "N. Cyprus" } }),
+      getCountryIso({ properties: { ISO_A2: "-99", ADM0_A3: "CYN", NAME: "N. Cyprus" } }),
     ).toBeNull()
   })
 })
