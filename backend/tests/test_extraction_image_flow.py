@@ -1,7 +1,10 @@
 from __future__ import annotations
 
+import asyncio
 import json
 from pathlib import Path
+
+import httpx
 
 import pytest
 
@@ -86,11 +89,8 @@ async def test_fetch_og_image_uses_persisted_cache_hit(
         error_details=None,
     )
 
-    class _UnusedClient:
-        def stream(self, *args, **kwargs):
-            raise AssertionError("network should not be used on cache hit")
-
-    result = await og_image.fetch_og_image(url, _UnusedClient())
+    async with httpx.AsyncClient() as client:
+        result = await og_image.fetch_og_image(url, client)
 
     assert result == "https://cdn.example.com/image.jpg"
 
@@ -102,25 +102,18 @@ async def test_fetch_og_image_caches_none_marker(monkeypatch, tmp_path: Path) ->
     monkeypatch.setattr(og_image, "OG_CACHE_DIR", tmp_path)
     monkeypatch.setattr(og_image, "OG_CACHE_MAX_AGE", 3600)
 
-    class _Response:
-        status_code = 200
-        headers = {"content-type": "text/html"}
-
-        async def __aenter__(self):
-            return self
-
-        async def __aexit__(self, exc_type, exc, tb):
-            return False
-
-        async def aiter_bytes(self, chunk_size: int = 8192):
-            yield b"<html><head><title>No image</title></head><body></body></html>"
-
-    class _Client:
-        def stream(self, *args, **kwargs):
-            return _Response()
+    async def _handler(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(
+            200,
+            headers={"content-type": "text/html"},
+            text="<html><head><title>No image</title></head><body></body></html>",
+            request=request,
+        )
 
     url = "https://example.com/no-image"
-    result = await og_image.fetch_og_image(url, _Client())
+    transport = httpx.MockTransport(_handler)
+    async with httpx.AsyncClient(transport=transport) as client:
+        result = await og_image.fetch_og_image(url, client)
 
     assert result is None
 
@@ -165,6 +158,49 @@ async def test_enrich_articles_marks_none_without_retrying(monkeypatch) -> None:
     assert found == 0
     assert articles[0].image == "none"
     assert articles[1].image == "none"
+
+
+@pytest.mark.asyncio
+async def test_enrich_articles_respects_total_concurrency_cap(monkeypatch) -> None:
+    from app.models.news import NewsArticle
+    from app.services import og_image
+
+    active = 0
+    peak = 0
+    lock = asyncio.Lock()
+
+    async def _fetch_with_tracking(url: str, client) -> str | None:
+        nonlocal active, peak
+        async with lock:
+            active += 1
+            peak = max(peak, active)
+        await asyncio.sleep(0.01)
+        async with lock:
+            active -= 1
+        return f"https://images.example.com/{url.rsplit('/', 1)[-1]}.jpg"
+
+    monkeypatch.setattr(og_image, "fetch_og_image", _fetch_with_tracking)
+
+    articles = [
+        NewsArticle(
+            title=f"Article {index}",
+            link=f"https://domain{index}.example.com/story-{index}",
+            description="desc",
+            published="2026-03-11T00:00:00Z",
+            source="Example",
+            image=None,
+        )
+        for index in range(8)
+    ]
+
+    needing, found = await og_image.enrich_articles_with_og_images(
+        articles,
+        max_total_concurrency=3,
+    )
+
+    assert needing == 8
+    assert found == 8
+    assert peak <= 3
 
 
 @given(

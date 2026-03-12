@@ -56,6 +56,14 @@ type ViewMode = "globe" | "grid" | "scroll" | "list"
 
 const GRID_SOURCE_PAGE_SIZE = 500
 const ARTICLE_PAGE_SIZE = FEATURE_FLAGS.PAGINATION_PAGE_SIZE
+const SCROLL_PAGE_SIZE = 500
+
+const VIEW_OPTIONS: Array<{ value: ViewMode; label: string }> = [
+  { value: "globe", label: "Globe" },
+  { value: "grid", label: "Grid" },
+  { value: "scroll", label: "Scroll" },
+  { value: "list", label: "List" },
+]
 
 const categoryIcons: { [key: string]: React.ElementType } = {
   politics: Building2,
@@ -117,7 +125,11 @@ function NewsPage() {
   const { selectedSources, isFilterActive, isSelected } = useSourceFilter()
   const selectedSourceIds = useMemo(() => Array.from(selectedSources), [selectedSources])
   const usePaginatedBrowse = currentView !== "globe"
-  const browsePageSize = currentView === "grid" && gridMode === "source" ? GRID_SOURCE_PAGE_SIZE : ARTICLE_PAGE_SIZE
+  const browsePageSize = currentView === "scroll"
+    ? SCROLL_PAGE_SIZE
+    : currentView === "grid" && gridMode === "source"
+      ? GRID_SOURCE_PAGE_SIZE
+      : ARTICLE_PAGE_SIZE
 
   const {
     articles: paginatedArticles,
@@ -687,28 +699,53 @@ function NewsPage() {
 
       <div className={cn("flex-1 flex flex-col min-w-0", currentView === "scroll" ? "h-screen overflow-hidden" : "")}>
       <header className="sticky top-0 z-40 border-b border-white/10 bg-[var(--news-bg-primary)]/95 backdrop-blur">
-        <div className="flex items-center justify-end px-6 py-3 gap-2">
-          <ThemeToggle />
-          <Button asChild variant="outline" size="sm" className="border-white/10 bg-transparent text-[10px] font-mono uppercase tracking-[0.32em]">
-            <Link href="/saved">
-              <Bookmark className="w-3.5 h-3.5 mr-2" />
-              Saved
-            </Link>
-          </Button>
-          <Button asChild variant="outline" size="sm" className="border-white/10 bg-transparent text-[10px] font-mono uppercase tracking-[0.32em]">
-            <Link href="/search">
-              <Search className="w-3.5 h-3.5 mr-2" />
-              Research
-            </Link>
-          </Button>
-          {debugMode && (
+        <div className="flex flex-wrap items-center justify-between gap-2 px-4 py-3 sm:px-6">
+          <div className="flex min-w-0 flex-1 items-center gap-2 lg:hidden">
+            <select
+              value={currentView}
+              onChange={(event) => setCurrentView(event.target.value as ViewMode)}
+              className="min-w-[120px] flex-1 border border-white/10 bg-[var(--news-bg-secondary)] px-3 py-2 text-[10px] font-mono uppercase tracking-[0.32em] text-foreground focus:outline-none focus:border-primary"
+              aria-label="Select view"
+            >
+              {VIEW_OPTIONS.map((option) => (
+                <option key={option.value} value={option.value}>
+                  {option.label}
+                </option>
+              ))}
+            </select>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setSidebarOpen(true)}
+              className="border-white/10 bg-transparent text-[10px] font-mono uppercase tracking-[0.32em]"
+            >
+              <SlidersHorizontal className="w-3.5 h-3.5 mr-2" />
+              Sources
+            </Button>
+          </div>
+          <div className="flex items-center justify-end gap-2 sm:ml-auto">
+            <ThemeToggle />
             <Button asChild variant="outline" size="sm" className="border-white/10 bg-transparent text-[10px] font-mono uppercase tracking-[0.32em]">
-              <Link href="/debug">
-                <Bug className="w-3.5 h-3.5 mr-2" />
-                Debug
+              <Link href="/saved">
+                <Bookmark className="w-3.5 h-3.5 mr-2" />
+                Saved
               </Link>
             </Button>
-          )}
+            <Button asChild variant="outline" size="sm" className="border-white/10 bg-transparent text-[10px] font-mono uppercase tracking-[0.32em]">
+              <Link href="/search">
+                <Search className="w-3.5 h-3.5 mr-2" />
+                Research
+              </Link>
+            </Button>
+            {debugMode && (
+              <Button asChild variant="outline" size="sm" className="border-white/10 bg-transparent text-[10px] font-mono uppercase tracking-[0.32em]">
+                <Link href="/debug">
+                  <Bug className="w-3.5 h-3.5 mr-2" />
+                  Debug
+                </Link>
+              </Button>
+            )}
+          </div>
         </div>
       </header>
 
@@ -895,10 +932,11 @@ function NewsPage() {
                           className="border border-white/10 bg-[var(--news-bg-secondary)] px-3 py-2 text-[10px] font-mono uppercase tracking-[0.32em] text-foreground focus:outline-none focus:border-primary"
                           aria-label="Select view"
                         >
-                          <option value="globe">Globe</option>
-                          <option value="grid">Grid</option>
-                          <option value="scroll">Scroll</option>
-                          <option value="list">List</option>
+                          {VIEW_OPTIONS.map((option) => (
+                            <option key={option.value} value={option.value}>
+                              {option.label}
+                            </option>
+                          ))}
                         </select>
                       </div>
                       <Tooltip>
@@ -943,17 +981,18 @@ function NewsPage() {
                           fetchNextPage={fetchNextPage}
                         />
                       )}
-                      {currentView === "scroll" && (
-                        <FeedView
-                          key={`${category.id}-scroll`}
-                          articles={browseArticles}
-                          loading={loading}
-                          totalCount={paginatedTotalCount}
-                          hasNextPage={hasNextPage}
-                          isFetchingNextPage={isFetchingNextPage}
-                          fetchNextPage={fetchNextPage}
-                        />
-                      )}
+                       {currentView === "scroll" && (
+                         <FeedView
+                           key={`${category.id}-scroll`}
+                           articles={browseArticles}
+                           loading={loading}
+                           totalCount={paginatedTotalCount}
+                           hasNextPage={hasNextPage}
+                           isFetchingNextPage={isFetchingNextPage}
+                           fetchNextPage={fetchNextPage}
+                           debugMode={debugMode}
+                         />
+                       )}
                       {currentView === "list" && (
                         <ListView
                           key={`${category.id}-list`}

@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useSyncExternalStore } from "react";
+import { useCallback, useMemo, useSyncExternalStore } from "react";
 import {
   getStorageSnapshot,
   saveToStorage,
@@ -30,7 +30,7 @@ export function useFavorites() {
   /**
    * Toggle favorite status of a source
    */
-  const toggleFavorite = (sourceId: string) => {
+  const toggleFavorite = useCallback((sourceId: string) => {
     const updated = new Set(favorites);
     if (updated.has(sourceId)) {
       updated.delete(sourceId);
@@ -39,39 +39,39 @@ export function useFavorites() {
     }
 
     saveToStorage(STORAGE_KEYS.FAVORITE_SOURCES, Array.from(updated));
-  };
+  }, [favorites]);
 
   /**
    * Check if a source is favorited
    */
-  const isFavorite = (sourceId: string): boolean => {
+  const isFavorite = useCallback((sourceId: string): boolean => {
     return favorites.has(sourceId);
-  };
+  }, [favorites]);
 
   /**
    * Add multiple sources to favorites
    */
-  const addMultipleFavorites = (sourceIds: string[]) => {
+  const addMultipleFavorites = useCallback((sourceIds: string[]) => {
     const updated = new Set(favorites);
     sourceIds.forEach((id) => updated.add(id));
     saveToStorage(STORAGE_KEYS.FAVORITE_SOURCES, Array.from(updated));
-  };
+  }, [favorites]);
 
   /**
    * Remove multiple sources from favorites
    */
-  const removeMultipleFavorites = (sourceIds: string[]) => {
+  const removeMultipleFavorites = useCallback((sourceIds: string[]) => {
     const updated = new Set(favorites);
     sourceIds.forEach((id) => updated.delete(id));
     saveToStorage(STORAGE_KEYS.FAVORITE_SOURCES, Array.from(updated));
-  };
+  }, [favorites]);
 
   /**
    * Clear all favorites
    */
-  const clearFavorites = () => {
+  const clearFavorites = useCallback(() => {
     saveToStorage(STORAGE_KEYS.FAVORITE_SOURCES, []);
-  };
+  }, []);
 
   return {
     favorites,

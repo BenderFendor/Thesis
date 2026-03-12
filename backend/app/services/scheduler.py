@@ -1,12 +1,21 @@
 """Async task scheduler for periodic RSS refresh."""
 
 import asyncio
+import os
 from datetime import datetime, timezone
+
 from app.core.logging import get_logger
+from app.core.process_limits import (
+    exception_mentions_too_many_open_files,
+    get_nofile_limits,
+    get_open_file_descriptor_count,
+)
 from app.data.rss_sources import get_rss_sources
 from app.services.cache import news_cache
 
 logger = get_logger("scheduler")
+
+EMFILE_BACKOFF_SECONDS = int(os.getenv("RSS_EMFILE_BACKOFF_SECONDS", "300"))
 
 
 def _parse_next_check_at(value: object) -> datetime | None:
@@ -54,6 +63,15 @@ def _get_due_rss_sources() -> tuple[list[str], float | None]:
     return due_sources, next_wait_seconds
 
 
+def _get_refresh_error_sleep_seconds(
+    error: BaseException,
+    min_sleep_seconds: int,
+) -> int:
+    if exception_mentions_too_many_open_files(error):
+        return max(min_sleep_seconds, EMFILE_BACKOFF_SECONDS)
+    return min_sleep_seconds
+
+
 async def periodic_rss_refresh(interval_seconds: int = 600) -> None:
     """
     Periodic task that refreshes RSS cache every N seconds.
@@ -92,8 +110,20 @@ async def periodic_rss_refresh(interval_seconds: int = 600) -> None:
             logger.info("Periodic refresh cancelled")
             break
         except Exception as e:
-            logger.error("Scheduled refresh failed: %s", e, exc_info=True)
-            await asyncio.sleep(min_sleep_seconds)
+            sleep_seconds = _get_refresh_error_sleep_seconds(e, min_sleep_seconds)
+            if exception_mentions_too_many_open_files(e):
+                soft_limit, hard_limit = get_nofile_limits()
+                logger.error(
+                    "Scheduled refresh hit open-file exhaustion; backing off for %ds (open_fds=%s soft_nofile=%s hard_nofile=%s)",
+                    sleep_seconds,
+                    get_open_file_descriptor_count(),
+                    soft_limit,
+                    hard_limit,
+                    exc_info=True,
+                )
+            else:
+                logger.error("Scheduled refresh failed: %s", e, exc_info=True)
+            await asyncio.sleep(sleep_seconds)
 
 
 async def periodic_blind_spots_update(interval_seconds: int = 86400) -> None:

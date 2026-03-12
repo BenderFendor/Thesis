@@ -25,6 +25,7 @@ from app.database import Article, GDELTEvent, get_utc_now
 from app.vector_store import (
     VectorStore,
     _get_chroma_include,
+    _get_embedding_rows,
     get_vector_store,
     is_chroma_reachable,
 )
@@ -226,7 +227,8 @@ class ChromaTopicService:
     ) -> List[Dict[str, Any]]:
         if not self._get_vector_store():
             return []
-        cluster = await self._build_cluster_from_anchor(article_id)
+        clusters = await self._build_clusters_from_anchors([article_id])
+        cluster = clusters.get(article_id)
         if not cluster:
             return []
         cluster_articles = await self._fetch_articles(session, cluster.member_ids)
@@ -247,10 +249,160 @@ class ChromaTopicService:
     async def get_bulk_article_topics(
         self, session: AsyncSession, article_ids: Sequence[int]
     ) -> Dict[int, List[Dict[str, Any]]]:
+        ordered_article_ids = list(dict.fromkeys(article_ids))
+        if not ordered_article_ids:
+            return {}
+        if not self._get_vector_store():
+            return {article_id: [] for article_id in ordered_article_ids}
+
+        clusters = await self._build_clusters_from_anchors(ordered_article_ids)
+        if not clusters:
+            return {article_id: [] for article_id in ordered_article_ids}
+
+        all_member_ids: Set[int] = set()
+        for cluster in clusters.values():
+            all_member_ids.update(cluster.member_ids)
+
+        articles_by_id = await self._fetch_articles(session, list(all_member_ids))
+        cluster_payload_cache: Dict[tuple[int, ...], tuple[str, List[str]]] = {}
         topics: Dict[int, List[Dict[str, Any]]] = {}
-        for article_id in article_ids:
-            topics[article_id] = await self.get_article_topics(session, article_id)
+
+        for article_id in ordered_article_ids:
+            cluster = clusters.get(article_id)
+            if not cluster:
+                topics[article_id] = []
+                continue
+
+            cluster_key = tuple(sorted(cluster.member_ids))
+            payload = cluster_payload_cache.get(cluster_key)
+            if payload is None:
+                cluster_articles = {
+                    member_id: article
+                    for member_id, article in articles_by_id.items()
+                    if member_id in cluster.member_ids
+                }
+                if not cluster_articles:
+                    topics[article_id] = []
+                    continue
+                payload = (
+                    self._generate_cluster_label(cluster_articles),
+                    self._extract_keywords_from_articles(
+                        list(cluster_articles.values())
+                    ),
+                )
+                cluster_payload_cache[cluster_key] = payload
+
+            label, keywords = payload
+            similarity = cluster.similarities.get(article_id, 1.0)
+            topics[article_id] = [
+                {
+                    "cluster_id": cluster.anchor_id,
+                    "label": label,
+                    "similarity": round(similarity, 3),
+                    "keywords": keywords,
+                }
+            ]
+
         return topics
+
+    async def _build_clusters_from_anchors(
+        self, article_ids: Sequence[int]
+    ) -> Dict[int, ClusterCandidate]:
+        vector_store = self._get_vector_store()
+        if not vector_store or not article_ids:
+            return {}
+
+        chroma_ids = [f"article_{article_id}" for article_id in article_ids]
+        try:
+            embedded = vector_store.collection.get(
+                ids=chroma_ids,
+                include=_get_chroma_include("embeddings"),
+            )
+            embedded_ids = cast(List[str], embedded.get("ids") or [])
+            embedding_rows = _get_embedding_rows(embedded)
+            if not embedded_ids or not embedding_rows:
+                return {}
+
+            resolved_article_ids: List[int] = []
+            query_embeddings: List[List[float]] = []
+            for chroma_id, raw_embedding in zip(embedded_ids, embedding_rows):
+                if not chroma_id.startswith("article_"):
+                    continue
+                try:
+                    article_id = int(chroma_id.replace("article_", ""))
+                except ValueError:
+                    continue
+
+                if hasattr(raw_embedding, "tolist"):
+                    query_embedding = cast(
+                        List[float], cast(Any, raw_embedding).tolist()
+                    )
+                else:
+                    query_embedding = list(cast(Sequence[float], raw_embedding))
+                if not query_embedding:
+                    continue
+                resolved_article_ids.append(article_id)
+                query_embeddings.append(query_embedding)
+
+            if not resolved_article_ids:
+                return {}
+
+            result = vector_store.collection.query(
+                query_embeddings=cast(
+                    "list[Sequence[float] | Sequence[int]]",
+                    query_embeddings,
+                ),
+                n_results=TRENDING_EXPANSION,
+                include=_get_chroma_include("distances", "metadatas"),
+            )
+        except Exception as exc:
+            logger.warning(
+                "Failed to batch query article topics for %d anchors: %s",
+                len(article_ids),
+                exc,
+            )
+            return {}
+
+        ids_batches = cast(List[List[str]], result.get("ids") or [])
+        distance_batches = cast(
+            List[List[Optional[float]]], result.get("distances") or []
+        )
+        clusters: Dict[int, ClusterCandidate] = {}
+
+        for article_id, ids_batch, distances_batch in zip(
+            resolved_article_ids,
+            ids_batches,
+            distance_batches,
+        ):
+            member_ids: List[int] = []
+            similarities: Dict[int, float] = {}
+            for member_chroma_id, distance in zip(ids_batch, distances_batch):
+                if not member_chroma_id.startswith("article_"):
+                    continue
+                try:
+                    member_id = int(member_chroma_id.replace("article_", ""))
+                except ValueError:
+                    continue
+                similarity = 1 - distance if distance is not None else 0.0
+                if similarity < SIMILARITY_THRESHOLD:
+                    continue
+                member_ids.append(member_id)
+                similarities[member_id] = similarity
+
+            if article_id not in member_ids:
+                member_ids.insert(0, article_id)
+                similarities[article_id] = similarities.get(article_id, 1.0)
+
+            if len(member_ids) < MIN_CLUSTER_SIZE:
+                continue
+
+            clusters[article_id] = ClusterCandidate(
+                anchor_id=article_id,
+                member_ids=member_ids,
+                similarities=similarities,
+            )
+
+        return clusters
 
     async def get_search_suggestions(
         self, query: str, limit: int = 5

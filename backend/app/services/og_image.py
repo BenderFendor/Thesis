@@ -37,6 +37,7 @@ httpx_logger.setLevel("WARNING")
 USER_AGENT = "Mozilla/5.0 (compatible; ScoopBot/1.0; +https://scoop.news)"
 FETCH_TIMEOUT = 4.0
 MAX_CONCURRENT_PER_DOMAIN = 5
+MAX_TOTAL_CONCURRENT_FETCHES = int(os.getenv("OG_IMAGE_TOTAL_CONCURRENCY", "48"))
 MAX_RESPONSE_SIZE = 100_000
 OG_CACHE_MAX_AGE = 7 * 86400
 OG_CACHE_DIR = Path(os.getenv("OG_IMAGE_CACHE_DIR", "/tmp/thesis_og_image_cache"))
@@ -319,6 +320,7 @@ async def fetch_og_image(url: str, client: httpx.AsyncClient) -> Optional[str]:
 async def enrich_articles_with_og_images(
     articles: List[NewsArticle],
     max_per_domain: int = MAX_CONCURRENT_PER_DOMAIN,
+    max_total_concurrency: int = MAX_TOTAL_CONCURRENT_FETCHES,
 ) -> Tuple[int, int]:
     """
     Enrich articles that need images by fetching og:image from their URLs.
@@ -336,6 +338,7 @@ async def enrich_articles_with_og_images(
     domain_semaphores: Dict[str, asyncio.Semaphore] = defaultdict(
         lambda: asyncio.Semaphore(max_per_domain)
     )
+    total_semaphore = asyncio.Semaphore(max(1, max_total_concurrency))
     found_count = 0
 
     async with httpx.AsyncClient() as client:
@@ -343,11 +346,12 @@ async def enrich_articles_with_og_images(
         async def fetch_one(idx: int, article: NewsArticle) -> None:
             nonlocal found_count
             domain = _get_domain(article.link)
-            async with domain_semaphores[domain]:
-                image_url = await fetch_og_image(article.link, client)
-                articles[idx].image = image_url or "none"
-                if image_url:
-                    found_count += 1
+            async with total_semaphore:
+                async with domain_semaphores[domain]:
+                    image_url = await fetch_og_image(article.link, client)
+                    articles[idx].image = image_url or "none"
+                    if image_url:
+                        found_count += 1
 
         await asyncio.gather(
             *[fetch_one(idx, article) for idx, article in needing_images],
@@ -451,6 +455,7 @@ async def backfill_missing_images(
             domain_semaphores: Dict[str, asyncio.Semaphore] = defaultdict(
                 lambda: asyncio.Semaphore(MAX_CONCURRENT_PER_DOMAIN)
             )
+            total_semaphore = asyncio.Semaphore(max(1, MAX_TOTAL_CONCURRENT_FETCHES))
             found_images: Dict[int, str] = {}
             updated_images: Dict[int, str] = {}
             failed_ids: List[int] = []
@@ -460,14 +465,15 @@ async def backfill_missing_images(
                 async def fetch_one(article_id: int, url: str) -> None:
                     domain = _get_domain(url)
                     try:
-                        async with domain_semaphores[domain]:
-                            image_url = await fetch_og_image(url, client)
-                            if image_url:
-                                found_images[article_id] = image_url
-                                updated_images[article_id] = image_url
-                            else:
-                                failed_ids.append(article_id)
-                                updated_images[article_id] = "none"
+                        async with total_semaphore:
+                            async with domain_semaphores[domain]:
+                                image_url = await fetch_og_image(url, client)
+                                if image_url:
+                                    found_images[article_id] = image_url
+                                    updated_images[article_id] = image_url
+                                else:
+                                    failed_ids.append(article_id)
+                                    updated_images[article_id] = "none"
                     except Exception:
                         failed_ids.append(article_id)
                         updated_images[article_id] = "none"

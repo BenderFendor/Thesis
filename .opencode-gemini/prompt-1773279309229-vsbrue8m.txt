@@ -1,0 +1,1691 @@
+You are a careful coding worker running behind OpenCode.
+
+Edit exactly one existing file.
+
+Target path: frontend/components/list-view.tsx
+
+Return only valid JSON with this shape:
+
+{"summary":"short summary","content":"full updated file contents"}
+
+Rules:
+
+- content must contain the full final file contents.
+
+- keep unrelated code unchanged.
+
+- do not include markdown fences.
+
+- prefer ASCII unless the file already needs Unicode.
+
+Instruction:
+
+Review and refine the list-view.tsx component I just created. The goal is an editorial, professional newspaper-inspired aesthetic that matches the warm gold/bronze design system (--primary: #b88f4d, Instrument Serif font, Outfit font).
+
+Current issues to address:
+1. The mobile layout could be improved - show date inline with source on mobile
+2. Add subtle hover states that feel more premium
+3. Improve the empty state to match the grid view aesthetic
+4. Make the sorting dropdown feel more integrated
+5. Add a subtle entrance animation to the header
+
+Keep the Framer Motion animations but make them more refined - prefer ease-out curves, subtle opacity transitions, and avoid anything that feels "edgy" or "techy". The design should feel like a premium news reader, not a dashboard.
+
+Supporting context files:
+
+Path: frontend/app/globals.css
+```
+@import "tailwindcss";
+@import "tw-animate-css";
+
+@custom-variant dark (&:is(.dark *));
+
+:root {
+  --pitch-black: #101317;
+  --dark-spruce: #1d2329;
+  --sand: #c8b287;
+  --sand-2: #e7d8bc;
+  --fern: #58645d;
+  --dusty-olive: #756d63;
+  --paper: #f4eee4;
+  --paper-shadow: #e8dfcf;
+  --smoke-blue: #6d7784;
+  --ember: #8b6350;
+  --destructive-red: #ff453a;
+
+  --background: var(--paper);
+  --foreground: #171410;
+  --card: #fbf7ef;
+  --card-foreground: #171410;
+  --popover: #fffdf8;
+  --popover-foreground: #171410;
+  --primary: #b88f4d;
+  --primary-foreground: #171410;
+  --secondary: var(--paper-shadow);
+  --secondary-foreground: #171410;
+  --muted: #efe7d8;
+  --muted-foreground: #6f6557;
+  --accent: var(--smoke-blue);
+  --accent-foreground: #f8f3ea;
+  --destructive: var(--destructive-red);
+  --destructive-foreground: #ffffff;
+  --border: #d5c8b2;
+  --input: #ebe1d1;
+  --ring: #b88f4d;
+  --radius: 0.375rem;
+
+  --sidebar: #f7f1e7;
+  --sidebar-foreground: #171410;
+  --sidebar-primary: #b88f4d;
+  --sidebar-primary-foreground: #171410;
+  --sidebar-accent: #ede4d5;
+  --sidebar-accent-foreground: #171410;
+  --sidebar-border: #d5c8b2;
+  --sidebar-ring: #b88f4d;
+
+  --chart-1: #b88f4d;
+  --chart-2: #c8b287;
+  --chart-3: #6d7784;
+  --chart-4: #8b6350;
+  --chart-5: #1d2329;
+
+  --news-bg-primary: var(--background);
+  --news-bg-secondary: #fbf7ef;
+  --news-card-bg: var(--card);
+}
+
+.dark {
+  --background: #0d1117;
+  --foreground: #ece3d5;
+  --card: #151a21;
+  --card-foreground: #ece3d5;
+  --popover: #10151b;
+  --popover-foreground: #ece3d5;
+  --primary: #d0af73;
+  --primary-foreground: #12161c;
+  --secondary: #1d232c;
+  --secondary-foreground: #ece3d5;
+  --muted: #171d24;
+  --muted-foreground: #9d917f;
+  --accent: #7b8797;
+  --accent-foreground: #f7f3ed;
+  --destructive: var(--destructive-red);
+  --destructive-foreground: #12161c;
+  --border: #2c3440;
+  --input: #1c232b;
+  --ring: #d0af73;
+
+  --sidebar: #11161d;
+  --sidebar-foreground: #ece3d5;
+  --sidebar-primary: #d0af73;
+  --sidebar-primary-foreground: #12161c;
+  --sidebar-accent: #1d232c;
+  --sidebar-accent-foreground: #ece3d5;
+  --sidebar-border: #2c3440;
+  --sidebar-ring: #d0af73;
+
+  --chart-1: #d0af73;
+  --chart-2: #e7d8bc;
+  --chart-3: #7b8797;
+  --chart-4: #8b6350;
+  --chart-5: #1d2329;
+
+  --news-bg-primary: var(--background);
+  --news-bg-secondary: #141a21;
+  --news-card-bg: var(--card);
+}
+
+@theme inline {
+  --font-sans: var(--font-outfit), "Outfit", system-ui, sans-serif;
+  --font-mono: var(--font-geist-mono), "Fira Mono", "Menlo", monospace;
+  --font-serif: var(--font-instrument-serif), "Instrument Serif", Georgia, serif;
+  
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  
+  --color-chart-1: var(--chart-1);
+  --color-chart-2: var(--chart-2);
+  --color-chart-3: var(--chart-3);
+  --color-chart-4: var(--chart-4);
+  --color-chart-5: var(--chart-5);
+  
+  --radius-sm: calc(var(--radius) - 2px);
+  --radius-md: var(--radius);
+  --radius-lg: calc(var(--radius) + 2px);
+  --radius-xl: calc(var(--radius) + 6px);
+  
+  --color-sidebar: var(--sidebar);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar-primary: var(--sidebar-primary);
+  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-ring: var(--sidebar-ring);
+}
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+  body {
+    @apply bg-background text-base text-foreground md:text-lg;
+  }
+
+  ::selection {
+    background-color: var(--primary);
+    color: var(--primary-foreground);
+  }
+}
+
+@keyframes shimmer {
+  0% { transform: translateX(-60%); }
+  100% { transform: translateX(60%); }
+}
+
+@layer components {
+  .no-scrollbar::-webkit-scrollbar {
+    display: none;
+  }
+  .no-scrollbar {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+
+  .reading-prose {
+    @apply mx-auto max-w-prose text-base leading-relaxed text-foreground md:text-lg;
+  }
+
+  .editorial-fallback-surface {
+    background-image:
+      radial-gradient(circle at top, rgb(231 216 188 / 0.14), transparent 60%),
+      linear-gradient(160deg, rgb(139 99 80 / 0.22), rgb(16 19 23 / 0.96));
+  }
+
+  .editorial-paper-surface {
+    background-image:
+      linear-gradient(180deg, rgb(255 255 255 / 0.18), transparent 18%),
+      linear-gradient(160deg, rgb(111 101 87 / 0.08), rgb(244 238 228 / 0.96));
+  }
+
+  .editorial-glow {
+    box-shadow: 0 18px 40px rgb(0 0 0 / 0.14);
+  }
+
+  .source-snap-section {
+    min-height: calc(100vh - 7rem);
+  }
+
+  .source-section-surface {
+    background-image:
+      linear-gradient(180deg, rgb(255 255 255 / 0.04), transparent 14%),
+      linear-gradient(135deg, rgb(109 119 132 / 0.08), transparent 42%),
+      linear-gradient(180deg, rgb(0 0 0 / 0.08), transparent 28%);
+  }
+
+  .dark .source-section-surface {
+    background-image:
+      linear-gradient(180deg, rgb(255 255 255 / 0.03), transparent 14%),
+      linear-gradient(135deg, rgb(123 135 151 / 0.08), transparent 44%),
+      linear-gradient(180deg, rgb(0 0 0 / 0.18), transparent 34%);
+  }
+
+  /* Glassmorphism helpers */
+  .glass-panel {
+    @apply bg-background/80 backdrop-blur-xl border border-border/50;
+  }
+}
+
+```
+
+Path: frontend/components/grid-view.tsx
+```
+"use client"
+
+import {
+  Fragment,
+  useState,
+  useEffect,
+  useCallback,
+  useMemo,
+  useRef,
+  lazy,
+  Suspense,
+  type KeyboardEvent,
+  type MouseEvent,
+} from "react"
+import Link from "next/link"
+import { Badge } from "@/components/ui/badge"
+import { Button } from "@/components/ui/button"
+import { Skeleton } from "@/components/ui/skeleton"
+import { CardContent } from "@/components/ui/card"
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select"
+import {
+  Clock,
+  Newspaper,
+  Heart,
+  Search,
+  PlusCircle,
+  MinusCircle,
+  Star,
+  List,
+  Layers,
+  ChevronDown,
+  ChevronRight,
+  ChevronUp,
+  Loader2,
+} from "lucide-react"
+import { motion, AnimatePresence } from "framer-motion"
+import { ArticleDetailModal } from "./article-detail-modal"
+import { ClusterDetailModal } from "./cluster-detail-modal"
+import { TrendingFeed } from "./trending-feed"
+import type { NewsArticle, AllCluster, TrendingCluster } from "@/lib/api"
+import { get_logger, cn } from "@/lib/utils"
+import { useReadingQueue } from "@/hooks/useReadingQueue"
+import { useLikedArticles } from "@/hooks/useLikedArticles"
+import { useFavorites } from "@/hooks/useFavorites"
+import { usePaginatedNews } from "@/hooks/usePaginatedNews"
+import { FEATURE_FLAGS } from "@/lib/constants"
+import {
+  clusterArticlesToNewsArticles,
+  getClusterPreviewStats,
+  hasRealClusterImage,
+  pickClusterImageUrl,
+} from "@/lib/cluster-display"
+import {
+  buildSourceGroups,
+  getCollapsedVisibleArticleCount,
+  getVisibleSourceIds,
+} from "@/lib/source-groups"
+import { fetchAllClusters, fetchClusterArticles } from "@/lib/api"
+
+const VirtualizedGrid = lazy(() =>
+  import("./virtualized-grid").then((module) => ({
+    default: module.VirtualizedGrid,
+  })),
+)
+
+const logger = get_logger("GridView")
+const SOURCE_GROUP_BATCH_SIZE = 10
+const COLLAPSED_SOURCE_ARTICLE_COUNT = 20
+
+interface GridViewProps {
+  articles: NewsArticle[]
+  loading: boolean
+  onCountChange?: (count: number) => void
+  apiUrl?: string | null
+  useVirtualization?: boolean
+  showTrending?: boolean
+  topicSortMode?: "sources" | "articles" | "recent"
+  viewMode?: "source" | "topic"
+  onViewModeChange?: (mode: "source" | "topic") => void
+  isScrollMode?: boolean
+  totalCount?: number
+  hasNextPage?: boolean
+  isFetchingNextPage?: boolean
+  fetchNextPage?: () => void
+}
+
+interface SourceArticleCardProps {
+  article: NewsArticle
+  likedIds: Set<number>
+  hasRealImage: (src?: string | null) => boolean
+  isArticleInQueue: (url: string) => boolean
+  onArticleClick: (article: NewsArticle) => void
+  onLike: (articleId: number, event?: MouseEvent<HTMLButtonElement>) => void
+  onQueueToggle: (article: NewsArticle, event?: MouseEvent<HTMLButtonElement>) => void
+  index: number
+}
+
+function SourceArticleCard({
+  article,
+  likedIds,
+  hasRealImage,
+  isArticleInQueue,
+  onArticleClick,
+  onLike,
+  onQueueToggle,
+  index,
+}: SourceArticleCardProps) {
+  const showImage = hasRealImage(article.image)
+
+  const handleCardKeyDown = (event: KeyboardEvent<HTMLElement>) => {
+    if (event.target !== event.currentTarget) return
+    if (event.key !== "Enter" && event.key !== " ") return
+    event.preventDefault()
+    onArticleClick(article)
+  }
+
+  return (
+    <motion.article
+      initial={{ opacity: 0, y: 20 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.5, delay: index * 0.05, ease: [0.25, 0.1, 0.25, 1.0] }}
+      role="button"
+      tabIndex={0}
+      onClick={() => onArticleClick(article)}
+      onKeyDown={handleCardKeyDown}
+      className="group flex h-full min-h-80 w-full flex-col overflow-hidden rounded-2xl border border-white/5 bg-black/20 text-left shadow-xl transition-all duration-500 ease-out hover:border-white/10 hover:bg-white/[0.03] hover:shadow-2xl"
+    >
+      <div className="relative m-2 aspect-video overflow-hidden rounded-xl bg-white/5">
+        {showImage ? (
+          <img
+            src={article.image ?? undefined}
+            alt={article.title}
+            className="h-full w-full object-cover grayscale transition duration-700 group-hover:scale-105 group-hover:grayscale-0"
+            loading="lazy"
+          />
+        ) : (
+          <div
+            className={cn(
+              "h-full w-full opacity-50 transition duration-700 group-hover:scale-105",
+              article.category === "breaking" ? "editorial-fallback-surface" : "editorial-paper-surface",
+            )}
+          />
+        )}
+
+        <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/20 to-transparent opacity-80 transition-opacity duration-500 group-hover:opacity-100" />
+
+        <div className="absolute right-3 top-3 z-10 flex translate-y-[-10px] gap-2 opacity-0 transition-all duration-300 group-hover:translate-y-0 md:group-focus-within:opacity-100 md:group-hover:opacity-100">
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={(event) => onQueueToggle(article, event)}
+            className="h-8 w-8 rounded-full bg-black/40 p-0 text-white backdrop-blur-md transition-all duration-300 hover:bg-white hover:text-black active:scale-95"
+            title={isArticleInQueue(article.url) ? "Remove from queue" : "Add to queue"}
+          >
+            {isArticleInQueue(article.url) ? (
+              <MinusCircle className="h-4 w-4" />
+            ) : (
+              <PlusCircle className="h-4 w-4" />
+            )}
+          </Button>
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={(event) => onLike(article.id as number, event)}
+            className="h-8 w-8 rounded-full bg-black/40 p-0 text-white backdrop-blur-md transition-all duration-300 hover:bg-white hover:text-black active:scale-95"
+            title={likedIds.has(article.id as number) ? "Unlike" : "Like"}
+          >
+            <Heart
+              className={cn(
+                "h-4 w-4 transition-colors",
+                likedIds.has(article.id as number)
+                  ? "fill-red-500 text-red-500 hover:text-red-600"
+                  : "text-white",
+              )}
+            />
+          </Button>
+        </div>
+
+        <div className="absolute left-3 top-3 z-10 flex flex-wrap gap-2">
+          <Badge
+            variant={article.category === "breaking" ? "destructive" : "outline"}
+            className={cn(
+              "rounded-md border-0 px-2 py-0.5 text-xs font-medium uppercase tracking-widest backdrop-blur-md",
+              article.category === "breaking"
+                ? "bg-red-500/90 text-white shadow-lg"
+                : "bg-black/50 text-white/90",
+            )}
+          >
+            {article.category}
+          </Badge>
+        </div>
+      </div>
+
+      <CardContent className="flex flex-1 flex-col p-5 pt-4">
+        <div className="mb-3 flex items-center text-xs font-semibold uppercase tracking-widest text-primary/80">
+          <span>{article.source}</span>
+        </div>
+        <h3 className="mb-3 font-serif text-lg font-medium leading-snug text-foreground/90 transition-colors duration-300 group-hover:text-white md:text-xl">
+          {article.title}
+        </h3>
+
+        <p className="line-clamp-3 text-sm leading-relaxed text-muted-foreground/80">{article.summary}</p>
+
+        <div className="mt-auto flex items-center justify-between pt-5 text-xs uppercase tracking-widest text-muted-foreground/60 transition-opacity duration-300 group-hover:text-muted-foreground">
+          <div className="flex items-center gap-2">
+            <Clock className="h-3 w-3" />
+            <span>
+              {new Date(article.publishedAt).toLocaleDateString("en-US", {
+                month: "short",
+                day: "numeric",
+              })}
+            </span>
+          </div>
+          <span className="text-primary/0 transition-colors duration-300 group-hover:text-primary">
+            Open brief -&gt;
+          </span>
+        </div>
+      </CardContent>
+    </motion.article>
+  )
+}
+
+export function GridView({
+  articles,
+  loading,
+  onCountChange,
+  apiUrl: _apiUrl,
+  useVirtualization = false,
+  showTrending = true,
+  topicSortMode = "sources",
+  viewMode: controlledViewMode,
+  onViewModeChange,
+  isScrollMode: _isScrollMode = false,
+  totalCount,
+  hasNextPage: paginatedHasNextPage = false,
+  isFetchingNextPage: paginatedIsFetchingNextPage = false,
+  fetchNextPage: paginatedFetchNextPage,
+}: GridViewProps) {
+  void _apiUrl
+  void _isScrollMode
+
+  const hasRealImage = useCallback((src?: string | null) => hasRealClusterImage(src), [])
+
+  const [searchTerm, setSearchTerm] = useState("")
+  const [viewMode, setViewMode] = useState<"source" | "topic">(controlledViewMode ?? "source")
+  const [clusters, setClusters] = useState<AllCluster[]>([])
+  const [clustersLoading, setClustersLoading] = useState(false)
+  const [clustersStatus, setClustersStatus] = useState<string | null>(null)
+  const [clusterWindow, setClusterWindow] = useState<"1d" | "1w" | "1m">("1w")
+  const [expandedClusterId, setExpandedClusterId] = useState<number | null>(null)
+  const [clusterArticlesCache, setClusterArticlesCache] = useState<Map<number, NewsArticle[]>>(new Map())
+  const [selectedArticle, setSelectedArticle] = useState<NewsArticle | null>(null)
+  const [isArticleModalOpen, setIsArticleModalOpen] = useState(false)
+  const [selectedCluster, setSelectedCluster] = useState<TrendingCluster | null>(null)
+  const [isClusterModalOpen, setIsClusterModalOpen] = useState(false)
+  const [showScrollTop, setShowScrollTop] = useState(false)
+  const { likedIds, toggleLike } = useLikedArticles()
+  const { addArticleToQueue, removeArticleFromQueue, isArticleInQueue } = useReadingQueue()
+  const { isFavorite, toggleFavorite } = useFavorites()
+  const [expandedSourceId, setExpandedSourceId] = useState<string | null>(null)
+  const [sourceBatchCount, setSourceBatchCount] = useState(1)
+  const containerRef = useRef<HTMLDivElement | null>(null)
+
+  const formatKeywordLabel = useCallback((keywords?: string[]) => {
+    if (!keywords || keywords.length === 0) return null
+    return keywords.map((word) => word.charAt(0).toUpperCase() + word.slice(1)).join(" ")
+  }, [])
+
+  const normalizeLabel = useCallback((value: string) => {
+    return value.toLowerCase().replace(/[^a-z0-9]+/g, " ").trim()
+  }, [])
+
+  const stripTitleSuffix = useCallback((value: string) => {
+    return value.split(/\s[-|\u2013\u2014]\s/)[0].trim()
+  }, [])
+
+  const getClusterDisplayLabel = useCallback(
+    (cluster: AllCluster) => {
+      const label = cluster.label?.trim() || ""
+      const keywordLabel = formatKeywordLabel(cluster.keywords)
+      const titleCandidate = cluster.representative_article?.title
+        ? stripTitleSuffix(cluster.representative_article.title)
+        : ""
+      const normalizedLabel = label ? normalizeLabel(label) : ""
+      const normalizedKeywords = keywordLabel ? normalizeLabel(keywordLabel) : ""
+      const useTitle =
+        titleCandidate &&
+        normalizedLabel &&
+        normalizedKeywords &&
+        normalizedLabel === normalizedKeywords
+
+      if (useTitle) return titleCandidate
+      return label || titleCandidate || keywordLabel || "Topic"
+    },
+    [formatKeywordLabel, normalizeLabel, stripTitleSuffix],
+  )
+
+  const {
+    articles: paginatedArticles,
+    totalCount: virtualizedTotalCount,
+    isLoading: paginatedLoading,
+    isFetchingNextPage,
+    hasNextPage,
+    fetchNextPage,
+  } = usePaginatedNews({
+    limit: FEATURE_FLAGS.PAGINATION_PAGE_SIZE,
+    search: searchTerm || undefined,
+    useCached: true,
+    enabled: useVirtualization,
+  })
+
+  const filteredNews = useMemo(() => {
+    if (!searchTerm) return articles
+    return articles.filter(
+      (article) =>
+        article.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        article.summary?.toLowerCase().includes(searchTerm.toLowerCase()),
+    )
+  }, [articles, searchTerm])
+
+  const displayArticles = useVirtualization ? paginatedArticles : filteredNews
+  const isLoadingState = useVirtualization ? paginatedLoading : loading
+  const resolvedTotalCount = useVirtualization ? virtualizedTotalCount : totalCount ?? filteredNews.length
+  const resolvedHasNextPage = useVirtualization ? hasNextPage : paginatedHasNextPage
+  const resolvedIsFetchingNextPage = useVirtualization ? isFetchingNextPage : paginatedIsFetchingNextPage
+  const resolvedFetchNextPage = useVirtualization ? fetchNextPage : paginatedFetchNextPage
+
+  useEffect(() => {
+    onCountChange?.(filteredNews.length)
+  }, [filteredNews.length, onCountChange])
+
+  useEffect(() => {
+    if (controlledViewMode) {
+      setViewMode(controlledViewMode)
+      return
+    }
+
+    const saved = localStorage.getItem("viewMode") as "source" | "topic" | null
+    if (saved === "source" || saved === "topic") {
+      setViewMode(saved)
+    }
+  }, [controlledViewMode])
+
+  useEffect(() => {
+    if (controlledViewMode) return
+    localStorage.setItem("viewMode", viewMode)
+  }, [viewMode, controlledViewMode])
+
+  const handleArticleClick = useCallback((article: NewsArticle) => {
+    setSelectedArticle(article)
+    setIsArticleModalOpen(true)
+  }, [])
+
+  const handleLike = useCallback(
+    (articleId: number, event?: MouseEvent<HTMLButtonElement>) => {
+      event?.stopPropagation()
+      void toggleLike(articleId)
+    },
+    [toggleLike],
+  )
+
+  const handleQueueToggle = useCallback(
+    (article: NewsArticle, event?: MouseEvent<HTMLButtonElement>) => {
+      event?.stopPropagation()
+      if (isArticleInQueue(article.url)) {
+        removeArticleFromQueue(article.url)
+      } else {
+        addArticleToQueue(article)
+      }
+    },
+    [isArticleInQueue, removeArticleFromQueue, addArticleToQueue],
+  )
+
+  const sourceGroups = useMemo(() => {
+    return buildSourceGroups(filteredNews).sort((a, b) => {
+      const aFav = isFavorite(a.sourceId) ? 1 : 0
+      const bFav = isFavorite(b.sourceId) ? 1 : 0
+      if (aFav !== bFav) return bFav - aFav
+
+      return 0
+    })
+  }, [filteredNews, isFavorite])
+
+  const sortedSourceIds = useMemo(
+    () => sourceGroups.map((group) => group.sourceId),
+    [sourceGroups],
+  )
+
+  const visibleSourceIds = useMemo(() => {
+    if (viewMode !== "source") return new Set<string>()
+
+    return getVisibleSourceIds(
+      sourceGroups,
+      new Set(sourceGroups.filter((group) => isFavorite(group.sourceId)).map((group) => group.sourceId)),
+      sourceBatchCount,
+      SOURCE_GROUP_BATCH_SIZE,
+    )
+  }, [isFavorite, sourceBatchCount, sourceGroups, viewMode])
+
+  const hasMoreSourceGroups = useMemo(() => {
+    if (viewMode !== "source") return false
+    return visibleSourceIds.size < sortedSourceIds.length || resolvedHasNextPage
+  }, [resolvedHasNextPage, sortedSourceIds.length, viewMode, visibleSourceIds.size])
+
+  const visibleSourceGroups = useMemo(
+    () => sourceGroups.filter((group) => visibleSourceIds.has(group.sourceId)),
+    [sourceGroups, visibleSourceIds],
+  )
+
+  const collapsedVisibleArticleCount = useMemo(
+    () =>
+      getCollapsedVisibleArticleCount(
+        sourceGroups,
+        visibleSourceIds,
+        COLLAPSED_SOURCE_ARTICLE_COUNT,
+      ),
+    [sourceGroups, visibleSourceIds],
+  )
+
+  useEffect(() => {
+    if (viewMode !== "source") return
+    onCountChange?.(collapsedVisibleArticleCount)
+  }, [collapsedVisibleArticleCount, onCountChange, viewMode])
+
+  useEffect(() => {
+    setSourceBatchCount(1)
+    setExpandedSourceId(null)
+  }, [searchTerm, viewMode])
+
+  useEffect(() => {
+    setSourceBatchCount((prev) => {
+      if (viewMode !== "source") return prev
+      const favoriteCount = sourceGroups.filter((group) => isFavorite(group.sourceId)).length
+      const minimumVisible = favoriteCount + SOURCE_GROUP_BATCH_SIZE
+      const currentlyVisible = favoriteCount + prev * SOURCE_GROUP_BATCH_SIZE
+      if (currentlyVisible >= minimumVisible) return prev
+      return 1
+    })
+  }, [isFavorite, sourceGroups, viewMode])
+
+  useEffect(() => {
+    if (viewMode !== "topic") return
+    let cancelled = false
+    let retryTimer: ReturnType<typeof setTimeout> | null = null
+
+    const loadClusters = async () => {
+      setClustersLoading(true)
+      try {
+        const data = await fetchAllClusters(clusterWindow, 2, 100)
+        if (cancelled) return
+        setClusters(data.clusters)
+        setClustersStatus(data.status ?? null)
+        setExpandedClusterId(null)
+
+        if (data.status === "initializing") {
+          retryTimer = setTimeout(() => {
+            void loadClusters()
+          }, 15000)
+        }
+      } catch (err) {
+        if (!cancelled) {
+          logger.error("Failed to load clusters:", err)
+        }
+      } finally {
+        if (!cancelled) setClustersLoading(false)
+      }
+    }
+
+    void loadClusters()
+    return () => {
+      cancelled = true
+      if (retryTimer) {
+        clearTimeout(retryTimer)
+      }
+    }
+  }, [viewMode, clusterWindow])
+
+  const getClusterTime = useCallback((cluster: AllCluster) => {
+    const publishedAt = cluster.representative_article?.published_at
+    if (!publishedAt) return 0
+    const timestamp = new Date(publishedAt).getTime()
+    return Number.isNaN(timestamp) ? 0 : timestamp
+  }, [])
+
+  const sortedClusters = useMemo(() => {
+    const items = [...clusters]
+    items.sort((a, b) => {
+      if (topicSortMode === "articles") {
+        return b.article_count - a.article_count
+      }
+      if (topicSortMode === "recent") {
+        return getClusterTime(b) - getClusterTime(a)
+      }
+      return b.source_diversity - a.source_diversity
+    })
+    return items
+  }, [clusters, getClusterTime, topicSortMode])
+
+  const handleExpandCluster = useCallback(
+    async (cluster: AllCluster) => {
+      const clusterId = cluster.cluster_id
+      if (expandedClusterId === clusterId) {
+        setExpandedClusterId(null)
+        return
+      }
+
+      const section = document.querySelector<HTMLElement>(
+        `[data-cluster-id="${clusterId}"]`,
+      )
+      setExpandedClusterId(clusterId)
+      window.setTimeout(() => {
+        section?.scrollIntoView({ behavior: "smooth", block: "start" })
+      }, 0)
+      if (!clusterArticlesCache.has(clusterId) || clusterArticlesCache.get(clusterId)?.length === 0) {
+        const previewArticles = clusterArticlesToNewsArticles(cluster.articles)
+        setClusterArticlesCache((prev) => new Map(prev).set(clusterId, previewArticles))
+
+        try {
+          const fullArticles = await fetchClusterArticles(clusterId)
+          setClusterArticlesCache((prev) => new Map(prev).set(clusterId, fullArticles))
+        } catch (error) {
+          logger.warn("Failed to load full topic cluster articles", {
+            clusterId,
+            error,
+          })
+        }
+      }
+    },
+    [expandedClusterId, clusterArticlesCache],
+  )
+
+  const expandedCluster = useMemo(() => {
+    if (expandedClusterId === null) return null
+    return sortedClusters.find((cluster) => cluster.cluster_id === expandedClusterId) ?? null
+  }, [sortedClusters, expandedClusterId])
+
+  const expandedClusterArticles = useMemo(() => {
+    if (!expandedCluster) return []
+    return clusterArticlesCache.get(expandedCluster.cluster_id) ?? []
+  }, [clusterArticlesCache, expandedCluster])
+
+  useEffect(() => {
+    const container = containerRef.current
+    if (!container) return
+
+    const handleScroll = () => {
+      setShowScrollTop(container.scrollTop > 640)
+    }
+
+    handleScroll()
+    container.addEventListener("scroll", handleScroll, { passive: true })
+    return () => container.removeEventListener("scroll", handleScroll)
+  }, [])
+
+  const handleOpenClusterCompare = useCallback(
+    (cluster: AllCluster, event: MouseEvent<HTMLButtonElement>) => {
+      event.stopPropagation()
+      setSelectedCluster({
+        ...cluster,
+        trending_score: cluster.source_diversity,
+        velocity: cluster.window_count,
+        articles: cluster.articles ?? [],
+      })
+      setIsClusterModalOpen(true)
+    },
+    [],
+  )
+
+  const scrollToTop = useCallback(() => {
+    containerRef.current?.scrollTo({ top: 0, behavior: "smooth" })
+  }, [])
+
+  useEffect(() => {
+    if (viewMode !== "source") return
+    if (!hasMoreSourceGroups) return
+    if (resolvedIsFetchingNextPage) return
+
+    const favoriteCount = sourceGroups.filter((group) => isFavorite(group.sourceId)).length
+    const minimumVisible = favoriteCount + sourceBatchCount * SOURCE_GROUP_BATCH_SIZE
+    if (sourceGroups.length >= minimumVisible) return
+    if (!resolvedHasNextPage) return
+
+    resolvedFetchNextPage?.()
+  }, [
+    hasMoreSourceGroups,
+    isFavorite,
+    resolvedFetchNextPage,
+    resolvedHasNextPage,
+    resolvedIsFetchingNextPage,
+    sourceBatchCount,
+    sourceGroups,
+    viewMode,
+  ])
+
+  if (isLoadingState && displayArticles.length === 0) {
+    return (
+      <div className="flex h-full w-full items-center justify-center bg-background" style={{ minHeight: "calc(100vh - 140px)" }}>
+        <div className="text-center">
+          <Loader2 className="mx-auto mb-4 h-12 w-12 animate-spin text-primary/50" />
+          <p className="font-mono text-xs uppercase tracking-widest text-muted-foreground">Curating stories...</p>
+        </div>
+      </div>
+    )
+  }
+
+  if (useVirtualization) {
+    return (
+      <div className="flex h-full w-full flex-col overflow-hidden bg-background">
+        <div className="sticky top-0 z-10 border-b border-white/5 bg-background/80 backdrop-blur-xl">
+          <div className="px-4 py-3 sm:px-6 lg:px-8">
+            <div className="relative">
+              <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+              <input
+                type="text"
+                placeholder="Search articles..."
+                value={searchTerm}
+                onChange={(event) => setSearchTerm(event.target.value)}
+                className="w-full rounded-xl bg-white/5 px-10 py-2.5 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-primary/50"
+              />
+            </div>
+          </div>
+        </div>
+
+        {paginatedArticles.length === 0 && !paginatedLoading ? (
+          <div className="flex flex-1 items-center justify-center py-16 text-center">
+            <div>
+              <Newspaper className="mx-auto mb-4 h-10 w-10 text-muted-foreground/30" />
+              <h3 className="font-serif text-2xl text-foreground/50">No articles found</h3>
+            </div>
+          </div>
+        ) : (
+          <Suspense fallback={<Skeleton className="h-96 w-full opacity-20" />}>
+            <VirtualizedGrid
+              articles={paginatedArticles}
+              hasNextPage={hasNextPage}
+              isFetchingNextPage={isFetchingNextPage}
+              fetchNextPage={fetchNextPage}
+              onArticleClick={handleArticleClick}
+              totalCount={virtualizedTotalCount}
+            />
+          </Suspense>
+        )}
+
+        <ArticleDetailModal
+          article={selectedArticle}
+          isOpen={isArticleModalOpen}
+          onClose={() => {
+            setIsArticleModalOpen(false)
+            setSelectedArticle(null)
+          }}
+        />
+      </div>
+    )
+  }
+
+  return (
+    <div className="relative flex w-full flex-col overflow-hidden bg-background" style={{ height: "calc(100vh - 140px)" }}>
+      <div className="sticky top-0 z-40 shrink-0 border-b border-white/5 bg-background/80 backdrop-blur-xl">
+        <div className="mx-auto flex w-full flex-col gap-4 px-6 py-4 lg:px-8" style={{ maxWidth: "1800px" }}>
+          <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+            <div className="relative w-full max-w-xl">
+              <Search className="absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground/70" />
+              <input
+                type="text"
+                placeholder="Search intelligence..."
+                value={searchTerm}
+                onChange={(event) => setSearchTerm(event.target.value)}
+                className="w-full rounded-xl bg-white/5 px-10 py-2 text-sm text-foreground placeholder:text-muted-foreground/50 transition-all focus:outline-none focus:ring-1 focus:ring-primary/50"
+              />
+            </div>
+
+            <div className="flex flex-wrap items-center gap-3">
+              <div className="flex rounded-lg border border-white/5 bg-white/5 p-1">
+                <Button
+                  variant={viewMode === "source" ? "default" : "ghost"}
+                  size="sm"
+                  onClick={() => {
+                    setViewMode("source")
+                    onViewModeChange?.("source")
+                  }}
+                  className={cn(
+                    "h-7 rounded-md px-3 text-xs uppercase tracking-widest transition-all",
+                    viewMode === "source"
+                      ? "bg-white/10 text-white shadow-sm"
+                      : "text-muted-foreground hover:text-foreground",
+                  )}
+                >
+                  <List className="mr-1.5 h-3.5 w-3.5" />
+                  By Source
+                </Button>
+                <Button
+                  variant={viewMode === "topic" ? "default" : "ghost"}
+                  size="sm"
+                  onClick={() => {
+                    setViewMode("topic")
+                    onViewModeChange?.("topic")
+                  }}
+                  className={cn(
+                    "h-7 rounded-md px-3 text-xs uppercase tracking-widest transition-all",
+                    viewMode === "topic"
+                      ? "bg-white/10 text-white shadow-sm"
+                      : "text-muted-foreground hover:text-foreground",
+                  )}
+                >
+                  <Layers className="mr-1.5 h-3.5 w-3.5" />
+                  By Topic
+                </Button>
+              </div>
+
+              {viewMode === "topic" && (
+                <Select value={clusterWindow} onValueChange={(value) => setClusterWindow(value as "1d" | "1w" | "1m")}>
+                  <SelectTrigger className="h-9 rounded-lg border-white/5 bg-white/5 text-xs uppercase tracking-widest">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent className="rounded-lg border-white/10 bg-background/95 backdrop-blur-xl">
+                    <SelectItem value="1d" className="text-xs uppercase tracking-widest">
+                      Last 24h
+                    </SelectItem>
+                    <SelectItem value="1w" className="text-xs uppercase tracking-widest">
+                      Last 7d
+                    </SelectItem>
+                    <SelectItem value="1m" className="text-xs uppercase tracking-widest">
+                      Last 30d
+                    </SelectItem>
+                  </SelectContent>
+                </Select>
+              )}
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div
+        ref={containerRef}
+        className={cn(
+          "flex-1 overflow-y-auto scroll-smooth pb-24",
+          expandedSourceId || expandedClusterId ? "snap-y snap-proximity" : "snap-y snap-mandatory",
+        )}
+        style={{ scrollPaddingTop: "1rem" }}
+      >
+        <div className="mx-auto flex w-full flex-col gap-16 px-6 py-8 lg:px-8" style={{ maxWidth: "1800px" }}>
+          {showTrending && <TrendingFeed />}
+
+          {displayArticles.length === 0 && !isLoadingState ? (
+            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="flex flex-col items-center justify-center py-32 text-center">
+              <Newspaper className="mb-6 h-16 w-16 text-white/10" />
+              <h3 className="mb-2 font-serif text-3xl text-foreground/80">No signals detected</h3>
+              <p className="max-w-md text-sm text-muted-foreground/60">
+                Adjust your search parameters to find relevant intelligence.
+              </p>
+            </motion.div>
+          ) : viewMode === "source" ? (
+            visibleSourceGroups.map((group, index) => {
+              const isExpanded = expandedSourceId === group.sourceId
+              const displayedArticles = isExpanded
+                ? group.articles
+                : group.articles.slice(0, COLLAPSED_SOURCE_ARTICLE_COUNT)
+
+              return (
+                <section
+                  key={group.sourceId}
+                  data-source-id={group.sourceId}
+                  className={cn(
+                    "grid-source-group scroll-mt-6 flex flex-col",
+                    isExpanded ? "snap-none" : "snap-start",
+                  )}
+                  style={{ scrollSnapStop: "normal" }}
+                >
+                  <div className="mb-6 flex flex-col gap-4 border-b border-white/5 pb-4 lg:flex-row lg:items-end lg:justify-between">
+                    <div className="space-y-2">
+                      <div className="text-xs font-semibold uppercase tracking-widest text-primary/70">
+                        Source dossier
+                      </div>
+                      <div className="flex items-center gap-4">
+                        <Link
+                          href={`/source/${encodeURIComponent(group.sourceId)}`}
+                          className="font-serif text-4xl leading-none text-foreground transition-colors hover:text-primary md:text-5xl"
+                        >
+                          {group.sourceName}
+                        </Link>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => toggleFavorite(group.sourceId)}
+                          className="h-9 w-9 rounded-full bg-white/5 p-0 text-muted-foreground transition-all duration-300 hover:bg-white/10 hover:text-primary active:scale-95"
+                        >
+                          <Star
+                            className={cn(
+                              "h-4 w-4",
+                              isFavorite(group.sourceId)
+                                ? "fill-amber-400 text-amber-400"
+                                : "text-white/40",
+                            )}
+                          />
+                        </Button>
+                      </div>
+                    </div>
+
+                    <div className="flex flex-wrap items-center gap-2 text-xs uppercase tracking-widest text-muted-foreground">
+                      <span className="rounded-full border border-white/5 bg-white/5 px-3 py-1.5 font-medium text-white/80">
+                        {group.articles.length} articles
+                      </span>
+                      <span className="rounded-full border border-white/5 bg-white/5 px-3 py-1.5 font-medium">
+                        {group.credibility ?? "Mixed"} credibility
+                      </span>
+                      <span className="rounded-full border border-white/5 bg-white/5 px-3 py-1.5 font-medium">
+                        {group.bias ?? "Center"} bias
+                      </span>
+                    </div>
+                  </div>
+
+                  {displayedArticles.length > 0 && (
+                    <div className="flex-1">
+                      <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5">
+                        <AnimatePresence>
+                          {displayedArticles.map((article, itemIndex) => (
+                            <SourceArticleCard
+                              key={article.url ? `url:${article.url}` : `id:${article.id}`}
+                              article={article}
+                              index={itemIndex}
+                              likedIds={likedIds}
+                              hasRealImage={hasRealImage}
+                              isArticleInQueue={isArticleInQueue}
+                              onArticleClick={handleArticleClick}
+                              onLike={handleLike}
+                              onQueueToggle={handleQueueToggle}
+                            />
+                          ))}
+                        </AnimatePresence>
+                      </div>
+                    </div>
+                  )}
+
+                  {group.articles.length > COLLAPSED_SOURCE_ARTICLE_COUNT && (
+                    <div className="mt-8 flex justify-center pb-8">
+                      <Button
+                        variant="outline"
+                        onClick={() => setExpandedSourceId(isExpanded ? null : group.sourceId)}
+                        className="rounded-full border-white/10 bg-transparent px-8 py-5 text-xs font-semibold uppercase tracking-widest text-muted-foreground transition-all duration-300 hover:bg-white/5 hover:text-white"
+                      >
+                        {isExpanded ? "Show fewer stories" : `View all ${group.articles.length} stories`}
+                      </Button>
+                    </div>
+                  )}
+                </section>
+              )
+            })
+          ) : (
+            <div className="space-y-6">
+              {clustersLoading ? (
+                <div className="py-24 text-center text-xs uppercase tracking-widest text-muted-foreground">
+                  <Loader2 className="mx-auto mb-4 h-10 w-10 animate-spin text-primary/40" />
+                  Mapping topic clusters...
+                </div>
+              ) : clusters.length === 0 ? (
+                <div className="py-24 text-center text-xs uppercase tracking-widest text-muted-foreground">
+                  {clustersStatus === "initializing" ? "Building topics..." : "No topics found"}
+                </div>
+              ) : (
+                <>
+                  <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+                    {sortedClusters.map((cluster, index) => {
+                      const representative = cluster.representative_article
+                      if (!representative) return null
+
+                      const imageUrl = pickClusterImageUrl(cluster)
+                      const isExpanded = expandedClusterId === cluster.cluster_id
+                      const previewStats = getClusterPreviewStats(cluster)
+
+                      return (
+                        <Fragment key={cluster.cluster_id}>
+                          <motion.div
+                            initial={{ opacity: 0, scale: 0.95 }}
+                            animate={{ opacity: 1, scale: 1 }}
+                            transition={{ delay: index * 0.05 }}
+                            data-cluster-id={cluster.cluster_id}
+                            className={cn(
+                              "group flex cursor-pointer flex-col overflow-hidden rounded-2xl border bg-black/20 transition-all duration-500 hover:bg-white/[0.03] snap-start scroll-mt-6",
+                              isExpanded ? "border-primary/50 ring-1 ring-primary/40" : "border-white/5",
+                            )}
+                            style={{ scrollSnapStop: "normal" }}
+                            onClick={() => handleExpandCluster(cluster)}
+                          >
+                            <div className="relative m-2 aspect-video overflow-hidden rounded-xl bg-white/5">
+                              {imageUrl ? (
+                                <img
+                                  src={imageUrl}
+                                  alt={representative.title}
+                                  className="h-full w-full object-cover grayscale transition duration-700 group-hover:scale-105 group-hover:grayscale-0"
+                                />
+                              ) : (
+                                <div className="editorial-fallback-surface h-full w-full opacity-50 transition duration-700 group-hover:scale-105" />
+                              )}
+                              <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/30 to-transparent" />
+                              <div className="absolute right-4 top-4 z-10 text-white drop-shadow-md">
+                                {isExpanded ? (
+                                  <ChevronDown className="h-5 w-5" />
+                                ) : (
+                                  <ChevronRight className="h-5 w-5 text-white/75 group-hover:text-white" />
+                                )}
+                              </div>
+                              <div className="absolute left-4 top-4 z-10">
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  onClick={(event) => handleOpenClusterCompare(cluster, event)}
+                                  className="h-8 rounded-full bg-black/50 px-3 text-xs uppercase tracking-widest text-white backdrop-blur hover:bg-black/70"
+                                >
+                                  Compare
+                                </Button>
+                              </div>
+                              <div className="absolute bottom-4 left-4 right-4">
+                                <h3 className="font-serif text-xl font-medium leading-snug text-white drop-shadow-md">
+                                  {getClusterDisplayLabel(cluster)}
+                                </h3>
+                              </div>
+                            </div>
+                            <CardContent className="flex items-center justify-between p-5 pt-3 text-xs uppercase tracking-widest text-muted-foreground/70">
+                              <span className="flex items-center gap-2">
+                                <Newspaper className="h-3.5 w-3.5 text-primary/70" /> {previewStats.sourceCount} sources
+                              </span>
+                              <span className="flex items-center gap-2">
+                                <List className="h-3.5 w-3.5 text-primary/70" /> {previewStats.articleCount} stories
+                              </span>
+                            </CardContent>
+                          </motion.div>
+
+                          {isExpanded && expandedCluster && (
+                            <div
+                              data-cluster-expanded-for={cluster.cluster_id}
+                              className="col-span-full overflow-hidden rounded-2xl border border-primary/30 bg-black/20"
+                            >
+                              <div className="flex flex-col gap-4 border-b border-white/10 bg-black/30 px-6 py-5 lg:flex-row lg:items-center lg:justify-between">
+                                <div className="flex flex-wrap items-center gap-3">
+                                  <Layers className="h-5 w-5 text-primary" />
+                                  <h3 className="font-serif text-2xl text-foreground">
+                                    {getClusterDisplayLabel(expandedCluster)}
+                                  </h3>
+                                  <Badge
+                                    variant="outline"
+                                    className="border-white/10 bg-white/5 text-xs uppercase tracking-widest text-muted-foreground"
+                                  >
+                                    {getClusterPreviewStats(expandedCluster).sourceCount} sources
+                                  </Badge>
+                                  <Badge
+                                    variant="outline"
+                                    className="border-white/10 bg-white/5 text-xs uppercase tracking-widest text-muted-foreground"
+                                  >
+                                    {getClusterPreviewStats(expandedCluster).articleCount} stories
+                                  </Badge>
+                                </div>
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  onClick={(event) => {
+                                    event.stopPropagation()
+                                    setExpandedClusterId(null)
+                                  }}
+                                  className="w-fit rounded-full border border-white/10 bg-transparent px-4 text-xs uppercase tracking-widest text-muted-foreground hover:bg-white/5 hover:text-white"
+                                >
+                                  Close topic
+                                </Button>
+                              </div>
+
+                              <div className="space-y-6 px-6 py-6">
+                                {expandedClusterArticles.length > 0 ? (
+                                  <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+                                    {expandedClusterArticles.map((article, index) => (
+                                      <SourceArticleCard
+                                        key={article.url ? `cluster-url:${article.url}` : `cluster-id:${article.id}`}
+                                        article={article}
+                                        index={index}
+                                        likedIds={likedIds}
+                                        hasRealImage={hasRealImage}
+                                        isArticleInQueue={isArticleInQueue}
+                                        onArticleClick={handleArticleClick}
+                                        onLike={handleLike}
+                                        onQueueToggle={handleQueueToggle}
+                                      />
+                                    ))}
+                                  </div>
+                                ) : (
+                                  <div className="py-12 text-center text-xs uppercase tracking-widest text-muted-foreground">
+                                    No articles found for this topic
+                                  </div>
+                                )}
+
+                                {expandedCluster.keywords.length > 0 && (
+                                  <div className="flex flex-wrap items-center gap-2 border-t border-white/10 pt-4">
+                                    <span className="text-xs uppercase tracking-widest text-muted-foreground">Keywords</span>
+                                    {expandedCluster.keywords.slice(0, 8).map((keyword) => (
+                                      <Badge
+                                        key={keyword}
+                                        variant="outline"
+                                        className="border-white/10 bg-white/5 text-xs uppercase tracking-widest text-muted-foreground"
+                                      >
+                                        {keyword}
+                                      </Badge>
+                                    ))}
+                                  </div>
+                                )}
+                              </div>
+                            </div>
+                          )}
+                        </Fragment>
+                      )
+                    })}
+                  </div>
+                </>
+              )}
+            </div>
+          )}
+
+          {!useVirtualization && viewMode === "source" && hasMoreSourceGroups && (
+            <div className="flex justify-center pb-8">
+              <Button
+                variant="outline"
+                onClick={() => setSourceBatchCount((prev) => prev + 1)}
+                disabled={resolvedIsFetchingNextPage}
+                className="rounded-full border-white/10 bg-transparent px-8 py-5 text-xs font-semibold uppercase tracking-widest text-muted-foreground transition-all duration-300 hover:bg-white/5 hover:text-white disabled:opacity-60"
+              >
+                {resolvedIsFetchingNextPage
+                  ? "Loading more sources"
+                  : `Load 10 more sources (${visibleSourceIds.size}/${sortedSourceIds.length}${resolvedHasNextPage ? "+" : ""})`}
+              </Button>
+            </div>
+          )}
+        </div>
+      </div>
+
+      <ArticleDetailModal
+        article={selectedArticle}
+        isOpen={isArticleModalOpen}
+        onClose={() => {
+          setIsArticleModalOpen(false)
+          setSelectedArticle(null)
+        }}
+      />
+      {showScrollTop && (
+        <Button
+          type="button"
+          size="icon"
+          onClick={scrollToTop}
+          className="absolute bottom-8 right-8 z-40 h-12 w-12 rounded-full border border-white/10 bg-background/85 shadow-xl backdrop-blur"
+        >
+          <ChevronUp className="h-5 w-5" />
+        </Button>
+      )}
+      <ClusterDetailModal
+        cluster={selectedCluster}
+        isBreaking={false}
+        isOpen={isClusterModalOpen}
+        onClose={() => {
+          setIsClusterModalOpen(false)
+          setSelectedCluster(null)
+        }}
+      />
+    </div>
+  )
+}
+
+```
+
+Current file:
+
+```
+
+"use client"
+
+import { NewsArticle } from "@/lib/api"
+import { useMemo, useState } from "react"
+import { ArticleDetailModal } from "./article-detail-modal"
+import { motion, AnimatePresence } from "framer-motion"
+import {
+  Clock,
+  ArrowUpDown,
+  ChevronDown,
+  ArrowRight,
+  Loader2,
+  Newspaper,
+} from "lucide-react"
+
+interface ListViewProps {
+  articles: NewsArticle[]
+  loading: boolean
+  totalCount?: number
+  hasNextPage?: boolean
+  isFetchingNextPage?: boolean
+  fetchNextPage?: () => void
+}
+
+const sortOptions = [
+  { value: "newest", label: "Newest First" },
+  { value: "oldest", label: "Oldest First" },
+  { value: "source", label: "Publisher" },
+  { value: "credibility", label: "Credibility" },
+  { value: "title", label: "Headline" },
+  { value: "left", label: "Left Leaning" },
+  { value: "center", label: "Center" },
+  { value: "right", label: "Right Leaning" },
+] as const
+
+export function ListView({
+  articles,
+  loading,
+  totalCount,
+  hasNextPage = false,
+  isFetchingNextPage = false,
+  fetchNextPage,
+}: ListViewProps) {
+  const [selectedArticle, setSelectedArticle] = useState<NewsArticle | null>(null)
+  const [isArticleModalOpen, setIsArticleModalOpen] = useState(false)
+  const [sortBy, setSortBy] = useState<"newest" | "oldest" | "source" | "credibility" | "title" | "left" | "center" | "right">("newest")
+  const [isSortOpen, setIsSortOpen] = useState(false)
+
+  const sortedArticles = useMemo(() => {
+    const sorted = [...articles]
+    const byDateDesc = (a: NewsArticle, b: NewsArticle) =>
+      new Date(b.publishedAt).getTime() - new Date(a.publishedAt).getTime()
+    const byDateAsc = (a: NewsArticle, b: NewsArticle) =>
+      new Date(a.publishedAt).getTime() - new Date(b.publishedAt).getTime()
+    const credibilityRank = (value?: string) => {
+      switch ((value || "").toLowerCase()) {
+        case "high":
+          return 0
+        case "medium":
+          return 1
+        case "low":
+          return 2
+        default:
+          return 3
+      }
+    }
+    switch (sortBy) {
+      case "oldest":
+        return sorted.sort(byDateAsc)
+      case "source":
+        return sorted.sort((a, b) => {
+          const sourceSort = (a.source || "").localeCompare(b.source || "")
+          return sourceSort || byDateDesc(a, b)
+        })
+      case "credibility":
+        return sorted.sort((a, b) => {
+          const rankSort = credibilityRank(a.credibility) - credibilityRank(b.credibility)
+          return rankSort || byDateDesc(a, b)
+        })
+      case "title":
+        return sorted.sort((a, b) => {
+          const titleSort = (a.title || "").localeCompare(b.title || "")
+          return titleSort || byDateDesc(a, b)
+        })
+      case "left":
+        return sorted.filter((a) => (a.bias || "").toLowerCase().includes("left"))
+      case "center":
+        return sorted.filter((a) => (a.bias || "").toLowerCase().includes("center"))
+      case "right":
+        return sorted.filter((a) => (a.bias || "").toLowerCase().includes("right"))
+      case "newest":
+      default:
+        return sorted.sort(byDateDesc)
+    }
+  }, [articles, sortBy])
+
+  if (loading) {
+    return (
+      <div className="flex h-full w-full items-center justify-center bg-background p-12">
+        <div className="flex flex-col items-center gap-6">
+          <div className="relative">
+            <div className="absolute inset-0 rounded-full bg-primary/10 blur-2xl" />
+            <div className="relative flex h-14 w-14 items-center justify-center rounded-full border border-border/30 bg-background">
+              <Loader2 className="h-6 w-6 animate-spin text-primary/60" />
+            </div>
+          </div>
+          <span className="text-sm font-medium text-muted-foreground">Curating stories...</span>
+        </div>
+      </div>
+    )
+  }
+
+  return (
+    <div className="flex h-full w-full flex-col bg-background">
+      {/* Header */}
+      <motion.div
+        initial={{ opacity: 0, y: -10 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.4, ease: [0.25, 0.1, 0.25, 1] }}
+        className="sticky top-0 z-20 border-b border-border/40 bg-background/80 backdrop-blur-xl"
+      >
+        <div className="flex items-center justify-between px-6 py-5 lg:px-8">
+          <div className="flex items-center gap-4">
+            <div className="flex items-center gap-2.5">
+              <Newspaper className="h-4 w-4 text-primary/70" />
+              <h2 className="font-serif text-xl font-medium text-foreground">All Stories</h2>
+            </div>
+            <div className="h-5 w-px bg-border/50" />
+            <span className="text-sm text-muted-foreground">
+              {articles.length}
+              {typeof totalCount === "number" && totalCount > articles.length && (
+                <span className="text-muted-foreground/60"> of {totalCount}</span>
+              )}
+            </span>
+          </div>
+
+          {/* Sort Dropdown */}
+          <div className="relative">
+            <button
+              onClick={() => setIsSortOpen(!isSortOpen)}
+              className="flex items-center gap-2 rounded-lg border border-border/40 bg-background px-4 py-2 text-sm text-muted-foreground transition-all duration-200 hover:border-border hover:text-foreground"
+            >
+              <ArrowUpDown className="h-3.5 w-3.5" />
+              <span>{sortOptions.find((o) => o.value === sortBy)?.label}</span>
+              <ChevronDown className={`h-3.5 w-3.5 transition-transform duration-200 ${isSortOpen ? "rotate-180" : ""}`} />
+            </button>
+
+            <AnimatePresence>
+              {isSortOpen && (
+                <motion.div
+                  initial={{ opacity: 0, y: 8 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, y: 8 }}
+                  transition={{ duration: 0.2 }}
+                  className="absolute right-0 top-full z-50 mt-2 w-48 overflow-hidden rounded-lg border border-border/40 bg-popover shadow-xl"
+                >
+                  {sortOptions.map((option) => (
+                    <button
+                      key={option.value}
+                      onClick={() => {
+                        setSortBy(option.value as typeof sortBy)
+                        setIsSortOpen(false)
+                      }}
+                      className={`w-full px-4 py-2.5 text-left text-sm transition-colors ${
+                        sortBy === option.value
+                          ? "bg-primary/10 text-primary"
+                          : "text-muted-foreground hover:bg-muted hover:text-foreground"
+                      }`}
+                    >
+                      {option.label}
+                    </button>
+                  ))}
+                </motion.div>
+              )}
+            </AnimatePresence>
+          </div>
+        </div>
+      </motion.div>
+
+      {/* Article List */}
+      <div className="flex-1 overflow-y-auto">
+        <AnimatePresence mode="popLayout">
+          {sortedArticles.map((article, index) => (
+            <motion.article
+              key={article.id}
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -20 }}
+              transition={{
+                duration: 0.5,
+                delay: index * 0.03,
+                ease: [0.25, 0.1, 0.25, 1],
+              }}
+              onClick={() => {
+                setSelectedArticle(article)
+                setIsArticleModalOpen(true)
+              }}
+              className="group relative cursor-pointer border-b border-border/20 px-6 py-6 transition-colors duration-300 hover:bg-muted/30 lg:px-8"
+            >
+              <div className="flex items-start gap-6">
+                {/* Date Column */}
+                <div className="hidden w-24 shrink-0 flex-col gap-1 sm:flex">
+                  <span className="text-sm font-medium text-foreground/80">
+                    {new Date(article.publishedAt).toLocaleDateString("en-US", {
+                      month: "short",
+                      day: "numeric",
+                    })}
+                  </span>
+                  <div className="flex items-center gap-1.5 text-xs text-muted-foreground/60">
+                    <Clock className="h-3 w-3" />
+                    {new Date(article.publishedAt).toLocaleTimeString("en-US", {
+                      hour: "numeric",
+                      minute: "2-digit",
+                    })}
+                  </div>
+                </div>
+
+                {/* Content */}
+                <div className="flex-1 min-w-0">
+                  <div className="mb-2 flex items-center gap-3">
+                    <span className="text-xs font-semibold uppercase tracking-wider text-primary/80">
+                      {article.source}
+                    </span>
+                    {article.category && (
+                      <span className="rounded-full border border-border/40 bg-muted/40 px-2 py-0.5 text-[10px] uppercase tracking-wider text-muted-foreground">
+                        {article.category}
+                      </span>
+                    )}
+                  </div>
+
+                  <h3 className="font-serif text-lg font-medium leading-snug text-foreground/90 transition-colors duration-300 group-hover:text-primary md:text-xl">
+                    {article.title}
+                  </h3>
+
+                  {article.summary && (
+                    <p className="mt-2 line-clamp-2 text-sm leading-relaxed text-muted-foreground/80">
+                      {article.summary}
+                    </p>
+                  )}
+
+                  {/* Meta Row */}
+                  <div className="mt-3 flex items-center gap-4">
+                    {/* Credibility */}
+                    {article.credibility && (
+                      <div className="flex items-center gap-2">
+                        <div className="flex gap-1">
+                          {[1, 2, 3].map((level) => {
+                            const score =
+                              article.credibility === "high"
+                                ? 3
+                                : article.credibility === "medium"
+                                  ? 2
+                                  : 1
+                            const isActive = level <= score
+                            return (
+                              <div
+                                key={level}
+                                className={`h-1.5 w-3 rounded-sm transition-colors duration-300 ${
+                                  isActive
+                                    ? article.credibility === "high"
+                                      ? "bg-emerald-500"
+                                      : article.credibility === "medium"
+                                        ? "bg-amber-500"
+                                        : "bg-rose-500"
+                                    : "bg-border"
+                                }`}
+                              />
+                            )
+                          })}
+                        </div>
+                        <span className="text-[10px] uppercase tracking-wider text-muted-foreground/60">
+                          {article.credibility}
+                        </span>
+                      </div>
+                    )}
+
+                    {/* Bias */}
+                    {article.bias && (
+                      <div className="flex items-center gap-2">
+                        <div
+                          className={`h-2 w-2 rounded-full ${
+                            article.bias === "left"
+                              ? "bg-blue-500"
+                              : article.bias === "right"
+                                ? "bg-rose-500"
+                                : "bg-purple-500"
+                          }`}
+                        />
+                        <span className="text-[10px] uppercase tracking-wider text-muted-foreground/60">
+                          {article.bias}
+                        </span>
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                {/* Arrow */}
+                <div className="hidden shrink-0 items-center sm:flex">
+                  <ArrowRight className="h-5 w-5 text-muted-foreground/30 transition-all duration-300 group-hover:translate-x-1 group-hover:text-primary" />
+                </div>
+              </div>
+            </motion.article>
+          ))}
+        </AnimatePresence>
+      </div>
+
+      {/* Empty State */}
+      {sortedArticles.length === 0 && (
+        <motion.div
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          className="flex flex-1 flex-col items-center justify-center py-24 text-center"
+        >
+          <Newspaper className="mb-6 h-12 w-12 text-muted-foreground/30" />
+          <h3 className="mb-2 font-serif text-2xl text-foreground/60">No stories found</h3>
+          <p className="max-w-sm text-sm text-muted-foreground/60">
+            Try adjusting your filters or sort order to discover more content.
+          </p>
+        </motion.div>
+      )}
+
+      {/* Load More */}
+      {hasNextPage && (
+        <div className="flex justify-center border-t border-border/40 p-6">
+          <button
+            type="button"
+            onClick={() => fetchNextPage?.()}
+            disabled={isFetchingNextPage}
+            className="group flex items-center gap-3 rounded-full border border-border/40 bg-background px-8 py-3 text-sm font-medium text-muted-foreground transition-all duration-300 hover:border-primary/40 hover:text-foreground disabled:opacity-50"
+          >
+            {isFetchingNextPage ? (
+              <>
+                <Loader2 className="h-4 w-4 animate-spin" />
+                <span>Loading...</span>
+              </>
+            ) : (
+              <>
+                <span>Load More Stories</span>
+                <ArrowRight className="h-4 w-4 transition-transform duration-300 group-hover:translate-x-1" />
+              </>
+            )}
+          </button>
+        </div>
+      )}
+
+      <ArticleDetailModal
+        article={selectedArticle}
+        isOpen={isArticleModalOpen}
+        onClose={() => {
+          setIsArticleModalOpen(false)
+          setSelectedArticle(null)
+        }}
+      />
+    </div>
+  )
+}
+
+
+```

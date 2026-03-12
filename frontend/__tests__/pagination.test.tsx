@@ -306,4 +306,29 @@ describe("usePaginatedNews", () => {
     expect(result.current.articles[0].title).toBe("Test Article 1");
     expect(result.current.articles[1].id).toBe(2);
   });
+
+  it("should request 500 articles for scroll-sized cached fetches", async () => {
+    (fetchCachedNewsPaginated as jest.Mock).mockResolvedValue({
+      articles: mockArticles,
+      total: 1000,
+      limit: 500,
+      next_cursor: "500",
+      prev_cursor: null,
+      has_more: true,
+    });
+
+    const { result } = renderHook(
+      () => usePaginatedNews({ limit: 500, useCached: true }),
+      { wrapper: createWrapper() }
+    );
+
+    await waitFor(() => {
+      expect(result.current.isLoading).toBe(false);
+    });
+
+    expect(fetchCachedNewsPaginated).toHaveBeenCalledWith(
+      expect.objectContaining({ limit: 500 })
+    );
+    expect(result.current.hasNextPage).toBe(true);
+  });
 });

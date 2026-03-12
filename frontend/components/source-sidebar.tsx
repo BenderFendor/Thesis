@@ -143,7 +143,7 @@ export function SourceSidebar({ isOpen, onClose, sourceRecency }: SourceSidebarP
       />
 
       {/* Sidebar */}
-      <div className="relative w-80 bg-[var(--news-bg-secondary)] border-r border-white/10 overflow-hidden flex flex-col">
+      <div className="relative w-full max-w-[22rem] bg-[var(--news-bg-secondary)] border-r border-white/10 overflow-hidden flex flex-col sm:w-80">
         {/* Header */}
         <div className="flex items-center justify-between p-4 border-b border-white/10">
           <h2 className="text-sm font-mono uppercase tracking-[0.3em] text-muted-foreground">Sources</h2>

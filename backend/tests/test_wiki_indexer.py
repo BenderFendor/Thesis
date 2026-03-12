@@ -699,6 +699,13 @@ def test_due_rss_sources_respects_next_check_times():
     assert next_wait_seconds is not None
 
 
+def test_refresh_error_sleep_seconds_uses_longer_backoff_for_emfile():
+    from app.services.scheduler import _get_refresh_error_sleep_seconds
+
+    assert _get_refresh_error_sleep_seconds(OSError(24, "Too many open files"), 30) > 30
+    assert _get_refresh_error_sleep_seconds(RuntimeError("other"), 30) == 30
+
+
 # ---------------------------------------------------------------------------
 # RSS config funding_type priority
 # ---------------------------------------------------------------------------

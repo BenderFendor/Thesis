@@ -1,5 +1,40 @@
 # Log
 
+## 2026-03-12: Scroll Feed Personalization, Buffered Queue, And Mobile Access Fix
+
+**Problem:** Scroll view only applied a simple favorite-source and image sort to the currently loaded page, so personalization did not affect what later pagination batches surfaced. On smaller screens, the main path to switch views and open source filters could also disappear once the layout tightened or the user entered scroll mode.
+
+**What Changed:**
+- Added `frontend/lib/feed-ranking.ts` with a transparent, tunable ranking model that keeps favorite sources and image presence as top-level buckets, weights bookmarks at 2x likes, and caps keyword, category, and source boosts to avoid overfitting a smaller article pool.
+- Added `frontend/hooks/useScrollPersonalization.ts` to rebuild a persistent interest profile from saved likes, bookmarks, and favorite sources, fetch bulk topic assignments with the existing similarity API, and re-rank the current scroll candidate pool without adding new backend state.
+- Rebuilt `frontend/components/feed-view.tsx` around a buffered queue: scroll mode now ranks a larger candidate pool, renders only an initial window, reveals more items in chunks, fetches the next batch before the local buffer runs dry, and exposes a collapsible ranking panel that shows the active mode, weights, profile summary, and current-article score breakdown.
+- Updated `frontend/app/page.tsx` so scroll mode fetches `500` candidates per batch while grid and list keep their existing behavior, and added a mobile browse toolbar that keeps the view switcher and source filter button available even in scroll mode.
+- Updated `frontend/components/source-sidebar.tsx` to fit narrow screens better by using a full-width drawer cap instead of a fixed desktop width.
+- Updated `frontend/lib/api.ts` bulk topic response typing so keyword payloads from the backend remain available to the ranking logic.
+- Added regression coverage in `frontend/__tests__/feed-ranking.test.ts` for favorite bucket priority, bookmark-vs-like weighting, and stable tie ordering, and extended `frontend/__tests__/pagination.test.tsx` to prove the larger `500`-item scroll fetch path is requested correctly.
+
+**Verification:**
+- `npm test -- --runTestsByPath __tests__/feed-ranking.test.ts __tests__/pagination.test.tsx`
+- `./frontend/node_modules/.bin/tsc --noEmit`
+- `npm --prefix frontend run build`
+- Visual browser check at mobile width confirmed scroll mode is reachable from the new toolbar, the `Sources` control remains visible, and the ranking chip renders in scroll view. Screenshots saved to `frontend/.artifacts/scroll-mobile-before.png` and `frontend/.artifacts/scroll-mobile-after.png`.
+
+## 2026-03-12: RSS Open-File Exhaustion Guardrails
+
+**Problem:** Scheduled RSS refreshes could exhaust a gunicorn worker's open-file limit. When that happened, the Rust ingest path failed to create its Tokio runtime, the Python fallback failed to create process-pool pipes, and the scheduler retried too quickly with very little diagnostic detail.
+
+**What Changed:**
+- Added `backend/app/core/process_limits.py` to detect `Too many open files`, inspect current FD usage, and raise the worker soft `RLIMIT_NOFILE` toward the available hard limit at startup.
+- Updated `backend/app/main.py` to raise the open-file soft limit on startup and log the worker's initial FD state.
+- Added a global OG image concurrency cap in `backend/app/services/og_image.py` so image enrichment is bounded across all domains instead of only per domain.
+- Updated `backend/app/services/rss_ingestion.py` to log FD diagnostics at refresh start, treat open-file exhaustion as a shared resource error, and skip the Python fallback when Rust already failed for that reason.
+- Updated `backend/app/services/scheduler.py` to apply a longer backoff after `EMFILE`-style failures and log the worker's FD state with the backoff decision.
+- Added regression coverage in `backend/tests/test_extraction_image_flow.py`, `backend/tests/test_rss_resource_limits.py`, and `backend/tests/test_wiki_indexer.py`.
+
+**Verification:**
+- `uv run pytest backend/tests/test_extraction_image_flow.py backend/tests/test_rss_resource_limits.py backend/tests/test_wiki_indexer.py -q`
+- `./verify.sh`
+
 ## 2026-03-07: Research Agent Loop Termination And SSE Debug Harness
 
 **Problem:** The research workspace could get stuck in repeated tool-planning cycles, showing many "Checking more sources." steps while llama.cpp kept serving successful completions. The visible loop looked like a frontend issue at first, but the backend agent graph was continuing past its intended stopping conditions.

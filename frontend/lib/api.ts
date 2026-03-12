@@ -6,12 +6,42 @@ import type {
 } from "@/lib/generated/openapi";
 // API utility for communicating with FastAPI backend
 
-// Default to localhost backend when env var is not set (makes dev easier)
+const DEFAULT_BACKEND_PORT = "8000"
+const LOCAL_BACKEND_FALLBACK = `http://localhost:${DEFAULT_BACKEND_PORT}`
+const LOCAL_HOSTNAMES = new Set(["localhost", "127.0.0.1", "0.0.0.0", "[::1]"])
+
+function isLocalHostname(hostname: string): boolean {
+  return LOCAL_HOSTNAMES.has(hostname.trim().toLowerCase())
+}
+
+// Default to localhost backend when env var is not set. If the UI is opened from
+// another device on the LAN, rewrite localhost-style backend URLs to the current
+// browser hostname so the remote browser still talks to this machine.
 const resolveBaseUrl = (value?: string) => {
-  const fallback = "http://localhost:8000";
-  const raw = value && value.trim().length > 0 ? value : fallback;
-  return raw.replace(/\/+$/, "");
-};
+  const raw = value && value.trim().length > 0 ? value : LOCAL_BACKEND_FALLBACK
+  const normalized = raw.replace(/\/+$/, "")
+
+  if (typeof window === "undefined") {
+    return normalized
+  }
+
+  try {
+    const url = new URL(normalized)
+    const browserHostname = window.location.hostname
+
+    if (!browserHostname || isLocalHostname(browserHostname) || !isLocalHostname(url.hostname)) {
+      return normalized
+    }
+
+    url.hostname = browserHostname
+    if (!url.port) {
+      url.port = DEFAULT_BACKEND_PORT
+    }
+    return url.toString().replace(/\/+$/, "")
+  } catch {
+    return normalized
+  }
+}
 
 export const API_BASE_URL = resolveBaseUrl(process.env.NEXT_PUBLIC_API_URL);
 const DOCKER_API_BASE_URL = resolveBaseUrl(
@@ -4081,7 +4111,12 @@ export interface ArticleTopicsResponse {
 export interface BulkArticleTopicsResponse {
   articles: Record<
     number,
-    Array<{ cluster_id: number; label: string; similarity: number | null }>
+    Array<{
+      cluster_id: number
+      label: string
+      similarity: number | null
+      keywords?: string[]
+    }>
   >;
 }
 

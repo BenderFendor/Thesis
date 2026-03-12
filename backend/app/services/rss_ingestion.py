@@ -3,6 +3,7 @@ from __future__ import annotations
 import asyncio
 import concurrent.futures
 import json
+import logging
 import random
 import threading
 import time
@@ -18,6 +19,11 @@ import requests
 
 from app.core.config import settings
 from app.core.logging import get_logger
+from app.core.process_limits import (
+    exception_mentions_too_many_open_files,
+    get_nofile_limits,
+    get_open_file_descriptor_count,
+)
 from app.core.resource_config import get_system_resources, ResourceConfig
 from app.data.rss_sources import get_rss_sources
 from app.models.news import NewsArticle
@@ -67,6 +73,18 @@ PersistQueueItem = tuple[list[NewsArticle], SourceStat] | None
 DEFAULT_POLL_INTERVAL_SECONDS = 600
 MIN_POLL_INTERVAL_SECONDS = 300
 MAX_POLL_INTERVAL_SECONDS = 3600
+
+
+def _log_fd_diagnostics(message: str, level: int = logging.INFO) -> None:
+    soft_limit, hard_limit = get_nofile_limits()
+    logger.log(
+        level,
+        "%s (open_fds=%s soft_nofile=%s hard_nofile=%s)",
+        message,
+        get_open_file_descriptor_count(),
+        soft_limit,
+        hard_limit,
+    )
 
 
 def _is_fetch_poison_pill(item: FetchQueueItem) -> TypeGuard[tuple[None, None]]:
@@ -955,6 +973,10 @@ async def refresh_news_cache_async(
 
     is_partial_refresh = source_names is not None
     news_cache.update_in_progress = True
+    _log_fd_diagnostics(
+        f"Starting RSS refresh for {len(rss_sources)} sources",
+        level=logging.INFO,
+    )
 
     try:
         if RUST_RSS_AVAILABLE:
@@ -966,6 +988,12 @@ async def refresh_news_cache_async(
                 )
                 return
             except Exception as rust_exc:  # pragma: no cover - fallback path
+                if exception_mentions_too_many_open_files(rust_exc):
+                    _log_fd_diagnostics(
+                        "Rust RSS ingestion hit open-file exhaustion; skipping Python fallback",
+                        level=logging.ERROR,
+                    )
+                    raise
                 logger.error(
                     "Rust ingestion failed, falling back to Python: %s",
                     rust_exc,
@@ -1105,6 +1133,12 @@ async def _refresh_news_cache_with_python(
 
     except Exception as exc:
         logger.error("Async cache refresh failed: %s", exc, exc_info=True)
+        if exception_mentions_too_many_open_files(exc):
+            _log_fd_diagnostics(
+                "Python RSS pipeline hit open-file exhaustion",
+                level=logging.ERROR,
+            )
+            raise
 
     finally:
         await http_client.aclose()

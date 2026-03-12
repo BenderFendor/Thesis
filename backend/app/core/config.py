@@ -22,6 +22,14 @@ def _parse_domain_list(env_var: str, default: str = "") -> Tuple[str, ...]:
     return tuple(d.strip() for d in raw.split(",") if d.strip())
 
 
+def _parse_optional_str(env_var: str) -> Optional[str]:
+    raw = os.getenv(env_var)
+    if raw is None:
+        return None
+    value = raw.strip()
+    return value or None
+
+
 # Default high-credibility domains for verification
 _DEFAULT_VERIFICATION_DOMAINS = (
     "reuters.com,apnews.com,bbc.com,bbc.co.uk,npr.org,pbs.org,"
@@ -62,6 +70,7 @@ class Settings:
     frontend_origins: tuple[str, ...] = _parse_domain_list(
         "CORS_ORIGINS", "http://localhost:3000,http://localhost:3001"
     )
+    frontend_origin_regex: Optional[str] = _parse_optional_str("CORS_ORIGIN_REGEX")
     enable_vector_store: bool = _env_enabled("ENABLE_VECTOR_STORE")
     enable_database: bool = _env_enabled("ENABLE_DATABASE")
     enable_incremental_cache: bool = _env_enabled("ENABLE_INCREMENTAL_CACHE", "1")

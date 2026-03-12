@@ -18,6 +18,11 @@ from fastapi.middleware.gzip import GZipMiddleware
 from app.api.routes import router as api_router
 from app.core.config import settings
 from app.core.logging import configure_logging, get_logger
+from app.core.process_limits import (
+    get_nofile_limits,
+    get_open_file_descriptor_count,
+    raise_nofile_soft_limit,
+)
 from app.core.profiling import ProfilingMiddleware
 from app.database import init_db, AsyncSessionLocal, fetch_all_articles
 from app.middleware.request_tracing import RequestTracingMiddleware
@@ -59,6 +64,7 @@ app = FastAPI(
 app.add_middleware(
     CORSMiddleware,
     allow_origins=list(settings.frontend_origins),
+    allow_origin_regex=settings.frontend_origin_regex,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -284,6 +290,15 @@ async def on_startup() -> None:
     # Register signal handlers for graceful shutdown
     signal.signal(signal.SIGTERM, _handle_shutdown_signal)
     signal.signal(signal.SIGINT, _handle_shutdown_signal)
+
+    raise_nofile_soft_limit(logger)
+    soft_nofile, hard_nofile = get_nofile_limits()
+    logger.info(
+        "Startup file-descriptor state: open_fds=%s soft_nofile=%s hard_nofile=%s",
+        get_open_file_descriptor_count(),
+        soft_nofile,
+        hard_nofile,
+    )
 
     # Fail fast if llama.cpp backend is selected but the server is not running
     if settings.llm_backend == "llamacpp":
