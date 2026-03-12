@@ -141,6 +141,12 @@ export interface NewsArticle {
     aiAnalysis?: ArticleAnalysis;
     preloadedAt?: number;
   };
+  hasFullContent?: boolean;
+}
+
+export interface BrowseIndexResponse {
+  articles: NewsArticle[];
+  total: number;
 }
 
 const COUNTRY_NAME_TO_CODE: Record<string, string> = {
@@ -2076,7 +2082,7 @@ export function mapBackendArticles(
     const sourceName = article.source || article.source_name || "Unknown";
 
     const summary = article.summary || article.description || "";
-    const content = article.content || summary;
+    const content = article.content || undefined;
     const rawImage = article.image || article.image_url;
     const image =
       rawImage && rawImage !== "none" ? rawImage : "/placeholder.svg";
@@ -2157,6 +2163,7 @@ export function mapBackendArticles(
       originalLanguage: article.original_language || "en",
       translated: article.translated ?? false,
       author: author || undefined,
+      hasFullContent: typeof article.content === "string" && article.content.trim().length > 0,
       source_country: sourceCountry,
       mentioned_countries: mentionedCountries,
     };
@@ -2950,6 +2957,36 @@ export async function fetchCachedNewsPaginated(
     next_cursor: data.next_cursor,
     prev_cursor: null,
     has_more: data.has_more,
+  };
+}
+
+export async function fetchBrowseIndex(
+  params: Pick<PaginationParams, "category" | "source" | "sources" | "search"> = {},
+): Promise<BrowseIndexResponse> {
+  const searchParams = new URLSearchParams();
+
+  if (params.category) searchParams.append("category", params.category);
+  if (params.sources) {
+    searchParams.append("sources", params.sources);
+  } else if (params.source) {
+    searchParams.append("source", params.source);
+  }
+  if (params.search) searchParams.append("search", params.search);
+
+  const url = `${API_BASE_URL}/news/index${searchParams.toString() ? "?" + searchParams.toString() : ""}`;
+  logger.debug(`[BrowseIndex] Fetching browse index: ${url}`);
+
+  const response = await fetch(url);
+
+  if (!response.ok) {
+    throw new Error(`HTTP error! status: ${response.status}`);
+  }
+
+  const data = await response.json();
+
+  return {
+    articles: mapBackendArticles(data.articles || []),
+    total: typeof data.total === "number" ? data.total : 0,
   };
 }
 

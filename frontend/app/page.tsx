@@ -43,7 +43,7 @@ const GlobeView = dynamic(
 
 import { useNewsStream } from "@/hooks/useNewsStream"
 import { useFavorites } from "@/hooks/useFavorites"
-import { usePaginatedNews } from "@/hooks/usePaginatedNews"
+import { useBrowseIndex } from "@/hooks/useBrowseIndex"
 import { useSourceFilter } from "@/hooks/useSourceFilter"
 import { fetchCategories, NewsArticle } from "@/lib/api"
 import { isDebugMode, logger } from "@/lib/logger"
@@ -51,13 +51,8 @@ import { ErrorBoundary } from '@/components/ErrorBoundary';
 import { NotificationsPopup, Notification, type NotificationActionType } from '@/components/notification-popup';
 import { SourceSidebar } from "@/components/source-sidebar";
 import { cn } from "@/lib/utils";
-import { FEATURE_FLAGS } from "@/lib/constants"
 
 type ViewMode = "globe" | "grid" | "scroll" | "list"
-
-const GRID_SOURCE_PAGE_SIZE = 500
-const ARTICLE_PAGE_SIZE = FEATURE_FLAGS.PAGINATION_PAGE_SIZE
-const SCROLL_PAGE_SIZE = 500
 
 const VIEW_OPTIONS: Array<{ value: ViewMode; label: string }> = [
   { value: "globe", label: "Globe" },
@@ -125,28 +120,17 @@ function NewsPage() {
   const { favorites, isFavorite } = useFavorites()
   const { selectedSources, isFilterActive, isSelected } = useSourceFilter()
   const selectedSourceIds = useMemo(() => Array.from(selectedSources), [selectedSources])
-  const usePaginatedBrowse = currentView !== "globe"
-  const browsePageSize = currentView === "scroll"
-    ? SCROLL_PAGE_SIZE
-    : currentView === "grid" && gridMode === "source"
-      ? GRID_SOURCE_PAGE_SIZE
-      : ARTICLE_PAGE_SIZE
 
   const {
-    articles: paginatedArticles,
-    totalCount: paginatedTotalCount,
-    isLoading: paginatedLoading,
-    isFetchingNextPage,
-    hasNextPage,
-    fetchNextPage,
-    error: paginatedError,
-    refetch: refetchPaginatedNews,
-  } = usePaginatedNews({
-    limit: browsePageSize,
+    articles: browseIndexArticles,
+    totalCount: browseIndexTotalCount,
+    isLoading: browseIndexLoading,
+    error: browseIndexError,
+    refetch: refetchBrowseIndex,
+  } = useBrowseIndex({
     category: activeCategory === "all" ? undefined : activeCategory,
     sources: selectedSourceIds.length > 0 ? selectedSourceIds : undefined,
-    useCached: true,
-    enabled: usePaginatedBrowse,
+    enabled: currentView !== "globe",
   })
 
   // Fetch categories in background, don't block stream
@@ -271,7 +255,7 @@ function NewsPage() {
     return sortArticles(filtered)
   }, [activeCategory, articlesByCategory, isFilterActive, isSelected, sortArticles])
 
-  const browseArticles = useMemo(() => sortArticles(paginatedArticles), [paginatedArticles, sortArticles])
+  const browseArticles = useMemo(() => sortArticles(browseIndexArticles), [browseIndexArticles, sortArticles])
 
   const activeViewArticles = currentView === "globe" ? globeArticles : browseArticles
 
@@ -345,13 +329,13 @@ function NewsPage() {
       return
     }
 
-    setLoading(paginatedLoading)
-  }, [currentView, streamHook.isStreaming, articlesByCategory, activeCategory, paginatedLoading])
+    setLoading(browseIndexLoading)
+  }, [currentView, streamHook.isStreaming, articlesByCategory, activeCategory, browseIndexLoading])
 
   useEffect(() => {
     if (currentView === "globe") return
-    setArticleCount(paginatedTotalCount || browseArticles.length)
-  }, [browseArticles.length, currentView, paginatedTotalCount])
+    setArticleCount(browseIndexTotalCount || browseArticles.length)
+  }, [browseArticles.length, currentView, browseIndexTotalCount])
 
 
   const handleClearNotification = (id: string) => {
@@ -454,11 +438,11 @@ function NewsPage() {
       });
     }
 
-    if (paginatedError) {
+    if (browseIndexError) {
       items.push({
-        id: "paginated-error",
+        id: "browse-index-error",
         title: "Browse path unavailable",
-        description: paginatedError.message,
+        description: browseIndexError.message,
         type: "error",
         timestamp: now,
         action: { label: "Retry", type: "retry" },
@@ -490,7 +474,7 @@ function NewsPage() {
     selectedSources.size,
     loading,
     activeViewArticles.length,
-    paginatedError,
+    browseIndexError,
   ]);
 
   const actionableNotificationCount = useMemo(
@@ -524,7 +508,7 @@ function NewsPage() {
       return;
     }
 
-    void refetchPaginatedNews();
+    void refetchBrowseIndex();
   };
 
   const handleSearchSubmit = (event: KeyboardEvent<HTMLInputElement>) => {
@@ -964,33 +948,24 @@ function NewsPage() {
                           viewMode={gridMode}
                           onViewModeChange={setGridMode}
                           isScrollMode={false}
-                          totalCount={paginatedTotalCount}
-                          hasNextPage={hasNextPage}
-                          isFetchingNextPage={isFetchingNextPage}
-                          fetchNextPage={fetchNextPage}
+                          totalCount={browseIndexTotalCount}
                         />
                       )}
                        {currentView === "scroll" && (
-                         <FeedView
-                           key={`${category.id}-scroll`}
-                           articles={browseArticles}
-                           loading={loading}
-                           totalCount={paginatedTotalCount}
-                           hasNextPage={hasNextPage}
-                           isFetchingNextPage={isFetchingNextPage}
-                           fetchNextPage={fetchNextPage}
-                           debugMode={debugMode}
-                         />
-                       )}
+                          <FeedView
+                            key={`${category.id}-scroll`}
+                            articles={browseArticles}
+                            loading={loading}
+                            totalCount={browseIndexTotalCount}
+                            debugMode={debugMode}
+                          />
+                        )}
                       {currentView === "list" && (
                         <ListView
                           key={`${category.id}-list`}
                           articles={browseArticles}
                           loading={loading}
-                          totalCount={paginatedTotalCount}
-                          hasNextPage={hasNextPage}
-                          isFetchingNextPage={isFetchingNextPage}
-                          fetchNextPage={fetchNextPage}
+                          totalCount={browseIndexTotalCount}
                         />
                       )}
                     </>

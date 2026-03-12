@@ -24,7 +24,6 @@ import {
   FeedScoreBreakdown,
   hasRealFeedImage,
   RANKING_WEIGHTS,
-  SCROLL_BUFFER_FETCH_THRESHOLD,
   SCROLL_INITIAL_RENDER_COUNT,
   SCROLL_RENDER_CHUNK_SIZE,
   SCROLL_REVEAL_THRESHOLD,
@@ -44,9 +43,6 @@ interface FeedViewProps {
   articles: NewsArticle[]
   loading: boolean
   totalCount?: number
-  hasNextPage?: boolean
-  isFetchingNextPage?: boolean
-  fetchNextPage?: () => void
   debugMode?: boolean
 }
 
@@ -190,9 +186,6 @@ export function FeedView({
   articles: propArticles,
   loading,
   totalCount,
-  hasNextPage = false,
-  isFetchingNextPage = false,
-  fetchNextPage,
   debugMode = false,
 }: FeedViewProps) {
   const { likedIds, toggleLike } = useLikedArticles()
@@ -341,13 +334,6 @@ export function FeedView({
       observer.disconnect()
     }
   }, [effectiveVisibleArticles.length, rankedArticles, renderCount, rankedArticles.length])
-
-  useEffect(() => {
-    const remainingBuffered = rankedArticles.length - effectiveVisibleArticles.length
-    if (remainingBuffered < SCROLL_BUFFER_FETCH_THRESHOLD && hasNextPage && !isFetchingNextPage) {
-      fetchNextPage?.()
-    }
-  }, [effectiveVisibleArticles.length, fetchNextPage, hasNextPage, isFetchingNextPage, rankedArticles.length])
 
   const scrollToNext = useCallback(() => {
     const container = containerRef.current
@@ -581,13 +567,9 @@ export function FeedView({
           </section>
         ))}
 
-        {(hasNextPage || isFetchingNextPage || effectiveVisibleArticles.length < rankedArticles.length) && (
+        {effectiveVisibleArticles.length < rankedArticles.length && (
           <div className="flex min-h-28 items-center justify-center border-t border-white/10 bg-black/40 px-6 py-8 text-center text-xs uppercase tracking-widest text-white/70">
-            {isFetchingNextPage
-              ? "Loading more coverage..."
-              : effectiveVisibleArticles.length < rankedArticles.length
-                ? `Queued ${rankedArticles.length - effectiveVisibleArticles.length} more ranked stories`
-                : `More coverage available${typeof totalCount === "number" ? ` (${rankedArticles.length}/${totalCount})` : ""}`}
+            {`Queued ${rankedArticles.length - effectiveVisibleArticles.length} more ranked stories${typeof totalCount === "number" ? ` (${effectiveVisibleArticles.length}/${totalCount})` : ""}`}
           </div>
         )}
       </div>

@@ -37,6 +37,20 @@ async def test_news_page_search_uses_backend_search(client: AsyncClient) -> None
     assert [article["id"] for article in data["articles"]] == []
 
 
+@pytest.mark.asyncio
+async def test_news_index_returns_lightweight_full_browse_results(
+    client: AsyncClient,
+) -> None:
+    resp = await client.get("/news/index?search=China")
+    assert resp.status_code == 200
+
+    data = resp.json()
+    assert data["total"] == 3
+    assert [article["id"] for article in data["articles"]] == [3, 4, 2]
+    assert all(article.get("content") is None for article in data["articles"])
+    assert all(len(article.get("summary") or "") <= 283 for article in data["articles"])
+
+
 def test_search_internal_news_prefers_db_results(monkeypatch) -> None:
     article = {
         "id": 77,

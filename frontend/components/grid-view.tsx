@@ -48,8 +48,6 @@ import { get_logger, cn } from "@/lib/utils"
 import { useReadingQueue } from "@/hooks/useReadingQueue"
 import { useLikedArticles } from "@/hooks/useLikedArticles"
 import { useFavorites } from "@/hooks/useFavorites"
-import { usePaginatedNews } from "@/hooks/usePaginatedNews"
-import { FEATURE_FLAGS } from "@/lib/constants"
 import {
   clusterArticlesToNewsArticles,
   getClusterPreviewStats,
@@ -85,9 +83,6 @@ interface GridViewProps {
   onViewModeChange?: (mode: "source" | "topic") => void
   isScrollMode?: boolean
   totalCount?: number
-  hasNextPage?: boolean
-  isFetchingNextPage?: boolean
-  fetchNextPage?: () => void
 }
 
 interface SourceArticleCardProps {
@@ -238,9 +233,6 @@ export function GridView({
   onViewModeChange,
   isScrollMode: _isScrollMode = false,
   totalCount,
-  hasNextPage: paginatedHasNextPage = false,
-  isFetchingNextPage: paginatedIsFetchingNextPage = false,
-  fetchNextPage: paginatedFetchNextPage,
 }: GridViewProps) {
   void _apiUrl
   void _isScrollMode
@@ -301,20 +293,6 @@ export function GridView({
     [formatKeywordLabel, normalizeLabel, stripTitleSuffix],
   )
 
-  const {
-    articles: paginatedArticles,
-    totalCount: virtualizedTotalCount,
-    isLoading: paginatedLoading,
-    isFetchingNextPage,
-    hasNextPage,
-    fetchNextPage,
-  } = usePaginatedNews({
-    limit: FEATURE_FLAGS.PAGINATION_PAGE_SIZE,
-    search: searchTerm || undefined,
-    useCached: true,
-    enabled: useVirtualization,
-  })
-
   const filteredNews = useMemo(() => {
     if (!searchTerm) return articles
     return articles.filter(
@@ -324,12 +302,9 @@ export function GridView({
     )
   }, [articles, searchTerm])
 
-  const displayArticles = useVirtualization ? paginatedArticles : filteredNews
-  const isLoadingState = useVirtualization ? paginatedLoading : loading
-  const resolvedTotalCount = useVirtualization ? virtualizedTotalCount : totalCount ?? filteredNews.length
-  const resolvedHasNextPage = useVirtualization ? hasNextPage : paginatedHasNextPage
-  const resolvedIsFetchingNextPage = useVirtualization ? isFetchingNextPage : paginatedIsFetchingNextPage
-  const resolvedFetchNextPage = useVirtualization ? fetchNextPage : paginatedFetchNextPage
+  const displayArticles = filteredNews
+  const isLoadingState = loading
+  const resolvedTotalCount = totalCount ?? filteredNews.length
 
   useEffect(() => {
     onCountChange?.(filteredNews.length)
@@ -405,8 +380,8 @@ export function GridView({
 
   const hasMoreSourceGroups = useMemo(() => {
     if (viewMode !== "source") return false
-    return visibleSourceIds.size < sortedSourceIds.length || resolvedHasNextPage
-  }, [resolvedHasNextPage, sortedSourceIds.length, viewMode, visibleSourceIds.size])
+    return visibleSourceIds.size < sortedSourceIds.length
+  }, [sortedSourceIds.length, viewMode, visibleSourceIds.size])
 
   const visibleSourceGroups = useMemo(
     () => sourceGroups.filter((group) => visibleSourceIds.has(group.sourceId)),
@@ -576,28 +551,6 @@ export function GridView({
     containerRef.current?.scrollTo({ top: 0, behavior: "smooth" })
   }, [])
 
-  useEffect(() => {
-    if (viewMode !== "source") return
-    if (!hasMoreSourceGroups) return
-    if (resolvedIsFetchingNextPage) return
-
-    const favoriteCount = sourceGroups.filter((group) => isFavorite(group.sourceId)).length
-    const minimumVisible = favoriteCount + sourceBatchCount * SOURCE_GROUP_BATCH_SIZE
-    if (sourceGroups.length >= minimumVisible) return
-    if (!resolvedHasNextPage) return
-
-    resolvedFetchNextPage?.()
-  }, [
-    hasMoreSourceGroups,
-    isFavorite,
-    resolvedFetchNextPage,
-    resolvedHasNextPage,
-    resolvedIsFetchingNextPage,
-    sourceBatchCount,
-    sourceGroups,
-    viewMode,
-  ])
-
   if (isLoadingState && displayArticles.length === 0) {
     return (
       <div className="flex h-full w-full items-center justify-center bg-background" style={{ minHeight: "calc(100vh - 140px)" }}>
@@ -627,7 +580,7 @@ export function GridView({
           </div>
         </div>
 
-        {paginatedArticles.length === 0 && !paginatedLoading ? (
+        {displayArticles.length === 0 && !isLoadingState ? (
           <div className="flex flex-1 items-center justify-center py-16 text-center">
             <div>
               <Newspaper className="mx-auto mb-4 h-10 w-10 text-muted-foreground/30" />
@@ -637,12 +590,12 @@ export function GridView({
         ) : (
           <Suspense fallback={<Skeleton className="h-96 w-full opacity-20" />}>
             <VirtualizedGrid
-              articles={paginatedArticles}
-              hasNextPage={hasNextPage}
-              isFetchingNextPage={isFetchingNextPage}
-              fetchNextPage={fetchNextPage}
+              articles={displayArticles}
+              hasNextPage={false}
+              isFetchingNextPage={false}
+              fetchNextPage={() => {}}
               onArticleClick={handleArticleClick}
-              totalCount={virtualizedTotalCount}
+              totalCount={resolvedTotalCount}
             />
           </Suspense>
         )}
@@ -1024,17 +977,14 @@ export function GridView({
           {!useVirtualization && viewMode === "source" && hasMoreSourceGroups && (
             <div className="flex justify-center pb-8">
               <Button
-                variant="outline"
-                onClick={() => setSourceBatchCount((prev) => prev + 1)}
-                disabled={resolvedIsFetchingNextPage}
-                className="rounded-full border-white/10 bg-transparent px-8 py-5 text-xs font-semibold uppercase tracking-widest text-muted-foreground transition-all duration-300 hover:bg-white/5 hover:text-white disabled:opacity-60"
-              >
-                {resolvedIsFetchingNextPage
-                  ? "Loading more sources"
-                  : `Load 10 more sources (${visibleSourceIds.size}/${sortedSourceIds.length}${resolvedHasNextPage ? "+" : ""})`}
-              </Button>
-            </div>
-          )}
+                        variant="outline"
+                        onClick={() => setSourceBatchCount((prev) => prev + 1)}
+                        className="rounded-full border-white/10 bg-transparent px-8 py-5 text-xs font-semibold uppercase tracking-widest text-muted-foreground transition-all duration-300 hover:bg-white/5 hover:text-white disabled:opacity-60"
+                      >
+                        {`Load 10 more sources (${visibleSourceIds.size}/${sortedSourceIds.length})`}
+                      </Button>
+                    </div>
+                  )}
         </div>
       </div>
 

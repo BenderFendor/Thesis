@@ -52,6 +52,14 @@ const isExtractableUrl = (url?: string | null) => {
   return /^https?:\/\//i.test(url)
 }
 
+const getInitialArticleText = (article: NewsArticle) => {
+  if (article.hasFullContent && article.content) {
+    return article.content
+  }
+
+  return null
+}
+
 const getArticleCacheKey = (article: NewsArticle) => {
   if (isExtractableUrl(article.url)) {
     return article.url
@@ -398,11 +406,12 @@ export function ArticleDetailModal({ article, isOpen, onClose, onBookmarkChange,
       }
 
       setArticleLoading(true)
-      setFullArticleText(article.content || article.summary || null)
+      setFullArticleText(getInitialArticleText(article))
 
       try {
         if (!isExtractableUrl(article.url)) {
-          fullArticleCache.set(articleCacheKey, article.content || article.summary || null)
+          const initialText = getInitialArticleText(article)
+          fullArticleCache.set(articleCacheKey, initialText)
           setArticleLoading(false)
           return
         }
@@ -416,7 +425,7 @@ export function ArticleDetailModal({ article, isOpen, onClose, onBookmarkChange,
           if (extractedText) {
             fullArticleCache.set(articleCacheKey, extractedText)
           }
-          setFullArticleText(extractedText || article.content || article.summary || null)
+          setFullArticleText(extractedText || getInitialArticleText(article))
         }
       } catch (e) {
         if ((e as Error).name !== "AbortError") {
@@ -952,7 +961,7 @@ export function ArticleDetailModal({ article, isOpen, onClose, onBookmarkChange,
                     <>
                         <ArticleContent
                           ref={articleContentRef}
-                          content={fullArticleText || article.content || article.summary || ""}
+                          content={fullArticleText || article.summary || ""}
                             highlights={showHighlights ? visibleHighlights : []}
 
                           activeHighlightId={activeHighlightId}

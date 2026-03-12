@@ -1,5 +1,22 @@
 # Log
 
+## 2026-03-12: Full-Corpus Browse Index Without Frontend Slice Semantics
+
+**Problem:** Main browse views had switched to client-side behavior over paginated article slices. That made list sorting, source grouping, scroll ranking, and browse counts operate on partial windows instead of the full article corpus, so the product no longer behaved like the pre-pagination experience even though the backend still held the full archive.
+
+**What Changed:**
+- Added a new backend browse endpoint at `backend/app/api/routes/news.py` as `/news/index` that returns lightweight article cards for the full filtered corpus, ordered by backend authority and without loading heavy article body fields into the browse payload.
+- Added `fetchBrowseIndex()` in `frontend/lib/api.ts` and a new `useBrowseIndex()` hook in `frontend/hooks/useBrowseIndex.ts` so browse views can load the full lightweight index in one query instead of stitching together paginated slices.
+- Updated `frontend/app/page.tsx` to use the new browse index for grid, list, and scroll views while leaving globe streaming on its existing path.
+- Simplified `frontend/components/grid-view.tsx` so source grouping and source-batch UI now operate over the full browse dataset already in memory, rather than mixing source batching with hidden pagination fetches.
+- Simplified `frontend/components/feed-view.tsx` so scroll view reveals from the full ranked corpus already loaded on the client, removing pagination-driven fetch thresholds and preserving full-corpus ranking semantics.
+- Tightened `/news/index` so it selects only card-level columns and returns compact summaries, reducing browse payload and SQLAlchemy hydration cost without going back to slice-based semantics.
+- Updated browse article mapping and `frontend/components/article-detail-modal.tsx` so summary-only browse rows are no longer treated as full article text when extraction is unavailable.
+- Added regression coverage in `backend/tests/test_search_backend.py` and `frontend/__tests__/browse-index.test.tsx`.
+
+**Verification:**
+- `./verify.sh` still reports pre-existing frontend TypeScript issues around globe typings in `frontend/components/interactive-globe.tsx` and `frontend/components/three-globe.tsx`.
+
 ## 2026-03-12: Photoreal Globe Shader And Lighting Modes
 
 **Problem:** The globe looked like a glossy marble. The first shader pass also drifted out of sync with the country overlay because the photoreal Earth surface was mounted as a separate mesh instead of sharing the internal globe transform. That made the visible Earth, polygon click layer, and country focus overlay feel disconnected.

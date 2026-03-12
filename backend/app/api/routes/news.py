@@ -3,7 +3,7 @@ from __future__ import annotations
 import base64
 import json
 from datetime import datetime
-from typing import Any, Dict, List, Optional, cast
+from typing import Any, Dict, List, Mapping, Optional, cast
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Response
 from pydantic import BaseModel
@@ -100,6 +100,68 @@ class RecentPageResponse(BaseModel):
     limit: int
     next_cursor: Optional[str] = None
     has_more: bool = False
+
+
+class BrowseIndexResponse(BaseModel):
+    """Lightweight full-corpus response for browse views."""
+
+    articles: List[Dict[str, Any]]
+    total: int
+
+
+def _compact_summary(summary: Optional[str], limit: int = 280) -> Optional[str]:
+    if summary is None:
+        return None
+
+    normalized = " ".join(summary.split())
+    if len(normalized) <= limit:
+        return normalized
+
+    truncated = normalized[:limit].rsplit(" ", 1)[0].strip()
+    if not truncated:
+        truncated = normalized[:limit].strip()
+    return f"{truncated}..."
+
+
+def _browse_article_to_dict(row: Mapping[str, Any]) -> Dict[str, Any]:
+    published_at = row.get("published_at")
+    published = published_at.isoformat() if published_at is not None else None
+    summary = _compact_summary(cast(Optional[str], row.get("summary")))
+
+    return {
+        "id": row.get("id"),
+        "title": row.get("title") or "Untitled article",
+        "source": row.get("source") or "Unknown",
+        "source_id": row.get("source_id"),
+        "country": row.get("country"),
+        "credibility": row.get("credibility"),
+        "bias": row.get("bias"),
+        "summary": summary,
+        "description": summary,
+        "image": row.get("image_url"),
+        "image_url": row.get("image_url"),
+        "published": published,
+        "published_at": published,
+        "category": row.get("category") or "general",
+        "url": row.get("url"),
+        "link": row.get("url"),
+    }
+
+
+_BROWSE_SELECT_COLUMNS = (
+    Article.id.label("id"),
+    Article.title.label("title"),
+    Article.source.label("source"),
+    Article.source_id.label("source_id"),
+    Article.country.label("country"),
+    Article.credibility.label("credibility"),
+    Article.bias.label("bias"),
+    Article.summary.label("summary"),
+    Article.image_url.label("image_url"),
+    Article.published_at.label("published_at"),
+    Article.category.label("category"),
+    Article.url.label("url"),
+)
 
 
 def encode_cursor(
@@ -403,6 +465,71 @@ async def get_cached_news_paginated(
         limit=limit,
         next_cursor=next_cursor,
         has_more=has_more,
+    )
+
+
+@router.get("/index", response_model=BrowseIndexResponse)
+async def get_browse_index(
+    response: Response,
+    category: Optional[str] = Query(default=None),
+    source: Optional[str] = Query(default=None),
+    sources: Optional[str] = Query(
+        default=None, description="Comma-separated source names for multi-select"
+    ),
+    search: Optional[str] = Query(default=None),
+    db: AsyncSession = Depends(get_db),
+) -> BrowseIndexResponse:
+    """Return lightweight article cards for the full browse corpus."""
+    response.headers["Cache-Control"] = "public, max-age=30, stale-while-revalidate=60"
+    response.headers["Vary"] = "Accept-Encoding"
+
+    filters = []
+    search_dialect_name = get_session_dialect_name(db) if search else ""
+
+    if category:
+        filters.append(Article.category == category)
+
+    selected_sources = _selected_sources(source=source, sources=sources)
+    if selected_sources:
+        filters.append(Article.source.in_(selected_sources))
+
+    if search:
+        normalized_search = " ".join(search.split())
+        match_filter, rank, order_by = build_article_keyword_search(
+            normalized_search,
+            search_dialect_name,
+        )
+        clauses = [*filters, match_filter]
+
+        if rank is not None:
+            stmt = (
+                select(*_BROWSE_SELECT_COLUMNS, rank)
+                .where(*clauses)
+                .order_by(*order_by)
+            )
+            result = await db.execute(stmt)
+            rows = result.mappings().all()
+        else:
+            stmt = (
+                select(*_BROWSE_SELECT_COLUMNS)
+                .where(*clauses)
+                .order_by(desc(Article.published_at), desc(Article.id))
+            )
+            result = await db.execute(stmt)
+            rows = result.mappings().all()
+    else:
+        stmt = select(*_BROWSE_SELECT_COLUMNS)
+        if filters:
+            stmt = stmt.where(*filters)
+        stmt = stmt.order_by(desc(Article.published_at), desc(Article.id))
+        result = await db.execute(stmt)
+        rows = result.mappings().all()
+
+    articles = [_browse_article_to_dict(row) for row in rows]
+
+    return BrowseIndexResponse(
+        articles=articles,
+        total=len(articles),
     )
 
 
