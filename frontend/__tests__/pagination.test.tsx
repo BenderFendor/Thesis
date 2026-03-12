@@ -1,3 +1,4 @@
+
 /**
  * Tests for pagination hooks and components
  * Run with: npm test -- --testPathPattern=pagination
@@ -222,5 +223,87 @@ describe("usePaginatedNews", () => {
 
     expect(result.current.error).toBeTruthy();
     expect(result.current.articles).toHaveLength(0);
+  });
+
+  it("should deduplicate articles with the same ID", async () => {
+    // Create duplicate articles with the same ID
+    const duplicateArticles = [
+      {
+        id: 1,
+        title: "Test Article 1",
+        source: "Test Source",
+        sourceId: "test-source",
+        country: "United States",
+        credibility: "high" as const,
+        bias: "center" as const,
+        summary: "Test summary",
+        image: "/placeholder.svg",
+        publishedAt: new Date().toISOString(),
+        category: "technology",
+        url: "https://example.com/1",
+        tags: ["test"],
+        originalLanguage: "en",
+        translated: false,
+      },
+      {
+        id: 1, // Same ID as above
+        title: "Test Article 1 Duplicate",
+        source: "Test Source 2",
+        sourceId: "test-source-2",
+        country: "United States",
+        credibility: "high" as const,
+        bias: "left" as const,
+        summary: "Duplicate summary",
+        image: "/placeholder.svg",
+        publishedAt: new Date().toISOString(),
+        category: "technology",
+        url: "https://example.com/1-duplicate",
+        tags: ["test"],
+        originalLanguage: "en",
+        translated: false,
+      },
+      {
+        id: 2,
+        title: "Test Article 2",
+        source: "Test Source",
+        sourceId: "test-source",
+        country: "United States",
+        credibility: "high" as const,
+        bias: "center" as const,
+        summary: "Test summary 2",
+        image: "/placeholder.svg",
+        publishedAt: new Date().toISOString(),
+        category: "technology",
+        url: "https://example.com/2",
+        tags: ["test"],
+        originalLanguage: "en",
+        translated: false,
+      },
+    ];
+
+    (fetchCachedNewsPaginated as jest.Mock).mockResolvedValue({
+      articles: duplicateArticles,
+      total: 3,
+      limit: 50,
+      next_cursor: null,
+      prev_cursor: null,
+      has_more: false,
+    });
+
+    const { result } = renderHook(
+      () => usePaginatedNews({ limit: 50, useCached: true }),
+      { wrapper: createWrapper() }
+    );
+
+    await waitFor(() => {
+      expect(result.current.isLoading).toBe(false);
+    });
+
+    // Should only have 2 articles (deduplicated by ID)
+    expect(result.current.articles).toHaveLength(2);
+    // The first occurrence should be kept
+    expect(result.current.articles[0].id).toBe(1);
+    expect(result.current.articles[0].title).toBe("Test Article 1");
+    expect(result.current.articles[1].id).toBe(2);
   });
 });

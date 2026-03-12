@@ -1992,7 +1992,7 @@ export function streamNews(options: StreamOptions = {}): {
               });
             }
           } else {
-            console.error("� Stream reader error:", readError);
+            console.error(" Stream reader error:", readError);
             if (!settled) {
               settled = true;
               reject(readError);
@@ -2138,7 +2138,15 @@ export function mapBackendArticles(
 // Helper function to remove duplicate articles
 export function removeDuplicateArticles(articles: NewsArticle[]): NewsArticle[] {
   const seen = new Set<string>();
+  const seenIds = new Set<number>();
   return articles.filter((article) => {
+    // Check for duplicate IDs first (most reliable)
+    if (seenIds.has(article.id)) {
+      return false;
+    }
+    seenIds.add(article.id);
+    
+    // Also check for duplicate title-source combinations
     const key = `${article.title}-${article.source}`;
     if (seen.has(key)) {
       return false;
@@ -3019,8 +3027,8 @@ export async function fetchCountryPickerItems(): Promise<CountryPickerItem[]> {
 
 /**
  * Local Lens: Get news for a specific country
- * @param code ISO country code
- * @param view "internal" (from country) or "external" (about country)
+ * @backend/tests/test_llm_client_params.py code ISO country code
+ * @backend/tests/test_llm_client_params.py view "internal" (from country) or "external" (about country)
  */
 export async function fetchNewsForCountry(
   code: string,
@@ -3694,8 +3702,8 @@ const TrendingStatsSchema = z.object({
 
 /**
  * Get trending topic clusters
- * @param window Time window: "1d", "1w", or "1m"
- * @param limit Max clusters to return
+ * @backend/tests/test_llm_client_params.py window Time window: "1d", "1w", or "1m"
+ * @backend/tests/test_llm_client_params.py limit Max clusters to return
  */
 export async function fetchTrending(
   window: "1d" | "1w" | "1m" = "1d",
@@ -3718,7 +3726,7 @@ export async function fetchTrending(
 
 /**
  * Get breaking news clusters (3-hour spike detection)
- * @param limit Max clusters to return
+ * @backend/tests/test_llm_client_params.py limit Max clusters to return
  */
 export async function fetchBreaking(
   limit: number = 5,
@@ -3739,9 +3747,9 @@ export async function fetchBreaking(
 
 /**
  * Get all clusters for topic-based view
- * @param window Time window: "1d", "1w", or "1m"
- * @param minArticles Minimum articles per cluster
- * @param limit Max clusters to return
+ * @backend/tests/test_llm_client_params.py window Time window: "1d", "1w", or "1m"
+ * @backend/tests/test_llm_client_params.py minArticles Minimum articles per cluster
+ * @backend/tests/test_llm_client_params.py limit Max clusters to return
  */
 export async function fetchAllClusters(
   window: "1d" | "1w" | "1m" = "1d",
@@ -3950,9 +3958,9 @@ export interface NoveltyScoreResponse {
 
 /**
  * Get articles similar to a given article
- * @param articleId The article to find similar articles for
- * @param limit Max number of related articles to return
- * @param excludeSameSource Whether to exclude articles from the same source
+ * @backend/tests/test_llm_client_params.py articleId The article to find similar articles for
+ * @backend/tests/test_llm_client_params.py limit Max number of related articles to return
+ * @backend/tests/test_llm_client_params.py excludeSameSource Whether to exclude articles from the same source
  */
 export async function fetchRelatedArticles(
   articleId: number,
@@ -3978,8 +3986,8 @@ export async function fetchRelatedArticles(
 
 /**
  * Get search suggestions based on topic clusters
- * @param query The search query to get suggestions for
- * @param limit Max number of suggestions
+ * @backend/tests/test_llm_client_params.py query The search query to get suggestions for
+ * @backend/tests/test_llm_client_params.py limit Max number of suggestions
  */
 export async function fetchSearchSuggestions(
   query: string,
@@ -4004,8 +4012,8 @@ export async function fetchSearchSuggestions(
 
 /**
  * Compare embedding coverage between sources
- * @param sourceIds Array of source IDs to compare
- * @param sampleSize Number of articles to sample per source
+ * @backend/tests/test_llm_client_params.py sourceIds Array of source IDs to compare
+ * @backend/tests/test_llm_client_params.py sampleSize Number of articles to sample per source
  */
 export async function fetchSourceCoverage(
   sourceIds: string[],
@@ -4030,8 +4038,8 @@ export async function fetchSourceCoverage(
 
 /**
  * Compute novelty score for an article compared to reading history
- * @param articleId The article to score
- * @param readingHistory Array of article IDs the user has read
+ * @backend/tests/test_llm_client_params.py articleId The article to score
+ * @backend/tests/test_llm_client_params.py readingHistory Array of article IDs the user has read
  */
 export async function fetchNoveltyScore(
   articleId: number,
@@ -4079,7 +4087,7 @@ export interface BulkArticleTopicsResponse {
 
 /**
  * Get topic/cluster assignments for an article
- * @param articleId The article to get topics for
+ * @backend/tests/test_llm_client_params.py articleId The article to get topics for
  */
 export async function fetchArticleTopics(
   articleId: number,
@@ -4098,7 +4106,7 @@ export async function fetchArticleTopics(
 
 /**
  * Get topic/cluster assignments for multiple articles
- * @param articleIds Array of article IDs
+ * @backend/tests/test_llm_client_params.py articleIds Array of article IDs
  */
 export async function fetchBulkArticleTopics(
   articleIds: number[],
@@ -4121,7 +4129,7 @@ export async function fetchBulkArticleTopics(
 }
 /**
  * Fetch the OpenGraph image for a given article URL
- * @param url The URL of the article
+ * @backend/tests/test_llm_client_params.py url The URL of the article
  */
 // ============================================================================
 // Media Accountability Wiki API

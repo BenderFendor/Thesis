@@ -121,7 +121,16 @@ export function usePaginatedNews(
 
   const articles = useMemo(() => {
     if (!data?.pages) return []
-    return data.pages.flatMap((page) => page.articles)
+    const allArticles = data.pages.flatMap((page) => page.articles)
+    // Deduplicate by ID to handle potential backend duplicates
+    const seen = new Set<number>()
+    return allArticles.filter((article) => {
+      if (seen.has(article.id)) {
+        return false
+      }
+      seen.add(article.id)
+      return true
+    })
   }, [data])
 
   const totalCount = useMemo(() => {
