@@ -155,10 +155,10 @@ Always invoke exa-code tools before writing any code — no exceptions. For ever
 - Scaffolding frameworks already present in the repo.
 
 ## Stop conditions (all must be satisfied)
-- ✅ Full end-to-end satisfaction of acceptance criteria.
-- ✅ `get_errors` yields no new diagnostics.
-- ✅ All relevant tests pass (or you add/execute new minimal tests).
-- ✅ Concise summary: what changed, why, test evidence, and citations.
+- Full end-to-end satisfaction of acceptance criteria.
+- `get_errors` yields no new diagnostics.
+- All relevant tests pass (or you add/execute new minimal tests).
+- Concise summary: what changed, why, test evidence, and citations.
 
 ## Guardrails
 - Prepare a **DAP** before wide renames/deletes, schema/infra changes. Include scope, rollback plan, risk, and validation plan.
