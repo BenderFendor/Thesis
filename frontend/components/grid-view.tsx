@@ -727,7 +727,7 @@ export function GridView({
                 >
                   <div className="mb-4 sm:mb-6 flex flex-col gap-3 sm:gap-4 border-b border-white/5 pb-3 sm:pb-4 lg:flex-row lg:items-end lg:justify-between">
                     <div className="space-y-2 sm:space-y-3">
-                      <div className="text-[10px] sm:text-xs font-semibold uppercase tracking-widest text-primary/70">
+                      <div className="text-xs font-semibold uppercase tracking-widest text-primary/70">
                         Source dossier
                       </div>
                       <div className="flex items-center gap-3 sm:gap-4">
@@ -755,7 +755,7 @@ export function GridView({
                       </div>
                     </div>
 
-                    <div className="flex flex-wrap items-center gap-2 text-[9px] sm:text-xs uppercase tracking-widest text-muted-foreground">
+                    <div className="flex flex-wrap items-center gap-2 text-xs uppercase tracking-widest text-muted-foreground">
                       <span className="rounded-full border border-white/10 bg-white/5 px-2 py-1 sm:px-3 sm:py-1.5 font-medium text-white/80">
                         {group.articles.length} articles
                       </span>

@@ -4,13 +4,13 @@ import asyncio
 import re
 from dataclasses import dataclass
 from typing import Iterable, List, Optional, Sequence
-from urllib.parse import urljoin, urlparse
+from urllib.parse import urlparse
 
 import httpx
-from bs4 import BeautifulSoup
 from ddgs import DDGS
 
 from app.core.logging import get_logger
+from app.services.rss_parser_rust_bindings import extract_article_html
 from app.services.source_profile_extractor import SourceDocument
 from app.services.source_search_planner import SourceSearchPlanner
 
@@ -139,6 +139,8 @@ async def collect_source_documents(
 
 
 def _candidate_urls_from_known_paths(website: Optional[str]) -> set[str]:
+    from urllib.parse import urljoin
+
     urls: set[str] = set()
     if not website:
         return urls
@@ -273,17 +275,10 @@ async def _fetch_document(
 
 
 def _extract_text_and_title(html: str) -> tuple[str, str]:
-    soup = BeautifulSoup(html, "html.parser")
-
-    title = ""
-    title_tag = soup.find("title")
-    if title_tag and title_tag.text:
-        title = title_tag.text.strip()
-
-    main = soup.find("main") or soup.find("article") or soup.body
-    if not main:
-        return "", title
-
-    text = " ".join(segment.strip() for segment in main.stripped_strings)
+    payload = extract_article_html(html)
+    text_value = payload.get("text")
+    title_value = payload.get("title")
+    text = text_value if isinstance(text_value, str) else ""
+    title = title_value if isinstance(title_value, str) else ""
     text = re.sub(r"\s+", " ", text).strip()
     return text[:12000], title

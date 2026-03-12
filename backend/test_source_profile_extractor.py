@@ -4,10 +4,10 @@ from pathlib import Path
 
 import httpx
 import pytest
-from bs4 import BeautifulSoup
 
 sys.path.insert(0, str(Path(__file__).parent))
 
+from app.services.rss_parser_rust_bindings import extract_article_html
 from app.services.source_profile_extractor import (
     SourceDocument,
     build_fields_from_documents,
@@ -155,16 +155,8 @@ def _fetch_live_documents(urls):
 
 
 def _extract_text_and_title(html):
-    soup = BeautifulSoup(html, "html.parser")
-    title = ""
-    title_tag = soup.find("title")
-    if title_tag and title_tag.text:
-        title = title_tag.text.strip()
-
-    main = soup.find("main") or soup.find("article") or soup.body
-    if not main:
-        return "", title
-
-    text = " ".join(segment.strip() for segment in main.stripped_strings)
+    payload = extract_article_html(html)
+    text = payload.get("text") or ""
+    title = payload.get("title") or ""
     text = re.sub(r"\s+", " ", text).strip()
     return text[:12000], title

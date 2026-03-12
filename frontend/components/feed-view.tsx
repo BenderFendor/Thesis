@@ -460,14 +460,14 @@ export function FeedView({
 
             <div className="relative z-10 h-full flex flex-col justify-end p-6 pb-24 md:p-10 lg:p-12 md:pb-10 lg:pb-12">
               <div className="absolute top-6 left-6 right-6 md:top-8 md:left-8 md:right-8 flex flex-wrap items-center gap-2 pr-44 md:pr-0 pointer-events-none">
-                <Badge className="bg-primary/20 text-primary border-primary/30 hover:bg-primary/30 px-2 py-0.5 md:px-3 md:py-1 font-sans text-[10px] md:text-xs uppercase tracking-wider pointer-events-auto">
+                <Badge className="bg-primary/20 text-primary border-primary/30 hover:bg-primary/30 px-2 py-0.5 md:px-3 md:py-1 font-sans text-xs uppercase tracking-wider pointer-events-auto">
                   {article.category}
                 </Badge>
-                <Badge variant="outline" className="font-sans uppercase tracking-wider border-white/20 bg-black/40 backdrop-blur-sm text-white/90 px-2 py-0.5 md:px-3 md:py-1 text-[10px] md:text-xs pointer-events-auto">
+                <Badge variant="outline" className="font-sans uppercase tracking-wider border-white/20 bg-black/40 backdrop-blur-sm text-white/90 px-2 py-0.5 md:px-3 md:py-1 text-xs pointer-events-auto">
                   {article.credibility} credibility
                 </Badge>
                 {currentBreakdown?.articleId === article.id && currentBreakdown.personalizedScore > 0 && (
-                  <Badge variant="outline" className="font-sans uppercase tracking-wider border-primary/40 bg-primary/15 text-primary px-2 py-0.5 md:px-3 md:py-1 text-[10px] md:text-xs pointer-events-auto">
+                  <Badge variant="outline" className="font-sans uppercase tracking-wider border-primary/40 bg-primary/15 text-primary px-2 py-0.5 md:px-3 md:py-1 text-xs pointer-events-auto">
                     score {formatScore(currentBreakdown.personalizedScore)}
                   </Badge>
                 )}

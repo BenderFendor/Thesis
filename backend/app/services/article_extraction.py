@@ -12,10 +12,10 @@ from html import unescape
 from urllib.parse import urljoin
 
 import requests
-from bs4 import BeautifulSoup
 
 from app.core.logging import get_logger
-from app.services.debug_logger import debug_logger, EventType
+from app.services.debug_logger import EventType, debug_logger
+from app.services.rss_parser_rust_bindings import extract_article_html
 
 logger = get_logger("article_extraction")
 DEFAULT_REQUEST_TIMEOUT = 12
@@ -23,16 +23,6 @@ ARTICLE_USER_AGENT = (
     "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 "
     "(KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
 )
-
-rss_parser_rust: Any | None = None
-
-try:  # Optional Rust HTML extraction
-    import rss_parser_rust as _rss_parser_rust
-
-    rss_parser_rust = _rss_parser_rust
-    RUST_HTML_AVAILABLE = True
-except ImportError:  # pragma: no cover - optional dependency
-    RUST_HTML_AVAILABLE = False
 
 
 async def extract_article_full_text(url: str) -> Dict[str, Any]:
@@ -49,7 +39,6 @@ async def extract_article_full_text(url: str) -> Dict[str, Any]:
         - error: error message (if unsuccessful)
     """
     try:
-        # Run extraction in thread pool to avoid blocking
         loop = asyncio.get_running_loop()
         result = await loop.run_in_executor(None, _extract_sync, url)
         return result
@@ -63,7 +52,7 @@ def _extract_sync(url: str) -> Dict[str, Any]:
     Synchronous extraction helper (runs in executor).
 
     This is a blocking operation that fetches article HTML and applies
-    site-specific, Rust, and soup-based extraction.
+    site-specific and Rust-based extraction.
     """
     if _is_paywalled_source(url):
         return {
@@ -85,21 +74,12 @@ def _extract_sync(url: str) -> Dict[str, Any]:
                     url, "rebelmouse", {**rebelmouse_payload, "html": html}
                 )
 
-            if RUST_HTML_AVAILABLE:
-                rust_payload = _extract_with_rust(html)
-                if _has_extracted_text(rust_payload):
-                    return _log_success(
-                        url,
-                        "rust_html",
-                        {"success": True, **rust_payload, "html": html},
-                    )
-
-            soup_payload = _extract_with_soup(url, html)
-            if _has_extracted_text(soup_payload):
+            rust_payload = _extract_with_rust(html)
+            if _has_extracted_text(rust_payload):
                 return _log_success(
                     url,
-                    "soup_html",
-                    {"success": True, **soup_payload, "html": html},
+                    "rust_html",
+                    {"success": True, **rust_payload, "html": html},
                 )
 
         logger.warning("Article extraction produced no text for %s", url)
@@ -177,14 +157,7 @@ def _is_paywalled_source(url: str) -> bool:
 
 def _extract_with_rust(html: str) -> Dict[str, Any]:
     """Extract article content via Rust HTML parser."""
-    if rss_parser_rust is None:
-        return {}
-    try:
-        payload = rss_parser_rust.extract_article_html(html)
-    except Exception as exc:  # pragma: no cover - optional dependency
-        logger.debug("Rust HTML extraction failed: %s", exc)
-        return {}
-
+    payload = extract_article_html(html)
     return {
         "text": payload.get("text"),
         "title": payload.get("title"),
@@ -195,143 +168,6 @@ def _extract_with_rust(html: str) -> Dict[str, Any]:
         "keywords": [],
         "meta_description": payload.get("meta_description"),
     }
-
-
-def _extract_with_soup(url: str, html: str) -> Dict[str, Any]:
-    soup = BeautifulSoup(html, "html.parser")
-    text = _extract_text_from_soup(soup)
-    return {
-        "text": text,
-        "title": _first_meta_content(
-            soup,
-            [
-                "meta[property='og:title']",
-                "meta[name='twitter:title']",
-                "title",
-            ],
-        ),
-        "authors": _collect_meta_contents(
-            soup,
-            [
-                "meta[name='author']",
-                "meta[property='article:author']",
-                "meta[name='parsely-author']",
-            ],
-        ),
-        "publish_date": _first_meta_content(
-            soup,
-            [
-                "meta[property='article:published_time']",
-                "meta[name='pubdate']",
-                "meta[name='date']",
-                "meta[itemprop='datePublished']",
-            ],
-        ),
-        "top_image": _normalize_url(
-            _first_meta_content(
-                soup,
-                [
-                    "meta[property='og:image']",
-                    "meta[name='twitter:image']",
-                    "link[rel='image_src']",
-                ],
-                attribute="content",
-            )
-            or _first_meta_content(
-                soup,
-                ["link[rel='image_src']"],
-                attribute="href",
-            ),
-            url,
-        ),
-        "images": _extract_image_urls(soup, url),
-        "keywords": [],
-        "meta_description": _first_meta_content(
-            soup,
-            [
-                "meta[name='description']",
-                "meta[property='og:description']",
-                "meta[name='twitter:description']",
-            ],
-        ),
-    }
-
-
-def _extract_text_from_soup(soup: BeautifulSoup) -> str:
-    for selector in ("article p", "main p", "body p"):
-        chunks = [
-            " ".join(element.stripped_strings)
-            for element in soup.select(selector)
-            if " ".join(element.stripped_strings)
-        ]
-        if chunks:
-            return "\n\n".join(chunks).strip()
-    return ""
-
-
-def _first_meta_content(
-    soup: BeautifulSoup,
-    selectors: list[str],
-    *,
-    attribute: str = "content",
-) -> Optional[str]:
-    value: Optional[str]
-    for selector in selectors:
-        element = soup.select_one(selector)
-        if element is None:
-            continue
-        if selector == "title":
-            value = element.get_text(" ", strip=True)
-        else:
-            raw_value = element.get(attribute)
-            value = raw_value if isinstance(raw_value, str) else None
-        if value and value.strip():
-            return value.strip()
-    return None
-
-
-def _collect_meta_contents(soup: BeautifulSoup, selectors: list[str]) -> list[str]:
-    values: list[str] = []
-    seen: set[str] = set()
-    for selector in selectors:
-        for element in soup.select(selector):
-            value = element.get("content")
-            if not isinstance(value, str):
-                continue
-            cleaned = value.strip()
-            if not cleaned or cleaned in seen:
-                continue
-            seen.add(cleaned)
-            values.append(cleaned)
-    return values
-
-
-def _extract_image_urls(soup: BeautifulSoup, base_url: str) -> list[str]:
-    images: list[str] = []
-    seen: set[str] = set()
-    for element in soup.select("img"):
-        for attribute in ("src", "data-src", "data-original", "data-lazy-src"):
-            value = element.get(attribute)
-            normalized = _normalize_url(value, base_url)
-            if not normalized or normalized in seen:
-                continue
-            seen.add(normalized)
-            images.append(normalized)
-            break
-    return images
-
-
-def _normalize_url(value: object, base_url: str) -> Optional[str]:
-    if not isinstance(value, str):
-        return None
-    cleaned = value.strip()
-    if not cleaned:
-        return None
-    if cleaned.startswith("//"):
-        return f"https:{cleaned}"
-    if cleaned.startswith(("http://", "https://")):
-        return cleaned
-    return urljoin(base_url, cleaned)
 
 
 def _extract_rebelmouse_article(url: str, html: str) -> Optional[Dict[str, Any]]:
@@ -368,8 +204,9 @@ def _extract_rebelmouse_article(url: str, html: str) -> Optional[Dict[str, Any]]
         logger.debug("RebelMouse body missing for %s", url)
         return None
 
-    soup = BeautifulSoup(body_html, "html.parser")
-    text = soup.get_text("\n")
+    payload = extract_article_html(body_html)
+    text_value = payload.get("text")
+    text = text_value if isinstance(text_value, str) else ""
     text = unescape(text)
     text = re.sub(r"[ \t\r\f\v]+", " ", text)
     text = re.sub(r"\n\s*\n+", "\n\n", text)
@@ -389,10 +226,15 @@ def _extract_rebelmouse_article(url: str, html: str) -> Optional[Dict[str, Any]]
     return {
         "success": True,
         "text": text,
-        "title": post.get("headline") or post.get("title"),
-        "authors": [author] if author else [],
-        "publish_date": publish_date,
-        "top_image": post.get("image") or post.get("image_external"),
+        "title": post.get("headline") or post.get("title") or payload.get("title"),
+        "authors": [author] if author else (payload.get("authors") or []),
+        "publish_date": publish_date or payload.get("publish_date"),
+        "top_image": post.get("image")
+        or post.get("image_external")
+        or payload.get("top_image"),
+        "images": payload.get("images") or [],
+        "meta_description": payload.get("meta_description"),
+        "keywords": [],
     }
 
 

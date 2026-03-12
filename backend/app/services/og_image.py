@@ -14,7 +14,6 @@ import asyncio
 import hashlib
 import json
 import os
-import re
 import time
 from collections import defaultdict
 from pathlib import Path
@@ -22,12 +21,13 @@ from typing import Dict, List, Optional, Tuple
 from urllib.parse import urljoin, urlparse
 
 import httpx
-from sqlalchemy import select, or_, update
+from sqlalchemy import or_, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.logging import get_logger
 from app.models.news import NewsArticle
 from app.services.cache import news_cache
+from app.services.rss_parser_rust_bindings import extract_og_image_html
 
 logger = get_logger("og_image")
 
@@ -42,33 +42,6 @@ MAX_RESPONSE_SIZE = 100_000
 OG_CACHE_MAX_AGE = 7 * 86400
 OG_CACHE_DIR = Path(os.getenv("OG_IMAGE_CACHE_DIR", "/tmp/thesis_og_image_cache"))
 OG_CACHE_DIR.mkdir(parents=True, exist_ok=True)
-
-rss_parser_rust = None
-
-try:  # Optional Rust HTML extraction
-    import rss_parser_rust as _rss_parser_rust
-
-    rss_parser_rust = _rss_parser_rust
-    RUST_HTML_AVAILABLE = True
-except ImportError:  # pragma: no cover - optional dependency
-    RUST_HTML_AVAILABLE = False
-
-OG_IMAGE_PATTERN = re.compile(
-    r'<meta[^>]+(?:property|name)=["\']og:image["\'][^>]+content=["\']([^"\']+)["\']',
-    re.IGNORECASE,
-)
-OG_IMAGE_PATTERN_ALT = re.compile(
-    r'<meta[^>]+content=["\']([^"\']+)["\'][^>]+(?:property|name)=["\']og:image["\']',
-    re.IGNORECASE,
-)
-TWITTER_IMAGE_PATTERN = re.compile(
-    r'<meta[^>]+(?:property|name)=["\']twitter:image["\'][^>]+content=["\']([^"\']+)["\']',
-    re.IGNORECASE,
-)
-LINK_IMAGE_PATTERN = re.compile(
-    r'<link[^>]+rel=["\']image_src["\'][^>]+href=["\']([^"\']+)["\']',
-    re.IGNORECASE,
-)
 
 
 def _needs_image(article: NewsArticle) -> bool:
@@ -178,47 +151,14 @@ def _extract_og_image_from_html(html: str) -> Optional[str]:
 def _extract_og_image_candidate_from_html(
     html: str, article_url: str
 ) -> tuple[Optional[str], Optional[str]]:
-    rust_candidate = _extract_og_image_with_rust(html, article_url)
-    if rust_candidate is not None:
-        return rust_candidate
-
-    match = OG_IMAGE_PATTERN.search(html)
-    if match:
-        return _normalize_candidate_url(match.group(1), article_url), "og:image"
-
-    match = OG_IMAGE_PATTERN_ALT.search(html)
-    if match:
-        return _normalize_candidate_url(match.group(1), article_url), "og:image"
-
-    match = TWITTER_IMAGE_PATTERN.search(html)
-    if match:
-        return _normalize_candidate_url(match.group(1), article_url), "twitter:image"
-
-    match = LINK_IMAGE_PATTERN.search(html)
-    if match:
-        return _normalize_candidate_url(match.group(1), article_url), "link:image_src"
-
-    return None, None
-
-
-def _extract_og_image_with_rust(
-    html: str, article_url: str
-) -> tuple[Optional[str], Optional[str]] | None:
-    if not RUST_HTML_AVAILABLE or rss_parser_rust is None:
-        return None
-    try:
-        payload = rss_parser_rust.extract_og_image_html(html)
-    except Exception as exc:  # pragma: no cover - optional dependency
-        logger.debug("Rust og:image extraction failed: %s", exc)
-        return None
-
+    payload = extract_og_image_html(html)
     for candidate in payload.get("candidates", []) or []:
         url = _normalize_candidate_url(candidate.get("url"), article_url)
         if not url:
             continue
         source = candidate.get("source") or "og:image"
         return url, source
-    return None
+    return None, None
 
 
 def _normalize_candidate_url(candidate: object, article_url: str) -> Optional[str]:

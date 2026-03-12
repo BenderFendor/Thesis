@@ -3,23 +3,13 @@
 from __future__ import annotations
 
 import re
-import importlib
 from collections import Counter
-from difflib import SequenceMatcher
 from typing import Any, TypedDict
 
-rss_parser_rust = None
-
-try:  # Optional Rust acceleration
-    _rss_parser_rust = importlib.import_module("rss_parser_rust")
-    _required_attrs = {"text_similarity", "sentence_diff"}
-    if _required_attrs.issubset(set(dir(_rss_parser_rust))):
-        rss_parser_rust = _rss_parser_rust
-        RUST_COMPARISON_AVAILABLE = True
-    else:  # pragma: no cover - import path can resolve to source dir namespace package
-        RUST_COMPARISON_AVAILABLE = False
-except ImportError:  # pragma: no cover - optional dependency
-    RUST_COMPARISON_AVAILABLE = False
+from app.services.rss_parser_rust_bindings import (
+    sentence_diff as rust_sentence_diff,
+    text_similarity as rust_text_similarity,
+)
 
 
 class CommonKeywordDiff(TypedDict):
@@ -47,9 +37,6 @@ def extract_entities(text: str) -> dict[str, list[str]]:
     Returns:
         Dict with keys: persons, organizations, locations, dates
     """
-    # Simple pattern-based extraction
-    # In production, this would use spaCy or a proper NER model
-
     entities: dict[str, list[str]] = {
         "persons": [],
         "organizations": [],
@@ -57,10 +44,8 @@ def extract_entities(text: str) -> dict[str, list[str]]:
         "dates": [],
     }
 
-    # Extract capitalized words (potential proper nouns)
     words = re.findall(r"\b[A-Z][a-zA-Z]+(?:\s+[A-Z][a-zA-Z]+)*\b", text)
 
-    # Filter out common words and short words
     common_words = {
         "The",
         "A",
@@ -118,13 +103,12 @@ def extract_entities(text: str) -> dict[str, list[str]]:
         "December",
     }
 
-    potential_entities = [w for w in words if w not in common_words and len(w) > 2]
+    potential_entities = [
+        word for word in words if word not in common_words and len(word) > 2
+    ]
 
-    # Categorize based on context clues
     for entity in set(potential_entities):
         entity_lower = entity.lower()
-
-        # Organization indicators
         if any(
             indicator in entity_lower
             for indicator in [
@@ -143,7 +127,6 @@ def extract_entities(text: str) -> dict[str, list[str]]:
             ]
         ):
             entities["organizations"].append(entity)
-        # Location indicators
         elif any(
             indicator in entity_lower
             for indicator in [
@@ -163,7 +146,6 @@ def extract_entities(text: str) -> dict[str, list[str]]:
             ]
         ):
             entities["locations"].append(entity)
-        # Person indicators (common titles)
         elif any(
             indicator in text[max(0, text.find(entity) - 50) : text.find(entity)]
             for indicator in [
@@ -183,12 +165,9 @@ def extract_entities(text: str) -> dict[str, list[str]]:
             ]
         ):
             entities["persons"].append(entity)
-        else:
-            # Default to organizations for multi-word capitalized phrases
-            if " " in entity:
-                entities["organizations"].append(entity)
+        elif " " in entity:
+            entities["organizations"].append(entity)
 
-    # Extract dates
     date_patterns = [
         r"\b(?:Monday|Tuesday|Wednesday|Thursday|Friday|Saturday|Sunday)\s*,?\s+\w+\s+\d{1,2}(?:st|nd|rd|th)?\s*,?\s*\d{4}?\b",
         r"\b\d{1,2}/\d{1,2}/\d{2,4}\b",
@@ -201,7 +180,6 @@ def extract_entities(text: str) -> dict[str, list[str]]:
         matches = re.findall(pattern, text, re.IGNORECASE)
         entities["dates"].extend(matches)
 
-    # Remove duplicates while preserving order
     for key in entities:
         seen = set()
         unique = []
@@ -210,22 +188,13 @@ def extract_entities(text: str) -> dict[str, list[str]]:
             if item_lower not in seen:
                 seen.add(item_lower)
                 unique.append(item)
-        entities[key] = unique[:20]  # Limit to top 20
+        entities[key] = unique[:20]
 
     return entities
 
 
 def extract_keywords(text: str, top_n: int = 20) -> list[tuple[str, int]]:
-    """Extract top keywords by frequency, excluding common stop words.
-
-    Args:
-        text: Input text
-        top_n: Number of top keywords to return
-
-    Returns:
-        List of (keyword, frequency) tuples
-    """
-    # Common stop words
+    """Extract top keywords by frequency, excluding common stop words."""
     stop_words = {
         "the",
         "a",
@@ -283,7 +252,6 @@ def extract_keywords(text: str, top_n: int = 20) -> list[tuple[str, int]]:
         "my",
         "your",
         "his",
-        "her",
         "its",
         "our",
         "their",
@@ -351,54 +319,23 @@ def extract_keywords(text: str, top_n: int = 20) -> list[tuple[str, int]]:
         "without",
     }
 
-    # Normalize text
-    text_lower = text.lower()
-
-    # Extract words (alphanumeric, at least 3 chars)
-    words = re.findall(r"\b[a-z]{3,}\b", text_lower)
-
-    # Filter stop words and count
-    filtered_words = [w for w in words if w not in stop_words]
-    word_counts = Counter(filtered_words)
-
-    # Get top N
-    return word_counts.most_common(top_n)
+    words = re.findall(r"\b[a-z]{3,}\b", text.lower())
+    filtered_words = [word for word in words if word not in stop_words]
+    return Counter(filtered_words).most_common(top_n)
 
 
 def calculate_text_similarity(text1: str, text2: str) -> float:
-    """Calculate similarity ratio between two texts.
-
-    Uses the Rust helper when available and falls back to `SequenceMatcher`.
-
-    Returns:
-        Float between 0.0 and 1.0
-    """
+    """Calculate similarity ratio between two texts."""
     if not text1 or not text2:
         return 0.0
-
-    if RUST_COMPARISON_AVAILABLE and rss_parser_rust is not None:
-        try:
-            text_similarity = getattr(rss_parser_rust, "text_similarity")
-            return float(text_similarity(text1, text2))
-        except Exception:  # pragma: no cover - optional dependency
-            pass
-
-    # Normalize texts
-    t1 = " ".join(text1.lower().split())
-    t2 = " ".join(text2.lower().split())
-
-    return SequenceMatcher(None, t1, t2).ratio()
+    return rust_text_similarity(text1, text2)
 
 
 def find_common_and_unique(
     entities1: dict[str, list[str]],
     entities2: dict[str, list[str]],
 ) -> dict[str, dict[str, list[str]]]:
-    """Find common and unique entities between two entity sets.
-
-    Returns:
-        Dict with common_entities, unique_to_1, unique_to_2
-    """
+    """Find common and unique entities between two entity sets."""
     result: dict[str, dict[str, list[str]]] = {
         "common_entities": {},
         "unique_to_source_1": {},
@@ -406,27 +343,26 @@ def find_common_and_unique(
     }
 
     for category in ["persons", "organizations", "locations", "dates"]:
-        set1 = {e.lower() for e in entities1.get(category, [])}
-        set2 = {e.lower() for e in entities2.get(category, [])}
+        set1 = {entity.lower() for entity in entities1.get(category, [])}
+        set2 = {entity.lower() for entity in entities2.get(category, [])}
 
         common = set1 & set2
         unique1 = set1 - set2
         unique2 = set2 - set1
 
-        # Map back to original case
-        common_original = [
-            e for e in entities1.get(category, []) if e.lower() in common
+        result["common_entities"][category] = [
+            entity for entity in entities1.get(category, []) if entity.lower() in common
         ]
-        unique1_original = [
-            e for e in entities1.get(category, []) if e.lower() in unique1
+        result["unique_to_source_1"][category] = [
+            entity
+            for entity in entities1.get(category, [])
+            if entity.lower() in unique1
         ]
-        unique2_original = [
-            e for e in entities2.get(category, []) if e.lower() in unique2
+        result["unique_to_source_2"][category] = [
+            entity
+            for entity in entities2.get(category, [])
+            if entity.lower() in unique2
         ]
-
-        result["common_entities"][category] = common_original
-        result["unique_to_source_1"][category] = unique1_original
-        result["unique_to_source_2"][category] = unique2_original
 
     return result
 
@@ -435,27 +371,21 @@ def compare_keywords(
     keywords1: list[tuple[str, int]],
     keywords2: list[tuple[str, int]],
 ) -> KeywordComparisonResult:
-    """Compare keyword frequency distributions between two articles.
-
-    Returns:
-        Dict with common_keywords, unique_keywords_1, unique_keywords_2, emphasis_diff
-    """
+    """Compare keyword frequency distributions between two articles."""
     dict1 = dict(keywords1)
     dict2 = dict(keywords2)
 
     set1 = set(dict1.keys())
     set2 = set(dict2.keys())
 
-    # Common keywords with frequency comparison
-    common = set1 & set2
     common_keywords: list[CommonKeywordDiff] = []
-    for kw in common:
-        freq1 = dict1[kw]
-        freq2 = dict2[kw]
+    for keyword in set1 & set2:
+        freq1 = dict1[keyword]
+        freq2 = dict2[keyword]
         diff = freq1 - freq2
         common_keywords.append(
             {
-                "keyword": kw,
+                "keyword": keyword,
                 "source_1_freq": freq1,
                 "source_2_freq": freq2,
                 "difference": diff,
@@ -467,19 +397,17 @@ def compare_keywords(
             }
         )
 
-    # Sort by absolute difference
-    common_keywords.sort(key=lambda x: abs(x["difference"]), reverse=True)
+    common_keywords.sort(key=lambda item: abs(item["difference"]), reverse=True)
 
-    # Unique keywords
     unique_1: list[UniqueKeywordFrequency] = [
-        {"keyword": kw, "frequency": dict1[kw]} for kw in (set1 - set2)
+        {"keyword": keyword, "frequency": dict1[keyword]} for keyword in (set1 - set2)
     ]
     unique_2: list[UniqueKeywordFrequency] = [
-        {"keyword": kw, "frequency": dict2[kw]} for kw in (set2 - set1)
+        {"keyword": keyword, "frequency": dict2[keyword]} for keyword in (set2 - set1)
     ]
 
-    unique_1.sort(key=lambda x: x["frequency"], reverse=True)
-    unique_2.sort(key=lambda x: x["frequency"], reverse=True)
+    unique_1.sort(key=lambda item: item["frequency"], reverse=True)
+    unique_2.sort(key=lambda item: item["frequency"], reverse=True)
 
     return {
         "common_keywords": common_keywords[:15],
@@ -492,111 +420,32 @@ def generate_diff_highlights(
     text1: str,
     text2: str,
 ) -> dict[str, list[dict[str, Any]]]:
-    """Generate visual diff highlights between two texts.
-
-    Uses the Rust helper when available and falls back to Python sentence matching.
-
-    Returns:
-        Dict with added, removed, and unchanged sections
-    """
-    if RUST_COMPARISON_AVAILABLE and rss_parser_rust is not None:
-        try:
-            sentence_diff = getattr(rss_parser_rust, "sentence_diff")
-            payload = sentence_diff(text1, text2)
-            return {
-                "added": list(payload.get("added", [])),
-                "removed": list(payload.get("removed", [])),
-                "similar": list(payload.get("similar", [])),
-            }
-        except Exception:  # pragma: no cover - optional dependency
-            pass
-
-    # Split into sentences for comparison
-    sentences1 = re.split(r"(?<=[.!?])\s+", text1)
-    sentences2 = re.split(r"(?<=[.!?])\s+", text2)
-
-    def _word_overlap_ratio(left: str, right: str) -> float:
-        left_words = {
-            token.lower() for token in re.findall(r"\b\w+\b", left) if token.strip()
-        }
-        right_words = {
-            token.lower() for token in re.findall(r"\b\w+\b", right) if token.strip()
-        }
-        if not left_words or not right_words:
-            return 0.0
-        return len(left_words & right_words) / max(len(left_words), len(right_words))
-
-    added = []
-    removed = []
-    similar = []
-
-    # Find similar sentences
-    for i, s1 in enumerate(sentences1):
-        best_match = None
-        best_ratio = 0.0
-
-        for j, s2 in enumerate(sentences2):
-            ratio = SequenceMatcher(None, s1.lower(), s2.lower()).ratio()
-            overlap = _word_overlap_ratio(s1, s2)
-            if ratio > best_ratio and ratio > 0.6 and overlap >= 0.5:
-                best_ratio = ratio
-                best_match = (j, s2)
-
-        if best_match:
-            similar.append(
-                {
-                    "source_1_index": i,
-                    "source_2_index": best_match[0],
-                    "source_1_text": s1,
-                    "source_2_text": best_match[1],
-                    "similarity": round(best_ratio, 2),
-                }
-            )
-        else:
-            removed.append({"index": i, "text": s1, "type": "unique_to_source_1"})
-
-    # Find sentences in source 2 not in source 1
-    matched_indices = {s["source_2_index"] for s in similar}
-    for j, s2 in enumerate(sentences2):
-        if j not in matched_indices:
-            added.append({"index": j, "text": s2, "type": "unique_to_source_2"})
-
+    """Generate visual diff highlights between two texts."""
+    payload = rust_sentence_diff(text1, text2)
     return {
-        "added": added,
-        "removed": removed,
-        "similar": sorted(similar, key=lambda x: x["similarity"], reverse=True)[:10],
+        "added": list(payload.get("added", [])),
+        "removed": list(payload.get("removed", [])),
+        "similar": list(payload.get("similar", [])),
     }
 
 
 def compare_articles(
     content1: str, content2: str, title1: str = "", title2: str = ""
 ) -> dict[str, Any]:
-    """Perform comprehensive comparison between two articles.
-
-    Returns:
-        Complete comparison analysis with entities, keywords, and diff
-    """
-    # Extract entities
+    """Perform comprehensive comparison between two articles."""
     entities1 = extract_entities(content1)
     entities2 = extract_entities(content2)
 
-    # Extract keywords
     keywords1 = extract_keywords(content1)
     keywords2 = extract_keywords(content2)
 
-    # Calculate similarities
     content_similarity = calculate_text_similarity(content1, content2)
     title_similarity = (
         calculate_text_similarity(title1, title2) if title1 and title2 else 0.0
     )
 
-    # Compare entities
     entity_comparison = find_common_and_unique(entities1, entities2)
-
-    # Compare keywords
     keyword_comparison = compare_keywords(keywords1, keywords2)
-
-    # Generate diff
     diff_highlights = generate_diff_highlights(content1, content2)
 
     return {
@@ -611,20 +460,24 @@ def compare_articles(
             "comparison": entity_comparison,
         },
         "keywords": {
-            "source_1_top": [{"word": w, "count": c} for w, c in keywords1[:10]],
-            "source_2_top": [{"word": w, "count": c} for w, c in keywords2[:10]],
+            "source_1_top": [
+                {"word": word, "count": count} for word, count in keywords1[:10]
+            ],
+            "source_2_top": [
+                {"word": word, "count": count} for word, count in keywords2[:10]
+            ],
             "comparison": keyword_comparison,
         },
         "diff": diff_highlights,
         "summary": {
             "common_entities_count": sum(
-                len(v) for v in entity_comparison["common_entities"].values()
+                len(value) for value in entity_comparison["common_entities"].values()
             ),
             "unique_entities_source_1": sum(
-                len(v) for v in entity_comparison["unique_to_source_1"].values()
+                len(value) for value in entity_comparison["unique_to_source_1"].values()
             ),
             "unique_entities_source_2": sum(
-                len(v) for v in entity_comparison["unique_to_source_2"].values()
+                len(value) for value in entity_comparison["unique_to_source_2"].values()
             ),
             "common_keywords_count": len(keyword_comparison["common_keywords"]),
             "unique_keywords_source_1": len(keyword_comparison["unique_to_source_1"]),

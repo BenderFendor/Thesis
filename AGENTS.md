@@ -54,6 +54,7 @@
 - Clarify unclear requests, then proceed autonomously.
 - Ask for help only when scripts time out (>2 min), sudo is needed, or genuine blockers arise.
 - Run `./verify.sh` before ending any session.
+- If `./verify.sh` fails, fix every failure before ending the task, even when the failing check is unrelated to the original change.
 
 ## Constraints
 - Keep Canvas separate from memory/context.

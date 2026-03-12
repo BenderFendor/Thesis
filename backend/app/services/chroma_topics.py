@@ -268,18 +268,18 @@ class ChromaTopicService:
         topics: Dict[int, List[Dict[str, Any]]] = {}
 
         for article_id in ordered_article_ids:
-            cluster = clusters.get(article_id)
-            if not cluster:
+            article_cluster: ClusterCandidate | None = clusters.get(article_id)
+            if not article_cluster:
                 topics[article_id] = []
                 continue
 
-            cluster_key = tuple(sorted(cluster.member_ids))
+            cluster_key = tuple(sorted(article_cluster.member_ids))
             payload = cluster_payload_cache.get(cluster_key)
             if payload is None:
                 cluster_articles = {
                     member_id: article
                     for member_id, article in articles_by_id.items()
-                    if member_id in cluster.member_ids
+                    if member_id in article_cluster.member_ids
                 }
                 if not cluster_articles:
                     topics[article_id] = []
@@ -293,10 +293,10 @@ class ChromaTopicService:
                 cluster_payload_cache[cluster_key] = payload
 
             label, keywords = payload
-            similarity = cluster.similarities.get(article_id, 1.0)
+            similarity = article_cluster.similarities.get(article_id, 1.0)
             topics[article_id] = [
                 {
-                    "cluster_id": cluster.anchor_id,
+                    "cluster_id": article_cluster.anchor_id,
                     "label": label,
                     "similarity": round(similarity, 3),
                     "keywords": keywords,

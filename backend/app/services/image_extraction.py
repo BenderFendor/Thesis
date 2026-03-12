@@ -14,22 +14,11 @@ from typing import Any, Dict, List, Optional
 from urllib.parse import urljoin
 
 import httpx
-from bs4 import BeautifulSoup
 
 from app.core.logging import get_logger
+from app.services.rss_parser_rust_bindings import extract_og_image_html
 
 logger = get_logger("image_extraction")
-
-rss_parser_rust: Any | None = None
-
-try:  # Optional Rust HTML extraction
-    import rss_parser_rust as _rss_parser_rust
-
-    rss_parser_rust = _rss_parser_rust
-    RUST_HTML_AVAILABLE = True
-except ImportError:  # pragma: no cover - optional dependency
-    RUST_HTML_AVAILABLE = False
-    rss_parser_rust = None
 
 
 class ImageErrorType(str, Enum):
@@ -51,8 +40,8 @@ class ImageCandidate:
     """A potential image URL with metadata about where it came from."""
 
     url: str
-    source: str  # e.g., "media:content", "enclosure", "og:image", "content_html"
-    priority: int  # Lower = higher priority (1 is best)
+    source: str
+    priority: int
     content_type: Optional[str] = None
 
 
@@ -67,7 +56,6 @@ class ImageExtractionResult:
     selected_source: Optional[str] = None
 
     def to_dict(self) -> Dict[str, Any]:
-        """Convert to dictionary for storage/API response."""
         return {
             "image_url": self.image_url,
             "image_candidates": [
@@ -110,14 +98,6 @@ def extract_image_from_entry(
     3. enclosure with image type
     4. Images from content:encoded / description HTML
     5. Links with image file extensions
-
-    Args:
-        entry: feedparser entry object
-        article_url: URL of the article (for og:image fallback)
-        base_url: Base URL for resolving relative paths
-
-    Returns:
-        ImageExtractionResult with selected image and all candidates
     """
     result = ImageExtractionResult()
     candidates: List[ImageCandidate] = []
@@ -127,7 +107,6 @@ def extract_image_from_entry(
         else base_url
     )
 
-    # Priority 1: media:content with image type
     if hasattr(entry, "media_content") and entry.media_content:
         for media in entry.media_content:
             if isinstance(media, dict):
@@ -147,13 +126,14 @@ def extract_image_from_entry(
                         )
                     )
 
-    # Priority 2: media:thumbnail
     if hasattr(entry, "media_thumbnail") and entry.media_thumbnail:
         thumb = entry.media_thumbnail
         if isinstance(thumb, list) and thumb:
-            for t in thumb:
-                if isinstance(t, dict):
-                    url = _resolve_url(t.get("url") or t.get("href"), html_base_url)
+            for item in thumb:
+                if isinstance(item, dict):
+                    url = _resolve_url(
+                        item.get("url") or item.get("href"), html_base_url
+                    )
                     if url and is_valid_image_url(url):
                         candidates.append(
                             ImageCandidate(
@@ -173,13 +153,13 @@ def extract_image_from_entry(
                     )
                 )
 
-    # Priority 3: enclosure with image type
     if hasattr(entry, "enclosures") and entry.enclosures:
         for enclosure in entry.enclosures:
             if isinstance(enclosure, dict):
                 enc_type = enclosure.get("type", "")
                 url = _resolve_url(
-                    enclosure.get("href") or enclosure.get("url"), html_base_url
+                    enclosure.get("href") or enclosure.get("url"),
+                    html_base_url,
                 )
                 if url and enc_type.startswith("image/") and is_valid_image_url(url):
                     candidates.append(
@@ -191,9 +171,7 @@ def extract_image_from_entry(
                         )
                     )
 
-    # Priority 4: Parse content:encoded / content / description HTML
     html_sources = []
-
     if hasattr(entry, "content") and entry.content:
         content_text = (
             entry.content[0].get("value", "")
@@ -201,10 +179,8 @@ def extract_image_from_entry(
             else str(entry.content)
         )
         html_sources.append(("content", content_text))
-
     if hasattr(entry, "content_encoded") and entry.content_encoded:
         html_sources.append(("content_encoded", entry.content_encoded))
-
     if hasattr(entry, "description") and entry.description:
         html_sources.append(("description", entry.description))
 
@@ -221,50 +197,43 @@ def extract_image_from_entry(
                     )
                 )
 
-    # Priority 5: Links with image file extensions
     if hasattr(entry, "links") and entry.links:
         for link in entry.links:
             if isinstance(link, dict):
                 href = link.get("href", "")
                 link_type = link.get("type", "")
-
                 if link_type.startswith("image/"):
                     resolved = _resolve_url(href, html_base_url)
-                    if not (resolved and is_valid_image_url(resolved)):
-                        continue
-                    candidates.append(
-                        ImageCandidate(
-                            url=resolved,
-                            source="link",
-                            priority=5,
-                            content_type=link_type,
+                    if resolved and is_valid_image_url(resolved):
+                        candidates.append(
+                            ImageCandidate(
+                                url=resolved,
+                                source="link",
+                                priority=5,
+                                content_type=link_type,
+                            )
                         )
-                    )
                 elif re.search(r"\.(jpg|jpeg|png|gif|webp)(\?|$)", href, re.IGNORECASE):
                     resolved = _resolve_url(href, html_base_url)
-                    if not (resolved and is_valid_image_url(resolved)):
-                        continue
-                    candidates.append(
-                        ImageCandidate(
-                            url=resolved,
-                            source="link_extension",
-                            priority=5,
+                    if resolved and is_valid_image_url(resolved):
+                        candidates.append(
+                            ImageCandidate(
+                                url=resolved,
+                                source="link_extension",
+                                priority=5,
+                            )
                         )
-                    )
 
-    # Deduplicate candidates by URL
     seen_urls = set()
     unique_candidates = []
-    for c in candidates:
-        if c.url and c.url not in seen_urls:
-            seen_urls.add(c.url)
-            unique_candidates.append(c)
+    for candidate in candidates:
+        if candidate.url and candidate.url not in seen_urls:
+            seen_urls.add(candidate.url)
+            unique_candidates.append(candidate)
 
-    # Sort by priority
-    unique_candidates.sort(key=lambda x: x.priority)
+    unique_candidates.sort(key=lambda item: item.priority)
     result.image_candidates = unique_candidates
 
-    # Select best candidate
     if unique_candidates:
         best = unique_candidates[0]
         result.image_url = best.url
@@ -277,18 +246,13 @@ def extract_image_from_entry(
 
 
 def _extract_images_from_html(html: str) -> List[str]:
-    """Extract image URLs from HTML content."""
     if not html:
         return []
 
     urls = []
-
-    # Regex approach for speed
     img_pattern = r'<img[^>]+src=["\']([^"\']+)["\']'
-    matches = re.findall(img_pattern, html, re.IGNORECASE)
-    urls.extend(matches)
+    urls.extend(re.findall(img_pattern, html, re.IGNORECASE))
 
-    # Common lazy-loading attributes
     lazy_patterns = [
         r'<img[^>]+data-src=["\']([^"\']+)["\']',
         r'<img[^>]+data-original=["\']([^"\']+)["\']',
@@ -296,14 +260,11 @@ def _extract_images_from_html(html: str) -> List[str]:
         r'<img[^>]+data-srcset=["\']([^"\']+)["\']',
     ]
     for pattern in lazy_patterns:
-        lazy_matches = re.findall(pattern, html, re.IGNORECASE)
-        urls.extend(lazy_matches)
+        urls.extend(re.findall(pattern, html, re.IGNORECASE))
 
-    # Also check for srcset
     srcset_pattern = r'<img[^>]+srcset=["\']([^"\']+)["\']'
     srcset_matches = re.findall(srcset_pattern, html, re.IGNORECASE)
     for srcset in srcset_matches:
-        # Get first URL from srcset
         first_src = srcset.split(",")[0].strip().split()[0]
         if first_src:
             urls.append(first_src)
@@ -316,45 +277,31 @@ def _extract_images_from_html(html: str) -> List[str]:
                 normalized.append(first)
                 continue
         normalized.append(candidate)
-
     return normalized
 
 
 def _resolve_url(url: object, base_url: Optional[str] = None) -> Optional[str]:
-    """Resolve potentially nested or relative URL."""
     url_value: object = url
     if url_value is None:
         return None
-
-    # Handle nested dicts
     if isinstance(url_value, dict):
         url_value = url_value.get("url") or url_value.get("href")
-
-    # Handle lists
     if isinstance(url_value, list) and url_value:
         url_value = url_value[0]
         if isinstance(url_value, dict):
             url_value = url_value.get("url") or url_value.get("href")
-
     if not isinstance(url_value, str):
         return None
 
     normalized_url = url_value.strip()
     if not normalized_url:
         return None
-
-    # Already absolute
     if normalized_url.startswith(("http://", "https://")):
         return normalized_url
-
-    # Relative URL - need base
     if base_url:
         return urljoin(base_url, normalized_url)
-
-    # Protocol-relative
     if normalized_url.startswith("//"):
         return f"https:{normalized_url}"
-
     return None
 
 
@@ -364,14 +311,7 @@ async def fetch_og_image(
     """
     Fetch article page and extract og:image meta tag.
 
-    This is an expensive operation - use for fallback only.
-
-    Args:
-        article_url: URL of the article page
-        timeout: Request timeout in seconds
-
-    Returns:
-        ImageExtractionResult with og:image or error
+    This is an expensive operation and now relies on the Rust HTML parser.
     """
     result = ImageExtractionResult()
 
@@ -389,62 +329,23 @@ async def fetch_og_image(
             response = await client.get(article_url)
             response.raise_for_status()
 
-            html = response.text
-            if RUST_HTML_AVAILABLE:
-                _populate_candidates_from_rust(result, html)
-
-            if not result.image_candidates:
-                soup = BeautifulSoup(response.content, "html.parser")
-
-                # Try og:image variants first
-                og_variants = [
-                    ("og:image", 1),
-                    ("og:image:secure_url", 2),
-                    ("og:image:url", 2),
-                ]
-                for prop, priority in og_variants:
-                    tag = soup.find("meta", property=prop)
-                    content = tag.get("content") if tag else None
-                    content_url = str(content) if content is not None else None
-                    if content_url and is_valid_image_url(content_url):
-                        result.image_candidates.append(
-                            ImageCandidate(
-                                url=content_url,
-                                source=prop,
-                                priority=priority,
-                            )
-                        )
-
-                # Try twitter:image variants
-                twitter_variants = [
-                    ("twitter:image", 3),
-                    ("twitter:image:src", 3),
-                ]
-                for name, priority in twitter_variants:
-                    tag = soup.find("meta", attrs={"name": name})
-                    content = tag.get("content") if tag else None
-                    content_url = str(content) if content is not None else None
-                    if content_url and is_valid_image_url(content_url):
-                        result.image_candidates.append(
-                            ImageCandidate(
-                                url=content_url,
-                                source=name,
-                                priority=priority,
-                            )
-                        )
-
-                # Try link rel="image_src"
-                image_src = soup.find("link", rel="image_src")
-                href = image_src.get("href") if image_src else None
-                href_url = str(href) if href is not None else None
-                if href_url and is_valid_image_url(href_url):
-                    result.image_candidates.append(
-                        ImageCandidate(
-                            url=href_url,
-                            source="link:image_src",
-                            priority=4,
-                        )
+            payload = extract_og_image_html(response.text)
+            for candidate in payload.get("candidates", []) or []:
+                normalized_url = _resolve_url(candidate.get("url"), article_url)
+                if not normalized_url or not is_valid_image_url(normalized_url):
+                    continue
+                priority_value = candidate.get("priority")
+                result.image_candidates.append(
+                    ImageCandidate(
+                        url=normalized_url,
+                        source=candidate.get("source") or "og:image",
+                        priority=int(priority_value)
+                        if priority_value is not None
+                        else 1,
                     )
+                )
+
+            result.image_candidates.sort(key=lambda item: item.priority)
 
             if result.image_candidates:
                 best = result.image_candidates[0]
@@ -452,49 +353,27 @@ async def fetch_og_image(
                 result.selected_source = best.source
             else:
                 result.image_error = ImageErrorType.OG_IMAGE_NOT_FOUND
-                result.image_error_details = "No og:image or twitter:image found"
+                result.image_error_details = (
+                    "No og:image or twitter:image found by Rust parser"
+                )
 
     except httpx.TimeoutException:
         result.image_error = ImageErrorType.IMAGE_FETCH_TIMEOUT
         result.image_error_details = f"Timeout fetching {article_url}"
         logger.warning("Timeout fetching og:image from %s", article_url[:50])
-
-    except httpx.HTTPStatusError as e:
+    except httpx.HTTPStatusError as exc:
         result.image_error = ImageErrorType.ARTICLE_FETCH_FAILED
-        result.image_error_details = f"HTTP {e.response.status_code} for {article_url}"
+        result.image_error_details = (
+            f"HTTP {exc.response.status_code} for {article_url}"
+        )
         logger.warning(
             "HTTP error %s fetching og:image from %s",
-            e.response.status_code,
+            exc.response.status_code,
             article_url[:50],
         )
-
-    except Exception as e:
+    except Exception as exc:
         result.image_error = ImageErrorType.ARTICLE_FETCH_FAILED
-        result.image_error_details = str(e)
-        logger.error("Error fetching og:image from %s: %s", article_url[:50], e)
+        result.image_error_details = str(exc)
+        logger.error("Error fetching og:image from %s: %s", article_url[:50], exc)
 
     return result
-
-
-def _populate_candidates_from_rust(result: ImageExtractionResult, html: str) -> None:
-    if not RUST_HTML_AVAILABLE or rss_parser_rust is None:
-        return
-    try:
-        payload = rss_parser_rust.extract_og_image_html(html)
-    except Exception as exc:  # pragma: no cover - optional dependency
-        logger.debug("Rust og:image extraction failed: %s", exc)
-        return
-
-    for item in payload.get("candidates", []) or []:
-        url = item.get("url")
-        source = item.get("source")
-        priority = item.get("priority")
-        if not url or not is_valid_image_url(url):
-            continue
-        result.image_candidates.append(
-            ImageCandidate(
-                url=url,
-                source=source or "og:image",
-                priority=int(priority) if priority is not None else 1,
-            )
-        )

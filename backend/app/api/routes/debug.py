@@ -4,7 +4,7 @@ import re
 from datetime import datetime, timezone
 from typing import Any, Dict, List, cast
 
-import feedparser
+import httpx
 from fastapi import APIRouter, HTTPException, Query
 from fastapi.concurrency import run_in_threadpool
 from pydantic import BaseModel, Field
@@ -21,6 +21,7 @@ from app.database import (
 from app.services.cache import news_cache
 from app.services.persistence import get_embedding_queue_depth
 from app.services.metrics import get_metrics
+from app.services.rss_parser_rust_bindings import parse_feeds_parallel
 from app.services.startup_metrics import startup_metrics
 from app.services.stream_manager import stream_manager
 from app.services.debug_logger import debug_logger, DEBUG_LOG_DIR
@@ -29,6 +30,21 @@ from app.services.country_mentions import backfill_article_mentioned_countries
 from app.vector_store import get_vector_store
 
 router = APIRouter(prefix="/debug", tags=["debug"])
+
+
+async def _fetch_rss_text(url: str) -> str:
+    async with httpx.AsyncClient(
+        follow_redirects=True,
+        headers={"User-Agent": "NewsAggregator/1.0"},
+        timeout=20.0,
+    ) as client:
+        response = await client.get(url)
+        response.raise_for_status()
+        return response.text
+
+
+def _extract_image_urls_from_html(html: str) -> list[str]:
+    return re.findall(r'<img[^>]+src=["\']([^"\']+)["\']', html, re.IGNORECASE)
 
 
 def _serialize_stream_info(info: Dict[str, object]) -> Dict[str, object]:
@@ -68,7 +84,22 @@ async def get_source_debug_data(source_name: str) -> Dict[str, object]:
         else source_info["url"]
     )
 
-    feed = feedparser.parse(rss_url, agent="NewsAggregator/1.0")
+    rss_text = await _fetch_rss_text(rss_url)
+    rust_result = await run_in_threadpool(
+        parse_feeds_parallel,
+        [(source_name, [rss_url])],
+        8,
+    )
+    source_articles = [
+        article
+        for article in cast(List[Dict[str, object]], rust_result.get("articles", []))
+        if article.get("source") == source_name
+    ]
+    source_feed_stat = cast(Dict[str, object], rust_result.get("source_stats", {})).get(
+        source_name,
+        {},
+    )
+    source_feed_stat = cast(Dict[str, object], source_feed_stat)
 
     cached_articles = [
         article.dict()
@@ -92,107 +123,78 @@ async def get_source_debug_data(source_name: str) -> Dict[str, object]:
         if isinstance(source_info["url"], list)
         else [source_info["url"]],
         "feed_metadata": {
-            "title": getattr(feed.feed, "title", "N/A"),
-            "description": getattr(feed.feed, "description", "N/A"),
-            "link": getattr(feed.feed, "link", "N/A"),
-            "language": getattr(feed.feed, "language", "N/A"),
-            "updated": getattr(feed.feed, "updated", "N/A"),
-            "generator": getattr(feed.feed, "generator", "N/A"),
+            "title": source_name,
+            "description": "",
+            "link": rss_url,
+            "language": "N/A",
+            "updated": "N/A",
+            "generator": "rss_parser_rust",
         },
         "feed_status": {
-            "http_status": getattr(feed, "status", "N/A"),
-            "bozo": getattr(feed, "bozo", False),
-            "bozo_exception": str(getattr(feed, "bozo_exception", "None")),
-            "entries_count": len(feed.entries) if hasattr(feed, "entries") else 0,
+            "http_status": 200,
+            "bozo": source_feed_stat.get("status") == "error",
+            "bozo_exception": str(source_feed_stat.get("error_message") or "None"),
+            "entries_count": len(source_articles),
         },
         "parsed_entries": [],
         "cached_articles": cached_articles,
         "source_statistics": source_stat,
         "debug_timestamp": datetime.now(timezone.utc).isoformat(),
         "image_analysis": {
-            "total_entries": len(feed.entries) if hasattr(feed, "entries") else 0,
+            "total_entries": len(source_articles),
             "entries_with_images": 0,
             "image_sources": [],
         },
+        "raw_feed_preview": rss_text[:1000],
     }
 
-    if hasattr(feed, "entries"):
-        for i, entry in enumerate(feed.entries[:10]):
-            image_sources = []
+    for i, entry in enumerate(source_articles[:10]):
+        image_sources = []
 
-            if getattr(entry, "media_thumbnail", None):
-                image_sources.append(
-                    {"type": "media_thumbnail", "url": entry.media_thumbnail}
-                )
-            if getattr(entry, "media_content", None):
-                image_sources.append(
-                    {"type": "media_content", "data": entry.media_content}
-                )
-            if getattr(entry, "enclosures", None):
-                image_sources.append({"type": "enclosures", "data": entry.enclosures})
+        image_url = entry.get("image")
+        if isinstance(image_url, str) and image_url:
+            image_sources.append({"type": "rust_image", "url": image_url})
 
-            content_images: list[str] = []
-            content_data = getattr(entry, "content", None)
-            if content_data:
-                content_value: str | None = None
-                if isinstance(content_data, list) and content_data:
-                    entry_value = content_data[0]
-                    if isinstance(entry_value, dict):
-                        raw_value = entry_value.get("value")
-                        content_value = (
-                            raw_value if isinstance(raw_value, str) else None
-                        )
-                    else:
-                        raw_value = getattr(entry_value, "value", None)
-                        content_value = (
-                            raw_value if isinstance(raw_value, str) else None
-                        )
-                elif isinstance(content_data, str):
-                    content_value = content_data
-                if content_value:
-                    content_images = re.findall(
-                        r"<img[^>]+src=\"([^\"]+)\"", content_value
-                    )
+        content_images: list[str] = []
+        description_value = entry.get("description")
+        if isinstance(description_value, str) and description_value:
+            content_images = _extract_image_urls_from_html(description_value)
 
-            desc_images: list[str] = []
-            description_value = entry.get("description")
-            if isinstance(description_value, str) and description_value:
-                desc_images = re.findall(
-                    r"<img[^>]+src=\"([^\"]+)\"", description_value
-                )
+        desc_images: list[str] = []
+        if isinstance(description_value, str) and description_value:
+            desc_images = _extract_image_urls_from_html(description_value)
 
-            has_images = bool(image_sources or content_images or desc_images)
-            if has_images:
-                debug_data["image_analysis"]["entries_with_images"] += 1
+        has_images = bool(image_sources or content_images or desc_images)
+        if has_images:
+            debug_data["image_analysis"]["entries_with_images"] += 1
 
-            parsed_entry = {
-                "index": i,
-                "title": entry.get("title", "No title"),
-                "link": entry.get("link", ""),
-                "description": (
-                    description_value[:200] + "..."
-                    if isinstance(description_value, str)
-                    and len(description_value) > 200
-                    else description_value or "No description"
-                ),
-                "published": entry.get("published", "No date"),
-                "author": entry.get("author", "No author"),
-                "tags": entry.get("tags", []),
-                "has_images": has_images,
-                "image_sources": image_sources,
-                "content_images": content_images,
-                "description_images": desc_images,
-                "raw_entry_keys": list(entry.keys()) if hasattr(entry, "keys") else [],
-            }
+        parsed_entry = {
+            "index": i,
+            "title": entry.get("title", "No title"),
+            "link": entry.get("link", ""),
+            "description": (
+                description_value[:200] + "..."
+                if isinstance(description_value, str) and len(description_value) > 200
+                else description_value or "No description"
+            ),
+            "published": entry.get("published", "No date"),
+            "author": entry.get("author") or "No author",
+            "tags": entry.get("tags") or [],
+            "has_images": has_images,
+            "image_sources": image_sources,
+            "content_images": content_images,
+            "description_images": desc_images,
+            "raw_entry_keys": list(entry.keys()),
+        }
 
-            debug_data["parsed_entries"].append(parsed_entry)
-            debug_data["image_analysis"]["image_sources"].extend(
-                [
-                    {"entry_index": i, "source": "content", "urls": content_images},
-                    {"entry_index": i, "source": "description", "urls": desc_images},
-                    {"entry_index": i, "source": "metadata", "data": image_sources},
-                ]
-            )
+        debug_data["parsed_entries"].append(parsed_entry)
+        debug_data["image_analysis"]["image_sources"].extend(
+            [
+                {"entry_index": i, "source": "content", "urls": content_images},
+                {"entry_index": i, "source": "description", "urls": desc_images},
+                {"entry_index": i, "source": "metadata", "data": image_sources},
+            ]
+        )
 
     return debug_data
 
@@ -568,42 +570,52 @@ async def test_rss_parser(
     start_time = time.time()
 
     try:
-        feed = feedparser.parse(url, agent="NewsAggregator/1.0 (Debug Parser Test)")
+        rust_result = await run_in_threadpool(
+            parse_feeds_parallel,
+            [(url, [url])],
+            4,
+        )
         parse_time = time.time() - start_time
+        sample_articles = cast(List[Dict[str, object]], rust_result.get("articles", []))
+        source_stats = cast(
+            Dict[str, Dict[str, object]], rust_result.get("source_stats", {})
+        )
+        parser_status = source_stats.get(url, {})
 
         sample_entries: List[Dict[str, object]] = []
         result = {
             "url": url,
             "parse_time_seconds": round(parse_time, 3),
-            "success": not getattr(feed, "bozo", False),
+            "success": parser_status.get("status") != "error",
             "feed_info": {
-                "title": getattr(feed.feed, "title", ""),
-                "description": getattr(feed.feed, "description", ""),
-                "link": getattr(feed.feed, "link", ""),
-                "language": getattr(feed.feed, "language", ""),
+                "title": url,
+                "description": "",
+                "link": url,
+                "language": "",
             },
             "status": {
-                "http_status": getattr(feed, "status", "N/A"),
-                "bozo": getattr(feed, "bozo", False),
-                "bozo_exception": str(getattr(feed, "bozo_exception", "")),
-                "entries_count": len(feed.entries) if hasattr(feed, "entries") else 0,
+                "http_status": 200,
+                "bozo": parser_status.get("status") == "error",
+                "bozo_exception": str(parser_status.get("error_message") or ""),
+                "entries_count": len(sample_articles),
             },
             "sample_entries": sample_entries,
         }
 
-        for i, entry in enumerate(feed.entries[:max_entries]):
-            # Extract image using new extraction service
-            from app.services.image_extraction import extract_image_from_entry
-
-            image_result = extract_image_from_entry(entry, base_url=url)
-
+        for i, entry in enumerate(sample_articles[:max_entries]):
             sample_entries.append(
                 {
                     "index": i,
                     "title": entry.get("title", ""),
                     "link": entry.get("link", ""),
                     "published": entry.get("published", ""),
-                    "image_extraction": image_result.to_dict(),
+                    "image_extraction": {
+                        "image_url": entry.get("image"),
+                        "image_candidates": [],
+                        "image_error": None,
+                        "image_error_details": None,
+                        "selected_source": "rust_feed" if entry.get("image") else None,
+                    },
                 }
             )
 

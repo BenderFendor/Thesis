@@ -1,17 +1,13 @@
 fastapi>=0.110.0
 uvicorn>=0.27.0
-feedparser>=6.0.10
 pydantic>=2.8.0
 python-multipart>=0.0.6
 httpx>=0.25.2
 python-dotenv>=1.0.0
-beautifulsoup4>=4.12.0
 requests>=2.31.0
 types-requests>=2.32.0
 google-genai>=0.1.0
 openai>=1.0.0
-newspaper4k>=0.9.0
-lxml[html_clean]>=6.0.0
 pillow>=10.0.0
 
 # LangChain dependencies for agentic search tool
@@ -43,7 +39,6 @@ types-psutil>=7.0.0
 # Algorithm dependencies for Phase 1 lightweight improvements
 rank_bm25>=0.2.2  # BM25 keyword search (pure algorithm, CPU)
 hdbscan>=0.8.33   # Density-based clustering (C++ backend, fast)
-datasketch>=1.6.4 # MinHash deduplication (pure algorithm, CPU)
 
 # Build helpers for the Rust RSS parser
 maturin>=1.10.0

@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Test script for async RSS ingestion pipeline.
+Test script for Rust-backed RSS ingestion pipeline.
 Run with: python backend/test_async_ingestion.py
 """
 
@@ -8,26 +8,7 @@ import asyncio
 import sys
 from pathlib import Path
 
-# Add parent directory to path
 sys.path.insert(0, str(Path(__file__).parent))
-
-
-async def test_resource_config():
-    """Test dynamic resource configuration."""
-    print("\n" + "=" * 60)
-    print("Testing Resource Configuration")
-    print("=" * 60)
-
-    from app.core.resource_config import get_system_resources
-
-    config = get_system_resources()
-    print("\nResource configuration loaded:")
-    print(f"   CPU workers: {config['cpu_workers']}")
-    print(f"   Fetch concurrency: {config['fetch_concurrency']}")
-    print(f"   Fetch queue size: {config['fetch_queue_size']}")
-    print(f"   Parse queue size: {config['parse_queue_size']}")
-    print(f"   Persist queue size: {config['persist_queue_size']}")
-    print(f"   Persist batch size: {config['persist_batch_size']}")
 
 
 async def test_metrics():
@@ -47,7 +28,6 @@ async def test_metrics():
     print(f"   Persist count: {metrics.persist_count}")
     print(f"   Duration: {metrics.duration_seconds():.2f}s")
 
-    # Simulate some activity
     metrics.fetch_count = 5
     metrics.parse_count = 5
     metrics.persist_count = 100
@@ -59,58 +39,63 @@ async def test_metrics():
     print(f"   Persist: {metrics_dict['persist']}")
 
 
-async def test_blocking_parse():
-    """Test the blocking parse feed function."""
+async def test_rust_parse_helpers():
+    """Test the Rust parser bindings directly."""
     print("\n" + "=" * 60)
-    print("Testing Blocking Parse Feed")
+    print("Testing Rust Parser Helpers")
     print("=" * 60)
 
     try:
-        from app.services.rss_ingestion import _blocking_parse_feed
+        from app.services.rss_parser_rust_bindings import (
+            deduplicate_article_groups,
+            extract_article_html,
+            extract_og_image_html,
+            sentence_diff,
+            text_similarity,
+        )
 
-        # Sample RSS XML
-        sample_rss = """<?xml version="1.0" encoding="UTF-8"?>
-        <rss version="2.0">
-            <channel>
-                <title>Test Feed</title>
-                <item>
-                    <title>Test Article</title>
-                    <link>https://example.com/article1</link>
-                    <description>Test description</description>
-                    <pubDate>Mon, 01 Jan 2024 12:00:00 GMT</pubDate>
-                </item>
-            </channel>
-        </rss>"""
+        article_payload = extract_article_html(
+            "<html><head><title>Test</title></head><body><article><p>Body text.</p></article></body></html>"
+        )
+        og_payload = extract_og_image_html(
+            '<html><head><meta property="og:image" content="https://example.com/image.jpg"></head></html>'
+        )
+        duplicates = deduplicate_article_groups(
+            [
+                ("doc-1", "Shared article body."),
+                ("doc-2", "Shared article body."),
+                ("doc-3", "Different body."),
+            ],
+            threshold=0.9,
+            num_hashes=128,
+        )
+        diff = sentence_diff("Alpha wins. Beta reacts.", "Alpha wins. Gamma responds.")
 
-        source_info = {
-            "url": "https://example.com/feed",
-            "category": "technology",
-            "country": "US",
-        }
-
-        articles, stat = _blocking_parse_feed(sample_rss, "Test Source", source_info)
-        print("\nParse successful:")
-        print(f"   Articles parsed: {len(articles)}")
-        print(f"   Source status: {stat['status']}")
-        print(f"   Source category: {stat['category']}")
-        if articles:
-            print(f"   First article title: {articles[0].title}")
-    except ImportError as e:
-        print(f"\nParse test skipped (dependencies not installed): {e}")
-    except Exception as e:
-        print(f"\nParse test failed: {e}")
+        print("\nRust helper calls succeeded:")
+        print(f"   Article title: {article_payload.get('title')}")
+        print(f"   OG candidates: {len(og_payload.get('candidates', []))}")
+        print(f"   Similarity: {text_similarity('alpha', 'alpha')}")
+        print(f"   Duplicate groups: {len(duplicates)}")
+        print(f"   Diff keys: {sorted(diff.keys())}")
+    except ImportError as exc:
+        print(f"\nRust helper test skipped (dependencies not installed): {exc}")
+    except Exception as exc:
+        print(f"\nRust helper test failed: {exc}")
 
 
 async def test_imports():
-    """Test that all new modules can be imported."""
+    """Test that core modules can be imported."""
     print("\n" + "=" * 60)
     print("Testing Module Imports")
     print("=" * 60)
 
     modules = [
-        ("app.core.resource_config", ["get_system_resources", "ResourceConfig"]),
         ("app.services.metrics", ["get_metrics", "reset_metrics", "PipelineMetrics"]),
         ("app.services.scheduler", ["periodic_rss_refresh"]),
+        (
+            "app.services.rss_parser_rust_bindings",
+            ["parse_feeds_parallel", "extract_article_html"],
+        ),
     ]
 
     for module_name, components in modules:
@@ -122,28 +107,26 @@ async def test_imports():
                     print(f"   - {component} available")
                 else:
                     print(f"   {component} not found")
-        except Exception as e:
-            print(f"\n{module_name} failed: {e}")
+        except Exception as exc:
+            print(f"\n{module_name} failed: {exc}")
 
 
 async def main():
     """Run all tests."""
     print("\n" + "=" * 60)
-    print("ASYNC RSS INGESTION PIPELINE TESTS")
+    print("RUST RSS INGESTION PIPELINE TESTS")
     print("=" * 60)
 
     try:
         await test_imports()
-        await test_resource_config()
         await test_metrics()
-        await test_blocking_parse()
+        await test_rust_parse_helpers()
 
         print("\n" + "=" * 60)
         print("All tests completed successfully!")
         print("=" * 60 + "\n")
-
-    except Exception as e:
-        print(f"\nTest failed: {e}")
+    except Exception as exc:
+        print(f"\nTest failed: {exc}")
         import traceback
 
         traceback.print_exc()

@@ -11,7 +11,7 @@ import pytest
 from hypothesis import given, strategies as st
 
 
-def test_extract_article_prefers_rust_html_before_soup(monkeypatch) -> None:
+def test_extract_article_uses_rust_html(monkeypatch) -> None:
     from app.services import article_extraction
 
     html = """
@@ -23,7 +23,6 @@ def test_extract_article_prefers_rust_html_before_soup(monkeypatch) -> None:
     </html>
     """
 
-    monkeypatch.setattr(article_extraction, "RUST_HTML_AVAILABLE", True)
     monkeypatch.setattr(article_extraction, "_fetch_article_html", lambda url: html)
     monkeypatch.setattr(
         article_extraction,
@@ -40,11 +39,6 @@ def test_extract_article_prefers_rust_html_before_soup(monkeypatch) -> None:
         },
     )
 
-    def _fail_if_called(*args, **kwargs):
-        raise AssertionError("soup fallback should not run when rust succeeds")
-
-    monkeypatch.setattr(article_extraction, "_extract_with_soup", _fail_if_called)
-
     result = article_extraction.extract_article_content("https://example.com/story")
 
     assert result["success"] is True
@@ -57,8 +51,6 @@ def test_extract_article_returns_error_after_direct_fetch_failure_without_fallba
     monkeypatch,
 ) -> None:
     from app.services import article_extraction
-
-    monkeypatch.setattr(article_extraction, "RUST_HTML_AVAILABLE", False)
 
     def _raise_fetch(url: str) -> str:
         raise RuntimeError("network blocked")

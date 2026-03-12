@@ -52,7 +52,7 @@ def test_minhash_deduplicator_detects_near_duplicates() -> None:
     duplicates = deduplicator.find_duplicates()
     assert duplicates
     assert duplicates[0][0:2] == ("doc-1", "doc-2")
-    assert duplicates[0][2] >= 0.5
+    assert duplicates[0][2] == 0.5
 
 
 def test_deduplicate_articles_groups_exact_duplicates() -> None:

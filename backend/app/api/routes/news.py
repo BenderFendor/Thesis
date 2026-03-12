@@ -22,6 +22,7 @@ from app.database import (
     search_article_records_by_keyword,
 )
 from app.models.news import NewsArticle, NewsResponse, SourceInfo
+from app.services.country_mentions import country_name
 from app.services.cache import news_cache
 
 router = APIRouter(prefix="/news", tags=["news"])
@@ -148,6 +149,80 @@ def _browse_article_to_dict(row: Mapping[str, Any]) -> Dict[str, Any]:
     }
 
 
+def _browse_search_country_codes(search: Optional[str]) -> List[str]:
+    normalized = " ".join((search or "").split()).strip().lower()
+    if not normalized or " " in normalized:
+        return []
+
+    supported_codes = [
+        "US",
+        "CN",
+        "GB",
+        "DE",
+        "FR",
+        "RU",
+        "UA",
+        "IL",
+        "PS",
+        "IR",
+        "TW",
+        "JP",
+        "KR",
+        "KP",
+    ]
+    return [
+        code
+        for code in supported_codes
+        if code.lower() == normalized or country_name(code).lower() == normalized
+    ]
+
+
+def _browse_text_match(row: Mapping[str, Any], term: str) -> bool:
+    normalized = term.strip().lower()
+    if not normalized:
+        return False
+
+    fields = [
+        row.get("title"),
+        row.get("summary"),
+        row.get("source"),
+        row.get("category"),
+    ]
+    return any(
+        isinstance(value, str) and normalized in value.lower() for value in fields
+    )
+
+
+def _browse_sort_timestamp(row: Mapping[str, Any]) -> float:
+    published_at = row.get("published_at")
+    if isinstance(published_at, datetime):
+        return published_at.timestamp()
+    return 0.0
+
+
+def _browse_sort_day(row: Mapping[str, Any]) -> int:
+    published_at = row.get("published_at")
+    if isinstance(published_at, datetime):
+        return published_at.date().toordinal()
+    return 0
+
+
+def _browse_country_match(row: Mapping[str, Any], search: str) -> bool:
+    country_codes = set(_browse_search_country_codes(search))
+    mentioned = row.get("mentioned_countries")
+    if not country_codes or not isinstance(mentioned, list):
+        return False
+    return any(isinstance(code, str) and code in country_codes for code in mentioned)
+
+
+def _browse_match_bucket(row: Mapping[str, Any], search: str) -> int:
+    if _browse_text_match(row, search):
+        return 0
+    if _browse_country_match(row, search):
+        return 1
+    return 2
+
+
 _BROWSE_SELECT_COLUMNS = (
     Article.id.label("id"),
     Article.title.label("title"),
@@ -161,6 +236,7 @@ _BROWSE_SELECT_COLUMNS = (
     Article.published_at.label("published_at"),
     Article.category.label("category"),
     Article.url.label("url"),
+    Article.mentioned_countries.label("mentioned_countries"),
 )
 
 
@@ -499,7 +575,20 @@ async def get_browse_index(
             normalized_search,
             search_dialect_name,
         )
-        clauses = [*filters, match_filter]
+        country_codes = _browse_search_country_codes(normalized_search)
+        if country_codes:
+            clauses = [
+                *filters,
+                or_(
+                    match_filter,
+                    *[
+                        Article.mentioned_countries.contains([code])
+                        for code in country_codes
+                    ],
+                ),
+            ]
+        else:
+            clauses = [*filters, match_filter]
 
         if rank is not None:
             stmt = (
@@ -525,7 +614,19 @@ async def get_browse_index(
         result = await db.execute(stmt)
         rows = result.mappings().all()
 
-    articles = [_browse_article_to_dict(row) for row in rows]
+    row_mappings = [cast(Mapping[str, Any], row) for row in rows]
+    if search and _browse_search_country_codes(search):
+        normalized_search = " ".join(search.split())
+        row_mappings.sort(
+            key=lambda row: (
+                -_browse_sort_day(row),
+                _browse_match_bucket(row, normalized_search),
+                -_browse_sort_timestamp(row),
+                -int(row.get("id") or 0),
+            )
+        )
+
+    articles = [_browse_article_to_dict(row) for row in row_mappings]
 
     return BrowseIndexResponse(
         articles=articles,
