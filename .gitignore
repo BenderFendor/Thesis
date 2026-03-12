@@ -380,3 +380,6 @@ scripts/__pycache__/
 scripts/*.pyc
 scripts/*.bak
 Firefox 2026-03-05 22.51 profile.json
+
+# OpenCode Gemini
+.opencode-gemini/
