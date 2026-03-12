@@ -23,6 +23,7 @@ import {
   Laptop,
   Trophy,
   Newspaper,
+  Loader2,
 } from "lucide-react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
@@ -556,36 +557,24 @@ function NewsPage() {
       {(currentView === "globe"
         ? (loading || (streamHook.isStreaming && articlesByCategory[activeCategory]?.length === 0))
         : (loading && activeViewArticles.length === 0)) && (
-        <div className="fixed inset-0 z-50 grid place-items-center bg-[var(--news-bg-primary)]/95 backdrop-blur">
-          <div className="relative w-[min(420px,90vw)] overflow-hidden rounded-none border border-white/10 bg-[var(--news-bg-secondary)] p-8 shadow-2xl">
+        <div className="fixed bottom-4 left-4 sm:bottom-8 sm:left-8 z-[100] pointer-events-none">
+          <div className="pointer-events-auto w-64 overflow-hidden rounded-xl border border-white/10 bg-[var(--news-bg-secondary)]/90 p-4 shadow-2xl backdrop-blur-xl transition-all duration-500 animate-in slide-in-from-bottom-4">
             <div className="absolute inset-0 bg-[radial-gradient(circle_at_top,_rgba(255,255,255,0.08),_transparent_60%)]" />
             <div className="relative">
               <div className="flex items-center justify-between">
-                  <span className="rounded-full border border-primary/30 bg-primary/15 px-3 py-1 text-[10px] font-mono uppercase tracking-[0.3em] text-primary">
-                    {currentView === "globe" ? "Live ingest" : "Browse index"}
+                <span className="flex items-center gap-2 rounded-full border border-primary/30 bg-primary/15 px-2 py-0.5 text-[9px] font-mono uppercase tracking-[0.2em] text-primary">
+                  <Loader2 className="w-3 h-3 animate-spin" />
+                  {currentView === "globe" ? "Live ingest" : "Loading"}
+                </span>
+                {currentView === "globe" && streamHook.progress.total > 0 && (
+                  <span className="text-[9px] uppercase tracking-[0.2em] text-muted-foreground">
+                    {streamHook.progress.completed}/{streamHook.progress.total}
                   </span>
-                  <span className="text-[10px] uppercase tracking-[0.3em] text-muted-foreground">
-                    {currentView === "globe"
-                      ? `${streamHook.progress.completed}/${streamHook.progress.total}`
-                      : `${activeViewArticles.length}/${paginatedTotalCount}`}
-                  </span>
-                </div>
-                <h3 className="mt-6 font-serif text-2xl text-foreground">
-                  {currentView === "globe" ? "Refreshing the news index" : "Loading the browse index"}
-                </h3>
-                <p className="mt-2 text-sm text-muted-foreground">
-                  {currentView === "globe"
-                    ? (streamHook.currentMessage || "Scanning global sources and clustering coverage.")
-                    : "Loading paginated article records from the backend."}
-                </p>
-              <div className="mt-6 h-2 w-full overflow-hidden rounded-full bg-muted/40">
-                <div className="h-full w-1/2 animate-[shimmer_2s_infinite] bg-gradient-to-r from-primary/20 via-primary/60 to-primary/20" />
+                )}
               </div>
-              {currentView === "globe" && streamHook.retryCount > 0 && (
-                <div className="mt-4 rounded-none border border-white/10 bg-[var(--news-bg-primary)]/50 px-3 py-2 text-xs text-muted-foreground">
-                  Retry attempt {streamHook.retryCount}/{streamHook.maxRetries}
-                </div>
-              )}
+              <h3 className="mt-3 font-serif text-sm font-medium text-foreground">
+                {currentView === "globe" ? "Refreshing news index..." : "Loading articles..."}
+              </h3>
             </div>
           </div>
         </div>
@@ -699,12 +688,12 @@ function NewsPage() {
 
       <div className={cn("flex-1 flex flex-col min-w-0", currentView === "scroll" ? "h-screen overflow-hidden" : "")}>
       <header className="sticky top-0 z-40 border-b border-white/10 bg-[var(--news-bg-primary)]/95 backdrop-blur">
-        <div className="flex flex-wrap items-center justify-between gap-2 px-4 py-3 sm:px-6">
-          <div className="flex min-w-0 flex-1 items-center gap-2 lg:hidden">
+        <div className="flex flex-nowrap items-center justify-between gap-1.5 px-2 py-2 sm:px-6 sm:py-3 overflow-x-auto no-scrollbar">
+          <div className="flex min-w-0 items-center gap-1.5 lg:hidden shrink-0">
             <select
               value={currentView}
               onChange={(event) => setCurrentView(event.target.value as ViewMode)}
-              className="min-w-[120px] flex-1 border border-white/10 bg-[var(--news-bg-secondary)] px-3 py-2 text-[10px] font-mono uppercase tracking-[0.32em] text-foreground focus:outline-none focus:border-primary"
+              className="w-auto border border-white/10 bg-[var(--news-bg-secondary)] px-2 py-1.5 h-8 text-[9px] sm:text-[10px] font-mono uppercase tracking-widest text-foreground focus:outline-none focus:border-primary rounded-md"
               aria-label="Select view"
             >
               {VIEW_OPTIONS.map((option) => (
@@ -717,30 +706,30 @@ function NewsPage() {
               variant="outline"
               size="sm"
               onClick={() => setSidebarOpen(true)}
-              className="border-white/10 bg-transparent text-[10px] font-mono uppercase tracking-[0.32em]"
+              className="border-white/10 bg-transparent text-[9px] sm:text-[10px] font-mono uppercase tracking-widest px-2 py-1.5 h-8 shrink-0"
             >
-              <SlidersHorizontal className="w-3.5 h-3.5 mr-2" />
+              <SlidersHorizontal className="w-3.5 h-3.5 mr-1 sm:mr-2" />
               Sources
             </Button>
           </div>
-          <div className="flex items-center justify-end gap-2 sm:ml-auto">
+          <div className="flex items-center gap-1.5 shrink-0 sm:ml-auto">
             <ThemeToggle />
-            <Button asChild variant="outline" size="sm" className="border-white/10 bg-transparent text-[10px] font-mono uppercase tracking-[0.32em]">
+            <Button asChild variant="outline" size="sm" className="border-white/10 bg-transparent text-[9px] sm:text-[10px] font-mono uppercase tracking-widest px-2 py-1.5 h-8 shrink-0">
               <Link href="/saved">
-                <Bookmark className="w-3.5 h-3.5 mr-2" />
+                <Bookmark className="w-3.5 h-3.5 mr-1 sm:mr-2" />
                 Saved
               </Link>
             </Button>
-            <Button asChild variant="outline" size="sm" className="border-white/10 bg-transparent text-[10px] font-mono uppercase tracking-[0.32em]">
+            <Button asChild variant="outline" size="sm" className="border-white/10 bg-transparent text-[9px] sm:text-[10px] font-mono uppercase tracking-widest px-2 py-1.5 h-8 shrink-0">
               <Link href="/search">
-                <Search className="w-3.5 h-3.5 mr-2" />
+                <Search className="w-3.5 h-3.5 mr-1 sm:mr-2" />
                 Research
               </Link>
             </Button>
             {debugMode && (
-              <Button asChild variant="outline" size="sm" className="border-white/10 bg-transparent text-[10px] font-mono uppercase tracking-[0.32em]">
+              <Button asChild variant="outline" size="sm" className="border-white/10 bg-transparent text-[9px] sm:text-[10px] font-mono uppercase tracking-widest px-2 py-1.5 h-8 shrink-0">
                 <Link href="/debug">
-                  <Bug className="w-3.5 h-3.5 mr-2" />
+                  <Bug className="w-3.5 h-3.5 mr-1 sm:mr-2" />
                   Debug
                 </Link>
               </Button>
@@ -749,12 +738,12 @@ function NewsPage() {
         </div>
       </header>
 
-      <main className={cn("flex-1 bg-[var(--news-bg-primary)]", currentView === "scroll" ? "overflow-hidden" : "")}>
-        <div className={cn("max-w-[1600px] mx-auto grid grid-cols-1 lg:grid-cols-12 gap-0", currentView === "scroll" ? "h-full" : "")}>
+      <main className={cn("flex-1 bg-[var(--news-bg-primary)]", (currentView === "scroll" || currentView === "globe") ? "overflow-hidden" : "")}>
+        <div className={cn("max-w-[1600px] mx-auto grid grid-cols-1 lg:grid-cols-12 gap-0", (currentView === "scroll" || currentView === "globe") ? "h-full" : "")}>
 
-          <section className={cn(
+              <section className={cn(
             "lg:col-span-12 bg-[var(--news-bg-primary)] flex flex-col border-x border-white/10",
-            currentView === "scroll" ? "h-full overflow-hidden" : "min-h-[calc(100vh-80px)]"
+            (currentView === "scroll" || isGlobeView) ? "h-full overflow-hidden" : "min-h-[calc(100vh-80px)]"
           )}>
             {!isGlobeView && currentView !== "scroll" && (
               <div className="relative p-6 border-b border-white/10">
@@ -762,26 +751,26 @@ function NewsPage() {
                 className="pointer-events-none absolute inset-0 opacity-[0.04] bg-primary"
                 style={{ filter: "url(#halftone-pattern)" }}
               />
-              <div className="flex items-center justify-between mb-6">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between mb-4 sm:mb-6 gap-2">
                 <div className="flex items-center gap-2">
-                  <span className="px-2 py-0.5 border font-mono text-[9px] uppercase tracking-[0.32em] bg-primary/10 text-primary border-primary/40">
+                  <span className="px-2 py-0.5 border font-mono text-[9px] uppercase tracking-[0.32em] bg-transparent text-primary/70 border-primary/40">
                     Lead Story
                   </span>
-                  <span className="px-2 py-0.5 border font-mono text-[9px] uppercase tracking-[0.32em] text-muted-foreground border-white/10">
+                  <span className="px-2 py-0.5 border font-mono text-[9px] uppercase tracking-[0.32em] bg-transparent text-muted-foreground border-white/10">
                     {leadCategoryLabel}
                   </span>
                 </div>
-                <span className="font-mono text-[10px] text-muted-foreground">
+                <span className="font-mono text-[9px] sm:text-[10px] text-muted-foreground">
                   {leadArticle ? formatDate(leadArticle.publishedAt) : "Updating feed"}
                 </span>
               </div>
 
               <div className="grid gap-6 lg:grid-cols-[minmax(0,2.1fr)_minmax(0,1fr)]">
                 <div className="min-w-0">
-                  <h2 className="font-serif text-3xl md:text-5xl font-semibold tracking-tight leading-[1.05] mb-4 line-clamp-3">
+                  <h2 className="font-serif text-[2.5rem] leading-[1.05] sm:text-5xl font-semibold tracking-tight mb-4 line-clamp-3">
                     {leadArticle?.title || "Loading coverage..."}
                   </h2>
-                  <p className="text-base md:text-lg text-foreground/80 leading-relaxed font-serif italic line-clamp-3">
+                  <p className="text-base sm:text-lg text-foreground/80 leading-relaxed font-serif italic line-clamp-3">
                     {leadSummary}
                   </p>
                   <div className="mt-4 flex flex-wrap gap-2">
@@ -789,12 +778,12 @@ function NewsPage() {
                       variant="outline"
                       size="sm"
                       onClick={() => leadArticle && setLeadModalOpen(true)}
-                      className="border-white/10 bg-transparent text-[10px] font-mono uppercase tracking-[0.32em]"
+                      className="border-white/10 bg-transparent text-[9px] sm:text-[10px] font-mono uppercase tracking-[0.32em]"
                     >
                       Open analysis
                     </Button>
                     <Link href="/search">
-                      <Button variant="outline" size="sm" className="border-white/10 bg-transparent text-[10px] font-mono uppercase tracking-[0.32em]">
+                      <Button variant="outline" size="sm" className="border-white/10 bg-transparent text-[9px] sm:text-[10px] font-mono uppercase tracking-[0.32em]">
                         Research workspace
                       </Button>
                     </Link>
@@ -802,7 +791,7 @@ function NewsPage() {
                       variant="outline"
                       size="sm"
                       onClick={() => setSidebarOpen(true)}
-                      className="border-white/10 bg-transparent text-[10px] font-mono uppercase tracking-[0.32em]"
+                      className="border-white/10 bg-transparent text-[9px] sm:text-[10px] font-mono uppercase tracking-[0.32em]"
                     >
                       Filter sources
                     </Button>
@@ -810,37 +799,37 @@ function NewsPage() {
                 </div>
                 <div className="space-y-4">
                   <div className="border border-white/10 bg-[var(--news-bg-secondary)] p-4">
-                    <div className="flex items-center justify-between text-[10px] font-mono uppercase tracking-[0.32em] text-muted-foreground">
+                    <div className="flex flex-row items-center justify-between gap-2 text-[10px] font-mono uppercase tracking-[0.32em] text-muted-foreground">
                       <span>Coverage Snapshot</span>
                       <span className="text-primary">{viewLabel}</span>
                     </div>
-                    <div className="mt-3 grid grid-cols-2 gap-3 text-xs">
-                      <div className="border border-white/10 bg-[var(--news-bg-primary)] px-3 py-2">
-                        <div className="text-[10px] uppercase tracking-widest text-muted-foreground">Articles</div>
+                    <div className="mt-3 grid grid-cols-2 gap-2 sm:gap-3 text-xs">
+                      <div className="border border-white/10 bg-[var(--news-bg-primary)] px-2 py-1.5 sm:px-3 sm:py-2">
+                        <div className="text-[9px] sm:text-[10px] uppercase tracking-widest text-muted-foreground">Articles</div>
                         <div className="text-sm font-semibold">{articleCount}</div>
                       </div>
-                      <div className="border border-white/10 bg-[var(--news-bg-primary)] px-3 py-2">
-                        <div className="text-[10px] uppercase tracking-widest text-muted-foreground">Sources</div>
+                      <div className="border border-white/10 bg-[var(--news-bg-primary)] px-2 py-1.5 sm:px-3 sm:py-2">
+                        <div className="text-[9px] sm:text-[10px] uppercase tracking-widest text-muted-foreground">Sources</div>
                         <div className="text-sm font-semibold">
                           {selectedSources.size > 0 ? selectedSources.size : "All"}
                         </div>
                       </div>
-                      <div className="border border-white/10 bg-[var(--news-bg-primary)] px-3 py-2">
-                        <div className="text-[10px] uppercase tracking-widest text-muted-foreground">Favorites</div>
+                      <div className="border border-white/10 bg-[var(--news-bg-primary)] px-2 py-1.5 sm:px-3 sm:py-2">
+                        <div className="text-[9px] sm:text-[10px] uppercase tracking-widest text-muted-foreground">Favorites</div>
                         <div className="text-sm font-semibold">{favorites.size}</div>
                       </div>
-                      <div className="border border-white/10 bg-[var(--news-bg-primary)] px-3 py-2">
-                        <div className="text-[10px] uppercase tracking-widest text-muted-foreground">Bias</div>
+                      <div className="border border-white/10 bg-[var(--news-bg-primary)] px-2 py-1.5 sm:px-3 sm:py-2">
+                        <div className="text-[9px] sm:text-[10px] uppercase tracking-widest text-muted-foreground">Bias</div>
                         <div className="text-sm font-semibold">{leadBias}</div>
                       </div>
                     </div>
                   </div>
-                  <div className="border border-white/10 bg-[var(--news-bg-secondary)] p-4 text-xs text-muted-foreground">
-                    <div className="flex items-center justify-between font-mono uppercase tracking-[0.32em] text-[10px]">
+                  <div className="border border-white/10 bg-[var(--news-bg-secondary)] p-3 sm:p-4 text-xs text-muted-foreground">
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 font-mono uppercase tracking-[0.32em] text-[10px]">
                       <span>Lead Signal</span>
                       <span className="text-primary">{leadCredibility}</span>
                     </div>
-                    <p className="mt-2 text-foreground/70 line-clamp-3">
+                    <p className="mt-2 text-foreground/70 line-clamp-3 text-[11px] sm:text-xs">
                       {leadArticle?.summary
                         ? "Evidence markers and source metadata are available for this story."
                         : "Lead coverage is loading. Evidence and source metadata appear once ready."}
@@ -851,32 +840,32 @@ function NewsPage() {
               </div>
             )}
 
-            <Tabs value={activeCategory} onValueChange={(value) => setActiveCategory(value)} className={cn("flex-1 flex flex-col", currentView === "scroll" ? "overflow-hidden" : "")}>
-              {currentView !== "scroll" && (
-                <div className="px-8 py-6 border-b border-white/10">
-                  <div className="flex items-center justify-between mb-6">
+            <Tabs value={activeCategory} onValueChange={(value) => setActiveCategory(value)} className={cn("flex-1 flex flex-col", (currentView === "scroll" || currentView === "globe") ? "overflow-hidden" : "")}>
+              {currentView !== "scroll" && currentView !== "globe" && (
+                <div className="px-4 py-4 sm:px-8 sm:py-6 border-b border-white/10">
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between mb-4 sm:mb-6 gap-4">
                     <div className="flex items-center gap-4">
-                      <h3 className="font-serif text-2xl uppercase font-black tracking-tight">The Index</h3>
-                      <div className="flex-1 h-px bg-white/10" />
-                      <span className="font-mono text-[10px] uppercase tracking-[0.3em] text-muted-foreground">
+                      <h3 className="font-serif text-3xl sm:text-2xl uppercase font-black tracking-tight">The Index</h3>
+                      <div className="flex-1 h-px bg-white/10 hidden sm:block" />
+                      <span className="font-mono text-[10px] uppercase tracking-[0.3em] text-muted-foreground whitespace-nowrap">
                         {articleCount} articles
                       </span>
                     </div>
                   </div>
-                  <div className="mb-4 flex flex-wrap items-center justify-between gap-2 text-[10px] font-mono uppercase tracking-[0.32em] text-muted-foreground">
+                  <div className="mb-3 flex flex-wrap items-center justify-between gap-2 text-[9px] sm:text-[10px] font-mono uppercase tracking-[0.32em] text-muted-foreground">
                     <span>Category</span>
                     {!isGlobeView && (
-                      <span className="text-muted-foreground/70">Use category filters to compare coverage.</span>
+                      <span className="text-muted-foreground/70 hidden sm:inline">Use category filters to compare coverage.</span>
                     )}
                   </div>
-                  <div className="flex flex-wrap items-center gap-3">
+                  <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 sm:gap-3">
                     <TooltipProvider>
                       <Tooltip>
                         <TooltipTrigger asChild>
                           <select
                             value={activeCategory}
                             onChange={(event) => setActiveCategory(event.target.value)}
-                            className="min-w-[220px] border border-white/10 bg-[var(--news-bg-secondary)] px-3 py-2 text-[10px] font-mono uppercase tracking-[0.32em] text-foreground focus:outline-none focus:border-primary"
+                            className="w-full sm:w-auto sm:min-w-[220px] border border-white/10 bg-[var(--news-bg-secondary)] px-3 py-2 text-[9px] sm:text-[10px] font-mono uppercase tracking-[0.32em] text-foreground focus:outline-none focus:border-primary rounded-md"
                             aria-label="Select category"
                           >
                             {categories.map((category) => (
@@ -900,7 +889,7 @@ function NewsPage() {
                                 setSortMode(value as typeof sortMode)
                               }
                             }}
-                            className="min-w-[220px] border border-white/10 bg-[var(--news-bg-secondary)] px-3 py-2 text-[10px] font-mono uppercase tracking-[0.32em] text-foreground focus:outline-none focus:border-primary"
+                            className="w-full sm:w-auto sm:min-w-[220px] border border-white/10 bg-[var(--news-bg-secondary)] px-3 py-2 text-[9px] sm:text-[10px] font-mono uppercase tracking-[0.32em] text-foreground focus:outline-none focus:border-primary rounded-md"
                             aria-label="Select sort order"
                           >
                             {currentView === "grid" && gridMode === "topic" ? (
@@ -924,12 +913,12 @@ function NewsPage() {
                         </TooltipContent>
                       </Tooltip>
 
-                      <div className="flex items-center gap-2 lg:hidden">
-                        <span className="text-[10px] font-mono uppercase tracking-[0.32em] text-muted-foreground">View</span>
+                      <div className="flex items-center gap-2 lg:hidden w-full sm:w-auto">
+                        <span className="text-[9px] sm:text-[10px] font-mono uppercase tracking-[0.32em] text-muted-foreground whitespace-nowrap shrink-0">View</span>
                         <select
                           value={currentView}
                           onChange={(event) => setCurrentView(event.target.value as ViewMode)}
-                          className="border border-white/10 bg-[var(--news-bg-secondary)] px-3 py-2 text-[10px] font-mono uppercase tracking-[0.32em] text-foreground focus:outline-none focus:border-primary"
+                          className="flex-1 sm:w-auto border border-white/10 bg-[var(--news-bg-secondary)] px-3 py-2 text-[9px] sm:text-[10px] font-mono uppercase tracking-[0.32em] text-foreground focus:outline-none focus:border-primary rounded-md"
                           aria-label="Select view"
                         >
                           {VIEW_OPTIONS.map((option) => (
@@ -945,7 +934,7 @@ function NewsPage() {
                             variant="outline"
                             size="sm"
                             onClick={() => setSidebarOpen(true)}
-                            className="border-white/10 bg-transparent text-[10px] font-mono uppercase tracking-[0.32em]"
+                            className="border-white/10 bg-transparent text-[9px] sm:text-[10px] font-mono uppercase tracking-[0.32em] w-full sm:w-auto"
                           >
                             <SlidersHorizontal className="w-3.5 h-3.5 mr-2" />
                             Sources
@@ -958,7 +947,7 @@ function NewsPage() {
                 </div>
               )}
               {categories.map((category) => (
-                <TabsContent key={category.id} value={category.id} className={cn("mt-0 flex-1", currentView === "scroll" ? "overflow-hidden flex flex-col" : "")}>
+                <TabsContent key={category.id} value={category.id} className={cn("mt-0 flex-1", (currentView === "scroll" || currentView === "globe") ? "overflow-hidden flex flex-col" : "")}>
                   {activeCategory === category.id && (
                     <>
                       {currentView === "globe" && (

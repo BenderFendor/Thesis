@@ -92,7 +92,7 @@ function RankingPanel({
   debugMode: boolean
 }) {
   const [isOpen, setIsOpen] = useState(false)
-  const triggerLabel = `Ranking: ${formatRankingStatus(status)}`
+  const triggerLabel = formatRankingStatus(status)
 
   return (
     <Collapsible open={isOpen} onOpenChange={setIsOpen}>
@@ -101,13 +101,24 @@ function RankingPanel({
           <Button
             variant="outline"
             size="sm"
-            className="h-auto rounded-md border-white/20 bg-black/40 px-3 py-2 text-xs font-sans uppercase tracking-wider text-white/80 backdrop-blur-md hover:bg-black/55"
+            title={`Ranking: ${triggerLabel}`}
+            className={cn(
+              "h-auto rounded-md border-white/20 bg-black/40 font-sans uppercase tracking-wider text-white/80 backdrop-blur-md hover:bg-black/55 transition-all duration-200 flex items-center",
+              isOpen 
+                ? "px-3 py-2 text-[10px] md:text-xs gap-1.5 md:gap-2" 
+                : "w-8 h-8 p-0 justify-center md:w-auto md:h-auto md:px-3 md:py-2 md:text-xs md:gap-2 md:justify-start"
+            )}
           >
-            <span className="mr-2 inline-flex items-center gap-2">
-              {status === "loading" ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Brain className="h-3.5 w-3.5" />}
+            {status === "loading" ? <Loader2 className="h-4 w-4 md:h-3.5 md:w-3.5 animate-spin shrink-0" /> : <Brain className="h-4 w-4 md:h-3.5 md:w-3.5 shrink-0" />}
+            
+            <span className={cn("whitespace-nowrap", isOpen ? "block" : "hidden md:block")}>
+              <span className="hidden sm:inline">Ranking: </span>
               {triggerLabel}
             </span>
-            {isOpen ? <ChevronUp className="h-3.5 w-3.5" /> : <ChevronDown className="h-3.5 w-3.5" />}
+
+            <span className={cn("shrink-0", isOpen ? "block" : "hidden md:block")}>
+              {isOpen ? <ChevronUp className="h-3.5 w-3.5" /> : <ChevronDown className="h-3.5 w-3.5" />}
+            </span>
           </Button>
         </CollapsibleTrigger>
 
@@ -461,16 +472,16 @@ export function FeedView({
             </div>
             <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/20 to-black/30 pointer-events-none" />
 
-            <div className="relative z-10 h-full flex flex-col justify-end p-6 md:p-10 lg:p-12">
-              <div className="absolute top-6 left-6 md:top-8 md:left-8 flex flex-wrap items-center gap-3">
-                <Badge className="bg-primary/20 text-primary border-primary/30 hover:bg-primary/30 px-3 py-1 font-sans text-xs uppercase tracking-wider">
+            <div className="relative z-10 h-full flex flex-col justify-end p-6 pb-24 md:p-10 lg:p-12 md:pb-10 lg:pb-12">
+              <div className="absolute top-6 left-6 right-6 md:top-8 md:left-8 md:right-8 flex flex-wrap items-center gap-2 pr-44 md:pr-0 pointer-events-none">
+                <Badge className="bg-primary/20 text-primary border-primary/30 hover:bg-primary/30 px-2 py-0.5 md:px-3 md:py-1 font-sans text-[10px] md:text-xs uppercase tracking-wider pointer-events-auto">
                   {article.category}
                 </Badge>
-                <Badge variant="outline" className="text-xs font-sans uppercase tracking-wider border-white/20 bg-black/40 backdrop-blur-sm text-white/90 px-3 py-1">
+                <Badge variant="outline" className="font-sans uppercase tracking-wider border-white/20 bg-black/40 backdrop-blur-sm text-white/90 px-2 py-0.5 md:px-3 md:py-1 text-[10px] md:text-xs pointer-events-auto">
                   {article.credibility} credibility
                 </Badge>
                 {currentBreakdown?.articleId === article.id && currentBreakdown.personalizedScore > 0 && (
-                  <Badge variant="outline" className="text-xs font-sans uppercase tracking-wider border-primary/40 bg-primary/15 text-primary px-3 py-1">
+                  <Badge variant="outline" className="font-sans uppercase tracking-wider border-primary/40 bg-primary/15 text-primary px-2 py-0.5 md:px-3 md:py-1 text-[10px] md:text-xs pointer-events-auto">
                     score {formatScore(currentBreakdown.personalizedScore)}
                   </Badge>
                 )}
@@ -513,7 +524,7 @@ export function FeedView({
                   </div>
                 </div>
 
-                <div className="flex flex-row md:flex-col items-center gap-2 md:gap-4 bg-black/40 backdrop-blur-xl p-2 md:p-3 border border-white/20 rounded-xl">
+                <div className="flex flex-row md:flex-col items-center gap-2 md:gap-4 bg-black/40 backdrop-blur-xl p-2 md:p-3 border border-white/20 rounded-xl self-start md:self-auto">
                   <Button
                     variant="ghost"
                     size="icon"

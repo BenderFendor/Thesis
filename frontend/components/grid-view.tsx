@@ -676,7 +676,7 @@ export function GridView({
             </div>
 
             <div className="flex flex-wrap items-center gap-3">
-              <div className="flex rounded-lg border border-white/5 bg-white/5 p-1">
+              <div className="flex w-full sm:w-auto rounded-lg border border-white/5 bg-white/5 p-1">
                 <Button
                   variant={viewMode === "source" ? "default" : "ghost"}
                   size="sm"
@@ -685,7 +685,7 @@ export function GridView({
                     onViewModeChange?.("source")
                   }}
                   className={cn(
-                    "h-7 rounded-md px-3 text-xs uppercase tracking-widest transition-all",
+                    "flex-1 sm:flex-none h-7 rounded-md px-2 sm:px-3 text-[10px] sm:text-xs uppercase tracking-widest transition-all",
                     viewMode === "source"
                       ? "bg-white/10 text-white shadow-sm"
                       : "text-muted-foreground hover:text-foreground",
@@ -702,7 +702,7 @@ export function GridView({
                     onViewModeChange?.("topic")
                   }}
                   className={cn(
-                    "h-7 rounded-md px-3 text-xs uppercase tracking-widest transition-all",
+                    "flex-1 sm:flex-none h-7 rounded-md px-2 sm:px-3 text-[10px] sm:text-xs uppercase tracking-widest transition-all",
                     viewMode === "topic"
                       ? "bg-white/10 text-white shadow-sm"
                       : "text-muted-foreground hover:text-foreground",
@@ -772,15 +772,15 @@ export function GridView({
                   )}
                   style={{ scrollSnapStop: "normal" }}
                 >
-                  <div className="mb-6 flex flex-col gap-4 border-b border-white/5 pb-4 lg:flex-row lg:items-end lg:justify-between">
-                    <div className="space-y-2">
-                      <div className="text-xs font-semibold uppercase tracking-widest text-primary/70">
+                  <div className="mb-4 sm:mb-6 flex flex-col gap-3 sm:gap-4 border-b border-white/5 pb-3 sm:pb-4 lg:flex-row lg:items-end lg:justify-between">
+                    <div className="space-y-2 sm:space-y-3">
+                      <div className="text-[10px] sm:text-xs font-semibold uppercase tracking-widest text-primary/70">
                         Source dossier
                       </div>
-                      <div className="flex items-center gap-4">
+                      <div className="flex items-center gap-3 sm:gap-4">
                         <Link
                           href={`/source/${encodeURIComponent(group.sourceId)}`}
-                          className="font-serif text-4xl leading-none text-foreground transition-colors hover:text-primary md:text-5xl"
+                          className="font-serif text-4xl leading-none text-foreground transition-colors hover:text-primary sm:text-4xl md:text-5xl"
                         >
                           {group.sourceName}
                         </Link>
@@ -788,11 +788,11 @@ export function GridView({
                           variant="ghost"
                           size="sm"
                           onClick={() => toggleFavorite(group.sourceId)}
-                          className="h-9 w-9 rounded-full bg-white/5 p-0 text-muted-foreground transition-all duration-300 hover:bg-white/10 hover:text-primary active:scale-95"
+                          className="h-10 w-10 sm:h-9 sm:w-9 rounded-full bg-white/5 p-0 text-muted-foreground transition-all duration-300 hover:bg-white/10 hover:text-primary active:scale-95 shrink-0"
                         >
                           <Star
                             className={cn(
-                              "h-4 w-4",
+                              "h-5 w-5 sm:h-4 sm:w-4",
                               isFavorite(group.sourceId)
                                 ? "fill-amber-400 text-amber-400"
                                 : "text-white/40",
@@ -802,16 +802,20 @@ export function GridView({
                       </div>
                     </div>
 
-                    <div className="flex flex-wrap items-center gap-2 text-xs uppercase tracking-widest text-muted-foreground">
-                      <span className="rounded-full border border-white/5 bg-white/5 px-3 py-1.5 font-medium text-white/80">
+                    <div className="flex flex-wrap items-center gap-2 text-[9px] sm:text-xs uppercase tracking-widest text-muted-foreground">
+                      <span className="rounded-full border border-white/10 bg-white/5 px-2 py-1 sm:px-3 sm:py-1.5 font-medium text-white/80">
                         {group.articles.length} articles
                       </span>
-                      <span className="rounded-full border border-white/5 bg-white/5 px-3 py-1.5 font-medium">
-                        {group.credibility ?? "Mixed"} credibility
-                      </span>
-                      <span className="rounded-full border border-white/5 bg-white/5 px-3 py-1.5 font-medium">
-                        {group.bias ?? "Center"} bias
-                      </span>
+                      {group.credibility && (
+                        <span className="rounded-full border border-white/10 bg-white/5 px-2 py-1 sm:px-3 sm:py-1.5 font-medium text-white/80">
+                          {group.credibility} credibility
+                        </span>
+                      )}
+                      {group.bias && (
+                        <span className="rounded-full border border-white/10 bg-white/5 px-2 py-1 sm:px-3 sm:py-1.5 font-medium text-white/80">
+                          {group.bias} bias
+                        </span>
+                      )}
                     </div>
                   </div>
 
