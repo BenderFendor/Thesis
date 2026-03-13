@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useRef, useCallback, useMemo, type KeyboardEvent } from "react"
 import dynamic from "next/dynamic"
+import Image from "next/image"
 import { Button } from "@/components/ui/button"
 import { Skeleton } from "@/components/ui/skeleton"
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
@@ -563,7 +564,7 @@ function NewsPage() {
       <aside className="group hidden lg:flex w-16 hover:w-64 shrink-0 border-r border-white/10 bg-[var(--news-bg-secondary)] sticky top-0 h-screen flex-col transition-all duration-300 ease-[cubic-bezier(0.25,0.1,0.25,1.0)] z-50 overflow-hidden">
         <div className="px-4 py-5 border-b border-white/10 min-w-[16rem]">
           <div className="flex items-center gap-4">
-            <Globe className="w-6 h-6 text-primary shrink-0 transition-transform duration-300 group-hover:scale-105" strokeWidth={1.5} />
+            <img src="/favicon.svg" alt="Scoop" className="w-12 h-12 text-[#b88f4d] shrink-0 transition-all duration-300 group-hover:scale-105 -ml-2 group-hover:ml-0" />
             <div className="opacity-0 group-hover:opacity-100 transition-opacity duration-300 shrink-0">
               <div className="text-[10px] font-mono uppercase tracking-[0.35em] text-muted-foreground">Scoop</div>
               <div className="font-serif text-xl font-semibold tracking-tight text-foreground/90">Dashboard</div>
@@ -573,7 +574,7 @@ function NewsPage() {
         <div className="px-3 py-4 border-b border-white/10 min-w-[16rem]">
           <div className="text-[10px] font-mono uppercase tracking-[0.3em] text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity duration-300 mb-2 px-1">Search</div>
           <div className="relative flex items-center">
-            <Search className="absolute left-2.5 w-4 h-4 text-muted-foreground shrink-0 z-10" />
+            <Search className="absolute left-3 w-4 h-4 text-muted-foreground shrink-0 z-10" />
             <input
               type="text"
               placeholder="Search workspace..."
@@ -597,7 +598,7 @@ function NewsPage() {
                 <button
                   key={key}
                   onClick={() => setCurrentView(key as ViewMode)}
-                  className={`w-full flex items-center gap-4 px-2.5 py-2.5 rounded-lg text-xs font-mono uppercase tracking-[0.2em] transition-all duration-200 ${
+                  className={`w-10 group-hover:w-full overflow-hidden flex items-center gap-4 px-2.5 py-2.5 rounded-lg text-xs font-mono uppercase tracking-[0.2em] transition-all duration-200 ${
                     currentView === key
                       ? "bg-primary/10 text-primary"
                       : "text-muted-foreground hover:bg-white/5 hover:text-foreground"
@@ -615,7 +616,7 @@ function NewsPage() {
             <div className="space-y-1">
               <button
                 onClick={() => router.push("/saved")}
-                className="w-full flex items-center gap-4 px-2.5 py-2.5 rounded-lg text-xs font-mono uppercase tracking-[0.2em] text-muted-foreground hover:bg-white/5 hover:text-foreground transition-all duration-200"
+                className="w-10 group-hover:w-full overflow-hidden flex items-center gap-4 px-2.5 py-2.5 rounded-lg text-xs font-mono uppercase tracking-[0.2em] text-muted-foreground hover:bg-white/5 hover:text-foreground transition-all duration-200"
                 title="Saved"
               >
                 <Bookmark className="w-5 h-5 shrink-0" strokeWidth={1.5} />
@@ -623,7 +624,7 @@ function NewsPage() {
               </button>
               <button
                 onClick={() => setSidebarOpen(true)}
-                className="w-full flex items-center gap-4 px-2.5 py-2.5 rounded-lg text-xs font-mono uppercase tracking-[0.2em] text-muted-foreground hover:bg-white/5 hover:text-foreground transition-all duration-200"
+                className="w-10 group-hover:w-full overflow-hidden flex items-center gap-4 px-2.5 py-2.5 rounded-lg text-xs font-mono uppercase tracking-[0.2em] text-muted-foreground hover:bg-white/5 hover:text-foreground transition-all duration-200"
                 title="Sources"
               >
                 <SlidersHorizontal className="w-5 h-5 shrink-0" strokeWidth={1.5} />
@@ -638,7 +639,7 @@ function NewsPage() {
             ref={alertsButtonRef}
             type="button"
             onClick={() => setShowNotifications(!showNotifications)}
-            className="w-full flex items-center gap-4 px-2.5 py-2.5 rounded-lg text-xs font-mono uppercase tracking-[0.2em] text-muted-foreground hover:bg-white/5 hover:text-foreground transition-all duration-200"
+            className="w-10 group-hover:w-full overflow-hidden flex items-center gap-4 px-2.5 py-2.5 rounded-lg text-xs font-mono uppercase tracking-[0.2em] text-muted-foreground hover:bg-white/5 hover:text-foreground transition-all duration-200"
             title="Alerts"
           >
             <div className="relative shrink-0 flex items-center justify-center">

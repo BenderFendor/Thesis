@@ -22,7 +22,7 @@ const Footer = ({ hidden }: FooterProps) => {
       <div className="container mx-auto grid grid-cols-1 md:grid-cols-4 gap-8">
         <div className="flex flex-col gap-4">
           <Link href="#" className="flex items-center gap-2" prefetch={false}>
-            <GlobeIcon className="h-6 w-6" />
+            <img src="/favicon.svg" alt="GlobalNews" className="h-16 w-16 text-[#b88f4d]" />
             <span className="font-semibold text-lg">GlobalNews</span>
           </Link>
           <p className="text-muted-foreground text-sm">
@@ -51,26 +51,5 @@ const Footer = ({ hidden }: FooterProps) => {
     </footer>
   );
 };
-
-function GlobeIcon(props: React.SVGProps<SVGSVGElement>) {
-  return (
-    <svg
-      {...props}
-      xmlns="http://www.w3.org/2000/svg"
-      width="24"
-      height="24"
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="2"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-    >
-      <circle cx="12" cy="12" r="10" />
-      <path d="M12 2a14.5 14.5 0 0 0 0 20 14.5 14.5 0 0 0 0-20" />
-      <path d="M2 12h20" />
-    </svg>
-  );
-}
 
 export default Footer;
