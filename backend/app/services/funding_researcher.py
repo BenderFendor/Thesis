@@ -434,7 +434,11 @@ class FundingResearcher:
         words_b = set(b.split())
         if not words_a or not words_b:
             return 0.0
-        return len(words_a & words_b) / len(words_a | words_b)
+        overlap = len(words_a & words_b)
+        union_size = len(words_a) + len(words_b) - overlap
+        if union_size <= 0:
+            return 0.0
+        return overlap / union_size
 
     async def _search_wikipedia(self, name: str) -> Dict[str, Any]:
         """Search Wikipedia for organization information."""

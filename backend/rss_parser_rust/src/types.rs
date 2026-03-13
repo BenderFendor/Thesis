@@ -37,6 +37,7 @@ pub struct ParsedArticle {
     pub description: String,
     pub published: String,
     pub source: String,
+    pub authors: Vec<String>,
     pub image: Option<String>,
     pub category: Option<String>,
 }
@@ -100,6 +101,7 @@ pub fn parse_result_to_pydict<'py>(
         item.set_item("description", &article.description)?;
         item.set_item("published", &article.published)?;
         item.set_item("source", &article.source)?;
+        item.set_item("authors", &article.authors)?;
         item.set_item("image", &article.image)?;
         item.set_item("category", &article.category)?;
         article_dicts.append(item)?;

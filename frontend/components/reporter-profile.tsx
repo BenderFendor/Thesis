@@ -1,5 +1,6 @@
 "use client"
 
+import Link from "next/link"
 import { useState } from "react"
 import { useQuery } from "@tanstack/react-query"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -11,6 +12,7 @@ import {
     Twitter,
     Linkedin,
     ExternalLink,
+    Search,
     RefreshCw,
     AlertTriangle,
     CheckCircle,
@@ -40,6 +42,18 @@ const CONFIDENCE_ICONS: Record<string, React.ElementType> = {
     "high": CheckCircle,
     "medium": HelpCircle,
     "low": AlertTriangle,
+}
+
+const hasPublicProfileData = (profile: ReporterProfile) => {
+    return Boolean(
+        profile.bio?.trim() ||
+        profile.topics?.length ||
+        profile.career_history?.length ||
+        profile.political_leaning ||
+        profile.wikipedia_url ||
+        profile.linkedin_url ||
+        profile.twitter_handle
+    )
 }
 
 export function ReporterProfilePanel({
@@ -109,6 +123,8 @@ export function ReporterProfilePanel({
 
     const ConfidenceIcon = CONFIDENCE_ICONS[profile.research_confidence || "low"] || HelpCircle
     const leaningColor = LEANING_COLORS[profile.political_leaning || ""] || LEANING_COLORS["center"]
+    const hasProfileData = hasPublicProfileData(profile)
+    const reporterSearchUrl = `https://duckduckgo.com/?q=${encodeURIComponent(`${profile.name} journalist`)}`
 
     // Compact mode - just show a summary bar that expands
     if (compact && !expanded) {
@@ -169,8 +185,33 @@ export function ReporterProfilePanel({
             </CardHeader>
 
             <CardContent className="space-y-4">
+                {!hasProfileData && (
+                    <div className="rounded-lg border border-white/10 bg-muted/20 px-4 py-5 text-center opacity-70 grayscale">
+                        <User className="mx-auto h-6 w-6 text-muted-foreground" />
+                        <p className="mt-3 text-sm font-medium text-foreground">No verified public profile found</p>
+                        <p className="mt-1 text-xs leading-relaxed text-muted-foreground">
+                            We checked cached public-source research for this byline but did not find enough verified data to build a dossier.
+                        </p>
+                        <div className="mt-4 flex flex-wrap items-center justify-center gap-2">
+                            <Button variant="outline" size="sm" asChild>
+                                <a href={reporterSearchUrl} target="_blank" rel="noreferrer">
+                                    <Search className="mr-2 h-3.5 w-3.5" />
+                                    Search the web
+                                </a>
+                            </Button>
+                            {profile.id && (
+                                <Button variant="outline" size="sm" asChild>
+                                    <Link href={`/wiki/reporter/${profile.id}`}>
+                                        Open full wiki
+                                    </Link>
+                                </Button>
+                            )}
+                        </div>
+                    </div>
+                )}
+
                 {/* Bio */}
-                {profile.bio && (
+                {profile.bio && hasProfileData && (
                     <div>
                         <p className="text-sm text-muted-foreground leading-relaxed">
                             {profile.bio.length > 300 ? `${profile.bio.slice(0, 300)}...` : profile.bio}
@@ -179,7 +220,7 @@ export function ReporterProfilePanel({
                 )}
 
                 {/* Topics */}
-                {profile.topics && profile.topics.length > 0 && (
+                {profile.topics && profile.topics.length > 0 && hasProfileData && (
                     <div>
                         <p className="text-xs text-muted-foreground mb-2">Areas of Coverage</p>
                         <div className="flex flex-wrap gap-1">
@@ -193,7 +234,7 @@ export function ReporterProfilePanel({
                 )}
 
                 {/* Political Leaning */}
-                {profile.political_leaning && (
+                {profile.political_leaning && hasProfileData && (
                     <div>
                         <p className="text-xs text-muted-foreground mb-2">Political Leaning</p>
                         <div className="flex items-center gap-2">
@@ -211,7 +252,7 @@ export function ReporterProfilePanel({
                 )}
 
                 {/* Career History */}
-                {profile.career_history && profile.career_history.length > 0 && (
+                {profile.career_history && profile.career_history.length > 0 && hasProfileData && (
                     <div>
                         <p className="text-xs text-muted-foreground mb-2">Career</p>
                         <div className="space-y-1">
@@ -226,7 +267,7 @@ export function ReporterProfilePanel({
                 )}
 
                 {/* Social Links */}
-                <div className="flex items-center gap-2 pt-2 border-t border-border">
+                <div className="flex flex-wrap items-center gap-2 pt-2 border-t border-border">
                     {profile.twitter_handle && (
                         <a
                             href={`https://twitter.com/${profile.twitter_handle}`}
@@ -252,11 +293,18 @@ export function ReporterProfilePanel({
                             href={profile.wikipedia_url}
                             target="_blank"
                             rel="noopener noreferrer"
-                            className="p-2 hover:bg-muted rounded-md transition-colors"
+                            className="inline-flex items-center gap-2 rounded-md border border-border px-3 py-2 text-xs text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
                         >
                             <ExternalLink className="h-4 w-4" />
-                            <span className="sr-only">Wikipedia</span>
+                            Wikipedia
                         </a>
+                    )}
+                    {profile.id && (
+                        <Button variant="outline" size="sm" asChild>
+                            <Link href={`/wiki/reporter/${profile.id}`}>
+                                Open full wiki
+                            </Link>
+                        </Button>
                     )}
                 </div>
 

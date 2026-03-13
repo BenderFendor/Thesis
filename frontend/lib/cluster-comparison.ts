@@ -3,6 +3,7 @@ export interface ComparisonCandidateArticle {
   source: string;
   source_id?: string;
   published_at?: string | null;
+  _parsedTimestamp?: number;
 }
 
 export interface ComparisonSourceOption<T extends ComparisonCandidateArticle> {
@@ -18,6 +19,9 @@ function normalizeSourceKey<T extends ComparisonCandidateArticle>(article: T): s
 }
 
 function recencyValue<T extends ComparisonCandidateArticle>(article: T): number {
+  if (typeof article._parsedTimestamp === "number") {
+    return article._parsedTimestamp;
+  }
   if (!article.published_at) return 0;
   const timestamp = new Date(article.published_at).getTime();
   return Number.isFinite(timestamp) ? timestamp : 0;
@@ -43,9 +47,10 @@ export function buildComparisonSourceOptions<
   return Array.from(groups.values())
     .map((group) => ({
       ...group,
-      articles: [...group.articles].sort(
-        (a, b) => recencyValue(b) - recencyValue(a),
-      ),
+      articles: group.articles
+        .map((article) => ({ article, recency: recencyValue(article) }))
+        .sort((a, b) => b.recency - a.recency)
+        .map(({ article }) => article),
     }))
     .sort((a, b) => b.articles.length - a.articles.length);
 }

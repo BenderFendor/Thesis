@@ -223,9 +223,13 @@ fn generate_sentence_diff(
     for (i, sentence1) in sentences1.iter().enumerate() {
         let mut best_match: Option<(usize, &String, f64)> = None;
         for (j, sentence2) in sentences2.iter().enumerate() {
-            let ratio = calculate_text_similarity(sentence1, sentence2);
             let overlap = sentence_word_overlap(sentence1, sentence2);
-            if ratio > SENTENCE_MATCH_THRESHOLD && overlap >= SENTENCE_WORD_OVERLAP_THRESHOLD {
+            if overlap < SENTENCE_WORD_OVERLAP_THRESHOLD {
+                continue;
+            }
+
+            let ratio = calculate_text_similarity(sentence1, sentence2);
+            if ratio > SENTENCE_MATCH_THRESHOLD {
                 match best_match {
                     Some((_, _, best_ratio)) if ratio <= best_ratio => {}
                     _ => best_match = Some((j, sentence2, ratio)),

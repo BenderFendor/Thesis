@@ -18,8 +18,10 @@ import { useReadingHistory } from "@/hooks/useReadingHistory"
 import { useInlineDefinition } from "@/hooks/useInlineDefinition"
 import { useBookmarks } from "@/hooks/useBookmarks"
 import InlineDefinition from "@/components/inline-definition"
+import { ReporterProfilePanel } from "@/components/reporter-profile"
 import { SourceResearchPanel } from "@/components/source-research-panel"
 import { RelatedArticles } from "@/components/related-articles"
+import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "@/components/ui/sheet"
 import { toast } from "sonner"
 import { ArticleContent } from "@/components/article-content"
 import { HighlightToolbar } from "@/components/highlight-toolbar"
@@ -134,6 +136,13 @@ export function ArticleDetailModal({ article, isOpen, onClose, onBookmarkChange,
   const lastCreatedClientIdRef = useRef<string | null>(null)
   const contentScrollRef = useRef<HTMLDivElement>(null)
   const [articleScrollProgress, setArticleScrollProgress] = useState(0)
+  const [wikiPanelOpen, setWikiPanelOpen] = useState(false)
+  const [wikiPanelTab, setWikiPanelTab] = useState<"source" | "reporter">("source")
+
+  useEffect(() => {
+    setWikiPanelOpen(false)
+    setWikiPanelTab("source")
+  }, [isOpen, article?.id, article?.url])
 
   const pushToHistory = useCallback((currentHighlights: LocalHighlight[]) => {
     setHighlightsHistory((prev) => [...prev, currentHighlights].slice(-20)) // keep last 20 states
@@ -688,12 +697,26 @@ export function ArticleDetailModal({ article, isOpen, onClose, onBookmarkChange,
   const summaryText = (currentArticle?.summary || "").trim()
   const contentText = (currentArticle?.content || "").trim()
   const fullText = (fullArticleText || "").trim()
+  const articleWikiContext = (fullText || contentText || summaryText).trim()
+  const reporterName = currentArticle?.author?.trim() || currentArticle?.authors?.find((value) => value.trim().length > 0) || ""
   const showSummary = Boolean(
     summaryText &&
       summaryText !== fullText &&
       summaryText !== contentText
   )
   const articleHost = currentArticle && isExtractableUrl(currentArticle.url) ? new URL(currentArticle.url).hostname : undefined
+  const hasReporterWiki = Boolean(reporterName)
+  const hasSourceWiki = Boolean(currentArticle?.source?.trim())
+  const openSourceWiki = () => {
+    if (!hasSourceWiki) return
+    setWikiPanelTab("source")
+    setWikiPanelOpen(true)
+  }
+  const openReporterWiki = () => {
+    if (!hasReporterWiki) return
+    setWikiPanelTab("reporter")
+    setWikiPanelOpen(true)
+  }
   const visibleHighlights = useMemo(
     () => toRemoteHighlights(highlights.filter((h) => !h.deleted)),
     [highlights],
@@ -704,7 +727,7 @@ export function ArticleDetailModal({ article, isOpen, onClose, onBookmarkChange,
         article: {
           url: currentArticle?.url || "",
           title: currentArticle?.title || "",
-          author: currentArticle?.author,
+          author: reporterName || currentArticle?.author,
           publishedAt: currentArticle?.publishedAt || "",
           content: currentArticle?.content,
           summary: currentArticle?.summary || "",
@@ -757,15 +780,86 @@ export function ArticleDetailModal({ article, isOpen, onClose, onBookmarkChange,
          anchorPosition={inlineAnchorPosition}
        />
        <HighlightNotePopover
-         open={highlightPopoverOpen}
-         highlight={highlightPopoverHighlight}
-         anchorEl={highlightPopoverAnchorEl}
-         onClose={() => setHighlightPopoverOpen(false)}
-         onSave={handleSaveHighlightNote}
-       />
+          open={highlightPopoverOpen}
+          highlight={highlightPopoverHighlight}
+          anchorEl={highlightPopoverAnchorEl}
+          onClose={() => setHighlightPopoverOpen(false)}
+          onSave={handleSaveHighlightNote}
+        />
+        <Sheet open={wikiPanelOpen} onOpenChange={setWikiPanelOpen}>
+          <SheetContent className="w-full border-l border-white/10 bg-background p-0 sm:max-w-xl">
+            <div className="flex h-full flex-col">
+              <SheetHeader className="border-b border-white/10 px-5 py-4">
+                <div className="flex items-start justify-between gap-4">
+                  <div>
+                    <SheetTitle className="font-serif text-xl">
+                      {wikiPanelTab === "source" ? currentArticle.source : reporterName}
+                    </SheetTitle>
+                    <SheetDescription className="mt-1 text-xs">
+                      Inline wiki preview from cached public-source research with direct links to the full wiki pages.
+                    </SheetDescription>
+                  </div>
+                  {wikiPanelTab === "source" && (
+                    <Button variant="outline" size="sm" asChild>
+                      <Link href={`/wiki/source/${encodeURIComponent(currentArticle.source)}`}>
+                        Open full wiki
+                      </Link>
+                    </Button>
+                  )}
+                </div>
+                {hasSourceWiki && hasReporterWiki && (
+                  <div className="mt-4 flex items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setWikiPanelTab("source")}
+                      className={`rounded-md border px-3 py-1.5 text-xs font-mono uppercase tracking-[0.18em] transition-colors ${
+                        wikiPanelTab === "source"
+                          ? "border-white/20 bg-white/10 text-foreground"
+                          : "border-white/10 bg-transparent text-muted-foreground hover:bg-white/5"
+                      }`}
+                    >
+                      Source
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setWikiPanelTab("reporter")}
+                      className={`rounded-md border px-3 py-1.5 text-xs font-mono uppercase tracking-[0.18em] transition-colors ${
+                        wikiPanelTab === "reporter"
+                          ? "border-white/20 bg-white/10 text-foreground"
+                          : "border-white/10 bg-transparent text-muted-foreground hover:bg-white/5"
+                      }`}
+                    >
+                      Reporter
+                    </button>
+                  </div>
+                )}
+              </SheetHeader>
 
-       <motion.div
-         layout
+              <div className="flex-1 overflow-y-auto p-4">
+                {wikiPanelTab === "source" ? (
+                  <SourceResearchPanel
+                    sourceName={currentArticle.source}
+                    website={articleHost}
+                    autoRun={true}
+                  />
+                ) : reporterName ? (
+                  <ReporterProfilePanel
+                    reporterName={reporterName}
+                    organization={currentArticle.source}
+                    articleContext={articleWikiContext}
+                  />
+                ) : (
+                  <div className="rounded-lg border border-white/10 bg-muted/20 px-4 py-5 text-sm text-muted-foreground">
+                    Reporter information is not available for this article.
+                  </div>
+                )}
+              </div>
+            </div>
+          </SheetContent>
+        </Sheet>
+
+        <motion.div
+          layout
          transition={{ type: "spring", stiffness: 240, damping: 28 }}
           className={`flex flex-col overflow-hidden border border-border/50 bg-background/95 shadow-2xl shadow-black/60 ${isExpanded
             ? 'h-[calc(100vh-1rem)] w-[calc(100vw-1rem)] rounded-2xl'
@@ -869,15 +963,26 @@ export function ArticleDetailModal({ article, isOpen, onClose, onBookmarkChange,
 
                 {/* Meta */}
                 <div className="flex flex-wrap items-center gap-3 text-sm text-muted-foreground">
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      openSourceWiki()
+                    }}
+                    className="font-medium hover:text-primary hover:underline transition-colors"
+                  >
+                    {article.source}
+                  </button>
                   <Link
                     href={`/source/${encodeURIComponent(article.sourceId)}`}
-                    className="font-medium hover:text-primary hover:underline transition-colors"
+                    className="text-muted-foreground hover:text-primary transition-colors"
                     onClick={(e) => {
                       e.stopPropagation()
                       onClose()
                     }}
+                    title="Open source page"
                   >
-                    {article.source}
+                    <LinkIcon className="h-3.5 w-3.5" />
                   </Link>
                   <Link
                     href={`/wiki/source/${encodeURIComponent(article.source)}`}
@@ -890,20 +995,39 @@ export function ArticleDetailModal({ article, isOpen, onClose, onBookmarkChange,
                   >
                     <BookOpen className="h-3.5 w-3.5" />
                   </Link>
-                  {article.author && (
+                  {reporterName && (
                     <>
                       <span>•</span>
-                      <Link
-                        href={`/wiki/reporters?search=${encodeURIComponent(article.author)}`}
+                      <button
+                        type="button"
                         className="hover:text-primary hover:underline transition-colors"
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          openReporterWiki()
+                        }}
+                        title="Open reporter wiki preview"
+                      >
+                        Reporter: {reporterName}
+                      </button>
+                      <Link
+                        href={`/wiki/reporters?search=${encodeURIComponent(reporterName)}`}
+                        className="text-muted-foreground hover:text-primary transition-colors"
                         onClick={(e) => {
                           e.stopPropagation()
                           onClose()
                         }}
                         title="Search reporter in wiki"
                       >
-                        Reporter: {article.author}
+                        <BookOpen className="h-3.5 w-3.5" />
                       </Link>
+                    </>
+                  )}
+                  {!reporterName && currentArticle.authors && currentArticle.authors.length > 0 && (
+                    <>
+                      <span>•</span>
+                      <span className="text-foreground/80 text-xs">
+                        {currentArticle.authors.slice(0, 2).join(", ")}
+                      </span>
                     </>
                   )}
                   <span>•</span>
@@ -1883,18 +2007,29 @@ export function ArticleDetailModal({ article, isOpen, onClose, onBookmarkChange,
                           <span className="text-gray-400">Published:</span>
                           <span className="text-white text-xs">{formatDate(article.publishedAt)}</span>
                         </div>
-                        {article.author && (
+                        {reporterName && (
                           <div className="flex items-center gap-2 text-sm">
                             <span className="text-gray-400">Reporter:</span>
-                            <Link
-                              href={`/wiki/reporters?search=${encodeURIComponent(article.author)}`}
+                            <button
+                              type="button"
                               className="text-white text-xs hover:text-primary hover:underline transition-colors"
+                              onClick={(e) => {
+                                e.stopPropagation()
+                                openReporterWiki()
+                              }}
+                            >
+                              {reporterName}
+                            </button>
+                            <Link
+                              href={`/wiki/reporters?search=${encodeURIComponent(reporterName)}`}
+                              className="text-muted-foreground hover:text-primary transition-colors"
                               onClick={(e) => {
                                 e.stopPropagation()
                                 onClose()
                               }}
+                              title="Open reporter wiki page"
                             >
-                              {article.author}
+                              <BookOpen className="h-3 w-3" />
                             </Link>
                           </div>
                         )}
@@ -1903,16 +2038,16 @@ export function ArticleDetailModal({ article, isOpen, onClose, onBookmarkChange,
                           <div className="space-y-3 pt-3 border-t border-gray-700 text-sm">
                             <div className="flex items-center gap-2">
                               <span className="text-gray-400">Publisher:</span>
-                              <Link
-                                href={`/wiki/source/${encodeURIComponent(source.name)}`}
+                              <button
+                                type="button"
                                 className="text-white hover:text-primary hover:underline transition-colors"
                                 onClick={(e) => {
                                   e.stopPropagation()
-                                  onClose()
+                                  openSourceWiki()
                                 }}
                               >
                                 {source.name}
-                              </Link>
+                              </button>
                               <Link
                                 href={`/wiki/source/${encodeURIComponent(source.name)}`}
                                 className="text-muted-foreground hover:text-primary transition-colors"

@@ -203,18 +203,13 @@ function NewsPage() {
         ? items.reduce((acc, article) => {
             const key = article.sourceId || article.source;
             if (!key) return acc;
-            const ts = new Date(article.publishedAt).getTime();
-            if (!Number.isNaN(ts) && (!acc[key] || ts > acc[key])) {
+            const ts = article._parsedTimestamp ?? 0;
+            if (ts > 0 && (!acc[key] || ts > acc[key])) {
               acc[key] = ts;
             }
             return acc;
           }, {} as Record<string, number>)
         : null;
-
-      const getTime = (value: string) => {
-        const ts = new Date(value).getTime();
-        return Number.isNaN(ts) ? 0 : ts;
-      };
 
       items.sort((a, b) => {
         if (sortMode === "favorites") {
@@ -231,8 +226,8 @@ function NewsPage() {
           if (aFresh !== bFresh) return bFresh - aFresh;
         }
 
-        const aTime = getTime(a.publishedAt);
-        const bTime = getTime(b.publishedAt);
+        const aTime = a._parsedTimestamp ?? 0;
+        const bTime = b._parsedTimestamp ?? 0;
 
         if (sortMode === "oldest") {
           return aTime - bTime;
@@ -267,8 +262,8 @@ function NewsPage() {
     for (const article of articles) {
       const sourceKey = article.sourceId || article.source
       if (!sourceKey) continue
-      const ts = new Date(article.publishedAt).getTime()
-      if (!Number.isNaN(ts) && (!recency[sourceKey] || ts > recency[sourceKey])) {
+      const ts = article._parsedTimestamp ?? 0
+      if (ts > 0 && (!recency[sourceKey] || ts > recency[sourceKey])) {
         recency[sourceKey] = ts
       }
     }

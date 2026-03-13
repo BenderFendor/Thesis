@@ -17,6 +17,7 @@ from app.database import (
     article_record_to_dict,
     build_article_keyword_search,
     count_articles_by_keyword,
+    get_total_article_count,
     get_session_dialect_name,
     get_db,
     search_article_records_by_keyword,
@@ -146,6 +147,8 @@ def _browse_article_to_dict(row: Mapping[str, Any]) -> Dict[str, Any]:
         "category": row.get("category") or "general",
         "url": row.get("url"),
         "link": row.get("url"),
+        "author": row.get("author"),
+        "authors": row.get("authors") or [],
     }
 
 
@@ -236,6 +239,8 @@ _BROWSE_SELECT_COLUMNS = (
     Article.published_at.label("published_at"),
     Article.category.label("category"),
     Article.url.label("url"),
+    Article.author.label("author"),
+    Article.authors.label("authors"),
     Article.mentioned_countries.label("mentioned_countries"),
 )
 
@@ -435,10 +440,11 @@ async def get_news_paginated(
     if search:
         total = await count_articles_by_keyword(db, query=search, filters=filters)
     else:
-        count_stmt = select(func.count()).select_from(Article)
         if filters:
-            count_stmt = count_stmt.where(*filters)
-        total = (await db.execute(count_stmt)).scalar_one()
+            count_stmt = select(func.count()).select_from(Article).where(*filters)
+            total = int((await db.execute(count_stmt)).scalar_one())
+        else:
+            total = await get_total_article_count(db)
 
     # Build response
     articles = [article_record_to_dict(row) for row in rows]
@@ -447,9 +453,11 @@ async def get_news_paginated(
     next_cursor = None
     if has_more and rows:
         last = rows[-1]
-        if last.published_at is not None and last.id is not None:
+        last_published_at = cast(Optional[datetime], last.published_at)
+        last_id = cast(Optional[int], last.id)
+        if last_published_at is not None and last_id is not None:
             last_rank = row_ranks[-1] if row_ranks else None
-            next_cursor = encode_cursor(last.published_at, last.id, last_rank)
+            next_cursor = encode_cursor(last_published_at, last_id, last_rank)
 
     return PaginatedResponse(
         articles=articles,
@@ -524,6 +532,8 @@ async def get_cached_news_paginated(
             "published_at": a.published,
             "category": a.category,
             "url": a.link,
+            "author": a.author,
+            "authors": a.authors,
             "tags": None,
             "mentioned_countries": a.mentioned_countries,
             "original_language": None,
@@ -682,8 +692,10 @@ async def get_recent_news(
     next_cursor = None
     if has_more and rows:
         last = rows[-1]
-        if last.published_at is not None and last.id is not None:
-            next_cursor = encode_cursor(last.published_at, last.id)
+        last_published_at = last.published_at
+        last_id = last.id
+        if last_published_at is not None and last_id is not None:
+            next_cursor = encode_cursor(last_published_at, last_id)
 
     return RecentPageResponse(
         articles=articles,

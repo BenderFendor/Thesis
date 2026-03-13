@@ -463,6 +463,14 @@ export function GridView({
     return Number.isNaN(timestamp) ? 0 : timestamp
   }, [])
 
+  const clusterTimes = useMemo(() => {
+    const times = new Map<number, number>()
+    for (const cluster of clusters) {
+      times.set(cluster.cluster_id, getClusterTime(cluster))
+    }
+    return times
+  }, [clusters, getClusterTime])
+
   const sortedClusters = useMemo(() => {
     const items = [...clusters]
     items.sort((a, b) => {
@@ -470,12 +478,12 @@ export function GridView({
         return b.article_count - a.article_count
       }
       if (topicSortMode === "recent") {
-        return getClusterTime(b) - getClusterTime(a)
+        return (clusterTimes.get(b.cluster_id) ?? 0) - (clusterTimes.get(a.cluster_id) ?? 0)
       }
       return b.source_diversity - a.source_diversity
     })
     return items
-  }, [clusters, getClusterTime, topicSortMode])
+  }, [clusterTimes, clusters, topicSortMode])
 
   const handleExpandCluster = useCallback(
     async (cluster: AllCluster) => {

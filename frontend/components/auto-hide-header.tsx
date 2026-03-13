@@ -87,6 +87,12 @@ export function AutoHideHeader() {
             <BookOpen className="w-3.5 h-3.5" />
             Wiki
           </Link>
+          <Link
+            href="/wiki/reporters"
+            className="px-3 py-1 text-sm text-muted-foreground hover:text-foreground transition-colors"
+          >
+            Reporters
+          </Link>
         </nav>
       </div>
     </header>

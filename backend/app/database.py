@@ -204,6 +204,8 @@ class Article(Base):
     published_at = Column(DateTime, nullable=False, index=True)
     category = Column(String, index=True)
     url = Column(String, unique=True, nullable=False, index=True)
+    author = Column(String)
+    authors = Column(TagListType(), default=list)
     tags = Column(TagListType(), default=list)
     mentioned_countries = Column(MentionedCountriesType(), default=list)
     original_language = Column(String, default="en")
@@ -991,6 +993,8 @@ def article_record_to_dict(record: Article) -> Dict[str, Any]:
         "category": record.category if record.category is not None else "general",
         "url": record.url,
         "link": record.url,
+        "author": record.author,
+        "authors": record.authors if record.authors is not None else [],
         "tags": record.tags if record.tags is not None else [],
         "original_language": record.original_language,
         "translated": record.translated,
@@ -1005,7 +1009,6 @@ def article_record_to_dict(record: Article) -> Dict[str, Any]:
         # Phase 5 Fields
         "source_country": source_country,
         "mentioned_countries": mentioned_countries or [],
-        # "author": record.authors[0].name if record.authors else None, # Future: support multiple authors
     }
 
 
@@ -1148,6 +1151,23 @@ async def count_articles_by_keyword(
     return int((await session.execute(stmt)).scalar_one())
 
 
+async def get_total_article_count(session: AsyncSession) -> int:
+    dialect_name = get_session_dialect_name(session)
+    if dialect_name != "postgresql":
+        count_stmt = select(func.count()).select_from(Article)
+        return int((await session.execute(count_stmt)).scalar_one())
+
+    estimate_stmt = sqlalchemy_text(
+        "SELECT COALESCE(reltuples, 0)::bigint FROM pg_class WHERE oid = 'public.articles'::regclass"
+    )
+    result = await session.execute(estimate_stmt)
+    estimated = result.scalar_one_or_none()
+    if estimated is None or int(estimated) < 0:
+        fallback_stmt = select(func.count()).select_from(Article)
+        return int((await session.execute(fallback_stmt)).scalar_one())
+    return int(estimated)
+
+
 async def fetch_article_records_by_ids(
     session: AsyncSession,
     article_ids: List[int],
@@ -1158,9 +1178,12 @@ async def fetch_article_records_by_ids(
 
     stmt = select(Article).where(Article.id.in_(article_ids))
     result = await session.execute(stmt)
-    articles = {
-        record.id: record for record in result.scalars().all() if record.id is not None
-    }
+    articles: Dict[int, Article] = {}
+    for record in result.scalars().all():
+        raw_record_id = cast(Any, record.id)
+        if raw_record_id is None:
+            continue
+        articles[int(raw_record_id)] = record
     return [
         articles[article_id] for article_id in article_ids if article_id in articles
     ]
@@ -1228,11 +1251,12 @@ async def fetch_articles_by_ids(
 
     stmt = select(Article).where(Article.id.in_(article_ids))
     result = await session.execute(stmt)
-    articles: Dict[int, Dict[str, Any]] = {
-        record.id: article_record_to_dict(record)
-        for record in result.scalars().all()
-        if record.id is not None
-    }
+    articles: Dict[int, Dict[str, Any]] = {}
+    for record in result.scalars().all():
+        raw_record_id = cast(Any, record.id)
+        if raw_record_id is None:
+            continue
+        articles[int(raw_record_id)] = article_record_to_dict(record)
 
     return [
         articles[article_id] for article_id in article_ids if article_id in articles
@@ -1280,14 +1304,14 @@ async def fetch_articles_page(
     if filters:
         stmt = stmt.where(*filters)
 
-    count_stmt = select(func.count()).select_from(Article)
-    if filters:
-        count_stmt = count_stmt.where(*filters)
-
     result = await session.execute(stmt)
     rows = [article_record_to_dict(record) for record in result.scalars().all()]
 
-    total = (await session.execute(count_stmt)).scalar_one()
+    if filters:
+        count_stmt = select(func.count()).select_from(Article).where(*filters)
+        total = int((await session.execute(count_stmt)).scalar_one())
+    else:
+        total = await get_total_article_count(session)
 
     range_stmt = select(func.min(Article.published_at), func.max(Article.published_at))
     if filters:

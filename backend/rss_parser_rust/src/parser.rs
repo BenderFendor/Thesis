@@ -1,15 +1,167 @@
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::time::Instant;
 
 use feed_rs::model::Content;
 use feed_rs::parser;
 use rayon::prelude::*;
+use regex::Regex;
 
 use crate::cleaner::clean_html;
 use crate::fetcher::fetch_all;
 use crate::types::{
     FetchResult, ParseResult, ParsedArticle, SourceRequest, SourceStats, SubFeedStat,
 };
+
+#[derive(Debug, Default)]
+struct RssItemMetadata {
+    title: Option<String>,
+    link: Option<String>,
+    authors: Vec<String>,
+}
+
+fn push_unique_author(value: &str, seen: &mut HashSet<String>, authors: &mut Vec<String>) {
+    let cleaned = clean_html(value).trim().to_string();
+    if cleaned.is_empty() {
+        return;
+    }
+
+    let lowered = cleaned.to_lowercase();
+    if seen.insert(lowered) {
+        authors.push(cleaned);
+    }
+}
+
+fn looks_like_email(value: &str) -> bool {
+    let trimmed = value.trim();
+    if trimmed.is_empty() || trimmed.contains(char::is_whitespace) {
+        return false;
+    }
+
+    let Some((_, domain)) = trimmed.rsplit_once('@') else {
+        return false;
+    };
+
+    !domain.is_empty() && domain.contains('.')
+}
+
+fn normalize_rss_author_value(value: &str) -> Option<String> {
+    let cleaned = clean_html(value).trim().to_string();
+    if cleaned.is_empty() {
+        return None;
+    }
+
+    if let Some((prefix, suffix)) = cleaned.rsplit_once('(') {
+        let prefix = prefix.trim();
+        let maybe_name = suffix.trim_end_matches(')').trim();
+        if looks_like_email(prefix) && !maybe_name.is_empty() {
+            return Some(maybe_name.to_string());
+        }
+    }
+
+    if looks_like_email(&cleaned) {
+        return None;
+    }
+
+    Some(cleaned)
+}
+
+fn extract_entry_authors(entry: &feed_rs::model::Entry) -> Vec<String> {
+    let mut authors = Vec::new();
+    let mut seen = HashSet::new();
+
+    for person in &entry.authors {
+        push_unique_author(person.name.trim(), &mut seen, &mut authors);
+    }
+
+    authors
+}
+
+fn extract_tag_value(item_xml: &str, regex: &Regex) -> Option<String> {
+    let captures = regex.captures(item_xml)?;
+    let value = captures
+        .name("cdata")
+        .or_else(|| captures.name("plain"))?
+        .as_str();
+    let cleaned = clean_html(value).trim().to_string();
+    if cleaned.is_empty() {
+        return None;
+    }
+    Some(cleaned)
+}
+
+fn extract_rss_item_metadata(xml: &str) -> Vec<RssItemMetadata> {
+    let item_re = Regex::new(r#"(?is)<item\b.*?</item>"#).expect("valid item regex");
+    let title_re = Regex::new(
+        r#"(?is)<title[^>]*><!\[CDATA\[(?P<cdata>.*?)\]\]></title>|<title[^>]*>(?P<plain>.*?)</title>"#,
+    )
+    .expect("valid title regex");
+    let link_re = Regex::new(
+        r#"(?is)<link[^>]*><!\[CDATA\[(?P<cdata>.*?)\]\]></link>|<link[^>]*>(?P<plain>.*?)</link>"#,
+    )
+    .expect("valid link regex");
+    let creator_re = Regex::new(
+        r#"(?is)<dc:creator[^>]*><!\[CDATA\[(?P<cdata>.*?)\]\]></dc:creator>|<dc:creator[^>]*>(?P<plain>.*?)</dc:creator>"#,
+    )
+    .expect("valid creator regex");
+    let author_re = Regex::new(
+        r#"(?is)<author[^>]*><!\[CDATA\[(?P<cdata>.*?)\]\]></author>|<author[^>]*>(?P<plain>.*?)</author>"#,
+    )
+    .expect("valid author regex");
+
+    item_re
+        .find_iter(xml)
+        .map(|item_match| {
+            let item_xml = item_match.as_str();
+            let mut authors = Vec::new();
+            let mut seen = HashSet::new();
+
+            for captures in creator_re.captures_iter(item_xml) {
+                let value = captures
+                    .name("cdata")
+                    .or_else(|| captures.name("plain"))
+                    .map(|item| item.as_str())
+                    .unwrap_or_default();
+                push_unique_author(value, &mut seen, &mut authors);
+            }
+
+            for captures in author_re.captures_iter(item_xml) {
+                let value = captures
+                    .name("cdata")
+                    .or_else(|| captures.name("plain"))
+                    .map(|item| item.as_str())
+                    .unwrap_or_default();
+                if let Some(normalized) = normalize_rss_author_value(value) {
+                    push_unique_author(&normalized, &mut seen, &mut authors);
+                }
+            }
+
+            RssItemMetadata {
+                title: extract_tag_value(item_xml, &title_re),
+                link: extract_tag_value(item_xml, &link_re),
+                authors,
+            }
+        })
+        .collect()
+}
+
+fn find_rss_item_authors(
+    item_metadata: &[RssItemMetadata],
+    link: &str,
+    title: &str,
+    index: usize,
+) -> Vec<String> {
+    if let Some(metadata) = item_metadata
+        .iter()
+        .find(|item| item.link.as_deref() == Some(link) || item.title.as_deref() == Some(title))
+    {
+        return metadata.authors.clone();
+    }
+
+    item_metadata
+        .get(index)
+        .map(|item| item.authors.clone())
+        .unwrap_or_default()
+}
 
 pub async fn parse_sources(sources: Vec<SourceRequest>, max_concurrent: usize) -> ParseResult {
     let start = Instant::now();
@@ -97,7 +249,7 @@ fn parse_source_group(
         match result {
             FetchResult::Success(raw) => match parser::parse(raw.xml.as_bytes()) {
                 Ok(feed) => {
-                    let parsed_articles = extract_articles(feed.entries, source_name);
+                    let parsed_articles = extract_articles(feed.entries, &raw.xml, source_name);
                     let count = parsed_articles.len();
                     articles.extend(parsed_articles);
                     sub_stats.push(SubFeedStat {
@@ -151,10 +303,17 @@ fn parse_source_group(
     (articles, stat)
 }
 
-fn extract_articles(entries: Vec<feed_rs::model::Entry>, source_name: &str) -> Vec<ParsedArticle> {
+fn extract_articles(
+    entries: Vec<feed_rs::model::Entry>,
+    raw_xml: &str,
+    source_name: &str,
+) -> Vec<ParsedArticle> {
+    let item_metadata = extract_rss_item_metadata(raw_xml);
     entries
         .into_par_iter()
+        .enumerate()
         .filter_map(|entry| {
+            let (index, entry) = entry;
             let title = clean_html(entry.title.as_ref()?.content.as_ref());
             let link = entry.links.first()?.href.clone();
 
@@ -174,17 +333,88 @@ fn extract_articles(entries: Vec<feed_rs::model::Entry>, source_name: &str) -> V
                 .and_then(|c| c.label.clone())
                 .or_else(|| entry.categories.first().map(|c| c.term.clone()));
 
+            let mut authors = extract_entry_authors(&entry);
+            if authors.is_empty() {
+                authors = find_rss_item_authors(&item_metadata, &link, &title, index);
+            }
+
             Some(ParsedArticle {
                 title,
                 link,
                 description,
                 published,
                 source: source_name.to_string(),
+                authors,
                 image,
                 category,
             })
         })
         .collect()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::extract_rss_item_metadata;
+
+    #[test]
+    fn extracts_dc_creator_authors_from_rss_items() {
+        let xml = r#"
+        <rss><channel>
+          <item>
+            <title>Example One</title>
+            <link>https://example.com/one</link>
+            <dc:creator><![CDATA[Jane Reporter]]></dc:creator>
+          </item>
+          <item>
+            <title>Example Two</title>
+            <link>https://example.com/two</link>
+            <dc:creator>John Analyst</dc:creator>
+          </item>
+        </channel></rss>
+        "#;
+
+        let items = extract_rss_item_metadata(xml);
+
+        assert_eq!(items.len(), 2);
+        assert_eq!(items[0].authors, vec!["Jane Reporter"]);
+        assert_eq!(items[1].authors, vec!["John Analyst"]);
+    }
+
+    #[test]
+    fn extracts_rss_author_name_from_email_wrapper() {
+        let xml = r#"
+        <rss><channel>
+          <item>
+            <title>Example</title>
+            <link>https://example.com/item</link>
+            <author>editor@example.com (Taylor Smith)</author>
+          </item>
+        </channel></rss>
+        "#;
+
+        let items = extract_rss_item_metadata(xml);
+
+        assert_eq!(items.len(), 1);
+        assert_eq!(items[0].authors, vec!["Taylor Smith"]);
+    }
+
+    #[test]
+    fn ignores_plain_rss_author_email_addresses() {
+        let xml = r#"
+        <rss><channel>
+          <item>
+            <title>Example</title>
+            <link>https://example.com/item</link>
+            <author>editor@example.com</author>
+          </item>
+        </channel></rss>
+        "#;
+
+        let items = extract_rss_item_metadata(xml);
+
+        assert_eq!(items.len(), 1);
+        assert!(items[0].authors.is_empty());
+    }
 }
 
 fn pick_description(entry: &feed_rs::model::Entry) -> Option<String> {

@@ -49,9 +49,9 @@ export function ListView({
   const sortedArticles = useMemo(() => {
     const sorted = [...articles]
     const byDateDesc = (a: NewsArticle, b: NewsArticle) =>
-      new Date(b.publishedAt).getTime() - new Date(a.publishedAt).getTime()
+      (b._parsedTimestamp ?? 0) - (a._parsedTimestamp ?? 0)
     const byDateAsc = (a: NewsArticle, b: NewsArticle) =>
-      new Date(a.publishedAt).getTime() - new Date(b.publishedAt).getTime()
+      (a._parsedTimestamp ?? 0) - (b._parsedTimestamp ?? 0)
     const credibilityRank = (value?: string) => {
       switch ((value || "").toLowerCase()) {
         case "high":

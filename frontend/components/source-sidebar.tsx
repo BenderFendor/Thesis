@@ -5,7 +5,7 @@ import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
-import { X, Star, Search, ChevronDown, AlertTriangle, BookOpen } from "lucide-react";
+import { X, Star, Search, ChevronDown, AlertTriangle, BookOpen, GitBranch, Users } from "lucide-react";
 import { useFavorites } from "@/hooks/useFavorites";
 import { useSourceFilter } from "@/hooks/useSourceFilter";
 import { fetchSources, NewsSource } from "@/lib/api";
@@ -186,6 +186,44 @@ export function SourceSidebar({ isOpen, onClose, sourceRecency }: SourceSidebarP
               onChange={(e) => setSearchQuery(e.target.value)}
               className="pl-8 h-9 rounded-none border-white/10 bg-[var(--news-bg-primary)] text-foreground"
             />
+          </div>
+        </div>
+
+        <div className="border-b border-white/10 px-4 py-3">
+          <div className="mb-2 text-[10px] font-mono uppercase tracking-[0.25em] text-muted-foreground">
+            Wiki
+          </div>
+          <div className="space-y-2">
+            <Link
+              href="/wiki"
+              className="flex items-center justify-between rounded-none border border-white/10 bg-[var(--news-bg-primary)]/40 px-3 py-2 text-sm text-foreground transition-colors hover:bg-[var(--news-bg-primary)]"
+              onClick={onClose}
+            >
+              <span className="flex items-center gap-2">
+                <BookOpen className="h-4 w-4 text-muted-foreground" />
+                Source Wiki
+              </span>
+            </Link>
+            <Link
+              href="/wiki/reporters"
+              className="flex items-center justify-between rounded-none border border-white/10 bg-[var(--news-bg-primary)]/40 px-3 py-2 text-sm text-foreground transition-colors hover:bg-[var(--news-bg-primary)]"
+              onClick={onClose}
+            >
+              <span className="flex items-center gap-2">
+                <Users className="h-4 w-4 text-muted-foreground" />
+                Reporter Wiki
+              </span>
+            </Link>
+            <Link
+              href="/wiki/ownership"
+              className="flex items-center justify-between rounded-none border border-white/10 bg-[var(--news-bg-primary)]/40 px-3 py-2 text-sm text-foreground transition-colors hover:bg-[var(--news-bg-primary)]"
+              onClick={onClose}
+            >
+              <span className="flex items-center gap-2">
+                <GitBranch className="h-4 w-4 text-muted-foreground" />
+                Ownership Graph
+              </span>
+            </Link>
           </div>
         </div>
 

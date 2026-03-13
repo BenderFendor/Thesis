@@ -760,7 +760,7 @@ class ChromaTopicService:
         if overlap < LEXICAL_MIN_TOKEN_OVERLAP:
             return False
 
-        union_size = len(base_tokens | candidate_tokens) or 1
+        union_size = (len(base_tokens) + len(candidate_tokens) - overlap) or 1
         jaccard = overlap / union_size
         return jaccard >= LEXICAL_MIN_JACCARD or overlap >= (
             LEXICAL_MIN_TOKEN_OVERLAP + 1
@@ -881,7 +881,7 @@ class ChromaTopicService:
                     similarities[member_id] = 0.0
                     continue
                 overlap = len(anchor_tokens & member_tokens)
-                union_size = len(anchor_tokens | member_tokens) or 1
+                union_size = (len(anchor_tokens) + len(member_tokens) - overlap) or 1
                 similarities[member_id] = round(overlap / union_size, 3)
 
             clusters.append(
@@ -1098,6 +1098,8 @@ class ChromaTopicService:
             if article.published_at
             else None,
             "summary": article.summary[:200] if article.summary else None,
+            "author": article.author,
+            "authors": article.authors if article.authors is not None else [],
         }
 
     def _serialize_recent_articles(

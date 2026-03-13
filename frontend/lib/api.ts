@@ -125,6 +125,7 @@ export interface NewsArticle {
   content?: string;
   image: string;
   publishedAt: string;
+  _parsedTimestamp?: number;
   category: string;
   url: string;
   tags: string[];
@@ -134,6 +135,7 @@ export interface NewsArticle {
   source_country?: string;
   mentioned_countries?: string[];
   author?: string;
+  authors?: string[];
   // Preloaded queue data
   _queueData?: {
     fullText?: string;
@@ -2091,6 +2093,7 @@ export function mapBackendArticles(
       article.publishedAt ||
       article.published ||
       new Date().toISOString();
+    const parsedTimestamp = new Date(published).getTime();
     const category = article.category || "general";
     const rawUrl =
       article.url ||
@@ -2110,6 +2113,11 @@ export function mapBackendArticles(
     const author =
       article.author ||
       (Array.isArray(article.authors) ? article.authors[0] : undefined);
+    const authors = Array.isArray(article.authors)
+      ? article.authors.filter((value): value is string => typeof value === "string" && value.trim().length > 0)
+      : author
+        ? [author]
+        : [];
 
     const rawCountry = typeof article.country === "string" ? article.country : undefined;
     const country = normalizeCountryCode(rawCountry || getCountryFromSource(sourceName));
@@ -2157,12 +2165,14 @@ export function mapBackendArticles(
       content,
       image,
       publishedAt: published,
+      _parsedTimestamp: Number.isNaN(parsedTimestamp) ? 0 : parsedTimestamp,
       category,
       url,
       tags: [category, sourceName].filter(Boolean),
       originalLanguage: article.original_language || "en",
       translated: article.translated ?? false,
       author: author || undefined,
+      authors,
       hasFullContent: typeof article.content === "string" && article.content.trim().length > 0,
       source_country: sourceCountry,
       mentioned_countries: mentionedCountries,

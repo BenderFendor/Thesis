@@ -66,6 +66,7 @@ def _cache_article(
     published: str,
     category: str,
     url: str,
+    author: str | None = None,
 ) -> NewsArticle:
     return NewsArticle(
         id=article_id,
@@ -74,6 +75,8 @@ def _cache_article(
         description=title,
         published=published,
         source=source,
+        author=author,
+        authors=[author] if author else [],
         category=category,
         country="US",
         image=None,
@@ -111,6 +114,7 @@ async def test_scroll_personalization_backend_flow_is_batched(
             "2026-03-11T12:00:00",
             "politics",
             "https://testnews.example.com/a",
+            "Jane Doe",
         ),
         _cache_article(
             2,
@@ -119,6 +123,7 @@ async def test_scroll_personalization_backend_flow_is_batched(
             "2026-03-10T12:00:00",
             "world",
             "https://testnews.example.com/b",
+            "Jane Doe",
         ),
         _cache_article(
             3,
@@ -127,6 +132,7 @@ async def test_scroll_personalization_backend_flow_is_batched(
             "2026-03-12T12:00:00",
             "politics",
             "https://stategazette.example.com/c",
+            "John Smith",
         ),
         _cache_article(
             4,
@@ -135,6 +141,7 @@ async def test_scroll_personalization_backend_flow_is_batched(
             "2026-03-12T09:00:00",
             "world",
             "https://indwire.example.com/d",
+            None,
         ),
     ]
 
@@ -157,6 +164,7 @@ async def test_scroll_personalization_backend_flow_is_batched(
         paginated_payload = paginated_resp.json()
         page_article_ids = [article["id"] for article in paginated_payload["articles"]]
         assert page_article_ids == [3, 4, 1, 2]
+        assert paginated_payload["articles"][0]["author"] == "John Smith"
 
         bookmarks_resp, liked_resp = await asyncio.gather(
             client.get("/api/bookmarks"),

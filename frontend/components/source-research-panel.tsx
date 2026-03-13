@@ -1,8 +1,9 @@
 "use client"
 
+import Link from "next/link"
 import { useMemo, useState } from "react"
 import { useQuery } from "@tanstack/react-query"
-import { Loader2, RefreshCw } from "lucide-react"
+import { ExternalLink, Loader2, RefreshCw, Search } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { researchSourceProfile, checkSourceProfileCache } from "@/lib/api"
@@ -49,6 +50,8 @@ const formatSourceLabel = (value: string) => {
 export function SourceResearchPanel({ sourceName, website, autoRun = false }: SourceResearchPanelProps) {
   const [runFullResearch, setRunFullResearch] = useState(autoRun)
   const [refreshCounter, setRefreshCounter] = useState(0)
+  const sourceWikiHref = `/wiki/source/${encodeURIComponent(sourceName)}`
+  const sourceSearchUrl = `https://duckduckgo.com/?q=${encodeURIComponent(`${sourceName} media outlet`)}`
 
   const { data: cachedData, isFetching: isCheckingCache } = useQuery({
     queryKey: ["source-research-cache-check", sourceName],
@@ -117,23 +120,34 @@ export function SourceResearchPanel({ sourceName, website, autoRun = false }: So
     <div className="flex flex-col h-full">
       {/* Header - Fixed */}
       <div className="p-4 border-b border-white/10 shrink-0">
-        <div className="flex items-center justify-between gap-2">
-          <p className="font-mono text-[10px] uppercase tracking-[0.2em] text-muted-foreground">Source Research</p>
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={hasData ? handleRefresh : handleRun}
-            className="border-white/10 bg-transparent hover:bg-white/5 text-[9px] font-mono uppercase h-6 px-2"
-          >
-            {isFetching ? (
-              <Loader2 className="h-3 w-3 animate-spin" />
-            ) : (
-              <>
-                <RefreshCw className="h-3 w-3 mr-1" />
-                {hasData ? "Refresh" : "Run"}
-              </>
-            )}
-          </Button>
+        <div className="flex items-start justify-between gap-3">
+          <div>
+            <p className="font-mono text-[10px] uppercase tracking-[0.2em] text-muted-foreground">Source Wiki Preview</p>
+            <p className="mt-1 text-[11px] text-muted-foreground">Verified ownership, funding, and public-source notes.</p>
+          </div>
+          <div className="flex items-center gap-2">
+            <Button variant="outline" size="sm" asChild className="border-white/10 bg-transparent hover:bg-white/5 text-[9px] font-mono uppercase h-6 px-2">
+              <Link href={sourceWikiHref}>
+                <ExternalLink className="mr-1 h-3 w-3" />
+                Full wiki
+              </Link>
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={hasData ? handleRefresh : handleRun}
+              className="border-white/10 bg-transparent hover:bg-white/5 text-[9px] font-mono uppercase h-6 px-2"
+            >
+              {isFetching ? (
+                <Loader2 className="h-3 w-3 animate-spin" />
+              ) : (
+                <>
+                  <RefreshCw className="h-3 w-3 mr-1" />
+                  {hasData ? "Refresh" : "Run"}
+                </>
+              )}
+            </Button>
+          </div>
         </div>
       </div>
 
@@ -255,8 +269,22 @@ export function SourceResearchPanel({ sourceName, website, autoRun = false }: So
               )}
 
               {!hasResults && (
-                <div className="py-6 text-center text-[11px] text-muted-foreground italic">
-                  Limited public data found.
+                <div className="rounded-lg border border-white/10 bg-muted/20 px-4 py-5 text-center opacity-70 grayscale">
+                  <p className="text-sm font-medium text-foreground">No verified source overview yet</p>
+                  <p className="mt-1 text-[11px] leading-relaxed text-muted-foreground">
+                    We did not find enough structured public data to build a source dossier from cached research.
+                  </p>
+                  <div className="mt-4 flex flex-wrap items-center justify-center gap-2">
+                    <Button variant="outline" size="sm" asChild>
+                      <Link href={sourceWikiHref}>Open full wiki</Link>
+                    </Button>
+                    <Button variant="outline" size="sm" asChild>
+                      <a href={sourceSearchUrl} target="_blank" rel="noreferrer">
+                        <Search className="mr-2 h-3.5 w-3.5" />
+                        Search the web
+                      </a>
+                    </Button>
+                  </div>
                 </div>
               )}
             </div>

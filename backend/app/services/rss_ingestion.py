@@ -271,12 +271,25 @@ def _build_article_from_rust_payload(
     title = item.get("title", "No title")
     description = item.get("description", "No description")
     category = item.get("category") or source_info.get("category", "general")
+    payload_authors = item.get("authors")
+    authors = (
+        [
+            str(author).strip()
+            for author in payload_authors
+            if isinstance(author, str) and str(author).strip()
+        ]
+        if isinstance(payload_authors, list)
+        else []
+    )
+    primary_author = authors[0] if authors else None
     return NewsArticle(
         title=title,
         link=link_value,
         description=description,
         published=item.get("published", datetime.now(timezone.utc).isoformat()),
         source=source_name,
+        author=primary_author,
+        authors=authors,
         category=category,
         country=source_info.get("country"),
         image=image_url,

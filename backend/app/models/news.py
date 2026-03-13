@@ -13,6 +13,7 @@ class NewsArticle(StrictBaseModel):
     published: str
     source: str
     author: Optional[str] = None
+    authors: List[str] = Field(default_factory=list)
     category: str = "general"
     country: Optional[str] = None
     image: Optional[str] = None

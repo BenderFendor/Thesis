@@ -95,6 +95,10 @@ def _build_article_values(
     published_dt = parse_published_datetime(article.published)
     published_value = published_dt.astimezone(timezone.utc).replace(tzinfo=None)
     tags = _build_article_tags(article)
+    author_value = getattr(article, "author", None)
+    author = author_value if isinstance(author_value, str) else None
+    raw_authors = getattr(article, "authors", None)
+    authors = raw_authors if isinstance(raw_authors, list) else []
     return {
         "title": article.title,
         "source": article.source,
@@ -108,6 +112,8 @@ def _build_article_values(
         "published_at": published_value,
         "category": article.category,
         "url": article.link,
+        "author": author,
+        "authors": authors or None,
         "tags": tags if tags else None,
         "mentioned_countries": article.mentioned_countries
         or extract_article_mentioned_countries(
@@ -158,6 +164,8 @@ async def _persist_articles_async(
                     "country": insert_stmt.excluded.country,
                     "credibility": insert_stmt.excluded.credibility,
                     "bias": insert_stmt.excluded.bias,
+                    "author": insert_stmt.excluded.author,
+                    "authors": insert_stmt.excluded.authors,
                     "tags": insert_stmt.excluded.tags,
                     "mentioned_countries": insert_stmt.excluded.mentioned_countries,
                     "updated_at": insert_stmt.excluded.updated_at,

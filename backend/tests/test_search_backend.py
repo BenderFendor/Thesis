@@ -49,6 +49,10 @@ async def test_news_index_returns_lightweight_full_browse_results(
     assert [article["id"] for article in data["articles"]] == [3, 4, 2]
     assert all(article.get("content") is None for article in data["articles"])
     assert all(len(article.get("summary") or "") <= 283 for article in data["articles"])
+    article_c = next(article for article in data["articles"] if article["id"] == 3)
+    article_b = next(article for article in data["articles"] if article["id"] == 2)
+    assert article_c["author"] == "John Smith"
+    assert article_b["authors"] == ["Jane Doe", "Staff Writer"]
 
 
 def test_search_internal_news_prefers_db_results(monkeypatch) -> None:
