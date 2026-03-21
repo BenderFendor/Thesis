@@ -281,7 +281,7 @@ export default function DebugDashboardPage() {
   })
   const loadData = useCallback(() => {
     void dashboardDataQuery.refetch()
-  }, [dashboardDataQuery])
+  }, [dashboardDataQuery.refetch])
   const chromaData = dashboardDataQuery.data?.chromaData ?? null
   const dbData = dashboardDataQuery.data?.dbData ?? null
   const driftData = dashboardDataQuery.data?.driftData ?? null
@@ -363,15 +363,15 @@ export default function DebugDashboardPage() {
   const backendLogFiles = performanceDataQuery.data?.backendLogFiles ?? []
   const loadPerformanceData = useCallback(() => {
     void performanceDataQuery.refetch()
-  }, [performanceDataQuery])
+  }, [performanceDataQuery.refetch])
 
   const loadSystemStatus = useCallback(() => {
     void systemStatusQuery.refetch()
-  }, [systemStatusQuery])
+  }, [systemStatusQuery.refetch])
 
   const loadLogLevel = useCallback(() => {
     void logLevelQuery.refetch()
-  }, [logLevelQuery])
+  }, [logLevelQuery.refetch])
 
   const handleSetLogLevel = async (level: string) => {
     try {

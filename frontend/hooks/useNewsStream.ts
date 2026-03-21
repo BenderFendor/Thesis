@@ -50,9 +50,16 @@ export const useNewsStream = (options: UseNewsStreamOptions = {}) => {
   const abortControllerRef = useRef<AbortController | null>(null);
   const isMountedRef = useRef<boolean>(true);
   const startingRef = useRef<boolean>(false);
+  const optionsRef = useRef(options);
+  const isStreamingRef = useRef(isStreaming);
+  const retryCountRef = useRef(retryCount);
   const seenArticleIdsRef = useRef<Set<string>>(new Set());
   const pendingArticlesRef = useRef<NewsArticle[]>([]);
   const flushTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  optionsRef.current = options;
+  isStreamingRef.current = isStreaming;
+  retryCountRef.current = retryCount;
 
   const flushPendingArticles = useCallback(() => {
     if (flushTimerRef.current) {
@@ -69,10 +76,10 @@ export const useNewsStream = (options: UseNewsStreamOptions = {}) => {
     );
     setArticles((prev) => {
       const updated = [...prev, ...batch];
-      options.onUpdate?.(updated);
+      optionsRef.current.onUpdate?.(updated);
       return updated;
     });
-  }, [options]);
+  }, []);
 
   const scheduleArticlesFlush = useCallback(() => {
     if (flushTimerRef.current) {
@@ -85,14 +92,14 @@ export const useNewsStream = (options: UseNewsStreamOptions = {}) => {
 
   const startStream = useCallback(
     async (streamOptions?: Partial<StreamOptions>) => {
-      if (startingRef.current || isStreaming) {
+      if (startingRef.current || isStreamingRef.current) {
         console.warn("Stream already in progress, ignoring start request");
         return;
       }
 
       const streamStartTime = Date.now();
       logger.debug("Starting news stream with options:", {
-        ...options,
+        ...optionsRef.current,
         ...streamOptions,
       });
 
@@ -111,6 +118,7 @@ export const useNewsStream = (options: UseNewsStreamOptions = {}) => {
         clearTimeout(flushTimerRef.current);
         flushTimerRef.current = null;
       }
+      isStreamingRef.current = true;
       setIsStreaming(true);
       setArticles([]);
       setProgress({ completed: 0, total: 0, percentage: 0 });
@@ -127,8 +135,8 @@ export const useNewsStream = (options: UseNewsStreamOptions = {}) => {
 
       try {
         const streamData = streamNews({
-          useCache: options.useCache ?? true,
-          category: options.category,
+          useCache: optionsRef.current.useCache ?? true,
+          category: optionsRef.current.category,
           ...streamOptions,
           signal: abortControllerRef.current.signal,
           onProgress: (progress) => {
@@ -187,7 +195,7 @@ export const useNewsStream = (options: UseNewsStreamOptions = {}) => {
           onError: (error) => {
             if (!isMountedRef.current) return;
             setErrors((prev) => [...prev, error]);
-            options.onError?.(error);
+            optionsRef.current.onError?.(error);
 
             // Log error to performance logger
             perfLogStreamEvent(trackingStreamId, "error", {
@@ -212,7 +220,7 @@ export const useNewsStream = (options: UseNewsStreamOptions = {}) => {
           setCurrentMessage(
             `Loaded ${result.articles.length} articles from ${result.sources.length} sources`,
           );
-          options.onComplete?.(result);
+          optionsRef.current.onComplete?.(result);
           setRetryCount(0); // Reset on success
 
           // End stream tracking with success
@@ -235,24 +243,25 @@ export const useNewsStream = (options: UseNewsStreamOptions = {}) => {
             setStatus("cancelled");
             setCurrentMessage("Stream was cancelled");
             perfEndStream(trackingStreamId, "cancelled");
-          } else if (retryCount < maxRetries) {
-            const delay = 2000 * Math.pow(2, retryCount);
-            setStatus(`retrying-${retryCount + 1}`);
+          } else if (retryCountRef.current < maxRetries) {
+            const nextRetryCount = retryCountRef.current + 1;
+            const delay = 2000 * Math.pow(2, retryCountRef.current);
+            setStatus(`retrying-${nextRetryCount}`);
             setCurrentMessage(
-              `Connection lost, retrying... (${retryCount + 1}/${maxRetries})`,
+              `Connection lost, retrying... (${nextRetryCount}/${maxRetries})`,
             );
 
             perfLogStreamEvent(trackingStreamId, "retry", {
-              details: { retryCount: retryCount + 1, delayMs: delay },
+              details: { retryCount: nextRetryCount, delayMs: delay },
             });
 
             await new Promise((resolve) => setTimeout(resolve, delay));
-            setRetryCount((prev) => prev + 1);
+            setRetryCount(nextRetryCount);
             return startStream(streamOptions);
           } else {
             setStatus("error");
             setCurrentMessage("Failed to load news. Please try again later.");
-            options.onError?.(
+            optionsRef.current.onError?.(
               error instanceof Error ? error.message : String(error),
             );
             perfEndStream(trackingStreamId, "error");
@@ -261,27 +270,24 @@ export const useNewsStream = (options: UseNewsStreamOptions = {}) => {
       } finally {
         if (isMountedRef.current) {
           startingRef.current = false;
+          isStreamingRef.current = false;
           setIsStreaming(false);
         }
       }
     },
-    [
-      flushPendingArticles,
-      isStreaming,
-      options,
-      retryCount,
-      scheduleArticlesFlush,
-    ],
+    [flushPendingArticles, scheduleArticlesFlush],
   );
 
   const abortStream = useCallback(
     (immediate = false) => {
       if (
+        (startingRef.current || isStreamingRef.current) &&
         abortControllerRef.current &&
         !abortControllerRef.current.signal.aborted
       ) {
         abortControllerRef.current.abort();
         if (isMountedRef.current) {
+          isStreamingRef.current = false;
           setIsStreaming(false);
           setStatus("cancelled");
           const cancellationError =
@@ -290,12 +296,12 @@ export const useNewsStream = (options: UseNewsStreamOptions = {}) => {
           if (immediate) {
             // Only add error for immediate cancellations (e.g., category change)
             setErrors((prev) => [...prev, cancellationError]);
-            options.onError?.(cancellationError);
+            optionsRef.current.onError?.(cancellationError);
           }
         }
       }
     },
-    [options.onError],
+    [],
   );
 
   // WebSocket listener for image updates
@@ -330,13 +336,13 @@ export const useNewsStream = (options: UseNewsStreamOptions = {}) => {
         flushTimerRef.current = null;
       }
       // On unmount, immediately abort the stream if it's still going
-      if (isStreaming && abortControllerRef.current) {
+      if (isStreamingRef.current && abortControllerRef.current) {
         logger.debug("Component unmounting, aborting stream");
         abortControllerRef.current.abort();
       }
       isMountedRef.current = false;
     };
-  }, [isStreaming]);
+  }, []);
 
   const clearErrors = useCallback(() => {
     if (isMountedRef.current) {

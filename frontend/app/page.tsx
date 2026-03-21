@@ -92,7 +92,7 @@ const HalftoneOverlay = () => (
 function NewsPage() {
   const [currentView, setCurrentView] = useState<ViewMode>("grid")
   const [activeCategory, setActiveCategory] = useState<string>("all")
-  const [articleCount, setArticleCount] = useState<number>(0)
+  const [gridArticleCount, setGridArticleCount] = useState<number | null>(null)
   const [showNotifications, setShowNotifications] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(false);
 // Remove trendingOpen state as it is no longer used
@@ -112,7 +112,6 @@ function NewsPage() {
   const [articlesByCategory, setArticlesByCategory] = useState<Record<string, NewsArticle[]>>({
     all: [],
   })
-  const [globeLoading, setGlobeLoading] = useState(true)
   const router = useRouter()
 
   // Source filtering and favorites
@@ -160,7 +159,10 @@ function NewsPage() {
   }, []);
 
   const activeCategoryRef = useRef(activeCategory);
-  activeCategoryRef.current = activeCategory;
+
+  useEffect(() => {
+    activeCategoryRef.current = activeCategory;
+  }, [activeCategory]);
 
   const onUpdate = useCallback((newArticles: NewsArticle[]) => {
     logger.debug(`onUpdate called with ${newArticles.length} articles for category: ${activeCategoryRef.current}`);
@@ -168,17 +170,12 @@ function NewsPage() {
       ...prev,
       [activeCategoryRef.current]: newArticles
     }));
-    setGlobeLoading(false);
   }, []);
 
-  const onComplete = useCallback((result: { articles: NewsArticle[] }) => {
-    setGlobeLoading(false);
-    setArticleCount(result.articles.length);
-  }, []);
+  const onComplete = useCallback(() => {}, []);
 
   const onError = useCallback((error: string) => {
     console.error(`Stream error for ${activeCategoryRef.current}:`, error);
-    setGlobeLoading(false);
   }, []);
 
   const sortArticles = useCallback(
@@ -261,41 +258,72 @@ function NewsPage() {
     onComplete,
     onError,
   });
+  const { abortStream, startStream } = streamHook;
   const apiUrl = streamHook.apiUrl ?? null
+
+  const resetGlobeCategory = useCallback((category: string) => {
+    setArticlesByCategory((prev) => {
+      if ((prev[category]?.length ?? 0) === 0) {
+        return prev;
+      }
+
+      return {
+        ...prev,
+        [category]: [],
+      };
+    });
+  }, []);
+
+  const handleCategoryChange = useCallback(
+    (category: string) => {
+      setGridArticleCount(null);
+
+      if (currentView === "globe") {
+        resetGlobeCategory(category);
+      }
+
+      setActiveCategory(category);
+    },
+    [currentView, resetGlobeCategory],
+  );
+
+  const handleViewChange = useCallback(
+    (view: ViewMode) => {
+      setGridArticleCount(null);
+
+      if (view === "globe") {
+        resetGlobeCategory(activeCategory);
+      }
+
+      setCurrentView(view);
+    },
+    [activeCategory, resetGlobeCategory],
+  );
 
   useEffect(() => {
     if (currentView !== "globe") return
 
     const loadCategory = async () => {
-      if (streamHook.isStreaming) {
-        streamHook.abortStream(true);
-      }
+      abortStream(true);
 
-      setGlobeLoading(true);
-      setArticlesByCategory(prev => ({ ...prev, [activeCategory]: [] }));
-      
       try {
-        await streamHook.startStream({
+        await startStream({
           category: activeCategory === 'all' ? undefined : activeCategory
         });
       } catch (error) {
         console.error('Failed to load articles:', error);
-      } finally {
-        setGlobeLoading(false);
       }
     };
 
-    loadCategory();
-  }, [activeCategory, currentView, streamHook]);
-
-  useEffect(() => {
-    if (currentView === "globe") return
-    setArticleCount(browseIndexTotalCount || browseArticles.length)
-  }, [browseArticles.length, currentView, browseIndexTotalCount])
+    void loadCategory();
+  }, [abortStream, activeCategory, currentView, startStream]);
 
   const loading =
     currentView === "globe"
-      ? globeLoading || (streamHook.isStreaming && (articlesByCategory[activeCategory]?.length ?? 0) === 0)
+      ? streamHook.status === "starting" ||
+        streamHook.status === "loading" ||
+        streamHook.status.startsWith("retrying-") ||
+        (streamHook.isStreaming && (articlesByCategory[activeCategory]?.length ?? 0) === 0)
       : browseIndexLoading
 
 
@@ -330,135 +358,114 @@ function NewsPage() {
     }
   };
 
-  const notifications = useMemo(() => {
-    const items: Notification[] = [];
-    const now = new Date().toISOString();
-    const categoryLabel = activeCategory === "all" ? "All" : activeCategory;
+  const notifications: Notification[] = [];
+  const notificationTimestamp = new Date().toISOString();
+  const notificationCategoryLabel =
+    activeCategory === "all" ? "All" : activeCategory;
 
-    if (streamHook.status === "starting" || streamHook.status === "loading") {
-      items.push({
-        id: "stream-progress",
-        title: "Stream in progress",
-        description: streamHook.currentMessage || "Loading sources and articles.",
-        type: "info",
-        timestamp: now,
-        meta: {
-          category: categoryLabel,
-          sources: `${streamHook.progress.completed}/${streamHook.progress.total}`,
-        },
-      });
-    }
-
-    if (streamHook.status === "complete") {
-      items.push({
-        id: "stream-complete",
-        title: "Stream complete",
-        description: streamHook.currentMessage || "Articles are ready to read.",
-        type: "success",
-        timestamp: now,
-        meta: {
-          articles: streamHook.articles.length,
-          sources: streamHook.sources.length,
-        },
-      });
-    }
-
-    if (streamHook.status === "cancelled") {
-      items.push({
-        id: "stream-cancelled",
-        title: "Stream paused",
-        description: "Stream cancelled. Restart to refresh the feed.",
-        type: "warning",
-        timestamp: now,
-        action: { label: "Retry", type: "retry" },
-      });
-    }
-
-    streamHook.errors.forEach((error, index) => {
-      items.push({
-        id: `error-${index}`,
-        title: error === "Stream was cancelled" ? "Stream status" : "Stream error",
-        description: error,
-        type: "error",
-        timestamp: now,
-        action: { label: "Retry", type: "retry" },
-      });
+  if (streamHook.status === "starting" || streamHook.status === "loading") {
+    notifications.push({
+      id: "stream-progress",
+      title: "Stream in progress",
+      description: streamHook.currentMessage || "Loading sources and articles.",
+      type: "info",
+      timestamp: notificationTimestamp,
+      meta: {
+        category: notificationCategoryLabel,
+        sources: `${streamHook.progress.completed}/${streamHook.progress.total}`,
+      },
     });
+  }
 
-    if (isFilterActive()) {
-      items.push({
-        id: "filter-active",
-        title: "Source filter active",
-        description: "Only selected sources are visible.",
-        type: "info",
-        timestamp: now,
-        meta: {
-          sources: selectedSources.size,
-        },
-        action: { label: "Debug", type: "open-debug" },
-      });
-    }
+  if (streamHook.status === "complete") {
+    notifications.push({
+      id: "stream-complete",
+      title: "Stream complete",
+      description: streamHook.currentMessage || "Articles are ready to read.",
+      type: "success",
+      timestamp: notificationTimestamp,
+      meta: {
+        articles: streamHook.articles.length,
+        sources: streamHook.sources.length,
+      },
+    });
+  }
 
-    if (browseIndexError) {
-      items.push({
-        id: "browse-index-error",
-        title: "Browse path unavailable",
-        description: browseIndexError.message,
-        type: "error",
-        timestamp: now,
-        action: { label: "Retry", type: "retry" },
-      });
-    }
+  if (streamHook.status === "cancelled") {
+    notifications.push({
+      id: "stream-cancelled",
+      title: "Stream paused",
+      description: "Stream cancelled. Restart to refresh the feed.",
+      type: "warning",
+      timestamp: notificationTimestamp,
+      action: { label: "Retry", type: "retry" },
+    });
+  }
 
-    if (!loading && activeViewArticles.length === 0) {
-      items.push({
-        id: "empty-feed",
-        title: "No articles found",
-        description: "Try changing filters or refreshing the stream.",
-        type: "warning",
-        timestamp: now,
-        action: { label: "Retry", type: "retry" },
-      });
-    }
+  streamHook.errors.forEach((error, index) => {
+    notifications.push({
+      id: `error-${index}`,
+      title: error === "Stream was cancelled" ? "Stream status" : "Stream error",
+      description: error,
+      type: "error",
+      timestamp: notificationTimestamp,
+      action: { label: "Retry", type: "retry" },
+    });
+  });
 
-    return items;
-  }, [
-    streamHook.status,
-    streamHook.currentMessage,
-    streamHook.progress.completed,
-    streamHook.progress.total,
-    streamHook.errors,
-    streamHook.articles.length,
-    streamHook.sources.length,
-    activeCategory,
-    isFilterActive,
-    selectedSources.size,
-    loading,
-    activeViewArticles.length,
-    browseIndexError,
-  ]);
+  if (isFilterActive()) {
+    notifications.push({
+      id: "filter-active",
+      title: "Source filter active",
+      description: "Only selected sources are visible.",
+      type: "info",
+      timestamp: notificationTimestamp,
+      meta: {
+        sources: selectedSources.size,
+      },
+      action: { label: "Debug", type: "open-debug" },
+    });
+  }
 
-  const actionableNotificationCount = useMemo(
-    () =>
-      notifications.filter(
-        (item) => item.type === "error" || item.type === "warning"
-      ).length,
-    [notifications]
-  );
+  if (browseIndexError) {
+    notifications.push({
+      id: "browse-index-error",
+      title: "Browse path unavailable",
+      description: browseIndexError.message,
+      type: "error",
+      timestamp: notificationTimestamp,
+      action: { label: "Retry", type: "retry" },
+    });
+  }
+
+  if (!loading && activeViewArticles.length === 0) {
+    notifications.push({
+      id: "empty-feed",
+      title: "No articles found",
+      description: "Try changing filters or refreshing the stream.",
+      type: "warning",
+      timestamp: notificationTimestamp,
+      action: { label: "Retry", type: "retry" },
+    });
+  }
+
+  const actionableNotificationCount = notifications.filter(
+    (item) => item.type === "error" || item.type === "warning"
+  ).length;
 
   const leadArticle = activeViewArticles[0] ?? null
+  const articleCount =
+    currentView === "globe"
+      ? streamHook.articles.length
+      : currentView === "grid"
+        ? gridArticleCount ?? (browseIndexTotalCount || browseArticles.length)
+        : browseIndexTotalCount || browseArticles.length
 
   const handleRetry = () => {
     if (currentView === "globe") {
-      setArticlesByCategory(prev => ({
-        ...prev,
-        [activeCategory]: []
-      }));
-      setGlobeLoading(true);
-      streamHook.startStream({ 
+      resetGlobeCategory(activeCategory);
+      void startStream({
         category: activeCategory === 'all' ? undefined : activeCategory 
-      }).finally(() => {
-        setGlobeLoading(false);
       });
       return;
     }
@@ -556,7 +563,7 @@ function NewsPage() {
               ].map(({ key, label, Icon }) => (
                 <button
                   key={key}
-                  onClick={() => setCurrentView(key as ViewMode)}
+                  onClick={() => handleViewChange(key as ViewMode)}
                   className={`w-10 group-hover:w-full overflow-hidden flex items-center gap-4 px-2.5 py-2.5 rounded-lg text-xs font-mono uppercase tracking-[0.2em] transition-all duration-200 ${
                     currentView === key
                       ? "bg-primary/10 text-primary"
@@ -631,7 +638,7 @@ function NewsPage() {
           <div className="flex min-w-0 items-center gap-1.5 lg:hidden shrink-0">
             <select
               value={currentView}
-              onChange={(event) => setCurrentView(event.target.value as ViewMode)}
+              onChange={(event) => handleViewChange(event.target.value as ViewMode)}
               className="w-auto border border-white/10 bg-[var(--news-bg-secondary)] px-2 py-1.5 h-8 text-[9px] sm:text-[10px] font-mono uppercase tracking-widest text-foreground focus:outline-none focus:border-primary rounded-md"
               aria-label="Select view"
             >
@@ -779,7 +786,7 @@ function NewsPage() {
               </div>
             )}
 
-            <Tabs value={activeCategory} onValueChange={(value) => setActiveCategory(value)} className={cn("flex-1 flex flex-col", (currentView === "scroll" || currentView === "globe") ? "overflow-hidden" : "")}>
+            <Tabs value={activeCategory} onValueChange={handleCategoryChange} className={cn("flex-1 flex flex-col", (currentView === "scroll" || currentView === "globe") ? "overflow-hidden" : "")}>
               {currentView !== "scroll" && currentView !== "globe" && (
                 <div className="px-4 py-4 sm:px-8 sm:py-6 border-b border-white/10">
                   <div className="flex flex-col sm:flex-row sm:items-center justify-between mb-4 sm:mb-6 gap-4">
@@ -803,7 +810,7 @@ function NewsPage() {
                         <TooltipTrigger asChild>
                           <select
                             value={activeCategory}
-                            onChange={(event) => setActiveCategory(event.target.value)}
+                            onChange={(event) => handleCategoryChange(event.target.value)}
                             className="w-full sm:w-auto sm:min-w-[220px] border border-white/10 bg-[var(--news-bg-secondary)] px-3 py-2 text-[9px] sm:text-[10px] font-mono uppercase tracking-[0.32em] text-foreground focus:outline-none focus:border-primary rounded-md"
                             aria-label="Select category"
                           >
@@ -856,7 +863,7 @@ function NewsPage() {
                         <span className="text-[9px] sm:text-[10px] font-mono uppercase tracking-[0.32em] text-muted-foreground whitespace-nowrap shrink-0">View</span>
                         <select
                           value={currentView}
-                          onChange={(event) => setCurrentView(event.target.value as ViewMode)}
+                          onChange={(event) => handleViewChange(event.target.value as ViewMode)}
                           className="flex-1 sm:w-auto border border-white/10 bg-[var(--news-bg-secondary)] px-3 py-2 text-[9px] sm:text-[10px] font-mono uppercase tracking-[0.32em] text-foreground focus:outline-none focus:border-primary rounded-md"
                           aria-label="Select view"
                         >
@@ -896,7 +903,7 @@ function NewsPage() {
                         <GridView
                           articles={browseArticles}
                           loading={loading}
-                          onCountChange={setArticleCount}
+                          onCountChange={setGridArticleCount}
                           apiUrl={apiUrl}
                           showTrending={true}
                           topicSortMode={topicSortMode}
