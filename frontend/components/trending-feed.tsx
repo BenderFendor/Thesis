@@ -196,78 +196,74 @@ export function TrendingFeed() {
     filterTrendingClusters(rawTrending, breakingClusters)
   );
 
-  if (breakingClusters.length === 0 && trendingClusters.length === 0) {
-    return null;
-  }
-
   return (
     <>
       <div 
-        className="bg-black/20 hover:bg-white/[0.02] transition-colors duration-500 border border-white/5 rounded-2xl overflow-hidden snap-start scroll-mt-6"
-        style={{ scrollSnapStop: "normal" }}
+        className="flex flex-col space-y-6"
       >
         {/* Section Header */}
-        <div className="bg-white/[0.02] px-6 py-5 border-b border-white/5 flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <TrendingUp className="w-5 h-5 text-primary" />
-            <span className="font-serif text-lg font-bold tracking-tight">
-              Trending & Breaking
-            </span>
+        <div className="flex items-center justify-between border-b border-white/5 pb-6">
+          <div className="flex items-center gap-4">
+            <TrendingUp className="w-6 h-6 text-primary/80" />
+            <h3 className="font-serif text-4xl md:text-5xl font-bold tracking-tight text-foreground/90">
+              Latest & Trending
+            </h3>
             {breakingClusters.length > 0 && (
-              <Badge variant="destructive" className="text-xs px-1.5 py-0 h-4 animate-pulse">
-                {breakingClusters.length} BREAKING
-              </Badge>
+              <span className="flex items-center gap-2 px-3 py-1 bg-red-500/10 border border-red-500/20 text-[10px] font-mono text-red-500 uppercase tracking-widest animate-pulse shadow-[0_0_15px_rgba(239,68,68,0.2)]">
+                <span className="h-1.5 w-1.5 rounded-full bg-red-500" />
+                {breakingClusters.length} Breaking
+              </span>
             )}
           </div>
           <div className="flex items-center gap-3">
-            <Select value={trendingWindow} onValueChange={(value) => setTrendingWindow(value as "1d" | "1w" | "1m")}>
-              <SelectTrigger
-                className="h-8 px-2 text-xs bg-background border border-border rounded-none"
-                title="Trending window"
-              >
-                <SelectValue placeholder="Window" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="1d">Last 24h</SelectItem>
-                <SelectItem value="1w">Last 7d</SelectItem>
-                <SelectItem value="1m">Last 30d</SelectItem>
-              </SelectContent>
-            </Select>
-            <span className="text-xs text-muted-foreground">
-              {trendingClusters.length + breakingClusters.length} stories
+            <div className="flex items-center gap-1 rounded-sm bg-white/[0.03] p-1 border border-white/5">
+              <Select value={trendingWindow} onValueChange={(value) => setTrendingWindow(value as "1d" | "1w" | "1m")}>
+                <SelectTrigger
+                  className="h-6 border-none bg-transparent px-2 text-[9px] font-mono uppercase tracking-widest text-muted-foreground/80 focus:ring-0"
+                  title="Filter by time"
+                >
+                  <SelectValue placeholder="Window" />
+                </SelectTrigger>
+                <SelectContent className="bg-[#0a0a0a] border-white/10">
+                  <SelectItem value="1d" className="text-[9px] font-mono uppercase tracking-widest">Last 24h</SelectItem>
+                  <SelectItem value="1w" className="text-[9px] font-mono uppercase tracking-widest">Last 7d</SelectItem>
+                  <SelectItem value="1m" className="text-[9px] font-mono uppercase tracking-widest">Last 30d</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <span className="text-[10px] font-mono text-muted-foreground/40 uppercase tracking-widest">
+              {trendingClusters.length + breakingClusters.length} updates
             </span>
           </div>
         </div>
 
         {/* Vertical Grid */}
-        <div className="p-3">
-          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
-            {/* Breaking stories first */}
-            {breakingClusters.map((cluster) => (
-              <BreakingCard
-                key={`breaking-${cluster.cluster_id}`}
-                cluster={cluster}
-                onClusterClick={handleClusterClick}
-                onQueueToggle={handleQueueToggle}
-                onLike={handleLike}
-                isInQueue={isArticleInQueue}
-                isLiked={likedIds}
-              />
-            ))}
-            {/* Then trending stories */}
-            {trendingClusters.map((cluster, idx) => (
-              <TrendingCard
-                key={`trending-${cluster.cluster_id}`}
-                cluster={cluster}
-                rank={idx + 1}
-                onClusterClick={handleClusterClick}
-                onQueueToggle={handleQueueToggle}
-                onLike={handleLike}
-                isInQueue={isArticleInQueue}
-                isLiked={likedIds}
-              />
-            ))}
-          </div>
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-5 gap-4">
+          {/* Breaking stories first */}
+          {breakingClusters.map((cluster) => (
+            <BreakingCard
+              key={`breaking-${cluster.cluster_id}`}
+              cluster={cluster}
+              onClusterClick={handleClusterClick}
+              onQueueToggle={handleQueueToggle}
+              onLike={handleLike}
+              isInQueue={isArticleInQueue}
+              isLiked={likedIds}
+            />
+          ))}
+          {/* Then trending stories */}
+          {trendingClusters.map((cluster, idx) => (
+            <TrendingCard
+              key={`trending-${cluster.cluster_id}`}
+              cluster={cluster}
+              rank={idx + 1}
+              onClusterClick={handleClusterClick}
+              onQueueToggle={handleQueueToggle}
+              onLike={handleLike}
+              isInQueue={isArticleInQueue}
+              isLiked={likedIds}
+            />
+          ))}
         </div>
       </div>
 
@@ -316,110 +312,79 @@ function BreakingCard({
   };
 
   return (
-    <div
+    <button
       onClick={handleClick}
-      className="group w-full text-left transition-all duration-500 ease-out cursor-pointer hover:-translate-y-1"
+      className="group relative flex flex-col w-full text-left border border-white/5 bg-black/20 rounded-2xl transition-all duration-500 ease-out hover:border-red-500/30 hover:bg-white/[0.03] shadow-xl hover:shadow-2xl overflow-hidden"
     >
-      <Card className="h-full overflow-hidden flex flex-col border border-white/5 bg-black/20 transition-all duration-500 group-hover:bg-white/[0.03] group-hover:border-red-500/30 rounded-2xl shadow-lg hover:shadow-xl relative">
-        {/* Red accent for breaking */}
-        <div className="absolute top-0 left-0 w-1 h-full bg-red-500/80 z-10" />
+      <div className="absolute top-0 left-0 w-px h-full bg-red-500/40 z-10 shadow-[0_0_20px_rgba(239,68,68,0.4)]" />
+      
+      <div className="relative m-2 aspect-video overflow-hidden rounded-xl bg-white/5">
+        {showImage ? (
+          <img
+            src={imageUrl!}
+            alt={article.title || label}
+            className="w-full h-full object-cover grayscale opacity-80 transition duration-700 group-hover:grayscale-0 group-hover:opacity-100 group-hover:scale-105"
+            loading="lazy"
+          />
+        ) : (
+          <div className="w-full h-full bg-[radial-gradient(circle_at_top_left,rgba(239,68,68,0.15),transparent_70%)]" />
+        )}
         
-        {/* Image or fallback */}
-        <div className="relative aspect-video overflow-hidden bg-white/5 m-2 rounded-xl flex-shrink-0">
-          {showImage ? (
-            <>
-              <img
-                src={imageUrl!}
-                alt={article.title || label}
-                className="w-full h-full object-cover grayscale group-hover:grayscale-0 transition duration-300"
-                loading="lazy"
-              />
-              <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-transparent to-transparent" />
-            </>
-          ) : (
-            <>
-              <div className="absolute inset-0 bg-gradient-to-br from-red-500/10 via-muted/20 to-background" />
-              <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_0%,rgba(255,255,255,0.05),transparent_60%)]" />
-              <div className="absolute inset-0 p-6 flex flex-col items-center justify-center text-center">
-                <Zap className="w-8 h-8 text-red-500/40 mb-2" />
-                <h3 className="text-lg md:text-xl font-bold text-foreground/90 leading-snug line-clamp-4 font-serif tracking-tight drop-shadow-sm">
-                  {article.title || label}
-                </h3>
-              </div>
-            </>
-          )}
-
-          {/* Action Buttons */}
-          <div className="absolute top-1 right-1 flex gap-1">
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={(e) => onQueueToggle(newsArticle, e)}
-              className="h-6 w-6 p-0 bg-black/50 hover:bg-black/70"
-              title={inQueue ? "Remove from queue" : "Add to queue"}
-            >
-              {inQueue ? (
-                <MinusCircle className="w-3 h-3 text-foreground/70" />
-              ) : (
-                <PlusCircle className="w-3 h-3 text-foreground" />
-              )}
-            </Button>
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={(e) => onLike(article.id, e)}
-              className="h-6 w-6 p-0 bg-black/50 hover:bg-black/70"
-              title={liked ? "Unlike" : "Like"}
-            >
-              <Heart
-                className={`w-3 h-3 ${
-                  liked ? "fill-current text-foreground" : "text-muted-foreground"
-                }`}
-              />
-            </Button>
-          </div>
-
-          {/* Breaking Badge */}
-          <div className="absolute bottom-2 left-2">
-            <Badge
-              variant="destructive"
-              className="text-xs font-semibold px-1.5 py-0 uppercase tracking-widest"
-            >
-              BREAKING
-            </Badge>
-          </div>
+        <div className="absolute top-2 right-2 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={(e) => onQueueToggle(newsArticle, e)}
+            className="h-6 w-6 p-0 bg-black/60 hover:bg-black/80"
+          >
+            {inQueue ? (
+              <MinusCircle className="w-3 h-3 text-foreground/70" />
+            ) : (
+              <PlusCircle className="w-3 h-3 text-foreground" />
+            )}
+          </Button>
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={(e) => onLike(article.id, e)}
+            className="h-6 w-6 p-0 bg-black/60 hover:bg-black/80"
+          >
+            <Heart
+              className={`w-3 h-3 ${
+                liked ? "fill-current text-foreground" : "text-muted-foreground"
+              }`}
+            />
+          </Button>
         </div>
 
-        {/* Content */}
-        <CardContent className="flex-1 flex flex-col p-6">
-          {showImage && (
-            <>
-              <h3 className="text-base font-bold text-foreground leading-snug line-clamp-3 mb-2 font-serif">
-                {article.title || label}
-              </h3>
-              <p className="text-xs text-muted-foreground/70 leading-relaxed line-clamp-2 mb-3">
-                {cluster.article_count_3h} articles in the last 3 hours
-              </p>
-            </>
-          )}
+        <div className="absolute bottom-2 left-2">
+          <span className="px-1.5 py-0.5 bg-red-500 text-[8px] font-mono text-white uppercase tracking-[0.2em] font-bold shadow-lg">
+            Breaking
+          </span>
+        </div>
+      </div>
 
-          {!showImage && (
-            <p className="text-xs text-muted-foreground/70 leading-relaxed line-clamp-4 mb-2 mt-1">
-              {cluster.article_count_3h} articles covering this story in the last 3 hours. {cluster.spike_magnitude.toFixed(1)}x above normal volume.
-            </p>
-          )}
+      <div className="flex flex-1 flex-col p-3.5 sm:p-4 space-y-3">
+        <div className="space-y-2">
+          <h3 className="font-serif text-[15px] leading-tight text-foreground/90 group-hover:text-white transition-colors line-clamp-3">
+            {article.title || label}
+          </h3>
+          <p className="text-[10px] text-muted-foreground/60 leading-relaxed font-mono uppercase tracking-wider">
+            {cluster.article_count_3h} updates in 3H
+          </p>
+        </div>
 
-          {/* Meta Info */}
-          <div className="flex items-center gap-1 text-xs text-muted-foreground/70 mt-auto pt-3 border-t border-border">
-            <Clock className="w-3 h-3" />
+        <div className="mt-auto flex items-center justify-between pt-3 border-t border-white/5">
+          <div className="flex items-center gap-1.5 text-[9px] font-mono uppercase tracking-widest text-muted-foreground/40">
+            <Clock className="w-3 h-3 opacity-50" />
             <span>{formatTimeAgo(article.published_at)}</span>
-            <span className="ml-auto text-red-400 text-xs font-mono">
-              {cluster.spike_magnitude.toFixed(1)}x spike
-            </span>
           </div>
-        </CardContent>
-      </Card>
-    </div>
+          <span className="text-red-400/60 text-[9px] font-mono font-bold tracking-widest">
+            {cluster.spike_magnitude.toFixed(1)}x SPIKE
+          </span>
+        </div>
+      </div>
+    </button>
   );
 }
 
@@ -456,135 +421,99 @@ function TrendingCard({
   };
 
   return (
-    <div
+    <button
       onClick={handleClick}
-      className="group w-full text-left transition-all duration-500 ease-out cursor-pointer hover:-translate-y-1"
+      className="group relative flex flex-col w-full text-left border border-white/5 bg-black/20 rounded-2xl transition-all duration-500 ease-out hover:border-primary/30 hover:bg-white/[0.03] shadow-xl hover:shadow-2xl overflow-hidden"
     >
-      <Card className="h-full overflow-hidden flex flex-col border border-white/5 bg-black/20 transition-all duration-500 group-hover:bg-white/[0.03] group-hover:border-primary/30 rounded-2xl shadow-lg hover:shadow-xl">
-        {/* Image or fallback */}
-        <div className="relative aspect-video overflow-hidden bg-white/5 m-2 rounded-xl flex-shrink-0">
-          {showImage ? (
-            <>
-              <img
-                src={imageUrl!}
-                alt={article.title || label}
-                className="w-full h-full object-cover grayscale group-hover:grayscale-0 transition duration-300"
-                loading="lazy"
-              />
-              <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-transparent to-transparent" />
-            </>
-          ) : (
-            <>
-              <div className="absolute inset-0 bg-gradient-to-br from-primary/5 via-muted/20 to-background" />
-              <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_0%,rgba(255,255,255,0.05),transparent_60%)]" />
-              <div className="absolute inset-0 p-6 flex flex-col items-center justify-center text-center">
-                <TrendingUp className="w-8 h-8 text-white/20 mb-2" />
-                <h3 className="text-lg md:text-xl font-bold text-foreground/90 leading-snug line-clamp-4 font-serif tracking-tight drop-shadow-sm">
-                  {article.title || label}
-                </h3>
-              </div>
-            </>
-          )}
-
-          {/* Action Buttons */}
-          <div className="absolute top-1 right-1 flex gap-1">
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={(e) => onQueueToggle(newsArticle, e)}
-              className="h-6 w-6 p-0 bg-black/50 hover:bg-black/70"
-              title={inQueue ? "Remove from queue" : "Add to queue"}
-            >
-              {inQueue ? (
-                <MinusCircle className="w-3 h-3 text-foreground/70" />
-              ) : (
-                <PlusCircle className="w-3 h-3 text-foreground" />
-              )}
-            </Button>
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={(e) => onLike(article.id, e)}
-              className="h-6 w-6 p-0 bg-black/50 hover:bg-black/70"
-              title={liked ? "Unlike" : "Like"}
-            >
-              <Heart
-                className={`w-3 h-3 ${
-                  liked ? "fill-current text-foreground" : "text-muted-foreground"
-                }`}
-              />
-            </Button>
-          </div>
-
-          {/* Rank Badge */}
-          <div className="absolute top-2 left-2 bg-black/60 backdrop-blur px-2 py-0.5 text-xs font-mono text-white border border-border">
-            #{rank}
-          </div>
-
-          {/* Category Badge */}
-          <div className="absolute bottom-2 left-2">
-            <Badge
-              variant="outline"
-              className="text-xs font-semibold px-1.5 py-0 bg-black/70 text-foreground border-white/20 uppercase tracking-widest"
-            >
-              TRENDING
-            </Badge>
-          </div>
+      <div className="relative m-2 aspect-video overflow-hidden rounded-xl bg-white/5">
+        {showImage ? (
+          <img
+            src={imageUrl!}
+            alt={article.title || label}
+            className="w-full h-full object-cover grayscale opacity-80 transition duration-700 group-hover:grayscale-0 group-hover:opacity-100 group-hover:scale-105"
+            loading="lazy"
+          />
+        ) : (
+          <div className="w-full h-full bg-[radial-gradient(circle_at_top_left,rgba(255,255,255,0.08),transparent_70%)]" />
+        )}
+        
+        <div className="absolute top-2 right-2 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={(e) => onQueueToggle(newsArticle, e)}
+            className="h-6 w-6 p-0 bg-black/60 hover:bg-black/80"
+          >
+            {inQueue ? (
+              <MinusCircle className="w-3 h-3 text-foreground/70" />
+            ) : (
+              <PlusCircle className="w-3 h-3 text-foreground" />
+            )}
+          </Button>
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={(e) => onLike(article.id, e)}
+            className="h-6 w-6 p-0 bg-black/60 hover:bg-black/80"
+          >
+            <Heart
+              className={`w-3 h-3 ${
+                liked ? "fill-current text-foreground" : "text-muted-foreground"
+              }`}
+            />
+          </Button>
         </div>
 
-        {/* Content */}
-        <CardContent className="flex-1 flex flex-col p-6">
-          {showImage && (
-            <>
-              <h3 className="text-base font-bold text-foreground leading-snug line-clamp-3 mb-2 font-serif">
-                {article.title || label}
-              </h3>
-              <p className="text-xs text-muted-foreground/70 leading-relaxed line-clamp-2 mb-3">
-                {cluster.article_count} articles from {cluster.source_diversity} sources
-              </p>
-            </>
-          )}
+        <div className="absolute top-2 left-2 bg-black/60 backdrop-blur-sm px-1.5 py-0.5 text-[9px] font-mono text-white/80 border border-white/10">
+          #{rank}
+        </div>
+      </div>
 
-          {!showImage && (
-            <p className="text-xs text-muted-foreground/70 leading-relaxed line-clamp-4 mb-2 mt-1">
-              {cluster.article_count} articles covering this topic from {cluster.source_diversity} different sources.
-            </p>
-          )}
+      <div className="flex flex-1 flex-col p-3.5 sm:p-4 space-y-3">
+        <div className="space-y-2">
+          <h3 className="font-serif text-[15px] leading-tight text-foreground/90 group-hover:text-white transition-colors line-clamp-3">
+            {article.title || label}
+          </h3>
+          <p className="text-[10px] text-muted-foreground/60 leading-relaxed font-mono uppercase tracking-wider">
+            {cluster.source_diversity} Sources
+          </p>
+        </div>
 
-          {/* Meta Info */}
-          <div className="flex items-center gap-1 text-xs text-muted-foreground/70 mt-auto pt-3 border-t border-border">
-            <Clock className="w-3 h-3" />
+        <div className="mt-auto flex items-center justify-between pt-3 border-t border-white/5">
+          <div className="flex items-center gap-1.5 text-[9px] font-mono uppercase tracking-widest text-muted-foreground/40">
+            <Clock className="w-3 h-3 opacity-50" />
             <span>{formatTimeAgo(article.published_at)}</span>
-            <span className="ml-auto text-xs text-muted-foreground">
-              {cluster.source_diversity} sources
-            </span>
           </div>
-        </CardContent>
-      </Card>
-    </div>
+          <span className="text-[9px] font-mono tabular-nums text-muted-foreground/30 uppercase tracking-widest">
+            {cluster.article_count} Stories
+          </span>
+        </div>
+      </div>
+    </button>
   );
 }
 
 function TrendingSkeleton() {
   return (
-    <div className="bg-card border border-border overflow-hidden">
-      <div className="bg-background px-5 py-4 border-b border-border flex items-center gap-3">
-        <Skeleton className="w-5 h-5" />
-        <Skeleton className="h-6 w-40" />
-      </div>
-      <div className="p-3">
-        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
-          {[1, 2, 3, 4, 5, 6, 7, 8].map((i) => (
-            <div key={i} className="border border-border">
-              <div className="aspect-video bg-white/5" />
-              <div className="p-4 space-y-3">
-                <Skeleton className="h-5 w-full" />
-                <Skeleton className="h-4 w-3/4" />
-                <Skeleton className="h-3 w-1/2" />
-              </div>
-            </div>
-          ))}
+    <div className="flex flex-col space-y-6">
+      <div className="flex items-center justify-between border-b border-white/5 pb-6">
+        <div className="flex items-center gap-4">
+          <Skeleton className="w-6 h-6" />
+          <Skeleton className="h-10 w-64" />
         </div>
+      </div>
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-5 gap-4">
+        {[1, 2, 3, 4, 5].map((i) => (
+          <div key={i} className="rounded-2xl border border-white/5 bg-black/20 overflow-hidden">
+            <div className="m-2">
+              <Skeleton className="aspect-video w-full rounded-xl" />
+            </div>
+            <div className="p-4 space-y-3">
+              <Skeleton className="h-4 w-full" />
+              <Skeleton className="h-3 w-2/3" />
+            </div>
+          </div>
+        ))}
       </div>
     </div>
   );

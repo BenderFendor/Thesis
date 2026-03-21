@@ -632,7 +632,7 @@ export function GridView({
               <Search className="absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground/70" />
               <input
                 type="text"
-                placeholder="Search intelligence..."
+                placeholder="Search the news..."
                 value={searchTerm}
                 onChange={(event) => {
                   resetSourceBrowseState()
@@ -707,11 +707,7 @@ export function GridView({
 
       <div
         ref={containerRef}
-        className={cn(
-          "flex-1 overflow-y-auto scroll-smooth pb-24",
-          expandedSourceId || expandedClusterId ? "snap-y snap-proximity" : "snap-y snap-mandatory",
-        )}
-        style={{ scrollPaddingTop: "1rem" }}
+        className="flex-1 overflow-y-auto scroll-smooth pb-24"
       >
         <div className="mx-auto flex w-full flex-col gap-16 px-6 py-8 lg:px-8" style={{ maxWidth: "1800px" }}>
           {showTrending && <TrendingFeed />}
@@ -735,17 +731,10 @@ export function GridView({
                 <section
                   key={group.sourceId}
                   data-source-id={group.sourceId}
-                  className={cn(
-                    "grid-source-group scroll-mt-6 flex flex-col",
-                    isExpanded ? "snap-none" : "snap-start",
-                  )}
-                  style={{ scrollSnapStop: "normal" }}
+                  className="grid-source-group flex flex-col"
                 >
                   <div className="mb-4 sm:mb-6 flex flex-col gap-3 sm:gap-4 border-b border-white/5 pb-3 sm:pb-4 lg:flex-row lg:items-end lg:justify-between">
                     <div className="space-y-2 sm:space-y-3">
-                      <div className="text-xs font-semibold uppercase tracking-widest text-primary/70">
-                        Source dossier
-                      </div>
                       <div className="flex items-center gap-3 sm:gap-4">
                         <Link
                           href={`/source/${encodeURIComponent(group.sourceId)}`}
@@ -854,10 +843,10 @@ export function GridView({
                             transition={{ delay: index * 0.05 }}
                             data-cluster-id={cluster.cluster_id}
                             className={cn(
-                              "group flex cursor-pointer flex-col overflow-hidden rounded-2xl border bg-black/20 transition-all duration-500 hover:bg-white/[0.03] snap-start scroll-mt-6",
+                              "group flex cursor-pointer flex-col overflow-hidden rounded-2xl border bg-black/20 transition-all duration-500 hover:bg-white/[0.03] scroll-mt-6",
                               isExpanded ? "border-primary/50 ring-1 ring-primary/40" : "border-white/5",
                             )}
-                            style={{ scrollSnapStop: "normal" }}
+                            
                             onClick={() => handleExpandCluster(cluster)}
                           >
                             <div className="relative m-2 aspect-video overflow-hidden rounded-xl bg-white/5">

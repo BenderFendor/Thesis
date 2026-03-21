@@ -633,56 +633,111 @@ function NewsPage() {
       )}
 
       <div className={cn("flex-1 flex flex-col min-w-0", currentView === "scroll" ? "h-screen overflow-hidden" : "")}>
-      <header className="sticky top-0 z-40 border-b border-white/10 bg-[var(--news-bg-primary)]/95 backdrop-blur">
-        <div className="flex flex-nowrap items-center justify-between gap-1.5 px-2 py-2 sm:px-6 sm:py-3 overflow-x-auto no-scrollbar">
-          <div className="flex min-w-0 items-center gap-1.5 lg:hidden shrink-0">
-            <select
-              value={currentView}
-              onChange={(event) => handleViewChange(event.target.value as ViewMode)}
-              className="w-auto border border-white/10 bg-[var(--news-bg-secondary)] px-2 py-1.5 h-8 text-[9px] sm:text-[10px] font-mono uppercase tracking-widest text-foreground focus:outline-none focus:border-primary rounded-md"
-              aria-label="Select view"
-            >
-              {VIEW_OPTIONS.map((option) => (
-                <option key={option.value} value={option.value}>
-                  {option.label}
-                </option>
-              ))}
-            </select>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => setSidebarOpen(true)}
-              className="border-white/10 bg-transparent text-[9px] sm:text-[10px] font-mono uppercase tracking-widest px-2 py-1.5 h-8 shrink-0"
-            >
-              <SlidersHorizontal className="w-3.5 h-3.5 mr-1 sm:mr-2" />
-              Sources
-            </Button>
+        <header className="sticky top-0 z-40 border-b border-white/5 bg-[var(--news-bg-primary)]/95 px-6 py-4 backdrop-blur supports-[backdrop-filter]:bg-[var(--news-bg-primary)]/80">
+          <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+            <div className="flex items-center justify-between lg:justify-start lg:gap-6">
+              <div className="flex items-center gap-4">
+                <h3 className="whitespace-nowrap font-serif text-xl font-black uppercase tracking-tight text-foreground/90 sm:text-2xl">
+                  {VIEW_OPTIONS.find((v) => v.value === currentView)?.label} View
+                </h3>
+                <div className="hidden h-4 w-px bg-white/10 sm:block" />
+                <span className="whitespace-nowrap font-mono text-[10px] uppercase tracking-[0.2em] text-muted-foreground/50">
+                  {articleCount} articles indexed
+                </span>
+              </div>
+
+              <div className="flex items-center gap-2 lg:hidden">
+                <ThemeToggle />
+                <select
+                  value={currentView}
+                  onChange={(event) => handleViewChange(event.target.value as ViewMode)}
+                  className="h-8 rounded-md border border-white/10 bg-[var(--news-bg-secondary)] px-2 font-mono text-[9px] uppercase tracking-widest text-foreground focus:outline-none focus:border-primary"
+                >
+                  {VIEW_OPTIONS.map((option) => (
+                    <option key={option.value} value={option.value}>
+                      {option.label}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            </div>
+
+            <div className="flex flex-wrap items-center justify-between gap-3 lg:justify-end">
+              <div className="flex items-center gap-2">
+                <div className="flex items-center gap-1.5 rounded-sm border border-white/5 bg-white/[0.03] p-1">
+                  <span className="px-2 text-[8px] font-mono uppercase tracking-widest text-muted-foreground/40">Category</span>
+                  <select
+                    value={activeCategory}
+                    onChange={(event) => handleCategoryChange(event.target.value)}
+                    className="cursor-pointer border-none bg-transparent px-2 py-1 font-mono text-[9px] uppercase tracking-widest text-foreground/80 focus:ring-0"
+                  >
+                    {categories.map((category) => (
+                      <option key={category.id} value={category.id} className="bg-[#0a0a0a]">
+                        {category.label}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <div className="flex items-center gap-1.5 rounded-sm border border-white/5 bg-white/[0.03] p-1">
+                  <span className="px-2 text-[8px] font-mono uppercase tracking-widest text-muted-foreground/40">Sort</span>
+                  <select
+                    value={currentView === "grid" && gridMode === "topic" ? topicSortMode : sortMode}
+                    onChange={(event) => {
+                      const value = event.target.value
+                      if (currentView === "grid" && gridMode === "topic") {
+                        setTopicSortMode(value as typeof topicSortMode)
+                      } else {
+                        setSortMode(value as typeof sortMode)
+                      }
+                    }}
+                    className="cursor-pointer border-none bg-transparent px-2 py-1 font-mono text-[9px] uppercase tracking-widest text-foreground/80 focus:ring-0"
+                  >
+                    {currentView === "grid" && gridMode === "topic" ? (
+                      <>
+                        <option value="sources" className="bg-[#0a0a0a]">Sources</option>
+                        <option value="articles" className="bg-[#0a0a0a]">Articles</option>
+                        <option value="recent" className="bg-[#0a0a0a]">Recent</option>
+                      </>
+                    ) : (
+                      <>
+                        <option value="favorites" className="bg-[#0a0a0a]">Favorites</option>
+                        <option value="newest" className="bg-[#0a0a0a]">Newest</option>
+                      </>
+                    )}
+                  </select>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-2">
+                <div className="hidden h-4 w-px bg-white/10 lg:block" />
+                <div className="hidden items-center gap-1.5 lg:flex">
+                  <ThemeToggle />
+                  <Button asChild variant="outline" size="sm" className="h-8 border-white/5 bg-white/[0.03] px-3 font-mono text-[9px] uppercase tracking-widest hover:bg-white/10">
+                    <Link href="/saved">
+                      <Bookmark className="mr-1.5 h-3.5 w-3.5" />
+                      Saved
+                    </Link>
+                  </Button>
+                  <Button asChild variant="outline" size="sm" className="h-8 border-white/5 bg-white/[0.03] px-3 font-mono text-[9px] uppercase tracking-widest hover:bg-white/10">
+                    <Link href="/search">
+                      <Search className="mr-1.5 h-3.5 w-3.5" />
+                      Research
+                    </Link>
+                  </Button>
+                </div>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setSidebarOpen(true)}
+                  className="h-8 border-white/5 bg-white/[0.03] px-3 font-mono text-[9px] uppercase tracking-widest hover:bg-white/10"
+                >
+                  Sources
+                </Button>
+              </div>
+            </div>
           </div>
-          <div className="flex items-center gap-1.5 shrink-0 sm:ml-auto">
-            <ThemeToggle />
-            <Button asChild variant="outline" size="sm" className="border-white/10 bg-transparent text-[9px] sm:text-[10px] font-mono uppercase tracking-widest px-2 py-1.5 h-8 shrink-0">
-              <Link href="/saved">
-                <Bookmark className="w-3.5 h-3.5 mr-1 sm:mr-2" />
-                Saved
-              </Link>
-            </Button>
-            <Button asChild variant="outline" size="sm" className="border-white/10 bg-transparent text-[9px] sm:text-[10px] font-mono uppercase tracking-widest px-2 py-1.5 h-8 shrink-0">
-              <Link href="/search">
-                <Search className="w-3.5 h-3.5 mr-1 sm:mr-2" />
-                Research
-              </Link>
-            </Button>
-            {debugMode && (
-              <Button asChild variant="outline" size="sm" className="border-white/10 bg-transparent text-[9px] sm:text-[10px] font-mono uppercase tracking-widest px-2 py-1.5 h-8 shrink-0">
-                <Link href="/debug">
-                  <Bug className="w-3.5 h-3.5 mr-1 sm:mr-2" />
-                  Debug
-                </Link>
-              </Button>
-            )}
-          </div>
-        </div>
-      </header>
+        </header>
 
       <main className={cn("flex-1 bg-[var(--news-bg-primary)]", (currentView === "scroll" || currentView === "globe") ? "overflow-hidden" : "")}>
         <div className={cn("max-w-[1600px] mx-auto grid grid-cols-1 lg:grid-cols-12 gap-0", (currentView === "scroll" || currentView === "globe") ? "h-full" : "")}>
@@ -751,76 +806,6 @@ function NewsPage() {
             )}
 
             <Tabs value={activeCategory} onValueChange={handleCategoryChange} className={cn("flex-1 flex flex-col", (currentView === "scroll" || currentView === "globe") ? "overflow-hidden" : "")}>
-              {currentView !== "scroll" && currentView !== "globe" && (
-                <div className="px-6 py-5 border-b border-white/5 bg-white/[0.01]">
-                  <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
-                    <div className="flex items-center gap-4">
-                      <h3 className="font-serif text-xl sm:text-2xl uppercase font-black tracking-tight text-foreground/90 whitespace-nowrap">
-                        {VIEW_OPTIONS.find(v => v.value === currentView)?.label} View
-                      </h3>
-                      <div className="h-4 w-px bg-white/10 hidden sm:block" />
-                      <span className="font-mono text-[10px] uppercase tracking-[0.2em] text-muted-foreground/50 whitespace-nowrap">
-                        {articleCount} articles indexed
-                      </span>
-                    </div>
-
-                    <div className="flex flex-wrap items-center gap-2">
-                      <div className="flex items-center gap-1.5 rounded-sm bg-white/[0.03] p-1 border border-white/5">
-                        <span className="px-2 text-[8px] font-mono uppercase tracking-widest text-muted-foreground/40">Category</span>
-                        <select
-                          value={activeCategory}
-                          onChange={(event) => handleCategoryChange(event.target.value)}
-                          className="border-none bg-transparent px-2 py-1 text-[9px] font-mono uppercase tracking-widest text-foreground/80 focus:ring-0 cursor-pointer"
-                        >
-                          {categories.map((category) => (
-                            <option key={category.id} value={category.id} className="bg-[#0a0a0a]">
-                              {category.label}
-                            </option>
-                          ))}
-                        </select>
-                      </div>
-
-                      <div className="flex items-center gap-1.5 rounded-sm bg-white/[0.03] p-1 border border-white/5">
-                        <span className="px-2 text-[8px] font-mono uppercase tracking-widest text-muted-foreground/40">Sort</span>
-                        <select
-                          value={currentView === "grid" && gridMode === "topic" ? topicSortMode : sortMode}
-                          onChange={(event) => {
-                            const value = event.target.value
-                            if (currentView === "grid" && gridMode === "topic") {
-                              setTopicSortMode(value as typeof topicSortMode)
-                            } else {
-                              setSortMode(value as typeof sortMode)
-                            }
-                          }}
-                          className="border-none bg-transparent px-2 py-1 text-[9px] font-mono uppercase tracking-widest text-foreground/80 focus:ring-0 cursor-pointer"
-                        >
-                          {currentView === "grid" && gridMode === "topic" ? (
-                            <>
-                              <option value="sources" className="bg-[#0a0a0a]">Sources</option>
-                              <option value="articles" className="bg-[#0a0a0a]">Articles</option>
-                              <option value="recent" className="bg-[#0a0a0a]">Recent</option>
-                            </>
-                          ) : (
-                            <>
-                              <option value="favorites" className="bg-[#0a0a0a]">Favorites</option>
-                              <option value="newest" className="bg-[#0a0a0a]">Newest</option>
-                            </>
-                          )}
-                        </select>
-                      </div>
-                      
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => setSidebarOpen(true)}
-                        className="h-8 border-white/5 bg-white/[0.03] text-[9px] font-mono uppercase tracking-widest px-3"
-                      >
-                        Sources
-                      </Button>
-                    </div>
-                  </div>
-                </div>
-              )}
 
               {categories.map((category) => (
                 <TabsContent key={category.id} value={category.id} className={cn("mt-0 flex-1", (currentView === "scroll" || currentView === "globe") ? "overflow-hidden flex flex-col" : "")}>

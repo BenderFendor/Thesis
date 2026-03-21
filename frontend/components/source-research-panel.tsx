@@ -272,7 +272,7 @@ export function SourceResearchPanel({ sourceName, website, autoRun = false }: So
                 <div className="rounded-lg border border-white/10 bg-muted/20 px-4 py-5 text-center opacity-70 grayscale">
                   <p className="text-sm font-medium text-foreground">No verified source overview yet</p>
                   <p className="mt-1 text-[11px] leading-relaxed text-muted-foreground">
-                    We did not find enough structured public data to build a source dossier from cached research.
+                    We did not find enough structured public data to build a source info from cached research.
                   </p>
                   <div className="mt-4 flex flex-wrap items-center justify-center gap-2">
                     <Button variant="outline" size="sm" asChild>
