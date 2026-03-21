@@ -1,11 +1,8 @@
-"""API endpoints for blind spots analysis.
-
-Provides endpoints for identifying gaps in news source coverage.
-"""
+"""API endpoints for blind spots analysis."""
 
 from __future__ import annotations
 
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Literal, Optional
 from datetime import datetime, timezone
 
 from fastapi import APIRouter, Depends, HTTPException, Query
@@ -17,6 +14,7 @@ from app.services.blind_spots import (
     get_blind_spots_analyzer,
     analyze_all_sources,
 )
+from app.services.blindspot_viewer import get_blindspot_viewer_service
 
 router = APIRouter(prefix="/blindspots", tags=["blindspots"])
 
@@ -59,6 +57,79 @@ class CoverageReportResponse(BaseModel):
     source_rankings: List[Dict[str, Any]]
     systemic_blind_spots: List[Dict[str, Any]]
     underperforming_sources: List[Dict[str, Any]]
+
+
+class BlindspotLensResponse(BaseModel):
+    id: Literal["bias", "credibility", "geography", "institutional_populist"]
+    label: str
+    description: str
+    available: bool
+    unavailable_reason: Optional[str] = None
+
+
+class BlindspotLaneResponse(BaseModel):
+    id: Literal["pole_a", "shared", "pole_b"]
+    label: str
+    description: str
+    cluster_count: int
+
+
+class BlindspotCoverageCountsResponse(BaseModel):
+    pole_a: int
+    shared: int
+    pole_b: int
+
+
+class BlindspotCoverageSharesResponse(BaseModel):
+    pole_a: float
+    shared: float
+    pole_b: float
+
+
+class BlindspotPreviewArticleResponse(BaseModel):
+    id: int
+    title: str
+    source: str
+    url: str
+    image_url: Optional[str] = None
+    published_at: Optional[str] = None
+    summary: Optional[str] = None
+    similarity: float
+
+
+class BlindspotCardResponse(BaseModel):
+    cluster_id: int
+    cluster_label: str
+    keywords: List[str]
+    article_count: int
+    source_count: int
+    lane: Literal["pole_a", "shared", "pole_b"]
+    blindspot_score: float
+    balance_score: float
+    published_at: Optional[str] = None
+    explanation: str
+    coverage_counts: BlindspotCoverageCountsResponse
+    coverage_shares: BlindspotCoverageSharesResponse
+    representative_article: Optional[BlindspotPreviewArticleResponse] = None
+    articles: List[BlindspotPreviewArticleResponse]
+
+
+class BlindspotViewerSummaryResponse(BaseModel):
+    window: str
+    total_clusters: int
+    eligible_clusters: int
+    generated_at: str
+    category: Optional[str] = None
+    source_filters: List[str]
+
+
+class BlindspotViewerResponse(BaseModel):
+    available_lenses: List[BlindspotLensResponse]
+    selected_lens: BlindspotLensResponse
+    summary: BlindspotViewerSummaryResponse
+    lanes: List[BlindspotLaneResponse]
+    cards: List[BlindspotCardResponse]
+    status: str
 
 
 @router.get("/source/{source_name}", response_model=SourceBlindSpotsResponse)
@@ -231,4 +302,34 @@ async def get_blind_spots_dashboard(
     except Exception as e:
         raise HTTPException(
             status_code=500, detail=f"Failed to generate dashboard: {str(e)}"
+        )
+
+
+@router.get("/viewer", response_model=BlindspotViewerResponse)
+async def get_blindspot_viewer(
+    lens: Literal["bias", "credibility", "geography", "institutional_populist"] = Query(
+        default="bias"
+    ),
+    window: str = Query(default="1w", pattern="^(1d|1w|1m)$"),
+    category: Optional[str] = Query(default=None),
+    sources: Optional[str] = Query(default=None),
+    per_lane: int = Query(default=10, ge=1, le=20),
+    session: AsyncSession = Depends(get_db),
+) -> BlindspotViewerResponse:
+    """Get a multi-lens blindspot viewer payload."""
+    try:
+        service = get_blindspot_viewer_service()
+        payload = await service.build_viewer(
+            session,
+            lens=lens,
+            window=window,
+            category=category,
+            sources=sources,
+            per_lane=per_lane,
+        )
+        return BlindspotViewerResponse.model_validate(payload)
+    except Exception as exc:
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to build blindspot viewer: {str(exc)}",
         )

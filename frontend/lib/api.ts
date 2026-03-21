@@ -3651,6 +3651,73 @@ export interface ClusterDetail {
   }>;
 }
 
+export interface BlindspotLens {
+  id: "bias" | "credibility" | "geography" | "institutional_populist";
+  label: string;
+  description: string;
+  available: boolean;
+  unavailable_reason?: string | null;
+}
+
+export interface BlindspotLane {
+  id: "pole_a" | "shared" | "pole_b";
+  label: string;
+  description: string;
+  cluster_count: number;
+}
+
+export interface BlindspotPreviewArticle {
+  id: number;
+  title: string;
+  source: string;
+  url: string;
+  image_url?: string | null;
+  published_at?: string | null;
+  summary?: string | null;
+  similarity: number;
+}
+
+export interface BlindspotCard {
+  cluster_id: number;
+  cluster_label: string;
+  keywords: string[];
+  article_count: number;
+  source_count: number;
+  lane: "pole_a" | "shared" | "pole_b";
+  blindspot_score: number;
+  balance_score: number;
+  published_at?: string | null;
+  explanation: string;
+  coverage_counts: {
+    pole_a: number;
+    shared: number;
+    pole_b: number;
+  };
+  coverage_shares: {
+    pole_a: number;
+    shared: number;
+    pole_b: number;
+  };
+  representative_article?: BlindspotPreviewArticle | null;
+  articles: BlindspotPreviewArticle[];
+}
+
+export interface BlindspotViewerResponse {
+  available_lenses: BlindspotLens[];
+  selected_lens: BlindspotLens;
+  summary: {
+    window: string;
+    total_clusters: number;
+    eligible_clusters: number;
+    generated_at: string;
+    category?: string | null;
+    source_filters: string[];
+  };
+  lanes: BlindspotLane[];
+  cards: BlindspotCard[];
+  status: string;
+}
+
 export interface TrendingStats {
   active_clusters: number;
   total_article_assignments: number;
@@ -3768,6 +3835,73 @@ const ClusterDetailSchema = z.object({
   articles: z.array(ClusterDetailArticleSchema),
 });
 
+const BlindspotLensSchema = z.object({
+  id: z.enum(["bias", "credibility", "geography", "institutional_populist"]),
+  label: z.string(),
+  description: z.string(),
+  available: z.boolean(),
+  unavailable_reason: z.string().nullable().optional(),
+});
+
+const BlindspotLaneSchema = z.object({
+  id: z.enum(["pole_a", "shared", "pole_b"]),
+  label: z.string(),
+  description: z.string(),
+  cluster_count: z.number(),
+});
+
+const BlindspotPreviewArticleSchema = z.object({
+  id: z.number(),
+  title: z.string(),
+  source: z.string(),
+  url: z.string(),
+  image_url: z.string().nullish(),
+  published_at: z.string().nullish(),
+  summary: z.string().nullish(),
+  similarity: z.number(),
+});
+
+const BlindspotCardSchema = z.object({
+  cluster_id: z.number(),
+  cluster_label: z.string(),
+  keywords: z.array(z.string()),
+  article_count: z.number(),
+  source_count: z.number(),
+  lane: z.enum(["pole_a", "shared", "pole_b"]),
+  blindspot_score: z.number(),
+  balance_score: z.number(),
+  published_at: z.string().nullish(),
+  explanation: z.string(),
+  coverage_counts: z.object({
+    pole_a: z.number(),
+    shared: z.number(),
+    pole_b: z.number(),
+  }),
+  coverage_shares: z.object({
+    pole_a: z.number(),
+    shared: z.number(),
+    pole_b: z.number(),
+  }),
+  representative_article: BlindspotPreviewArticleSchema.nullable().optional(),
+  articles: z.array(BlindspotPreviewArticleSchema),
+});
+
+const BlindspotViewerResponseSchema = z.object({
+  available_lenses: z.array(BlindspotLensSchema),
+  selected_lens: BlindspotLensSchema,
+  summary: z.object({
+    window: z.string(),
+    total_clusters: z.number(),
+    eligible_clusters: z.number(),
+    generated_at: z.string(),
+    category: z.string().nullable().optional(),
+    source_filters: z.array(z.string()),
+  }),
+  lanes: z.array(BlindspotLaneSchema),
+  cards: z.array(BlindspotCardSchema),
+  status: z.string(),
+});
+
 const TrendingStatsSchema = z.object({
   active_clusters: z.number(),
   total_article_assignments: z.number(),
@@ -3865,6 +3999,36 @@ export async function fetchClusterDetail(
   const parsed = ClusterDetailSchema.parse(payload);
   parsed satisfies OpenApiClusterDetailResponse;
   return parsed;
+}
+
+export async function fetchBlindspotViewer(params?: {
+  lens?: BlindspotLens["id"];
+  window?: "1d" | "1w" | "1m";
+  category?: string;
+  sources?: string;
+  perLane?: number;
+}): Promise<BlindspotViewerResponse> {
+  const searchParams = new URLSearchParams();
+
+  if (params?.lens) searchParams.set("lens", params.lens);
+  if (params?.window) searchParams.set("window", params.window);
+  if (params?.category && params.category !== "all") {
+    searchParams.set("category", params.category);
+  }
+  if (params?.sources) searchParams.set("sources", params.sources);
+  if (typeof params?.perLane === "number") {
+    searchParams.set("per_lane", params.perLane.toString());
+  }
+
+  const response = await fetch(
+    `${API_BASE_URL}/blindspots/viewer${searchParams.toString() ? `?${searchParams}` : ""}`,
+  );
+  if (!response.ok) {
+    throw new Error(`HTTP error! status: ${response.status}`);
+  }
+
+  const payload: unknown = await response.json();
+  return BlindspotViewerResponseSchema.parse(payload);
 }
 
 /**

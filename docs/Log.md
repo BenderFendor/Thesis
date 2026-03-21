@@ -1,5 +1,45 @@
 # Log
 
+## 2026-03-21: Blindspot Viewer Density Pass And SemAxis Fallback
+
+**Problem:** The first blindspot viewer pass spent too much vertical space on the control deck, repeated oversized story cards, and left empty pole lanes visually dead. The `Institutional vs Populist` lens could also fail with a live `500` when Chroma embedding fetches broke.
+
+**What Changed:**
+- Reworked `frontend/components/blindspot-view.tsx` into a denser operator surface with a shorter header, tighter lens controls, fixed-height lane columns, and internal lane scrolling so the comparison board is readable at a glance.
+- Replaced the repeated large-card layout with one compact lead story per lane plus a slimmer secondary feed, which exposes more clusters without turning the board into a wall of cards.
+- Added fallback lane content when a pole has no full blindspots, so the UI now shows the closest emerging gaps instead of a large empty panel.
+- Increased blindspot fetch density by requesting more cards per lane from the frontend query.
+- Hardened `backend/app/services/blindspot_viewer.py` so the SemAxis lens falls back to on-demand embeddings when Chroma embedding retrieval fails, and returns an unavailable lens state instead of throwing a server error.
+- Added a backend regression test covering the Chroma-to-on-demand embedding fallback path.
+
+**Verification:**
+- `cd backend && uv run pytest tests/test_blindspot_viewer.py`
+- `python3 -m py_compile backend/app/services/blindspot_viewer.py backend/tests/test_blindspot_viewer.py`
+- `cd frontend && npx tsc --noEmit`
+- `cd frontend && npx eslint components/blindspot-view.tsx __tests__/blindspot-view.test.tsx`
+- `cd frontend && npm test -- --runInBand blindspot-view.test.tsx`
+- Live browser validation confirmed the tighter blindspot board renders on the homepage and the `Institutional vs Populist` lens now loads instead of returning `500`.
+
+## 2026-03-21: Home Blindspot Viewer Replaces List View
+
+**Problem:** The homepage `List` mode was just another flat browse surface. It did not help readers compare what different viewpoints were missing, so it added little beyond the existing grid and scroll modes.
+
+**What Changed:**
+- Added a new blindspot viewer backend path at `backend/app/api/routes/blindspots.py` as `GET /blindspots/viewer`, backed by `backend/app/services/blindspot_viewer.py`.
+- Built the viewer off the existing topic-cluster snapshot so it compares story clusters instead of unrelated raw articles.
+- Implemented multiple switchable lenses for `Left vs Right`, `Credible vs Uncredible`, `West vs East`, and an experimental `Institutional vs Populist` SemAxis lens that uses article embeddings plus explicit pole-word sets.
+- Added `fetchBlindspotViewer()` and new blindspot response types in `frontend/lib/api.ts`.
+- Added `frontend/components/blindspot-view.tsx` with a three-lane comparative board: missing on pole A, shared coverage, and missing on pole B, while reusing the existing cluster detail modal.
+- Updated `frontend/app/page.tsx` to replace the homepage `list` view mode with `blindspot`.
+- Added focused regression coverage in `frontend/__tests__/blindspot-view.test.tsx` and `backend/tests/test_blindspot_viewer.py`.
+
+**Verification:**
+- `python3 -m py_compile backend/app/services/blindspot_viewer.py backend/app/api/routes/blindspots.py backend/tests/test_blindspot_viewer.py`
+- `cd frontend && npx tsc --noEmit`
+- `cd frontend && npm test -- --runInBand blindspot-view.test.tsx`
+- `cd frontend && npx eslint app/page.tsx components/blindspot-view.tsx lib/api.ts __tests__/blindspot-view.test.tsx`
+- `uv run pytest backend/tests/test_blindspot_viewer.py -q` is currently blocked in this environment because `pytest` is not installed in `.venv`.
+
 ## 2026-03-12: Full-Corpus Browse Index Without Frontend Slice Semantics
 
 **Problem:** Main browse views had switched to client-side behavior over paginated article slices. That made list sorting, source grouping, scroll ranking, and browse counts operate on partial windows instead of the full article corpus, so the product no longer behaved like the pre-pagination experience even though the backend still held the full archive.
