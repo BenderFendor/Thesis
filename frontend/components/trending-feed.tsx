@@ -202,7 +202,7 @@ export function TrendingFeed() {
         className="flex flex-col space-y-6"
       >
         {/* Section Header */}
-        <div className="flex items-center justify-between border-b border-white/5 pb-6">
+        <div className="flex items-center justify-between pb-6">
           <div className="flex items-center gap-4">
             <TrendingUp className="w-6 h-6 text-primary/80" />
             <h3 className="font-serif text-4xl md:text-5xl font-bold tracking-tight text-foreground/90">
@@ -314,7 +314,7 @@ function BreakingCard({
   return (
     <button
       onClick={handleClick}
-      className="group relative flex flex-col w-full text-left border border-white/5 bg-black/20 rounded-2xl transition-all duration-500 ease-out hover:border-red-500/30 hover:bg-white/[0.03] shadow-xl hover:shadow-2xl overflow-hidden"
+      className="group relative flex flex-col w-full text-left bg-black/20 rounded-2xl transition-all duration-500 ease-out hover:bg-white/[0.03] shadow-xl hover:shadow-2xl overflow-hidden"
     >
       <div className="absolute top-0 left-0 w-px h-full bg-red-500/40 z-10 shadow-[0_0_20px_rgba(239,68,68,0.4)]" />
       
@@ -423,7 +423,7 @@ function TrendingCard({
   return (
     <button
       onClick={handleClick}
-      className="group relative flex flex-col w-full text-left border border-white/5 bg-black/20 rounded-2xl transition-all duration-500 ease-out hover:border-primary/30 hover:bg-white/[0.03] shadow-xl hover:shadow-2xl overflow-hidden"
+      className="group relative flex flex-col w-full text-left bg-black/20 rounded-2xl transition-all duration-500 ease-out hover:bg-white/[0.03] shadow-xl hover:shadow-2xl overflow-hidden"
     >
       <div className="relative m-2 aspect-video overflow-hidden rounded-xl bg-white/5">
         {showImage ? (

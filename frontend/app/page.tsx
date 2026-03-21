@@ -633,7 +633,7 @@ function NewsPage() {
       )}
 
       <div className={cn("flex-1 flex flex-col min-w-0", currentView === "scroll" ? "h-screen overflow-hidden" : "")}>
-        <header className="sticky top-0 z-40 border-b border-white/5 bg-[var(--news-bg-primary)]/95 px-6 py-4 backdrop-blur supports-[backdrop-filter]:bg-[var(--news-bg-primary)]/80">
+        <header className="sticky top-0 z-40 bg-[var(--news-bg-primary)]/95 px-6 py-4 backdrop-blur supports-[backdrop-filter]:bg-[var(--news-bg-primary)]/80">
           <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
             <div className="flex items-center justify-between lg:justify-start lg:gap-6">
               <div className="flex items-center gap-4">
@@ -740,14 +740,14 @@ function NewsPage() {
         </header>
 
       <main className={cn("flex-1 bg-[var(--news-bg-primary)]", (currentView === "scroll" || currentView === "globe") ? "overflow-hidden" : "")}>
-        <div className={cn("max-w-[1600px] mx-auto grid grid-cols-1 lg:grid-cols-12 gap-0", (currentView === "scroll" || currentView === "globe") ? "h-full" : "")}>
+        <div className={cn("w-full grid grid-cols-1 lg:grid-cols-12 gap-0", (currentView === "scroll" || currentView === "globe") ? "h-full" : "")}>
 
               <section className={cn(
-            "lg:col-span-12 bg-[var(--news-bg-primary)] flex flex-col border-x border-white/10",
+            "lg:col-span-12 bg-[var(--news-bg-primary)] flex flex-col",
             (currentView === "scroll" || isGlobeView) ? "h-full overflow-hidden" : "min-h-[calc(100vh-80px)]"
           )}>
             {!isGlobeView && currentView !== "scroll" && (
-              <div className="relative p-6 border-b border-white/10">
+              <div className="relative p-6">
               <div
                 className="pointer-events-none absolute inset-0 opacity-[0.04] bg-primary"
                 style={{ filter: "url(#halftone-pattern)" }}

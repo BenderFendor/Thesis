@@ -124,7 +124,7 @@ function SourceArticleCard({
       tabIndex={0}
       onClick={() => onArticleClick(article)}
       onKeyDown={handleCardKeyDown}
-      className="group flex h-full min-h-80 w-full flex-col overflow-hidden rounded-2xl border border-white/5 bg-black/20 text-left shadow-xl transition-all duration-500 ease-out hover:border-white/10 hover:bg-white/[0.03] hover:shadow-2xl"
+      className="group flex h-full min-h-80 w-full flex-col overflow-hidden rounded-2xl bg-black/20 text-left shadow-xl transition-all duration-500 ease-out hover:bg-white/[0.03] hover:shadow-2xl"
     >
       <div className="relative m-2 aspect-video overflow-hidden rounded-xl bg-white/5">
         {showImage ? (
@@ -625,8 +625,8 @@ export function GridView({
 
   return (
     <div className="relative flex w-full flex-col overflow-hidden bg-background" style={{ height: "calc(100vh - 140px)" }}>
-      <div className="sticky top-0 z-40 shrink-0 border-b border-white/5 bg-background/80 backdrop-blur-xl">
-        <div className="mx-auto flex w-full flex-col gap-4 px-6 py-4 lg:px-8" style={{ maxWidth: "1800px" }}>
+      <div className="sticky top-0 z-40 shrink-0 bg-background/80 backdrop-blur-xl">
+        <div className="mx-auto flex w-full flex-col gap-4 px-6 py-4 lg:px-8">
           <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
             <div className="relative w-full max-w-xl">
               <Search className="absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground/70" />
@@ -709,7 +709,7 @@ export function GridView({
         ref={containerRef}
         className="flex-1 overflow-y-auto scroll-smooth pb-24"
       >
-        <div className="mx-auto flex w-full flex-col gap-16 px-6 py-8 lg:px-8" style={{ maxWidth: "1800px" }}>
+        <div className="mx-auto flex w-full flex-col gap-16 px-6 py-8 lg:px-8">
           {showTrending && <TrendingFeed />}
 
           {displayArticles.length === 0 && !isLoadingState ? (
@@ -733,7 +733,7 @@ export function GridView({
                   data-source-id={group.sourceId}
                   className="grid-source-group flex flex-col"
                 >
-                  <div className="mb-4 sm:mb-6 flex flex-col gap-3 sm:gap-4 border-b border-white/5 pb-3 sm:pb-4 lg:flex-row lg:items-end lg:justify-between">
+                  <div className="mb-4 sm:mb-6 flex flex-col gap-3 sm:gap-4 pb-3 sm:pb-4 lg:flex-row lg:items-end lg:justify-between">
                     <div className="space-y-2 sm:space-y-3">
                       <div className="flex items-center gap-3 sm:gap-4">
                         <Link
