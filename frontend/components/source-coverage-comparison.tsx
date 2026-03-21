@@ -1,6 +1,7 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useCallback } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { BarChart3, Loader2, RefreshCw } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -20,34 +21,21 @@ export function SourceCoverageComparison({
   sourceNames = {},
   className = "",
 }: SourceCoverageComparisonProps) {
-  const [coverage, setCoverage] = useState<SourceCoverageResponse | null>(null);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-
+  const {
+    data: coverage,
+    isLoading: loading,
+    error,
+    refetch,
+  } = useQuery<SourceCoverageResponse>({
+    queryKey: ["source-coverage", [...sourceIds].sort().join(","), 100],
+    queryFn: () => fetchSourceCoverage(sourceIds, 100),
+    enabled: sourceIds.length >= 2,
+    retry: 1,
+  });
   const loadCoverage = useCallback(async () => {
-    if (sourceIds.length < 2) {
-      setError("Select at least 2 sources to compare");
-      return;
-    }
-
-    setLoading(true);
-    setError(null);
-
-    try {
-      const response = await fetchSourceCoverage(sourceIds, 100);
-      setCoverage(response);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to load");
-    } finally {
-      setLoading(false);
-    }
-  }, [sourceIds]);
-
-  useEffect(() => {
-    if (sourceIds.length >= 2) {
-      loadCoverage();
-    }
-  }, [sourceIds, loadCoverage]);
+    await refetch();
+  }, [refetch]);
+  const errorMessage = error instanceof Error ? error.message : "Failed to load";
 
   if (sourceIds.length < 2) {
     return (
@@ -69,7 +57,7 @@ export function SourceCoverageComparison({
   if (error) {
     return (
       <div className={`${className}`}>
-        <p className="text-sm text-rose-400 mb-2">{error}</p>
+        <p className="text-sm text-rose-400 mb-2">{errorMessage}</p>
         <Button variant="outline" size="sm" onClick={loadCoverage}>
           <RefreshCw className="w-3 h-3 mr-2" />
           Retry

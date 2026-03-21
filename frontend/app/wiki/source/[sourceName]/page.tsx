@@ -1,8 +1,9 @@
 "use client";
 
-import { useEffect, useState, useMemo } from "react";
+import { useState, useMemo } from "react";
 import { useParams } from "next/navigation";
 import Link from "next/link";
+import { useQuery } from "@tanstack/react-query";
 import {
   ChevronLeft,
   Loader2,
@@ -228,28 +229,18 @@ export default function SourceWikiPage() {
   const params = useParams();
   const sourceName = decodeURIComponent(params.sourceName as string);
 
-  const [data, setData] = useState<WikiSourceProfile | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
   const [indexing, setIndexing] = useState(false);
-
-  useEffect(() => {
-    let cancelled = false;
-    async function load() {
-      try {
-        setLoading(true);
-        setError(null);
-        const result = await fetchWikiSource(sourceName);
-        if (!cancelled) setData(result);
-      } catch (err) {
-        if (!cancelled) setError(err instanceof Error ? err.message : "Failed to load");
-      } finally {
-        if (!cancelled) setLoading(false);
-      }
-    }
-    load();
-    return () => { cancelled = true; };
-  }, [sourceName]);
+  const {
+    data,
+    isLoading: loading,
+    error,
+    refetch,
+  } = useQuery<WikiSourceProfile>({
+    queryKey: ["wiki-source", sourceName],
+    queryFn: () => fetchWikiSource(sourceName),
+    retry: 1,
+  });
+  const errorMessage = error instanceof Error ? error.message : "Failed to load";
 
   // Radar chart data
   const radarData = useMemo(() => {
@@ -273,8 +264,7 @@ export default function SourceWikiPage() {
     setIndexing(true);
     try {
       await triggerWikiIndex(sourceName);
-      const result = await fetchWikiSource(sourceName);
-      setData(result);
+      await refetch();
     } catch {
       // silent fail, user can retry
     } finally {
@@ -302,7 +292,7 @@ export default function SourceWikiPage() {
           </div>
         </header>
         <div className="container mx-auto px-4 py-20 text-center">
-          <p className="text-red-400">{error || "Source not found"}</p>
+          <p className="text-red-400">{errorMessage || "Source not found"}</p>
           <Link href="/wiki" className="text-sm text-blue-400 hover:underline mt-2 inline-block">
             Back to wiki
           </Link>

@@ -259,6 +259,11 @@ export function GridView({
   const [sourceBatchCount, setSourceBatchCount] = useState(1)
   const containerRef = useRef<HTMLDivElement | null>(null)
 
+  const resetSourceBrowseState = useCallback(() => {
+    setSourceBatchCount(1)
+    setExpandedSourceId(null)
+  }, [])
+
   const formatKeywordLabel = useCallback((keywords?: string[]) => {
     if (!keywords || keywords.length === 0) return null
     return keywords.map((word) => word.charAt(0).toUpperCase() + word.slice(1)).join(" ")
@@ -402,11 +407,6 @@ export function GridView({
     if (viewMode !== "source") return
     onCountChange?.(collapsedVisibleArticleCount)
   }, [collapsedVisibleArticleCount, onCountChange, viewMode])
-
-  useEffect(() => {
-    setSourceBatchCount(1)
-    setExpandedSourceId(null)
-  }, [searchTerm, viewMode])
 
   useEffect(() => {
     setSourceBatchCount((prev) => {
@@ -581,7 +581,10 @@ export function GridView({
                 type="text"
                 placeholder="Search articles..."
                 value={searchTerm}
-                onChange={(event) => setSearchTerm(event.target.value)}
+                onChange={(event) => {
+                  resetSourceBrowseState()
+                  setSearchTerm(event.target.value)
+                }}
                 className="w-full rounded-xl bg-white/5 px-10 py-2.5 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-primary/50"
               />
             </div>
@@ -631,7 +634,10 @@ export function GridView({
                 type="text"
                 placeholder="Search intelligence..."
                 value={searchTerm}
-                onChange={(event) => setSearchTerm(event.target.value)}
+                onChange={(event) => {
+                  resetSourceBrowseState()
+                  setSearchTerm(event.target.value)
+                }}
                 className="w-full rounded-xl bg-white/5 px-10 py-2 text-sm text-foreground placeholder:text-muted-foreground/50 transition-all focus:outline-none focus:ring-1 focus:ring-primary/50"
               />
             </div>
@@ -642,6 +648,7 @@ export function GridView({
                   variant={viewMode === "source" ? "default" : "ghost"}
                   size="sm"
                   onClick={() => {
+                    resetSourceBrowseState()
                     setViewMode("source")
                     onViewModeChange?.("source")
                   }}
@@ -659,6 +666,7 @@ export function GridView({
                   variant={viewMode === "topic" ? "default" : "ghost"}
                   size="sm"
                   onClick={() => {
+                    resetSourceBrowseState()
                     setViewMode("topic")
                     onViewModeChange?.("topic")
                   }}

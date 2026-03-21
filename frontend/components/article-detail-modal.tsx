@@ -1,6 +1,7 @@
 "use client"
 
 import { useState, useEffect, useMemo, useRef, useCallback } from "react"
+import { useQuery } from "@tanstack/react-query"
 import { AnimatePresence, motion } from "framer-motion"
 import { logUserAction } from "@/lib/performance-logger"
 import Link from "next/link"
@@ -9,9 +10,9 @@ import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
 import { type NewsArticle, getSourceById, type NewsSource, fetchSourceDebugData, type SourceDebugData, analyzeArticle, type ArticleAnalysis, API_BASE_URL, performAgenticSearch, type FactCheckResult, type Highlight, getHighlightsForArticle, createHighlight, updateHighlight, deleteHighlight } from "@/lib/api"
+import { useDebugMode } from "@/hooks/useDebugMode"
 import { useLikedArticles } from "@/hooks/useLikedArticles"
 import { loadHighlightStore, mergeHighlights, saveHighlightStore, toRemoteHighlights, type LocalHighlight, type HighlightSyncStatus, generateClientId, markFailed, markPending, markSynced, createHighlightFingerprint, dedupeLocalHighlights } from "@/lib/highlight-store"
-import { isDebugMode } from "@/lib/logger"
 import { useReadingQueue } from "@/hooks/useReadingQueue"
 import { useFavorites } from "@/hooks/useFavorites"
 import { useReadingHistory } from "@/hooks/useReadingHistory"
@@ -69,6 +70,43 @@ const getArticleCacheKey = (article: NewsArticle) => {
   return `article_${article.id}`
 }
 
+async function fetchFullArticleText(
+  article: NewsArticle,
+  articleCacheKey: string,
+  signal?: AbortSignal,
+): Promise<string | null> {
+  const cached = fullArticleCache.get(articleCacheKey)
+  if (cached !== undefined) {
+    return cached
+  }
+
+  const initialText = getInitialArticleText(article)
+  if (!isExtractableUrl(article.url)) {
+    fullArticleCache.set(articleCacheKey, initialText)
+    return initialText
+  }
+
+  try {
+    const response = await fetch(`${API_BASE_URL}/article/extract?url=${encodeURIComponent(article.url)}`, {
+      signal,
+    })
+    if (!response.ok) {
+      return initialText
+    }
+
+    const data = await response.json()
+    const extractedText = data.text || data.full_text || null
+    const resolvedText = extractedText || initialText
+    fullArticleCache.set(articleCacheKey, resolvedText)
+    return resolvedText
+  } catch (error) {
+    if ((error as Error).name !== "AbortError") {
+      console.error("Failed to fetch full article:", error)
+    }
+    return initialText
+  }
+}
+
 interface ArticleDetailModalProps {
   article: NewsArticle | null
   isOpen: boolean
@@ -78,19 +116,30 @@ interface ArticleDetailModalProps {
   layoutIdPrefix?: string
 }
 
-export function ArticleDetailModal({ article, isOpen, onClose, onBookmarkChange, onNavigate, layoutIdPrefix }: ArticleDetailModalProps) {
+export function ArticleDetailModal(props: ArticleDetailModalProps) {
+  const { article, isOpen } = props
+  if (!isOpen || !article) return null
+
+  return (
+    <ArticleDetailModalContent
+      key={`${article.id}:${article.url}`}
+      {...props}
+      article={article}
+    />
+  )
+}
+
+function ArticleDetailModalContent({ article, isOpen, onClose, onBookmarkChange, onNavigate, layoutIdPrefix }: ArticleDetailModalProps & { article: NewsArticle }) {
   const { isLiked, toggleLike } = useLikedArticles()
   const { isBookmarked, toggleBookmark } = useBookmarks()
   const { addArticleToQueue, removeArticleFromQueue, isArticleInQueue, queuedArticles } = useReadingQueue()
   const { isFavorite, toggleFavorite } = useFavorites()
   const { markAsRead } = useReadingHistory()
   const [showSourceDetails, setShowSourceDetails] = useState(false)
-  const [source, setSource] = useState<NewsSource | null>(null)
-  const [sourceLoading, setSourceLoading] = useState(false)
   const [debugOpen, setDebugOpen] = useState(false)
   const [debugLoading, setDebugLoading] = useState(false)
   const [debugData, setDebugData] = useState<SourceDebugData | null>(null)
-  const [debugMode, setDebugModeState] = useState(false)
+  const debugMode = useDebugMode()
   const [matchedEntryIndex, setMatchedEntryIndex] = useState<number | null>(null)
   const [aiAnalysisLoading, setAiAnalysisLoading] = useState(false)
   const [aiAnalysis, setAiAnalysis] = useState<ArticleAnalysis | null>(null)
@@ -109,8 +158,6 @@ export function ArticleDetailModal({ article, isOpen, onClose, onBookmarkChange,
     if (active instanceof HTMLElement && active.isContentEditable) return true
     return false
   }
-  const [fullArticleText, setFullArticleText] = useState<string | null>(null)
-  const [articleLoading, setArticleLoading] = useState(false)
   const [bookmarkLoading, setBookmarkLoading] = useState(false)
   const [claimsOpen, setClaimsOpen] = useState(false)
   const [activeStatusFilter, setActiveStatusFilter] = useState<FactCheckStatusFilter>("all")
@@ -138,11 +185,25 @@ export function ArticleDetailModal({ article, isOpen, onClose, onBookmarkChange,
   const [articleScrollProgress, setArticleScrollProgress] = useState(0)
   const [wikiPanelOpen, setWikiPanelOpen] = useState(false)
   const [wikiPanelTab, setWikiPanelTab] = useState<"source" | "reporter">("source")
-
-  useEffect(() => {
-    setWikiPanelOpen(false)
-    setWikiPanelTab("source")
-  }, [isOpen, article?.id, article?.url])
+  const articleCacheKey = getArticleCacheKey(article)
+  const {
+    data: source,
+    isLoading: sourceLoading,
+  } = useQuery<NewsSource | null>({
+    queryKey: ["source", article.sourceId],
+    queryFn: async () => (await getSourceById(article.sourceId)) || null,
+    retry: 1,
+  })
+  const {
+    data: fullArticleText,
+    isFetching: articleLoading,
+  } = useQuery<string | null>({
+    queryKey: ["article-full-text", articleCacheKey],
+    queryFn: ({ signal }) => fetchFullArticleText(article, articleCacheKey, signal),
+    placeholderData: getInitialArticleText(article),
+    retry: 1,
+    staleTime: 1000 * 60 * 5,
+  })
 
   const pushToHistory = useCallback((currentHighlights: LocalHighlight[]) => {
     setHighlightsHistory((prev) => [...prev, currentHighlights].slice(-20)) // keep last 20 states
@@ -332,39 +393,6 @@ export function ArticleDetailModal({ article, isOpen, onClose, onBookmarkChange,
     }
   }
 
-  useEffect(() => {
-    const loadSource = async () => {
-      if (!article) return
-
-      setSourceLoading(true)
-      try {
-        const fetchedSource = await getSourceById(article.sourceId)
-        setSource(fetchedSource || null)
-      } catch (error) {
-        console.error('Failed to load source:', error)
-        setSource(null)
-      } finally {
-        setSourceLoading(false)
-      }
-    }
-
-    if (isOpen && article) {
-      loadSource()
-    }
-  }, [isOpen, article])
-
-  useEffect(() => {
-    setDebugModeState(isDebugMode())
-    const handleStorage = (event: StorageEvent) => {
-      if (event.key === "thesis_debug_mode") {
-        setDebugModeState(isDebugMode())
-      }
-    }
-    window.addEventListener("storage", handleStorage)
-    return () => window.removeEventListener("storage", handleStorage)
-  }, [])
-
-
   // Track reading history when article is opened
   useEffect(() => {
     if (isOpen && article && typeof article.id === "number") {
@@ -390,93 +418,6 @@ export function ArticleDetailModal({ article, isOpen, onClose, onBookmarkChange,
     window.addEventListener("keydown", handleKeyDown)
     return () => window.removeEventListener("keydown", handleKeyDown)
   }, [isOpen, isExpanded, onNavigate])
-
-  const articleCacheKey = useMemo(() => {
-    if (!article) return null
-    return getArticleCacheKey(article)
-  }, [article?.id, article?.url])
-
-  // Load full article text immediately when modal opens
-  useEffect(() => {
-    const abortController = new AbortController()
-
-    if (!isOpen || !article || !articleCacheKey) {
-      setFullArticleText(null)
-      setArticleLoading(false)
-      return () => abortController.abort()
-    }
-
-    const loadFullArticle = async () => {
-      const cached = fullArticleCache.get(articleCacheKey)
-      if (cached !== undefined) {
-        setFullArticleText(cached)
-        setArticleLoading(false)
-        return
-      }
-
-      setArticleLoading(true)
-      setFullArticleText(getInitialArticleText(article))
-
-      try {
-        if (!isExtractableUrl(article.url)) {
-          const initialText = getInitialArticleText(article)
-          fullArticleCache.set(articleCacheKey, initialText)
-          setArticleLoading(false)
-          return
-        }
-        // Use the newspaper library endpoint to get full article text
-        const response = await fetch(`${API_BASE_URL}/article/extract?url=${encodeURIComponent(article.url)}`, {
-          signal: abortController.signal
-        })
-        if (response.ok) {
-          const data = await response.json()
-          const extractedText = data.text || data.full_text || null
-          if (extractedText) {
-            fullArticleCache.set(articleCacheKey, extractedText)
-          }
-          setFullArticleText(extractedText || getInitialArticleText(article))
-        }
-      } catch (e) {
-        if ((e as Error).name !== "AbortError") {
-          console.error('Failed to fetch full article:', e)
-        }
-      } finally {
-        setArticleLoading(false)
-      }
-    }
-
-    loadFullArticle()
-    return () => abortController.abort()
-  }, [articleCacheKey, isOpen, article])
-
-  // Reset state when article changes or modal opens
-  useEffect(() => {
-    setDebugOpen(false)
-    setDebugData(null)
-    setMatchedEntryIndex(null)
-    setAiAnalysis(null)
-    setClaimsOpen(false)
-    setSelectedClaim(null)
-    setAgenticAnswer(null)
-    setAgenticError(null)
-    setAgenticHistory([])
-    setActiveStatusFilter("all")
-    setAiAnalysisRequested(false)
-  }, [article?.id, article?.url, isOpen])
-
-  useEffect(() => {
-    if (!claimsOpen) {
-      setSelectedClaim(null)
-      setAgenticAnswer(null)
-      setAgenticError(null)
-      setActiveStatusFilter("all")
-      return
-    }
-
-    if (!selectedClaim && aiAnalysis?.fact_check_results?.length) {
-      setSelectedClaim(aiAnalysis.fact_check_results[0])
-    }
-  }, [claimsOpen, aiAnalysis?.fact_check_results, selectedClaim])
 
   const loadDebug = async () => {
     if (!article) return
@@ -716,6 +657,20 @@ export function ArticleDetailModal({ article, isOpen, onClose, onBookmarkChange,
     if (!hasReporterWiki) return
     setWikiPanelTab("reporter")
     setWikiPanelOpen(true)
+  }
+  const handleClaimsOpenChange = (open: boolean) => {
+    setClaimsOpen(open)
+    if (!open) {
+      setSelectedClaim(null)
+      setAgenticAnswer(null)
+      setAgenticError(null)
+      setActiveStatusFilter("all")
+      return
+    }
+
+    if (!selectedClaim && factCheckResults.length > 0) {
+      setSelectedClaim(factCheckResults[0])
+    }
   }
   const visibleHighlights = useMemo(
     () => toRemoteHighlights(highlights.filter((h) => !h.deleted)),
@@ -1700,7 +1655,7 @@ export function ArticleDetailModal({ article, isOpen, onClose, onBookmarkChange,
 
                       {/* Fact Check Results Preview */}
                       {factCheckResults.length > 0 && (
-                        <Dialog open={claimsOpen} onOpenChange={setClaimsOpen}>
+                        <Dialog open={claimsOpen} onOpenChange={handleClaimsOpenChange}>
                           <DialogTrigger asChild>
                             <button
                               type="button"

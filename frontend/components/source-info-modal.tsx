@@ -2,7 +2,8 @@
 
 import type React from "react"
 
-import { useState, useEffect } from "react"
+import { useQuery } from "@tanstack/react-query"
+import { useState } from "react"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -10,7 +11,7 @@ import { Card, CardContent } from "@/components/ui/card"
 import { ExternalLink, MapPin, DollarSign, Globe, AlertCircle } from "lucide-react"
 import { getSourceById, fetchSources, type NewsSource } from "@/lib/api"
 import SourceDebug from "@/components/source-debug"
-import { isDebugMode } from "@/lib/logger"
+import { useDebugMode } from "@/hooks/useDebugMode"
 
 interface SourceInfoModalProps {
   sourceId: string
@@ -19,44 +20,25 @@ interface SourceInfoModalProps {
 
 export function SourceInfoModal({ sourceId, children }: SourceInfoModalProps) {
   const [isOpen, setIsOpen] = useState(false)
-  const [source, setSource] = useState<NewsSource | null>(null)
-  const [loading, setLoading] = useState(false)
   const [debugSource, setDebugSource] = useState<NewsSource | null>(null)
   const [showDebug, setShowDebug] = useState(false)
-  const [debugMode, setDebugModeState] = useState(false)
-
-  useEffect(() => {
-    const loadSource = async () => {
-      if (!isOpen || !sourceId) return
-      setLoading(true)
-      try {
-        const fetchedSource = await getSourceById(sourceId)
-        setSource(fetchedSource || null)
-      } catch (error) {
-        console.error('Failed to load source:', error)
-        setSource(null)
-      } finally {
-        setLoading(false)
-      }
-    }
-    loadSource()
-  }, [isOpen, sourceId])
-
-  useEffect(() => {
-    setDebugModeState(isDebugMode())
-    const handleStorage = (event: StorageEvent) => {
-      if (event.key === "thesis_debug_mode") {
-        setDebugModeState(isDebugMode())
-      }
-    }
-    window.addEventListener("storage", handleStorage)
-    return () => window.removeEventListener("storage", handleStorage)
-  }, [])
+  const debugMode = useDebugMode()
+  const [debugLoading, setDebugLoading] = useState(false)
+  const {
+    data: source,
+    isLoading: sourceLoading,
+  } = useQuery<NewsSource | null>({
+    queryKey: ["source-info", sourceId],
+    queryFn: async () => (await getSourceById(sourceId)) || null,
+    enabled: isOpen && Boolean(sourceId),
+    retry: 1,
+  })
+  const loading = sourceLoading || debugLoading
 
   // Debug: fetch all sources and show the raw object for this sourceId
   const handleDebugView = async () => {
     setShowDebug(true)
-    setLoading(true)
+    setDebugLoading(true)
     try {
       const allSources = await fetchSources()
       const found = allSources.find((s) => s.id === sourceId)
@@ -64,11 +46,9 @@ export function SourceInfoModal({ sourceId, children }: SourceInfoModalProps) {
     } catch (e) {
       setDebugSource(null)
     } finally {
-      setLoading(false)
+      setDebugLoading(false)
     }
   }
-
-  if (!source) return <>{children}</>
 
   const getBiasColor = (bias: string) => {
     switch (bias) {
@@ -103,7 +83,7 @@ export function SourceInfoModal({ sourceId, children }: SourceInfoModalProps) {
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <Globe className="w-5 h-5" />
-            Source Information: {source?.name || 'Loading...'}
+            Source Information: {source?.name || "Loading..."}
           </DialogTitle>
         </DialogHeader>
 

@@ -1,7 +1,8 @@
 "use client";
 
-import { useEffect, useState, useRef, useCallback } from "react";
+import { useEffect, useState, useRef, useCallback, useMemo } from "react";
 import Link from "next/link";
+import { useQuery } from "@tanstack/react-query";
 import { ChevronLeft, Loader2, Maximize2, Minimize2 } from "lucide-react";
 import { fetchWikiOwnershipGraph, type WikiOwnershipGraph } from "@/lib/api";
 
@@ -142,31 +143,20 @@ function runSimulation(
 // ── Main Page ────────────────────────────────────────────────────────
 
 export default function OwnershipGraphPage() {
-  const [graphData, setGraphData] = useState<WikiOwnershipGraph | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
   const [fullscreen, setFullscreen] = useState(false);
   const [hoveredNode, setHoveredNode] = useState<SimNode | null>(null);
-  const [simulatedNodes, setSimulatedNodes] = useState<SimNode[]>([]);
   const [dimensions, setDimensions] = useState({ width: 1200, height: 700 });
   const containerRef = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    let cancelled = false;
-    async function load() {
-      try {
-        setLoading(true);
-        const data = await fetchWikiOwnershipGraph();
-        if (!cancelled) setGraphData(data);
-      } catch (err) {
-        if (!cancelled) setError(err instanceof Error ? err.message : "Failed to load graph");
-      } finally {
-        if (!cancelled) setLoading(false);
-      }
-    }
-    load();
-    return () => { cancelled = true; };
-  }, []);
+  const {
+    data: graphData,
+    isLoading: loading,
+    error,
+  } = useQuery<WikiOwnershipGraph>({
+    queryKey: ["wiki-ownership-graph"],
+    queryFn: fetchWikiOwnershipGraph,
+    retry: 1,
+  });
+  const errorMessage = error instanceof Error ? error.message : "Failed to load graph";
 
   // Measure container
   useEffect(() => {
@@ -181,10 +171,8 @@ export default function OwnershipGraphPage() {
     return () => window.removeEventListener("resize", measure);
   }, [fullscreen]);
 
-  // Run simulation when data or dimensions change
-  useEffect(() => {
-    if (!graphData || graphData.nodes.length === 0) return;
-
+  const simulatedNodes = useMemo(() => {
+    if (!graphData || graphData.nodes.length === 0) return [];
     const simNodes: SimNode[] = graphData.nodes.map((n) => ({
       id: n.id,
       label: n.label,
@@ -206,8 +194,7 @@ export default function OwnershipGraphPage() {
       percentage: e.percentage as number | undefined,
     }));
 
-    const result = runSimulation(simNodes, simEdges, dimensions.width, dimensions.height);
-    setSimulatedNodes(result);
+    return runSimulation(simNodes, simEdges, dimensions.width, dimensions.height);
   }, [graphData, dimensions]);
 
   const getNodeById = useCallback(
@@ -262,7 +249,7 @@ export default function OwnershipGraphPage() {
 
         {error && (
           <div className="absolute inset-0 flex items-center justify-center">
-            <div className="border border-red-800/40 bg-red-950/20 p-4 text-sm text-red-300">{error}</div>
+        <div className="border border-red-800/40 bg-red-950/20 p-4 text-sm text-red-300">{errorMessage}</div>
           </div>
         )}
 

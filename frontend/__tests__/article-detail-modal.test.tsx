@@ -1,8 +1,9 @@
 import React from "react";
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, screen, waitFor } from "@testing-library/react";
 
 import { ArticleDetailModal } from "@/components/article-detail-modal";
 import type { NewsArticle } from "@/lib/api";
+import { renderWithQueryClient } from "@/test-utils/render-with-query-client";
 
 jest.mock("next/link", () => {
   return function MockLink({ href, children, ...props }: { href: string; children: React.ReactNode }) {
@@ -223,7 +224,7 @@ describe("ArticleDetailModal", () => {
   });
 
   it("renders the reporter label from article.author", async () => {
-    render(
+    renderWithQueryClient(
       <ArticleDetailModal
         article={{ ...baseArticle, author: "Zhiqun Zhu", authors: ["Zhiqun Zhu"] }}
         isOpen={true}
@@ -240,7 +241,7 @@ describe("ArticleDetailModal", () => {
   });
 
   it("falls back to the first non-empty entry in article.authors", async () => {
-    render(
+    renderWithQueryClient(
       <ArticleDetailModal
         article={{ ...baseArticle, id: 2, url: "article-2", author: "", authors: ["", "Taylor Smith", "Another Name"] }}
         isOpen={true}
@@ -252,7 +253,7 @@ describe("ArticleDetailModal", () => {
   });
 
   it("resets the wiki sheet after the modal closes or switches articles", async () => {
-    const { rerender } = render(
+    const { rerender } = renderWithQueryClient(
       <ArticleDetailModal
         article={{ ...baseArticle, author: "Zhiqun Zhu", authors: ["Zhiqun Zhu"] }}
         isOpen={true}

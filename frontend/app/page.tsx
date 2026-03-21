@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef, useCallback, useMemo, type KeyboardEvent } from "react"
 import dynamic from "next/dynamic"
-import Image from "next/image"
+import { useQuery } from "@tanstack/react-query"
 import { Button } from "@/components/ui/button"
 import { Skeleton } from "@/components/ui/skeleton"
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
@@ -43,11 +43,12 @@ const GlobeView = dynamic(
 )
 
 import { useNewsStream } from "@/hooks/useNewsStream"
+import { useDebugMode } from "@/hooks/useDebugMode"
 import { useFavorites } from "@/hooks/useFavorites"
 import { useBrowseIndex } from "@/hooks/useBrowseIndex"
 import { useSourceFilter } from "@/hooks/useSourceFilter"
 import { fetchCategories, NewsArticle } from "@/lib/api"
-import { isDebugMode, logger } from "@/lib/logger"
+import { logger } from "@/lib/logger"
 import { ErrorBoundary } from '@/components/ErrorBoundary';
 import { NotificationsPopup, Notification, type NotificationActionType } from '@/components/notification-popup';
 import { SourceSidebar } from "@/components/source-sidebar";
@@ -90,7 +91,6 @@ const HalftoneOverlay = () => (
 
 function NewsPage() {
   const [currentView, setCurrentView] = useState<ViewMode>("grid")
-  const [categories, setCategories] = useState<{ id: string; label: string; icon: React.ElementType }[]>([]);
   const [activeCategory, setActiveCategory] = useState<string>("all")
   const [articleCount, setArticleCount] = useState<number>(0)
   const [showNotifications, setShowNotifications] = useState(false);
@@ -98,10 +98,9 @@ function NewsPage() {
 // Remove trendingOpen state as it is no longer used
 // const [trendingOpen, setTrendingOpen] = useState(false);
   const alertsButtonRef = useRef<HTMLButtonElement>(null);
-  const [leadArticle, setLeadArticle] = useState<NewsArticle | null>(null);
   const [leadModalOpen, setLeadModalOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
-  const [debugMode, setDebugModeState] = useState(false);
+  const debugMode = useDebugMode();
   const [sortMode, setSortMode] = useState<"favorites" | "newest" | "oldest" | "source-freshness">("favorites");
   const [topicSortMode, setTopicSortMode] = useState<"sources" | "articles" | "recent">("sources");
   const [gridMode, setGridMode] = useState<"source" | "topic">(() => {
@@ -113,8 +112,7 @@ function NewsPage() {
   const [articlesByCategory, setArticlesByCategory] = useState<Record<string, NewsArticle[]>>({
     all: [],
   })
-  const [loading, setLoading] = useState(true)
-  const [apiUrl, setApiUrl] = useState<string | null>(null)
+  const [globeLoading, setGlobeLoading] = useState(true)
   const router = useRouter()
 
   // Source filtering and favorites
@@ -133,36 +131,23 @@ function NewsPage() {
     sources: selectedSourceIds.length > 0 ? selectedSourceIds : undefined,
     enabled: currentView !== "globe",
   })
-
-  // Fetch categories in background, don't block stream
-  useEffect(() => {
-    const getCategories = async () => {
-      try {
-        const backendCategories = await fetchCategories();
-        // Deduplicate categories to prevent duplicate React keys
-        const uniqueCategories = Array.from(new Set(["all", ...backendCategories]));
-        const allCategories = uniqueCategories.map(cat => ({
-          id: cat,
-          label: cat.charAt(0).toUpperCase() + cat.slice(1),
-          icon: categoryIcons[cat] || Newspaper,
-        }));
-        setCategories(allCategories);
-        setArticlesByCategory(
-          allCategories.reduce((acc, cat) => ({ ...acc, [cat.id]: [] }), {})
-        );
-      } catch (error) {
-        console.error('Failed to fetch categories:', error);
-      }
-    };
-    getCategories();
-  }, []);
+  const categoriesQuery = useQuery<string[]>({
+    queryKey: ["categories"],
+    queryFn: fetchCategories,
+    retry: 1,
+  })
+  const categories = useMemo(() => {
+    const backendCategories = categoriesQuery.data ?? []
+    const uniqueCategories = Array.from(new Set(["all", ...backendCategories]))
+    return uniqueCategories.map((cat) => ({
+      id: cat,
+      label: cat.charAt(0).toUpperCase() + cat.slice(1),
+      icon: categoryIcons[cat] || Newspaper,
+    }))
+  }, [categoriesQuery.data])
 
   useEffect(() => {
-    setDebugModeState(isDebugMode());
     const handleStorage = (event: StorageEvent) => {
-      if (event.key === "thesis_debug_mode") {
-        setDebugModeState(isDebugMode());
-      }
       if (event.key === "viewMode") {
         const value = event.newValue as "source" | "topic" | null
         if (value === "source" || value === "topic") {
@@ -183,17 +168,17 @@ function NewsPage() {
       ...prev,
       [activeCategoryRef.current]: newArticles
     }));
-    setLoading(false);
+    setGlobeLoading(false);
   }, []);
 
   const onComplete = useCallback((result: { articles: NewsArticle[] }) => {
-    setLoading(false);
+    setGlobeLoading(false);
     setArticleCount(result.articles.length);
   }, []);
 
   const onError = useCallback((error: string) => {
     console.error(`Stream error for ${activeCategoryRef.current}:`, error);
-    setLoading(false);
+    setGlobeLoading(false);
   }, []);
 
   const sortArticles = useCallback(
@@ -275,63 +260,43 @@ function NewsPage() {
     onUpdate,
     onComplete,
     onError,
-    autoStart: false
   });
-
-  const streamIsActiveRef = useRef(streamHook.isStreaming);
-  const abortStreamRef = useRef(streamHook.abortStream);
-  const startStreamRef = useRef(streamHook.startStream);
-
-  useEffect(() => {
-    streamIsActiveRef.current = streamHook.isStreaming;
-    abortStreamRef.current = streamHook.abortStream;
-    startStreamRef.current = streamHook.startStream;
-  }, [streamHook.isStreaming, streamHook.abortStream, streamHook.startStream]);
+  const apiUrl = streamHook.apiUrl ?? null
 
   useEffect(() => {
     if (currentView !== "globe") return
 
     const loadCategory = async () => {
-      if (streamIsActiveRef.current) {
-        abortStreamRef.current(true);
+      if (streamHook.isStreaming) {
+        streamHook.abortStream(true);
       }
 
-      setLoading(true);
+      setGlobeLoading(true);
       setArticlesByCategory(prev => ({ ...prev, [activeCategory]: [] }));
       
       try {
-        await startStreamRef.current({
+        await streamHook.startStream({
           category: activeCategory === 'all' ? undefined : activeCategory
         });
       } catch (error) {
         console.error('Failed to load articles:', error);
       } finally {
-        setLoading(false);
+        setGlobeLoading(false);
       }
     };
 
     loadCategory();
-  }, [activeCategory, currentView]);
-
-  useEffect(() => {
-    if (streamHook.apiUrl) {
-      setApiUrl(streamHook.apiUrl);
-    }
-  }, [streamHook.apiUrl]);
-
-  useEffect(() => {
-    if (currentView === "globe") {
-      setLoading(streamHook.isStreaming || articlesByCategory[activeCategory]?.length === 0)
-      return
-    }
-
-    setLoading(browseIndexLoading)
-  }, [currentView, streamHook.isStreaming, articlesByCategory, activeCategory, browseIndexLoading])
+  }, [activeCategory, currentView, streamHook]);
 
   useEffect(() => {
     if (currentView === "globe") return
     setArticleCount(browseIndexTotalCount || browseArticles.length)
   }, [browseArticles.length, currentView, browseIndexTotalCount])
+
+  const loading =
+    currentView === "globe"
+      ? globeLoading || (streamHook.isStreaming && (articlesByCategory[activeCategory]?.length ?? 0) === 0)
+      : browseIndexLoading
 
 
   const handleClearNotification = (id: string) => {
@@ -481,13 +446,7 @@ function NewsPage() {
     [notifications]
   );
 
-  useEffect(() => {
-    if (activeViewArticles.length > 0) {
-      setLeadArticle(activeViewArticles[0])
-    } else {
-      setLeadArticle(null)
-    }
-  }, [activeViewArticles])
+  const leadArticle = activeViewArticles[0] ?? null
 
   const handleRetry = () => {
     if (currentView === "globe") {
@@ -495,11 +454,11 @@ function NewsPage() {
         ...prev,
         [activeCategory]: []
       }));
-      setLoading(true);
+      setGlobeLoading(true);
       streamHook.startStream({ 
         category: activeCategory === 'all' ? undefined : activeCategory 
       }).finally(() => {
-        setLoading(false);
+        setGlobeLoading(false);
       });
       return;
     }

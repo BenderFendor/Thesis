@@ -1,6 +1,7 @@
 "use client";
 
-import { useState, useEffect, useMemo } from "react";
+import { useState, useMemo } from "react";
+import { useQuery } from "@tanstack/react-query";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -18,16 +19,13 @@ interface SourceSidebarProps {
 }
 
 export function SourceSidebar({ isOpen, onClose, sourceRecency }: SourceSidebarProps) {
-  const [sources, setSources] = useState<NewsSource[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [loadError, setLoadError] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
   const [expandedSections, setExpandedSections] = useState({
     favorites: true,
     allSources: true,
   });
 
-  const { favorites, toggleFavorite, isFavorite } = useFavorites();
+  const { toggleFavorite, isFavorite } = useFavorites();
   const {
     selectedSources,
     toggleSource,
@@ -37,30 +35,18 @@ export function SourceSidebar({ isOpen, onClose, sourceRecency }: SourceSidebarP
     getSelectionCount,
     isFilterActive,
   } = useSourceFilter();
-
-  // Load sources on mount
-  useEffect(() => {
-    const loadSources = async () => {
-      try {
-        setLoading(true);
-        setLoadError(null);
-        const fetchedSources = await fetchSources();
-        setSources(fetchedSources);
-      } catch (error) {
-        console.error("Failed to load sources:", error);
-        setLoadError(
-          error instanceof Error ? error.message : "Failed to load sources.",
-        );
-        setSources([]);
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    if (isOpen) {
-      loadSources();
-    }
-  }, [isOpen]);
+  const {
+    data: sources = [],
+    isLoading: loading,
+    error,
+    refetch,
+  } = useQuery<NewsSource[]>({
+    queryKey: ["all-sources"],
+    queryFn: fetchSources,
+    enabled: isOpen,
+    retry: 1,
+  });
+  const loadError = error instanceof Error ? error.message : null;
 
   // Get favorite sources
   const favoriteSources = useMemo(() => {
@@ -247,10 +233,10 @@ export function SourceSidebar({ isOpen, onClose, sourceRecency }: SourceSidebarP
               <Button
                 variant="outline"
                 size="sm"
-                onClick={() => setLoadError(null)}
+                onClick={() => void refetch()}
                 className="w-full rounded-none border-white/10"
               >
-                Dismiss
+                Retry
               </Button>
             </div>
           ) : (

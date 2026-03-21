@@ -1,5 +1,6 @@
 "use client"
 
+import { useQuery } from "@tanstack/react-query"
 import { useEffect, useMemo, useRef, useState } from "react"
 import * as THREE from "three"
 import dynamic from "next/dynamic"
@@ -415,9 +416,25 @@ export function InteractiveGlobe({
   const globeEl = useRef<GlobeMethods | undefined>(undefined)
   const containerRef = useRef<HTMLDivElement | null>(null)
   const [dimensions, setDimensions] = useState({ width: 0, height: 0 })
-  const [countries, setCountries] = useState<CountryFeatureCollection>({ features: [] })
   const [hoverD, setHoverD] = useState<CountryFeature | null>(null)
   const [isGlobeReady, setIsGlobeReady] = useState(false)
+  const countriesQuery = useQuery<CountryFeatureCollection>({
+    queryKey: ["globe-countries"],
+    queryFn: async () => {
+      const response = await fetch("https://raw.githubusercontent.com/vasturiano/react-globe.gl/master/example/datasets/ne_110m_admin_0_countries.geojson")
+      const data: unknown = await response.json()
+      if (
+        typeof data === "object" &&
+        data !== null &&
+        Array.isArray((data as { features?: unknown }).features)
+      ) {
+        return { features: (data as { features: CountryFeature[] }).features }
+      }
+      return { features: [] }
+    },
+    retry: 1,
+  })
+  const countries = countriesQuery.data ?? { features: [] }
 
   const customGlobeMaterial = useMemo(() => {
     const placeholderDay = createPlaceholderTexture([5, 16, 34, 255], { color: true })
@@ -455,23 +472,6 @@ export function InteractiveGlobe({
   useEffect(() => {
     setLightingModeUniform(customGlobeMaterial, lightingMode)
   }, [customGlobeMaterial, lightingMode])
-
-  useEffect(() => {
-    fetch("https://raw.githubusercontent.com/vasturiano/react-globe.gl/master/example/datasets/ne_110m_admin_0_countries.geojson")
-      .then((res) => res.json())
-      .then((data: unknown) => {
-        if (
-          typeof data === "object" &&
-          data !== null &&
-          Array.isArray((data as { features?: unknown }).features)
-        ) {
-          setCountries({ features: (data as { features: CountryFeature[] }).features })
-        }
-      })
-      .catch(() => {
-        setCountries({ features: [] })
-      })
-  }, [])
 
   const fallbackSourceCounts = useMemo(() => {
     const counts: Record<string, number> = {}

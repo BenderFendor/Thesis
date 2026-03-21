@@ -1,6 +1,7 @@
 "use client"
 
-import { useCallback, useEffect, useMemo, useState } from "react"
+import { useCallback, useMemo, useState } from "react"
+import { useQuery } from "@tanstack/react-query"
 import Link from "next/link"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
@@ -37,7 +38,8 @@ import {
   fetchStartupMetrics,
   API_BASE_URL,
 } from "@/lib/api"
-import { logger, isDebugMode, setDebugMode } from "@/lib/logger"
+import { useDebugMode } from "@/hooks/useDebugMode"
+import { logger, setDebugMode } from "@/lib/logger"
 import { exportDebugData } from "@/lib/performance-logger"
 
 function usePersistentNumber(initial: number, min: number, max: number): [number, (value: number) => void] {
@@ -162,6 +164,27 @@ interface BackendDebugReport {
   recommendations?: string[]
 }
 
+interface LogLevelResponse {
+  level?: string
+}
+
+interface DashboardData {
+  chromaData: ChromaDebugResponse
+  dbData: DatabaseDebugResponse
+  driftData: StorageDriftReport
+  startupMetrics: StartupMetricsResponse
+  cacheData: CacheDebugResponse
+  cacheDelta: CacheDeltaResponse
+}
+
+interface PerformanceDebugData {
+  backendDebugReport: BackendDebugReport | null
+  backendLogEvents: UnknownRecord[]
+  backendSlowOps: UnknownRecord[]
+  backendLogFiles: UnknownRecord[]
+  frontendPerfData: ReturnType<typeof exportDebugData>
+}
+
 export default function DebugDashboardPage() {
   const [chromaLimit, setChromaLimit] = usePersistentNumber(25, 5, 500)
   const [chromaOffset, setChromaOffset] = usePersistentNumber(0, 0, 5000)
@@ -182,20 +205,9 @@ export default function DebugDashboardPage() {
   const [cacheSourceDraft, setCacheSourceDraft] = useState("")
   const [cacheSourceFilter, setCacheSourceFilter] = useState<string | undefined>(undefined)
 
-  const [chromaData, setChromaData] = useState<ChromaDebugResponse | null>(null)
-  const [dbData, setDbData] = useState<DatabaseDebugResponse | null>(null)
-  const [driftData, setDriftData] = useState<StorageDriftReport | null>(null)
-  const [cacheData, setCacheData] = useState<CacheDebugResponse | null>(null)
-  const [cacheDelta, setCacheDelta] = useState<CacheDeltaResponse | null>(null)
-  const [startupMetrics, setStartupMetrics] = useState<StartupMetricsResponse | null>(null)
-  const [loading, setLoading] = useState(false)
-  const [error, setError] = useState<string | null>(null)
-
   // Phase 3: New state for system status, log level, parser tester
   const [activeTab, setActiveTab] = useState("storage")
-  const [systemStatus, setSystemStatus] = useState<SystemStatusResponse | null>(null)
-  const [logLevel, setLogLevel] = useState<string>("INFO")
-  const [frontendDebugMode, setFrontendDebugMode] = useState(false)
+  const frontendDebugMode = useDebugMode()
 
   // Parser tester state
   const [rssTestUrl, setRssTestUrl] = useState("")
@@ -206,23 +218,30 @@ export default function DebugDashboardPage() {
   const [articleTestLoading, setArticleTestLoading] = useState(false)
 
   // Performance logging state
-  const [backendDebugReport, setBackendDebugReport] = useState<BackendDebugReport | null>(null)
-  const [frontendPerfData, setFrontendPerfData] = useState<ReturnType<typeof exportDebugData> | null>(null)
-  const [backendLogEvents, setBackendLogEvents] = useState<UnknownRecord[]>([])
-  const [backendSlowOps, setBackendSlowOps] = useState<UnknownRecord[]>([])
-  const [backendLogFiles, setBackendLogFiles] = useState<UnknownRecord[]>([])
-
-  const loadData = useCallback(async () => {
-    setLoading(true)
-    setError(null)
-    try {
+  const dashboardDataQuery = useQuery<DashboardData>({
+    queryKey: [
+      "debug-dashboard",
+      chromaLimit,
+      chromaOffset,
+      dbLimit,
+      dbOffset,
+      dbSourceFilter,
+      dbMissingOnly,
+      dbSortDirection,
+      dbBeforeFilter,
+      dbAfterFilter,
+      cacheLimit,
+      cacheOffset,
+      cacheSourceFilter,
+    ],
+    queryFn: async () => {
       const [
-        chromaResponse,
-        dbResponse,
-        driftResponse,
-        startupResponse,
-        cacheResponse,
-        deltaResponse,
+        chromaData,
+        dbData,
+        driftData,
+        startupMetrics,
+        cacheData,
+        cacheDelta,
       ] = await Promise.all([
         fetchChromaDebugArticles({ limit: chromaLimit, offset: chromaOffset }),
         fetchDatabaseDebugArticles({
@@ -248,36 +267,128 @@ export default function DebugDashboardPage() {
           sample_preview_limit: 50,
         }),
       ])
-      setChromaData(chromaResponse)
-      setDbData(dbResponse)
-      setDriftData(driftResponse)
-      setStartupMetrics(startupResponse)
-      setCacheData(cacheResponse)
-      setCacheDelta(deltaResponse)
-    } catch (err) {
-      const message = err instanceof Error ? err.message : "Failed to load debug data"
-      setError(message)
-    } finally {
-      setLoading(false)
-    }
-  }, [
-    chromaLimit,
-    chromaOffset,
-    dbLimit,
-    dbOffset,
-    dbSourceFilter,
-    dbMissingOnly,
-    dbSortDirection,
-    dbBeforeFilter,
-    dbAfterFilter,
-    cacheLimit,
-    cacheOffset,
-    cacheSourceFilter,
-  ])
 
-  useEffect(() => {
-    loadData()
-  }, [loadData])
+      return {
+        chromaData,
+        dbData,
+        driftData,
+        startupMetrics,
+        cacheData,
+        cacheDelta,
+      }
+    },
+    retry: 1,
+  })
+  const loadData = useCallback(() => {
+    void dashboardDataQuery.refetch()
+  }, [dashboardDataQuery])
+  const chromaData = dashboardDataQuery.data?.chromaData ?? null
+  const dbData = dashboardDataQuery.data?.dbData ?? null
+  const driftData = dashboardDataQuery.data?.driftData ?? null
+  const startupMetrics = dashboardDataQuery.data?.startupMetrics ?? null
+  const cacheData = dashboardDataQuery.data?.cacheData ?? null
+  const cacheDelta = dashboardDataQuery.data?.cacheDelta ?? null
+  const loading = dashboardDataQuery.isLoading
+  const error =
+    dashboardDataQuery.error instanceof Error
+      ? dashboardDataQuery.error.message
+      : null
+
+  const systemStatusQuery = useQuery<SystemStatusResponse>({
+    queryKey: ["debug-system-status"],
+    queryFn: async () => {
+      const response = await fetch(`${API_BASE_URL}/debug/system/status`)
+      if (!response.ok) {
+        throw new Error("Failed to load system status")
+      }
+      return (await response.json()) as SystemStatusResponse
+    },
+    retry: 1,
+  })
+  const systemStatus = systemStatusQuery.data ?? null
+
+  const logLevelQuery = useQuery<LogLevelResponse>({
+    queryKey: ["debug-log-level"],
+    queryFn: async () => {
+      const response = await fetch(`${API_BASE_URL}/debug/loglevel`)
+      if (!response.ok) {
+        throw new Error("Failed to load log level")
+      }
+      return (await response.json()) as LogLevelResponse
+    },
+    retry: 1,
+  })
+  const logLevel = logLevelQuery.data?.level ?? "INFO"
+
+  const performanceDataQuery = useQuery<PerformanceDebugData>({
+    queryKey: ["debug-performance", activeTab],
+    queryFn: async () => {
+      const [reportResponse, eventsResponse, slowResponse, filesResponse] =
+        await Promise.all([
+          fetch(`${API_BASE_URL}/debug/logs/report`),
+          fetch(`${API_BASE_URL}/debug/logs/events?limit=100`),
+          fetch(`${API_BASE_URL}/debug/logs/slow`),
+          fetch(`${API_BASE_URL}/debug/logs/files`),
+        ])
+
+      const report = reportResponse.ok
+        ? ((await reportResponse.json()) as BackendDebugReport)
+        : null
+      const eventsData = eventsResponse.ok ? await eventsResponse.json() : {}
+      const slowData = slowResponse.ok ? await slowResponse.json() : {}
+      const filesData = filesResponse.ok ? await filesResponse.json() : {}
+
+      return {
+        backendDebugReport: report,
+        backendLogEvents: Array.isArray(eventsData.events)
+          ? (eventsData.events as UnknownRecord[])
+          : [],
+        backendSlowOps: Array.isArray(slowData.operations)
+          ? (slowData.operations as UnknownRecord[])
+          : [],
+        backendLogFiles: Array.isArray(filesData.files)
+          ? (filesData.files as UnknownRecord[])
+          : [],
+        frontendPerfData: exportDebugData(),
+      }
+    },
+    enabled: activeTab === "performance",
+    retry: 1,
+    refetchInterval: activeTab === "performance" ? 5000 : false,
+  })
+  const backendDebugReport = performanceDataQuery.data?.backendDebugReport ?? null
+  const frontendPerfData = performanceDataQuery.data?.frontendPerfData ?? null
+  const backendLogEvents = performanceDataQuery.data?.backendLogEvents ?? []
+  const backendSlowOps = performanceDataQuery.data?.backendSlowOps ?? []
+  const backendLogFiles = performanceDataQuery.data?.backendLogFiles ?? []
+  const loadPerformanceData = useCallback(() => {
+    void performanceDataQuery.refetch()
+  }, [performanceDataQuery])
+
+  const loadSystemStatus = useCallback(() => {
+    void systemStatusQuery.refetch()
+  }, [systemStatusQuery])
+
+  const loadLogLevel = useCallback(() => {
+    void logLevelQuery.refetch()
+  }, [logLevelQuery])
+
+  const handleSetLogLevel = async (level: string) => {
+    try {
+      const response = await fetch(`${API_BASE_URL}/debug/loglevel?level=${level}`, {
+        method: "POST",
+      })
+      if (response.ok) {
+        await loadLogLevel()
+      }
+    } catch (err) {
+      logger.error("Failed to set log level", err)
+    }
+  }
+
+  const handleToggleFrontendDebug = () => {
+    setDebugMode(!frontendDebugMode)
+  }
 
   const chromaStats = useMemo(() => {
     if (!chromaData) return null
@@ -379,118 +490,6 @@ export default function DebugDashboardPage() {
   const applyCacheFilters = () => {
     setCacheSourceFilter(cacheSourceDraft.trim() || undefined)
   }
-
-  // Phase 3: Load system status
-  const loadSystemStatus = useCallback(async () => {
-    try {
-      const response = await fetch(`${API_BASE_URL}/debug/system/status`)
-      if (response.ok) {
-        const data = await response.json()
-        setSystemStatus(data as SystemStatusResponse)
-      }
-    } catch (err) {
-      logger.error("Failed to load system status", err)
-    }
-  }, [])
-
-  // Phase 3: Load backend log level
-  const loadLogLevel = useCallback(async () => {
-    try {
-      const response = await fetch(`${API_BASE_URL}/debug/loglevel`)
-      if (response.ok) {
-        const data = await response.json()
-        setLogLevel(data.level)
-      }
-    } catch (err) {
-      logger.error("Failed to load log level", err)
-    }
-  }, [])
-
-  // Phase 3: Set backend log level
-  const handleSetLogLevel = async (level: string) => {
-    try {
-      const response = await fetch(`${API_BASE_URL}/debug/loglevel?level=${level}`, {
-        method: "POST",
-      })
-      if (response.ok) {
-        const data = await response.json()
-        setLogLevel(data.level)
-      }
-    } catch (err) {
-      logger.error("Failed to set log level", err)
-    }
-  }
-
-  // Phase 3: Toggle frontend debug mode
-  const handleToggleFrontendDebug = () => {
-    const newMode = !frontendDebugMode
-    setDebugMode(newMode)
-    setFrontendDebugMode(newMode)
-  }
-
-  // Load frontend debug mode on mount
-  useEffect(() => {
-    setFrontendDebugMode(isDebugMode())
-    loadSystemStatus()
-    loadLogLevel()
-  }, [loadSystemStatus, loadLogLevel])
-
-  // Load performance debugging data
-  const loadPerformanceData = useCallback(async () => {
-    try {
-      // Load backend debug report
-      const reportResponse = await fetch(`${API_BASE_URL}/debug/logs/report`)
-      if (reportResponse.ok) {
-        const report = await reportResponse.json()
-        setBackendDebugReport(report as BackendDebugReport)
-      }
-
-      // Load backend log events
-      const eventsResponse = await fetch(`${API_BASE_URL}/debug/logs/events?limit=100`)
-      if (eventsResponse.ok) {
-        const eventsData = await eventsResponse.json()
-        const events = Array.isArray(eventsData.events)
-          ? (eventsData.events as UnknownRecord[])
-          : []
-        setBackendLogEvents(events)
-      }
-
-      // Load slow operations
-      const slowResponse = await fetch(`${API_BASE_URL}/debug/logs/slow`)
-      if (slowResponse.ok) {
-        const slowData = await slowResponse.json()
-        const operations = Array.isArray(slowData.operations)
-          ? (slowData.operations as UnknownRecord[])
-          : []
-        setBackendSlowOps(operations)
-      }
-
-      // Load log files
-      const filesResponse = await fetch(`${API_BASE_URL}/debug/logs/files`)
-      if (filesResponse.ok) {
-        const filesData = await filesResponse.json()
-        const files = Array.isArray(filesData.files)
-          ? (filesData.files as UnknownRecord[])
-          : []
-        setBackendLogFiles(files)
-      }
-
-      // Load frontend performance data
-      setFrontendPerfData(exportDebugData())
-    } catch (err) {
-      logger.error("Failed to load performance data", err)
-    }
-  }, [])
-
-  // Refresh frontend perf data periodically
-  useEffect(() => {
-    const interval = setInterval(() => {
-      if (activeTab === "performance") {
-        setFrontendPerfData(exportDebugData())
-      }
-    }, 5000)
-    return () => clearInterval(interval)
-  }, [activeTab])
 
   // Phase 3: Test RSS parser
   const testRssParser = async () => {

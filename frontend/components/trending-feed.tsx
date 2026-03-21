@@ -1,6 +1,7 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useCallback } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -136,10 +137,6 @@ function trendingArticleToNewsArticle(article: TrendingArticle, clusterLabel?: s
 }
 
 export function TrendingFeed() {
-  const [mounted, setMounted] = useState(false);
-  const [trendingData, setTrendingData] = useState<TrendingResponse | null>(null);
-  const [breakingData, setBreakingData] = useState<BreakingResponse | null>(null);
-  const [loading, setLoading] = useState(true);
   const [selectedCluster, setSelectedCluster] = useState<TrendingCluster | BreakingCluster | null>(null);
   const [isBreakingCluster, setIsBreakingCluster] = useState(false);
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -148,33 +145,21 @@ export function TrendingFeed() {
   
   const { addArticleToQueue, removeArticleFromQueue, isArticleInQueue } = useReadingQueue();
 
-  useEffect(() => {
-    setMounted(true);
-  }, []);
-
-  const loadData = useCallback(async () => {
-    setLoading(true);
-    try {
-      const [trending, breaking] = await Promise.all([
-        fetchTrending(trendingWindow, 10),
-        fetchBreaking(5),
-      ]);
-      setTrendingData(trending);
-      setBreakingData(breaking);
-    } catch (err) {
-      logger.error("Failed to load trending data:", err);
-    } finally {
-      setLoading(false);
-    }
-  }, [trendingWindow]);
-
-  useEffect(() => {
-    if (mounted) {
-      loadData();
-      const interval = setInterval(loadData, 60000 * 5);
-      return () => clearInterval(interval);
-    }
-  }, [loadData, mounted]);
+  const trendingQuery = useQuery<TrendingResponse>({
+    queryKey: ["trending-feed", trendingWindow, 10],
+    queryFn: () => fetchTrending(trendingWindow, 10),
+    retry: 1,
+    refetchInterval: 60000 * 5,
+  });
+  const breakingQuery = useQuery<BreakingResponse>({
+    queryKey: ["breaking-feed", 5],
+    queryFn: () => fetchBreaking(5),
+    retry: 1,
+    refetchInterval: 60000 * 5,
+  });
+  const trendingData = trendingQuery.data ?? null;
+  const breakingData = breakingQuery.data ?? null;
+  const loading = trendingQuery.isLoading || breakingQuery.isLoading;
 
   const handleClusterClick = useCallback((cluster: TrendingCluster | BreakingCluster, isBreaking: boolean) => {
     setSelectedCluster(cluster);
@@ -199,7 +184,7 @@ export function TrendingFeed() {
     void toggleLike(articleId);
   }, [toggleLike]);
 
-  if (!mounted || (loading && !trendingData)) {
+  if (loading && !trendingData) {
     return <TrendingSkeleton />;
   }
 

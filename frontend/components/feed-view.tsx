@@ -210,6 +210,7 @@ export function FeedView({
   const [activeArticleId, setActiveArticleId] = useState<number | null>(null)
   const [renderCount, setRenderCount] = useState(SCROLL_INITIAL_RENDER_COUNT)
   const containerRef = useRef<HTMLDivElement | null>(null)
+  const requestedOgImagesRef = useRef<Set<number>>(new Set())
   const [ogImages, setOgImages] = useState<Record<number, string>>({})
 
   const visibleArticles = useMemo(
@@ -265,11 +266,20 @@ export function FeedView({
       const end = Math.min(effectiveVisibleArticles.length, effectiveActiveIndex + OG_LOOKAHEAD + 1)
       const candidates = effectiveVisibleArticles
         .slice(start, end)
-        .filter((article) => !hasRealFeedImage(article.image) && article.url && !ogImages[article.id])
+        .filter(
+          (article) =>
+            !hasRealFeedImage(article.image) &&
+            article.url &&
+            !requestedOgImagesRef.current.has(article.id),
+        )
 
       if (candidates.length === 0) {
         return
       }
+
+      candidates.forEach((article) => {
+        requestedOgImagesRef.current.add(article.id)
+      })
 
       const pending = [...candidates]
       const newImages: Record<number, string> = {}
@@ -301,7 +311,7 @@ export function FeedView({
     return () => {
       cancelled = true
     }
-  }, [effectiveActiveIndex, effectiveVisibleArticles, ogImages])
+  }, [effectiveActiveIndex, effectiveVisibleArticles])
 
   useEffect(() => {
     const container = containerRef.current

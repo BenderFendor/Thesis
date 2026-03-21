@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { Sparkles, Loader2 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { fetchNoveltyScore, NoveltyScoreResponse } from "@/lib/api";
@@ -16,42 +16,12 @@ export function NoveltyBadge({
   readingHistory,
   className = "",
 }: NoveltyBadgeProps) {
-  const [novelty, setNovelty] = useState<NoveltyScoreResponse | null>(null);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-
-  useEffect(() => {
-    if (readingHistory.length === 0) {
-      return;
-    }
-
-    let cancelled = false;
-
-    async function loadNovelty() {
-      setLoading(true);
-      setError(null);
-
-      try {
-        const response = await fetchNoveltyScore(articleId, readingHistory);
-        if (!cancelled) {
-          setNovelty(response);
-        }
-      } catch (err) {
-        if (!cancelled) {
-          setError(err instanceof Error ? err.message : "Failed");
-        }
-      } finally {
-        if (!cancelled) {
-          setLoading(false);
-        }
-      }
-    }
-
-    loadNovelty();
-    return () => {
-      cancelled = true;
-    };
-  }, [articleId, readingHistory]);
+  const { data: novelty, isLoading: loading, error } = useQuery<NoveltyScoreResponse>({
+    queryKey: ["novelty-score", articleId, readingHistory],
+    queryFn: () => fetchNoveltyScore(articleId, readingHistory),
+    enabled: readingHistory.length > 0,
+    retry: 1,
+  });
 
   if (readingHistory.length === 0) {
     return null;

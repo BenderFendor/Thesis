@@ -1,4 +1,5 @@
-import React, { useEffect, useState } from 'react';
+import React from 'react';
+import { useQuery } from "@tanstack/react-query";
 import { MapPin } from 'lucide-react';
 import { fetchNews, NewsArticle } from '../lib/api';
 import { Card } from './ui/card';
@@ -18,30 +19,15 @@ const HorizontalArticleEmbed: React.FC<HorizontalArticleEmbedProps> = ({
   limit = 5,
   onArticleClick
 }) => {
-  const [fetchedArticles, setFetchedArticles] = useState<NewsArticle[]>([]);
-  const [isFetching, setIsFetching] = useState(false);
+  const fetchedArticlesQuery = useQuery<NewsArticle[]>({
+    queryKey: ["horizontal-article-embed", category, limit],
+    queryFn: async () => (await fetchNews({ category, limit })) || [],
+    enabled: !providedArticles,
+    retry: 1,
+  });
 
-  useEffect(() => {
-    if (providedArticles) {
-      return;
-    }
-
-    // Otherwise, fetch articles
-    const getArticles = async () => {
-      setIsFetching(true);
-      try {
-        const data = await fetchNews({ category, limit });
-        setFetchedArticles(data || []);
-      } catch (err) {
-        setFetchedArticles([]);
-      }
-      setIsFetching(false);
-    };
-    getArticles();
-  }, [category, limit, providedArticles]);
-
-  const articles = providedArticles ?? fetchedArticles;
-  const loading = !providedArticles && isFetching;
+  const articles = providedArticles ?? fetchedArticlesQuery.data ?? [];
+  const loading = !providedArticles && fetchedArticlesQuery.isLoading;
   
   if (loading) return <div className="py-4 text-center text-sm text-muted-foreground">Loading articles...</div>;
   if (!articles.length) return null;

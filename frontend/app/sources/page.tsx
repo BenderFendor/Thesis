@@ -1,6 +1,7 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState } from "react"
+import { useQuery } from "@tanstack/react-query"
 import { fetchSourceStats, SourceStats, fetchCacheStatus, CacheStatus, refreshCache } from "@/lib/api"
 import { logger } from "@/lib/logger"
 import { Button } from "@/components/ui/button"
@@ -42,31 +43,31 @@ interface RefreshProgress {
 }
 
 export default function SourcesPage() {
-  const [sources, setSources] = useState<SourceStats[]>([])
-  const [cacheStatus, setCacheStatus] = useState<CacheStatus | null>(null)
-  const [loading, setLoading] = useState(true)
   const [refreshing, setRefreshing] = useState(false)
   const [refreshProgress, setRefreshProgress] = useState<RefreshProgress | null>(null)
-  const [lastUpdated, setLastUpdated] = useState<Date | null>(null)
   const [filter, setFilter] = useState<"all" | "success" | "warning" | "error">("all")
   const [searchQuery, setSearchQuery] = useState("")
   const [sortBy, setSortBy] = useState<"name" | "status" | "articles" | "category">("name")
 
+  const sourceStatsQuery = useQuery<SourceStats[]>({
+    queryKey: ["source-stats"],
+    queryFn: fetchSourceStats,
+    retry: 1,
+  })
+  const cacheStatusQuery = useQuery<CacheStatus | null>({
+    queryKey: ["cache-status"],
+    queryFn: fetchCacheStatus,
+    retry: 1,
+  })
+  const sources = sourceStatsQuery.data ?? []
+  const cacheStatus = cacheStatusQuery.data ?? null
+  const loading = sourceStatsQuery.isLoading || cacheStatusQuery.isLoading
+  const isFetching = sourceStatsQuery.isFetching || cacheStatusQuery.isFetching
+  const lastUpdatedAt = Math.max(sourceStatsQuery.dataUpdatedAt || 0, cacheStatusQuery.dataUpdatedAt || 0)
+  const lastUpdated = lastUpdatedAt > 0 ? new Date(lastUpdatedAt) : null
+
   const loadSourceStats = async () => {
-    setLoading(true)
-    try {
-      const [stats, cache] = await Promise.all([
-        fetchSourceStats(),
-        fetchCacheStatus()
-      ])
-      setSources(stats)
-      setCacheStatus(cache)
-      setLastUpdated(new Date())
-    } catch (error) {
-      console.error("Failed to load source statistics:", error)
-    } finally {
-      setLoading(false)
-    }
+    await Promise.all([sourceStatsQuery.refetch(), cacheStatusQuery.refetch()])
   }
 
   const handleRefreshCache = async () => {
@@ -78,11 +79,8 @@ export default function SourcesPage() {
         logger.debug("Refresh progress:", progress)
       })
       if (success) {
-        // Wait a moment then reload data
-        setTimeout(() => {
-          loadSourceStats()
-          setRefreshProgress(null)
-        }, 2000)
+        await loadSourceStats()
+        setRefreshProgress(null)
       }
     } catch (error) {
       console.error("Failed to refresh cache:", error)
@@ -90,10 +88,6 @@ export default function SourcesPage() {
       setRefreshing(false)
     }
   }
-
-  useEffect(() => {
-    loadSourceStats()
-  }, [])
 
   const filteredSources = sources
     .filter(source => {
@@ -198,11 +192,11 @@ export default function SourcesPage() {
               </Link>
               <Button
                 onClick={loadSourceStats}
-                disabled={loading}
+                disabled={isFetching}
                 variant="outline"
                 size="sm"
               >
-                <RefreshCw className={`w-4 h-4 mr-2 ${loading ? "animate-spin" : ""}`} />
+                <RefreshCw className={`w-4 h-4 mr-2 ${isFetching ? "animate-spin" : ""}`} />
                 Refresh
               </Button>
             </div>

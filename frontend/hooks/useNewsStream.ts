@@ -13,8 +13,6 @@ import {
   endStream as perfEndStream,
 } from "@/lib/performance-logger";
 
-const NEXT_PUBLIC_API_URL =
-  process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
 const NEXT_PUBLIC_DOCKER_API_URL =
   process.env.NEXT_PUBLIC_DOCKER_API_URL || "http://localhost:8000";
 
@@ -29,7 +27,6 @@ interface UseNewsStreamOptions extends Omit<
     errors: string[];
   }) => void;
   onError?: (error: string) => void;
-  autoStart?: boolean;
 }
 
 export const useNewsStream = (options: UseNewsStreamOptions = {}) => {
@@ -323,14 +320,6 @@ export const useNewsStream = (options: UseNewsStreamOptions = {}) => {
       ws.close();
     };
   }, []);
-
-  // Auto-start if requested
-  useEffect(() => {
-    if (options.autoStart && !isStreaming && status === "idle") {
-      logger.debug("Auto-starting stream");
-      startStream();
-    }
-  }, [options.autoStart, isStreaming, status, startStream]);
 
   // Cleanup on unmount
   useEffect(() => {

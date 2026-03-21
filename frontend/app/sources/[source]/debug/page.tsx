@@ -1,8 +1,10 @@
 "use client"
 
-import { useState, useEffect, use } from "react"
+import { useState, use } from "react"
+import { useQuery } from "@tanstack/react-query"
 import { fetchSourceDebugData, SourceDebugData } from "@/lib/api"
-import { isDebugMode, setDebugMode } from "@/lib/logger"
+import { setDebugMode } from "@/lib/logger"
+import { useDebugMode } from "@/hooks/useDebugMode"
 import { ArrowLeft, RefreshCw, Code, ExternalLink, AlertTriangle, CheckCircle, Image, FileText, Globe, Search, Settings } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -15,45 +17,26 @@ import 'react18-json-view/src/style.css'
 export default function SourceDebugPage(props: { params: Promise<{ source: string }> }) {
   const params = use(props.params)
   const sourceName = decodeURIComponent(params.source)
-  const [debugData, setDebugData] = useState<SourceDebugData | null>(null)
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState<string | null>(null)
   const [searchQuery, setSearchQuery] = useState("")
-  const [debugMode, setDebugModeState] = useState(false)
-
-  const loadDebugData = async () => {
-    setLoading(true)
-    setError(null)
-    try {
-      const data = await fetchSourceDebugData(sourceName)
-      setDebugData(data)
-    } catch (err) {
-      setError("Failed to load debug data. The source might be unavailable or the backend service is down.")
-      console.error(err)
-    } finally {
-      setLoading(false)
-    }
-  }
-
-  useEffect(() => {
-    loadDebugData()
-  }, [sourceName])
-
-  useEffect(() => {
-    setDebugModeState(isDebugMode())
-    const handleStorage = (event: StorageEvent) => {
-      if (event.key === "thesis_debug_mode") {
-        setDebugModeState(isDebugMode())
-      }
-    }
-    window.addEventListener("storage", handleStorage)
-    return () => window.removeEventListener("storage", handleStorage)
-  }, [])
+  const debugMode = useDebugMode()
+  const {
+    data: debugData,
+    isLoading: loading,
+    error,
+    refetch,
+  } = useQuery<SourceDebugData>({
+    queryKey: ["source-debug", sourceName],
+    queryFn: () => fetchSourceDebugData(sourceName),
+    retry: 1,
+  })
+  const errorMessage =
+    error instanceof Error
+      ? error.message
+      : "Failed to load debug data. The source might be unavailable or the backend service is down."
 
   const toggleDebugMode = () => {
     const next = !debugMode
     setDebugMode(next)
-    setDebugModeState(next)
   }
 
   if (loading) {
@@ -72,8 +55,8 @@ export default function SourceDebugPage(props: { params: Promise<{ source: strin
       <div className="flex flex-col items-center justify-center min-h-screen bg-background dark text-red-500">
         <AlertTriangle className="w-12 h-12 mb-4" />
         <h1 className="text-2xl font-bold mb-2">Error</h1>
-        <p className="text-center max-w-md">{error}</p>
-        <Button onClick={loadDebugData} className="mt-6">
+        <p className="text-center max-w-md">{errorMessage}</p>
+        <Button onClick={() => void refetch()} className="mt-6">
           <RefreshCw className="w-4 h-4 mr-2" />
           Retry
         </Button>
@@ -166,7 +149,7 @@ export default function SourceDebugPage(props: { params: Promise<{ source: strin
               <Settings className="w-4 h-4 mr-2" />
               Debug {debugMode ? "On" : "Off"}
             </Button>
-            <Button onClick={loadDebugData} size="sm">
+            <Button onClick={() => void refetch()} size="sm">
               <RefreshCw className={`w-4 h-4 mr-2 ${loading ? "animate-spin" : ""}`} />
               Refresh
             </Button>

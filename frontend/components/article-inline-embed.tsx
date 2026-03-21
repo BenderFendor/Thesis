@@ -1,8 +1,8 @@
 "use client"
 
-import { useEffect, useMemo, useState } from "react"
+import { useMemo } from "react"
+import { useQuery } from "@tanstack/react-query"
 import { analyzeArticle, type ArticleAnalysis, type NewsArticle } from "@/lib/api"
-import { Button } from "@/components/ui/button"
 import { ExternalLink, ImageOff } from "lucide-react"
 
 interface ArticleInlineEmbedProps {
@@ -44,27 +44,17 @@ function buildNewsArticle(url: string, analysis?: ArticleAnalysis): NewsArticle 
 }
 
 export const ArticleInlineEmbed = ({ url, onOpen }: ArticleInlineEmbedProps) => {
-  const [loading, setLoading] = useState(true)
-  const [analysis, setAnalysis] = useState<ArticleAnalysis | null>(null)
-
-  useEffect(() => {
-    let mounted = true
-    const run = async () => {
+  const { data: analysis, isLoading: loading } = useQuery<ArticleAnalysis | null>({
+    queryKey: ["article-inline-embed", url],
+    queryFn: async () => {
       try {
-        setLoading(true)
-        const res = await analyzeArticle(url)
-        if (!mounted) return
-        setAnalysis(res)
-      } catch (e) {
-        if (!mounted) return
-        setAnalysis(null)
-      } finally {
-        if (mounted) setLoading(false)
+        return await analyzeArticle(url)
+      } catch {
+        return null
       }
-    }
-    run()
-    return () => { mounted = false }
-  }, [url])
+    },
+    retry: 1,
+  })
 
   const article = useMemo(() => buildNewsArticle(url, analysis || undefined), [url, analysis])
 

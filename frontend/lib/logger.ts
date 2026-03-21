@@ -9,6 +9,8 @@
  * In Debug Mode: Enable debug panels + verbose logs + raw payload viewers.
  */
 
+import { saveToStorage } from "@/lib/storage";
+
 type LogLevel = 'debug' | 'info' | 'warn' | 'error';
 
 /**
@@ -34,7 +36,7 @@ export function isDebugMode(): boolean {
  */
 export function setDebugMode(enabled: boolean): void {
     if (typeof window !== 'undefined') {
-        localStorage.setItem('thesis_debug_mode', enabled ? 'true' : 'false');
+        saveToStorage('thesis_debug_mode', enabled);
     }
 }
 

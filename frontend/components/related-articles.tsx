@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { ExternalLink, Loader2 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { fetchRelatedArticles, RelatedArticle } from "@/lib/api";
@@ -18,38 +18,13 @@ export function RelatedArticles({
   limit = 5,
   className = "",
 }: RelatedArticlesProps) {
-  const [related, setRelated] = useState<RelatedArticle[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-
-  useEffect(() => {
-    let cancelled = false;
-
-    async function loadRelated() {
-      setLoading(true);
-      setError(null);
-
-      try {
-        const response = await fetchRelatedArticles(articleId, limit, true);
-        if (!cancelled) {
-          setRelated(response.related);
-        }
-      } catch (err) {
-        if (!cancelled) {
-          setError(err instanceof Error ? err.message : "Failed to load");
-        }
-      } finally {
-        if (!cancelled) {
-          setLoading(false);
-        }
-      }
-    }
-
-    loadRelated();
-    return () => {
-      cancelled = true;
-    };
-  }, [articleId, limit]);
+  const { data, isLoading: loading, error } = useQuery({
+    queryKey: ["related-articles", articleId, limit],
+    queryFn: () => fetchRelatedArticles(articleId, limit, true),
+    retry: 1,
+  });
+  const related: RelatedArticle[] = data?.related ?? [];
+  const errorMessage = error instanceof Error ? error.message : null;
 
   if (loading) {
     return (
@@ -62,13 +37,13 @@ export function RelatedArticles({
     );
   }
 
-  if (error) {
+  if (errorMessage) {
     return (
       <div className={`${className}`}>
         <h4 className="text-sm font-medium text-muted-foreground mb-2">
           Related Articles
         </h4>
-        <p className="text-xs text-muted-foreground/70">{error}</p>
+        <p className="text-xs text-muted-foreground/70">{errorMessage}</p>
       </div>
     );
   }

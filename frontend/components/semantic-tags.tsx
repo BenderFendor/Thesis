@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { Tag, Loader2 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { fetchArticleTopics, ArticleTopic } from "@/lib/api";
@@ -16,38 +16,12 @@ export function SemanticTags({
   className = "",
   maxTags = 3,
 }: SemanticTagsProps) {
-  const [topics, setTopics] = useState<ArticleTopic[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-
-  useEffect(() => {
-    let cancelled = false;
-
-    async function loadTopics() {
-      setLoading(true);
-      setError(null);
-
-      try {
-        const response = await fetchArticleTopics(articleId);
-        if (!cancelled) {
-          setTopics(response.topics.slice(0, maxTags));
-        }
-      } catch (err) {
-        if (!cancelled) {
-          setError(err instanceof Error ? err.message : "Failed");
-        }
-      } finally {
-        if (!cancelled) {
-          setLoading(false);
-        }
-      }
-    }
-
-    loadTopics();
-    return () => {
-      cancelled = true;
-    };
-  }, [articleId, maxTags]);
+  const { data, isLoading: loading, error } = useQuery({
+    queryKey: ["article-topics", articleId],
+    queryFn: () => fetchArticleTopics(articleId),
+    retry: 1,
+  });
+  const topics: ArticleTopic[] = data?.topics.slice(0, maxTags) ?? [];
 
   if (loading) {
     return (

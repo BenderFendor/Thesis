@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback, useRef } from "react";
+import { useQuery } from "@tanstack/react-query";
 import Link from "next/link";
 import {
   X,
@@ -22,7 +23,6 @@ import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   fetchClusterDetail,
-  ClusterDetail,
   TrendingCluster,
   BreakingCluster,
   NewsArticle,
@@ -195,9 +195,29 @@ export function ClusterDetailModal({
   isOpen,
   onClose,
 }: ClusterDetailModalProps) {
-  const [clusterDetail, setClusterDetail] = useState<ClusterDetail | null>(null);
-  const [loading, setLoading] = useState(false);
-  const [loadError, setLoadError] = useState<string | null>(null);
+  if (!isOpen || !cluster) return null;
+
+  return (
+    <ClusterDetailModalContent
+      key={`${cluster.cluster_id}-${isOpen ? "open" : "closed"}`}
+      cluster={cluster}
+      isBreaking={isBreaking}
+      onClose={onClose}
+    />
+  );
+}
+
+interface ClusterDetailModalContentProps {
+  cluster: TrendingCluster | BreakingCluster;
+  isBreaking: boolean;
+  onClose: () => void;
+}
+
+function ClusterDetailModalContent({
+  cluster,
+  isBreaking,
+  onClose,
+}: ClusterDetailModalContentProps) {
   const [activeArticleId, setActiveArticleId] = useState<string | null>(null);
   const [articleContents, setArticleContents] = useState<Map<number, string | null>>(new Map());
   const [loadingArticle, setLoadingArticle] = useState<number | null>(null);
@@ -210,52 +230,20 @@ export function ClusterDetailModal({
   const [comparisonError, setComparisonError] = useState<string | null>(null);
   const articleContentRef = useRef<HTMLDivElement>(null);
   const comparisonRequestKeyRef = useRef<string | null>(null);
-  const clusterId = cluster?.cluster_id ?? null;
+  const clusterId = cluster.cluster_id;
 
   const { addArticleToQueue, removeArticleFromQueue, isArticleInQueue } = useReadingQueue();
-
-  useEffect(() => {
-    if (!isOpen || clusterId === null) {
-      setClusterDetail(null);
-      setLoadError(null);
-      setActiveArticleId(null);
-      setArticleContents(new Map());
-      setLoadingArticle(null);
-      setComparisonMode(false);
-      setComparisonData(null);
-      setComparisonLoading(false);
-      setComparisonError(null);
-      setSelectedArticlesForComparison([]);
-      comparisonRequestKeyRef.current = null;
-      return;
-    }
-
-    const loadClusterDetail = async () => {
-      setLoading(true);
-      setLoadError(null);
-      setComparisonMode(false);
-      setComparisonData(null);
-      setComparisonLoading(false);
-      setComparisonError(null);
-      setSelectedArticlesForComparison([]);
-      comparisonRequestKeyRef.current = null;
-      try {
-        const detail = await fetchClusterDetail(clusterId);
-        setClusterDetail(detail);
-        if (detail.articles.length > 0) {
-          setActiveArticleId(detail.articles[0].id.toString());
-        }
-      } catch (err) {
-        console.error("Failed to load cluster detail:", err);
-        setClusterDetail(null);
-        setLoadError("Failed to load cluster details.");
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    loadClusterDetail();
-  }, [clusterId, isOpen]);
+  const {
+    data: clusterDetail,
+    isLoading: loading,
+    error: clusterDetailError,
+  } = useQuery({
+    queryKey: ["cluster-detail", clusterId],
+    queryFn: () => fetchClusterDetail(clusterId),
+    retry: 1,
+  });
+  const resolvedActiveArticleId =
+    activeArticleId ?? clusterDetail?.articles[0]?.id.toString() ?? null;
 
   const loadArticleContent = useCallback(async (article: ClusterArticle) => {
     setLoadingArticle(article.id);
@@ -271,12 +259,14 @@ export function ClusterDetailModal({
   }, []);
 
   useEffect(() => {
-    if (!activeArticleId || !clusterDetail) return;
-    const article = clusterDetail.articles.find((a) => a.id.toString() === activeArticleId);
+    if (!resolvedActiveArticleId || !clusterDetail) return;
+    const article = clusterDetail.articles.find(
+      (a) => a.id.toString() === resolvedActiveArticleId,
+    );
     if (article && !articleContents.has(article.id)) {
       loadArticleContent(article);
     }
-  }, [activeArticleId, clusterDetail, articleContents, loadArticleContent]);
+  }, [resolvedActiveArticleId, clusterDetail, articleContents, loadArticleContent]);
 
   const handleLike = useCallback((articleId: number) => {
     void toggleLike(articleId);
@@ -461,10 +451,9 @@ export function ClusterDetailModal({
     void loadComparisonData(selectedArticlesForComparison);
   }, [comparisonMode, selectedArticlesForComparison, loadComparisonData]);
 
-  if (!isOpen || !cluster) return null;
-
+  const loadError = clusterDetailError ? "Failed to load cluster details." : null;
   const activeArticle = clusterDetail?.articles.find(
-    (a) => a.id.toString() === activeArticleId
+    (a) => a.id.toString() === resolvedActiveArticleId
   );
   const activeContent = activeArticle ? articleContents.get(activeArticle.id) : null;
   const comparisonArticles = clusterDetail
@@ -561,7 +550,7 @@ export function ClusterDetailModal({
             </div>
           ) : clusterDetail && clusterDetail.articles.length > 0 ? (
             <Tabs
-              value={activeArticleId || ""}
+              value={resolvedActiveArticleId || ""}
               onValueChange={handleTabChange}
               className="flex-1 flex flex-col overflow-hidden"
             >

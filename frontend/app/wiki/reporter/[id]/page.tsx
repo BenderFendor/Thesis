@@ -1,8 +1,9 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { useParams } from "next/navigation";
 import Link from "next/link";
+import { useQuery } from "@tanstack/react-query";
 import {
   ChevronLeft,
   Loader2,
@@ -100,28 +101,17 @@ function renderJsonSection(data: Record<string, unknown> | undefined): React.Rea
 export default function ReporterProfilePage() {
   const params = useParams();
   const reporterId = parseInt(params.id as string, 10);
-
-  const [data, setData] = useState<WikiReporterDossier | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-
-  useEffect(() => {
-    let cancelled = false;
-    async function load() {
-      try {
-        setLoading(true);
-        setError(null);
-        const result = await fetchWikiReporter(reporterId);
-        if (!cancelled) setData(result);
-      } catch (err) {
-        if (!cancelled) setError(err instanceof Error ? err.message : "Failed to load reporter");
-      } finally {
-        if (!cancelled) setLoading(false);
-      }
-    }
-    if (!isNaN(reporterId)) load();
-    return () => { cancelled = true; };
-  }, [reporterId]);
+  const {
+    data,
+    isLoading: loading,
+    error,
+  } = useQuery<WikiReporterDossier>({
+    queryKey: ["wiki-reporter", reporterId],
+    queryFn: () => fetchWikiReporter(reporterId),
+    enabled: Number.isFinite(reporterId),
+    retry: 1,
+  });
+  const errorMessage = error instanceof Error ? error.message : "Failed to load reporter";
 
   if (loading) {
     return (
@@ -143,7 +133,7 @@ export default function ReporterProfilePage() {
           </div>
         </header>
         <div className="container mx-auto px-4 py-20 text-center">
-          <p className="text-red-400">{error || "Reporter not found"}</p>
+          <p className="text-red-400">{errorMessage || "Reporter not found"}</p>
         </div>
       </div>
     );

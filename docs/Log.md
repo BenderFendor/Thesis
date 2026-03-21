@@ -433,3 +433,8 @@ curl http://localhost:8000/trending/diagnostics
 - Implemented lexical fallback for topic clustering and snapshot-first detail lookup so the by-topic view remains available when Chroma is unstable.
 - Frontend now reports initialization state and auto-retries while snapshots build.
 - Added targeted backend tests and adjusted sync wait to provide faster developer feedback.
+
+2026-03-21 — Search chat assistant versioning
+- Reworked `frontend/app/search/page.tsx` so assistant retries create alternate response versions instead of deleting the visible reply and replaying the thread from scratch.
+- Added assistant version grouping and selection helpers in `frontend/lib/chat-branching.ts`, then rendered `previous/next` pager controls beside the assistant copy/retry/delete actions.
+- Added regression coverage for version selection in `frontend/__tests__/chat-branching.test.ts` and repaired existing frontend test harnesses by wrapping `react-query` components with a shared `QueryClientProvider` helper.

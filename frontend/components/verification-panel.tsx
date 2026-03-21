@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useCallback } from "react";
 import {
   ChevronDown,
   ChevronUp,
@@ -24,7 +24,6 @@ import {
   SourceInfo,
   verifyResearch,
   getConfidenceColor,
-  getConfidenceLabel,
   formatConfidence,
 } from "@/lib/verification";
 import { logger } from "@/lib/logger";
@@ -33,7 +32,6 @@ interface VerificationPanelProps {
   query: string;
   mainAnswer: string;
   onVerificationComplete?: (result: VerificationResult) => void;
-  autoVerify?: boolean;
   className?: string;
 }
 
@@ -41,7 +39,6 @@ export function VerificationPanel({
   query,
   mainAnswer,
   onVerificationComplete,
-  autoVerify = false,
   className = "",
 }: VerificationPanelProps) {
   const [isOpen, setIsOpen] = useState(false);
@@ -78,12 +75,6 @@ export function VerificationPanel({
       setIsLoading(false);
     }
   }, [query, mainAnswer, onVerificationComplete]);
-
-  useEffect(() => {
-    if (autoVerify && mainAnswer && mainAnswer.length >= 50 && !result && !isLoading) {
-      runVerification();
-    }
-  }, [autoVerify, mainAnswer, result, isLoading, runVerification]);
 
   const toggleClaim = (claimId: string) => {
     setExpandedClaims((prev) => {

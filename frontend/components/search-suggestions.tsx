@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { Search, TrendingUp, Loader2 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { fetchSearchSuggestions, SearchSuggestion } from "@/lib/api";
@@ -21,35 +21,19 @@ export function SearchSuggestions({
   debounceMs = 300,
   className = "",
 }: SearchSuggestionsProps) {
-  const [suggestions, setSuggestions] = useState<SearchSuggestion[]>([]);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-
   const debouncedQuery = useDebounce(query, debounceMs);
-
-  const loadSuggestions = useCallback(async (q: string) => {
-    if (q.length < minQueryLength) {
-      setSuggestions([]);
-      return;
-    }
-
-    setLoading(true);
-    setError(null);
-
-    try {
-      const response = await fetchSearchSuggestions(q, 5);
-      setSuggestions(response.suggestions);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to load");
-      setSuggestions([]);
-    } finally {
-      setLoading(false);
-    }
-  }, [minQueryLength]);
-
-  useEffect(() => {
-    loadSuggestions(debouncedQuery);
-  }, [debouncedQuery, loadSuggestions]);
+  const suggestionsQuery = useQuery<SearchSuggestion[]>({
+    queryKey: ["search-suggestions", debouncedQuery, minQueryLength],
+    queryFn: async () => {
+      const response = await fetchSearchSuggestions(debouncedQuery, 5);
+      return response.suggestions;
+    },
+    enabled: debouncedQuery.length >= minQueryLength,
+    retry: 1,
+  });
+  const suggestions = suggestionsQuery.data ?? [];
+  const loading = suggestionsQuery.isLoading;
+  const error = suggestionsQuery.error instanceof Error ? suggestionsQuery.error.message : null;
 
   if (query.length < minQueryLength) {
     return null;

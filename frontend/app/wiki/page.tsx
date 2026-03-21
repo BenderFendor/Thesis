@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useState, useMemo } from "react";
+import { useState, useMemo } from "react";
+import { useQuery } from "@tanstack/react-query";
 import Link from "next/link";
 import { Search, ArrowUpDown, Filter, BookOpen, ChevronLeft, Loader2 } from "lucide-react";
 import { Input } from "@/components/ui/input";
@@ -240,34 +241,22 @@ function SourceCard({ source }: { source: WikiSourceCard }) {
 // ── Main Page ───────────────────────────────────────────────────────
 
 export default function WikiIndexPage() {
-  const [sources, setSources] = useState<WikiSourceCard[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-
   // Filters
   const [searchQuery, setSearchQuery] = useState("");
   const [biasFilter, setBiasFilter] = useState<string>("all");
   const [fundingFilter, setFundingFilter] = useState<string>("all");
   const [countryFilter, setCountryFilter] = useState<string>("all");
   const [sortBy, setSortBy] = useState<string>("name");
-
-  // Load all sources once, filter client-side for responsiveness
-  useEffect(() => {
-    let cancelled = false;
-    async function load() {
-      try {
-        setLoading(true);
-        const data = await fetchWikiSources({ limit: 500 });
-        if (!cancelled) setSources(data);
-      } catch (err) {
-        if (!cancelled) setError(err instanceof Error ? err.message : "Failed to load sources");
-      } finally {
-        if (!cancelled) setLoading(false);
-      }
-    }
-    load();
-    return () => { cancelled = true; };
-  }, []);
+  const {
+    data: sources = [],
+    isLoading: loading,
+    error,
+  } = useQuery<WikiSourceCard[]>({
+    queryKey: ["wiki-sources", 500],
+    queryFn: () => fetchWikiSources({ limit: 500 }),
+    retry: 1,
+  });
+  const errorMessage = error instanceof Error ? error.message : "Failed to load sources";
 
   // Derive unique filter values
   const countries = useMemo(() => {
@@ -473,7 +462,7 @@ export default function WikiIndexPage() {
         {/* Error */}
         {error && !loading && (
           <div className="border border-red-800/40 bg-red-950/20 p-4 text-sm text-red-300">
-            {error}
+            {errorMessage}
           </div>
         )}
 

@@ -1,35 +1,21 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { QueueOverview, getQueueOverview } from "@/lib/api";
-import { Clock, FileText, CheckCircle, AlertCircle } from "lucide-react";
+import { Clock, FileText } from "lucide-react";
 import { Card } from "@/components/ui/card";
 
 export function QueueOverviewCard() {
-  const [overview, setOverview] = useState<QueueOverview | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-
-  useEffect(() => {
-    const fetchOverview = async () => {
-      try {
-        setLoading(true);
-        const data = await getQueueOverview();
-        setOverview(data);
-        setError(null);
-      } catch (err) {
-        console.error("Failed to load queue overview:", err);
-        setError("Failed to load queue overview");
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    fetchOverview();
-    // Refresh every 30 seconds
-    const interval = setInterval(fetchOverview, 30000);
-    return () => clearInterval(interval);
-  }, []);
+  const {
+    data: overview,
+    isLoading: loading,
+    error,
+  } = useQuery<QueueOverview>({
+    queryKey: ["queue-overview"],
+    queryFn: getQueueOverview,
+    refetchInterval: 30000,
+    retry: 1,
+  });
 
   if (loading) {
     return (

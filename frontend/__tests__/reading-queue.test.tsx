@@ -14,6 +14,7 @@ import { ReadTimeBadge } from "@/components/read-time-badge";
 import { QueueOverviewCard } from "@/components/queue-overview-card";
 import { DigestCard } from "@/components/digest-card";
 import { HighlightToolbar } from "@/components/highlight-toolbar";
+import { renderWithQueryClient } from "@/test-utils/render-with-query-client";
 
 // Mock next/navigation
 jest.mock("next/navigation", () => ({
@@ -87,7 +88,7 @@ describe("ReadTimeBadge", () => {
 
 describe("QueueOverviewCard", () => {
   it("renders queue statistics", async () => {
-    render(<QueueOverviewCard />);
+    renderWithQueryClient(<QueueOverviewCard />);
 
     await waitFor(() => {
       expect(screen.getByText("Queue Overview")).toBeInTheDocument();
@@ -98,7 +99,7 @@ describe("QueueOverviewCard", () => {
   });
 
   it("shows daily and permanent item counts", async () => {
-    render(<QueueOverviewCard />);
+    renderWithQueryClient(<QueueOverviewCard />);
 
     await waitFor(() => {
       // The component renders short labels "Daily:" and "Permanent:"
@@ -108,7 +109,7 @@ describe("QueueOverviewCard", () => {
   });
 
   it("displays estimated read time", async () => {
-    render(<QueueOverviewCard />);
+    renderWithQueryClient(<QueueOverviewCard />);
 
     await waitFor(() => {
       expect(screen.getByText(/Est. Read Time/)).toBeInTheDocument();
@@ -119,7 +120,7 @@ describe("QueueOverviewCard", () => {
 
 describe("DigestCard", () => {
   it("renders digest card when enabled", async () => {
-    render(<DigestCard />);
+    renderWithQueryClient(<DigestCard />);
 
     await waitFor(() => {
       expect(screen.getByText("Daily Digest")).toBeInTheDocument();
@@ -127,7 +128,7 @@ describe("DigestCard", () => {
   });
 
   it("shows scheduling button", async () => {
-    render(<DigestCard />);
+    renderWithQueryClient(<DigestCard />);
 
     await waitFor(() => {
       expect(screen.getByText(/Schedule digest/)).toBeInTheDocument();
@@ -136,7 +137,7 @@ describe("DigestCard", () => {
 
   it("opens schedule form when clicked", async () => {
     const user = userEvent.setup();
-    render(<DigestCard />);
+    renderWithQueryClient(<DigestCard />);
 
     const scheduleButton = await screen.findByText(/Schedule digest/);
     await user.click(scheduleButton);
@@ -148,7 +149,7 @@ describe("DigestCard", () => {
 
   it("saves digest schedule time", async () => {
     const user = userEvent.setup();
-    render(<DigestCard />);
+    renderWithQueryClient(<DigestCard />);
 
     const scheduleButton = await screen.findByText(/Schedule digest/);
     await user.click(scheduleButton);

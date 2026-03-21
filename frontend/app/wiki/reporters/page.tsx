@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useState, useMemo } from "react";
+import { useState, useMemo } from "react";
+import { useQuery } from "@tanstack/react-query";
 import Link from "next/link";
 import {
   ChevronLeft,
@@ -123,28 +124,18 @@ function ReporterCard({ reporter }: { reporter: WikiReporterCard }) {
 // ── Main Page ────────────────────────────────────────────────────────
 
 export default function ReporterDirectoryPage() {
-  const [reporters, setReporters] = useState<WikiReporterCard[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
   const [leaningFilter, setLeaningFilter] = useState("all");
-
-  useEffect(() => {
-    let cancelled = false;
-    async function load() {
-      try {
-        setLoading(true);
-        const data = await fetchWikiReporters({ limit: 500 });
-        if (!cancelled) setReporters(data);
-      } catch (err) {
-        if (!cancelled) setError(err instanceof Error ? err.message : "Failed to load reporters");
-      } finally {
-        if (!cancelled) setLoading(false);
-      }
-    }
-    load();
-    return () => { cancelled = true; };
-  }, []);
+  const {
+    data: reporters = [],
+    isLoading: loading,
+    error,
+  } = useQuery<WikiReporterCard[]>({
+    queryKey: ["wiki-reporters", 500],
+    queryFn: () => fetchWikiReporters({ limit: 500 }),
+    retry: 1,
+  });
+  const errorMessage = error instanceof Error ? error.message : "Failed to load reporters";
 
   const leaningOptions = useMemo(() => {
     const set = new Set<string>();
@@ -247,7 +238,7 @@ export default function ReporterDirectoryPage() {
         )}
 
         {error && !loading && (
-          <div className="border border-red-800/40 bg-red-950/20 p-4 text-sm text-red-300">{error}</div>
+          <div className="border border-red-800/40 bg-red-950/20 p-4 text-sm text-red-300">{errorMessage}</div>
         )}
 
         {!loading && !error && (

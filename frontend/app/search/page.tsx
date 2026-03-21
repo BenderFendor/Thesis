@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef, useEffect, useMemo } from "react";
+import { useState, useRef, useEffect, useMemo, useCallback } from "react";
 import {
   Copy,
   Pencil,
@@ -34,6 +34,11 @@ import Link from "next/link";
 import { motion } from "framer-motion";
 import { SearchSuggestions } from "@/components/search-suggestions";
 import { VerificationPanel } from "@/components/verification-panel";
+import {
+  getMessageVersionInfo,
+  getMessageVersionGroupId,
+  getVisibleConversationMessages,
+} from "@/lib/chat-branching";
 
 interface ReferencedArticlePayload {
   title?: string;
@@ -93,6 +98,7 @@ interface Message {
   toolType?: "semantic_search";
   semanticResults?: SemanticSearchResult[];
   retryOfMessageId?: string;
+  parentMessageId?: string;
 }
 
 type StatusMessage = { type: "status"; message: string };
@@ -156,6 +162,7 @@ interface StoredChatState {
   version: number;
   activeChatId?: string | null;
   chats: ChatSummary[];
+  activeAssistantVersionMap?: Record<string, Record<string, string>>;
   messages: Record<
     string,
     (Omit<Message, "timestamp"> & { timestamp: string })[]
@@ -165,7 +172,6 @@ interface StoredChatState {
 export default function NewsResearchPage() {
   const [query, setQuery] = useState("");
   const [isSearching, setIsSearching] = useState(false);
-  const [messages, setMessages] = useState<Message[]>([]);
   const [selectedArticle, setSelectedArticle] = useState<NewsArticle | null>(
     null,
   );
@@ -174,7 +180,12 @@ export default function NewsResearchPage() {
   const [chatMessagesMap, setChatMessagesMap] = useState<
     Record<string, Message[]>
   >({});
+  const [activeAssistantVersionMap, setActiveAssistantVersionMap] = useState<
+    Record<string, Record<string, string>>
+  >({});
   const [activeChatId, setActiveChatId] = useState<string | null>(null);
+  const [editingMessageId, setEditingMessageId] = useState<string | null>(null);
+  const [editingDraft, setEditingDraft] = useState("");
   const [sidebarCollapsed, setSidebarCollapsed] = useState(true);
   const [expandedStepMessageIds, setExpandedStepMessageIds] = useState<
     Set<string>
@@ -187,6 +198,87 @@ export default function NewsResearchPage() {
   const chatScrollRef = useRef<HTMLDivElement>(null);
   const isHydratingRef = useRef(true);
   const abortControllerRef = useRef<AbortController | null>(null);
+
+  const getChatPreview = useCallback((items: Message[]) => {
+    const latest = [...items]
+      .reverse()
+      .find((message) => !message.toolType && message.content.trim().length > 0);
+    return latest ? latest.content.slice(0, 200) : "";
+  }, []);
+
+  const updateChatMessages = useCallback(
+    (
+      chatId: string,
+      updater: (prev: Message[]) => Message[],
+      options?: {
+        syncSummary?: boolean;
+        updatedAt?: string;
+        summaryPreview?: string;
+      },
+    ) => {
+      let nextMessages: Message[] = [];
+
+      setChatMessagesMap((prev) => {
+        const current = prev[chatId] || [];
+        nextMessages = updater(current);
+        if (nextMessages === current) {
+          return prev;
+        }
+        return { ...prev, [chatId]: nextMessages };
+      });
+
+      if (options?.syncSummary === false) {
+        return;
+      }
+
+      const updatedAt = options?.updatedAt ?? new Date().toISOString();
+      const lastMessage = options?.summaryPreview ?? getChatPreview(nextMessages);
+
+      setChats((prev) =>
+        prev.map((chat) =>
+          chat.id === chatId
+            ? {
+                ...chat,
+                lastMessage,
+                updatedAt,
+              }
+            : chat,
+        ),
+      );
+    },
+    [getChatPreview],
+  );
+
+  const messages = useMemo(
+    () => (activeChatId ? chatMessagesMap[activeChatId] || [] : []),
+    [activeChatId, chatMessagesMap],
+  );
+  const activeAssistantVersions = useMemo(
+    () => (activeChatId ? activeAssistantVersionMap[activeChatId] || {} : {}),
+    [activeAssistantVersionMap, activeChatId],
+  );
+  const conversationMessages = useMemo(
+    () => getVisibleConversationMessages(messages, activeAssistantVersions),
+    [activeAssistantVersions, messages],
+  );
+
+  const setActiveAssistantVersion = useCallback(
+    (chatId: string, groupId: string, messageId: string) => {
+      setActiveAssistantVersionMap((prev) => ({
+        ...prev,
+        [chatId]: {
+          ...(prev[chatId] || {}),
+          [groupId]: messageId,
+        },
+      }));
+    },
+    [],
+  );
+
+  const clearMessageEditing = useCallback(() => {
+    setEditingMessageId(null);
+    setEditingDraft("");
+  }, []);
 
   const handleNewChat = () => {
     const id = `chat-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
@@ -201,17 +293,21 @@ export default function NewsResearchPage() {
     abortControllerRef.current = null;
     setChats((prev) => [newChat, ...prev]);
     setChatMessagesMap((prev) => ({ ...prev, [id]: [] }));
+    setActiveAssistantVersionMap((prev) => ({ ...prev, [id]: {} }));
     setActiveChatId(id);
-    setMessages([]);
+    clearMessageEditing();
     setIsSearching(false);
   };
 
   const handleStop = () => {
+    if (!activeChatId) return;
     abortControllerRef.current?.abort();
     abortControllerRef.current = null;
     setIsSearching(false);
     // Mark the current streaming message as stopped
-    setMessages((prev) =>
+    updateChatMessages(
+      activeChatId,
+      (prev) =>
       prev.map((msg) =>
         msg.isStreaming
           ? {
@@ -222,6 +318,7 @@ export default function NewsResearchPage() {
             }
           : msg,
       ),
+      { syncSummary: false },
     );
   };
 
@@ -229,7 +326,7 @@ export default function NewsResearchPage() {
 
   const handleSelectChat = (id: string) => {
     setActiveChatId(id);
-    setMessages(chatMessagesMap[id] || []);
+    clearMessageEditing();
   };
 
   const handleRenameChat = (id: string, title: string) => {
@@ -247,10 +344,10 @@ export default function NewsResearchPage() {
 
     setChats(remainingChats);
     setChatMessagesMap(restMessages);
+    clearMessageEditing();
 
     if (activeChatId === id) {
       setActiveChatId(nextChatId || null);
-      setMessages(nextChatId ? restMessages[nextChatId] || [] : []);
     }
   };
 
@@ -271,13 +368,13 @@ export default function NewsResearchPage() {
 
     setChats(remainingChats);
     setChatMessagesMap(newChatMessagesMap);
+    clearMessageEditing();
 
     if (
       activeChatId !== nextChatId ||
       (activeChatId && ids.includes(activeChatId))
     ) {
       setActiveChatId(nextChatId || null);
-      setMessages(nextChatId ? newChatMessagesMap[nextChatId] || [] : []);
     }
   };
 
@@ -336,6 +433,7 @@ export default function NewsResearchPage() {
 
       setChats(parsed.chats || []);
       setChatMessagesMap(revivedMessages);
+      setActiveAssistantVersionMap(parsed.activeAssistantVersionMap || {});
 
       const targetChatId =
         parsed.activeChatId && revivedMessages[parsed.activeChatId]
@@ -346,7 +444,6 @@ export default function NewsResearchPage() {
 
       if (targetChatId) {
         setActiveChatId(targetChatId);
-        setMessages(revivedMessages[targetChatId] || []);
       }
     } catch (error) {
       console.warn("Failed to hydrate chat history", error);
@@ -357,25 +454,6 @@ export default function NewsResearchPage() {
       }, 0);
     }
   }, []);
-
-  // Persist current messages into the active chat and update chat summary
-  useEffect(() => {
-    if (!activeChatId || isHydratingRef.current) return;
-    setChatMessagesMap((prev) => ({ ...prev, [activeChatId]: messages }));
-    setChats((prev) =>
-      prev.map((c) =>
-        c.id === activeChatId
-          ? {
-              ...c,
-              lastMessage: messages.length
-                ? messages[messages.length - 1].content.slice(0, 200)
-                : "",
-              updatedAt: new Date().toISOString(),
-            }
-          : c,
-      ),
-    );
-  }, [messages, activeChatId]);
 
   // Persist chats & messages to localStorage whenever they change (post-hydration)
   useEffect(() => {
@@ -397,6 +475,7 @@ export default function NewsResearchPage() {
         version: CHAT_STORAGE_VERSION,
         activeChatId,
         chats,
+        activeAssistantVersionMap,
         messages: serializableMessages,
       };
 
@@ -404,7 +483,7 @@ export default function NewsResearchPage() {
     } catch (error) {
       console.warn("Failed to persist chat history", error);
     }
-  }, [chats, chatMessagesMap, activeChatId]);
+  }, [activeAssistantVersionMap, chats, chatMessagesMap, activeChatId]);
 
   const buildChatHistoryPayload = (items: Message[]) =>
     items
@@ -420,207 +499,246 @@ export default function NewsResearchPage() {
       }))
       .filter((entry) => entry.content && entry.content.trim().length > 0);
 
-  const handleSearch = async (e: React.FormEvent) => {
-    e.preventDefault();
-
-    const trimmedQuery = query.trim();
-    if (!trimmedQuery) return;
-
-    const historyPayload = buildChatHistoryPayload(messages);
-    const promptQuery = `${trimmedQuery}\n\nProvide a concise answer with detailed well-written prose based on the sources you have searched cited them when needed.`;
-
-    // If there's no active chat, create one automatically and name it from the prompt.
-    let newChatTitle: string | undefined = undefined;
-    if (!activeChatId) {
-      // Prefer first sentence; fallback to first 4 words
-      const firstSentence = (trimmedQuery.split(/[\.\n]/)[0] || "").trim();
-      const firstFour = trimmedQuery.split(/\s+/).slice(0, 4).join(" ");
-      const titleBase = firstSentence || firstFour || "New Chat";
-      const title = titleBase.slice(0, 60);
-      const id = `chat-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
-      const newChat = {
-        id,
-        title,
-        lastMessage: trimmedQuery.slice(0, 120),
-        updatedAt: new Date().toISOString(),
+  const startResearch = useCallback(
+    async ({
+      chatId,
+      prompt,
+      seedMessages,
+      newChatTitle,
+      parentMessageId,
+      retryGroupId,
+      versionSelectionOverrides,
+    }: {
+      chatId: string;
+      prompt: string;
+      seedMessages: Message[];
+      newChatTitle?: string;
+      parentMessageId?: string;
+      retryGroupId?: string;
+      versionSelectionOverrides?: Record<string, string>;
+    }) => {
+      const versionSelections = {
+        ...(activeAssistantVersionMap[chatId] || {}),
+        ...(versionSelectionOverrides || {}),
       };
-      // add the chat; seed an empty array — messages state (below) will be persisted into the chat via useEffect
-      setChats((prev) => [newChat, ...prev]);
-      setChatMessagesMap((prev) => ({ ...prev, [id]: [] }));
-      setActiveChatId(id);
-      newChatTitle = title;
-    }
+      const visibleHistoryMessages = getVisibleConversationMessages(
+        seedMessages,
+        versionSelections,
+      ).filter(
+        (message) =>
+          !retryGroupId ||
+          message.type !== "assistant" ||
+          getMessageVersionGroupId(message) !== retryGroupId,
+      );
+      const historyPayload = buildChatHistoryPayload(
+        visibleHistoryMessages,
+      );
+      const promptQuery = `${prompt}\n\nProvide a concise answer with detailed well-written prose based on the sources you have searched cited them when needed.`;
+      const timestamp = Date.now();
+      const assistantId = `assistant-${timestamp}`;
+      const assistantGroupId = retryGroupId ?? assistantId;
+      const semanticToolId = `semantic-${timestamp}`;
+      const thinkingSteps: ThinkingStep[] = [];
+      let structuredArticles: StructuredArticlesPayload | undefined;
+      let finalResult: ResearchResult | undefined;
 
-    const timestamp = Date.now();
-    const assistantId = `assistant-${timestamp}`;
-    const semanticToolId = `semantic-${timestamp}`;
+      setIsSearching(true);
+      setActiveAssistantVersion(chatId, assistantGroupId, assistantId);
 
-    const userMessage: Message = {
-      id: `user-${timestamp}`,
-      type: "user",
-      content: trimmedQuery,
-      timestamp: new Date(),
-    };
+      const currentChatTitle =
+        newChatTitle || chats.find((chat) => chat.id === chatId)?.title;
+      const streamingPlaceholder: Message = {
+        id: assistantId,
+        type: "assistant",
+        content: currentChatTitle ? `Topic: ${currentChatTitle}` : "",
+        timestamp: new Date(),
+        isStreaming: true,
+        streamingStatus: "Starting research...",
+        retryOfMessageId: retryGroupId,
+        parentMessageId,
+      };
 
-    const thinkingSteps: ThinkingStep[] = [];
-    let structuredArticles: StructuredArticlesPayload | undefined;
-    let finalResult: ResearchResult | undefined;
-
-    setMessages((prev) => [...prev, userMessage]);
-    setQuery("");
-    setIsSearching(true);
-
-    // Include chat title in the initial assistant placeholder to give context (saves tokens vs re-requesting)
-    const currentChatTitle =
-      newChatTitle ||
-      chats.find((c) => c.id === activeChatId)?.title ||
-      undefined;
-    const streamingPlaceholder: Message = {
-      id: assistantId,
-      type: "assistant",
-      content: currentChatTitle ? `Topic: ${currentChatTitle}` : "",
-      timestamp: new Date(),
-      isStreaming: true,
-      streamingStatus: "Starting research...",
-    };
-
-    setMessages((prev) => [...prev, streamingPlaceholder]);
-
-    semanticSearch(trimmedQuery, { limit: 3 })
-      .then((response) => {
-        const relevant = response.results
-          .filter((result: SemanticSearchResult) => {
-            const { article, similarityScore } = result;
-            if (!article?.summary) return false;
-            if (typeof similarityScore === "number") {
-              return similarityScore >= 0.55;
-            }
-            return true;
-          })
-          .slice(0, 5);
-
-        if (relevant.length === 0) {
-          return;
-        }
-
-        const toolMessage: Message = {
-          id: semanticToolId,
-          type: "assistant",
-          content: "Found related coverage.",
-          timestamp: new Date(),
-          toolType: "semantic_search",
-          semanticResults: relevant,
-        };
-
-        setMessages((prev) => {
-          const withoutExisting = prev.filter(
-            (msg) => msg.id !== semanticToolId,
-          );
-          const insertAt = withoutExisting.findIndex(
-            (msg) => msg.id === assistantId,
-          );
-
-          if (insertAt === -1) {
-            return [...withoutExisting, toolMessage];
-          }
-
-          const next = [...withoutExisting];
-          next.splice(insertAt, 0, toolMessage);
-          return next;
-        });
-      })
-      .catch((error) => {
-        console.warn("Semantic search unavailable:", error);
+      updateChatMessages(chatId, (prev) => [...prev, streamingPlaceholder], {
+        syncSummary: false,
       });
 
-    try {
-      const streamUrl = new URL(`${API_BASE_URL}/api/news/research/stream`);
-      streamUrl.searchParams.set("query", promptQuery);
-      streamUrl.searchParams.set("include_thinking", "true");
-      if (historyPayload.length > 0) {
-        streamUrl.searchParams.set("history", JSON.stringify(historyPayload));
-      }
-
-      const abortController = new AbortController();
-      abortControllerRef.current = abortController;
-
-      const stallTimeout = window.setTimeout(() => {
-        setMessages((prev) =>
-          prev.map((msg) =>
-            msg.id === assistantId
-              ? {
-                  ...msg,
-                  streamingStatus: "Still working. Gathering more coverage.",
-                }
-              : msg,
-          ),
-        );
-      }, 30000);
-
-      const processEvent = (line: string) => {
-        if (!line.startsWith("data: ")) return;
-        const raw = line.slice(6).trim();
-        if (!raw || raw === "[DONE]") return;
-        try {
-          const data = JSON.parse(raw) as ResearchStreamMessage;
-
-          if (isStatusMessage(data)) {
-            setMessages((prev) =>
-              prev.map((msg) =>
-                msg.id !== assistantId
-                  ? msg
-                  : { ...msg, streamingStatus: data.message },
-              ),
-            );
-          } else if (isThinkingStepMessage(data)) {
-            thinkingSteps.push(data.step);
-            setMessages((prev) =>
-              prev.map((msg) =>
-                msg.id !== assistantId
-                  ? msg
-                  : {
-                      ...msg,
-                      thinking_steps: [...thinkingSteps],
-                      streamingStatus: stepStatusLabel(data.step.type),
-                    },
-              ),
-            );
-          } else if (isArticlesJsonMessage(data)) {
-            try {
-              let parsed: StructuredArticlesPayload | null = null;
-              try {
-                parsed = JSON.parse(data.data) as StructuredArticlesPayload;
-              } catch {
-                const jsonMatch = data.data.match(
-                  /```json:articles\n([\s\S]*?)\n```/,
-                );
-                if (jsonMatch)
-                  parsed = JSON.parse(
-                    jsonMatch[1],
-                  ) as StructuredArticlesPayload;
+      semanticSearch(prompt, { limit: 3 })
+        .then((response) => {
+          const relevant = response.results
+            .filter((result: SemanticSearchResult) => {
+              const { article, similarityScore } = result;
+              if (!article?.summary) return false;
+              if (typeof similarityScore === "number") {
+                return similarityScore >= 0.55;
               }
-              if (parsed) {
-                structuredArticles = parsed;
-                setMessages((prev) =>
-                  prev.map((msg) =>
-                    msg.id !== assistantId
-                      ? msg
-                      : {
-                          ...msg,
-                          structured_articles_json: structuredArticles,
-                          streamingStatus: "Article data ready.",
-                        },
-                  ),
-                );
-              }
-            } catch (jsonError) {
-              console.error("Failed to parse structured articles:", jsonError);
+              return true;
+            })
+            .slice(0, 5);
+
+          if (relevant.length === 0) {
+            return;
+          }
+
+          const toolMessage: Message = {
+            id: semanticToolId,
+            type: "assistant",
+            content: "Found related coverage.",
+            timestamp: new Date(),
+            toolType: "semantic_search",
+            semanticResults: relevant,
+            retryOfMessageId: retryGroupId,
+          };
+
+          updateChatMessages(chatId, (prev) => {
+            const withoutExisting = prev.filter(
+              (msg) => msg.id !== semanticToolId,
+            );
+            const insertAt = withoutExisting.findIndex(
+              (msg) => msg.id === assistantId,
+            );
+
+            if (insertAt === -1) {
+              return [...withoutExisting, toolMessage];
             }
-          } else if (isReferencedArticlesMessage(data)) {
-            const referencedArticlesPayload: ReferencedArticlePayload[] =
-              Array.isArray(data.articles) ? data.articles : [];
-            const referencedArticles: NewsArticle[] =
-              referencedArticlesPayload.map((article) => {
+
+            const next = [...withoutExisting];
+            next.splice(insertAt, 0, toolMessage);
+            return next;
+          }, { syncSummary: false });
+        })
+        .catch((error) => {
+          console.warn("Semantic search unavailable:", error);
+        });
+
+      try {
+        const streamUrl = new URL(`${API_BASE_URL}/api/news/research/stream`);
+        streamUrl.searchParams.set("query", promptQuery);
+        streamUrl.searchParams.set("include_thinking", "true");
+        if (historyPayload.length > 0) {
+          streamUrl.searchParams.set("history", JSON.stringify(historyPayload));
+        }
+
+        const abortController = new AbortController();
+        abortControllerRef.current = abortController;
+
+        const stallTimeout = window.setTimeout(() => {
+          updateChatMessages(chatId, (prev) =>
+            prev.map((msg) =>
+              msg.id === assistantId
+                ? {
+                    ...msg,
+                    streamingStatus: "Still working. Gathering more coverage.",
+                  }
+                : msg,
+            ),
+          { syncSummary: false });
+        }, 30000);
+
+        const processEvent = (line: string) => {
+          if (!line.startsWith("data: ")) return;
+          const raw = line.slice(6).trim();
+          if (!raw || raw === "[DONE]") return;
+          try {
+            const data = JSON.parse(raw) as ResearchStreamMessage;
+
+            if (isStatusMessage(data)) {
+              updateChatMessages(chatId, (prev) =>
+                prev.map((msg) =>
+                  msg.id !== assistantId
+                    ? msg
+                    : { ...msg, streamingStatus: data.message },
+                ),
+              { syncSummary: false });
+            } else if (isThinkingStepMessage(data)) {
+              thinkingSteps.push(data.step);
+              updateChatMessages(chatId, (prev) =>
+                prev.map((msg) =>
+                  msg.id !== assistantId
+                    ? msg
+                    : {
+                        ...msg,
+                        thinking_steps: [...thinkingSteps],
+                        streamingStatus: stepStatusLabel(data.step.type),
+                      },
+                ),
+              { syncSummary: false });
+            } else if (isArticlesJsonMessage(data)) {
+              try {
+                let parsed: StructuredArticlesPayload | null = null;
+                try {
+                  parsed = JSON.parse(data.data) as StructuredArticlesPayload;
+                } catch {
+                  const jsonMatch = data.data.match(
+                    /```json:articles\n([\s\S]*?)\n```/,
+                  );
+                  if (jsonMatch)
+                    parsed = JSON.parse(
+                      jsonMatch[1],
+                    ) as StructuredArticlesPayload;
+                }
+                if (parsed) {
+                  structuredArticles = parsed;
+                  updateChatMessages(chatId, (prev) =>
+                    prev.map((msg) =>
+                      msg.id !== assistantId
+                        ? msg
+                        : {
+                            ...msg,
+                            structured_articles_json: structuredArticles,
+                            streamingStatus: "Article data ready.",
+                          },
+                    ),
+                  { syncSummary: false });
+                }
+              } catch (jsonError) {
+                console.error("Failed to parse structured articles:", jsonError);
+              }
+            } else if (isReferencedArticlesMessage(data)) {
+              const referencedArticlesPayload: ReferencedArticlePayload[] =
+                Array.isArray(data.articles) ? data.articles : [];
+              const referencedArticles: NewsArticle[] =
+                referencedArticlesPayload.map((article) => {
+                  const tags = [article.category, article.source].filter(
+                    (value): value is string => Boolean(value),
+                  );
+                  return {
+                    id: Date.now() + Math.random(),
+                    title: article.title || "No title",
+                    source: article.source || "Unknown",
+                    sourceId: (article.source || "unknown")
+                      .toLowerCase()
+                      .replace(/\s+/g, "-"),
+                    country: "United States",
+                    credibility: "medium" as const,
+                    bias: "center" as const,
+                    summary: article.description || "No description",
+                    content: article.description || "No description",
+                    image: article.image || "/placeholder.svg",
+                    publishedAt: article.published || new Date().toISOString(),
+                    category: article.category || "general",
+                    url: article.link || "",
+                    tags,
+                    originalLanguage: "en",
+                    translated: false,
+                  };
+                });
+              updateChatMessages(chatId, (prev) =>
+                prev.map((msg) =>
+                  msg.id !== assistantId
+                    ? msg
+                    : {
+                        ...msg,
+                        referenced_articles: referencedArticles,
+                        streamingStatus: "Reviewing articles.",
+                      },
+                ),
+              { syncSummary: false });
+            } else if (isCompleteMessage(data)) {
+              window.clearTimeout(stallTimeout);
+              finalResult = data.result;
+              const referencedArticles: NewsArticle[] = (
+                finalResult.referenced_articles ?? []
+              ).map((article) => {
                 const tags = [article.category, article.source].filter(
                   (value): value is string => Boolean(value),
                 );
@@ -645,189 +763,293 @@ export default function NewsResearchPage() {
                   translated: false,
                 };
               });
-            setMessages((prev) =>
-              prev.map((msg) =>
-                msg.id !== assistantId
-                  ? msg
-                  : {
-                      ...msg,
-                      referenced_articles: referencedArticles,
-                      streamingStatus: "Reviewing articles.",
-                    },
-              ),
-            );
-          } else if (isCompleteMessage(data)) {
-            window.clearTimeout(stallTimeout);
-            finalResult = data.result;
-            const referencedArticles: NewsArticle[] = (
-              finalResult.referenced_articles ?? []
-            ).map((article) => {
-              const tags = [article.category, article.source].filter(
-                (value): value is string => Boolean(value),
-              );
-              return {
-                id: Date.now() + Math.random(),
-                title: article.title || "No title",
-                source: article.source || "Unknown",
-                sourceId: (article.source || "unknown")
-                  .toLowerCase()
-                  .replace(/\s+/g, "-"),
-                country: "United States",
-                credibility: "medium" as const,
-                bias: "center" as const,
-                summary: article.description || "No description",
-                content: article.description || "No description",
-                image: article.image || "/placeholder.svg",
-                publishedAt: article.published || new Date().toISOString(),
-                category: article.category || "general",
-                url: article.link || "",
-                tags,
-                originalLanguage: "en",
-                translated: false,
-              };
-            });
-            setMessages((prev) =>
-              prev.map((msg) =>
-                msg.id !== assistantId
-                  ? msg
-                  : {
-                      ...msg,
-                      content: finalResult?.answer || "No answer returned.",
-                      thinking_steps: [...thinkingSteps],
-                      articles_searched: finalResult?.articles_searched,
-                      referenced_articles: referencedArticles,
-                      structured_articles_json:
-                        structuredArticles ?? msg.structured_articles_json,
-                      isStreaming: false,
-                      streamingStatus: undefined,
-                      error: !finalResult?.success,
-                    },
-              ),
-            );
-            setIsSearching(false);
-            abortControllerRef.current = null;
-            inputRef.current?.focus();
-          } else if (isErrorMessage(data)) {
-            window.clearTimeout(stallTimeout);
-            let errorMessage =
-              data.message || "Research hit an error.";
-            const lowered = errorMessage.toLowerCase();
-            if (
-              lowered.includes("rate limit") ||
-              lowered.includes("quota") ||
-              lowered.includes("429")
-            ) {
-              errorMessage =
-                "API Rate Limit: The AI service has reached its rate limit. Please wait a moment and try again.";
-            }
-            setMessages((prev) =>
-              prev.map((msg) =>
-                msg.id !== assistantId
-                  ? msg
-                  : {
-                      ...msg,
-                      content: errorMessage,
-                      error: true,
-                      isStreaming: false,
-                      streamingStatus: undefined,
-                    },
-              ),
-            );
-            setIsSearching(false);
-            abortControllerRef.current = null;
-          }
-        } catch (parseError) {
-          console.error("Failed to parse research stream message:", parseError);
-        }
-      };
-
-      const response = await fetch(streamUrl.toString(), {
-        signal: abortController.signal,
-      });
-      if (!response.ok || !response.body) {
-        throw new Error(`Stream request failed: ${response.status}`);
-      }
-
-      const reader = response.body.getReader();
-      const decoder = new TextDecoder();
-      let buffer = "";
-
-      try {
-        while (true) {
-          const { done, value } = await reader.read();
-          if (done) break;
-          buffer += decoder.decode(value, { stream: true });
-          const lines = buffer.split("\n");
-          buffer = lines.pop() ?? "";
-          for (const line of lines) {
-            processEvent(line);
-          }
-        }
-        // Process any remaining buffered data
-        if (buffer) processEvent(buffer);
-      } finally {
-        reader.releaseLock();
-        window.clearTimeout(stallTimeout);
-      }
-    } catch (error) {
-      if (error instanceof Error && error.name === "AbortError") {
-        // User stopped the request — message already updated by handleStop
-        return;
-      }
-      console.error("Failed to start research stream:", error);
-      setMessages((prev) =>
-        prev.map((msg) =>
-          msg.id === assistantId
-            ? {
-                ...msg,
-                content:
-                  error instanceof Error
-                    ? error.message
-                    : "Could not start research.",
-                error: true,
-                isStreaming: false,
-                streamingStatus: undefined,
+              updateChatMessages(chatId, (prev) =>
+                prev.map((msg) =>
+                  msg.id !== assistantId
+                    ? msg
+                    : {
+                        ...msg,
+                        content: finalResult?.answer || "No answer returned.",
+                        thinking_steps: [...thinkingSteps],
+                        articles_searched: finalResult?.articles_searched,
+                        referenced_articles: referencedArticles,
+                        structured_articles_json:
+                          structuredArticles ?? msg.structured_articles_json,
+                        isStreaming: false,
+                        streamingStatus: undefined,
+                        error: !finalResult?.success,
+                      },
+                ),
+              {
+                updatedAt: new Date().toISOString(),
+                summaryPreview: (
+                  finalResult?.answer || "No answer returned."
+                ).slice(0, 200),
+              });
+              setActiveAssistantVersion(chatId, assistantGroupId, assistantId);
+              setIsSearching(false);
+              abortControllerRef.current = null;
+              inputRef.current?.focus();
+            } else if (isErrorMessage(data)) {
+              window.clearTimeout(stallTimeout);
+              let errorMessage = data.message || "Research hit an error.";
+              const lowered = errorMessage.toLowerCase();
+              if (
+                lowered.includes("rate limit") ||
+                lowered.includes("quota") ||
+                lowered.includes("429")
+              ) {
+                errorMessage =
+                  "API Rate Limit: The AI service has reached its rate limit. Please wait a moment and try again.";
               }
-            : msg,
-        ),
-      );
-      setIsSearching(false);
-    }
+              updateChatMessages(chatId, (prev) =>
+                prev.map((msg) =>
+                  msg.id !== assistantId
+                    ? msg
+                    : {
+                        ...msg,
+                        content: errorMessage,
+                        error: true,
+                        isStreaming: false,
+                        streamingStatus: undefined,
+                      },
+                ),
+              {
+                updatedAt: new Date().toISOString(),
+                summaryPreview: errorMessage.slice(0, 200),
+              });
+              setActiveAssistantVersion(chatId, assistantGroupId, assistantId);
+              setIsSearching(false);
+              abortControllerRef.current = null;
+            }
+          } catch (parseError) {
+            console.error("Failed to parse research stream message:", parseError);
+          }
+        };
+
+        const response = await fetch(streamUrl.toString(), {
+          signal: abortController.signal,
+        });
+        if (!response.ok || !response.body) {
+          throw new Error(`Stream request failed: ${response.status}`);
+        }
+
+        const reader = response.body.getReader();
+        const decoder = new TextDecoder();
+        let buffer = "";
+
+        try {
+          while (true) {
+            const { done, value } = await reader.read();
+            if (done) break;
+            buffer += decoder.decode(value, { stream: true });
+            const lines = buffer.split("\n");
+            buffer = lines.pop() ?? "";
+            for (const line of lines) {
+              processEvent(line);
+            }
+          }
+          if (buffer) processEvent(buffer);
+        } finally {
+          reader.releaseLock();
+          window.clearTimeout(stallTimeout);
+        }
+      } catch (error) {
+        if (error instanceof Error && error.name === "AbortError") {
+          return;
+        }
+        console.error("Failed to start research stream:", error);
+        updateChatMessages(chatId, (prev) =>
+          prev.map((msg) =>
+            msg.id === assistantId
+              ? {
+                  ...msg,
+                  content:
+                    error instanceof Error
+                      ? error.message
+                      : "Could not start research.",
+                  error: true,
+                  isStreaming: false,
+                  streamingStatus: undefined,
+                }
+              : msg,
+          ),
+        {
+          updatedAt: new Date().toISOString(),
+          summaryPreview:
+            (error instanceof Error
+              ? error.message
+              : "Could not start research.").slice(0, 200),
+        });
+        setActiveAssistantVersion(chatId, assistantGroupId, assistantId);
+        setIsSearching(false);
+      }
+    },
+    [
+      activeAssistantVersionMap,
+      chats,
+      setActiveAssistantVersion,
+      updateChatMessages,
+    ],
+  );
+
+  const submitPrompt = useCallback(
+    async ({
+      prompt,
+      editingTargetId,
+      clearComposer,
+    }: {
+      prompt: string;
+      editingTargetId?: string | null;
+      clearComposer?: boolean;
+    }) => {
+      const trimmedQuery = prompt.trim();
+      if (!trimmedQuery) return;
+
+      let newChatTitle: string | undefined;
+      let targetChatId = activeChatId;
+      if (!activeChatId) {
+        const firstSentence = (trimmedQuery.split(/[\.\n]/)[0] || "").trim();
+        const firstFour = trimmedQuery.split(/\s+/).slice(0, 4).join(" ");
+        const titleBase = firstSentence || firstFour || "New Chat";
+        const title = titleBase.slice(0, 60);
+        const id = `chat-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+        const newChat = {
+          id,
+          title,
+          lastMessage: trimmedQuery.slice(0, 120),
+          updatedAt: new Date().toISOString(),
+        };
+
+        setChats((prev) => [newChat, ...prev]);
+        setChatMessagesMap((prev) => ({ ...prev, [id]: [] }));
+        setActiveAssistantVersionMap((prev) => ({ ...prev, [id]: {} }));
+        setActiveChatId(id);
+        targetChatId = id;
+        newChatTitle = title;
+      }
+
+      if (!targetChatId) return;
+
+      const editingTarget = editingTargetId
+        ? messages.find((message) => message.id === editingTargetId)
+        : null;
+      const latestVisibleMessage =
+        conversationMessages[conversationMessages.length - 1];
+      const editedParentMessageId = editingTarget
+        ? editingTarget.parentMessageId ??
+          conversationMessages[
+            conversationMessages.findIndex(
+              (message) => message.id === editingTarget.id,
+            ) - 1
+          ]?.id
+        : undefined;
+      const userMessage: Message = {
+        id: `user-${Date.now()}`,
+        type: "user",
+        content: trimmedQuery,
+        timestamp: new Date(),
+        retryOfMessageId:
+          editingTarget && editingTarget.type === "user"
+            ? getMessageVersionGroupId(editingTarget)
+            : undefined,
+        parentMessageId: editingTarget
+          ? editedParentMessageId
+          : latestVisibleMessage?.id,
+      };
+      const seedMessages = [...messages, userMessage];
+
+      updateChatMessages(targetChatId, (prev) => [...prev, userMessage], {
+        updatedAt: new Date().toISOString(),
+        summaryPreview: trimmedQuery.slice(0, 200),
+      });
+      if (editingTarget && editingTarget.type === "user") {
+        setActiveAssistantVersion(
+          targetChatId,
+          getMessageVersionGroupId(editingTarget),
+          userMessage.id,
+        );
+      }
+      if (clearComposer) {
+        setQuery("");
+      }
+      if (editingTargetId) {
+        clearMessageEditing();
+      }
+
+      await startResearch({
+        chatId: targetChatId,
+        prompt: trimmedQuery,
+        seedMessages,
+        newChatTitle,
+        parentMessageId: userMessage.id,
+        versionSelectionOverrides:
+          editingTarget && editingTarget.type === "user"
+            ? {
+                [getMessageVersionGroupId(editingTarget)]: userMessage.id,
+              }
+            : undefined,
+      });
+    },
+    [
+      activeChatId,
+      clearMessageEditing,
+      conversationMessages,
+      messages,
+      setActiveAssistantVersion,
+      startResearch,
+      updateChatMessages,
+    ],
+  );
+
+  const handleSearch = async (e: React.FormEvent) => {
+    e.preventDefault();
+    await submitPrompt({ prompt: query, clearComposer: true });
   };
 
-  const handleResetMessage = (assistantMessageId: string) => {
-    if (isSearching) return;
+  const handleResetMessage = async (assistantMessageId: string) => {
+    if (isSearching || !activeChatId) return;
 
-    const assistantIndex = messages.findIndex(
+    const visibleAssistantIndex = conversationMessages.findIndex(
       (message) => message.id === assistantMessageId,
     );
-    if (assistantIndex <= 0) return;
+    if (visibleAssistantIndex <= 0) return;
 
-    const contextMessages = messages.slice(0, assistantIndex);
-    const retryUserMessage = [...contextMessages]
+    const targetAssistant = messages.find((message) => message.id === assistantMessageId);
+    if (!targetAssistant || targetAssistant.type !== "assistant") return;
+
+    const retryUserMessage = [...conversationMessages.slice(0, visibleAssistantIndex)]
       .reverse()
       .find((message) => message.type === "user");
     if (!retryUserMessage || !retryUserMessage.content.trim()) return;
+    const versionGroupId = getMessageVersionGroupId(targetAssistant);
 
-    const retryIndex = contextMessages.findIndex(
-      (message) => message.id === retryUserMessage.id,
-    );
-    const preservedContext =
-      retryIndex >= 0
-        ? contextMessages.slice(0, retryIndex + 1)
-        : contextMessages;
+    await startResearch({
+      chatId: activeChatId,
+      prompt: retryUserMessage.content,
+      seedMessages: messages,
+      parentMessageId: retryUserMessage.id,
+      retryGroupId: versionGroupId,
+    });
+  };
 
-    setMessages(preservedContext);
-    setQuery(retryUserMessage.content);
-
-    window.setTimeout(() => {
-      composerFormRef.current?.requestSubmit();
-    }, 0);
+  const handleSelectMessageVersion = (
+    groupId: string,
+    messageId: string,
+  ) => {
+    if (!activeChatId) return;
+    setActiveAssistantVersion(activeChatId, groupId, messageId);
   };
 
   const handleDeleteMessage = (messageId: string) => {
     if (isSearching) return;
-    setMessages((prev) => prev.filter((message) => message.id !== messageId));
+    if (!activeChatId) return;
+    if (editingMessageId === messageId) {
+      clearMessageEditing();
+    }
+    updateChatMessages(activeChatId, (prev) =>
+      prev.filter((message) => message.id !== messageId),
+    );
   };
 
   const handleEditMessage = (messageId: string) => {
@@ -836,9 +1058,20 @@ export default function NewsResearchPage() {
     if (index === -1) return;
     const target = messages[index];
     if (target.type !== "user") return;
-    setQuery(target.content);
-    setMessages(messages.slice(0, index));
-    inputRef.current?.focus();
+    setEditingMessageId(messageId);
+    setEditingDraft(target.content);
+  };
+
+  const handleCancelEditMessage = () => {
+    clearMessageEditing();
+  };
+
+  const handleSaveEditedMessage = async () => {
+    if (!editingMessageId) return;
+    await submitPrompt({
+      prompt: editingDraft,
+      editingTargetId: editingMessageId,
+    });
   };
 
   const handleCopyMessage = async (content: string) => {
@@ -858,6 +1091,7 @@ export default function NewsResearchPage() {
   ];
 
   const handleSampleQuery = (sampleQuery: string) => {
+    clearMessageEditing();
     setQuery(sampleQuery);
     inputRef.current?.focus();
   };
@@ -1109,15 +1343,18 @@ export default function NewsResearchPage() {
 
   const isEmpty = messages.length === 0;
   const latestUserMessage = useMemo(
-    () => [...messages].reverse().find((message) => message.type === "user"),
-    [messages],
+    () =>
+      [...conversationMessages]
+        .reverse()
+        .find((message) => message.type === "user"),
+    [conversationMessages],
   );
   const latestAssistantMessage = useMemo(
     () =>
-      [...messages]
+      [...conversationMessages]
         .reverse()
         .find((message) => message.type === "assistant" && !message.toolType),
-    [messages],
+    [conversationMessages],
   );
   const latestSemanticMessage = useMemo(
     () =>
@@ -1159,23 +1396,10 @@ export default function NewsResearchPage() {
     );
   }, [relatedArticles]);
   const thinkingSteps = latestAssistantMessage?.thinking_steps ?? [];
-  const conversationMessages = useMemo(
-    () =>
-      messages.filter(
-        (message) =>
-          message.type === "user" ||
-          (message.type === "assistant" && !message.toolType),
-      ),
-    [messages],
-  );
-  const recentQueries = useMemo(
-    () =>
-      messages
-        .filter((message) => message.type === "user")
-        .slice(-6)
-        .reverse(),
-    [messages],
-  );
+  const activeBriefTitle =
+    latestUserMessage?.content ||
+    chats.find((chat) => chat.id === activeChatId)?.title ||
+    "Research thread";
 
   useEffect(() => {
     if (!chatScrollRef.current) return;
@@ -1202,101 +1426,94 @@ export default function NewsResearchPage() {
         </div>
 
         <div className="flex-1 flex flex-col min-w-0">
-          <header className="sticky top-0 z-20 shrink-0 border-b border-border/30 bg-background/70 backdrop-blur-xl">
-            <div className="flex w-full items-start justify-between gap-4 px-4 py-3 md:px-6">
-              <div className="flex flex-col gap-1 w-full min-w-0">
-                <div className="flex items-center gap-4 min-w-0">
-                  <button
-                    onClick={toggleSidebar}
-                    className="shrink-0 rounded-full border border-border/40 bg-card/40 p-2 text-muted-foreground transition-all duration-300 ease-out hover:bg-card hover:text-foreground active:scale-95"
-                  >
-                    {sidebarCollapsed ? (
-                      <ChevronRight size={16} />
-                    ) : (
-                      <ChevronLeft size={16} />
-                    )}
-                  </button>
-                  <div className="flex items-center gap-2.5 min-w-0 pr-6 mr-2 shrink-0 hidden md:flex">
-                    <h1 className="text-base font-semibold text-foreground leading-none shrink-0">
-                      Scoop Research
-                    </h1>
-                    <span className="hidden shrink-0 font-mono text-xs uppercase tracking-widest text-muted-foreground sm:inline">
-                      WORKSPACE
-                    </span>
-                    {isEmpty && (
-                      <>
-                        <span className="text-muted-foreground/30 hidden sm:inline mx-2 shrink-0">
-                          /
+          <header className="sticky top-0 z-20 shrink-0 border-b border-border/20 bg-background/80 backdrop-blur-2xl">
+            <div className="flex w-full items-start gap-4 px-4 py-4 md:px-6 lg:px-8">
+              <button
+                onClick={toggleSidebar}
+                className="mt-0.5 shrink-0 rounded-full border border-border/30 bg-background/70 p-2 text-muted-foreground transition-all duration-300 ease-out hover:border-border/50 hover:text-foreground active:scale-95"
+                aria-label={sidebarCollapsed ? "Open sidebar" : "Close sidebar"}
+              >
+                {sidebarCollapsed ? (
+                  <ChevronRight size={16} />
+                ) : (
+                  <ChevronLeft size={16} />
+                )}
+              </button>
+
+              <div className="min-w-0 flex-1">
+                {isEmpty ? (
+                  <>
+                    <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs">
+                      <div className="flex min-w-0 items-center gap-2.5">
+                        <h1 className="truncate font-serif text-base font-medium tracking-tight text-foreground">
+                          Scoop Research
+                        </h1>
+                        <span className="hidden h-1 w-1 rounded-full bg-border/70 md:inline-block" />
+                        <span className="hidden font-mono text-xs uppercase tracking-widest text-muted-foreground/55 md:inline">
+                          Workspace
                         </span>
-                        <span className="max-w-sm truncate font-serif text-sm text-muted-foreground/80 lg:max-w-md">
-                          {activeChatId
-                            ? chats.find((c) => c.id === activeChatId)?.title ||
-                              "Untitled research"
-                            : "Untitled research"}
-                        </span>
-                      </>
-                    )}
-                  </div>
-                  {!isEmpty && (
-                    <div className="flex flex-col min-w-0 flex-1">
-                      <p className="mb-1 shrink-0 font-mono text-xs uppercase tracking-widest text-muted-foreground/70">
-                        ACTIVE BRIEFING
-                      </p>
-                      <div className="flex items-center gap-4 min-w-0">
-                        <h2 className="text-xl lg:text-2xl font-serif font-medium text-foreground/90 truncate min-w-0">
-                          {latestUserMessage?.content || "Research thread"}
-                        </h2>
-                        {(isSearching ||
-                          latestAssistantMessage?.isStreaming) && (
-                          <div className="flex shrink-0 items-center gap-2 rounded-full border border-primary/20 bg-primary/10 px-3 py-1 text-xs text-primary/80">
-                            <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                            <span className="hidden font-mono uppercase tracking-widest sm:inline">
-                              {latestAssistantMessage?.streamingStatus ||
-                                "Running..."}
-                            </span>
-                            <button
-                              type="button"
-                              onClick={handleStop}
-                              className="ml-1 flex items-center justify-center rounded-full hover:bg-primary/20 p-1 transition-colors"
-                              title="Stop generation"
-                            >
-                              <Square className="w-2.5 h-2.5 fill-current" />
-                            </button>
-                          </div>
-                        )}
-                      </div>
-                      <div className="flex items-center gap-5 mt-2 shrink-0">
-                        <div className="flex items-center gap-1.5 font-mono text-xs uppercase tracking-wider text-muted-foreground/70">
-                          <span className="text-foreground/80 font-semibold">
-                            {conversationMessages.length}
-                          </span>{" "}
-                          MESSAGES
-                        </div>
-                        {latestAssistantMessage?.articles_searched && (
-                          <div className="flex items-center gap-1.5 font-mono text-xs uppercase tracking-wider text-muted-foreground/70">
-                            <span className="text-foreground/80 font-semibold">
-                              {latestAssistantMessage.articles_searched}
-                            </span>{" "}
-                            SOURCES SEARCHED
-                          </div>
-                        )}
                       </div>
                     </div>
-                  )}
-                </div>
-              </div>
-
-              <div className="flex items-center gap-4 pl-4 shrink-0 self-start">
-                <Link href="/">
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    className="h-9 rounded-full border-border/40 bg-card/30 px-4 text-xs text-muted-foreground transition-all duration-300 ease-out hover:bg-card hover:text-foreground active:scale-95"
-                  >
-                    <Home className="w-3.5 h-3.5 mr-2" />
-                    Back to News
-                  </Button>
-                </Link>
+                    <div className="mt-3 flex flex-wrap items-center justify-between gap-3">
+                      <p className="max-w-xl text-sm text-muted-foreground">
+                        Start a focused question to build a source-backed brief.
+                      </p>
+                      <Link href="/">
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="h-9 rounded-full px-4 text-xs text-muted-foreground transition-all duration-300 ease-out hover:bg-card/50 hover:text-foreground"
+                        >
+                          <Home className="mr-2 h-3.5 w-3.5" />
+                          Back to News
+                        </Button>
+                      </Link>
+                    </div>
+                  </>
+                ) : (
+                  <div className="flex min-w-0 items-center gap-3">
+                    <h2 className="min-w-0 flex-1 truncate font-serif text-xl font-medium leading-tight tracking-tight text-foreground md:text-2xl">
+                      {activeBriefTitle}
+                    </h2>
+                    <div className="hidden shrink-0 items-center gap-4 font-mono text-xs uppercase tracking-widest text-muted-foreground/65 xl:flex">
+                      <span>{conversationMessages.length} messages</span>
+                      {latestAssistantMessage?.articles_searched ? (
+                        <span>
+                          {latestAssistantMessage.articles_searched} sources searched
+                        </span>
+                      ) : null}
+                    </div>
+                    <div className="flex shrink-0 items-center gap-2.5">
+                      {(isSearching || latestAssistantMessage?.isStreaming) && (
+                        <div className="flex items-center gap-2 rounded-full border border-primary/15 bg-primary/10 px-3 py-1.5 text-xs text-primary/80">
+                          <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                          <span className="hidden font-mono text-xs uppercase tracking-widest sm:inline">
+                            {latestAssistantMessage?.streamingStatus ||
+                              "Running"}
+                          </span>
+                          <button
+                            type="button"
+                            onClick={handleStop}
+                            className="flex items-center justify-center rounded-full p-1 transition-colors hover:bg-primary/15"
+                            title="Stop generation"
+                          >
+                            <Square className="h-2.5 w-2.5 fill-current" />
+                          </button>
+                        </div>
+                      )}
+                      <Link href="/">
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="h-9 rounded-full px-4 text-xs text-muted-foreground transition-all duration-300 ease-out hover:bg-card/50 hover:text-foreground"
+                        >
+                          <Home className="mr-2 h-3.5 w-3.5" />
+                          Back to News
+                        </Button>
+                      </Link>
+                    </div>
+                  </div>
+                )}
               </div>
             </div>
           </header>
@@ -1420,10 +1637,17 @@ export default function NewsResearchPage() {
                         ) : (
                           conversationMessages.map((message) => {
                             const isAssistant = message.type === "assistant";
+                            const isInlineEditing =
+                              !isAssistant && editingMessageId === message.id;
                             const stepCount =
                               message.thinking_steps?.length ?? 0;
                             const stepsExpanded = expandedStepMessageIds.has(
                               message.id,
+                            );
+                            const versionInfo = getMessageVersionInfo(
+                              messages,
+                              message.id,
+                              activeAssistantVersions,
                             );
                             const messageClass =
                               message.type === "user"
@@ -1451,7 +1675,58 @@ export default function NewsResearchPage() {
                                   </span>
                                 </div>
                                 <div className="mt-3 text-base text-foreground/90">
-                                  {isAssistant ? (
+                                  {isInlineEditing ? (
+                                    <form
+                                      onSubmit={(event) => {
+                                        event.preventDefault();
+                                        void handleSaveEditedMessage();
+                                      }}
+                                      className="space-y-3"
+                                    >
+                                      <textarea
+                                        value={editingDraft}
+                                        onChange={(event) =>
+                                          setEditingDraft(event.target.value)
+                                        }
+                                        onKeyDown={(event) => {
+                                          if (
+                                            event.key === "Enter" &&
+                                            !event.shiftKey
+                                          ) {
+                                            event.preventDefault();
+                                            void handleSaveEditedMessage();
+                                          }
+                                          if (event.key === "Escape") {
+                                            event.preventDefault();
+                                            handleCancelEditMessage();
+                                          }
+                                        }}
+                                        autoFocus
+                                        disabled={isSearching}
+                                        className="min-h-28 w-full resize-y rounded-2xl border border-primary/30 bg-background/60 px-4 py-3 text-base text-foreground focus:outline-none"
+                                      />
+                                      <div className="flex justify-end gap-2">
+                                        <Button
+                                          type="button"
+                                          variant="ghost"
+                                          size="sm"
+                                          onClick={handleCancelEditMessage}
+                                          disabled={isSearching}
+                                        >
+                                          Cancel
+                                        </Button>
+                                        <Button
+                                          type="submit"
+                                          size="sm"
+                                          disabled={
+                                            !editingDraft.trim() || isSearching
+                                          }
+                                        >
+                                          Save
+                                        </Button>
+                                      </div>
+                                    </form>
+                                  ) : isAssistant ? (
                                     message.isStreaming ? (
                                       <div className="flex items-center gap-2 text-muted-foreground">
                                         <Loader2 className="h-4 w-4 animate-spin flex-shrink-0" />
@@ -1481,55 +1756,110 @@ export default function NewsResearchPage() {
                                 </div>
 
                                 {!message.isStreaming && !message.toolType && (
-                                  <div className="mt-3 flex items-center justify-end gap-1.5 text-muted-foreground">
-                                    <Button
-                                      type="button"
-                                      variant="ghost"
-                                      size="sm"
-                                      onClick={() =>
-                                        void handleCopyMessage(message.content)
-                                      }
-                                      className="h-8 px-2 text-xs"
-                                    >
-                                      <Copy className="mr-1 h-3.5 w-3.5" />
-                                      Copy
-                                    </Button>
-                                    {!isAssistant && (
+                                  <div className="mt-3 flex items-center justify-between gap-3 text-muted-foreground">
+                                    <div className="flex min-w-0 items-center gap-1">
+                                      {versionInfo && (
+                                        <>
+                                          <Button
+                                            type="button"
+                                            variant="ghost"
+                                            size="sm"
+                                            onClick={() =>
+                                              handleSelectMessageVersion(
+                                                versionInfo.groupId,
+                                                versionInfo.versionIds[
+                                                  versionInfo.currentIndex - 1
+                                                ],
+                                              )
+                                            }
+                                            disabled={versionInfo.currentIndex === 0}
+                                            className="h-7 w-7 px-0"
+                                            aria-label="Previous message version"
+                                          >
+                                            <ChevronLeft className="h-3.5 w-3.5" />
+                                          </Button>
+                                          <span className="font-mono text-xs">
+                                            {versionInfo.currentIndex + 1}/
+                                            {versionInfo.totalVersions}
+                                          </span>
+                                          <Button
+                                            type="button"
+                                            variant="ghost"
+                                            size="sm"
+                                            onClick={() =>
+                                              handleSelectMessageVersion(
+                                                versionInfo.groupId,
+                                                versionInfo.versionIds[
+                                                  versionInfo.currentIndex + 1
+                                                ],
+                                              )
+                                            }
+                                            disabled={
+                                              versionInfo.currentIndex ===
+                                              versionInfo.totalVersions - 1
+                                            }
+                                            className="h-7 w-7 px-0"
+                                            aria-label="Next message version"
+                                          >
+                                            <ChevronRight className="h-3.5 w-3.5" />
+                                          </Button>
+                                        </>
+                                      )}
+                                    </div>
+                                    <div className="flex items-center justify-end gap-1.5">
+                                      {isInlineEditing ? null : (
+                                        <>
                                       <Button
                                         type="button"
                                         variant="ghost"
                                         size="sm"
-                                        onClick={() => handleEditMessage(message.id)}
+                                        onClick={() =>
+                                          void handleCopyMessage(message.content)
+                                        }
                                         className="h-8 px-2 text-xs"
                                       >
-                                        <Pencil className="mr-1 h-3.5 w-3.5" />
-                                        Edit
+                                        <Copy className="mr-1 h-3.5 w-3.5" />
+                                        Copy
                                       </Button>
-                                    )}
-                                    {isAssistant && (
+                                      {!isAssistant && (
+                                        <Button
+                                          type="button"
+                                          variant="ghost"
+                                          size="sm"
+                                          onClick={() => handleEditMessage(message.id)}
+                                          className="h-8 px-2 text-xs"
+                                        >
+                                          <Pencil className="mr-1 h-3.5 w-3.5" />
+                                          Edit
+                                        </Button>
+                                      )}
+                                      {isAssistant && (
+                                        <Button
+                                          type="button"
+                                          variant="ghost"
+                                          size="sm"
+                                          onClick={() => handleResetMessage(message.id)}
+                                          disabled={isSearching}
+                                          className="h-8 px-2 text-xs"
+                                        >
+                                          <RotateCcw className="mr-1 h-3.5 w-3.5" />
+                                          Retry
+                                        </Button>
+                                      )}
                                       <Button
                                         type="button"
                                         variant="ghost"
                                         size="sm"
-                                        onClick={() => handleResetMessage(message.id)}
+                                        onClick={() => handleDeleteMessage(message.id)}
                                         disabled={isSearching}
                                         className="h-8 px-2 text-xs"
                                       >
-                                        <RotateCcw className="mr-1 h-3.5 w-3.5" />
-                                        Retry
+                                        <Trash2 className="mr-1 h-3.5 w-3.5" />
+                                        Delete
                                       </Button>
-                                    )}
-                                    <Button
-                                      type="button"
-                                      variant="ghost"
-                                      size="sm"
-                                      onClick={() => handleDeleteMessage(message.id)}
-                                      disabled={isSearching}
-                                      className="h-8 px-2 text-xs"
-                                    >
-                                      <Trash2 className="mr-1 h-3.5 w-3.5" />
-                                      Delete
-                                    </Button>
+                                        </>
+                                      )}
+                                    </div>
                                   </div>
                                 )}
 
@@ -1639,29 +1969,29 @@ export default function NewsResearchPage() {
                   </div>
                 </section>
 
-                <aside className="flex h-full w-full shrink-0 flex-col overflow-hidden border-t border-border/30 bg-background/70 backdrop-blur-xl lg:w-80 lg:border-l lg:border-t-0">
-                  <div className="flex-1 overflow-y-auto custom-scrollbar h-full">
-                    <div className="p-5 space-y-2">
-                      <div className="mb-2 rounded-2xl border border-border/30 bg-card/40 p-5 last:border-0">
+                <aside className="flex h-full w-full shrink-0 flex-col overflow-hidden border-t border-border/20 bg-background/60 lg:w-96 lg:border-l lg:border-t-0">
+                  <div className="custom-scrollbar h-full flex-1 overflow-y-auto">
+                    <div className="space-y-6 px-5 py-6 md:px-6">
+                      <section className="space-y-4">
                         <div className="flex items-center justify-between">
-                          <h3 className="font-mono text-xs uppercase tracking-widest text-muted-foreground/80">
+                          <h3 className="font-mono text-xs uppercase tracking-widest text-muted-foreground/70">
                             Research Log
                           </h3>
-                          <span className="text-xs text-muted-foreground">
+                          <span className="font-mono text-xs uppercase tracking-widest text-muted-foreground/55">
                             {thinkingSteps.length} steps
                           </span>
                         </div>
-                        <div className="mt-3 space-y-3 text-sm">
+                        <div className="space-y-3 text-sm">
                           {thinkingSteps.length > 0 ? (
                             thinkingSteps.slice(-6).map((step, idx) => (
                               <div
                                 key={`${step.type}-${idx}`}
-                                className="ml-0.5 mt-2 rounded-r-2xl border-l-2 border-primary/30 bg-background/30 px-3 py-2"
+                                className="rounded-r-2xl border-l-2 border-primary/25 bg-background/25 px-3 py-2.5"
                               >
-                                <div className="font-mono text-xs uppercase tracking-wide text-muted-foreground/70">
+                                <div className="font-mono text-xs uppercase tracking-widest text-muted-foreground/65">
                                   {step.type.replace("_", " ")}
                                 </div>
-                                <p className="mt-1 text-xs leading-relaxed text-muted-foreground/80">
+                                <p className="mt-1.5 text-xs leading-relaxed text-muted-foreground/80">
                                   {step.content}
                                 </p>
                               </div>
@@ -1672,22 +2002,24 @@ export default function NewsResearchPage() {
                             </p>
                           )}
                         </div>
-                      </div>
+                      </section>
 
                       {latestAssistantMessage &&
                         !latestAssistantMessage.isStreaming &&
                         latestAssistantMessage.content && (
-                          <VerificationPanel
-                            query={latestUserMessage?.content || ""}
-                            mainAnswer={latestAssistantMessage.content}
-                            className="rounded-xl"
-                          />
+                          <section className="border-t border-border/15 pt-6">
+                            <VerificationPanel
+                              query={latestUserMessage?.content || ""}
+                              mainAnswer={latestAssistantMessage.content}
+                              className="rounded-2xl border-border/20 bg-card/30"
+                            />
+                          </section>
                         )}
 
                       {latestSemanticMessage?.semanticResults &&
                         latestSemanticMessage.semanticResults.length > 0 && (
-                          <div className="mb-2 rounded-2xl border border-border/30 bg-card/40 p-5 last:border-0">
-                            <h3 className="font-mono text-xs uppercase tracking-widest text-muted-foreground/80">
+                          <section className="border-t border-border/15 pt-6">
+                            <h3 className="font-mono text-xs uppercase tracking-widest text-muted-foreground/70">
                               Related Coverage
                             </h3>
                             <div className="mt-3 space-y-2">
@@ -1699,7 +2031,7 @@ export default function NewsResearchPage() {
                                       setSelectedArticle(article);
                                       setIsArticleModalOpen(true);
                                     }}
-                                    className="w-full rounded-2xl border border-border/20 bg-background/40 p-3 text-left transition-colors hover:border-primary/40"
+                                    className="w-full rounded-2xl border border-border/15 bg-background/35 p-3 text-left transition-colors hover:border-primary/35"
                                   >
                                     <div className="line-clamp-2 font-serif text-sm font-medium text-foreground/90">
                                       {article.title}
@@ -1717,12 +2049,12 @@ export default function NewsResearchPage() {
                                 ),
                               )}
                             </div>
-                          </div>
+                          </section>
                         )}
 
                       {groupedSources.length > 0 && (
-                        <div className="mb-2 rounded-2xl border border-border/30 bg-card/40 p-5 last:border-0">
-                          <h3 className="font-mono text-xs uppercase tracking-widest text-muted-foreground/80">
+                        <section className="border-t border-border/15 pt-6">
+                          <h3 className="font-mono text-xs uppercase tracking-widest text-muted-foreground/70">
                             Sources Used
                           </h3>
                           <div className="mt-3 space-y-4">
@@ -1737,7 +2069,7 @@ export default function NewsResearchPage() {
                               return (
                                 <div
                                   key={group.sourceId}
-                                  className="rounded-2xl border border-border/20 bg-background/30 p-4"
+                                  className="border-t border-border/10 pt-4 first:border-t-0 first:pt-0"
                                 >
                                   <div className="flex items-start justify-between gap-3">
                                     <div>
@@ -1771,7 +2103,7 @@ export default function NewsResearchPage() {
                                           setSelectedArticle(article);
                                           setIsArticleModalOpen(true);
                                         }}
-                                        className="w-full rounded-2xl bg-background/40 px-3 py-2.5 text-left text-xs transition-colors hover:bg-card/60"
+                                        className="w-full rounded-2xl bg-background/35 px-3 py-2.5 text-left text-xs transition-colors hover:bg-card/60"
                                       >
                                         <div className="line-clamp-2 font-serif text-sm font-medium text-foreground/90">
                                           {article.title}
@@ -1791,33 +2123,8 @@ export default function NewsResearchPage() {
                               );
                             })}
                           </div>
-                        </div>
+                        </section>
                       )}
-
-                      <div className="mb-2 rounded-2xl border border-border/30 bg-card/40 p-5 last:border-0">
-                        <h3 className="font-mono text-xs uppercase tracking-widest text-muted-foreground/80">
-                          Recent Queries
-                        </h3>
-                        <div className="mt-3 space-y-2">
-                          {recentQueries.length > 0 ? (
-                            recentQueries.map((message) => (
-                              <button
-                                key={message.id}
-                                onClick={() =>
-                                  handleSampleQuery(message.content)
-                                }
-                                className="w-full rounded-2xl border border-border/20 bg-background/40 px-3 py-2 text-left text-xs text-muted-foreground transition-colors hover:border-primary/40 hover:text-foreground"
-                              >
-                                {message.content}
-                              </button>
-                            ))
-                          ) : (
-                            <p className="text-xs text-muted-foreground">
-                              Run a query to build a history.
-                            </p>
-                          )}
-                        </div>
-                      </div>
                     </div>
                   </div>
                 </aside>

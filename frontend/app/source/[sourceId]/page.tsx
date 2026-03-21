@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useMemo, useCallback, useEffect, use } from "react"
+import { useState, use } from "react"
 import { useRouter } from "next/navigation"
 import Link from "next/link"
 import { useQuery } from "@tanstack/react-query"
@@ -11,10 +11,10 @@ import { Badge } from "@/components/ui/badge"
 import { Card, CardContent } from "@/components/ui/card"
 import { ArticleDetailModal } from "@/components/article-detail-modal"
 import { SourceResearchPanel } from "@/components/source-research-panel"
-import { type NewsSource, type NewsArticle, getSourceById } from "@/lib/api"
-import { isDebugMode } from "@/lib/logger"
+import { type NewsArticle, getSourceById } from "@/lib/api"
+import { useBrowseIndex } from "@/hooks/useBrowseIndex"
+import { useDebugMode } from "@/hooks/useDebugMode"
 import { useFavorites } from "@/hooks/useFavorites"
-import { useNewsStream } from "@/hooks/useNewsStream"
 
 interface SourcePageProps {
   params: Promise<{ sourceId: string }>
@@ -26,8 +26,7 @@ export default function SourcePage(props: SourcePageProps) {
   const router = useRouter()
   const [selectedArticle, setSelectedArticle] = useState<NewsArticle | null>(null)
   const [modalOpen, setModalOpen] = useState(false)
-  const [allArticles, setAllArticles] = useState<NewsArticle[]>([])
-  const [debugMode, setDebugModeState] = useState(() => isDebugMode())
+  const debugMode = useDebugMode()
   const { isFavorite, toggleFavorite } = useFavorites()
 
   const { data: source, isLoading: sourceLoading, error: sourceError } = useQuery({
@@ -36,31 +35,13 @@ export default function SourcePage(props: SourcePageProps) {
     staleTime: 1000 * 60 * 5,
   })
 
-  const onUpdate = useCallback((articles: NewsArticle[]) => {
-    setAllArticles(articles)
-  }, [])
-
-  const { isStreaming } = useNewsStream({
-    onUpdate,
-    autoStart: true,
-    useCache: true,
+  const {
+    articles,
+    isLoading: articlesLoading,
+  } = useBrowseIndex({
+    sources: [sourceId],
+    enabled: Boolean(sourceId),
   })
-
-  const articles = useMemo(() => {
-    return allArticles.filter(article => article.sourceId === sourceId)
-  }, [allArticles, sourceId])
-
-  const articlesLoading = isStreaming && allArticles.length === 0
-
-  useEffect(() => {
-    const handleStorage = (event: StorageEvent) => {
-      if (event.key === "thesis_debug_mode") {
-        setDebugModeState(isDebugMode())
-      }
-    }
-    window.addEventListener("storage", handleStorage)
-    return () => window.removeEventListener("storage", handleStorage)
-  }, [])
 
   const getBiasColor = (bias: string) => {
     switch (bias) {

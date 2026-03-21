@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { getDailyDigest, ENABLE_DIGEST, ReadingQueueItem } from "@/lib/api";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -20,30 +21,14 @@ interface DigestCardProps {
 }
 
 export function DigestCard({ onRefresh }: DigestCardProps) {
-  const [digest, setDigest] = useState<DigestData | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
   const [showSchedule, setShowSchedule] = useState(false);
   const [scheduleTime, setScheduleTime] = useState("09:00");
-
-  useEffect(() => {
-    if (!ENABLE_DIGEST) {
-      return;
-    }
-
-    const loadDigest = async () => {
-      try {
-        setIsLoading(true);
-        const data = await getDailyDigest();
-        setDigest(data);
-      } catch (error) {
-        console.error("Failed to load daily digest:", error);
-      } finally {
-        setIsLoading(false);
-      }
-    };
-
-    loadDigest();
-  }, []);
+  const { data: digest, isLoading } = useQuery<DigestData>({
+    queryKey: ["daily-digest"],
+    queryFn: getDailyDigest,
+    enabled: ENABLE_DIGEST,
+    retry: 1,
+  });
 
   if (!ENABLE_DIGEST) {
     return null;
