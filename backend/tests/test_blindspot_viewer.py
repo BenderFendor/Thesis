@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import math
 from dataclasses import dataclass
+from typing import Optional
 
 from hypothesis import assume, given, strategies as st
 import numpy as np
@@ -9,7 +10,9 @@ import pytest
 
 from app.services.blindspot_viewer import (
     _load_embeddings_for_articles,
+    _metadata_counts_for_lens,
     _shares_from_counts,
+    _source_catalog_lookup,
     classify_lane,
 )
 
@@ -85,6 +88,15 @@ class _FakeArticle:
     summary: str
 
 
+@dataclass
+class _FakeMetadataArticle:
+    source: str
+    source_id: Optional[str] = None
+    bias: Optional[str] = None
+    credibility: Optional[str] = None
+    country: Optional[str] = None
+
+
 class _FailingCollection:
     def get(self, **kwargs: object) -> object:
         raise RuntimeError("chroma get failed")
@@ -116,3 +128,73 @@ async def test_load_embeddings_falls_back_when_chroma_get_fails(monkeypatch) -> 
     )
 
     assert embeddings == {1: [1.0, 9.0], 2: [2.0, 9.0]}
+
+
+def test_bias_counts_use_source_catalog_fallback(monkeypatch) -> None:
+    monkeypatch.setattr(
+        "app.services.blindspot_viewer.get_rss_sources",
+        lambda: {
+            "Outlet A": {"bias_rating": "Left-Center"},
+            "Outlet B": {"bias_rating": "Center"},
+            "Outlet C": {"bias_rating": "Right-Center"},
+        },
+    )
+    _source_catalog_lookup.cache_clear()
+
+    counts = _metadata_counts_for_lens(
+        "bias",
+        [
+            _FakeMetadataArticle(source="Outlet A"),
+            _FakeMetadataArticle(source="Outlet B"),
+            _FakeMetadataArticle(source="Outlet C"),
+        ],
+    )
+
+    assert counts == {"pole_a": 1, "shared": 1, "pole_b": 1}
+    _source_catalog_lookup.cache_clear()
+
+
+def test_credibility_counts_use_source_catalog_fallback(monkeypatch) -> None:
+    monkeypatch.setattr(
+        "app.services.blindspot_viewer.get_rss_sources",
+        lambda: {
+            "Outlet A": {"factual_reporting": "high"},
+            "Outlet B": {"factual_reporting": "unknown"},
+            "Outlet C": {"factual_reporting": "very-low"},
+        },
+    )
+    _source_catalog_lookup.cache_clear()
+
+    counts = _metadata_counts_for_lens(
+        "credibility",
+        [
+            _FakeMetadataArticle(source="Outlet A"),
+            _FakeMetadataArticle(source="Outlet B"),
+            _FakeMetadataArticle(source="Outlet C"),
+        ],
+    )
+
+    assert counts == {"pole_a": 1, "shared": 1, "pole_b": 1}
+    _source_catalog_lookup.cache_clear()
+
+
+def test_geography_counts_use_global_north_global_south_fallback(monkeypatch) -> None:
+    monkeypatch.setattr(
+        "app.services.blindspot_viewer.get_rss_sources",
+        lambda: {
+            "Outlet A": {"country": "US"},
+            "Outlet B": {"country": "BR"},
+        },
+    )
+    _source_catalog_lookup.cache_clear()
+
+    counts = _metadata_counts_for_lens(
+        "geography",
+        [
+            _FakeMetadataArticle(source="Outlet A"),
+            _FakeMetadataArticle(source="Outlet B"),
+        ],
+    )
+
+    assert counts == {"pole_a": 1, "shared": 0, "pole_b": 1}
+    _source_catalog_lookup.cache_clear()

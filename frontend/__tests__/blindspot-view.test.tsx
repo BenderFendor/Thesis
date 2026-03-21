@@ -109,10 +109,11 @@ describe("BlindspotView", () => {
 
     renderWithQueryClient(<BlindspotView category="all" />)
 
-    expect(await screen.findByText("Blindspot Viewer")).toBeInTheDocument()
+    expect(await screen.findByText("Media Blindspots")).toBeInTheDocument()
     expect(await screen.findByText("Campaign rally")).toBeInTheDocument()
 
-    await user.click(screen.getByRole("button", { name: "Credible vs Uncredible" }))
+    const [lensSelect] = await screen.findAllByRole("combobox")
+    await user.selectOptions(lensSelect, "credibility")
 
     await waitFor(() => {
       expect(mockFetchBlindspotViewer).toHaveBeenLastCalledWith(
@@ -121,8 +122,6 @@ describe("BlindspotView", () => {
     })
 
     expect(await screen.findByText("Verification push")).toBeInTheDocument()
-    expect(
-      screen.getByRole("heading", { name: "For High Credibility" }),
-    ).toBeInTheDocument()
+    expect(screen.getAllByText(/For High Credibility/i).length).toBeGreaterThan(0)
   })
 })

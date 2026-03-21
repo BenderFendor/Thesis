@@ -4,11 +4,13 @@ from __future__ import annotations
 
 import logging
 from dataclasses import dataclass
+from functools import lru_cache
 from typing import Callable, Literal, Mapping, Optional, TypedDict, cast
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.data.rss_sources import get_rss_sources
 from app.database import Article, get_utc_now
 from app.services.cluster_cache import get_latest_snapshot
 from app.vector_store import _get_chroma_include, _get_embedding_rows, get_vector_store
@@ -24,7 +26,7 @@ MIN_CLUSTER_SOURCES = 4
 DEFAULT_PER_LANE = 10
 BLINDSPOT_SHARE_GAP = 0.35
 
-WEST_COUNTRY_CODES = {
+GLOBAL_NORTH_COUNTRY_CODES = {
     "US",
     "CA",
     "GB",
@@ -44,29 +46,14 @@ WEST_COUNTRY_CODES = {
     "NO",
     "DK",
     "FI",
-}
-
-EAST_COUNTRY_CODES = {
-    "CN",
-    "RU",
-    "IN",
+    "IS",
+    "LU",
     "JP",
     "KR",
-    "KP",
+    "SG",
     "TW",
     "HK",
-    "SG",
-    "MY",
-    "ID",
-    "TH",
-    "VN",
-    "PH",
-    "PK",
-    "BD",
-    "KZ",
-    "UZ",
-    "TR",
-    "IR",
+    "IL",
 }
 
 INSTITUTIONAL_POLE_WORDS = [
@@ -200,6 +187,12 @@ class ClusterCardCandidate:
     lane_sort_score: float
 
 
+class SourceCatalogEntry(TypedDict, total=False):
+    country: str
+    bias_rating: str
+    factual_reporting: str
+
+
 def _slugify_source_name(value: str) -> str:
     return "-".join(value.lower().split())
 
@@ -238,35 +231,96 @@ def _matches_category(article: Article, category: Optional[str]) -> bool:
     return (article.category or "").lower() == category.lower()
 
 
-def _bias_bucket(value: Optional[str]) -> Optional[BucketId]:
-    normalized = (value or "").strip().lower()
-    if normalized == "left":
+@lru_cache(maxsize=1)
+def _source_catalog_lookup() -> dict[str, SourceCatalogEntry]:
+    lookup: dict[str, SourceCatalogEntry] = {}
+    for source_name, config in get_rss_sources().items():
+        entry: SourceCatalogEntry = {
+            "country": str(config.get("country", "")).strip().upper(),
+            "bias_rating": str(config.get("bias_rating", "")).strip(),
+            "factual_reporting": str(config.get("factual_reporting", "")).strip(),
+        }
+        lookup[source_name.lower()] = entry
+        lookup[_slugify_source_name(source_name)] = entry
+    return lookup
+
+
+def _source_catalog_entry(article: Article) -> Optional[SourceCatalogEntry]:
+    lookup = _source_catalog_lookup()
+    source_name = _article_source_name(article)
+    candidate_keys = [source_name.lower(), _slugify_source_name(source_name)]
+    if article.source_id:
+        candidate_keys.insert(0, article.source_id.strip().lower())
+    for key in candidate_keys:
+        entry = lookup.get(key)
+        if entry is not None:
+            return entry
+    return None
+
+
+def _article_bias_value(article: Article) -> Optional[str]:
+    if article.bias and article.bias.strip():
+        return article.bias
+    source_entry = _source_catalog_entry(article)
+    if source_entry is None:
+        return None
+    return source_entry.get("bias_rating")
+
+
+def _article_factual_reporting_value(article: Article) -> Optional[str]:
+    if article.credibility and article.credibility.strip():
+        return article.credibility
+    source_entry = _source_catalog_entry(article)
+    if source_entry is None:
+        return None
+    return source_entry.get("factual_reporting")
+
+
+def _article_country_code(article: Article) -> Optional[str]:
+    if article.country and article.country.strip():
+        return article.country
+    source_entry = _source_catalog_entry(article)
+    if source_entry is None:
+        return None
+    return source_entry.get("country")
+
+
+def _bias_bucket(article: Article) -> Optional[BucketId]:
+    normalized = (_article_bias_value(article) or "").strip().lower()
+    if normalized in {"left", "left-center", "center-left"}:
         return "pole_a"
     if normalized == "center":
         return "shared"
-    if normalized == "right":
+    if normalized in {"right", "right-center", "center-right", "libertarian"}:
         return "pole_b"
     return None
 
 
-def _credibility_bucket(value: Optional[str]) -> Optional[BucketId]:
-    normalized = (value or "").strip().lower()
-    if normalized == "high":
+def _credibility_bucket(article: Article) -> Optional[BucketId]:
+    normalized = (_article_factual_reporting_value(article) or "").strip().lower()
+    if normalized in {"very-high", "high"}:
         return "pole_a"
-    if normalized == "medium":
+    if normalized in {
+        "",
+        "unknown",
+        "mixed",
+        "mostly-factual",
+        "mostly factual",
+        "medium",
+    }:
         return "shared"
-    if normalized == "low":
+    if normalized in {"low", "very-low"}:
         return "pole_b"
     return None
 
 
-def _geography_bucket(value: Optional[str]) -> Optional[BucketId]:
-    normalized = (value or "").strip().upper()
-    if normalized in WEST_COUNTRY_CODES:
+def _geography_bucket(article: Article) -> Optional[BucketId]:
+    normalized = (_article_country_code(article) or "").strip().upper()
+    if not normalized:
+        return None
+    if normalized in GLOBAL_NORTH_COUNTRY_CODES:
         return "pole_a"
-    if normalized in EAST_COUNTRY_CODES:
-        return "pole_b"
-    return None
+    return "pole_b"
 
 
 def _empty_counts() -> BlindspotCoveragePayload:
@@ -371,28 +425,28 @@ def _lens_definitions() -> dict[LensId, LensDefinition]:
         "credibility": LensDefinition(
             id="credibility",
             label="Credible vs Uncredible",
-            description="Compare high-credibility and low-credibility source coverage, with medium as the middle band.",
+            description="Compare higher-trust coverage against mixed or low-factual-reporting coverage, with unknown outlets treated as the middle band.",
             pole_a_name="high-credibility",
             pole_b_name="low-credibility",
             pole_a_lane_label="For High Credibility",
-            pole_a_lane_description="Stories showing up on lower-credibility outlets but missing from higher-credibility ones.",
+            pole_a_lane_description="Stories showing up on lower-trust outlets while higher-trust coverage stays thin.",
             shared_lane_label="Shared Coverage",
-            shared_lane_description="Stories carried across credibility tiers or concentrated in the middle band.",
+            shared_lane_description="Stories carried across trust tiers or concentrated in the unknown middle band.",
             pole_b_lane_label="For Low Credibility",
             pole_b_lane_description="Stories emphasized by higher-credibility outlets but thin on lower-credibility ones.",
         ),
         "geography": LensDefinition(
             id="geography",
-            label="West vs East",
-            description="Compare coverage from explicit Western and Eastern source-country blocs.",
-            pole_a_name="western",
-            pole_b_name="eastern",
-            pole_a_lane_label="For the West",
-            pole_a_lane_description="Stories drawing Eastern coverage while Western sources stay thin.",
+            label="Global North vs Global South",
+            description="Compare coverage from source countries grouped into an operational Global North and Global South split.",
+            pole_a_name="global-north",
+            pole_b_name="global-south",
+            pole_a_lane_label="For the Global North",
+            pole_a_lane_description="Stories drawing Global South coverage while Global North sources stay thin.",
             shared_lane_label="Shared Coverage",
             shared_lane_description="Stories appearing across both regional blocs.",
-            pole_b_lane_label="For the East",
-            pole_b_lane_description="Stories drawing Western coverage while Eastern sources stay thin.",
+            pole_b_lane_label="For the Global South",
+            pole_b_lane_description="Stories drawing Global North coverage while Global South sources stay thin.",
         ),
         "institutional_populist": LensDefinition(
             id="institutional_populist",
@@ -455,8 +509,7 @@ def _lane_payloads(
 
 def _build_metadata_counts(
     articles: list[Article],
-    bucket_resolver: Callable[[Optional[str]], Optional[BucketId]],
-    value_getter: Callable[[Article], Optional[str]],
+    bucket_resolver: Callable[[Article], Optional[BucketId]],
 ) -> BlindspotCoveragePayload:
     counts = _empty_counts()
     seen_sources: set[str] = set()
@@ -468,7 +521,7 @@ def _build_metadata_counts(
         if source_key in seen_sources:
             continue
         seen_sources.add(source_key)
-        bucket = bucket_resolver(value_getter(article))
+        bucket = bucket_resolver(article)
         if bucket is None:
             continue
         if bucket == "pole_a":
@@ -729,21 +782,11 @@ def _metadata_counts_for_lens(
     articles: list[Article],
 ) -> BlindspotCoveragePayload:
     if lens == "bias":
-        return _build_metadata_counts(
-            articles, _bias_bucket, lambda article: article.bias
-        )
+        return _build_metadata_counts(articles, _bias_bucket)
     if lens == "credibility":
-        return _build_metadata_counts(
-            articles,
-            _credibility_bucket,
-            lambda article: article.credibility,
-        )
+        return _build_metadata_counts(articles, _credibility_bucket)
     if lens == "geography":
-        return _build_metadata_counts(
-            articles,
-            _geography_bucket,
-            lambda article: article.country,
-        )
+        return _build_metadata_counts(articles, _geography_bucket)
     return _empty_counts()
 
 

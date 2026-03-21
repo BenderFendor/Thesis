@@ -29,6 +29,7 @@ def get_rss_sources() -> Dict[str, Dict[str, Any]]:
             "country": source_value.get("country", ""),
             "funding_type": source_value.get("funding_type", ""),
             "bias_rating": source_value.get("bias_rating", ""),
+            "factual_reporting": source_value.get("factual_reporting", ""),
             "ownership_label": source_value.get("ownership_label", ""),
         }
         if source_value.get("consolidate", False):

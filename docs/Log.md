@@ -478,3 +478,10 @@ curl http://localhost:8000/trending/diagnostics
 - Reworked `frontend/app/search/page.tsx` so assistant retries create alternate response versions instead of deleting the visible reply and replaying the thread from scratch.
 - Added assistant version grouping and selection helpers in `frontend/lib/chat-branching.ts`, then rendered `previous/next` pager controls beside the assistant copy/retry/delete actions.
 - Added regression coverage for version selection in `frontend/__tests__/chat-branching.test.ts` and repaired existing frontend test harnesses by wrapping `react-query` components with a shared `QueryClientProvider` helper.
+
+2026-03-21 — Blindspot metadata fallback and Global North/South geography lens
+- Expanded blindspot metadata scoring in `backend/app/services/blindspot_viewer.py` so bias, credibility, and geography can fall back to the RSS catalog when article rows lack direct metadata.
+- Added `factual_reporting` to the RSS source config in `backend/app/data/rss_sources.py`, which lets the credibility blindspot recover cards even when article credibility fields are blank.
+- Broadened bias mapping to include center-left and center-right variants, and renamed the geography blindspot from `West vs East` to `Global North vs Global South`.
+- Added backend regression tests for source-catalog fallback and updated the blindspot frontend test to match the current controls and title.
+- Verification: `backend/.venv/bin/pytest tests/test_blindspot_viewer.py -q`, `npm --prefix frontend test -- --runInBand blindspot-view.test.tsx`, and `./verify.sh` all passed.

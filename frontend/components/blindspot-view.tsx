@@ -1,6 +1,7 @@
 "use client"
 
-// Design thesis: compress the blindspot viewer into an editorial comparison board, with one visual anchor per lane and the rest of the screen reserved for dense, scannable gaps.
+// Design thesis: Refactor the Blindspot View into a dynamic 2-column layout focusing on asymmetric coverage gaps.
+// Adaptive labeling handles Bias (Left/Right), Credibility, and other lenses while following the borderless "Scoop" aesthetic.
 
 import { useMemo, useState } from "react"
 import { useQuery } from "@tanstack/react-query"
@@ -78,24 +79,12 @@ function sortCards(cards: BlindspotCard[], sortMode: SortMode): BlindspotCard[] 
   }
 }
 
-function laneAccentClass(laneId: BlindspotLane["id"]): string {
-  switch (laneId) {
-    case "pole_a":
-      return "border-cyan-400/25 bg-cyan-400/[0.05]"
-    case "pole_b":
-      return "border-amber-500/25 bg-amber-500/[0.06]"
-    case "shared":
-    default:
-      return "border-white/10 bg-white/[0.025]"
-  }
-}
-
 function laneBarClass(laneId: BlindspotLane["id"]): string {
   switch (laneId) {
     case "pole_a":
       return "bg-cyan-400/80"
     case "pole_b":
-      return "bg-amber-500/80"
+      return "bg-red-500/80"
     case "shared":
     default:
       return "bg-zinc-300/70"
@@ -119,11 +108,11 @@ function coverageBar(card: BlindspotCard) {
   }> = [
     { key: "pole_a", color: "bg-cyan-400/80" },
     { key: "shared", color: "bg-zinc-300/70" },
-    { key: "pole_b", color: "bg-amber-500/80" },
+    { key: "pole_b", color: "bg-red-500/80" },
   ]
 
   return (
-    <div className="overflow-hidden rounded-full border border-white/10 bg-white/[0.04]">
+    <div className="overflow-hidden rounded-full border border-white/5 bg-white/[0.04]">
       <div className="flex h-1.5 w-full">
         {entries.map(({ key, color }) => (
           <div
@@ -190,65 +179,89 @@ function deriveFallbackCards(
 function LeadStory({
   card,
   laneId,
+  poleLabels,
   onOpen,
 }: {
   card: BlindspotCard
   laneId: BlindspotLane["id"]
+  poleLabels: { pole_a: string; pole_b: string }
   onOpen: (card: BlindspotCard) => void
 }) {
   const imageUrl = card.representative_article?.image_url
+  const isLackingPoleA = laneId === "pole_b"
+  const isLackingPoleB = laneId === "pole_a"
+  
+  const blindspotLabel = isLackingPoleA ? `Missed by ${poleLabels.pole_a}` : isLackingPoleB ? `Missed by ${poleLabels.pole_b}` : "Asymmetric"
+  const blindspotValue = isLackingPoleA 
+    ? Math.round(card.coverage_shares.pole_a * 100) 
+    : Math.round(card.coverage_shares.pole_b * 100)
 
   return (
     <button
       type="button"
       onClick={() => onOpen(card)}
-      className="group relative w-full overflow-hidden border border-white/10 bg-white/[0.02] text-left transition-all duration-300 hover:border-white/20 hover:bg-white/[0.04]"
+      className="group relative flex w-full flex-col overflow-hidden rounded-3xl bg-black/20 text-left transition-all duration-500 ease-out hover:bg-white/[0.03] shadow-2xl"
     >
-      <div className="flex h-full flex-col sm:flex-row">
-        <div className="relative aspect-video w-full shrink-0 overflow-hidden bg-white/[0.04] sm:aspect-square sm:w-32">
-          {imageUrl ? (
-            <img
-              src={imageUrl}
-              alt={card.cluster_label}
-              className="h-full w-full object-cover opacity-60 grayscale transition duration-700 group-hover:opacity-100 group-hover:grayscale-0 group-hover:scale-105"
-              loading="lazy"
-            />
-          ) : (
-            <div className="h-full w-full bg-[radial-gradient(circle_at_top_left,rgba(255,255,255,0.08),transparent_70%)]" />
-          )}
-          <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent sm:hidden" />
+      {/* Image Header */}
+      <div className="relative aspect-[16/9] w-full overflow-hidden bg-white/5">
+        {imageUrl ? (
+          <img
+            src={imageUrl}
+            alt={card.cluster_label}
+            className="h-full w-full object-cover opacity-80 grayscale transition duration-700 group-hover:opacity-100 group-hover:grayscale-0 group-hover:scale-105"
+            loading="lazy"
+          />
+        ) : (
+          <div className="h-full w-full bg-[radial-gradient(circle_at_top_left,rgba(255,255,255,0.08),transparent_70%)]" />
+        )}
+        <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent" />
+        
+        {/* Top Badges */}
+        <div className="absolute top-4 left-4 flex items-center gap-2">
+          <span className={cn(
+            "px-2.5 py-1 text-[10px] font-bold font-mono uppercase tracking-widest text-white shadow-lg",
+            isLackingPoleA ? "bg-red-500/80" : isLackingPoleB ? "bg-cyan-500/80" : "bg-primary/80"
+          )}>
+            {blindspotLabel}: {blindspotValue}%
+          </span>
         </div>
 
-        <div className="flex flex-1 flex-col justify-between p-3.5 sm:p-4">
-          <div className="space-y-2">
-            <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-[9px] font-mono uppercase tracking-[0.2em] text-muted-foreground/70">
-              <span className="text-foreground/60">{card.source_count} sources</span>
-              <span className="h-1 w-1 rounded-full bg-white/20" />
-              <span>{formatDate(card.published_at)}</span>
-            </div>
-
-            <h3 className="font-serif text-lg leading-[1.15] text-foreground/90 transition-colors group-hover:text-white sm:text-xl">
-              {card.cluster_label}
-            </h3>
-            
-            <p className="line-clamp-2 text-xs leading-relaxed text-muted-foreground/80">
-              {card.explanation}
-            </p>
+        <div className="absolute bottom-4 left-4 right-4">
+          <div className="flex items-center gap-3 text-[10px] font-mono uppercase tracking-[0.2em] text-white/60">
+            <span>{card.source_count} sources</span>
+            <span className="h-1 w-1 rounded-full bg-white/40" />
+            <span>{formatDate(card.published_at)}</span>
           </div>
+        </div>
+      </div>
 
-          <div className="mt-4 space-y-2">
-            {coverageBar(card)}
-            <div className="flex items-center justify-between text-[8px] font-mono uppercase tracking-[0.2em] text-muted-foreground/60">
-              <div className="flex items-center gap-1.5">
-                <div className="h-1.5 w-1.5 rounded-full bg-cyan-400/40" />
-                <span>Pole A {card.coverage_counts.pole_a}</span>
-              </div>
-              <div className="flex items-center gap-1.5">
-                <span>Pole B {card.coverage_counts.pole_b}</span>
-                <div className="h-1.5 w-1.5 rounded-full bg-amber-500/40" />
-              </div>
+      {/* Content */}
+      <div className="flex flex-1 flex-col justify-between p-6 space-y-6">
+        <div className="space-y-3">
+          <h3 className="font-serif text-2xl leading-[1.15] text-foreground/90 transition-colors group-hover:text-white sm:text-3xl">
+            {card.cluster_label}
+          </h3>
+          <p className="line-clamp-2 text-sm leading-relaxed text-muted-foreground/60 italic">
+            {card.explanation}
+          </p>
+        </div>
+
+        <div className="space-y-4">
+          <div className="flex items-center justify-between text-[9px] font-mono uppercase tracking-[0.2em] text-muted-foreground/40">
+            <div className="flex items-center gap-2">
+              <div className="h-2 w-2 rounded-full bg-cyan-400" />
+              <span>{poleLabels.pole_a} {Math.round(card.coverage_shares.pole_a * 100)}%</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <div className="h-2 w-2 rounded-full bg-zinc-400" />
+              <span>Balanced {Math.round(card.coverage_shares.shared * 100)}%</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <span>{poleLabels.pole_b} {Math.round(card.coverage_shares.pole_b * 100)}%</span>
+              <div className="h-2 w-2 rounded-full bg-red-500" />
             </div>
           </div>
+          {coverageBar(card)}
         </div>
       </div>
     </button>
@@ -257,30 +270,43 @@ function LeadStory({
 
 function StoryRow({
   card,
+  poleLabels,
   onOpen,
 }: {
   card: BlindspotCard
+  poleLabels: { pole_a: string; pole_b: string }
   onOpen: (card: BlindspotCard) => void
 }) {
   return (
     <button
       type="button"
       onClick={() => onOpen(card)}
-      className="group flex w-full items-start justify-between gap-4 border-t border-white/5 py-2.5 text-left transition-colors duration-200 hover:bg-white/[0.03]"
+      className="group flex w-full flex-col gap-3 rounded-2xl bg-white/[0.02] p-4 text-left transition-all duration-300 hover:bg-white/[0.05]"
     >
-      <div className="min-w-0 flex-1">
-        <div className="flex items-center gap-2 text-[9px] font-mono uppercase tracking-[0.15em] text-muted-foreground/60">
-          <span>{card.source_count} sources</span>
-          <span className="h-0.5 w-0.5 rounded-full bg-white/10" />
-          <span>{formatDate(card.published_at)}</span>
+      <div className="flex items-start justify-between gap-4">
+        <div className="min-w-0 flex-1">
+          <div className="flex items-center gap-2 text-[9px] font-mono uppercase tracking-[0.15em] text-muted-foreground/40">
+            <span>{card.source_count} sources</span>
+            <span className="h-0.5 w-0.5 rounded-full bg-white/10" />
+            <span>{formatDate(card.published_at)}</span>
+          </div>
+          <h4 className="mt-1.5 line-clamp-2 font-serif text-lg leading-snug text-foreground/80 transition-colors group-hover:text-white">
+            {card.cluster_label}
+          </h4>
         </div>
-        <h4 className="mt-1.5 line-clamp-1 font-serif text-[15px] leading-snug text-foreground/80 transition-colors group-hover:text-white">
-          {card.cluster_label}
-        </h4>
+        <div className="mt-1 flex shrink-0 flex-col items-end gap-1">
+          <span className="font-mono text-[10px] text-primary/60 tracking-wider">GAP SCORE</span>
+          <span className="font-mono text-lg font-bold text-foreground/70">{Math.round(card.blindspot_score * 10) / 10}</span>
+        </div>
       </div>
-      <div className="mt-1 flex shrink-0 items-center gap-2 font-mono text-[10px] tabular-nums tracking-wider text-muted-foreground/50">
-        <span className="hidden sm:inline">SCORE</span>
-        <span className="text-foreground/60">{Math.round(card.blindspot_score * 10) / 10}</span>
+      
+      <div className="space-y-2">
+        <div className="flex items-center justify-between text-[8px] font-mono uppercase tracking-widest text-muted-foreground/30">
+          <span>{poleLabels.pole_a.charAt(0)} {Math.round(card.coverage_shares.pole_a * 100)}%</span>
+          <span>B {Math.round(card.coverage_shares.shared * 100)}%</span>
+          <span>{poleLabels.pole_b.charAt(0)} {Math.round(card.coverage_shares.pole_b * 100)}%</span>
+        </div>
+        {coverageBar(card)}
       </div>
     </button>
   )
@@ -355,16 +381,30 @@ export function BlindspotView({ category, sources }: BlindspotViewProps) {
     [selectedCard],
   )
 
+  const poleLabels = useMemo(() => {
+    if (!data) return { pole_a: "Pole A", pole_b: "Pole B" }
+    const laneA = data.lanes.find(l => l.id === "pole_a")
+    const laneB = data.lanes.find(l => l.id === "pole_b")
+    return {
+      pole_a: laneA?.label || "Pole A",
+      pole_b: laneB?.label || "Pole B"
+    }
+  }, [data])
+
   if (isLoading && !data) {
     return (
-      <div className="space-y-5 p-4 lg:p-6">
-        <Skeleton className="h-48 rounded-none border border-white/10 bg-white/[0.04]" />
-        <div className="grid gap-4 xl:grid-cols-3">
-          {Array.from({ length: 3 }).map((_, index) => (
-            <Skeleton
-              key={index}
-              className="h-[36rem] rounded-none border border-white/10 bg-white/[0.04]"
-            />
+      <div className="space-y-12">
+        <Skeleton className="h-12 w-full rounded-sm opacity-20" />
+        <div className="grid gap-12 xl:grid-cols-2">
+          {Array.from({ length: 2 }).map((_, index) => (
+            <div key={index} className="space-y-6">
+              <Skeleton className="h-10 w-48 opacity-20" />
+              <Skeleton className="h-64 w-full rounded-3xl opacity-10" />
+              <div className="space-y-3">
+                <Skeleton className="h-20 w-full rounded-2xl opacity-5" />
+                <Skeleton className="h-20 w-full rounded-2xl opacity-5" />
+              </div>
+            </div>
           ))}
         </div>
       </div>
@@ -374,20 +414,20 @@ export function BlindspotView({ category, sources }: BlindspotViewProps) {
   if (error instanceof Error) {
     return (
       <div className="flex min-h-[32rem] items-center justify-center p-6">
-        <div className="max-w-xl border border-white/10 bg-white/[0.04] p-8 text-left">
-          <div className="flex items-center gap-3 text-foreground">
-            <ShieldAlert className="h-5 w-5 text-primary" />
-            <h2 className="font-serif text-2xl">Blindspot viewer unavailable</h2>
+        <div className="max-w-xl bg-white/[0.02] p-12 text-center rounded-2xl">
+          <div className="flex flex-col items-center gap-4 text-foreground">
+            <ShieldAlert className="h-12 w-12 text-primary/40" />
+            <h2 className="font-serif text-3xl">Viewer unavailable</h2>
           </div>
-          <p className="mt-4 text-sm leading-relaxed text-muted-foreground">
+          <p className="mt-4 text-sm leading-relaxed text-muted-foreground/60">
             {error.message}
           </p>
           <Button
             onClick={() => void refetch()}
             variant="outline"
-            className="mt-6 rounded-none border-white/10 bg-transparent"
+            className="mt-8 border-white/10 bg-white/[0.03] text-[10px] font-mono uppercase tracking-widest px-8"
           >
-            <RefreshCcw className="mr-2 h-4 w-4" />
+            <RefreshCcw className="mr-2 h-3.5 w-3.5" />
             Retry
           </Button>
         </div>
@@ -401,175 +441,176 @@ export function BlindspotView({ category, sources }: BlindspotViewProps) {
 
   return (
     <>
-      <div className="flex flex-col space-y-6 p-4 lg:p-6">
-        {/* Header & Controls */}
-        <motion.header
-          initial={{ opacity: 0, y: -12 }}
+      <div className="flex flex-col space-y-16 p-6 lg:p-10">
+        {/* Compact Controls Area */}
+        <motion.div
+          initial={{ opacity: 0, y: -8 }}
           animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.35, ease: "easeOut" }}
-          className="flex flex-col gap-6"
+          className="flex flex-col gap-8 lg:flex-row lg:items-center lg:justify-between"
         >
-          <div className="flex flex-col justify-between gap-4 border-b border-white/5 pb-6 lg:flex-row lg:items-end">
-            <div className="space-y-3">
-              <div className="flex items-center gap-2.5 text-[10px] font-mono uppercase tracking-[0.4em] text-primary/80">
-                <ArrowRightLeft className="h-3.5 w-3.5" />
-                Blindspot Viewer
-              </div>
-              <h2 className="font-serif text-3xl leading-[1.1] text-foreground lg:text-5xl">
-                Coverage gaps.
-              </h2>
-              <p className="max-w-xl text-sm leading-relaxed text-muted-foreground/80">
-                Detecting holes in coverage across <span className="text-foreground">{data.summary.total_clusters}</span> clusters. 
-                Active lens: <span className="text-primary/90">{data.selected_lens.label.toLowerCase()}</span>.
-              </p>
-            </div>
+          <div className="space-y-2">
+            <h2 className="font-serif text-4xl font-medium tracking-tight text-foreground/90">
+              Media Blindspots
+            </h2>
+            <p className="max-w-xl text-sm leading-relaxed text-muted-foreground/50 italic">
+              Detecting asymmetric reporting where one perspective is missing.
+            </p>
+          </div>
 
-            <div className="flex flex-col items-start gap-4 lg:items-end">
-              <div className="flex items-center gap-6 text-[10px] font-mono uppercase tracking-[0.2em] text-muted-foreground/50">
-                <div className="flex flex-col items-start lg:items-end">
-                  <span className="text-[8px] opacity-60">Snapshot</span>
-                  <span className="text-foreground/70">{data.summary.total_clusters} clusters</span>
-                </div>
-                <div className="flex flex-col items-start lg:items-end">
-                  <span className="text-[8px] opacity-60">Window</span>
-                  <span className="text-foreground/70">{data.summary.window}</span>
-                </div>
-              </div>
-
-              <div className="flex flex-wrap gap-1.5 rounded-sm bg-white/[0.03] p-1 border border-white/5">
+          <div className="flex flex-wrap items-center gap-4">
+            <div className="flex items-center gap-1.5 rounded-sm border border-white/5 bg-white/[0.03] p-1">
+              <span className="px-2 text-[8px] font-mono uppercase tracking-widest text-muted-foreground/40">Perspective</span>
+              <select
+                value={selectedLens}
+                onChange={(e) => setSelectedLens(e.target.value as BlindspotLens["id"])}
+                className="cursor-pointer border-none bg-transparent px-2 py-1 font-mono text-[9px] uppercase tracking-widest text-foreground/80 focus:ring-0"
+              >
                 {data.available_lenses.map((lens) => (
-                  <button
-                    key={lens.id}
-                    type="button"
-                    onClick={() => lens.available && setSelectedLens(lens.id)}
-                    disabled={!lens.available}
-                    className={cn(
-                      "px-3 py-1.5 text-[10px] font-mono uppercase tracking-[0.2em] transition-all duration-200",
-                      selectedLens === lens.id
-                        ? "bg-primary/10 text-primary shadow-[0_0_12px_rgba(0,197,255,0.15)]"
-                        : "text-muted-foreground hover:bg-white/5 hover:text-foreground/80",
-                      !lens.available && "cursor-not-allowed opacity-30",
-                    )}
-                  >
+                  <option key={lens.id} value={lens.id} disabled={!lens.available} className="bg-[#0a0a0a]">
                     {lens.label}
-                  </button>
+                  </option>
                 ))}
-              </div>
+              </select>
             </div>
-          </div>
 
-          <div className="flex flex-wrap items-center justify-between gap-4">
-            <div className="flex items-center gap-2">
-              <Radar className="h-4 w-4 text-primary/60" />
-              <p className="text-xs text-muted-foreground/70 italic">
-                {data.selected_lens.description}
-              </p>
-            </div>
-            
-            <div className="flex items-center gap-1.5 rounded-sm bg-white/[0.02] p-1 border border-white/5">
-              {SORT_OPTIONS.map((option) => (
-                <button
-                  key={option.value}
-                  type="button"
-                  onClick={() => setSortMode(option.value)}
-                  className={cn(
-                    "px-2.5 py-1 text-[9px] font-mono uppercase tracking-[0.15em] transition-colors",
-                    sortMode === option.value
-                      ? "bg-white/10 text-foreground"
-                      : "text-muted-foreground hover:text-foreground/70",
-                  )}
-                >
-                  {option.label}
-                </button>
-              ))}
+            <div className="flex items-center gap-1.5 rounded-sm border border-white/5 bg-white/[0.03] p-1">
+              <span className="px-2 text-[8px] font-mono uppercase tracking-widest text-muted-foreground/40">Rank By</span>
+              <select
+                value={sortMode}
+                onChange={(e) => setSortMode(e.target.value as SortMode)}
+                className="cursor-pointer border-none bg-transparent px-2 py-1 font-mono text-[9px] uppercase tracking-widest text-foreground/80 focus:ring-0"
+              >
+                {SORT_OPTIONS.map((option) => (
+                  <option key={option.value} value={option.value} className="bg-[#0a0a0a]">
+                    {option.label}
+                  </option>
+                ))}
+              </select>
             </div>
           </div>
-        </motion.header>
+        </motion.div>
 
         {!data.selected_lens.available ? (
-          <div className="border border-white/10 bg-white/[0.02] p-12 text-center">
-            <h3 className="font-serif text-2xl text-foreground">
-              {data.selected_lens.label} is currently unavailable
+          <div className="bg-white/[0.01] py-32 text-center rounded-3xl border border-dashed border-white/5">
+            <h3 className="font-serif text-2xl text-foreground/60">
+              {data.selected_lens.label} analyzer is offline
             </h3>
-            <p className="mt-2 text-sm text-muted-foreground">
-              {data.selected_lens.unavailable_reason || "Check back soon for updated metrics."}
+            <p className="mt-2 text-sm text-muted-foreground/40">
+              {data.selected_lens.unavailable_reason || "Check back shortly for updated intelligence."}
             </p>
           </div>
         ) : (
-          <div className="grid gap-6 xl:grid-cols-3 xl:items-start">
-            {data.lanes.map((lane, index) => {
-              const cards = laneMap.get(lane.id) ?? []
-              const fallback = cards.length === 0 ? fallbackCards[lane.id] : []
-              const visibleCards = cards.length > 0 ? cards : fallback
-              const leadCard = visibleCards[0]
-              const listCards = visibleCards.slice(1)
-              const usingFallback = cards.length === 0 && fallback.length > 0
+          <div className="grid gap-8 xl:grid-cols-3 xl:gap-12">
+            {/* Missed by Pole A (Covered by Pole B) */}
+            <motion.section
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.5, ease: "easeOut" }}
+              className="flex flex-col space-y-8"
+            >
+              <div className="space-y-2 border-l-2 border-red-500/40 pl-6">
+                <h3 className="font-serif text-3xl font-medium text-foreground/90 text-balance">Missed by {poleLabels.pole_a}</h3>
+                <p className="text-[10px] text-muted-foreground/40 font-mono uppercase tracking-widest">
+                  Reported primarily by {poleLabels.pole_b.toLowerCase()} outlets
+                </p>
+              </div>
 
-              return (
-                <motion.section
-                  key={lane.id}
-                  initial={{ opacity: 0, y: 20 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ duration: 0.4, ease: "easeOut", delay: index * 0.1 }}
-                  className="flex flex-col space-y-5"
-                >
-                  <div className="relative border-b border-white/10 pb-4">
-                    <div className="flex items-center justify-between">
-                      <h3 className="font-serif text-2xl text-foreground/90">
-                        {lane.label}
-                      </h3>
-                      <div className={cn("h-4 w-1", laneBarClass(lane.id))} />
-                    </div>
-                    <div className="mt-1.5 flex items-center gap-2.5 text-[9px] font-mono uppercase tracking-[0.25em] text-muted-foreground/60">
-                      <span>{lane.cluster_count} Clusters</span>
-                      {usingFallback && (
-                        <span className="text-amber-500/60 font-bold uppercase tracking-widest">[GAP DETECTED]</span>
-                      )}
-                    </div>
-                    <p className="mt-3 text-xs leading-relaxed text-muted-foreground/70 line-clamp-2">
-                      {usingFallback
-                        ? "Showing clusters near the blindspot threshold."
-                        : lane.description}
-                    </p>
-                  </div>
-
-                  <div className="flex flex-col space-y-4">
-                    {leadCard ? (
-                      <>
-                        <LeadStory card={leadCard} laneId={lane.id} onOpen={setSelectedCard} />
-                        
-                        {listCards.length > 0 && (
-                          <div className="space-y-1">
-                            <div className="mb-2 flex items-center gap-2">
-                              <div className="h-px flex-1 bg-white/5" />
-                              <span className="text-[8px] font-mono uppercase tracking-[0.2em] text-muted-foreground/40">Secondary Stream</span>
-                              <div className="h-px flex-1 bg-white/5" />
-                            </div>
-                            <div className="max-h-[32rem] overflow-y-auto pr-2">
-                              {listCards.map((card) => (
-                                <StoryRow
-                                  key={`${lane.id}-${card.cluster_id}`}
-                                  card={card}
-                                  onOpen={setSelectedCard}
-                                />
-                              ))}
-                            </div>
-                          </div>
-                        )}
-                      </>
-                    ) : (
-                      <div className="border border-dashed border-white/5 bg-white/[0.01] p-8 text-center text-xs text-muted-foreground/50">
-                        No active clusters in this lane.
+              <div className="flex flex-col space-y-8">
+                {(() => {
+                  const cards = laneMap.get("pole_b") ?? []
+                  const leadCard = cards[0]
+                  const listCards = cards.slice(1, 8)
+                  
+                  if (!leadCard) return <div className="bg-white/[0.01] py-12 text-center rounded-2xl text-xs font-mono text-muted-foreground/20">No significant blindspots detected</div>
+                  
+                  return (
+                    <>
+                      <LeadStory card={leadCard} laneId="pole_b" poleLabels={poleLabels} onOpen={setSelectedCard} />
+                      <div className="flex flex-col gap-3">
+                        {listCards.map((card) => (
+                          <StoryRow key={card.cluster_id} card={card} poleLabels={poleLabels} onOpen={setSelectedCard} />
+                        ))}
                       </div>
-                    )}
-                  </div>
-                </motion.section>
-              )
-            })}
+                    </>
+                  )
+                })()}
+              </div>
+            </motion.section>
+
+            {/* Balanced / Center Coverage */}
+            <motion.section
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.5, ease: "easeOut", delay: 0.1 }}
+              className="flex flex-col space-y-8"
+            >
+              <div className="space-y-2 border-l-2 border-zinc-500/40 pl-6">
+                <h3 className="font-serif text-3xl font-medium text-foreground/90 text-balance">Balanced & Center</h3>
+                <p className="text-[10px] text-muted-foreground/40 font-mono uppercase tracking-widest">
+                  Stories with consensus or neutral coverage
+                </p>
+              </div>
+
+              <div className="flex flex-col space-y-8">
+                {(() => {
+                  const cards = laneMap.get("shared") ?? []
+                  const leadCard = cards[0]
+                  const listCards = cards.slice(1, 8)
+                  
+                  if (!leadCard) return <div className="bg-white/[0.01] py-12 text-center rounded-2xl text-xs font-mono text-muted-foreground/20">No balanced signals detected</div>
+                  
+                  return (
+                    <>
+                      <LeadStory card={leadCard} laneId="shared" poleLabels={poleLabels} onOpen={setSelectedCard} />
+                      <div className="flex flex-col gap-3">
+                        {listCards.map((card) => (
+                          <StoryRow key={card.cluster_id} card={card} poleLabels={poleLabels} onOpen={setSelectedCard} />
+                        ))}
+                      </div>
+                    </>
+                  )
+                })()}
+              </div>
+            </motion.section>
+
+            {/* Missed by Pole B (Covered by Pole A) */}
+            <motion.section
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.5, ease: "easeOut", delay: 0.2 }}
+              className="flex flex-col space-y-8"
+            >
+              <div className="space-y-2 border-l-2 border-cyan-500/40 pl-6">
+                <h3 className="font-serif text-3xl font-medium text-foreground/90 text-balance">Missed by {poleLabels.pole_b}</h3>
+                <p className="text-[10px] text-muted-foreground/40 font-mono uppercase tracking-widest">
+                  Reported primarily by {poleLabels.pole_a.toLowerCase()} outlets
+                </p>
+              </div>
+
+              <div className="flex flex-col space-y-8">
+                {(() => {
+                  const cards = laneMap.get("pole_a") ?? []
+                  const leadCard = cards[0]
+                  const listCards = cards.slice(1, 8)
+                  
+                  if (!leadCard) return <div className="bg-white/[0.01] py-12 text-center rounded-2xl text-xs font-mono text-muted-foreground/20">No significant blindspots detected</div>
+                  
+                  return (
+                    <>
+                      <LeadStory card={leadCard} laneId="pole_a" poleLabels={poleLabels} onOpen={setSelectedCard} />
+                      <div className="flex flex-col gap-3">
+                        {listCards.map((card) => (
+                          <StoryRow key={card.cluster_id} card={card} poleLabels={poleLabels} onOpen={setSelectedCard} />
+                        ))}
+                      </div>
+                    </>
+                  )
+                })()}
+              </div>
+            </motion.section>
           </div>
         )}
       </div>
-
       <ClusterDetailModal
         cluster={selectedCluster}
         isBreaking={false}
