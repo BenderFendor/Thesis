@@ -68,6 +68,17 @@ function intensityLabel(metrics?: CountryArticleCounts) {
   return metrics.window_hours ? `Coverage heat · ${metrics.window_hours}h` : "Coverage heat"
 }
 
+function signalTotal(
+  metrics: CountryArticleCounts | undefined,
+  signalId: string,
+  countryCode: string | null,
+) {
+  if (!metrics?.geo_signals || !countryCode) return 0
+  const signal = metrics.geo_signals.find((item) => item.id === signalId)
+  if (!signal) return 0
+  return signal.country_counts[countryCode] || 0
+}
+
 export function GlobeView({ articles, loading }: GlobeViewProps) {
   const [selectedCountry, setSelectedCountry] = useState<string | null>(null)
   const [selectedCountryName, setSelectedCountryName] = useState<string | null>(null)
@@ -155,6 +166,16 @@ export function GlobeView({ articles, loading }: GlobeViewProps) {
   const selectedCountrySourceVolume = selectedCountry
     ? countryMetrics?.source_counts?.[selectedCountry] || 0
     : 0
+  const selectedCountryMentionVolume = signalTotal(
+    countryMetrics,
+    "country_mentions",
+    selectedCountry,
+  )
+  const selectedCountryOriginVolume = signalTotal(
+    countryMetrics,
+    "source_origin",
+    selectedCountry,
+  )
   const focusLabel = selectedCountryName || "Global Focus"
   const leadArticle = lensArticles[0] || null
   const topSources = (selectedCountry ? sourceSummary : globalSourceSummary).slice(0, 5)
@@ -297,7 +318,7 @@ export function GlobeView({ articles, loading }: GlobeViewProps) {
                             </span>
                           </TooltipTrigger>
                           <TooltipContent>
-                            <p>Total mentions of this country in the global news cycle</p>
+                            <p>Combined global attention signal for this country in the active window.</p>
                           </TooltipContent>
                         </Tooltip>
                       </TooltipProvider>
@@ -420,6 +441,16 @@ export function GlobeView({ articles, loading }: GlobeViewProps) {
                         <span className="text-[10px] font-mono uppercase tracking-widest text-muted-foreground">Lens brief</span>
                       </div>
                       <p className="text-sm leading-relaxed text-muted-foreground">{briefingDescription}</p>
+                      {localLensQuery.data?.geo_signal && (
+                        <div className="mt-3">
+                          <Badge
+                            variant="outline"
+                            className="rounded-full border-white/10 bg-white/[0.04] px-3 py-1 text-[9px] uppercase tracking-[0.2em] text-muted-foreground"
+                          >
+                            {localLensQuery.data.geo_signal.label}
+                          </Badge>
+                        </div>
+                      )}
                       {matchingStrategy && (
                         <p className="mt-3 text-[10px] font-mono uppercase tracking-[0.24em] text-muted-foreground">
                           Match: {matchingStrategy.replaceAll("_", " ")}
@@ -453,9 +484,14 @@ export function GlobeView({ articles, loading }: GlobeViewProps) {
                               <p className="mt-2 line-clamp-2 text-xs leading-relaxed text-muted-foreground">
                                 {article.summary}
                               </p>
-                              {article.mentioned_countries && article.mentioned_countries.length > 0 && (
+                              {(article.geo_signal || (article.mentioned_countries && article.mentioned_countries.length > 0)) && (
                                 <div className="mt-3 flex flex-wrap gap-2">
-                                  {article.mentioned_countries.slice(0, 4).map((countryCode) => (
+                                  {article.geo_signal && (
+                                    <Badge variant="outline" className="rounded-full border-white/10 bg-white/5 text-[9px] uppercase tracking-wider text-muted-foreground">
+                                      {article.geo_signal.label}
+                                    </Badge>
+                                  )}
+                                  {(article.mentioned_countries || []).slice(0, 4).map((countryCode) => (
                                     <Badge key={`${article.id}-${countryCode}`} variant="outline" className="rounded-full border-white/10 bg-white/5 text-[9px] uppercase tracking-wider text-muted-foreground">
                                       {countryCode}
                                     </Badge>
@@ -567,11 +603,11 @@ export function GlobeView({ articles, loading }: GlobeViewProps) {
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                     <div className="rounded-xl border border-white/10 bg-black/40 backdrop-blur-md p-3">
                       <div className="text-[10px] uppercase tracking-widest text-muted-foreground">Local lens</div>
-                      <div className="mt-2 text-sm text-foreground">{selectedCountrySourceVolume} source-origin signals</div>
+                      <div className="mt-2 text-sm text-foreground">{selectedCountryOriginVolume || selectedCountrySourceVolume} source-origin signals</div>
                     </div>
                     <div className="rounded-xl border border-white/10 bg-black/40 backdrop-blur-md p-3">
                       <div className="text-[10px] uppercase tracking-widest text-muted-foreground">World lens</div>
-                      <div className="mt-2 text-sm text-foreground">{selectedCountryCoverage} outside mentions in window</div>
+                      <div className="mt-2 text-sm text-foreground">{selectedCountryMentionVolume || selectedCountryCoverage} article mentions in window</div>
                     </div>
                   </div>
                 </div>

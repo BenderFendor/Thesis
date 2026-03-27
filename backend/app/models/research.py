@@ -23,4 +23,5 @@ class NewsResearchResponse(StrictBaseModel):
     thinking_steps: List[ThinkingStep] = Field(default_factory=list)
     articles_searched: int = 0
     referenced_articles: List[dict[str, Any]] = Field(default_factory=list)
+    source_providers: List[str] = Field(default_factory=list)
     error: Optional[str] = None

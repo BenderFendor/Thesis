@@ -21,11 +21,37 @@ logger = get_logger(__name__)
 router = APIRouter(prefix="/news", tags=["news-by-country"])
 
 
-def _serialize_articles(records: list[Article]) -> list[dict[str, Any]]:
+def _geo_signal_payload(
+    *,
+    signal_id: str,
+    label: str,
+    country_counts: dict[str, int],
+    article_count: int,
+) -> dict[str, Any]:
+    return {
+        "id": signal_id,
+        "label": label,
+        "country_counts": country_counts,
+        "country_count": len(country_counts),
+        "article_count": article_count,
+        "total_mentions": sum(country_counts.values()),
+    }
+
+
+def _serialize_articles(
+    records: list[Article],
+    *,
+    geo_signal_id: str,
+    geo_signal_label: str,
+) -> list[dict[str, Any]]:
     serialized: list[dict[str, Any]] = []
     for record in records:
         payload = article_record_to_dict(record)
         payload["source_country"] = record.country
+        payload["geo_signal"] = {
+            "id": geo_signal_id,
+            "label": geo_signal_label,
+        }
         serialized.append(payload)
     return serialized
 
@@ -154,6 +180,20 @@ async def get_article_counts_by_country(
     return {
         "counts": counts,
         "source_counts": source_counts,
+        "geo_signals": [
+            _geo_signal_payload(
+                signal_id="country_mentions",
+                label="Country mentions",
+                country_counts=counts,
+                article_count=covered_article_count,
+            ),
+            _geo_signal_payload(
+                signal_id="source_origin",
+                label="Source origin",
+                country_counts=source_counts,
+                article_count=sum(source_counts.values()),
+            ),
+        ],
         "total_articles": total,
         "articles_with_country": covered_article_count,
         "articles_without_country": total - covered_article_count,
@@ -182,9 +222,13 @@ async def get_news_for_country(
     if view == "internal":
         matching_strategy = "country_mentions"
         view_description = f"How sources in {country_label} cover {country_label}"
+        geo_signal_id = "country_mentions"
+        geo_signal_label = "Country mentions"
     else:
         matching_strategy = "country_mentions"
         view_description = f"How outside sources cover {country_label}"
+        geo_signal_id = "country_mentions"
+        geo_signal_label = "Country mentions"
 
     records, total, source_count = await _fetch_country_filtered_articles(
         db,
@@ -201,6 +245,8 @@ async def get_news_for_country(
         total = int((await db.execute(count_stmt)).scalar_one())
         matching_strategy = "source_origin_fallback"
         view_description = f"Recent reporting from sources based in {country_label}"
+        geo_signal_id = "source_origin"
+        geo_signal_label = "Source origin"
         stmt = (
             select(Article)
             .where(*filters)
@@ -214,7 +260,11 @@ async def get_news_for_country(
         )
         source_count = int((await db.execute(source_count_stmt)).scalar_one())
 
-    articles = _serialize_articles(records)
+    articles = _serialize_articles(
+        records,
+        geo_signal_id=geo_signal_id,
+        geo_signal_label=geo_signal_label,
+    )
 
     return {
         "country_code": code_upper,
@@ -229,6 +279,10 @@ async def get_news_for_country(
         "has_more": offset + len(articles) < total,
         "source_count": source_count,
         "window_hours": hours,
+        "geo_signal": {
+            "id": geo_signal_id,
+            "label": geo_signal_label,
+        },
         "articles": articles,
     }
 

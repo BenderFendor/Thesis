@@ -15,6 +15,14 @@ class TestNewsByCountry:
 
         assert data["counts"]["CN"] == 3
         assert data["source_counts"]["US"] == 2
+        assert {signal["id"] for signal in data["geo_signals"]} == {
+            "country_mentions",
+            "source_origin",
+        }
+        assert {signal["label"] for signal in data["geo_signals"]} == {
+            "Country mentions",
+            "Source origin",
+        }
         assert data["window_hours"] == 720
 
     async def test_generated_aliases_match_demonyms(self, client: AsyncClient):
@@ -34,9 +42,17 @@ class TestNewsByCountry:
 
         assert data["country_code"] == "US"
         assert data["matching_strategy"] == "country_mentions"
+        assert data["geo_signal"] == {
+            "id": "country_mentions",
+            "label": "Country mentions",
+        }
         assert data["total"] == 2
         assert {article["id"] for article in data["articles"]} == {1, 2}
         assert all(article["source_country"] == "US" for article in data["articles"])
+        assert all(
+            article["geo_signal"]["id"] == "country_mentions"
+            for article in data["articles"]
+        )
 
     async def test_external_view_filters_to_foreign_coverage(self, client: AsyncClient):
         resp = await client.get("/news/country/CN?view=external&limit=10&hours=720")
@@ -45,6 +61,10 @@ class TestNewsByCountry:
 
         assert data["country_code"] == "CN"
         assert data["matching_strategy"] == "country_mentions"
+        assert data["geo_signal"] == {
+            "id": "country_mentions",
+            "label": "Country mentions",
+        }
         assert data["total"] == 3
         assert {article["id"] for article in data["articles"]} == {2, 3, 4}
         assert all(article["source_country"] != "CN" for article in data["articles"])
@@ -72,5 +92,13 @@ class TestNewsByCountry:
 
         assert data["country_code"] == "GB"
         assert data["matching_strategy"] == "source_origin_fallback"
+        assert data["geo_signal"] == {
+            "id": "source_origin",
+            "label": "Source origin",
+        }
         assert data["total"] == 1
         assert [article["id"] for article in data["articles"]] == [3]
+        assert data["articles"][0]["geo_signal"] == {
+            "id": "source_origin",
+            "label": "Source origin",
+        }

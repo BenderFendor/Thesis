@@ -5,7 +5,7 @@ from __future__ import annotations
 import logging
 from dataclasses import dataclass
 from functools import lru_cache
-from typing import Callable, Literal, Mapping, Optional, TypedDict, cast
+from typing import Any, Callable, Literal, Mapping, Optional, TypedDict, cast
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -87,11 +87,19 @@ class SnapshotArticlePayload(TypedDict, total=False):
     id: int
     title: str
     source: str
+    source_id: Optional[str]
     url: str
     image_url: Optional[str]
     published_at: Optional[str]
     summary: Optional[str]
     similarity: float
+    country: Optional[str]
+    source_country: Optional[str]
+    category: Optional[str]
+    bias: Optional[str]
+    credibility: Optional[str]
+    geo: dict[str, Any]
+    baseline: dict[str, Any]
 
 
 class SnapshotClusterPayload(TypedDict, total=False):
@@ -131,6 +139,12 @@ class BlindspotSharePayload(TypedDict):
     pole_b: float
 
 
+class BlindspotGeoSignalPayload(TypedDict):
+    id: str
+    label: str
+    count: int
+
+
 class BlindspotCardPayload(TypedDict):
     cluster_id: int
     cluster_label: str
@@ -146,6 +160,7 @@ class BlindspotCardPayload(TypedDict):
     coverage_shares: BlindspotSharePayload
     representative_article: Optional[SnapshotArticlePayload]
     articles: list[SnapshotArticlePayload]
+    geography_signals: list[BlindspotGeoSignalPayload]
 
 
 class BlindspotSummaryPayload(TypedDict):
@@ -197,8 +212,21 @@ def _slugify_source_name(value: str) -> str:
     return "-".join(value.lower().split())
 
 
-def _article_source_name(article: Article) -> str:
-    return article.source or "unknown-source"
+def _article_value(article: Any, key: str, default: Any = None) -> Any:
+    if isinstance(article, Mapping):
+        return article.get(key, default)
+    return getattr(article, key, default)
+
+
+def _has_text(value: Any) -> bool:
+    return isinstance(value, str) and value.strip() != ""
+
+
+def _article_source_name(article: Any) -> str:
+    source = _article_value(article, "source")
+    if _has_text(source):
+        return cast(str, source)
+    return "unknown-source"
 
 
 def _normalize_source_filter_values(values: Optional[str]) -> set[str]:
@@ -211,24 +239,29 @@ def _normalize_source_filter_values(values: Optional[str]) -> set[str]:
     }
 
 
-def _source_aliases(article: Article) -> set[str]:
+def _source_aliases(article: Any) -> set[str]:
     source_name = _article_source_name(article)
     aliases = {source_name.lower(), _slugify_source_name(source_name)}
-    if article.source_id:
-        aliases.add(article.source_id.strip().lower())
+    source_id = _article_value(article, "source_id")
+    if _has_text(source_id):
+        aliases.add(cast(str, source_id).strip().lower())
     return aliases
 
 
-def _matches_selected_sources(article: Article, selected_sources: set[str]) -> bool:
+def _matches_selected_sources(article: Any, selected_sources: set[str]) -> bool:
     if not selected_sources:
         return True
     return bool(_source_aliases(article) & selected_sources)
 
 
-def _matches_category(article: Article, category: Optional[str]) -> bool:
+def _matches_category(article: Any, category: Optional[str]) -> bool:
     if category is None or category == "" or category == "all":
         return True
-    return (article.category or "").lower() == category.lower()
+    article_category = _article_value(article, "category")
+    return (
+        isinstance(article_category, str)
+        and article_category.lower() == category.lower()
+    )
 
 
 @lru_cache(maxsize=1)
@@ -245,12 +278,13 @@ def _source_catalog_lookup() -> dict[str, SourceCatalogEntry]:
     return lookup
 
 
-def _source_catalog_entry(article: Article) -> Optional[SourceCatalogEntry]:
+def _source_catalog_entry(article: Any) -> Optional[SourceCatalogEntry]:
     lookup = _source_catalog_lookup()
     source_name = _article_source_name(article)
     candidate_keys = [source_name.lower(), _slugify_source_name(source_name)]
-    if article.source_id:
-        candidate_keys.insert(0, article.source_id.strip().lower())
+    source_id = _article_value(article, "source_id")
+    if _has_text(source_id):
+        candidate_keys.insert(0, cast(str, source_id).strip().lower())
     for key in candidate_keys:
         entry = lookup.get(key)
         if entry is not None:
@@ -258,31 +292,98 @@ def _source_catalog_entry(article: Article) -> Optional[SourceCatalogEntry]:
     return None
 
 
-def _article_bias_value(article: Article) -> Optional[str]:
-    if article.bias and article.bias.strip():
-        return article.bias
+def _article_bias_value(article: Any) -> Optional[str]:
+    bias = _article_value(article, "bias")
+    if _has_text(bias):
+        return cast(str, bias)
     source_entry = _source_catalog_entry(article)
     if source_entry is None:
         return None
     return source_entry.get("bias_rating")
 
 
-def _article_factual_reporting_value(article: Article) -> Optional[str]:
-    if article.credibility and article.credibility.strip():
-        return article.credibility
+def _article_factual_reporting_value(article: Any) -> Optional[str]:
+    credibility = _article_value(article, "credibility")
+    if _has_text(credibility):
+        return cast(str, credibility)
     source_entry = _source_catalog_entry(article)
     if source_entry is None:
         return None
     return source_entry.get("factual_reporting")
 
 
-def _article_country_code(article: Article) -> Optional[str]:
-    if article.country and article.country.strip():
-        return article.country
+def _article_country_code(article: Any) -> Optional[str]:
+    source_country = _article_value(article, "source_country")
+    if _has_text(source_country):
+        return cast(str, source_country)
+
+    country = _article_value(article, "country")
+    if _has_text(country):
+        return cast(str, country)
+
+    for container_name in ("geo", "geography", "baseline", "geo_baseline"):
+        container = _article_value(article, container_name)
+        if not isinstance(container, Mapping):
+            continue
+        for key in (
+            "source_country",
+            "baseline_country",
+            "country_code",
+            "country",
+        ):
+            value = container.get(key)
+            if _has_text(value):
+                return cast(str, value)
+
     source_entry = _source_catalog_entry(article)
     if source_entry is None:
         return None
     return source_entry.get("country")
+
+
+def _geography_signal(article: Any) -> Optional[BlindspotGeoSignalPayload]:
+    source_country = _article_value(article, "source_country")
+    if _has_text(source_country):
+        return {
+            "id": "source_country",
+            "label": "Source country",
+            "count": 1,
+        }
+
+    for container_name in ("geo", "geography"):
+        container = _article_value(article, container_name)
+        if not isinstance(container, Mapping):
+            continue
+        for key in ("source_country", "country_code"):
+            value = container.get(key)
+            if _has_text(value):
+                return {
+                    "id": "source_country",
+                    "label": "Source country",
+                    "count": 1,
+                }
+
+    for container_name in ("baseline", "geo_baseline"):
+        container = _article_value(article, container_name)
+        if not isinstance(container, Mapping):
+            continue
+        for key in ("baseline_country", "country_code", "country"):
+            value = container.get(key)
+            if _has_text(value):
+                return {
+                    "id": "baseline_country",
+                    "label": "Baseline country",
+                    "count": 1,
+                }
+
+    country = _article_value(article, "country")
+    if _has_text(country):
+        return {
+            "id": "country",
+            "label": "Article country",
+            "count": 1,
+        }
+    return None
 
 
 def _bias_bucket(article: Article) -> Optional[BucketId]:
@@ -508,15 +609,18 @@ def _lane_payloads(
 
 
 def _build_metadata_counts(
-    articles: list[Article],
-    bucket_resolver: Callable[[Article], Optional[BucketId]],
+    articles: list[Any],
+    bucket_resolver: Callable[[Any], Optional[BucketId]],
 ) -> BlindspotCoveragePayload:
     counts = _empty_counts()
     seen_sources: set[str] = set()
 
     for article in articles:
-        source_key = article.source_id or _slugify_source_name(
-            _article_source_name(article)
+        source_id = _article_value(article, "source_id")
+        source_key = (
+            cast(str, source_id).strip().lower()
+            if _has_text(source_id)
+            else _slugify_source_name(_article_source_name(article))
         )
         if source_key in seen_sources:
             continue
@@ -610,7 +714,7 @@ def _quantile(values: list[float], percentile: float) -> float:
 
 
 async def _load_embeddings_for_articles(
-    articles_by_id: Mapping[int, Article],
+    articles_by_id: Mapping[int, Any],
 ) -> Optional[dict[int, list[float]]]:
     vector_store = get_vector_store()
     if vector_store is None:
@@ -668,21 +772,22 @@ async def _load_embeddings_for_articles(
         return embeddings or None
 
     for article, vector in zip(articles_to_encode, encoded_rows):
-        if article.id is None:
+        encoded_article_id: Any = getattr(article, "id", None)
+        if encoded_article_id is None:
             continue
-        embeddings[article.id] = vector
+        embeddings[int(encoded_article_id)] = vector
 
     return embeddings
 
 
 async def _build_semaxis_counts_by_cluster(
-    filtered_cluster_articles: Mapping[int, list[Article]],
+    filtered_cluster_articles: Mapping[int, list[Any]],
 ) -> tuple[dict[int, BlindspotCoveragePayload], Optional[str]]:
     all_articles = {
-        article.id: article
+        int(getattr(article, "id")): article
         for articles in filtered_cluster_articles.values()
         for article in articles
-        if article.id is not None
+        if getattr(article, "id", None) is not None
     }
     if not all_articles:
         return {}, "No articles were available for semantic scoring."
@@ -731,7 +836,7 @@ async def _build_semaxis_counts_by_cluster(
     for cluster_id, articles in filtered_cluster_articles.items():
         scores_by_source: dict[str, list[float]] = {}
         for article in articles:
-            article_id = article.id
+            article_id = getattr(article, "id", None)
             if article_id is None:
                 continue
             vector = embeddings_by_article.get(article_id)
@@ -740,8 +845,11 @@ async def _build_semaxis_counts_by_cluster(
             normalized = _normalize_vector(vector)
             if not normalized:
                 continue
-            source_key = article.source_id or _slugify_source_name(
-                _article_source_name(article)
+            source_id = _article_value(article, "source_id")
+            source_key = (
+                cast(str, source_id).strip().lower()
+                if _has_text(source_id)
+                else _slugify_source_name(_article_source_name(article))
             )
             scores_by_source.setdefault(source_key, []).append(
                 _dot_product(normalized, axis_vector)
@@ -779,7 +887,7 @@ async def _build_semaxis_counts_by_cluster(
 
 def _metadata_counts_for_lens(
     lens: LensId,
-    articles: list[Article],
+    articles: list[Any],
 ) -> BlindspotCoveragePayload:
     if lens == "bias":
         return _build_metadata_counts(articles, _bias_bucket)
@@ -788,6 +896,30 @@ def _metadata_counts_for_lens(
     if lens == "geography":
         return _build_metadata_counts(articles, _geography_bucket)
     return _empty_counts()
+
+
+def _geography_signals_for_articles(
+    articles: list[Any],
+) -> list[BlindspotGeoSignalPayload]:
+    counts: dict[str, int] = {}
+    labels: dict[str, str] = {}
+    for article in articles:
+        signal = _geography_signal(article)
+        if signal is None:
+            continue
+        counts[signal["id"]] = counts.get(signal["id"], 0) + 1
+        labels[signal["id"]] = signal["label"]
+
+    ordered_ids = ["source_country", "baseline_country", "country"]
+    return [
+        {
+            "id": signal_id,
+            "label": labels[signal_id],
+            "count": counts[signal_id],
+        }
+        for signal_id in ordered_ids
+        if signal_id in counts
+    ]
 
 
 class BlindspotViewerService:
@@ -834,18 +966,44 @@ class BlindspotViewerService:
         cluster_payloads = cast(
             list[SnapshotClusterPayload], snapshot.clusters_json or []
         )
-        article_ids = {
-            article["id"]
-            for cluster in cluster_payloads
-            for article in cluster.get("articles", [])
-            if isinstance(article.get("id"), int)
-        }
-        article_result = await session.execute(
-            select(Article).where(Article.id.in_(sorted(article_ids)))
-        )
-        articles_by_id = {article.id: article for article in article_result.scalars()}
+        snapshot_articles_by_id: dict[int, SnapshotArticlePayload] = {}
+        for cluster in cluster_payloads:
+            for article in cluster.get("articles", []):
+                article_id = article.get("id")
+                if isinstance(article_id, int):
+                    snapshot_articles_by_id.setdefault(article_id, article)
 
-        filtered_cluster_articles: dict[int, list[Article]] = {}
+        article_ids_needing_db: set[int] = set()
+        for article_id, article in snapshot_articles_by_id.items():
+            if lens == "institutional_populist":
+                article_ids_needing_db.add(article_id)
+                continue
+            if lens == "bias" and _article_bias_value(article) is None:
+                article_ids_needing_db.add(article_id)
+            elif (
+                lens == "credibility"
+                and _article_factual_reporting_value(article) is None
+            ):
+                article_ids_needing_db.add(article_id)
+            elif lens == "geography" and _article_country_code(article) is None:
+                article_ids_needing_db.add(article_id)
+            if category is not None and not _has_text(
+                _article_value(article, "category")
+            ):
+                article_ids_needing_db.add(article_id)
+
+        articles_by_id: dict[int, Article] = {}
+        if article_ids_needing_db:
+            article_result = await session.execute(
+                select(Article).where(Article.id.in_(sorted(article_ids_needing_db)))
+            )
+            articles_by_id = {
+                article.id: article
+                for article in article_result.scalars()
+                if article.id is not None
+            }
+
+        filtered_cluster_articles: dict[int, list[Any]] = {}
         filtered_cluster_previews: dict[int, list[SnapshotArticlePayload]] = {}
         total_clusters = 0
 
@@ -854,7 +1012,7 @@ class BlindspotViewerService:
             if not isinstance(cluster_id, int):
                 continue
             total_clusters += 1
-            matching_articles: list[Article] = []
+            matching_articles: list[Any] = []
             preview_articles: list[SnapshotArticlePayload] = []
 
             for article in cluster.get("articles", []):
@@ -862,17 +1020,25 @@ class BlindspotViewerService:
                 if not isinstance(article_id, int):
                     continue
                 db_article = articles_by_id.get(article_id)
-                if db_article is None:
+                materialized_article: Any = db_article or article
+                if (
+                    category is not None
+                    and _article_value(materialized_article, "category") is None
+                    and db_article is None
+                ):
                     continue
-                if not _matches_category(db_article, category):
+                if not _matches_category(materialized_article, category):
                     continue
-                if not _matches_selected_sources(db_article, selected_sources):
+                if not _matches_selected_sources(
+                    materialized_article, selected_sources
+                ):
                     continue
-                matching_articles.append(db_article)
+                matching_articles.append(materialized_article)
                 preview_articles.append(_article_preview(article))
 
             distinct_sources = {
-                article.source_id or _slugify_source_name(_article_source_name(article))
+                _article_value(article, "source_id")
+                or _slugify_source_name(_article_source_name(article))
                 for article in matching_articles
             }
             if (
@@ -916,11 +1082,13 @@ class BlindspotViewerService:
             lane = classify_lane(counts)
             shares = _shares_from_counts(counts)
             preview_articles = filtered_cluster_previews.get(cluster_id, [])
-            published_candidates = [
-                article.published_at.isoformat()
-                for article in cluster_articles
-                if article.published_at is not None
-            ]
+            published_candidates: list[str] = []
+            for article in cluster_articles:
+                published_at = _article_value(article, "published_at")
+                if hasattr(published_at, "isoformat"):
+                    published_candidates.append(cast(Any, published_at).isoformat())
+                elif isinstance(published_at, str) and published_at.strip():
+                    published_candidates.append(published_at)
             card_payload: BlindspotCardPayload = {
                 "cluster_id": cluster_id,
                 "cluster_label": cluster.get("label") or "Topic",
@@ -940,6 +1108,9 @@ class BlindspotViewerService:
                     preview_articles
                 ),
                 "articles": preview_articles[:4],
+                "geography_signals": _geography_signals_for_articles(matching_articles)
+                if lens == "geography"
+                else [],
             }
             candidates.append(
                 ClusterCardCandidate(

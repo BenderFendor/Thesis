@@ -140,6 +140,48 @@ def test_dedup_tool_node_blocks_external_search_before_internal_search(
     assert out["tool_calls_used"] == 0
 
 
+@pytest.mark.parametrize("tool_name", ["gdelt_context_search", "gdelt_doc_search"])
+def test_dedup_tool_node_blocks_gdelt_search_before_internal_search(
+    monkeypatch, tool_name: str
+) -> None:
+    class FakeToolNode:
+        def __init__(self, *_args, **_kwargs) -> None:
+            pass
+
+        def invoke(self, _state):
+            raise AssertionError(
+                "GDELT search should be blocked before internal search"
+            )
+
+    monkeypatch.setattr(agent, "ToolNode", FakeToolNode)
+
+    state = cast(
+        Any,
+        {
+            "messages": [
+                AIMessage(
+                    content="",
+                    tool_calls=[
+                        {
+                            "id": f"{tool_name}-call",
+                            "name": tool_name,
+                            "args": {"query": "iran latest"},
+                        }
+                    ],
+                )
+            ],
+            "tool_history": set(),
+            "tool_calls_used": 0,
+        },
+    )
+
+    out = agent._dedup_tool_node(state)
+
+    assert len(out["messages"]) == 1
+    assert "Use search_internal_news first" in str(out["messages"][0].content)
+    assert out["tool_calls_used"] == 0
+
+
 def test_dedup_tool_node_requires_internal_fetches_before_external_search(
     monkeypatch,
 ) -> None:
@@ -451,6 +493,57 @@ def test_research_news_refinalizes_when_draft_denies_available_context(
     assert result["answer"].startswith("Answer\nAP reports")
     assert result["referenced_articles"]
     assert result["referenced_articles"][0]["url"] == "https://example.com/ap-iran"
+    assert result["source_providers"] == ["duckduckgo"]
+
+
+def test_research_news_records_gdelt_source_providers(monkeypatch) -> None:
+    final_answer = (
+        "Answer\nThe GDELT context shows continuing strikes and evacuations in the "
+        "region. It provides enough detail to summarize the situation without a "
+        "full article fetch."
+    )
+
+    class FakeGraph:
+        def stream(self, _initial_state, stream_mode="updates"):
+            assert stream_mode == "updates"
+            yield {
+                "tools": {
+                    "messages": [
+                        ToolMessage(
+                            content=json.dumps(
+                                [
+                                    {
+                                        "title": "Iran update",
+                                        "source": "GDELT source",
+                                        "url": "https://example.com/gdelt-iran",
+                                        "summary": "Snippet from GDELT",
+                                        "context_snippet": "GDELT context snippet",
+                                        "sentence": "A sentence from GDELT",
+                                        "published": "2026-03-07T00:00:00+00:00",
+                                        "provider": "gdelt",
+                                        "result_type": "context",
+                                    }
+                                ]
+                            ),
+                            tool_call_id="gdelt-1",
+                            name="gdelt_context_search",
+                        )
+                    ]
+                }
+            }
+            yield {
+                "agent": {"messages": [AIMessage(content=final_answer, tool_calls=[])]}
+            }
+
+    monkeypatch.setattr(agent, "_get_graph", lambda: FakeGraph())
+
+    result = agent.research_news(query="What is happening in iran", articles=[])
+
+    assert result["source_providers"] == ["gdelt"]
+    assert result["referenced_articles"][0]["provider"] == "gdelt"
+    assert (
+        result["referenced_articles"][0]["context_snippet"] == "GDELT context snippet"
+    )
 
 
 @pytest.mark.asyncio
@@ -500,6 +593,7 @@ async def test_stream_route_fallback_answer_contract(monkeypatch) -> None:
     assert complete_payload is not None
     assert complete_payload["answer"] == "Answer\nNo answer found.\n"
     assert "Follow-up questions" not in complete_payload["answer"]
+    assert complete_payload["source_providers"] == []
 
 
 @pytest.mark.asyncio

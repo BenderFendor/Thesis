@@ -22,6 +22,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.logging import get_logger
 from app.database import Article, GDELTEvent, get_utc_now
+from app.services.gdelt_aggregates import build_article_gdelt_context
 from app.vector_store import (
     VectorStore,
     _get_chroma_include,
@@ -134,6 +135,104 @@ class ChromaTopicService:
         return cast(int, article.id)
 
     @staticmethod
+    def _event_context_rows(events: Sequence[GDELTEvent]) -> List[Dict[str, Any]]:
+        return [
+            {
+                "event_root_code": event.event_root_code,
+                "tone": event.tone,
+                "goldstein_scale": event.goldstein_scale,
+            }
+            for event in events
+        ]
+
+    async def _fetch_article_gdelt_events(
+        self, session: AsyncSession, article_ids: Sequence[int]
+    ) -> Dict[int, List[Dict[str, Any]]]:
+        if not article_ids:
+            return {}
+
+        result = await session.execute(
+            select(GDELTEvent)
+            .where(GDELTEvent.article_id.in_(list(article_ids)))
+            .order_by(GDELTEvent.published_at.desc())
+        )
+        events_by_article: Dict[int, List[Dict[str, Any]]] = {}
+        for event in result.scalars().all():
+            if event.article_id is None:
+                continue
+            events_by_article.setdefault(event.article_id, []).append(
+                {
+                    "event_root_code": event.event_root_code,
+                    "tone": event.tone,
+                    "goldstein_scale": event.goldstein_scale,
+                }
+            )
+        return events_by_article
+
+    async def _attach_gdelt_context(
+        self,
+        session: AsyncSession,
+        payload: Dict[str, Any],
+    ) -> Dict[str, Any]:
+        articles = [
+            article
+            for article in [
+                payload.get("representative_article"),
+                *cast(List[Dict[str, Any]], payload.get("articles") or []),
+            ]
+            if isinstance(article, dict) and article.get("id") is not None
+        ]
+        if not articles:
+            payload.setdefault("gdelt_context", None)
+            return payload
+
+        article_ids = list(
+            dict.fromkeys(
+                int(article["id"])
+                for article in articles
+                if article.get("id") is not None
+            )
+        )
+        events_by_article = await self._fetch_article_gdelt_events(session, article_ids)
+        cluster_events = [
+            event
+            for article_id in article_ids
+            for event in events_by_article.get(article_id, [])
+        ]
+        cluster_context = build_article_gdelt_context(cluster_events)
+        tone_baseline_avg = (
+            cluster_context.get("tone_avg") if cluster_context is not None else None
+        )
+
+        if cluster_context is not None:
+            payload["gdelt_context"] = cluster_context
+        else:
+            payload.setdefault("gdelt_context", None)
+
+        def _attach_article_context(article: Dict[str, Any]) -> Dict[str, Any]:
+            article_id = article.get("id")
+            if article_id is None:
+                article.setdefault("gdelt_context", None)
+                return article
+            context = build_article_gdelt_context(
+                events_by_article.get(int(article_id), []),
+                tone_baseline_avg=tone_baseline_avg,
+            )
+            article["gdelt_context"] = context
+            return article
+
+        representative = payload.get("representative_article")
+        if isinstance(representative, dict):
+            payload["representative_article"] = _attach_article_context(representative)
+
+        payload["articles"] = [
+            _attach_article_context(article)
+            for article in cast(List[Dict[str, Any]], payload.get("articles") or [])
+            if isinstance(article, dict)
+        ]
+        return payload
+
+    @staticmethod
     def _get_session_factory() -> Any:
         from app.database import AsyncSessionLocal
 
@@ -187,22 +286,21 @@ class ChromaTopicService:
             if not cluster_articles:
                 continue
             representative = cluster_articles[cluster.anchor_id]
-            results.append(
-                {
-                    "cluster_id": cluster.anchor_id,
-                    "label": self._generate_cluster_label(cluster_articles),
-                    "keywords": self._extract_keywords_from_articles(
-                        list(cluster_articles.values())
-                    ),
-                    "article_count": len(cluster.member_ids),
-                    "window_count": len(cluster.member_ids),
-                    "source_diversity": len(
-                        {a.source for a in cluster_articles.values() if a.source}
-                    ),
-                    "representative_article": self._serialize_article(representative),
-                    "articles": self._serialize_recent_articles(cluster_articles),
-                }
-            )
+            payload = {
+                "cluster_id": cluster.anchor_id,
+                "label": self._generate_cluster_label(cluster_articles),
+                "keywords": self._extract_keywords_from_articles(
+                    list(cluster_articles.values())
+                ),
+                "article_count": len(cluster.member_ids),
+                "window_count": len(cluster.member_ids),
+                "source_diversity": len(
+                    {a.source for a in cluster_articles.values() if a.source}
+                ),
+                "representative_article": self._serialize_article(representative),
+                "articles": self._serialize_recent_articles(cluster_articles),
+            }
+            results.append(await self._attach_gdelt_context(session, payload))
             if len(results) >= limit:
                 break
         return results
@@ -485,6 +583,7 @@ class ChromaTopicService:
                 continue
             normalized_article = {**article}
             normalized_article.setdefault("similarity", 1.0)
+            normalized_article.setdefault("gdelt_context", None)
             articles.append(normalized_article)
         published_dates = sorted(
             article["published_at"]
@@ -500,6 +599,7 @@ class ChromaTopicService:
             "first_seen": published_dates[0] if published_dates else None,
             "last_seen": published_dates[-1] if published_dates else None,
             "is_active": True,
+            "gdelt_context": best_match.get("gdelt_context"),
             "articles": articles,
         }
 
@@ -563,7 +663,7 @@ class ChromaTopicService:
                     else 0.0,
                 }
             )
-        return {
+        payload = {
             "id": cluster_id if cluster_id is not None else cluster.anchor_id,
             "label": label,
             "keywords": keywords,
@@ -573,6 +673,7 @@ class ChromaTopicService:
             "is_active": True,
             "articles": articles_payload,
         }
+        return await self._attach_gdelt_context(session, payload)
 
     async def compute_and_save_clusters(
         self,
@@ -1026,6 +1127,7 @@ class ChromaTopicService:
                     "articles": self._serialize_recent_articles(cluster_articles),
                 }
             )
+            results[-1] = await self._attach_gdelt_context(session, results[-1])
             if len(results) >= limit:
                 break
         results.sort(key=lambda x: x["trending_score"], reverse=True)
@@ -1081,6 +1183,7 @@ class ChromaTopicService:
                     "articles": self._serialize_recent_articles(cluster_articles),
                 }
             )
+            results[-1] = await self._attach_gdelt_context(session, results[-1])
         results.sort(key=lambda x: x["spike_magnitude"], reverse=True)
         return results[:limit]
 

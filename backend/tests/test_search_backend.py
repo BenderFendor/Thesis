@@ -14,6 +14,14 @@ def _invoke_search_internal_news(query: str, top_k: int) -> str:
     return str(agent.search_internal_news.invoke({"query": query, "top_k": top_k}))
 
 
+def _invoke_news_search(keywords: str, max_results: int = 10) -> str:
+    return str(
+        agent.news_search.invoke(
+            {"keywords": keywords, "max_results": max_results, "region": "wt-wt"}
+        )
+    )
+
+
 @pytest.mark.asyncio
 async def test_search_articles_by_keyword_matches_all_terms_in_sqlite_fallback(
     seeded_db: AsyncSession,
@@ -128,3 +136,85 @@ def test_search_internal_news_returns_empty_message_when_archive_has_no_match(
     result = _invoke_search_internal_news("China supply", 5)
 
     assert result == "No relevant articles found in internal archive."
+
+
+def test_news_search_prefers_gdelt_context_results(monkeypatch) -> None:
+    call_order: list[str] = []
+
+    class FakeGDELTService:
+        async def search_context(self, query: str, max_records: int, timespan: str):
+            call_order.append("context")
+            assert query == "Iran latest"
+            assert max_records == 1
+            assert timespan
+            return [
+                {
+                    "url": "https://example.com/gdelt-context",
+                    "title": "GDELT context update",
+                    "source": "GDELT source",
+                    "summary": "Snippet from GDELT Context",
+                    "published": "2026-03-27T00:00:00Z",
+                    "provider": "gdelt",
+                    "result_type": "context",
+                    "context_snippet": "Snippet from GDELT Context",
+                }
+            ]
+
+        async def search_doc(self, query: str, max_records: int, timespan: str):
+            call_order.append("doc")
+            raise AssertionError(
+                "DOC search should not run when Context has enough results"
+            )
+
+    class FakeDDGS:
+        def news(self, *_args, **_kwargs):
+            raise AssertionError(
+                "DDG fallback should not run when GDELT returns results"
+            )
+
+    monkeypatch.setattr(agent, "get_gdelt_query_service", lambda: FakeGDELTService())
+    monkeypatch.setattr(agent, "DDGS", lambda: FakeDDGS())
+
+    payload = json.loads(_invoke_news_search("Iran latest", max_results=1))
+
+    assert call_order == ["context"]
+    assert payload[0]["provider"] == "gdelt"
+    assert payload[0]["context_snippet"] == "Snippet from GDELT Context"
+
+
+def test_news_search_falls_back_to_ddg_when_gdelt_is_empty(monkeypatch) -> None:
+    call_order: list[str] = []
+
+    class FakeGDELTService:
+        async def search_context(self, query: str, max_records: int, timespan: str):
+            call_order.append("context")
+            return []
+
+        async def search_doc(self, query: str, max_records: int, timespan: str):
+            call_order.append("doc")
+            return []
+
+    class FakeDDGS:
+        def news(self, keywords: str, max_results: int, region: str):
+            call_order.append("ddg")
+            assert keywords == "Iran latest"
+            assert max_results == 5
+            assert region == "wt-wt"
+            return [
+                {
+                    "url": "https://example.com/ddg-story",
+                    "title": "DDG story",
+                    "source": "DDG source",
+                    "body": "DDG fallback result",
+                    "date": "2026-03-27T00:00:00Z",
+                }
+            ]
+
+    monkeypatch.setattr(agent, "get_gdelt_query_service", lambda: FakeGDELTService())
+    monkeypatch.setattr(agent, "DDGS", lambda: FakeDDGS())
+
+    payload = json.loads(_invoke_news_search("Iran latest", max_results=5))
+
+    assert call_order == ["context", "doc", "ddg"]
+    assert payload[0]["provider"] == "duckduckgo"
+    assert payload[0]["result_type"] == "news"

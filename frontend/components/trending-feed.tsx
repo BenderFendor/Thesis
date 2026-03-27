@@ -47,7 +47,7 @@ function hasRealImage(src?: string | null): boolean {
   return hasRealClusterImage(src);
 }
 
-function formatTimeAgo(dateStr?: string): string {
+function formatTimeAgo(dateStr?: string | null): string {
   if (!dateStr) return "";
   const date = new Date(dateStr);
   const now = new Date();

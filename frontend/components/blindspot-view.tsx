@@ -176,6 +176,26 @@ function deriveFallbackCards(
     .slice(0, 5)
 }
 
+function geographySignalBadges(card: BlindspotCard) {
+  if (!card.geography_signals || card.geography_signals.length === 0) {
+    return null
+  }
+
+  return (
+    <div className="flex flex-wrap gap-2">
+      {card.geography_signals.map((signal) => (
+        <Badge
+          key={signal.id}
+          variant="outline"
+          className="rounded-full border-white/10 bg-white/[0.04] px-2.5 py-1 text-[9px] uppercase tracking-[0.18em] text-muted-foreground"
+        >
+          {signal.label} · {signal.count}
+        </Badge>
+      ))}
+    </div>
+  )
+}
+
 function LeadStory({
   card,
   laneId,
@@ -247,6 +267,7 @@ function LeadStory({
         </div>
 
         <div className="space-y-4">
+          {geographySignalBadges(card)}
           <div className="flex items-center justify-between text-[9px] font-mono uppercase tracking-[0.2em] text-muted-foreground/40">
             <div className="flex items-center gap-2">
               <div className="h-2 w-2 rounded-full bg-cyan-400" />
@@ -301,6 +322,7 @@ function StoryRow({
       </div>
       
       <div className="space-y-2">
+        {geographySignalBadges(card)}
         <div className="flex items-center justify-between text-[8px] font-mono uppercase tracking-widest text-muted-foreground/30">
           <span>{poleLabels.pole_a.charAt(0)} {Math.round(card.coverage_shares.pole_a * 100)}%</span>
           <span>B {Math.round(card.coverage_shares.shared * 100)}%</span>

@@ -22,7 +22,6 @@ from typing import (
     Set,
 )
 
-from ddgs import DDGS
 from typing import cast
 from langchain_core.messages import (
     AIMessage,
@@ -44,6 +43,10 @@ from app.core.config import get_llamacpp_model, settings
 from app.core.logging import get_logger
 from app.database import AsyncSessionLocal, search_articles_by_keyword
 from app.services.article_extraction import extract_article_content
+from app.services.gdelt_query import (
+    DEFAULT_TIMESPAN as GDELT_DEFAULT_TIMESPAN,
+    get_gdelt_query_service,
+)
 from app.services.prompting import (
     ANSWER_SECTION_RULE,
     FACT_GROUNDING_RULES,
@@ -53,6 +56,16 @@ from app.services.prompting import (
     compose_prompt_blocks,
 )
 from app.vector_store import get_vector_store
+
+ddgs_module: Any
+try:  # pragma: no cover - optional dependency in some test environments
+    import ddgs as _ddgs_module
+
+    ddgs_module = _ddgs_module
+except ImportError:  # pragma: no cover - optional dependency missing
+    ddgs_module = None
+
+DDGS: Any = getattr(ddgs_module, "DDGS", None)
 
 logger = get_logger("news_research_agent")
 
@@ -70,12 +83,16 @@ def _system_prompt() -> str:
             "search_internal_news to ground yourself in cached coverage from the "
             "database and RSS-backed archive. If internal search finds relevant "
             "articles, inspect those internal URLs with fetch_article_content before "
-            "using web_search or news_search. Use external search only when internal "
-            "coverage is missing, stale, or clearly insufficient for the user's "
-            "question. When you find useful articles that are missing from the "
-            "archive, call rag_index_documents to update the store. Avoid tool "
-            "commentary and focus on answering the user. Note differing viewpoints "
-            "and mention bias or funding details when relevant."
+            "using GDELT or news search tools. For current events, prefer "
+            "gdelt_context_search first, then gdelt_doc_search, and fall back to "
+            "news_search only when GDELT is sparse or unavailable. Prefer context "
+            "snippets before fetching full article text when the snippet is enough "
+            "to answer. Use external search only when internal coverage is missing, "
+            "stale, or clearly insufficient for the user's question. When you find "
+            "useful articles that are missing from the archive, call "
+            "rag_index_documents to update the store. Avoid tool commentary and "
+            "focus on answering the user. Note differing viewpoints and mention "
+            "bias or funding details when relevant."
         ),
         grounding_rules=FACT_GROUNDING_RULES,
         output_rules=compose_prompt_blocks(ANSWER_SECTION_RULE, TEXT_OUTPUT_RULES),
@@ -99,6 +116,7 @@ MAX_TOOL_CALLS_PER_SESSION = 15
 MIN_FINAL_ANSWER_CHARS = 120
 MIN_FINAL_ANSWER_SECTIONS = ("answer",)
 EXTERNAL_SEARCH_TOOLS = {"web_search", "news_search"}
+EXTERNAL_SEARCH_TOOLS.update({"gdelt_context_search", "gdelt_doc_search"})
 
 
 class RunnableMessageInvoker(Protocol):
@@ -125,6 +143,7 @@ _news_articles_cache: List[Dict[str, Any]] = []
 _referenced_articles_tracker: List[Dict[str, Any]] = []
 _articles_by_id: Dict[str, Dict[str, Any]] = {}
 _fetched_urls_cache: Dict[str, str] = {}
+_research_source_providers: Set[str] = set()
 
 DENIAL_PHRASES = (
     "provided context does not contain",
@@ -190,15 +209,23 @@ def _register_article_lookup(article: Dict[str, Any]) -> None:
         _articles_by_id[url_key] = article
 
 
+def _record_research_source_provider(provider: Optional[str]) -> None:
+    normalized = str(provider or "").strip().lower()
+    if normalized:
+        _research_source_providers.add(normalized)
+
+
 def set_news_articles(articles: Optional[List[Dict[str, Any]]]) -> None:
     global _news_articles_cache
     global _referenced_articles_tracker
     global _articles_by_id
     global _fetched_urls_cache
+    global _research_source_providers
     _news_articles_cache = articles or []
     _referenced_articles_tracker = []
     _articles_by_id = {}
     _fetched_urls_cache = {}
+    _research_source_providers = set()
     for article in _news_articles_cache:
         _register_article_lookup(article)
 
@@ -271,8 +298,12 @@ def _build_external_reference(
     summary: str = "",
     published: str = "",
     image: str | None = None,
+    provider: str | None = None,
+    context_snippet: str | None = None,
+    sentence: str | None = None,
+    result_type: str | None = None,
 ) -> Dict[str, Any]:
-    return {
+    payload: Dict[str, Any] = {
         "id": _normalize_url(url) or url,
         "url": url,
         "link": url,
@@ -282,8 +313,13 @@ def _build_external_reference(
         "description": summary,
         "published": published,
         "image": image,
+        "provider": provider,
+        "context_snippet": context_snippet,
+        "sentence": sentence,
+        "result_type": result_type,
         "category": "external",
     }
+    return {key: value for key, value in payload.items() if value not in (None, "")}
 
 
 def _track_reference_by_url(url: str, fallback: Dict[str, Any] | None = None) -> None:
@@ -298,7 +334,13 @@ def _track_reference_by_url(url: str, fallback: Dict[str, Any] | None = None) ->
 
 
 def _track_search_result_references(tool_name: str, content: str) -> None:
-    if tool_name not in {"web_search", "news_search", "search_internal_news"}:
+    if tool_name not in {
+        "web_search",
+        "news_search",
+        "search_internal_news",
+        "gdelt_context_search",
+        "gdelt_doc_search",
+    }:
         return
     try:
         payload = json.loads(content)
@@ -306,6 +348,14 @@ def _track_search_result_references(tool_name: str, content: str) -> None:
         return
     if not isinstance(payload, list):
         return
+
+    provider_hint = {
+        "search_internal_news": "internal",
+        "gdelt_context_search": "gdelt",
+        "gdelt_doc_search": "gdelt",
+        "news_search": "duckduckgo",
+        "web_search": "duckduckgo",
+    }.get(tool_name)
 
     for item in payload[:5]:
         if not isinstance(item, dict):
@@ -322,6 +372,13 @@ def _track_search_result_references(tool_name: str, content: str) -> None:
             item.get("published") or item.get("date") or item.get("published_at") or ""
         )
         image = item.get("image")
+        provider = (
+            str(item.get("provider") or provider_hint or "").strip().lower() or None
+        )
+        context_snippet = str(item.get("context_snippet") or "").strip() or None
+        sentence = str(item.get("sentence") or "").strip() or None
+        result_type = str(item.get("result_type") or "").strip() or None
+        _record_research_source_provider(provider)
         fallback = _build_external_reference(
             url=url,
             title=title,
@@ -329,6 +386,10 @@ def _track_search_result_references(tool_name: str, content: str) -> None:
             summary=summary,
             published=published,
             image=image if isinstance(image, str) else None,
+            provider=provider,
+            context_snippet=context_snippet,
+            sentence=sentence,
+            result_type=result_type,
         )
         _track_reference_by_url(url, fallback)
 
@@ -356,6 +417,126 @@ def _count_internal_references() -> int:
     return sum(
         1 for article in _referenced_articles_tracker if _is_internal_article(article)
     )
+
+
+def _normalize_query(query: str) -> str:
+    return query.strip()
+
+
+def _normalize_ddg_result(
+    item: Dict[str, Any],
+    *,
+    provider: str,
+    result_type: str,
+) -> Dict[str, Any] | None:
+    url = str(item.get("url") or item.get("link") or "").strip()
+    if not url:
+        return None
+    summary = str(
+        item.get("summary")
+        or item.get("body")
+        or item.get("snippet")
+        or item.get("description")
+        or ""
+    ).strip()
+    context_snippet = str(item.get("context_snippet") or "").strip() or None
+    sentence = str(item.get("sentence") or "").strip() or None
+    result: Dict[str, Any] = {
+        "id": _normalize_url(url) or url,
+        "url": url,
+        "link": url,
+        "title": str(item.get("title") or item.get("headline") or "Untitled").strip(),
+        "source": str(
+            item.get("source") or item.get("publisher") or "External source"
+        ).strip(),
+        "summary": summary,
+        "description": summary,
+        "published": str(
+            item.get("published") or item.get("date") or item.get("published_at") or ""
+        ).strip(),
+        "image": item.get("image") if isinstance(item.get("image"), str) else None,
+        "provider": provider,
+        "result_type": result_type,
+        "category": "external",
+        "context_snippet": context_snippet or summary or None,
+        "sentence": sentence,
+    }
+    return {key: value for key, value in result.items() if value not in (None, "")}
+
+
+def _dedupe_search_results(
+    *result_groups: List[Dict[str, Any]],
+) -> List[Dict[str, Any]]:
+    deduped: List[Dict[str, Any]] = []
+    seen: Set[str] = set()
+    for group in result_groups:
+        for item in group:
+            if not isinstance(item, dict):
+                continue
+            url = _normalize_url(str(item.get("url") or item.get("link") or ""))
+            title = str(item.get("title") or item.get("headline") or "").strip().lower()
+            provider = str(item.get("provider") or "").strip().lower()
+            key = url or f"{provider}:{title}"
+            if not key or key in seen:
+                continue
+            seen.add(key)
+            deduped.append(item)
+    return deduped
+
+
+def _search_gdelt_context(
+    query: str,
+    *,
+    max_results: int = 10,
+    timespan: str = GDELT_DEFAULT_TIMESPAN,
+) -> List[Dict[str, Any]]:
+    service = get_gdelt_query_service()
+    results = _run_async_blocking(
+        service.search_context(
+            query,
+            max_records=max_results,
+            timespan=timespan,
+        )
+    )
+    return list(results or [])
+
+
+def _search_gdelt_doc(
+    query: str,
+    *,
+    max_results: int = 10,
+    timespan: str = GDELT_DEFAULT_TIMESPAN,
+) -> List[Dict[str, Any]]:
+    service = get_gdelt_query_service()
+    results = _run_async_blocking(
+        service.search_doc(
+            query,
+            max_records=max_results,
+            timespan=timespan,
+        )
+    )
+    return list(results or [])
+
+
+def _search_gdelt_current_news(
+    query: str,
+    *,
+    max_results: int = 10,
+    timespan: str = GDELT_DEFAULT_TIMESPAN,
+) -> List[Dict[str, Any]]:
+    context_results = _search_gdelt_context(
+        query,
+        max_results=max_results,
+        timespan=timespan,
+    )
+    doc_results: List[Dict[str, Any]] = []
+    if len(context_results) < max_results:
+        doc_results = _search_gdelt_doc(
+            query,
+            max_results=max_results,
+            timespan=timespan,
+        )
+    return _dedupe_search_results(context_results, doc_results)[:max_results]
 
 
 def _internal_search_found_results(content: str) -> bool:
@@ -413,6 +594,7 @@ def _required_internal_fetches_for_state(
 @tool
 def search_internal_news(query: str, top_k: int = 5) -> str:
     """Search internal news with database-first fallback to cached articles."""
+    query = _normalize_query(query)
     query_terms = _extract_query_terms(query)
     if not query_terms:
         return "Query too vague for internal search."
@@ -424,6 +606,7 @@ def search_internal_news(query: str, top_k: int = 5) -> str:
         db_matches = []
 
     if db_matches:
+        _record_research_source_provider("internal")
         for match in db_matches:
             _register_article_lookup(match)
             _track_reference(match)
@@ -435,6 +618,8 @@ def search_internal_news(query: str, top_k: int = 5) -> str:
                 "url": article.get("url") or article.get("link"),
                 "published": article.get("published"),
                 "summary": article.get("summary") or article.get("description"),
+                "provider": "internal",
+                "result_type": "internal",
             }
             for article in db_matches[:top_k]
         ]
@@ -462,6 +647,7 @@ def search_internal_news(query: str, top_k: int = 5) -> str:
 
     scored.sort(key=lambda item: item[0], reverse=True)
     matches = [item[1] for item in scored[:top_k]]
+    _record_research_source_provider("internal")
     for match in matches:
         _track_reference(match)
 
@@ -472,6 +658,8 @@ def search_internal_news(query: str, top_k: int = 5) -> str:
             "url": article.get("url") or article.get("link"),
             "published": article.get("published"),
             "summary": article.get("summary") or article.get("description"),
+            "provider": "internal",
+            "result_type": "internal",
         }
         for article in matches
     ]
@@ -479,12 +667,75 @@ def search_internal_news(query: str, top_k: int = 5) -> str:
 
 
 @tool
+def gdelt_context_search(
+    query: str,
+    max_results: int = 10,
+    timespan: str = GDELT_DEFAULT_TIMESPAN,
+) -> str:
+    """Search GDELT Context 2.0 for current-event snippets."""
+    query = _normalize_query(query)
+    if not query:
+        return "Query too vague for GDELT search."
+    try:
+        results = _search_gdelt_context(
+            query,
+            max_results=max_results,
+            timespan=timespan,
+        )
+        if not results:
+            return "No results found."
+        _record_research_source_provider("gdelt")
+        return json.dumps(results[:max_results], indent=2)
+    except Exception as exc:
+        logger.warning("GDELT context search failed: %s", exc)
+        return f"GDELT context search failed: {exc}"
+
+
+@tool
+def gdelt_doc_search(
+    query: str,
+    max_results: int = 10,
+    timespan: str = GDELT_DEFAULT_TIMESPAN,
+) -> str:
+    """Search GDELT DOC 2.0 for current-event articles."""
+    query = _normalize_query(query)
+    if not query:
+        return "Query too vague for GDELT search."
+    try:
+        results = _search_gdelt_doc(
+            query,
+            max_results=max_results,
+            timespan=timespan,
+        )
+        if not results:
+            return "No results found."
+        _record_research_source_provider("gdelt")
+        return json.dumps(results[:max_results], indent=2)
+    except Exception as exc:
+        logger.warning("GDELT doc search failed: %s", exc)
+        return f"GDELT doc search failed: {exc}"
+
+
+@tool
 def web_search(query: str, num_results: int = 10) -> str:
     """Perform general web search for recent context."""
+    if DDGS is None:
+        logger.warning("Web search skipped: ddgs dependency is unavailable")
+        return "No results found."
     try:
-        ddgs = cast(Any, DDGS())
-        text_search_fn = getattr(ddgs, "text")
-        results = list(text_search_fn(query, max_results=num_results))
+        ddgs_client = cast(Any, DDGS)()
+        text_search_fn = getattr(ddgs_client, "text")
+        results: List[Dict[str, Any]] = []
+        for item in text_search_fn(query, max_results=num_results):
+            normalized = _normalize_ddg_result(
+                cast(Dict[str, Any], item),
+                provider="duckduckgo",
+                result_type="web",
+            )
+            if normalized is not None:
+                results.append(normalized)
+        if results:
+            _record_research_source_provider("duckduckgo")
         return (
             json.dumps(results[:num_results], indent=2)
             if results
@@ -497,11 +748,38 @@ def web_search(query: str, num_results: int = 10) -> str:
 
 @tool
 def news_search(keywords: str, max_results: int = 10, region: str = "wt-wt") -> str:
-    """Use DuckDuckGo news vertical for near-real-time stories."""
+    """Search GDELT first and fall back to DuckDuckGo news for current stories."""
+    keywords = _normalize_query(keywords)
+    if not keywords:
+        return "Query too vague for news search."
     try:
-        ddgs = cast(Any, DDGS())
-        news_search_fn = getattr(ddgs, "news")
-        results = list(news_search_fn(keywords, max_results=max_results, region=region))
+        gdelt_results = _search_gdelt_current_news(
+            keywords,
+            max_results=max_results,
+        )
+        if gdelt_results:
+            _record_research_source_provider("gdelt")
+            return json.dumps(gdelt_results[:max_results], indent=2)
+    except Exception as exc:
+        logger.warning("GDELT news search failed: %s", exc)
+
+    try:
+        if DDGS is None:
+            logger.warning("News search skipped: ddgs dependency is unavailable")
+            return "No results found."
+        ddgs_client = cast(Any, DDGS)()
+        news_search_fn = getattr(ddgs_client, "news")
+        results: List[Dict[str, Any]] = []
+        for item in news_search_fn(keywords, max_results=max_results, region=region):
+            normalized = _normalize_ddg_result(
+                cast(Dict[str, Any], item),
+                provider="duckduckgo",
+                result_type="news",
+            )
+            if normalized is not None:
+                results.append(normalized)
+        if results:
+            _record_research_source_provider("duckduckgo")
         return (
             json.dumps(results[:max_results], indent=2)
             if results
@@ -588,6 +866,8 @@ def rag_index_documents(documents: List[Dict[str, Any]]) -> str:
 
 tools = [
     search_internal_news,
+    gdelt_context_search,
+    gdelt_doc_search,
     web_search,
     news_search,
     fetch_article_content,
@@ -602,8 +882,11 @@ def _tool_router_system_prompt() -> str:
             "Decide which tools to use for the query. Always use "
             "search_internal_news first. If it returns relevant internal articles, "
             "read those internal URLs with fetch_article_content before any external "
-            "search. Use web_search or news_search only after internal coverage has "
-            "been checked and found insufficient."
+            "search. For current events, prefer gdelt_context_search, then "
+            "gdelt_doc_search, and use news_search only when GDELT does not answer "
+            "the question. Prefer context snippets before full article fetches when "
+            "possible. Use web_search or news_search only after internal coverage "
+            "has been checked and found insufficient."
         ),
         grounding_rules=FACT_GROUNDING_RULES,
         output_rules=ANSWER_SECTION_RULE,
@@ -1141,9 +1424,19 @@ def _build_context_snippet(referenced_articles: List[Dict[str, Any]]) -> str:
         title = article.get("title") or "Untitled"
         source = article.get("source") or "Unknown"
         url = article.get("url") or article.get("link") or ""
-        summary = article.get("summary") or article.get("description") or ""
+        summary = (
+            article.get("context_snippet")
+            or article.get("sentence")
+            or article.get("summary")
+            or article.get("description")
+            or ""
+        )
         published = article.get("published") or ""
-        lines.append(f"- {title} ({source}) {published}\n  {url}\n  {summary}")
+        provider = article.get("provider") or ""
+        provider_suffix = f" [{provider}]" if provider else ""
+        lines.append(
+            f"- {title} ({source}){provider_suffix} {published}\n  {url}\n  {summary}"
+        )
     return "\n".join(lines)
 
 
@@ -1275,12 +1568,15 @@ def research_news(
 
     final_answer = _sanitize_final_answer(final_answer)
 
+    source_providers = sorted(_research_source_providers)
+
     structured_block = ""
     if referenced_articles:
         payload = {
             "articles": referenced_articles,
             "total": len(referenced_articles),
             "query": query,
+            "source_providers": source_providers,
         }
         structured_block = f"\n```json:articles\n{json.dumps(payload, indent=2)}\n```\n"
 
@@ -1292,6 +1588,7 @@ def research_news(
         "thinking_steps": thinking_steps if verbose else [],
         "articles_searched": len(_news_articles_cache),
         "referenced_articles": referenced_articles,
+        "source_providers": source_providers,
     }
     if structured_block and structured_block not in final_answer:
         result["answer"] += structured_block
@@ -1388,6 +1685,8 @@ def research_stream(
 
     final_answer = _sanitize_final_answer(final_answer)
 
+    source_providers = sorted(_research_source_providers)
+
     if stop_event is not None and stop_event.is_set():
         return
 
@@ -1403,6 +1702,7 @@ def research_stream(
             "articles": referenced_articles,
             "total": len(referenced_articles),
             "query": query,
+            "source_providers": source_providers,
         }
         json_payload = json.dumps(payload)
         yield (
@@ -1419,6 +1719,7 @@ def research_stream(
         "structured_articles": structured_block,
         "articles_searched": len(_news_articles_cache),
         "referenced_articles": referenced_articles,
+        "source_providers": source_providers,
     }
     # if structured_block and structured_block not in final_answer:
     #     result["answer"] += structured_block

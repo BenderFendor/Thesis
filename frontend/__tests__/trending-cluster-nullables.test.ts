@@ -1,7 +1,26 @@
-import { fetchAllClusters, fetchBreaking, fetchTrending } from "@/lib/api";
+import {
+  fetchAllClusters,
+  fetchBreaking,
+  fetchClusterDetail,
+  fetchTrending,
+} from "@/lib/api";
 
 describe("cluster payload nullables", () => {
   const originalFetch = global.fetch;
+  const gdeltContext = {
+    total_events: 3,
+    top_cameo: [
+      { code: "14", label: "Protest", count: 2 },
+      { code: "05", label: "Diplomatic engagement", count: 1 },
+    ],
+    goldstein_avg: -1.8,
+    goldstein_min: -4.2,
+    goldstein_max: 0.8,
+    goldstein_bucket: "conflict",
+    tone_avg: -0.7,
+    tone_baseline_avg: -0.3,
+    tone_delta_vs_cluster: -0.4,
+  };
 
   afterEach(() => {
     jest.restoreAllMocks();
@@ -37,6 +56,7 @@ describe("cluster payload nullables", () => {
             image_url: null,
             published_at: "2026-03-06T12:00:00.000Z",
             summary: null,
+            gdelt_context: null,
           },
           articles: [
             {
@@ -47,8 +67,10 @@ describe("cluster payload nullables", () => {
               image_url: null,
               published_at: "2026-03-06T12:00:00.000Z",
               summary: null,
+              gdelt_context: null,
             },
           ],
+          gdelt_context: null,
         },
       ],
     };
@@ -79,6 +101,7 @@ describe("cluster payload nullables", () => {
             image_url: null,
             published_at: "2026-03-06T12:00:00.000Z",
             summary: null,
+            gdelt_context: gdeltContext,
           },
           articles: [
             {
@@ -89,8 +112,10 @@ describe("cluster payload nullables", () => {
               image_url: null,
               published_at: "2026-03-06T12:00:00.000Z",
               summary: null,
+              gdelt_context: gdeltContext,
             },
           ],
+          gdelt_context: gdeltContext,
         },
       ],
     };
@@ -122,6 +147,7 @@ describe("cluster payload nullables", () => {
             image_url: null,
             published_at: "2026-03-06T12:00:00.000Z",
             summary: null,
+            gdelt_context: gdeltContext,
           },
           articles: [
             {
@@ -132,8 +158,10 @@ describe("cluster payload nullables", () => {
               image_url: null,
               published_at: "2026-03-06T12:00:00.000Z",
               summary: null,
+              gdelt_context: gdeltContext,
             },
           ],
+          gdelt_context: gdeltContext,
         },
       ],
     };
@@ -141,5 +169,38 @@ describe("cluster payload nullables", () => {
     mockFetchJson(payload);
 
     await expect(fetchAllClusters("1d", 2, 100)).resolves.toEqual(payload);
+  });
+
+  it("parses cluster detail responses with nested gdelt_context", async () => {
+    const payload = {
+      id: 41,
+      label: "Cluster Detail",
+      keywords: ["detail"],
+      article_count: 2,
+      first_seen: "2026-03-06T11:00:00.000Z",
+      last_seen: "2026-03-06T12:00:00.000Z",
+      is_active: true,
+      gdelt_context: gdeltContext,
+      articles: [
+        {
+          id: 41,
+          title: "Detail Article",
+          source: "Source D",
+          source_id: "source-d",
+          url: "https://example.com/d",
+          image_url: null,
+          published_at: "2026-03-06T12:00:00.000Z",
+          summary: null,
+          similarity: 1,
+          author: "Reporter",
+          authors: ["Reporter"],
+          gdelt_context: null,
+        },
+      ],
+    };
+
+    mockFetchJson(payload);
+
+    await expect(fetchClusterDetail(41)).resolves.toEqual(payload);
   });
 });

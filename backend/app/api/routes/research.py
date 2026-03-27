@@ -33,6 +33,12 @@ def _status_message_for_tool(tool_name: str, args: Dict[str, Any]) -> str:
     if tool_name == "news_search":
         keywords = str(args.get("keywords", "")).strip()
         return f"News search: {keywords}" if keywords else "News search"
+    if tool_name == "gdelt_context_search":
+        query = str(args.get("query", "")).strip()
+        return f"GDELT context search: {query}" if query else "GDELT context search"
+    if tool_name == "gdelt_doc_search":
+        query = str(args.get("query", "")).strip()
+        return f"GDELT doc search: {query}" if query else "GDELT doc search"
     if tool_name == "search_internal_news":
         return "Checking saved coverage"
     if tool_name == "fetch_article_content":
@@ -224,6 +230,7 @@ async def news_research_stream_endpoint(
                     "structured_articles": "",
                     "articles_searched": len(articles_dict),
                     "referenced_articles": [],
+                    "source_providers": [],
                 }
                 yield f"data: {json.dumps({'type': 'complete', 'result': fallback, 'timestamp': datetime.now(timezone.utc).isoformat()})}\n\n"
 
@@ -280,5 +287,6 @@ async def news_research_endpoint(request: NewsResearchRequest) -> NewsResearchRe
         thinking_steps=thinking_steps,
         articles_searched=result.get("articles_searched", 0),
         referenced_articles=result.get("referenced_articles", []),
+        source_providers=result.get("source_providers", []),
         error=result.get("error"),
     )

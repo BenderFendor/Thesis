@@ -23,6 +23,8 @@ import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   fetchClusterDetail,
+  AllCluster,
+  GdeltContext,
   TrendingCluster,
   BreakingCluster,
   NewsArticle,
@@ -49,16 +51,30 @@ interface ClusterArticle {
   id: number;
   title: string;
   source: string;
-  source_id?: string;
+  source_id?: string | null;
   url: string;
   image_url?: string | null;
   published_at?: string | null;
   summary?: string | null;
   similarity: number;
+  author?: string | null;
+  authors?: string[];
+  gdelt_context?: GdeltContext | null;
+}
+
+type ComparisonArticle = Omit<ClusterArticle, "source_id"> & {
+  source_id?: string;
+};
+
+function normalizeComparisonArticle(article: ClusterArticle): ComparisonArticle {
+  return {
+    ...article,
+    source_id: article.source_id?.trim() || undefined,
+  };
 }
 
 interface ClusterDetailModalProps {
-  cluster: (TrendingCluster | BreakingCluster) | null;
+  cluster: (TrendingCluster | BreakingCluster | AllCluster) | null;
   isBreaking: boolean;
   isOpen: boolean;
   onClose: () => void;
@@ -159,6 +175,26 @@ function formatDate(dateStr?: string | null): string {
   });
 }
 
+function formatSignedNumber(value?: number | null, digits = 1): string {
+  if (typeof value !== "number" || Number.isNaN(value)) {
+    return "—";
+  }
+  const prefix = value > 0 ? "+" : "";
+  return `${prefix}${value.toFixed(digits)}`;
+}
+
+function toPct(value: number, min = -10, max = 10): number {
+  const clamped = Math.max(min, Math.min(max, value));
+  return ((clamped - min) / (max - min)) * 100;
+}
+
+function getCameoSummary(context?: GdeltContext | null): string | null {
+  const cameo = context?.top_cameo?.[0];
+  if (!cameo) return null;
+  const label = cameo.label || cameo.code || "CAMEO";
+  return cameo.count > 1 ? `${label} · ${cameo.count}` : label;
+}
+
 function hasRealImage(src?: string | null): boolean {
   if (!src) return false;
   const trimmed = src.trim();
@@ -208,7 +244,7 @@ export function ClusterDetailModal({
 }
 
 interface ClusterDetailModalContentProps {
-  cluster: TrendingCluster | BreakingCluster;
+  cluster: TrendingCluster | BreakingCluster | AllCluster;
   isBreaking: boolean;
   onClose: () => void;
 }
@@ -244,6 +280,9 @@ function ClusterDetailModalContent({
   });
   const resolvedActiveArticleId =
     activeArticleId ?? clusterDetail?.articles[0]?.id.toString() ?? null;
+  const comparisonClusterArticles: ComparisonArticle[] = clusterDetail?.articles.map(
+    normalizeComparisonArticle,
+  ) ?? [];
 
   const loadArticleContent = useCallback(async (article: ClusterArticle) => {
     setLoadingArticle(article.id);
@@ -282,7 +321,7 @@ function ClusterDetailModalContent({
 
     setComparisonError(null);
     const comparisonArticles = getSelectedComparisonArticles(
-      clusterDetail.articles,
+      comparisonClusterArticles,
       articleIds,
     );
     if (comparisonArticles.length < 2) {
@@ -365,7 +404,7 @@ function ClusterDetailModalContent({
     } finally {
       setComparisonLoading(false);
     }
-  }, [articleContents, clusterDetail]);
+  }, [articleContents, clusterDetail, comparisonClusterArticles]);
 
   const handleTabChange = useCallback((value: string) => {
     setActiveArticleId(value);
@@ -378,7 +417,7 @@ function ClusterDetailModalContent({
     }
 
     setComparisonError(null);
-    const comparisonIds = getDefaultComparisonArticleIds(clusterDetail.articles);
+    const comparisonIds = getDefaultComparisonArticleIds(comparisonClusterArticles);
     if (comparisonIds.length < 2) {
       setComparisonData(null);
       const message = "Compare Sources needs coverage from at least two outlets.";
@@ -391,7 +430,7 @@ function ClusterDetailModalContent({
     setComparisonData(null);
     setComparisonMode(true);
     comparisonRequestKeyRef.current = null;
-  }, [clusterDetail]);
+  }, [clusterDetail, comparisonClusterArticles]);
 
   const handleQueueToggle = useCallback(
     (article: ClusterArticle) => {
@@ -431,7 +470,7 @@ function ClusterDetailModalContent({
 
       setSelectedArticlesForComparison((prev) => {
         const nextArticles = getSelectedComparisonArticles(
-          clusterDetail?.articles ?? [],
+          comparisonClusterArticles,
           prev,
         ).filter((article) => {
           const articleSourceId =
@@ -443,7 +482,7 @@ function ClusterDetailModalContent({
         return [...nextArticles.map((article) => article.id), parsedId];
       });
     },
-    [clusterDetail?.articles],
+    [comparisonClusterArticles],
   );
 
   useEffect(() => {
@@ -458,7 +497,7 @@ function ClusterDetailModalContent({
   const activeContent = activeArticle ? articleContents.get(activeArticle.id) : null;
   const comparisonArticles = clusterDetail
     ? getSelectedComparisonArticles(
-        clusterDetail.articles,
+        comparisonClusterArticles,
         selectedArticlesForComparison,
       )
     : [];
@@ -467,13 +506,18 @@ function ClusterDetailModalContent({
   const hasComparisonPair =
     primaryComparisonArticle !== null && secondaryComparisonArticle !== null;
   const comparisonSourceOptions = clusterDetail
-    ? buildComparisonSourceOptions(clusterDetail.articles)
+    ? buildComparisonSourceOptions(comparisonClusterArticles)
     : [];
   const hasDistinctComparisonSources = comparisonSourceOptions.length >= 2;
   const visibleComparisonSourceOptions = comparisonSourceOptions.slice(0, 2);
   const label = cluster.label || cluster.keywords.slice(0, 3).join(", ");
   const breakingCluster = cluster as BreakingCluster;
   const trendingCluster = cluster as TrendingCluster;
+  const clusterContext = clusterDetail?.gdelt_context ?? cluster.gdelt_context ?? null;
+  const activeArticleContext = activeArticle?.gdelt_context ?? null;
+  const cameoSummary = getCameoSummary(clusterContext);
+  const toneDelta = activeArticleContext?.tone_delta_vs_cluster ?? null;
+  const toneAvg = activeArticleContext?.tone_avg ?? clusterContext?.tone_avg ?? null;
 
   return (
     <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4 animate-in fade-in-0 duration-200">
@@ -543,6 +587,115 @@ function ClusterDetailModalContent({
 
         {/* Content */}
         <div className="flex-1 overflow-hidden flex flex-col">
+          {clusterContext && (
+            <div className="border-b border-border/60 bg-[var(--news-bg-secondary)]/40 px-4 py-4">
+              <div className="grid gap-3 md:grid-cols-3">
+                <div className="rounded-lg border border-border/50 bg-[var(--news-bg-primary)]/80 p-3">
+                  <div className="mb-2 text-[10px] font-mono uppercase tracking-[0.24em] text-muted-foreground">
+                    CAMEO
+                  </div>
+                  {cameoSummary ? (
+                    <div className="flex flex-wrap items-center gap-2">
+                      <Badge className="bg-primary/15 text-primary hover:bg-primary/15">
+                        {cameoSummary}
+                      </Badge>
+                      <span className="text-xs text-muted-foreground">
+                        {clusterContext.total_events} events
+                      </span>
+                    </div>
+                  ) : (
+                    <span className="text-sm text-muted-foreground">
+                      No event root data
+                    </span>
+                  )}
+                </div>
+
+                <div className="rounded-lg border border-border/50 bg-[var(--news-bg-primary)]/80 p-3">
+                  <div className="mb-2 flex items-center justify-between text-[10px] font-mono uppercase tracking-[0.24em] text-muted-foreground">
+                    <span>Goldstein</span>
+                    {clusterContext.goldstein_bucket && (
+                      <Badge
+                        variant="outline"
+                        className="border-border/60 text-[9px] uppercase tracking-[0.2em]"
+                      >
+                        {clusterContext.goldstein_bucket}
+                      </Badge>
+                    )}
+                  </div>
+                  <div className="relative mt-3 h-2 overflow-hidden rounded-full bg-white/5">
+                    {typeof clusterContext.goldstein_min === "number" &&
+                    typeof clusterContext.goldstein_max === "number" ? (
+                      <div
+                        className="absolute top-0 h-full rounded-full bg-gradient-to-r from-red-500/60 via-amber-400/70 to-emerald-500/60"
+                        style={{
+                          left: `${toPct(clusterContext.goldstein_min)}%`,
+                          width: `${Math.max(
+                            toPct(clusterContext.goldstein_max) - toPct(clusterContext.goldstein_min),
+                            2,
+                          )}%`,
+                        }}
+                      />
+                    ) : null}
+                    {typeof clusterContext.goldstein_avg === "number" ? (
+                      <div
+                        className="absolute top-[-3px] h-4 w-0.5 bg-white shadow-[0_0_10px_rgba(255,255,255,0.45)]"
+                        style={{
+                          left: `calc(${toPct(clusterContext.goldstein_avg)}% - 1px)`,
+                        }}
+                      />
+                    ) : null}
+                  </div>
+                  <div className="mt-3 flex items-center justify-between text-xs text-muted-foreground">
+                    <span>
+                      {typeof clusterContext.goldstein_min === "number"
+                        ? clusterContext.goldstein_min.toFixed(1)
+                        : "—"}
+                    </span>
+                    <span className="font-medium text-foreground/80">
+                      {typeof clusterContext.goldstein_avg === "number"
+                        ? clusterContext.goldstein_avg.toFixed(1)
+                        : "—"}
+                    </span>
+                    <span>
+                      {typeof clusterContext.goldstein_max === "number"
+                        ? clusterContext.goldstein_max.toFixed(1)
+                        : "—"}
+                    </span>
+                  </div>
+                </div>
+
+                <div className="rounded-lg border border-border/50 bg-[var(--news-bg-primary)]/80 p-3">
+                  <div className="mb-2 text-[10px] font-mono uppercase tracking-[0.24em] text-muted-foreground">
+                    Tone
+                  </div>
+                  <div className="flex items-end gap-2">
+                    <span className="font-serif text-2xl text-foreground">
+                      {formatSignedNumber(toneAvg, 2)}
+                    </span>
+                    <span className="pb-1 text-xs text-muted-foreground">
+                      {toneDelta !== null ? "vs cluster" : "cluster avg"}
+                    </span>
+                  </div>
+                  <div className="mt-2 text-xs text-muted-foreground">
+                    {toneDelta !== null ? (
+                      <span
+                        className={
+                          toneDelta >= 0 ? "text-emerald-400" : "text-red-400"
+                        }
+                      >
+                        {formatSignedNumber(toneDelta, 2)}
+                      </span>
+                    ) : typeof clusterContext.tone_avg === "number" ? (
+                      <span>Cluster avg {clusterContext.tone_avg.toFixed(2)}</span>
+                    ) : (
+                      <span>No tone data</span>
+                    )}
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+
           {loading ? (
             <div className="flex-1 flex items-center justify-center">
               <Loader2 className="w-8 h-8 animate-spin text-primary" />
@@ -632,6 +785,27 @@ function ClusterDetailModalContent({
                           {Math.round(article.similarity * 100)}% match
                         </Badge>
                       </div>
+                      {article.gdelt_context && (
+                        <div className="mt-3 flex flex-wrap items-center gap-2">
+                          <Badge
+                            variant="outline"
+                            className="border-border/60 text-[10px] uppercase tracking-[0.18em]"
+                          >
+                            {getCameoSummary(article.gdelt_context) || "GDELT"}
+                          </Badge>
+                          {typeof article.gdelt_context.tone_delta_vs_cluster === "number" && (
+                            <Badge
+                              className={`text-[10px] uppercase tracking-[0.18em] ${
+                                article.gdelt_context.tone_delta_vs_cluster >= 0
+                                  ? "bg-emerald-500/15 text-emerald-300"
+                                  : "bg-red-500/15 text-red-300"
+                              }`}
+                            >
+                              Tone {formatSignedNumber(article.gdelt_context.tone_delta_vs_cluster, 2)}
+                            </Badge>
+                          )}
+                        </div>
+                      )}
                     </div>
 
                     {/* Article Body */}

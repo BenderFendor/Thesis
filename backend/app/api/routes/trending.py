@@ -5,7 +5,7 @@ from __future__ import annotations
 from typing import Any, Dict, List, Optional, cast
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Response
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.logging import get_logger
@@ -18,6 +18,39 @@ logger = get_logger("trending_routes")
 router = APIRouter(prefix="/trending", tags=["trending"])
 
 
+class GDELTTopCameo(BaseModel):
+    code: Optional[str] = None
+    label: Optional[str] = None
+    count: int
+
+
+class GDELTContext(BaseModel):
+    total_events: int
+    top_cameo: List[GDELTTopCameo] = Field(default_factory=list)
+    goldstein_avg: Optional[float] = None
+    goldstein_min: Optional[float] = None
+    goldstein_max: Optional[float] = None
+    goldstein_bucket: Optional[str] = None
+    tone_avg: Optional[float] = None
+    tone_baseline_avg: Optional[float] = None
+    tone_delta_vs_cluster: Optional[float] = None
+
+
+class ClusterArticle(BaseModel):
+    id: int
+    title: str
+    source: str
+    source_id: Optional[str] = None
+    url: str
+    image_url: Optional[str] = None
+    published_at: Optional[str] = None
+    summary: Optional[str] = None
+    similarity: Optional[float] = None
+    author: Optional[str] = None
+    authors: List[str] = Field(default_factory=list)
+    gdelt_context: Optional[GDELTContext] = None
+
+
 class TrendingCluster(BaseModel):
     cluster_id: int
     label: Optional[str]
@@ -27,8 +60,9 @@ class TrendingCluster(BaseModel):
     source_diversity: int
     trending_score: float
     velocity: float
-    representative_article: Optional[Dict[str, Any]]
-    articles: List[Dict[str, Any]] = []
+    representative_article: Optional[ClusterArticle] = None
+    articles: List[ClusterArticle] = Field(default_factory=list)
+    gdelt_context: Optional[GDELTContext] = None
 
 
 class BreakingCluster(BaseModel):
@@ -39,8 +73,9 @@ class BreakingCluster(BaseModel):
     source_count_3h: int
     spike_magnitude: float
     is_new_story: bool
-    representative_article: Optional[Dict[str, Any]]
-    articles: List[Dict[str, Any]] = []
+    representative_article: Optional[ClusterArticle] = None
+    articles: List[ClusterArticle] = Field(default_factory=list)
+    gdelt_context: Optional[GDELTContext] = None
 
 
 class TrendingResponse(BaseModel):
@@ -63,7 +98,8 @@ class ClusterDetailResponse(BaseModel):
     first_seen: Optional[str]
     last_seen: Optional[str]
     is_active: bool
-    articles: List[Dict[str, Any]]
+    articles: List[ClusterArticle] = Field(default_factory=list)
+    gdelt_context: Optional[GDELTContext] = None
 
 
 class AllCluster(BaseModel):
@@ -75,8 +111,9 @@ class AllCluster(BaseModel):
     article_count: int
     window_count: int
     source_diversity: int
-    representative_article: Optional[Dict[str, Any]]
-    articles: List[Dict[str, Any]] = []
+    representative_article: Optional[ClusterArticle] = None
+    articles: List[ClusterArticle] = Field(default_factory=list)
+    gdelt_context: Optional[GDELTContext] = None
 
 
 class AllClustersResponse(BaseModel):

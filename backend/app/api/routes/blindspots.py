@@ -86,6 +86,12 @@ class BlindspotCoverageSharesResponse(BaseModel):
     pole_b: float
 
 
+class BlindspotGeographySignalResponse(BaseModel):
+    id: str
+    label: str
+    count: int
+
+
 class BlindspotPreviewArticleResponse(BaseModel):
     id: int
     title: str
@@ -112,6 +118,7 @@ class BlindspotCardResponse(BaseModel):
     coverage_shares: BlindspotCoverageSharesResponse
     representative_article: Optional[BlindspotPreviewArticleResponse] = None
     articles: List[BlindspotPreviewArticleResponse]
+    geography_signals: List[BlindspotGeographySignalResponse] = []
 
 
 class BlindspotViewerSummaryResponse(BaseModel):

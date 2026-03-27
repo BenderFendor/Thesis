@@ -11,6 +11,7 @@ import pytest
 from app.services.blindspot_viewer import (
     _load_embeddings_for_articles,
     _metadata_counts_for_lens,
+    _geography_signals_for_articles,
     _shares_from_counts,
     _source_catalog_lookup,
     classify_lane,
@@ -198,3 +199,30 @@ def test_geography_counts_use_global_north_global_south_fallback(monkeypatch) ->
 
     assert counts == {"pole_a": 1, "shared": 0, "pole_b": 1}
     _source_catalog_lookup.cache_clear()
+
+
+def test_geography_counts_consume_snapshot_geo_and_baseline_fields() -> None:
+    articles = [
+        {
+            "source": "Outlet A",
+            "geo": {"source_country": "US"},
+        },
+        {
+            "source": "Outlet B",
+            "baseline": {"country": "BR"},
+        },
+        {
+            "source": "Outlet C",
+            "country": "CA",
+        },
+    ]
+
+    counts = _metadata_counts_for_lens("geography", articles)
+    signals = _geography_signals_for_articles(articles)
+
+    assert counts == {"pole_a": 2, "shared": 0, "pole_b": 1}
+    assert signals == [
+        {"id": "source_country", "label": "Source country", "count": 1},
+        {"id": "baseline_country", "label": "Baseline country", "count": 1},
+        {"id": "country", "label": "Article country", "count": 1},
+    ]
