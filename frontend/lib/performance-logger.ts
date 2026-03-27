@@ -131,10 +131,39 @@ class FrontendPerformanceLogger {
   private logPageLoad(): void {
     if (typeof window === "undefined" || !window.performance) return;
 
-    const timing = performance.timing;
-    const loadTime = timing.loadEventEnd - timing.navigationStart;
-    const domReady = timing.domContentLoadedEventEnd - timing.navigationStart;
-    const ttfb = timing.responseStart - timing.navigationStart;
+    const navigationEntry = performance
+      .getEntriesByType("navigation")
+      .find(
+        (entry): entry is PerformanceNavigationTiming =>
+          entry instanceof PerformanceNavigationTiming,
+      );
+
+    let loadTime = 0;
+    let domReady = 0;
+    let ttfb = 0;
+    let domComplete = 0;
+    let resourceLoadTime = 0;
+
+    if (navigationEntry) {
+      loadTime = Math.round(navigationEntry.loadEventEnd);
+      domReady = Math.round(navigationEntry.domContentLoadedEventEnd);
+      ttfb = Math.round(navigationEntry.responseStart);
+      domComplete = Math.round(navigationEntry.domComplete);
+      resourceLoadTime = Math.max(0, Math.round(loadTime - domReady));
+    } else {
+      const timing = performance.timing;
+      loadTime = Math.max(0, timing.loadEventEnd - timing.navigationStart);
+      domReady = Math.max(
+        0,
+        timing.domContentLoadedEventEnd - timing.navigationStart,
+      );
+      ttfb = Math.max(0, timing.responseStart - timing.navigationStart);
+      domComplete = Math.max(0, timing.domComplete - timing.navigationStart);
+      resourceLoadTime = Math.max(
+        0,
+        timing.loadEventEnd - timing.domContentLoadedEventEnd,
+      );
+    }
 
     this.logEvent("page_load", "page", "load", {
       message: `Page loaded in ${loadTime}ms`,
@@ -142,8 +171,8 @@ class FrontendPerformanceLogger {
       details: {
         domReady,
         ttfb,
-        domComplete: timing.domComplete - timing.navigationStart,
-        resourceLoadTime: timing.loadEventEnd - timing.domContentLoadedEventEnd,
+        domComplete,
+        resourceLoadTime,
         url: window.location.pathname,
       },
     });

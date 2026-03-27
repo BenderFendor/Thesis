@@ -23,8 +23,8 @@ from app.database import (
     Article,
     ArticleAuthor,
     Organization,
-    PropagandaFilterScore,
     Reporter,
+    SourceAnalysisScore,
     SourceMetadata,
     WikiIndexStatus,
     get_db,
@@ -185,11 +185,37 @@ async def seeded_db(db_session: AsyncSession) -> AsyncSession:
             name="Jane Doe",
             normalized_name="jane doe",
             bio="Veteran journalist covering politics.",
+            canonical_name="Jane Doe",
+            resolver_key="jane doe::test news",
+            match_status="matched",
+            overview="Veteran journalist covering politics.",
+            dossier_sections=[
+                {
+                    "id": "identity",
+                    "title": "Identity",
+                    "status": "available",
+                    "items": [
+                        {
+                            "label": "Overview",
+                            "value": "Veteran journalist covering politics.",
+                        }
+                    ],
+                }
+            ],
+            citations=[
+                {
+                    "label": "Wikipedia lead",
+                    "url": "https://en.wikipedia.org/wiki/Jane_Doe",
+                }
+            ],
+            search_links={"wikipedia": "https://en.wikipedia.org/wiki/Jane_Doe"},
             topics=["politics", "economy"],
             political_leaning="center-left",
             leaning_confidence="high",
             article_count=42,
             wikipedia_url="https://en.wikipedia.org/wiki/Jane_Doe",
+            wikidata_qid="Q100",
+            wikidata_url="https://www.wikidata.org/wiki/Q100",
             research_confidence="high",
             career_history=[{"organization": "Test News", "role": "senior reporter"}],
             education=[{"institution": "Columbia", "degree": "MS Journalism"}],
@@ -268,23 +294,21 @@ async def seeded_db(db_session: AsyncSession) -> AsyncSession:
     ]
     db_session.add_all(metas)
 
-    # -- PropagandaFilterScores ------------------------------------------
-    filter_axes = [
-        "ownership",
-        "advertising",
-        "sourcing",
-        "flak",
-        "ideology",
-        "class_interest",
+    # -- SourceAnalysisScores --------------------------------------------
+    analysis_axes = [
+        "funding",
+        "source_network",
+        "political_bias",
+        "credibility",
+        "framing_omission",
     ]
     scores = []
-    for i, axis in enumerate(filter_axes):
+    for i, axis in enumerate(analysis_axes):
         scores.append(
-            PropagandaFilterScore(
+            SourceAnalysisScore(
                 source_name="Test News",
-                filter_name=axis,
-                score=i
-                + 1,  # 1,2,3,4,5,6 -> clamped to 1-5 conceptually, but OK for test
+                axis_name=axis,
+                score=i + 1,
                 confidence="high",
                 prose_explanation=f"Test explanation for {axis}.",
                 empirical_basis=f"Based on test data for {axis}.",

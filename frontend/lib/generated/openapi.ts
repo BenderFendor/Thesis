@@ -154,6 +154,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/news/index": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Browse Index
+         * @description Return lightweight article cards for the full browse corpus.
+         */
+        get: operations["get_browse_index_news_index_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/news/recent": {
         parameters: {
             query?: never;
@@ -271,13 +291,8 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /**
-         * Get Countries Geo Data
-         * @description Get static country geographic data for globe markers.
-         *
-         *     Returns country codes with names and lat/lng coordinates.
-         */
-        get: operations["get_countries_geo_data_news_countries_geo_get"];
+        /** Get Countries Geo Data Route */
+        get: operations["get_countries_geo_data_route_news_countries_geo_get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -293,12 +308,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /**
-         * Get Article Counts By Country
-         * @description Get article counts grouped by source country for globe heatmap.
-         *
-         *     Returns a dictionary mapping ISO country codes to article counts.
-         */
+        /** Get Article Counts By Country */
         get: operations["get_article_counts_by_country_news_by_country_get"];
         put?: never;
         post?: never;
@@ -315,22 +325,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /**
-         * Get News For Country
-         * @description Local Lens feature: Get news for a specific country.
-         *
-         *     Args:
-         *         code: ISO 3166-1 alpha-2 country code (e.g., "US", "GB", "CN")
-         *         view:
-         *             - "internal": Articles FROM this country (source_country = code)
-         *             - "external": Articles ABOUT this country (country mentioned in content)
-         *                           Currently uses source country != code as approximation
-         *         limit: Maximum number of articles to return
-         *         offset: Pagination offset
-         *
-         *     Returns:
-         *         Paginated list of articles matching the criteria
-         */
+        /** Get News For Country */
         get: operations["get_news_for_country_news_country__code__get"];
         put?: never;
         post?: never;
@@ -347,12 +342,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /**
-         * List Available Countries
-         * @description List all countries with at least one article, sorted by article count.
-         *
-         *     Useful for populating globe markers or country selector.
-         */
+        /** List Available Countries */
         get: operations["list_available_countries_news_countries_list_get"];
         put?: never;
         post?: never;
@@ -938,6 +928,23 @@ export interface paths {
          *     Uses per-domain concurrency limiting to be polite to servers.
          */
         post: operations["backfill_article_images_debug_backfill_images_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/debug/backfill/mentioned-countries": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Backfill Article Mentions */
+        post: operations["backfill_article_mentions_debug_backfill_mentioned_countries_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -2621,6 +2628,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/blindspots/viewer": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Blindspot Viewer
+         * @description Get a multi-lens blindspot viewer payload.
+         */
+        get: operations["get_blindspot_viewer_blindspots_viewer_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/wiki/sources": {
         parameters: {
             query?: never;
@@ -2653,26 +2680,6 @@ export interface paths {
          * @description Get full wiki page data for a single source.
          */
         get: operations["get_source_wiki_api_wiki_sources__source_name__get"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/wiki/sources/{source_name}/filters": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * Get Source Filters
-         * @description Get propaganda filter scores for a source.
-         */
-        get: operations["get_source_filters_api_wiki_sources__source_name__filters_get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -2882,17 +2889,10 @@ export interface components {
             window_count: number;
             /** Source Diversity */
             source_diversity: number;
-            /** Representative Article */
-            representative_article: {
-                [key: string]: unknown;
-            } | null;
-            /**
-             * Articles
-             * @default []
-             */
-            articles: {
-                [key: string]: unknown;
-            }[];
+            representative_article?: components["schemas"]["ClusterArticle"] | null;
+            /** Articles */
+            articles?: components["schemas"]["ClusterArticle"][];
+            gdelt_context?: components["schemas"]["GDELTContext"] | null;
         };
         /** AllClustersResponse */
         AllClustersResponse: {
@@ -2906,6 +2906,27 @@ export interface components {
             computed_at?: string | null;
             /** Status */
             status?: string | null;
+        };
+        /** AnalysisAxisResponse */
+        AnalysisAxisResponse: {
+            /** Axis Name */
+            axis_name: string;
+            /** Score */
+            score: number;
+            /** Confidence */
+            confidence?: string | null;
+            /** Prose Explanation */
+            prose_explanation?: string | null;
+            /** Citations */
+            citations?: {
+                [key: string]: string;
+            }[] | null;
+            /** Empirical Basis */
+            empirical_basis?: string | null;
+            /** Scored By */
+            scored_by?: string | null;
+            /** Last Scored At */
+            last_scored_at?: string | null;
         };
         /** ArticleAnalysisRequest */
         ArticleAnalysisRequest: {
@@ -2955,6 +2976,146 @@ export interface components {
             /** Error */
             error?: string | null;
         };
+        /** BlindspotCardResponse */
+        BlindspotCardResponse: {
+            /** Cluster Id */
+            cluster_id: number;
+            /** Cluster Label */
+            cluster_label: string;
+            /** Keywords */
+            keywords: string[];
+            /** Article Count */
+            article_count: number;
+            /** Source Count */
+            source_count: number;
+            /**
+             * Lane
+             * @enum {string}
+             */
+            lane: "pole_a" | "shared" | "pole_b";
+            /** Blindspot Score */
+            blindspot_score: number;
+            /** Balance Score */
+            balance_score: number;
+            /** Published At */
+            published_at?: string | null;
+            /** Explanation */
+            explanation: string;
+            coverage_counts: components["schemas"]["BlindspotCoverageCountsResponse"];
+            coverage_shares: components["schemas"]["BlindspotCoverageSharesResponse"];
+            representative_article?: components["schemas"]["BlindspotPreviewArticleResponse"] | null;
+            /** Articles */
+            articles: components["schemas"]["BlindspotPreviewArticleResponse"][];
+            /**
+             * Geography Signals
+             * @default []
+             */
+            geography_signals: components["schemas"]["BlindspotGeographySignalResponse"][];
+        };
+        /** BlindspotCoverageCountsResponse */
+        BlindspotCoverageCountsResponse: {
+            /** Pole A */
+            pole_a: number;
+            /** Shared */
+            shared: number;
+            /** Pole B */
+            pole_b: number;
+        };
+        /** BlindspotCoverageSharesResponse */
+        BlindspotCoverageSharesResponse: {
+            /** Pole A */
+            pole_a: number;
+            /** Shared */
+            shared: number;
+            /** Pole B */
+            pole_b: number;
+        };
+        /** BlindspotGeographySignalResponse */
+        BlindspotGeographySignalResponse: {
+            /** Id */
+            id: string;
+            /** Label */
+            label: string;
+            /** Count */
+            count: number;
+        };
+        /** BlindspotLaneResponse */
+        BlindspotLaneResponse: {
+            /**
+             * Id
+             * @enum {string}
+             */
+            id: "pole_a" | "shared" | "pole_b";
+            /** Label */
+            label: string;
+            /** Description */
+            description: string;
+            /** Cluster Count */
+            cluster_count: number;
+        };
+        /** BlindspotLensResponse */
+        BlindspotLensResponse: {
+            /**
+             * Id
+             * @enum {string}
+             */
+            id: "bias" | "credibility" | "geography" | "institutional_populist";
+            /** Label */
+            label: string;
+            /** Description */
+            description: string;
+            /** Available */
+            available: boolean;
+            /** Unavailable Reason */
+            unavailable_reason?: string | null;
+        };
+        /** BlindspotPreviewArticleResponse */
+        BlindspotPreviewArticleResponse: {
+            /** Id */
+            id: number;
+            /** Title */
+            title: string;
+            /** Source */
+            source: string;
+            /** Url */
+            url: string;
+            /** Image Url */
+            image_url?: string | null;
+            /** Published At */
+            published_at?: string | null;
+            /** Summary */
+            summary?: string | null;
+            /** Similarity */
+            similarity: number;
+        };
+        /** BlindspotViewerResponse */
+        BlindspotViewerResponse: {
+            /** Available Lenses */
+            available_lenses: components["schemas"]["BlindspotLensResponse"][];
+            selected_lens: components["schemas"]["BlindspotLensResponse"];
+            summary: components["schemas"]["BlindspotViewerSummaryResponse"];
+            /** Lanes */
+            lanes: components["schemas"]["BlindspotLaneResponse"][];
+            /** Cards */
+            cards: components["schemas"]["BlindspotCardResponse"][];
+            /** Status */
+            status: string;
+        };
+        /** BlindspotViewerSummaryResponse */
+        BlindspotViewerSummaryResponse: {
+            /** Window */
+            window: string;
+            /** Total Clusters */
+            total_clusters: number;
+            /** Eligible Clusters */
+            eligible_clusters: number;
+            /** Generated At */
+            generated_at: string;
+            /** Category */
+            category?: string | null;
+            /** Source Filters */
+            source_filters: string[];
+        };
         /** BookmarkCreateRequest */
         BookmarkCreateRequest: {
             /** Article Id */
@@ -2976,17 +3137,10 @@ export interface components {
             spike_magnitude: number;
             /** Is New Story */
             is_new_story: boolean;
-            /** Representative Article */
-            representative_article: {
-                [key: string]: unknown;
-            } | null;
-            /**
-             * Articles
-             * @default []
-             */
-            articles: {
-                [key: string]: unknown;
-            }[];
+            representative_article?: components["schemas"]["ClusterArticle"] | null;
+            /** Articles */
+            articles?: components["schemas"]["ClusterArticle"][];
+            gdelt_context?: components["schemas"]["GDELTContext"] | null;
         };
         /** BreakingResponse */
         BreakingResponse: {
@@ -2996,6 +3150,44 @@ export interface components {
             clusters: components["schemas"]["BreakingCluster"][];
             /** Total */
             total: number;
+        };
+        /**
+         * BrowseIndexResponse
+         * @description Lightweight full-corpus response for browse views.
+         */
+        BrowseIndexResponse: {
+            /** Articles */
+            articles: {
+                [key: string]: unknown;
+            }[];
+            /** Total */
+            total: number;
+        };
+        /** ClusterArticle */
+        ClusterArticle: {
+            /** Id */
+            id: number;
+            /** Title */
+            title: string;
+            /** Source */
+            source: string;
+            /** Source Id */
+            source_id?: string | null;
+            /** Url */
+            url: string;
+            /** Image Url */
+            image_url?: string | null;
+            /** Published At */
+            published_at?: string | null;
+            /** Summary */
+            summary?: string | null;
+            /** Similarity */
+            similarity?: number | null;
+            /** Author */
+            author?: string | null;
+            /** Authors */
+            authors?: string[];
+            gdelt_context?: components["schemas"]["GDELTContext"] | null;
         };
         /** ClusterDetailResponse */
         ClusterDetailResponse: {
@@ -3014,9 +3206,8 @@ export interface components {
             /** Is Active */
             is_active: boolean;
             /** Articles */
-            articles: {
-                [key: string]: unknown;
-            }[];
+            articles?: components["schemas"]["ClusterArticle"][];
+            gdelt_context?: components["schemas"]["GDELTContext"] | null;
         };
         /**
          * ComparisonRequest
@@ -3115,27 +3306,6 @@ export interface components {
             /** Character End */
             character_end: number;
         };
-        /** FilterScoreResponse */
-        FilterScoreResponse: {
-            /** Filter Name */
-            filter_name: string;
-            /** Score */
-            score: number;
-            /** Confidence */
-            confidence?: string | null;
-            /** Prose Explanation */
-            prose_explanation?: string | null;
-            /** Citations */
-            citations?: {
-                [key: string]: string;
-            }[] | null;
-            /** Empirical Basis */
-            empirical_basis?: string | null;
-            /** Scored By */
-            scored_by?: string | null;
-            /** Last Scored At */
-            last_scored_at?: string | null;
-        };
         /** FrontendDebugReport */
         FrontendDebugReport: {
             /**
@@ -3178,6 +3348,36 @@ export interface components {
             user_agent?: string | null;
             /** Generated At */
             generated_at?: string | null;
+        };
+        /** GDELTContext */
+        GDELTContext: {
+            /** Total Events */
+            total_events: number;
+            /** Top Cameo */
+            top_cameo?: components["schemas"]["GDELTTopCameo"][];
+            /** Goldstein Avg */
+            goldstein_avg?: number | null;
+            /** Goldstein Min */
+            goldstein_min?: number | null;
+            /** Goldstein Max */
+            goldstein_max?: number | null;
+            /** Goldstein Bucket */
+            goldstein_bucket?: string | null;
+            /** Tone Avg */
+            tone_avg?: number | null;
+            /** Tone Baseline Avg */
+            tone_baseline_avg?: number | null;
+            /** Tone Delta Vs Cluster */
+            tone_delta_vs_cluster?: number | null;
+        };
+        /** GDELTTopCameo */
+        GDELTTopCameo: {
+            /** Code */
+            code?: string | null;
+            /** Label */
+            label?: string | null;
+            /** Count */
+            count: number;
         };
         /** HTTPValidationError */
         HTTPValidationError: {
@@ -3320,6 +3520,8 @@ export interface components {
             source: string;
             /** Author */
             author?: string | null;
+            /** Authors */
+            authors?: string[];
             /**
              * Category
              * @default general
@@ -3329,6 +3531,8 @@ export interface components {
             country?: string | null;
             /** Image */
             image?: string | null;
+            /** Mentioned Countries */
+            mentioned_countries?: string[];
         };
         /** NewsResearchRequest */
         NewsResearchRequest: {
@@ -3359,6 +3563,8 @@ export interface components {
             referenced_articles?: {
                 [key: string]: unknown;
             }[];
+            /** Source Providers */
+            source_providers?: string[];
             /** Error */
             error?: string | null;
         };
@@ -3619,6 +3825,10 @@ export interface components {
             current_outlet?: string | null;
             /** Wikipedia Url */
             wikipedia_url?: string | null;
+            /** Canonical Name */
+            canonical_name?: string | null;
+            /** Match Status */
+            match_status?: string | null;
             /** Research Confidence */
             research_confidence?: string | null;
         };
@@ -3657,6 +3867,36 @@ export interface components {
             linkedin_url?: string | null;
             /** Wikipedia Url */
             wikipedia_url?: string | null;
+            /** Wikidata Qid */
+            wikidata_qid?: string | null;
+            /** Wikidata Url */
+            wikidata_url?: string | null;
+            /** Canonical Name */
+            canonical_name?: string | null;
+            /** Match Status */
+            match_status?: string | null;
+            /** Overview */
+            overview?: string | null;
+            /**
+             * Dossier Sections
+             * @default []
+             */
+            dossier_sections: {
+                [key: string]: unknown;
+            }[];
+            /**
+             * Citations
+             * @default []
+             */
+            citations: {
+                [key: string]: string;
+            }[];
+            /** Search Links */
+            search_links?: {
+                [key: string]: string;
+            } | null;
+            /** Match Explanation */
+            match_explanation?: string | null;
             /** Source Patterns */
             source_patterns?: {
                 [key: string]: unknown;
@@ -3729,6 +3969,10 @@ export interface components {
             }[] | null;
             /** Topics */
             topics?: string[] | null;
+            /** Education */
+            education?: {
+                [key: string]: unknown;
+            }[] | null;
             /** Political Leaning */
             political_leaning?: string | null;
             /** Leaning Confidence */
@@ -3739,6 +3983,30 @@ export interface components {
             linkedin_url?: string | null;
             /** Wikipedia Url */
             wikipedia_url?: string | null;
+            /** Wikidata Qid */
+            wikidata_qid?: string | null;
+            /** Wikidata Url */
+            wikidata_url?: string | null;
+            /** Canonical Name */
+            canonical_name?: string | null;
+            /** Match Status */
+            match_status?: string | null;
+            /** Overview */
+            overview?: string | null;
+            /** Dossier Sections */
+            dossier_sections?: {
+                [key: string]: unknown;
+            }[] | null;
+            /** Citations */
+            citations?: {
+                [key: string]: string;
+            }[] | null;
+            /** Search Links */
+            search_links?: {
+                [key: string]: string;
+            } | null;
+            /** Match Explanation */
+            match_explanation?: string | null;
             /** Research Sources */
             research_sources?: string[] | null;
             /** Research Confidence */
@@ -3813,8 +4081,8 @@ export interface components {
             parent_company?: string | null;
             /** Credibility Score */
             credibility_score?: number | null;
-            /** Filter Scores */
-            filter_scores?: {
+            /** Analysis Scores */
+            analysis_scores?: {
                 [key: string]: number;
             } | null;
             /** Index Status */
@@ -3840,6 +4108,8 @@ export interface components {
         SourceResearchResponse: {
             /** Name */
             name: string;
+            /** Canonical Name */
+            canonical_name?: string | null;
             /** Website */
             website?: string | null;
             /** Fetched At */
@@ -3858,6 +4128,30 @@ export interface components {
              * @default []
              */
             key_reporters: components["schemas"]["SourceReporterSummary"][];
+            /** Overview */
+            overview?: string | null;
+            /** Match Status */
+            match_status?: string | null;
+            /** Wikipedia Url */
+            wikipedia_url?: string | null;
+            /** Wikidata Qid */
+            wikidata_qid?: string | null;
+            /** Wikidata Url */
+            wikidata_url?: string | null;
+            /** Dossier Sections */
+            dossier_sections?: {
+                [key: string]: unknown;
+            }[] | null;
+            /** Citations */
+            citations?: {
+                [key: string]: string;
+            }[] | null;
+            /** Search Links */
+            search_links?: {
+                [key: string]: string;
+            } | null;
+            /** Match Explanation */
+            match_explanation?: string | null;
         };
         /** SourceResearchValue */
         SourceResearchValue: {
@@ -3896,11 +4190,41 @@ export interface components {
             is_state_media?: boolean | null;
             /** Source Type */
             source_type?: string | null;
+            /** Overview */
+            overview?: string | null;
+            /** Match Status */
+            match_status?: string | null;
+            /** Wikipedia Url */
+            wikipedia_url?: string | null;
+            /** Wikidata Qid */
+            wikidata_qid?: string | null;
+            /** Wikidata Url */
+            wikidata_url?: string | null;
             /**
-             * Filter Scores
+             * Dossier Sections
              * @default []
              */
-            filter_scores: components["schemas"]["FilterScoreResponse"][];
+            dossier_sections: {
+                [key: string]: unknown;
+            }[];
+            /**
+             * Citations
+             * @default []
+             */
+            citations: {
+                [key: string]: string;
+            }[];
+            /** Search Links */
+            search_links?: {
+                [key: string]: string;
+            } | null;
+            /** Match Explanation */
+            match_explanation?: string | null;
+            /**
+             * Analysis Axes
+             * @default []
+             */
+            analysis_axes: components["schemas"]["AnalysisAxisResponse"][];
             /**
              * Reporters
              * @default []
@@ -3992,17 +4316,10 @@ export interface components {
             trending_score: number;
             /** Velocity */
             velocity: number;
-            /** Representative Article */
-            representative_article: {
-                [key: string]: unknown;
-            } | null;
-            /**
-             * Articles
-             * @default []
-             */
-            articles: {
-                [key: string]: unknown;
-            }[];
+            representative_article?: components["schemas"]["ClusterArticle"] | null;
+            /** Articles */
+            articles?: components["schemas"]["ClusterArticle"][];
+            gdelt_context?: components["schemas"]["GDELTContext"] | null;
         };
         /** TrendingResponse */
         TrendingResponse: {
@@ -4039,6 +4356,10 @@ export interface components {
             msg: string;
             /** Error Type */
             type: string;
+            /** Input */
+            input?: unknown;
+            /** Context */
+            ctx?: Record<string, never>;
         };
         /** VerificationRequest */
         VerificationRequest: {
@@ -4128,6 +4449,10 @@ export interface components {
         };
         /** SourceInfo */
         app__models__news__SourceInfo: {
+            /** Id */
+            id?: string | null;
+            /** Slug */
+            slug?: string | null;
             /** Name */
             name: string;
             /** Url */
@@ -4143,6 +4468,12 @@ export interface components {
             funding_type?: string | null;
             /** Bias Rating */
             bias_rating?: string | null;
+            /** Ownership Label */
+            ownership_label?: string | null;
+            /** Factual Rating */
+            factual_rating?: string | null;
+            /** Credibility Score */
+            credibility_score?: number | null;
             /** Extra */
             extra?: {
                 [key: string]: unknown;
@@ -4264,7 +4595,9 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": unknown;
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
                 };
             };
             /** @description Validation Error */
@@ -4373,6 +4706,41 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["PaginatedResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_browse_index_news_index_get: {
+        parameters: {
+            query?: {
+                category?: string | null;
+                source?: string | null;
+                /** @description Comma-separated source names for multi-select */
+                sources?: string | null;
+                search?: string | null;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BrowseIndexResponse"];
                 };
             };
             /** @description Validation Error */
@@ -4546,7 +4914,7 @@ export interface operations {
             };
         };
     };
-    get_countries_geo_data_news_countries_geo_get: {
+    get_countries_geo_data_route_news_countries_geo_get: {
         parameters: {
             query?: never;
             header?: never;
@@ -4570,7 +4938,9 @@ export interface operations {
     };
     get_article_counts_by_country_news_by_country_get: {
         parameters: {
-            query?: never;
+            query?: {
+                hours?: number;
+            };
             header?: never;
             path?: never;
             cookie?: never;
@@ -4588,6 +4958,15 @@ export interface operations {
                     };
                 };
             };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
         };
     };
     get_news_for_country_news_country__code__get: {
@@ -4596,6 +4975,7 @@ export interface operations {
                 view?: string;
                 limit?: number;
                 offset?: number;
+                hours?: number | null;
             };
             header?: never;
             path: {
@@ -5526,6 +5906,42 @@ export interface operations {
             };
         };
     };
+    backfill_article_mentions_debug_backfill_mentioned_countries_post: {
+        parameters: {
+            query?: {
+                /** @description Articles per batch */
+                batch_size?: number;
+                /** @description Max batches (None = all) */
+                max_batches?: number | null;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     list_bookmarks_api_bookmarks_get: {
         parameters: {
             query?: never;
@@ -5966,7 +6382,9 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": unknown;
+                    "application/json": {
+                        [key: string]: string;
+                    };
                 };
             };
         };
@@ -6154,7 +6572,9 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": unknown;
+                    "application/json": {
+                        [key: string]: string;
+                    };
                 };
             };
         };
@@ -6668,7 +7088,9 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": unknown;
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
                 };
             };
             /** @description Validation Error */
@@ -7176,7 +7598,7 @@ export interface operations {
                 };
                 content: {
                     "application/json": {
-                        [key: string]: unknown;
+                        [key: string]: string;
                     };
                 };
             };
@@ -8026,6 +8448,41 @@ export interface operations {
             };
         };
     };
+    get_blindspot_viewer_blindspots_viewer_get: {
+        parameters: {
+            query?: {
+                lens?: "bias" | "credibility" | "geography" | "institutional_populist";
+                window?: string;
+                category?: string | null;
+                sources?: string | null;
+                per_lane?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BlindspotViewerResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     list_wiki_sources_api_wiki_sources_get: {
         parameters: {
             query?: {
@@ -8099,37 +8556,6 @@ export interface operations {
             };
         };
     };
-    get_source_filters_api_wiki_sources__source_name__filters_get: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                source_name: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["FilterScoreResponse"][];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
     get_source_reporters_api_wiki_sources__source_name__reporters_get: {
         parameters: {
             query?: {
@@ -8149,7 +8575,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": unknown;
+                    "application/json": components["schemas"]["ReporterCardResponse"][];
                 };
             };
             /** @description Validation Error */
@@ -8252,7 +8678,9 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": unknown;
+                    "application/json": {
+                        [key: string]: unknown;
+                    }[];
                 };
             };
             /** @description Validation Error */
@@ -8357,7 +8785,9 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": unknown;
+                    "application/json": {
+                        [key: string]: string;
+                    };
                 };
             };
             /** @description Validation Error */

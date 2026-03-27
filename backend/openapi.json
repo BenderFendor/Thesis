@@ -108,7 +108,11 @@
             "description": "Successful Response",
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true,
+                  "title": "Response Extract Article Text Article Extract Get"
+                }
               }
             }
           },
@@ -181,7 +185,7 @@
             "required": false,
             "schema": {
               "type": "integer",
-              "maximum": 200,
+              "maximum": 500,
               "minimum": 1,
               "default": 50,
               "title": "Limit"
@@ -319,7 +323,7 @@
             "required": false,
             "schema": {
               "type": "integer",
-              "maximum": 200,
+              "maximum": 500,
               "minimum": 1,
               "default": 50,
               "title": "Limit"
@@ -427,6 +431,106 @@
         }
       }
     },
+    "/news/index": {
+      "get": {
+        "tags": [
+          "news"
+        ],
+        "summary": "Get Browse Index",
+        "description": "Return lightweight article cards for the full browse corpus.",
+        "operationId": "get_browse_index_news_index_get",
+        "parameters": [
+          {
+            "name": "category",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Category"
+            }
+          },
+          {
+            "name": "source",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Source"
+            }
+          },
+          {
+            "name": "sources",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Comma-separated source names for multi-select",
+              "title": "Sources"
+            },
+            "description": "Comma-separated source names for multi-select"
+          },
+          {
+            "name": "search",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Search"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BrowseIndexResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/news/recent": {
       "get": {
         "tags": [
@@ -442,7 +546,7 @@
             "required": false,
             "schema": {
               "type": "integer",
-              "maximum": 200,
+              "maximum": 500,
               "minimum": 1,
               "default": 50,
               "title": "Limit"
@@ -691,9 +795,8 @@
         "tags": [
           "news-by-country"
         ],
-        "summary": "Get Countries Geo Data",
-        "description": "Get static country geographic data for globe markers.\n\nReturns country codes with names and lat/lng coordinates.",
-        "operationId": "get_countries_geo_data_news_countries_geo_get",
+        "summary": "Get Countries Geo Data Route",
+        "operationId": "get_countries_geo_data_route_news_countries_geo_get",
         "responses": {
           "200": {
             "description": "Successful Response",
@@ -702,7 +805,7 @@
                 "schema": {
                   "additionalProperties": true,
                   "type": "object",
-                  "title": "Response Get Countries Geo Data News Countries Geo Get"
+                  "title": "Response Get Countries Geo Data Route News Countries Geo Get"
                 }
               }
             }
@@ -716,17 +819,40 @@
           "news-by-country"
         ],
         "summary": "Get Article Counts By Country",
-        "description": "Get article counts grouped by source country for globe heatmap.\n\nReturns a dictionary mapping ISO country codes to article counts.",
         "operationId": "get_article_counts_by_country_news_by_country_get",
+        "parameters": [
+          {
+            "name": "hours",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 720,
+              "minimum": 1,
+              "default": 24,
+              "title": "Hours"
+            }
+          }
+        ],
         "responses": {
           "200": {
             "description": "Successful Response",
             "content": {
               "application/json": {
                 "schema": {
-                  "additionalProperties": true,
                   "type": "object",
+                  "additionalProperties": true,
                   "title": "Response Get Article Counts By Country News By Country Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
                 }
               }
             }
@@ -740,7 +866,6 @@
           "news-by-country"
         ],
         "summary": "Get News For Country",
-        "description": "Local Lens feature: Get news for a specific country.\n\nArgs:\n    code: ISO 3166-1 alpha-2 country code (e.g., \"US\", \"GB\", \"CN\")\n    view:\n        - \"internal\": Articles FROM this country (source_country = code)\n        - \"external\": Articles ABOUT this country (country mentioned in content)\n                      Currently uses source country != code as approximation\n    limit: Maximum number of articles to return\n    offset: Pagination offset\n\nReturns:\n    Paginated list of articles matching the criteria",
         "operationId": "get_news_for_country_news_country__code__get",
         "parameters": [
           {
@@ -785,6 +910,24 @@
               "default": 0,
               "title": "Offset"
             }
+          },
+          {
+            "name": "hours",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "integer",
+                  "maximum": 720,
+                  "minimum": 1
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Hours"
+            }
           }
         ],
         "responses": {
@@ -819,7 +962,6 @@
           "news-by-country"
         ],
         "summary": "List Available Countries",
-        "description": "List all countries with at least one article, sorted by article count.\n\nUseful for populating globe markers or country selector.",
         "operationId": "list_available_countries_news_countries_list_get",
         "responses": {
           "200": {
@@ -2185,6 +2327,74 @@
         }
       }
     },
+    "/debug/backfill/mentioned-countries": {
+      "post": {
+        "tags": [
+          "debug"
+        ],
+        "summary": "Backfill Article Mentions",
+        "operationId": "backfill_article_mentions_debug_backfill_mentioned_countries_post",
+        "parameters": [
+          {
+            "name": "batch_size",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 2000,
+              "minimum": 10,
+              "description": "Articles per batch",
+              "default": 500,
+              "title": "Batch Size"
+            },
+            "description": "Articles per batch"
+          },
+          {
+            "name": "max_batches",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "integer",
+                  "minimum": 1
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Max batches (None = all)",
+              "title": "Max Batches"
+            },
+            "description": "Max batches (None = all)"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true,
+                  "title": "Response Backfill Article Mentions Debug Backfill Mentioned Countries Post"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/bookmarks": {
       "get": {
         "tags": [
@@ -2727,7 +2937,13 @@
             "description": "Successful Response",
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "additionalProperties": {
+                    "type": "string"
+                  },
+                  "type": "object",
+                  "title": "Response Move Expired Items Api Queue Maintenance Move Expired Post"
+                }
               }
             }
           }
@@ -2969,7 +3185,13 @@
             "description": "Successful Response",
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "additionalProperties": {
+                    "type": "string"
+                  },
+                  "type": "object",
+                  "title": "Response Archive Completed Items Api Queue Maintenance Archive Post"
+                }
               }
             }
           }
@@ -3751,7 +3973,11 @@
             "description": "Successful Response",
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true,
+                  "title": "Response Get Country Economic Profile Research Entity Country  Country Code  Economic Profile Get"
+                }
               }
             }
           },
@@ -4390,7 +4616,9 @@
               "application/json": {
                 "schema": {
                   "type": "object",
-                  "additionalProperties": true,
+                  "additionalProperties": {
+                    "type": "string"
+                  },
                   "title": "Response Get Og Image Image Og Get"
                 }
               }
@@ -5628,6 +5856,111 @@
         }
       }
     },
+    "/blindspots/viewer": {
+      "get": {
+        "tags": [
+          "blindspots"
+        ],
+        "summary": "Get Blindspot Viewer",
+        "description": "Get a multi-lens blindspot viewer payload.",
+        "operationId": "get_blindspot_viewer_blindspots_viewer_get",
+        "parameters": [
+          {
+            "name": "lens",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "enum": [
+                "bias",
+                "credibility",
+                "geography",
+                "institutional_populist"
+              ],
+              "type": "string",
+              "default": "bias",
+              "title": "Lens"
+            }
+          },
+          {
+            "name": "window",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "pattern": "^(1d|1w|1m)$",
+              "default": "1w",
+              "title": "Window"
+            }
+          },
+          {
+            "name": "category",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Category"
+            }
+          },
+          {
+            "name": "sources",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Sources"
+            }
+          },
+          {
+            "name": "per_lane",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 20,
+              "minimum": 1,
+              "default": 10,
+              "title": "Per Lane"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BlindspotViewerResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/wiki/sources": {
       "get": {
         "tags": [
@@ -5816,53 +6149,6 @@
         }
       }
     },
-    "/api/wiki/sources/{source_name}/filters": {
-      "get": {
-        "tags": [
-          "wiki"
-        ],
-        "summary": "Get Source Filters",
-        "description": "Get propaganda filter scores for a source.",
-        "operationId": "get_source_filters_api_wiki_sources__source_name__filters_get",
-        "parameters": [
-          {
-            "name": "source_name",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "title": "Source Name"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "array",
-                  "items": {
-                    "$ref": "#/components/schemas/FilterScoreResponse"
-                  },
-                  "title": "Response Get Source Filters Api Wiki Sources  Source Name  Filters Get"
-                }
-              }
-            }
-          },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
     "/api/wiki/sources/{source_name}/reporters": {
       "get": {
         "tags": [
@@ -5899,7 +6185,13 @@
             "description": "Successful Response",
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/ReporterCardResponse"
+                  },
+                  "title": "Response Get Source Reporters Api Wiki Sources  Source Name  Reporters Get"
+                }
               }
             }
           },
@@ -6121,7 +6413,14 @@
             "description": "Successful Response",
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "additionalProperties": true
+                  },
+                  "title": "Response Get Reporter Articles Api Wiki Reporters  Reporter Id  Articles Get"
+                }
               }
             }
           },
@@ -6268,7 +6567,13 @@
             "description": "Successful Response",
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": {
+                    "type": "string"
+                  },
+                  "title": "Response Trigger Source Index Api Wiki Index  Source Name  Post"
+                }
               }
             }
           },
@@ -6371,23 +6676,29 @@
           "representative_article": {
             "anyOf": [
               {
-                "additionalProperties": true,
-                "type": "object"
+                "$ref": "#/components/schemas/ClusterArticle"
               },
               {
                 "type": "null"
               }
-            ],
-            "title": "Representative Article"
+            ]
           },
           "articles": {
             "items": {
-              "additionalProperties": true,
-              "type": "object"
+              "$ref": "#/components/schemas/ClusterArticle"
             },
             "type": "array",
-            "title": "Articles",
-            "default": []
+            "title": "Articles"
+          },
+          "gdelt_context": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/GDELTContext"
+              },
+              {
+                "type": "null"
+              }
+            ]
           }
         },
         "type": "object",
@@ -6397,8 +6708,7 @@
           "keywords",
           "article_count",
           "window_count",
-          "source_diversity",
-          "representative_article"
+          "source_diversity"
         ],
         "title": "AllCluster",
         "description": "Cluster for topic-based view (without trending metrics)."
@@ -6450,6 +6760,96 @@
           "total"
         ],
         "title": "AllClustersResponse"
+      },
+      "AnalysisAxisResponse": {
+        "properties": {
+          "axis_name": {
+            "type": "string",
+            "title": "Axis Name"
+          },
+          "score": {
+            "type": "integer",
+            "title": "Score"
+          },
+          "confidence": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Confidence"
+          },
+          "prose_explanation": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Prose Explanation"
+          },
+          "citations": {
+            "anyOf": [
+              {
+                "items": {
+                  "additionalProperties": {
+                    "type": "string"
+                  },
+                  "type": "object"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Citations"
+          },
+          "empirical_basis": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Empirical Basis"
+          },
+          "scored_by": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Scored By"
+          },
+          "last_scored_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Scored At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "axis_name",
+          "score"
+        ],
+        "title": "AnalysisAxisResponse"
       },
       "ArticleAnalysisRequest": {
         "properties": {
@@ -6639,6 +7039,417 @@
         ],
         "title": "ArticleAnalysisResponse"
       },
+      "BlindspotCardResponse": {
+        "properties": {
+          "cluster_id": {
+            "type": "integer",
+            "title": "Cluster Id"
+          },
+          "cluster_label": {
+            "type": "string",
+            "title": "Cluster Label"
+          },
+          "keywords": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Keywords"
+          },
+          "article_count": {
+            "type": "integer",
+            "title": "Article Count"
+          },
+          "source_count": {
+            "type": "integer",
+            "title": "Source Count"
+          },
+          "lane": {
+            "type": "string",
+            "enum": [
+              "pole_a",
+              "shared",
+              "pole_b"
+            ],
+            "title": "Lane"
+          },
+          "blindspot_score": {
+            "type": "number",
+            "title": "Blindspot Score"
+          },
+          "balance_score": {
+            "type": "number",
+            "title": "Balance Score"
+          },
+          "published_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Published At"
+          },
+          "explanation": {
+            "type": "string",
+            "title": "Explanation"
+          },
+          "coverage_counts": {
+            "$ref": "#/components/schemas/BlindspotCoverageCountsResponse"
+          },
+          "coverage_shares": {
+            "$ref": "#/components/schemas/BlindspotCoverageSharesResponse"
+          },
+          "representative_article": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/BlindspotPreviewArticleResponse"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "articles": {
+            "items": {
+              "$ref": "#/components/schemas/BlindspotPreviewArticleResponse"
+            },
+            "type": "array",
+            "title": "Articles"
+          },
+          "geography_signals": {
+            "items": {
+              "$ref": "#/components/schemas/BlindspotGeographySignalResponse"
+            },
+            "type": "array",
+            "title": "Geography Signals",
+            "default": []
+          }
+        },
+        "type": "object",
+        "required": [
+          "cluster_id",
+          "cluster_label",
+          "keywords",
+          "article_count",
+          "source_count",
+          "lane",
+          "blindspot_score",
+          "balance_score",
+          "explanation",
+          "coverage_counts",
+          "coverage_shares",
+          "articles"
+        ],
+        "title": "BlindspotCardResponse"
+      },
+      "BlindspotCoverageCountsResponse": {
+        "properties": {
+          "pole_a": {
+            "type": "integer",
+            "title": "Pole A"
+          },
+          "shared": {
+            "type": "integer",
+            "title": "Shared"
+          },
+          "pole_b": {
+            "type": "integer",
+            "title": "Pole B"
+          }
+        },
+        "type": "object",
+        "required": [
+          "pole_a",
+          "shared",
+          "pole_b"
+        ],
+        "title": "BlindspotCoverageCountsResponse"
+      },
+      "BlindspotCoverageSharesResponse": {
+        "properties": {
+          "pole_a": {
+            "type": "number",
+            "title": "Pole A"
+          },
+          "shared": {
+            "type": "number",
+            "title": "Shared"
+          },
+          "pole_b": {
+            "type": "number",
+            "title": "Pole B"
+          }
+        },
+        "type": "object",
+        "required": [
+          "pole_a",
+          "shared",
+          "pole_b"
+        ],
+        "title": "BlindspotCoverageSharesResponse"
+      },
+      "BlindspotGeographySignalResponse": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "label": {
+            "type": "string",
+            "title": "Label"
+          },
+          "count": {
+            "type": "integer",
+            "title": "Count"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "label",
+          "count"
+        ],
+        "title": "BlindspotGeographySignalResponse"
+      },
+      "BlindspotLaneResponse": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "enum": [
+              "pole_a",
+              "shared",
+              "pole_b"
+            ],
+            "title": "Id"
+          },
+          "label": {
+            "type": "string",
+            "title": "Label"
+          },
+          "description": {
+            "type": "string",
+            "title": "Description"
+          },
+          "cluster_count": {
+            "type": "integer",
+            "title": "Cluster Count"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "label",
+          "description",
+          "cluster_count"
+        ],
+        "title": "BlindspotLaneResponse"
+      },
+      "BlindspotLensResponse": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "enum": [
+              "bias",
+              "credibility",
+              "geography",
+              "institutional_populist"
+            ],
+            "title": "Id"
+          },
+          "label": {
+            "type": "string",
+            "title": "Label"
+          },
+          "description": {
+            "type": "string",
+            "title": "Description"
+          },
+          "available": {
+            "type": "boolean",
+            "title": "Available"
+          },
+          "unavailable_reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Unavailable Reason"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "label",
+          "description",
+          "available"
+        ],
+        "title": "BlindspotLensResponse"
+      },
+      "BlindspotPreviewArticleResponse": {
+        "properties": {
+          "id": {
+            "type": "integer",
+            "title": "Id"
+          },
+          "title": {
+            "type": "string",
+            "title": "Title"
+          },
+          "source": {
+            "type": "string",
+            "title": "Source"
+          },
+          "url": {
+            "type": "string",
+            "title": "Url"
+          },
+          "image_url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Image Url"
+          },
+          "published_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Published At"
+          },
+          "summary": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Summary"
+          },
+          "similarity": {
+            "type": "number",
+            "title": "Similarity"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "title",
+          "source",
+          "url",
+          "similarity"
+        ],
+        "title": "BlindspotPreviewArticleResponse"
+      },
+      "BlindspotViewerResponse": {
+        "properties": {
+          "available_lenses": {
+            "items": {
+              "$ref": "#/components/schemas/BlindspotLensResponse"
+            },
+            "type": "array",
+            "title": "Available Lenses"
+          },
+          "selected_lens": {
+            "$ref": "#/components/schemas/BlindspotLensResponse"
+          },
+          "summary": {
+            "$ref": "#/components/schemas/BlindspotViewerSummaryResponse"
+          },
+          "lanes": {
+            "items": {
+              "$ref": "#/components/schemas/BlindspotLaneResponse"
+            },
+            "type": "array",
+            "title": "Lanes"
+          },
+          "cards": {
+            "items": {
+              "$ref": "#/components/schemas/BlindspotCardResponse"
+            },
+            "type": "array",
+            "title": "Cards"
+          },
+          "status": {
+            "type": "string",
+            "title": "Status"
+          }
+        },
+        "type": "object",
+        "required": [
+          "available_lenses",
+          "selected_lens",
+          "summary",
+          "lanes",
+          "cards",
+          "status"
+        ],
+        "title": "BlindspotViewerResponse"
+      },
+      "BlindspotViewerSummaryResponse": {
+        "properties": {
+          "window": {
+            "type": "string",
+            "title": "Window"
+          },
+          "total_clusters": {
+            "type": "integer",
+            "title": "Total Clusters"
+          },
+          "eligible_clusters": {
+            "type": "integer",
+            "title": "Eligible Clusters"
+          },
+          "generated_at": {
+            "type": "string",
+            "title": "Generated At"
+          },
+          "category": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Category"
+          },
+          "source_filters": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Source Filters"
+          }
+        },
+        "type": "object",
+        "required": [
+          "window",
+          "total_clusters",
+          "eligible_clusters",
+          "generated_at",
+          "source_filters"
+        ],
+        "title": "BlindspotViewerSummaryResponse"
+      },
       "BookmarkCreateRequest": {
         "properties": {
           "article_id": {
@@ -6695,23 +7506,29 @@
           "representative_article": {
             "anyOf": [
               {
-                "additionalProperties": true,
-                "type": "object"
+                "$ref": "#/components/schemas/ClusterArticle"
               },
               {
                 "type": "null"
               }
-            ],
-            "title": "Representative Article"
+            ]
           },
           "articles": {
             "items": {
-              "additionalProperties": true,
-              "type": "object"
+              "$ref": "#/components/schemas/ClusterArticle"
             },
             "type": "array",
-            "title": "Articles",
-            "default": []
+            "title": "Articles"
+          },
+          "gdelt_context": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/GDELTContext"
+              },
+              {
+                "type": "null"
+              }
+            ]
           }
         },
         "type": "object",
@@ -6722,8 +7539,7 @@
           "article_count_3h",
           "source_count_3h",
           "spike_magnitude",
-          "is_new_story",
-          "representative_article"
+          "is_new_story"
         ],
         "title": "BreakingCluster"
       },
@@ -6752,6 +7568,140 @@
           "total"
         ],
         "title": "BreakingResponse"
+      },
+      "BrowseIndexResponse": {
+        "properties": {
+          "articles": {
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "type": "array",
+            "title": "Articles"
+          },
+          "total": {
+            "type": "integer",
+            "title": "Total"
+          }
+        },
+        "type": "object",
+        "required": [
+          "articles",
+          "total"
+        ],
+        "title": "BrowseIndexResponse",
+        "description": "Lightweight full-corpus response for browse views."
+      },
+      "ClusterArticle": {
+        "properties": {
+          "id": {
+            "type": "integer",
+            "title": "Id"
+          },
+          "title": {
+            "type": "string",
+            "title": "Title"
+          },
+          "source": {
+            "type": "string",
+            "title": "Source"
+          },
+          "source_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Source Id"
+          },
+          "url": {
+            "type": "string",
+            "title": "Url"
+          },
+          "image_url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Image Url"
+          },
+          "published_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Published At"
+          },
+          "summary": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Summary"
+          },
+          "similarity": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Similarity"
+          },
+          "author": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Author"
+          },
+          "authors": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Authors"
+          },
+          "gdelt_context": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/GDELTContext"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "title",
+          "source",
+          "url"
+        ],
+        "title": "ClusterArticle"
       },
       "ClusterDetailResponse": {
         "properties": {
@@ -6809,11 +7759,20 @@
           },
           "articles": {
             "items": {
-              "additionalProperties": true,
-              "type": "object"
+              "$ref": "#/components/schemas/ClusterArticle"
             },
             "type": "array",
             "title": "Articles"
+          },
+          "gdelt_context": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/GDELTContext"
+              },
+              {
+                "type": "null"
+              }
+            ]
           }
         },
         "type": "object",
@@ -6824,8 +7783,7 @@
           "article_count",
           "first_seen",
           "last_seen",
-          "is_active",
-          "articles"
+          "is_active"
         ],
         "title": "ClusterDetailResponse"
       },
@@ -7012,96 +7970,6 @@
         ],
         "title": "CreateHighlightRequest"
       },
-      "FilterScoreResponse": {
-        "properties": {
-          "filter_name": {
-            "type": "string",
-            "title": "Filter Name"
-          },
-          "score": {
-            "type": "integer",
-            "title": "Score"
-          },
-          "confidence": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Confidence"
-          },
-          "prose_explanation": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Prose Explanation"
-          },
-          "citations": {
-            "anyOf": [
-              {
-                "items": {
-                  "additionalProperties": {
-                    "type": "string"
-                  },
-                  "type": "object"
-                },
-                "type": "array"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Citations"
-          },
-          "empirical_basis": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Empirical Basis"
-          },
-          "scored_by": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Scored By"
-          },
-          "last_scored_at": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Last Scored At"
-          }
-        },
-        "type": "object",
-        "required": [
-          "filter_name",
-          "score"
-        ],
-        "title": "FilterScoreResponse"
-      },
       "FrontendDebugReport": {
         "properties": {
           "session_id": {
@@ -7193,6 +8061,138 @@
           "summary"
         ],
         "title": "FrontendDebugReport"
+      },
+      "GDELTContext": {
+        "properties": {
+          "total_events": {
+            "type": "integer",
+            "title": "Total Events"
+          },
+          "top_cameo": {
+            "items": {
+              "$ref": "#/components/schemas/GDELTTopCameo"
+            },
+            "type": "array",
+            "title": "Top Cameo"
+          },
+          "goldstein_avg": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Goldstein Avg"
+          },
+          "goldstein_min": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Goldstein Min"
+          },
+          "goldstein_max": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Goldstein Max"
+          },
+          "goldstein_bucket": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Goldstein Bucket"
+          },
+          "tone_avg": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Tone Avg"
+          },
+          "tone_baseline_avg": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Tone Baseline Avg"
+          },
+          "tone_delta_vs_cluster": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Tone Delta Vs Cluster"
+          }
+        },
+        "type": "object",
+        "required": [
+          "total_events"
+        ],
+        "title": "GDELTContext"
+      },
+      "GDELTTopCameo": {
+        "properties": {
+          "code": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Code"
+          },
+          "label": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Label"
+          },
+          "count": {
+            "type": "integer",
+            "title": "Count"
+          }
+        },
+        "type": "object",
+        "required": [
+          "count"
+        ],
+        "title": "GDELTTopCameo"
       },
       "HTTPValidationError": {
         "properties": {
@@ -7619,6 +8619,13 @@
             ],
             "title": "Author"
           },
+          "authors": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Authors"
+          },
           "category": {
             "type": "string",
             "title": "Category",
@@ -7645,6 +8652,13 @@
               }
             ],
             "title": "Image"
+          },
+          "mentioned_countries": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Mentioned Countries"
           }
         },
         "type": "object",
@@ -7708,6 +8722,13 @@
             },
             "type": "array",
             "title": "Referenced Articles"
+          },
+          "source_providers": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Source Providers"
           },
           "error": {
             "anyOf": [
@@ -8460,6 +9481,28 @@
             ],
             "title": "Wikipedia Url"
           },
+          "canonical_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Canonical Name"
+          },
+          "match_status": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Match Status"
+          },
           "research_confidence": {
             "anyOf": [
               {
@@ -8624,6 +9667,106 @@
               }
             ],
             "title": "Wikipedia Url"
+          },
+          "wikidata_qid": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Wikidata Qid"
+          },
+          "wikidata_url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Wikidata Url"
+          },
+          "canonical_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Canonical Name"
+          },
+          "match_status": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Match Status"
+          },
+          "overview": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Overview"
+          },
+          "dossier_sections": {
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "type": "array",
+            "title": "Dossier Sections",
+            "default": []
+          },
+          "citations": {
+            "items": {
+              "additionalProperties": {
+                "type": "string"
+              },
+              "type": "object"
+            },
+            "type": "array",
+            "title": "Citations",
+            "default": []
+          },
+          "search_links": {
+            "anyOf": [
+              {
+                "additionalProperties": {
+                  "type": "string"
+                },
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Search Links"
+          },
+          "match_explanation": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Match Explanation"
           },
           "source_patterns": {
             "anyOf": [
@@ -8877,6 +10020,21 @@
             ],
             "title": "Topics"
           },
+          "education": {
+            "anyOf": [
+              {
+                "items": {
+                  "additionalProperties": true,
+                  "type": "object"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Education"
+          },
           "political_leaning": {
             "anyOf": [
               {
@@ -8931,6 +10089,118 @@
               }
             ],
             "title": "Wikipedia Url"
+          },
+          "wikidata_qid": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Wikidata Qid"
+          },
+          "wikidata_url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Wikidata Url"
+          },
+          "canonical_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Canonical Name"
+          },
+          "match_status": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Match Status"
+          },
+          "overview": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Overview"
+          },
+          "dossier_sections": {
+            "anyOf": [
+              {
+                "items": {
+                  "additionalProperties": true,
+                  "type": "object"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Dossier Sections"
+          },
+          "citations": {
+            "anyOf": [
+              {
+                "items": {
+                  "additionalProperties": {
+                    "type": "string"
+                  },
+                  "type": "object"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Citations"
+          },
+          "search_links": {
+            "anyOf": [
+              {
+                "additionalProperties": {
+                  "type": "string"
+                },
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Search Links"
+          },
+          "match_explanation": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Match Explanation"
           },
           "research_sources": {
             "anyOf": [
@@ -9147,7 +10417,7 @@
             ],
             "title": "Credibility Score"
           },
-          "filter_scores": {
+          "analysis_scores": {
             "anyOf": [
               {
                 "additionalProperties": {
@@ -9159,7 +10429,7 @@
                 "type": "null"
               }
             ],
-            "title": "Filter Scores"
+            "title": "Analysis Scores"
           },
           "index_status": {
             "anyOf": [
@@ -9239,6 +10509,17 @@
             "type": "string",
             "title": "Name"
           },
+          "canonical_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Canonical Name"
+          },
           "website": {
             "anyOf": [
               {
@@ -9283,6 +10564,118 @@
             "type": "array",
             "title": "Key Reporters",
             "default": []
+          },
+          "overview": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Overview"
+          },
+          "match_status": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Match Status"
+          },
+          "wikipedia_url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Wikipedia Url"
+          },
+          "wikidata_qid": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Wikidata Qid"
+          },
+          "wikidata_url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Wikidata Url"
+          },
+          "dossier_sections": {
+            "anyOf": [
+              {
+                "items": {
+                  "additionalProperties": true,
+                  "type": "object"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Dossier Sections"
+          },
+          "citations": {
+            "anyOf": [
+              {
+                "items": {
+                  "additionalProperties": {
+                    "type": "string"
+                  },
+                  "type": "object"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Citations"
+          },
+          "search_links": {
+            "anyOf": [
+              {
+                "additionalProperties": {
+                  "type": "string"
+                },
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Search Links"
+          },
+          "match_explanation": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Match Explanation"
           }
         },
         "type": "object",
@@ -9441,12 +10834,112 @@
             ],
             "title": "Source Type"
           },
-          "filter_scores": {
+          "overview": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Overview"
+          },
+          "match_status": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Match Status"
+          },
+          "wikipedia_url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Wikipedia Url"
+          },
+          "wikidata_qid": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Wikidata Qid"
+          },
+          "wikidata_url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Wikidata Url"
+          },
+          "dossier_sections": {
             "items": {
-              "$ref": "#/components/schemas/FilterScoreResponse"
+              "additionalProperties": true,
+              "type": "object"
             },
             "type": "array",
-            "title": "Filter Scores",
+            "title": "Dossier Sections",
+            "default": []
+          },
+          "citations": {
+            "items": {
+              "additionalProperties": {
+                "type": "string"
+              },
+              "type": "object"
+            },
+            "type": "array",
+            "title": "Citations",
+            "default": []
+          },
+          "search_links": {
+            "anyOf": [
+              {
+                "additionalProperties": {
+                  "type": "string"
+                },
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Search Links"
+          },
+          "match_explanation": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Match Explanation"
+          },
+          "analysis_axes": {
+            "items": {
+              "$ref": "#/components/schemas/AnalysisAxisResponse"
+            },
+            "type": "array",
+            "title": "Analysis Axes",
             "default": []
           },
           "reporters": {
@@ -9668,23 +11161,29 @@
           "representative_article": {
             "anyOf": [
               {
-                "additionalProperties": true,
-                "type": "object"
+                "$ref": "#/components/schemas/ClusterArticle"
               },
               {
                 "type": "null"
               }
-            ],
-            "title": "Representative Article"
+            ]
           },
           "articles": {
             "items": {
-              "additionalProperties": true,
-              "type": "object"
+              "$ref": "#/components/schemas/ClusterArticle"
             },
             "type": "array",
-            "title": "Articles",
-            "default": []
+            "title": "Articles"
+          },
+          "gdelt_context": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/GDELTContext"
+              },
+              {
+                "type": "null"
+              }
+            ]
           }
         },
         "type": "object",
@@ -9696,8 +11195,7 @@
           "window_count",
           "source_diversity",
           "trending_score",
-          "velocity",
-          "representative_article"
+          "velocity"
         ],
         "title": "TrendingCluster"
       },
@@ -9829,6 +11327,13 @@
           "type": {
             "type": "string",
             "title": "Error Type"
+          },
+          "input": {
+            "title": "Input"
+          },
+          "ctx": {
+            "type": "object",
+            "title": "Context"
           }
         },
         "type": "object",
@@ -10036,6 +11541,28 @@
       },
       "app__models__news__SourceInfo": {
         "properties": {
+          "id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Id"
+          },
+          "slug": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Slug"
+          },
           "name": {
             "type": "string",
             "title": "Name"
@@ -10074,6 +11601,39 @@
               }
             ],
             "title": "Bias Rating"
+          },
+          "ownership_label": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ownership Label"
+          },
+          "factual_rating": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Factual Rating"
+          },
+          "credibility_score": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Credibility Score"
           },
           "extra": {
             "anyOf": [

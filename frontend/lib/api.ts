@@ -74,6 +74,22 @@ const ogImageMetrics = {
   network: 0,
 };
 
+function isLikelyNetworkError(error: unknown): boolean {
+  if (!(error instanceof Error)) {
+    return false
+  }
+
+  const message = error.message.toLowerCase()
+  return (
+    error.name === "TypeError" ||
+    error.name === "NetworkError" ||
+    message.includes("networkerror") ||
+    message.includes("failed to fetch") ||
+    message.includes("input stream") ||
+    message.includes("load failed")
+  )
+}
+
 const pruneOgImageCache = () => {
   const now = Date.now();
   for (const [key, entry] of ogImageCache.entries()) {
@@ -134,6 +150,10 @@ export interface NewsArticle {
   // Phase 5 Fields
   source_country?: string;
   mentioned_countries?: string[];
+  geo_signal?: {
+    id: string;
+    label: string;
+  };
   author?: string;
   authors?: string[];
   // Preloaded queue data
@@ -802,7 +822,11 @@ export async function fetchBookmarks(): Promise<BookmarkEntry[]> {
       article,
     }));
   } catch (error) {
-    console.error("Failed to fetch bookmarks:", error);
+    if (isLikelyNetworkError(error)) {
+      logger.warn("Bookmarks are unavailable because the backend is unreachable.")
+    } else {
+      console.error("Failed to fetch bookmarks:", error);
+    }
     return [];
   }
 }
@@ -2030,7 +2054,11 @@ export function streamNews(options: StreamOptions = {}): {
               });
             }
           } else {
-            console.error(" Stream reader error:", readError);
+            if (isLikelyNetworkError(readError)) {
+              logger.warn("News stream disconnected before completion.")
+            } else {
+              console.error("Stream reader error:", readError);
+            }
             if (!settled) {
               settled = true;
               reject(readError);
@@ -2152,6 +2180,10 @@ export function mapBackendArticles(
       typeof article.source_id === "string" && article.source_id.trim().length > 0
         ? article.source_id.trim().toLowerCase()
         : sourceName.toLowerCase().replace(/\s+/g, "-")
+    const geoSignal =
+      article.geo_signal && typeof article.geo_signal === "object"
+        ? (article.geo_signal as { id?: unknown; label?: unknown })
+        : null
 
     const mappedArticle: NewsArticle = {
       id: resolvedId,
@@ -2176,6 +2208,15 @@ export function mapBackendArticles(
       hasFullContent: typeof article.content === "string" && article.content.trim().length > 0,
       source_country: sourceCountry,
       mentioned_countries: mentionedCountries,
+      geo_signal:
+        geoSignal &&
+        typeof geoSignal.id === "string" &&
+        typeof geoSignal.label === "string"
+          ? {
+              id: geoSignal.id,
+              label: geoSignal.label,
+            }
+          : undefined,
     };
 
     return mappedArticle;
@@ -2317,7 +2358,9 @@ export async function sendFrontendDebugReport(
       throw new Error(`HTTP error! status: ${response.status}`);
     }
   } catch (error) {
-    console.error("Failed to send frontend debug report:", error);
+    if (!isLikelyNetworkError(error)) {
+      console.error("Failed to send frontend debug report:", error);
+    }
   }
 }
 
@@ -3005,6 +3048,14 @@ export async function fetchBrowseIndex(
 export interface CountryArticleCounts {
   counts: Record<string, number>;
   source_counts?: Record<string, number>;
+  geo_signals?: Array<{
+    id: string;
+    label: string;
+    country_counts: Record<string, number>;
+    country_count: number;
+    article_count: number;
+    total_mentions: number;
+  }>;
   total_articles: number;
   articles_with_country: number;
   articles_without_country: number;
@@ -3050,6 +3101,10 @@ export interface LocalLensResponse {
   has_more: boolean;
   source_count?: number;
   window_hours?: number | null;
+  geo_signal?: {
+    id: string;
+    label: string;
+  };
   articles: NewsArticle[];
 }
 
@@ -3153,11 +3208,35 @@ export interface ReporterProfile {
     source?: string;
   }>;
   topics?: string[];
+  education?: Array<Record<string, unknown>>;
   political_leaning?: string;
   leaning_confidence?: string;
   twitter_handle?: string;
   linkedin_url?: string;
   wikipedia_url?: string;
+  wikidata_qid?: string;
+  wikidata_url?: string;
+  canonical_name?: string;
+  match_status?: "matched" | "ambiguous" | "none";
+  overview?: string;
+  dossier_sections?: Array<{
+    id: string;
+    title: string;
+    status: "available" | "missing";
+    items: Array<{
+      label?: string;
+      value?: string;
+      sources?: string[];
+      notes?: string;
+    }>;
+  }>;
+  citations?: Array<{
+    label: string;
+    url?: string;
+    note?: string;
+  }>;
+  search_links?: Record<string, string>;
+  match_explanation?: string;
   research_sources?: string[];
   research_confidence?: string;
   cached: boolean;
@@ -3200,11 +3279,35 @@ export interface SourceReporterSummary {
 
 export interface SourceResearchProfile {
   name: string;
+  canonical_name?: string;
   website?: string;
   fetched_at?: string;
   cached?: boolean;
   fields: Record<string, SourceResearchValue[]>;
   key_reporters?: SourceReporterSummary[];
+  overview?: string;
+  match_status?: "matched" | "ambiguous" | "none";
+  wikipedia_url?: string;
+  wikidata_qid?: string;
+  wikidata_url?: string;
+  dossier_sections?: Array<{
+    id: string;
+    title: string;
+    status: "available" | "missing";
+    items: Array<{
+      label?: string;
+      value?: string;
+      sources?: string[];
+      notes?: string;
+    }>;
+  }>;
+  citations?: Array<{
+    label: string;
+    url?: string;
+    note?: string;
+  }>;
+  search_links?: Record<string, string>;
+  match_explanation?: string;
 }
 
 /**
@@ -3583,14 +3686,36 @@ export async function getCountryEconomicProfile(
 // Phase 6: Trending & Breaking News Detection
 // ============================================
 
+export interface GdeltTopCameo {
+  code?: string | null;
+  label?: string | null;
+  count: number;
+}
+
+export interface GdeltContext {
+  total_events: number;
+  top_cameo: GdeltTopCameo[];
+  goldstein_avg?: number | null;
+  goldstein_min?: number | null;
+  goldstein_max?: number | null;
+  goldstein_bucket?: string | null;
+  tone_avg?: number | null;
+  tone_baseline_avg?: number | null;
+  tone_delta_vs_cluster?: number | null;
+}
+
 export interface TrendingArticle {
   id: number;
   title: string;
   source: string;
+  source_id?: string | null;
   url: string;
   image_url?: string | null;
-  published_at?: string;
+  published_at?: string | null;
   summary?: string | null;
+  author?: string | null;
+  authors?: string[];
+  gdelt_context?: GdeltContext | null;
 }
 
 export interface TrendingCluster {
@@ -3604,6 +3729,7 @@ export interface TrendingCluster {
   velocity: number;
   representative_article?: TrendingArticle | null;
   articles?: TrendingArticle[];
+  gdelt_context?: GdeltContext | null;
 }
 
 export interface BreakingCluster {
@@ -3616,6 +3742,7 @@ export interface BreakingCluster {
   is_new_story: boolean;
   representative_article?: TrendingArticle | null;
   articles?: TrendingArticle[];
+  gdelt_context?: GdeltContext | null;
 }
 
 export interface TrendingResponse {
@@ -3638,16 +3765,20 @@ export interface ClusterDetail {
   first_seen?: string | null;
   last_seen?: string | null;
   is_active: boolean;
+  gdelt_context?: GdeltContext | null;
   articles: Array<{
     id: number;
     title: string;
     source: string;
-    source_id?: string;
+    source_id?: string | null;
     url: string;
     image_url?: string | null;
     published_at?: string | null;
     summary?: string | null;
     similarity: number;
+    author?: string | null;
+    authors?: string[];
+    gdelt_context?: GdeltContext | null;
   }>;
 }
 
@@ -3698,6 +3829,11 @@ export interface BlindspotCard {
     shared: number;
     pole_b: number;
   };
+  geography_signals: Array<{
+    id: string;
+    label: string;
+    count: number;
+  }>;
   representative_article?: BlindspotPreviewArticle | null;
   articles: BlindspotPreviewArticle[];
 }
@@ -3736,6 +3872,7 @@ export interface AllCluster {
   source_diversity: number;
   representative_article?: TrendingArticle | null;
   articles?: TrendingArticle[];
+  gdelt_context?: GdeltContext | null;
 }
 
 export interface AllClustersResponse {
@@ -3746,14 +3883,36 @@ export interface AllClustersResponse {
   status?: "ok" | "initializing" | string | null;
 }
 
+const GdeltTopCameoSchema = z.object({
+  code: z.string().nullable().optional(),
+  label: z.string().nullable().optional(),
+  count: z.number(),
+});
+
+const GdeltContextSchema = z.object({
+  total_events: z.number(),
+  top_cameo: z.array(GdeltTopCameoSchema).default([]),
+  goldstein_avg: z.number().nullable().optional(),
+  goldstein_min: z.number().nullable().optional(),
+  goldstein_max: z.number().nullable().optional(),
+  goldstein_bucket: z.string().nullable().optional(),
+  tone_avg: z.number().nullable().optional(),
+  tone_baseline_avg: z.number().nullable().optional(),
+  tone_delta_vs_cluster: z.number().nullable().optional(),
+});
+
 const TrendingArticleSchema = z.object({
   id: z.number(),
   title: z.string(),
   source: z.string(),
+  source_id: z.string().nullish(),
   url: z.string(),
   image_url: z.string().nullish(),
-  published_at: z.string().optional(),
+  published_at: z.string().nullish(),
   summary: z.string().nullish(),
+  author: z.string().nullable().optional(),
+  authors: z.array(z.string()).optional(),
+  gdelt_context: GdeltContextSchema.nullable().optional(),
 });
 
 const TrendingClusterSchema = z.object({
@@ -3765,8 +3924,9 @@ const TrendingClusterSchema = z.object({
   source_diversity: z.number(),
   trending_score: z.number(),
   velocity: z.number(),
-  representative_article: TrendingArticleSchema.nullable(),
-  articles: z.array(TrendingArticleSchema),
+  representative_article: TrendingArticleSchema.nullable().default(null),
+  articles: z.array(TrendingArticleSchema).default([]),
+  gdelt_context: GdeltContextSchema.nullable().default(null),
 });
 
 const BreakingClusterSchema = z.object({
@@ -3777,8 +3937,9 @@ const BreakingClusterSchema = z.object({
   source_count_3h: z.number(),
   spike_magnitude: z.number(),
   is_new_story: z.boolean(),
-  representative_article: TrendingArticleSchema.nullable(),
-  articles: z.array(TrendingArticleSchema),
+  representative_article: TrendingArticleSchema.nullable().default(null),
+  articles: z.array(TrendingArticleSchema).default([]),
+  gdelt_context: GdeltContextSchema.nullable().default(null),
 });
 
 const TrendingResponseSchema = z.object({
@@ -3800,8 +3961,9 @@ const AllClusterSchema = z.object({
   article_count: z.number(),
   window_count: z.number(),
   source_diversity: z.number(),
-  representative_article: TrendingArticleSchema.nullable(),
-  articles: z.array(TrendingArticleSchema),
+  representative_article: TrendingArticleSchema.nullable().default(null),
+  articles: z.array(TrendingArticleSchema).default([]),
+  gdelt_context: GdeltContextSchema.nullable().default(null),
 });
 
 const AllClustersResponseSchema = z.object({
@@ -3816,12 +3978,15 @@ const ClusterDetailArticleSchema = z.object({
   id: z.number(),
   title: z.string(),
   source: z.string(),
-  source_id: z.string().optional(),
+  source_id: z.string().nullish(),
   url: z.string(),
   image_url: z.string().nullish(),
   published_at: z.string().nullish(),
   summary: z.string().nullish(),
   similarity: z.number(),
+  author: z.string().nullable().optional(),
+  authors: z.array(z.string()).optional(),
+  gdelt_context: GdeltContextSchema.nullable().default(null),
 });
 
 const ClusterDetailSchema = z.object({
@@ -3833,6 +3998,7 @@ const ClusterDetailSchema = z.object({
   last_seen: z.string().nullable(),
   is_active: z.boolean(),
   articles: z.array(ClusterDetailArticleSchema),
+  gdelt_context: GdeltContextSchema.nullable().default(null),
 });
 
 const BlindspotLensSchema = z.object({
@@ -3882,6 +4048,15 @@ const BlindspotCardSchema = z.object({
     shared: z.number(),
     pole_b: z.number(),
   }),
+  geography_signals: z
+    .array(
+      z.object({
+        id: z.string(),
+        label: z.string(),
+        count: z.number(),
+      }),
+    )
+    .default([]),
   representative_article: BlindspotPreviewArticleSchema.nullable().optional(),
   articles: z.array(BlindspotPreviewArticleSchema),
 });
@@ -4381,8 +4556,8 @@ export async function fetchBulkArticleTopics(
 // Media Accountability Wiki API
 // ============================================================================
 
-export interface WikiFilterScore {
-  filter_name: string;
+export interface WikiAnalysisAxis {
+  axis_name: string;
   score: number;
   confidence?: string;
   prose_explanation?: string;
@@ -4400,7 +4575,7 @@ export interface WikiSourceCard {
   category?: string;
   parent_company?: string;
   credibility_score?: number;
-  filter_scores?: Record<string, number>;
+  analysis_scores?: Record<string, number>;
   index_status?: string;
   last_indexed_at?: string;
 }
@@ -4415,7 +4590,30 @@ export interface WikiSourceProfile {
   credibility_score?: number;
   is_state_media?: boolean;
   source_type?: string;
-  filter_scores: WikiFilterScore[];
+  overview?: string;
+  match_status?: "matched" | "ambiguous" | "none";
+  wikipedia_url?: string;
+  wikidata_qid?: string;
+  wikidata_url?: string;
+  dossier_sections: Array<{
+    id: string;
+    title: string;
+    status: "available" | "missing";
+    items: Array<{
+      label?: string;
+      value?: string;
+      sources?: string[];
+      notes?: string;
+    }>;
+  }>;
+  citations: Array<{
+    label: string;
+    url?: string;
+    note?: string;
+  }>;
+  search_links?: Record<string, string>;
+  match_explanation?: string;
+  analysis_axes: WikiAnalysisAxis[];
   reporters: Array<{
     id: number;
     name: string;
@@ -4460,6 +4658,8 @@ export interface WikiReporterCard {
   article_count: number;
   current_outlet?: string;
   wikipedia_url?: string;
+  canonical_name?: string;
+  match_status?: "matched" | "ambiguous" | "none";
   research_confidence?: string;
 }
 
@@ -4473,6 +4673,29 @@ export interface WikiReporterDossier extends WikiReporterCard {
   leaning_sources?: string[];
   twitter_handle?: string;
   linkedin_url?: string;
+  wikidata_qid?: string;
+  wikidata_url?: string;
+  canonical_name?: string;
+  match_status?: "matched" | "ambiguous" | "none";
+  overview?: string;
+  dossier_sections: Array<{
+    id: string;
+    title: string;
+    status: "available" | "missing";
+    items: Array<{
+      label?: string;
+      value?: string;
+      sources?: string[];
+      notes?: string;
+    }>;
+  }>;
+  citations: Array<{
+    label: string;
+    url?: string;
+    note?: string;
+  }>;
+  search_links?: Record<string, string>;
+  match_explanation?: string;
   source_patterns?: Record<string, unknown>;
   topics_avoided?: Record<string, unknown>;
   advertiser_alignment?: Record<string, unknown>;
@@ -4559,19 +4782,6 @@ export async function fetchWikiSource(
 ): Promise<WikiSourceProfile> {
   const response = await fetch(
     `${API_BASE_URL}/api/wiki/sources/${encodeURIComponent(sourceName)}`,
-  );
-  if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
-  return response.json();
-}
-
-/**
- * Fetch propaganda filter scores for a source
- */
-export async function fetchWikiSourceFilters(
-  sourceName: string,
-): Promise<WikiFilterScore[]> {
-  const response = await fetch(
-    `${API_BASE_URL}/api/wiki/sources/${encodeURIComponent(sourceName)}/filters`,
   );
   if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
   return response.json();
