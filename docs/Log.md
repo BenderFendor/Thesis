@@ -1,5 +1,23 @@
 # Log
 
+## 2026-03-27: Source Analysis Framework Replaces Legacy Propaganda Filters
+
+**Problem:** The wiki source-analysis feature still framed itself as a direct Chomsky/Parenti implementation even though the actual rubric had drifted. The old six-axis schema, API names, UI copy, and reporter headings no longer matched the intended method.
+
+**What Changed:**
+- Replaced the legacy `PropagandaFilterScore` model and `propaganda_scorer` service with a new `SourceAnalysisScore` model and `source_analysis_scorer` service built around five axes: `funding`, `source_network`, `political_bias`, `credibility`, and `framing_omission`.
+- Updated `backend/app/services/wiki_indexer.py` and `backend/app/api/routes/wiki.py` to persist and return the new analysis axes under `analysis_scores` and `analysis_axes`, and removed the old standalone `/api/wiki/sources/{source_name}/filters` contract.
+- Added a source-page methodology note that explains the framework as informed by Edward Said, Michael Parenti, Noam Chomsky, Edward S. Herman, Mohammed El-Kurd, and the author’s own views, while citing the hybrid annotation paper only as workflow inspiration.
+- Reworked `frontend/app/wiki/page.tsx` and `frontend/app/wiki/source/[sourceName]/page.tsx` so the wiki now presents the five-axis source-analysis model, new score labels, and new score semantics.
+- Removed the old theory branding from reporter-facing copy by renaming the reporter dossier section to `Media Systems Dossier`.
+- Refreshed `backend/openapi.json` and `frontend/lib/generated/openapi.ts` after the API rename.
+
+**Verification:**
+- `python3 -m py_compile backend/app/api/routes/wiki.py backend/app/services/wiki_indexer.py backend/app/services/source_analysis_scorer.py backend/app/database.py backend/tests/test_wiki_sources.py backend/tests/test_wiki_indexer.py backend/tests/test_propaganda_scorer.py`
+- `uv run pytest backend/tests/test_propaganda_scorer.py -q`
+- `cd frontend && npx tsc --noEmit`
+- `./verify.sh`
+
 ## 2026-03-21: Blindspot Viewer Density Pass And SemAxis Fallback
 
 **Problem:** The first blindspot viewer pass spent too much vertical space on the control deck, repeated oversized story cards, and left empty pole lanes visually dead. The `Institutional vs Populist` lens could also fail with a live `500` when Chroma embedding fetches broke.
@@ -485,3 +503,17 @@ curl http://localhost:8000/trending/diagnostics
 - Broadened bias mapping to include center-left and center-right variants, and renamed the geography blindspot from `West vs East` to `Global North vs Global South`.
 - Added backend regression tests for source-catalog fallback and updated the blindspot frontend test to match the current controls and title.
 - Verification: `backend/.venv/bin/pytest tests/test_blindspot_viewer.py -q`, `npm --prefix frontend test -- --runInBand blindspot-view.test.tsx`, and `./verify.sh` all passed.
+
+2026-03-27 — Deterministic reporter and source wiki
+- Added a new deterministic entity wiki resolver in `backend/app/services/entity_wiki_service.py` that uses Wikidata search/entity lookup, Wikipedia lead extracts, outlet/context scoring, and public-record links instead of generative synthesis for the reporter and source wiki surfaces.
+- Extended reporter persistence and API responses with resolver keys, Wikidata metadata, match status, dossier sections, citations, and fallback search links so the article detail sheet and full wiki pages can render explicit `matched`, `ambiguous`, and `none` states.
+- Switched the source preview path to a deterministic cached dossier shape and refreshed the reporter/source wiki pages and preview panels to show evidence sections, citations, and public search fallbacks.
+- Added test fixture coverage for the new reporter dossier fields and updated wiki endpoint assertions; verified Python syntax, frontend type-checking, and the article detail modal regression test.
+- Verification: `python3 -m py_compile backend/app/database.py backend/app/api/routes/entity_research.py backend/app/api/routes/wiki.py backend/app/services/entity_wiki_service.py backend/app/services/source_research.py`, `npx tsc --noEmit` in `frontend/`, `npm --prefix frontend test -- --runInBand __tests__/article-detail-modal.test.tsx`. `./verify.sh` still reports pre-existing frontend lint warnings across the repo and depends on a backend test environment that is not fully bootstrapped locally.
+
+2026-03-27 — GDELT search, article context, and geography signals
+- Added shared GDELT helpers for live `DOC 2.0` and `Context 2.0` queries plus compact CAMEO, Goldstein, tone, and geography aggregation so research, topic, and globe features can share one normalized contract.
+- Updated the research agent to keep internal-first guardrails, prefer GDELT for current-event search, fall back to DuckDuckGo when needed, and carry `source_providers` through the streamed and non-streamed research responses.
+- Enriched topic cluster payloads with nested `gdelt_context` for representative and member articles, then surfaced CAMEO, Goldstein, and tone context in the cluster detail modal.
+- Extended blindspot and country-coverage payloads with explicit geography signals so the blindspot viewer and globe sidebar can distinguish source-origin counts from country-mention counts.
+- Verification: `python3 -m py_compile backend/app/services/gdelt_taxonomy.py backend/app/services/gdelt_query.py backend/app/services/gdelt_aggregates.py backend/news_research_agent.py backend/app/api/routes/research.py backend/app/models/research.py backend/app/services/chroma_topics.py backend/app/api/routes/trending.py backend/app/services/blindspot_viewer.py backend/app/api/routes/blindspots.py backend/app/api/routes/news_by_country.py`, `npx tsc --noEmit` in `frontend/`, `npm --prefix frontend test -- --runInBand __tests__/trending-cluster-nullables.test.ts`. Backend `pytest` collection now gets past missing imports after local dependency installs, but targeted runs still hang during execution in this local environment and `uv run mypy backend/app --strict` remains broken by broader repo environment and stub issues outside this change set.

@@ -370,7 +370,7 @@ Respond in JSON format:
 
         return profile
 
-    # ── Deep dossier methods (Manufacturing Consent analysis) ──
+    # ── Deep dossier methods for media systems analysis ──
 
     async def build_deep_dossier(
         self,

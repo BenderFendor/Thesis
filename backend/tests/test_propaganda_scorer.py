@@ -1,6 +1,6 @@
-"""Unit tests for PropagandaFilterScorer.
+"""Unit tests for SourceAnalysisScorer.
 
-Tests the consolidated LLM call that scores propaganda filters and
+Tests the consolidated LLM call that scores source-analysis axes and
 optionally returns organization metadata.
 """
 
@@ -9,42 +9,35 @@ from unittest.mock import MagicMock
 
 import pytest
 
-from app.services.propaganda_scorer import (
-    PropagandaFilterScorer,
-    ScoringResult,
+from app.services.source_analysis_scorer import (
+    SourceAnalysisScorer,
+    SourceAnalysisResult,
 )
 
 
 def _mock_llm_response(include_org: bool = False) -> str:
     """Build a fake LLM JSON response."""
     data = {
-        "sourcing": {
+        "source_network": {
             "score": 3,
             "confidence": "medium",
             "prose": "Moderate reliance on official sources.",
             "citations": [],
             "empirical_basis": "Inferred from article patterns.",
         },
-        "flak": {
+        "political_bias": {
             "score": 2,
             "confidence": "medium",
-            "prose": "Relatively resilient to external pressure.",
+            "prose": "Center-right framing appears in repeated editorial choices.",
             "citations": [],
-            "empirical_basis": "Based on known editorial independence.",
+            "empirical_basis": "Based on repeated ideological cues.",
         },
-        "ideology": {
-            "score": 3,
+        "framing_omission": {
+            "score": 4,
             "confidence": "low",
-            "prose": "Center-oriented but with blind spots.",
+            "prose": "Loaded wording and selective omissions appear in coverage.",
             "citations": [],
             "empirical_basis": "General knowledge.",
-        },
-        "class_interest": {
-            "score": 4,
-            "confidence": "medium",
-            "prose": "Limited labor coverage.",
-            "citations": [],
-            "empirical_basis": "Topic frequency analysis.",
         },
     }
     if include_org:
@@ -71,9 +64,9 @@ def _make_mock_client(include_org: bool = False):
 
 
 @pytest.mark.asyncio
-class TestPropagandaFilterScorer:
+class TestSourceAnalysisScorer:
     async def test_score_source_returns_scoring_result(self):
-        scorer = PropagandaFilterScorer()
+        scorer = SourceAnalysisScorer()
         scorer.client = _make_mock_client(include_org=False)
 
         result = await scorer.score_source(
@@ -81,22 +74,21 @@ class TestPropagandaFilterScorer:
             org_data={"name": "Test", "research_confidence": "high"},
         )
 
-        assert isinstance(result, ScoringResult)
-        assert len(result.scores) == 6
-        filter_names = {s.filter_name for s in result.scores}
-        assert filter_names == {
-            "ownership",
-            "advertising",
-            "sourcing",
-            "flak",
-            "ideology",
-            "class_interest",
+        assert isinstance(result, SourceAnalysisResult)
+        assert len(result.scores) == 5
+        axis_names = {s.axis_name for s in result.scores}
+        assert axis_names == {
+            "funding",
+            "source_network",
+            "political_bias",
+            "credibility",
+            "framing_omission",
         }
         # No org_updates when confidence is high
         assert result.org_updates is None
 
     async def test_score_source_includes_org_updates_when_low_confidence(self):
-        scorer = PropagandaFilterScorer()
+        scorer = SourceAnalysisScorer()
         scorer.client = _make_mock_client(include_org=True)
 
         org_data = {
@@ -109,8 +101,8 @@ class TestPropagandaFilterScorer:
             org_data=org_data,
         )
 
-        assert isinstance(result, ScoringResult)
-        assert len(result.scores) == 6
+        assert isinstance(result, SourceAnalysisResult)
+        assert len(result.scores) == 5
         assert result.org_updates is not None
         assert result.org_updates["funding_type"] == "commercial"
         assert result.org_updates["parent_org"] == "MegaCorp"
@@ -118,7 +110,7 @@ class TestPropagandaFilterScorer:
         assert result.org_updates["factual_reporting"] == "high"
 
     async def test_prompt_includes_org_metadata_section_when_needed(self):
-        scorer = PropagandaFilterScorer()
+        scorer = SourceAnalysisScorer()
         scorer.client = _make_mock_client(include_org=True)
 
         org_data = {
@@ -136,7 +128,7 @@ class TestPropagandaFilterScorer:
         assert "funding_type" in prompt
 
     async def test_prompt_excludes_org_metadata_when_high_confidence(self):
-        scorer = PropagandaFilterScorer()
+        scorer = SourceAnalysisScorer()
         scorer.client = _make_mock_client(include_org=False)
 
         org_data = {
@@ -151,23 +143,21 @@ class TestPropagandaFilterScorer:
         assert "ORGANIZATION METADATA" not in prompt
 
     async def test_no_llm_client_returns_defaults(self):
-        scorer = PropagandaFilterScorer()
+        scorer = SourceAnalysisScorer()
         scorer.client = None
 
         result = await scorer.score_source(source_name="No Client Source")
 
-        assert isinstance(result, ScoringResult)
-        # Still gets ownership + advertising (algorithmic) + 4 defaults
-        assert len(result.scores) == 6
-        # LLM-scored filters should have default score 3
-        llm_names = {"sourcing", "flak", "ideology", "class_interest"}
+        assert isinstance(result, SourceAnalysisResult)
+        assert len(result.scores) == 5
+        llm_names = {"source_network", "political_bias", "framing_omission"}
         for s in result.scores:
-            if s.filter_name in llm_names:
+            if s.axis_name in llm_names:
                 assert s.score == 3
                 assert s.confidence == "low"
 
     async def test_malformed_llm_response_returns_defaults(self):
-        scorer = PropagandaFilterScorer()
+        scorer = SourceAnalysisScorer()
         client = MagicMock()
         message = MagicMock()
         message.content = "This is not JSON at all"
@@ -180,12 +170,12 @@ class TestPropagandaFilterScorer:
 
         result = await scorer.score_source(source_name="Bad Response Source")
 
-        assert isinstance(result, ScoringResult)
-        assert len(result.scores) == 6
+        assert isinstance(result, SourceAnalysisResult)
+        assert len(result.scores) == 5
         assert result.org_updates is None
 
     async def test_max_tokens_increases_with_org_metadata(self):
-        scorer = PropagandaFilterScorer()
+        scorer = SourceAnalysisScorer()
         scorer.client = _make_mock_client(include_org=True)
 
         org_data = {
@@ -196,10 +186,10 @@ class TestPropagandaFilterScorer:
         await scorer.score_source(source_name="Low Conf", org_data=org_data)
 
         call_args = scorer.client.chat.completions.create.call_args
-        assert call_args.kwargs["max_tokens"] == 2500
+        assert call_args.kwargs["max_tokens"] == 2200
 
     async def test_max_tokens_standard_without_org_metadata(self):
-        scorer = PropagandaFilterScorer()
+        scorer = SourceAnalysisScorer()
         scorer.client = _make_mock_client(include_org=False)
 
         org_data = {
@@ -210,10 +200,10 @@ class TestPropagandaFilterScorer:
         await scorer.score_source(source_name="High Conf", org_data=org_data)
 
         call_args = scorer.client.chat.completions.create.call_args
-        assert call_args.kwargs["max_tokens"] == 2000
+        assert call_args.kwargs["max_tokens"] == 1800
 
     async def test_scored_by_reflects_scoring_method(self):
-        scorer = PropagandaFilterScorer()
+        scorer = SourceAnalysisScorer()
         scorer.client = _make_mock_client(include_org=False)
 
         result = await scorer.score_source(
@@ -221,16 +211,15 @@ class TestPropagandaFilterScorer:
             org_data={"name": "Test", "research_confidence": "high"},
         )
 
-        by_name = {s.filter_name: s for s in result.scores}
-        assert by_name["ownership"].scored_by == "data"
-        assert by_name["advertising"].scored_by == "data"
-        assert by_name["sourcing"].scored_by == "llm"
-        assert by_name["flak"].scored_by == "llm"
-        assert by_name["ideology"].scored_by == "llm"
-        assert by_name["class_interest"].scored_by == "llm"
+        by_name = {s.axis_name: s for s in result.scores}
+        assert by_name["funding"].scored_by == "data"
+        assert by_name["credibility"].scored_by == "data"
+        assert by_name["source_network"].scored_by == "llm"
+        assert by_name["political_bias"].scored_by == "llm"
+        assert by_name["framing_omission"].scored_by == "llm"
 
     async def test_empty_llm_response_returns_defaults(self):
-        scorer = PropagandaFilterScorer()
+        scorer = SourceAnalysisScorer()
         client = MagicMock()
         message = MagicMock()
         message.content = ""
@@ -244,10 +233,10 @@ class TestPropagandaFilterScorer:
 
         result = await scorer.score_source(source_name="Empty Response Source")
 
-        assert isinstance(result, ScoringResult)
-        assert len(result.scores) == 6
-        llm_names = {"sourcing", "flak", "ideology", "class_interest"}
+        assert isinstance(result, SourceAnalysisResult)
+        assert len(result.scores) == 5
+        llm_names = {"source_network", "political_bias", "framing_omission"}
         for s in result.scores:
-            if s.filter_name in llm_names:
+            if s.axis_name in llm_names:
                 assert s.score == 3
                 assert s.confidence == "low"

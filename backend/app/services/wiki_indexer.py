@@ -3,7 +3,7 @@ Wiki Indexer - Background indexing service for the Media Accountability Wiki.
 
 Handles:
 - Seeding wiki data for all sources from rss_sources.json
-- Scoring propaganda filters for each source
+- Scoring source-analysis axes for each source
 - Re-indexing stale entries (older than 7 days)
 - Tracking index status in wiki_index_status table
 
@@ -28,7 +28,7 @@ from app.core.logging import get_logger
 from app.database import (
     AsyncSessionLocal,
     Organization,
-    PropagandaFilterScore,
+    SourceAnalysisScore,
     WikiIndexStatus,
     get_utc_now,
 )
@@ -44,8 +44,8 @@ STALE_THRESHOLD_DAYS = 7
 INDEX_DELAY_SECONDS = float(2.0)
 
 
-class _FilterScorePayload(TypedDict):
-    filter_name: str
+class _AnalysisScorePayload(TypedDict):
+    axis_name: str
     score: int
     confidence: str
     prose_explanation: str
@@ -54,20 +54,20 @@ class _FilterScorePayload(TypedDict):
     scored_by: str
 
 
-class _FilterScoreLike(Protocol):
-    filter_name: str
+class _AnalysisScoreLike(Protocol):
+    axis_name: str
     score: int
 
-    def to_dict(self) -> _FilterScorePayload: ...
+    def to_dict(self) -> _AnalysisScorePayload: ...
 
 
 class _ScoringResultLike(Protocol):
-    scores: list[_FilterScoreLike]
+    scores: list[_AnalysisScoreLike]
     org_updates: dict[str, Any] | None
 
 
 class _DisabledScoringResult:
-    scores: list[_FilterScoreLike]
+    scores: list[_AnalysisScoreLike]
     org_updates: dict[str, Any] | None
 
     def __init__(self) -> None:
@@ -75,7 +75,7 @@ class _DisabledScoringResult:
         self.org_updates = {}
 
 
-class _PropagandaScorerLike(Protocol):
+class _SourceAnalysisScorerLike(Protocol):
     async def score_source(
         self,
         source_name: str,
@@ -85,11 +85,11 @@ class _PropagandaScorerLike(Protocol):
     ) -> _ScoringResultLike: ...
 
 
-def get_propaganda_scorer() -> _PropagandaScorerLike:
-    scorer_module = import_module("app.services.propaganda_scorer")
+def get_source_analysis_scorer() -> _SourceAnalysisScorerLike:
+    scorer_module = import_module("app.services.source_analysis_scorer")
     get_scorer = cast(
-        Callable[[], _PropagandaScorerLike],
-        getattr(scorer_module, "get_propaganda_scorer"),
+        Callable[[], _SourceAnalysisScorerLike],
+        getattr(scorer_module, "get_source_analysis_scorer"),
     )
     return get_scorer()
 
@@ -151,18 +151,18 @@ async def _upsert_index_status(
     await session.commit()
 
 
-async def _save_filter_scores(
+async def _save_analysis_scores(
     session: AsyncSession,
     source_name: str,
-    scores: list[_FilterScoreLike],
+    scores: list[_AnalysisScoreLike],
 ) -> None:
-    """Persist propaganda filter scores to the database."""
+    """Persist source-analysis scores to the database."""
     for score in scores:
         score_dict = score.to_dict()
         result = await session.execute(
-            select(PropagandaFilterScore).where(
-                PropagandaFilterScore.source_name == source_name,
-                PropagandaFilterScore.filter_name == score_dict["filter_name"],
+            select(SourceAnalysisScore).where(
+                SourceAnalysisScore.source_name == source_name,
+                SourceAnalysisScore.axis_name == score_dict["axis_name"],
             )
         )
         existing = result.scalar_one_or_none()
@@ -177,9 +177,9 @@ async def _save_filter_scores(
             existing.last_scored_at = get_utc_now()
             existing.updated_at = get_utc_now()
         else:
-            entry = PropagandaFilterScore(
+            entry = SourceAnalysisScore(
                 source_name=source_name,
-                filter_name=score_dict["filter_name"],
+                axis_name=score_dict["axis_name"],
                 score=score_dict["score"],
                 confidence=score_dict["confidence"],
                 prose_explanation=score_dict["prose_explanation"],
@@ -248,15 +248,15 @@ async def index_source(
     source_config: Dict[str, Any],
     enable_llm_scoring: bool = True,
 ) -> bool:
-    """Index a single source: research org data and score propaganda filters.
+    """Index a single source: research org data and score source-analysis axes.
 
-    Uses a single LLM call to both score propaganda filters and fill org
+    Uses a single LLM call to both score source-analysis axes and fill org
     metadata gaps (when research_confidence is not "high").
 
     Args:
         source_name: Name of the source to index
         source_config: Configuration dict for the source
-        enable_llm_scoring: If False, skip LLM-based propaganda scoring (for background tasks)
+        enable_llm_scoring: If False, skip LLM-based source analysis (for background tasks)
 
     Returns True on success, False on failure.
     """
@@ -287,10 +287,10 @@ async def index_source(
             "source_type": source_config.get("category", "general"),
         }
 
-        # Score propaganda filters (LLM call) - only when explicitly enabled
+        # Score source-analysis axes (LLM call) - only when explicitly enabled
         result: _ScoringResultLike
         if enable_llm_scoring:
-            scorer = get_propaganda_scorer()
+            scorer = get_source_analysis_scorer()
             result = await scorer.score_source(
                 source_name=source_name,
                 org_data=org_data,
@@ -316,8 +316,8 @@ async def index_source(
         # Persist organization data
         await _upsert_organization(session, org_data)
 
-        # Persist filter scores (empty when LLM disabled)
-        await _save_filter_scores(session, source_name, result.scores)
+        # Persist analysis scores (empty when LLM disabled)
+        await _save_analysis_scores(session, source_name, result.scores)
 
         duration_ms = int((time.monotonic() - start) * 1000)
         await _upsert_index_status(
@@ -325,7 +325,7 @@ async def index_source(
         )
 
         scores_str = (
-            ", ".join(f"{s.filter_name}={s.score}" for s in result.scores)
+            ", ".join(f"{s.axis_name}={s.score}" for s in result.scores)
             if result.scores
             else "disabled"
         )
@@ -355,7 +355,7 @@ async def index_all_sources(
 
     Args:
         delay_seconds: Delay between indexing each source
-        enable_llm_scoring: If True, run LLM-based propaganda scoring (default for CLI)
+        enable_llm_scoring: If True, run LLM-based source analysis (default for CLI)
 
     Returns summary stats.
     """

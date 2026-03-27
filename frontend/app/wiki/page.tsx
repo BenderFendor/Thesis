@@ -17,22 +17,20 @@ import { fetchWikiSources, type WikiSourceCard } from "@/lib/api";
 
 // ── Filter Axes ─────────────────────────────────────────────────────
 
-const FILTER_AXES = [
-  "ownership",
-  "advertising",
-  "sourcing",
-  "flak",
-  "ideology",
-  "class_interest",
+const ANALYSIS_AXES = [
+  "funding",
+  "source_network",
+  "political_bias",
+  "credibility",
+  "framing_omission",
 ] as const;
 
-const FILTER_LABELS: Record<string, string> = {
-  ownership: "OWN",
-  advertising: "AD",
-  sourcing: "SRC",
-  flak: "FLK",
-  ideology: "IDO",
-  class_interest: "CLS",
+const ANALYSIS_LABELS: Record<string, string> = {
+  funding: "FND",
+  source_network: "SRC",
+  political_bias: "POL",
+  credibility: "CRD",
+  framing_omission: "FRM",
 };
 
 // ── Mini Radar ──────────────────────────────────────────────────────
@@ -50,7 +48,7 @@ function MiniRadar({ scores }: { scores: Record<string, number> | null | undefin
   const cx = size / 2;
   const cy = size / 2;
   const maxR = 26;
-  const axes = FILTER_AXES;
+  const axes = ANALYSIS_AXES;
   const n = axes.length;
 
   // Polygon points for max (ring at 5)
@@ -150,11 +148,11 @@ function countryCodeLabel(code?: string): string {
 
 function SourceCard({ source }: { source: WikiSourceCard }) {
   const avgScore = useMemo(() => {
-    if (!source.filter_scores) return null;
-    const vals = Object.values(source.filter_scores);
+    if (!source.analysis_scores) return null;
+    const vals = Object.values(source.analysis_scores);
     if (vals.length === 0) return null;
     return vals.reduce((a, b) => a + b, 0) / vals.length;
-  }, [source.filter_scores]);
+  }, [source.analysis_scores]);
 
   return (
     <Link
@@ -194,19 +192,19 @@ function SourceCard({ source }: { source: WikiSourceCard }) {
           )}
         </div>
 
-        <MiniRadar scores={source.filter_scores} />
+        <MiniRadar scores={source.analysis_scores} />
       </div>
 
-      {/* Filter score bar */}
-      {source.filter_scores && Object.keys(source.filter_scores).length > 0 && (
+      {/* Analysis score bar */}
+      {source.analysis_scores && Object.keys(source.analysis_scores).length > 0 && (
         <div className="mt-3 flex gap-1">
-          {FILTER_AXES.map((axis) => {
-            const val = source.filter_scores?.[axis];
+          {ANALYSIS_AXES.map((axis) => {
+            const val = source.analysis_scores?.[axis];
             if (val == null) return null;
             return (
               <div key={axis} className="flex-1 text-center">
                 <div className="text-[8px] font-mono text-muted-foreground uppercase tracking-wide">
-                  {FILTER_LABELS[axis]}
+                  {ANALYSIS_LABELS[axis]}
                 </div>
                 <div
                   className="text-[11px] font-mono font-medium"
@@ -317,7 +315,7 @@ export default function WikiIndexPage() {
 
   // Stats
   const indexedCount = sources.filter((s) => s.index_status === "complete").length;
-  const scoredCount = sources.filter((s) => s.filter_scores && Object.keys(s.filter_scores).length > 0).length;
+  const scoredCount = sources.filter((s) => s.analysis_scores && Object.keys(s.analysis_scores).length > 0).length;
 
   return (
     <div className="min-h-screen bg-[var(--news-bg-primary)]">
@@ -334,7 +332,7 @@ export default function WikiIndexPage() {
                 Media Accountability Wiki
               </h1>
               <p className="text-xs text-muted-foreground font-mono uppercase tracking-[0.2em]">
-                Manufacturing Consent Analysis
+                Source Analysis
               </p>
             </div>
           </div>
@@ -487,18 +485,18 @@ export default function WikiIndexPage() {
         {!loading && sources.length > 0 && (
           <div className="mt-8 border-t border-white/5 pt-6">
             <h2 className="text-[10px] font-mono uppercase tracking-[0.3em] text-muted-foreground mb-3">
-              Propaganda Filter Axes (Chomsky/Parenti)
+              Source Analysis Axes
             </h2>
-            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
-              {FILTER_AXES.map((axis) => (
+            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3">
+              {ANALYSIS_AXES.map((axis) => (
                 <div key={axis} className="text-xs">
-                  <span className="font-mono text-muted-foreground">{FILTER_LABELS[axis]}</span>
+                  <span className="font-mono text-muted-foreground">{ANALYSIS_LABELS[axis]}</span>
                   <span className="text-foreground ml-1.5 capitalize">{axis.replace("_", " ")}</span>
                 </div>
               ))}
             </div>
             <p className="text-[10px] text-muted-foreground mt-2">
-              Score 1-5. Higher = more susceptible to that propaganda filter. Red radar fill = exposure profile.
+              Score 1-5. Higher means higher structural bias or credibility risk. Red radar fill shows the source profile.
             </p>
           </div>
         )}

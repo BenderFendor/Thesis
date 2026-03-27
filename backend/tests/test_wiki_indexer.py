@@ -1,7 +1,7 @@
 """Unit tests for wiki_indexer service functions.
 
 Tests index_source, index_stale_sources, and periodic_wiki_refresh
-with mocked LLM/HTTP dependencies (funding_researcher, propaganda_scorer).
+with mocked LLM/HTTP dependencies (funding_researcher, source_analysis_scorer).
 """
 
 import asyncio
@@ -16,11 +16,14 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_asyn
 from app.database import (
     Base,
     Organization,
-    PropagandaFilterScore,
+    SourceAnalysisScore,
     WikiIndexStatus,
     get_utc_now,
 )
-from app.services.propaganda_scorer import FilterScore, ScoringResult
+from app.services.source_analysis_scorer import (
+    AnalysisAxisScore,
+    SourceAnalysisResult,
+)
 
 
 # ---------------------------------------------------------------------------
@@ -28,19 +31,18 @@ from app.services.propaganda_scorer import FilterScore, ScoringResult
 # ---------------------------------------------------------------------------
 
 
-def _make_filter_scores(source_name: str = "Test Source") -> list[FilterScore]:
-    """Build a set of mock FilterScore objects for all six axes."""
+def _make_analysis_scores(source_name: str = "Test Source") -> list[AnalysisAxisScore]:
+    """Build a set of mock AnalysisAxisScore objects for all five axes."""
     axes = [
-        "ownership",
-        "advertising",
-        "sourcing",
-        "flak",
-        "ideology",
-        "class_interest",
+        "funding",
+        "source_network",
+        "political_bias",
+        "credibility",
+        "framing_omission",
     ]
     return [
-        FilterScore(
-            filter_name=axis,
+        AnalysisAxisScore(
+            axis_name=axis,
             score=i + 1,
             confidence="high",
             prose=f"Mock explanation for {axis}.",
@@ -96,7 +98,7 @@ class TestIndexSource:
 
         mock_scorer = MagicMock()
         mock_scorer.score_source = AsyncMock(
-            return_value=ScoringResult(scores=_make_filter_scores())
+            return_value=SourceAnalysisResult(scores=_make_analysis_scores())
         )
 
         with (
@@ -108,7 +110,7 @@ class TestIndexSource:
                 return_value=mock_researcher,
             ),
             patch(
-                "app.services.wiki_indexer.get_propaganda_scorer",
+                "app.services.wiki_indexer.get_source_analysis_scorer",
                 return_value=mock_scorer,
             ),
         ):
@@ -141,7 +143,7 @@ class TestIndexSource:
 
         await engine.dispose()
 
-    async def test_persists_six_filter_scores(self, engine_and_session):
+    async def test_persists_five_analysis_scores(self, engine_and_session):
         engine, factory = await engine_and_session()
 
         mock_researcher = MagicMock()
@@ -149,7 +151,7 @@ class TestIndexSource:
 
         mock_scorer = MagicMock()
         mock_scorer.score_source = AsyncMock(
-            return_value=ScoringResult(scores=_make_filter_scores())
+            return_value=SourceAnalysisResult(scores=_make_analysis_scores())
         )
 
         with (
@@ -161,7 +163,7 @@ class TestIndexSource:
                 return_value=mock_researcher,
             ),
             patch(
-                "app.services.wiki_indexer.get_propaganda_scorer",
+                "app.services.wiki_indexer.get_source_analysis_scorer",
                 return_value=mock_scorer,
             ),
         ):
@@ -173,8 +175,8 @@ class TestIndexSource:
             scores = (
                 (
                     await session.execute(
-                        select(PropagandaFilterScore).where(
-                            PropagandaFilterScore.source_name == "Test Source"
+                        select(SourceAnalysisScore).where(
+                            SourceAnalysisScore.source_name == "Test Source"
                         )
                     )
                 )
@@ -182,15 +184,14 @@ class TestIndexSource:
                 .all()
             )
 
-            assert len(scores) == 6
-            names = {s.filter_name for s in scores}
+            assert len(scores) == 5
+            names = {s.axis_name for s in scores}
             assert names == {
-                "ownership",
-                "advertising",
-                "sourcing",
-                "flak",
-                "ideology",
-                "class_interest",
+                "funding",
+                "source_network",
+                "political_bias",
+                "credibility",
+                "framing_omission",
             }
 
         await engine.dispose()
@@ -240,16 +241,16 @@ class TestIndexSource:
         mock_researcher = MagicMock()
         mock_researcher.research_organization = AsyncMock(return_value=_mock_org_data())
 
-        scores_v1 = _make_filter_scores()
-        scores_v2 = _make_filter_scores()
+        scores_v1 = _make_analysis_scores()
+        scores_v2 = _make_analysis_scores()
         for s in scores_v2:
             s.score = 5
 
         mock_scorer = MagicMock()
         mock_scorer.score_source = AsyncMock(
             side_effect=[
-                ScoringResult(scores=scores_v1),
-                ScoringResult(scores=scores_v2),
+                SourceAnalysisResult(scores=scores_v1),
+                SourceAnalysisResult(scores=scores_v2),
             ]
         )
 
@@ -262,7 +263,7 @@ class TestIndexSource:
                 return_value=mock_researcher,
             ),
             patch(
-                "app.services.wiki_indexer.get_propaganda_scorer",
+                "app.services.wiki_indexer.get_source_analysis_scorer",
                 return_value=mock_scorer,
             ),
         ):
@@ -275,8 +276,8 @@ class TestIndexSource:
             scores = (
                 (
                     await session.execute(
-                        select(PropagandaFilterScore).where(
-                            PropagandaFilterScore.source_name == "Test Source"
+                        select(SourceAnalysisScore).where(
+                            SourceAnalysisScore.source_name == "Test Source"
                         )
                     )
                 )
@@ -284,7 +285,7 @@ class TestIndexSource:
                 .all()
             )
 
-            assert len(scores) == 6
+            assert len(scores) == 5
             assert all(s.score == 5 for s in scores)
 
         await engine.dispose()
@@ -313,8 +314,8 @@ class TestIndexSource:
         }
         mock_scorer = MagicMock()
         mock_scorer.score_source = AsyncMock(
-            return_value=ScoringResult(
-                scores=_make_filter_scores(), org_updates=org_updates
+            return_value=SourceAnalysisResult(
+                scores=_make_analysis_scores(), org_updates=org_updates
             )
         )
 
@@ -327,7 +328,7 @@ class TestIndexSource:
                 return_value=mock_researcher,
             ),
             patch(
-                "app.services.wiki_indexer.get_propaganda_scorer",
+                "app.services.wiki_indexer.get_source_analysis_scorer",
                 return_value=mock_scorer,
             ),
         ):
@@ -365,10 +366,12 @@ class TestIndexSource:
         mock_researcher = MagicMock()
         mock_researcher.research_organization = AsyncMock(return_value=high_conf_org)
 
-        # ScoringResult without org_updates (confidence was high)
+        # SourceAnalysisResult without org_updates (confidence was high)
         mock_scorer = MagicMock()
         mock_scorer.score_source = AsyncMock(
-            return_value=ScoringResult(scores=_make_filter_scores(), org_updates=None)
+            return_value=SourceAnalysisResult(
+                scores=_make_analysis_scores(), org_updates=None
+            )
         )
 
         with (
@@ -380,7 +383,7 @@ class TestIndexSource:
                 return_value=mock_researcher,
             ),
             patch(
-                "app.services.wiki_indexer.get_propaganda_scorer",
+                "app.services.wiki_indexer.get_source_analysis_scorer",
                 return_value=mock_scorer,
             ),
         ):
@@ -421,8 +424,8 @@ class TestIndexSource:
         }
         mock_scorer = MagicMock()
         mock_scorer.score_source = AsyncMock(
-            return_value=ScoringResult(
-                scores=_make_filter_scores(), org_updates=org_updates
+            return_value=SourceAnalysisResult(
+                scores=_make_analysis_scores(), org_updates=org_updates
             )
         )
 
@@ -435,7 +438,7 @@ class TestIndexSource:
                 return_value=mock_researcher,
             ),
             patch(
-                "app.services.wiki_indexer.get_propaganda_scorer",
+                "app.services.wiki_indexer.get_source_analysis_scorer",
                 return_value=mock_scorer,
             ),
         ):
@@ -479,7 +482,7 @@ class TestIndexStaleSources:
         mock_researcher.research_organization = AsyncMock(return_value=_mock_org_data())
         mock_scorer = MagicMock()
         mock_scorer.score_source = AsyncMock(
-            return_value=ScoringResult(scores=_make_filter_scores())
+            return_value=SourceAnalysisResult(scores=_make_analysis_scores())
         )
 
         with (
@@ -494,7 +497,7 @@ class TestIndexStaleSources:
                 return_value=mock_researcher,
             ),
             patch(
-                "app.services.wiki_indexer.get_propaganda_scorer",
+                "app.services.wiki_indexer.get_source_analysis_scorer",
                 return_value=mock_scorer,
             ),
         ):
@@ -532,7 +535,7 @@ class TestIndexStaleSources:
         mock_researcher.research_organization = AsyncMock(return_value=_mock_org_data())
         mock_scorer = MagicMock()
         mock_scorer.score_source = AsyncMock(
-            return_value=ScoringResult(scores=_make_filter_scores())
+            return_value=SourceAnalysisResult(scores=_make_analysis_scores())
         )
 
         with (
@@ -547,7 +550,7 @@ class TestIndexStaleSources:
                 return_value=mock_researcher,
             ),
             patch(
-                "app.services.wiki_indexer.get_propaganda_scorer",
+                "app.services.wiki_indexer.get_source_analysis_scorer",
                 return_value=mock_scorer,
             ),
         ):
@@ -734,7 +737,7 @@ class TestRssConfigFundingTypePriority:
 
         mock_scorer = MagicMock()
         mock_scorer.score_source = AsyncMock(
-            return_value=ScoringResult(scores=_make_filter_scores())
+            return_value=SourceAnalysisResult(scores=_make_analysis_scores())
         )
 
         with (
@@ -746,7 +749,7 @@ class TestRssConfigFundingTypePriority:
                 return_value=mock_researcher,
             ),
             patch(
-                "app.services.wiki_indexer.get_propaganda_scorer",
+                "app.services.wiki_indexer.get_source_analysis_scorer",
                 return_value=mock_scorer,
             ),
         ):
@@ -790,7 +793,7 @@ class TestRssConfigFundingTypePriority:
 
         mock_scorer = MagicMock()
         mock_scorer.score_source = AsyncMock(
-            return_value=ScoringResult(scores=_make_filter_scores())
+            return_value=SourceAnalysisResult(scores=_make_analysis_scores())
         )
 
         with (
@@ -802,7 +805,7 @@ class TestRssConfigFundingTypePriority:
                 return_value=mock_researcher,
             ),
             patch(
-                "app.services.wiki_indexer.get_propaganda_scorer",
+                "app.services.wiki_indexer.get_source_analysis_scorer",
                 return_value=mock_scorer,
             ),
         ):
@@ -844,7 +847,7 @@ class TestRssConfigFundingTypePriority:
 
         mock_scorer = MagicMock()
         mock_scorer.score_source = AsyncMock(
-            return_value=ScoringResult(scores=_make_filter_scores())
+            return_value=SourceAnalysisResult(scores=_make_analysis_scores())
         )
 
         with (
@@ -856,7 +859,7 @@ class TestRssConfigFundingTypePriority:
                 return_value=mock_researcher,
             ),
             patch(
-                "app.services.wiki_indexer.get_propaganda_scorer",
+                "app.services.wiki_indexer.get_source_analysis_scorer",
                 return_value=mock_scorer,
             ),
         ):
@@ -899,7 +902,7 @@ class TestRssConfigFundingTypePriority:
 
         mock_scorer = MagicMock()
         mock_scorer.score_source = AsyncMock(
-            return_value=ScoringResult(scores=_make_filter_scores())
+            return_value=SourceAnalysisResult(scores=_make_analysis_scores())
         )
 
         with (
@@ -911,7 +914,7 @@ class TestRssConfigFundingTypePriority:
                 return_value=mock_researcher,
             ),
             patch(
-                "app.services.wiki_indexer.get_propaganda_scorer",
+                "app.services.wiki_indexer.get_source_analysis_scorer",
                 return_value=mock_scorer,
             ),
         ):

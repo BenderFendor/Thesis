@@ -3,7 +3,7 @@ API routes for the Media Accountability Wiki.
 
 Provides endpoints for:
 - Source directory with filtering (country, bias, funding type)
-- Individual source wiki pages with propaganda filter scores
+- Individual source wiki pages with source-analysis scores
 - Reporter directory and profiles with deep dossiers
 - Organization ownership graph data
 - Wiki indexing status and triggers
@@ -24,12 +24,13 @@ from app.database import (
     Article,
     ArticleAuthor,
     Organization,
-    PropagandaFilterScore,
     Reporter,
+    SourceAnalysisScore,
     SourceMetadata,
     WikiIndexStatus,
     get_db,
 )
+from app.services.source_research import get_source_profile
 
 router = APIRouter(prefix="/api/wiki", tags=["wiki"])
 logger = get_logger("wiki_routes")
@@ -54,8 +55,8 @@ def _string_list(value: Any) -> List[str]:
 # ── Response Models ──────────────────────────────────────────────────
 
 
-class FilterScoreResponse(BaseModel):
-    filter_name: str
+class AnalysisAxisResponse(BaseModel):
+    axis_name: str
     score: int
     confidence: Optional[str] = None
     prose_explanation: Optional[str] = None
@@ -75,7 +76,7 @@ class SourceCardResponse(BaseModel):
     category: Optional[str] = None
     parent_company: Optional[str] = None
     credibility_score: Optional[float] = None
-    filter_scores: Optional[Dict[str, int]] = None  # {filter_name: score}
+    analysis_scores: Optional[Dict[str, int]] = None  # {axis_name: score}
     index_status: Optional[str] = None
     last_indexed_at: Optional[str] = None
 
@@ -92,9 +93,18 @@ class SourceWikiResponse(BaseModel):
     credibility_score: Optional[float] = None
     is_state_media: Optional[bool] = None
     source_type: Optional[str] = None
+    overview: Optional[str] = None
+    match_status: Optional[str] = None
+    wikipedia_url: Optional[str] = None
+    wikidata_qid: Optional[str] = None
+    wikidata_url: Optional[str] = None
+    dossier_sections: List[Dict[str, Any]] = []
+    citations: List[Dict[str, str]] = []
+    search_links: Optional[Dict[str, str]] = None
+    match_explanation: Optional[str] = None
 
-    # Propaganda filter scores
-    filter_scores: List[FilterScoreResponse] = []
+    # Source analysis scores
+    analysis_axes: List[AnalysisAxisResponse] = []
 
     # Reporters associated with this source
     reporters: List[Dict[str, Any]] = []
@@ -126,6 +136,8 @@ class ReporterCardResponse(BaseModel):
     article_count: int = 0
     current_outlet: Optional[str] = None
     wikipedia_url: Optional[str] = None
+    canonical_name: Optional[str] = None
+    match_status: Optional[str] = None
     research_confidence: Optional[str] = None
 
 
@@ -147,6 +159,15 @@ class ReporterDossierResponse(BaseModel):
     twitter_handle: Optional[str] = None
     linkedin_url: Optional[str] = None
     wikipedia_url: Optional[str] = None
+    wikidata_qid: Optional[str] = None
+    wikidata_url: Optional[str] = None
+    canonical_name: Optional[str] = None
+    match_status: Optional[str] = None
+    overview: Optional[str] = None
+    dossier_sections: List[Dict[str, Any]] = []
+    citations: List[Dict[str, str]] = []
+    search_links: Optional[Dict[str, str]] = None
+    match_explanation: Optional[str] = None
 
     # Deep dossier fields
     source_patterns: Optional[Dict[str, Any]] = None
@@ -204,16 +225,16 @@ async def list_wiki_sources(
         if base_name not in unique_sources:
             unique_sources[base_name] = config
 
-    # Load filter scores from DB
-    score_result = await db.execute(select(PropagandaFilterScore))
+    # Load analysis scores from DB
+    score_result = await db.execute(select(SourceAnalysisScore))
     all_scores = score_result.scalars().all()
     scores_by_source: Dict[str, Dict[str, int]] = {}
     for score in all_scores:
         score_source_name = _required_str(score.source_name)
-        score_filter_name = _required_str(score.filter_name)
+        score_axis_name = _required_str(score.axis_name)
         if score_source_name not in scores_by_source:
             scores_by_source[score_source_name] = {}
-        scores_by_source[score_source_name][score_filter_name] = _required_int(
+        scores_by_source[score_source_name][score_axis_name] = _required_int(
             score.score
         )
 
@@ -263,7 +284,7 @@ async def list_wiki_sources(
                 credibility_score=_optional_float(meta.credibility_score)
                 if meta
                 else None,
-                filter_scores=scores_by_source.get(name),
+                analysis_scores=scores_by_source.get(name),
                 index_status=status.status if status else "unindexed",
                 last_indexed_at=(
                     status.last_indexed_at.isoformat()
@@ -302,27 +323,43 @@ async def get_source_wiki(
 
     # Find the source config
     source_config: Optional[Dict[str, Any]] = None
+    matched_source_names: List[str] = []
     for name, config in sources.items():
         base_name = name.split(" - ")[0].strip()
         if (
             base_name.lower() == source_name.lower()
             or name.lower() == source_name.lower()
         ):
-            source_config = config
-            break
+            matched_source_names.append(name)
+            if source_config is None:
+                source_config = config
 
     if source_config is None:
         raise HTTPException(status_code=404, detail=f"Source '{source_name}' not found")
+    if not matched_source_names:
+        matched_source_names = [source_name]
 
-    # Load propaganda filter scores
+    # Load source analysis scores
     score_result = await db.execute(
-        select(PropagandaFilterScore).where(
-            PropagandaFilterScore.source_name == source_name
+        select(SourceAnalysisScore).where(
+            SourceAnalysisScore.source_name.in_(matched_source_names)
         )
     )
+    score_map: Dict[str, SourceAnalysisScore] = {}
+    for score_entry in score_result.scalars().all():
+        axis_name = _required_str(score_entry.axis_name)
+        existing_score = score_map.get(axis_name)
+        if existing_score is None or (
+            score_entry.last_scored_at
+            and (
+                existing_score.last_scored_at is None
+                or score_entry.last_scored_at > existing_score.last_scored_at
+            )
+        ):
+            score_map[axis_name] = score_entry
     scores = [
-        FilterScoreResponse(
-            filter_name=_required_str(s.filter_name),
+        AnalysisAxisResponse(
+            axis_name=_required_str(s.axis_name),
             score=_required_int(s.score),
             confidence=s.confidence,
             prose_explanation=s.prose_explanation,
@@ -331,18 +368,30 @@ async def get_source_wiki(
             scored_by=s.scored_by,
             last_scored_at=s.last_scored_at.isoformat() if s.last_scored_at else None,
         )
-        for s in score_result.scalars().all()
+        for s in score_map.values()
     ]
 
     # Load source metadata
     meta_result = await db.execute(
-        select(SourceMetadata).where(SourceMetadata.source_name == source_name)
+        select(SourceMetadata).where(
+            SourceMetadata.source_name.in_(matched_source_names)
+        )
     )
-    meta = meta_result.scalar_one_or_none()
+    metadata_entries = meta_result.scalars().all()
+    meta = next(
+        (
+            entry
+            for entry in metadata_entries
+            if _required_str(entry.source_name).lower() == source_name.lower()
+        ),
+        metadata_entries[0] if metadata_entries else None,
+    )
 
     # Count articles from this source
     article_count_result = await db.execute(
-        select(func.count()).select_from(Article).where(Article.source == source_name)
+        select(func.count())
+        .select_from(Article)
+        .where(Article.source.in_(matched_source_names))
     )
     article_count = article_count_result.scalar_one() or 0
 
@@ -357,7 +406,7 @@ async def get_source_wiki(
         )
         .join(ArticleAuthor, ArticleAuthor.reporter_id == Reporter.id)
         .join(Article, Article.id == ArticleAuthor.article_id)
-        .where(Article.source == source_name)
+        .where(Article.source.in_(matched_source_names))
         .distinct()
         .limit(50)
     )
@@ -395,15 +444,47 @@ async def get_source_wiki(
             "wikipedia_url": org.wikipedia_url,
             "research_confidence": org.research_confidence,
         }
+    source_profile = None
+    for profile_source_name in [source_name, *matched_source_names]:
+        try:
+            source_profile = await get_source_profile(
+                source_name=profile_source_name,
+                website=None,
+                force_refresh=False,
+                cache_only=True,
+            )
+        except Exception:
+            source_profile = None
+        if source_profile is not None:
+            break
 
     # Load index status
     status_result = await db.execute(
         select(WikiIndexStatus).where(
             WikiIndexStatus.entity_type == "source",
-            WikiIndexStatus.entity_name == source_name,
+            WikiIndexStatus.entity_name.in_(matched_source_names),
         )
     )
-    status = status_result.scalar_one_or_none()
+    status_entries = status_result.scalars().all()
+    status = next(
+        (
+            entry
+            for entry in status_entries
+            if _required_str(entry.entity_name).lower() == source_name.lower()
+        ),
+        None,
+    )
+    if status is None and status_entries:
+        status_order = {"complete": 0, "pending": 1, "failed": 2, "unindexed": 3}
+        status = min(
+            status_entries,
+            key=lambda entry: (
+                status_order.get(_required_str(entry.status), 99),
+                -entry.last_indexed_at.timestamp()
+                if entry.last_indexed_at
+                else float("inf"),
+            ),
+        )
 
     return SourceWikiResponse(
         name=source_name,
@@ -415,7 +496,24 @@ async def get_source_wiki(
         credibility_score=_optional_float(meta.credibility_score) if meta else None,
         is_state_media=meta.is_state_media if meta else None,
         source_type=meta.source_type if meta else None,
-        filter_scores=scores,
+        overview=cast(Optional[str], (source_profile or {}).get("overview")),
+        match_status=cast(Optional[str], (source_profile or {}).get("match_status")),
+        wikipedia_url=cast(Optional[str], (source_profile or {}).get("wikipedia_url")),
+        wikidata_qid=cast(Optional[str], (source_profile or {}).get("wikidata_qid")),
+        wikidata_url=cast(Optional[str], (source_profile or {}).get("wikidata_url")),
+        dossier_sections=cast(
+            List[Dict[str, Any]], (source_profile or {}).get("dossier_sections") or []
+        ),
+        citations=cast(
+            List[Dict[str, str]], (source_profile or {}).get("citations") or []
+        ),
+        search_links=cast(
+            Optional[Dict[str, str]], (source_profile or {}).get("search_links")
+        ),
+        match_explanation=cast(
+            Optional[str], (source_profile or {}).get("match_explanation")
+        ),
+        analysis_axes=scores,
         reporters=reporters,
         organization=org_data,
         article_count=article_count,
@@ -428,38 +526,6 @@ async def get_source_wiki(
             else None
         ),
     )
-
-
-@router.get("/sources/{source_name}/filters", response_model=List[FilterScoreResponse])
-async def get_source_filters(
-    source_name: str,
-    db: AsyncSession = Depends(get_db),
-) -> List[FilterScoreResponse]:
-    """Get propaganda filter scores for a source."""
-    result = await db.execute(
-        select(PropagandaFilterScore).where(
-            PropagandaFilterScore.source_name == source_name
-        )
-    )
-    scores = result.scalars().all()
-    if not scores:
-        raise HTTPException(
-            status_code=404,
-            detail=f"No filter scores found for '{source_name}'. Source may not be indexed yet.",
-        )
-    return [
-        FilterScoreResponse(
-            filter_name=_required_str(s.filter_name),
-            score=_required_int(s.score),
-            confidence=s.confidence,
-            prose_explanation=s.prose_explanation,
-            citations=cast(Optional[List[Dict[str, str]]], s.citations),
-            empirical_basis=s.empirical_basis,
-            scored_by=s.scored_by,
-            last_scored_at=s.last_scored_at.isoformat() if s.last_scored_at else None,
-        )
-        for s in scores
-    ]
 
 
 @router.get("/sources/{source_name}/reporters")
@@ -490,6 +556,8 @@ async def get_source_reporters(
             article_count=r.article_count or 0,
             current_outlet=source_name,
             wikipedia_url=r.wikipedia_url,
+            canonical_name=r.canonical_name,
+            match_status=r.match_status,
             research_confidence=r.research_confidence,
         )
         for r in reporters
@@ -531,6 +599,8 @@ async def list_wiki_reporters(
             political_leaning=r.political_leaning,
             leaning_confidence=r.leaning_confidence,
             article_count=r.article_count or 0,
+            canonical_name=r.canonical_name,
+            match_status=r.match_status,
             wikipedia_url=r.wikipedia_url,
             research_confidence=r.research_confidence,
         )
@@ -584,6 +654,15 @@ async def get_reporter_dossier(
         twitter_handle=reporter.twitter_handle,
         linkedin_url=reporter.linkedin_url,
         wikipedia_url=reporter.wikipedia_url,
+        wikidata_qid=reporter.wikidata_qid,
+        wikidata_url=reporter.wikidata_url,
+        canonical_name=reporter.canonical_name,
+        match_status=reporter.match_status,
+        overview=reporter.overview,
+        dossier_sections=cast(List[Dict[str, Any]], reporter.dossier_sections or []),
+        citations=cast(List[Dict[str, str]], reporter.citations or []),
+        search_links=cast(Optional[Dict[str, str]], reporter.search_links),
+        match_explanation=reporter.match_explanation,
         source_patterns=reporter.source_patterns,
         topics_avoided=reporter.topics_avoided,
         advertiser_alignment=reporter.advertiser_alignment,

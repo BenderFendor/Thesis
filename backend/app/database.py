@@ -332,8 +332,18 @@ class Reporter(Base):
     twitter_handle = Column(String)
     linkedin_url = Column(String)
     wikipedia_url = Column(String)
+    wikidata_qid = Column(String, index=True)
+    wikidata_url = Column(String)
+    canonical_name = Column(String)
+    resolver_key = Column(String, index=True)
+    match_status = Column(String, default="none")
+    overview = Column(Text)
+    dossier_sections = Column(JSON)
+    citations = Column(JSON)
+    search_links = Column(JSON)
+    match_explanation = Column(Text)
 
-    # Deep dossier fields (Manufacturing Consent analysis)
+    # Deep dossier fields for reporter media systems analysis
     source_patterns = Column(JSON)  # {official: int, grassroots: int, analysis: str}
     topics_avoided = Column(JSON)  # Topics the reporter systematically skips
     advertiser_alignment = Column(JSON)  # Overlap between beat and owner/ad interests
@@ -660,21 +670,16 @@ class VerificationCache(Base):
 # Phase 9: Media Accountability Wiki Tables
 
 
-class PropagandaFilterScore(Base):
-    """Stores Chomsky/Parenti propaganda filter scores per source.
+class SourceAnalysisScore(Base):
+    """Stores source-analysis scores per source."""
 
-    Six axes: ownership, advertising, sourcing, flak, ideology (Chomsky)
-    and class_interest (Parenti). Each scored 1-5 with prose reasoning
-    and cited evidence.
-    """
-
-    __tablename__ = "propaganda_filter_scores"
+    __tablename__ = "source_analysis_scores"
 
     id = Column(Integer, primary_key=True, index=True)
     source_name = Column(String, nullable=False, index=True)
-    filter_name = Column(
+    axis_name = Column(
         String, nullable=False
-    )  # ownership, advertising, sourcing, flak, ideology, class_interest
+    )  # funding, source_network, political_bias, credibility, framing_omission
 
     score = Column(Integer, nullable=False)  # 1-5
     confidence = Column(String)  # high, medium, low
@@ -690,9 +695,9 @@ class PropagandaFilterScore(Base):
 
     __table_args__ = (
         Index(
-            "ix_propaganda_filter_source_filter",
+            "ix_source_analysis_source_axis",
             "source_name",
-            "filter_name",
+            "axis_name",
             unique=True,
         ),
     )
@@ -874,6 +879,20 @@ async def init_db() -> None:
             async with db_engine.begin() as new_conn:
                 await _do(new_conn)
 
+    async def _drop_legacy_analysis_tables(
+        conn: AsyncConnection | None = None,
+    ) -> None:
+        async def _do(c: AsyncConnection) -> None:
+            await c.execute(
+                sqlalchemy_text("DROP TABLE IF EXISTS propaganda_filter_scores")
+            )
+
+        if conn is not None:
+            await _do(conn)
+        else:
+            async with db_engine.begin() as new_conn:
+                await _do(new_conn)
+
     def _iter_exception_chain(exc: BaseException) -> Iterator[BaseException]:
         current: BaseException | None = exc
         seen: set[int] = set()
@@ -933,6 +952,7 @@ async def init_db() -> None:
         try:
             async with db_engine.begin() as conn:
                 await conn.run_sync(Base.metadata.create_all)
+                await _drop_legacy_analysis_tables(conn)
                 logger.info("Database tables initialized successfully")
                 await _add_missing_columns(conn)
                 await _ensure_search_indexes(conn)
@@ -944,6 +964,7 @@ async def init_db() -> None:
             if _is_already_exists_error(exc):
                 logger.info("Database objects already exist, continuing startup")
                 await _create_missing_tables()
+                await _drop_legacy_analysis_tables()
                 await _add_missing_columns()
                 await _ensure_search_indexes()
                 return

@@ -46,14 +46,14 @@ class TestListWikiSources:
         data = resp.json()
         assert any(s["name"] == "Test News" for s in data)
 
-    async def test_includes_filter_scores(self, client: AsyncClient):
+    async def test_includes_analysis_scores(self, client: AsyncClient):
         resp = await client.get("/api/wiki/sources?limit=500")
         assert resp.status_code == 200
         data = resp.json()
         test_news = next(s for s in data if s["name"] == "Test News")
-        assert test_news["filter_scores"] is not None
-        assert "ownership" in test_news["filter_scores"]
-        assert test_news["filter_scores"]["ownership"] == 1
+        assert test_news["analysis_scores"] is not None
+        assert "funding" in test_news["analysis_scores"]
+        assert test_news["analysis_scores"]["funding"] == 1
 
     async def test_includes_index_status(self, client: AsyncClient):
         resp = await client.get("/api/wiki/sources?limit=500")
@@ -102,32 +102,31 @@ class TestGetSourceWiki:
         assert data["country"] == "US"
         assert data["funding_type"] == "commercial"
         assert data["bias_rating"] == "center"
+        assert "dossier_sections" in data
+        assert "citations" in data
 
-    async def test_includes_filter_scores_array(self, client: AsyncClient):
+    async def test_includes_analysis_axes_array(self, client: AsyncClient):
         resp = await client.get("/api/wiki/sources/Test%20News")
         assert resp.status_code == 200
         data = resp.json()
-        assert isinstance(data["filter_scores"], list)
-        assert len(data["filter_scores"]) == 6
-        names = {s["filter_name"] for s in data["filter_scores"]}
+        assert isinstance(data["analysis_axes"], list)
+        assert len(data["analysis_axes"]) == 5
+        names = {s["axis_name"] for s in data["analysis_axes"]}
         assert names == {
-            "ownership",
-            "advertising",
-            "sourcing",
-            "flak",
-            "ideology",
-            "class_interest",
+            "funding",
+            "source_network",
+            "political_bias",
+            "credibility",
+            "framing_omission",
         }
 
-    async def test_filter_score_has_prose(self, client: AsyncClient):
+    async def test_analysis_axis_has_prose(self, client: AsyncClient):
         resp = await client.get("/api/wiki/sources/Test%20News")
         data = resp.json()
-        score = next(
-            s for s in data["filter_scores"] if s["filter_name"] == "ownership"
-        )
+        score = next(s for s in data["analysis_axes"] if s["axis_name"] == "funding")
         assert score["score"] == 1
         assert score["confidence"] == "high"
-        assert "ownership" in score["prose_explanation"]
+        assert "funding" in score["prose_explanation"].lower()
 
     async def test_includes_reporters(self, client: AsyncClient):
         resp = await client.get("/api/wiki/sources/Test%20News")
@@ -168,24 +167,7 @@ class TestGetSourceWiki:
         assert data["name"] == "State Gazette"
         assert data["parent_company"] is None
         assert data["credibility_score"] is None
-        assert data["filter_scores"] == []
-
-
-@pytest.mark.asyncio
-class TestGetSourceFilters:
-    """GET /api/wiki/sources/{source_name}/filters"""
-
-    async def test_returns_filter_scores(self, client: AsyncClient):
-        resp = await client.get("/api/wiki/sources/Test%20News/filters")
-        assert resp.status_code == 200
-        data = resp.json()
-        assert isinstance(data, list)
-        assert len(data) == 6
-
-    async def test_unknown_source_returns_404(self, client: AsyncClient):
-        resp = await client.get("/api/wiki/sources/Nonexistent/filters")
-        assert resp.status_code == 404
-        assert "no filter scores found" in resp.json()["detail"].lower()
+        assert data["analysis_axes"] == []
 
 
 @pytest.mark.asyncio

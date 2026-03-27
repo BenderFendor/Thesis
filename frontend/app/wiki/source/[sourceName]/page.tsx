@@ -32,45 +32,41 @@ import {
   fetchWikiSource,
   triggerWikiIndex,
   type WikiSourceProfile,
-  type WikiFilterScore,
+  type WikiAnalysisAxis,
 } from "@/lib/api";
 
 // ── Constants ────────────────────────────────────────────────────────
 
-const FILTER_META: Record<string, { label: string; icon: React.ReactNode; description: string }> = {
-  ownership: {
-    label: "Ownership",
-    icon: <Building2 className="w-4 h-4" />,
-    description: "Corporate concentration and conglomerate ownership depth.",
-  },
-  advertising: {
-    label: "Advertising",
+const ANALYSIS_META: Record<string, { label: string; icon: React.ReactNode; description: string }> = {
+  funding: {
+    label: "Funding",
     icon: <Megaphone className="w-4 h-4" />,
-    description: "Dependency on advertising revenue and advertiser influence.",
+    description: "Who funds the outlet and what structural pressure that creates.",
   },
-  sourcing: {
-    label: "Sourcing",
+  source_network: {
+    label: "Source Network",
     icon: <Users className="w-4 h-4" />,
-    description: "Reliance on official/institutional vs grassroots/independent sources.",
+    description: "Where reporting comes from, including official, local, expert, and diaspora sources.",
   },
-  flak: {
-    label: "Flak",
-    icon: <AlertTriangle className="w-4 h-4" />,
-    description: "Vulnerability to organized pressure campaigns and criticism machinery.",
-  },
-  ideology: {
-    label: "Ideology",
-    icon: <Eye className="w-4 h-4" />,
-    description: "Rigidity of ideological framing and narrative constraints.",
-  },
-  class_interest: {
-    label: "Class Interest",
+  political_bias: {
+    label: "Political Bias",
     icon: <Scale className="w-4 h-4" />,
-    description: "Coverage patterns around labor, inequality, and corporate power (Parenti).",
+    description: "Recurring ideological or partisan orientation in the outlet's coverage.",
+  },
+  credibility: {
+    label: "Credibility",
+    icon: <AlertTriangle className="w-4 h-4" />,
+    description: "Reliability, correction discipline, and factual track record.",
+  },
+  framing_omission: {
+    label: "Framing / Omission",
+    icon: <Eye className="w-4 h-4" />,
+    description: "Loaded language, selective emphasis, euphemism, and omission patterns.",
   },
 };
 
-const FILTER_ORDER = ["ownership", "advertising", "sourcing", "flak", "ideology", "class_interest"];
+const ANALYSIS_ORDER = ["funding", "source_network", "political_bias", "credibility", "framing_omission"] as const;
+const METHODOLOGY_PAPER_URL = "https://arxiv.org/abs/2507.18343";
 
 // ── Helpers ──────────────────────────────────────────────────────────
 
@@ -105,12 +101,51 @@ function countryCodeLabel(code?: string): string {
   return code.toUpperCase();
 }
 
+function renderEvidenceSections(
+  sections: Array<{
+    id: string;
+    title: string;
+    status: "available" | "missing";
+    items: Array<{ label?: string; value?: string }>;
+  }>
+) {
+  if (!sections || sections.length === 0) return null;
+  return (
+    <div className="space-y-3">
+      {sections.map((section) => (
+        <div
+          key={section.id}
+          className={`border p-4 ${section.items.length > 0 ? "border-white/10 bg-zinc-950/50" : "border-white/10 bg-muted/20 opacity-70 grayscale"}`}
+        >
+          <h2 className="text-[10px] font-mono uppercase tracking-[0.3em] text-muted-foreground">
+            {section.title}
+          </h2>
+          {section.items.length > 0 ? (
+            <div className="mt-3 space-y-3">
+              {section.items.slice(0, 6).map((item, index) => (
+                <div key={`${section.id}-${index}`}>
+                  <p className="text-[10px] font-mono uppercase tracking-wider text-muted-foreground">
+                    {item.label || "Fact"}
+                  </p>
+                  <p className="mt-1 text-sm text-foreground/90 break-words">{item.value}</p>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <p className="mt-3 text-xs text-muted-foreground">No public record found.</p>
+          )}
+        </div>
+      ))}
+    </div>
+  );
+}
+
 // ── Filter Score Card ────────────────────────────────────────────────
 
-function FilterScoreCard({ score }: { score: WikiFilterScore }) {
+function AnalysisAxisCard({ score }: { score: WikiAnalysisAxis }) {
   const [expanded, setExpanded] = useState(false);
-  const meta = FILTER_META[score.filter_name] || {
-    label: score.filter_name,
+  const meta = ANALYSIS_META[score.axis_name] || {
+    label: score.axis_name,
     icon: <FileText className="w-4 h-4" />,
     description: "",
   };
@@ -244,11 +279,11 @@ export default function SourceWikiPage() {
 
   // Radar chart data
   const radarData = useMemo(() => {
-    if (!data?.filter_scores) return [];
-    return FILTER_ORDER.map((axis) => {
-      const score = data.filter_scores.find((s) => s.filter_name === axis);
+    if (!data?.analysis_axes) return [];
+    return ANALYSIS_ORDER.map((axis) => {
+      const score = data.analysis_axes.find((s) => s.axis_name === axis);
       return {
-        axis: FILTER_META[axis]?.label || axis,
+        axis: ANALYSIS_META[axis]?.label || axis,
         value: score?.score || 0,
         fullMark: 5,
       };
@@ -256,8 +291,8 @@ export default function SourceWikiPage() {
   }, [data]);
 
   const avgScore = useMemo(() => {
-    if (!data?.filter_scores || data.filter_scores.length === 0) return null;
-    return data.filter_scores.reduce((sum, s) => sum + s.score, 0) / data.filter_scores.length;
+    if (!data?.analysis_axes || data.analysis_axes.length === 0) return null;
+    return data.analysis_axes.reduce((sum, s) => sum + s.score, 0) / data.analysis_axes.length;
   }, [data]);
 
   async function handleTriggerIndex() {
@@ -316,6 +351,11 @@ export default function SourceWikiPage() {
                 {data.name}
               </h1>
               <div className="flex items-center gap-2 mt-0.5">
+                {data.match_status && (
+                  <span className="px-1.5 py-0.5 text-[10px] font-mono uppercase tracking-wider border border-white/10 bg-zinc-900/60 text-muted-foreground">
+                    {data.match_status}
+                  </span>
+                )}
                 {data.bias_rating && (
                   <span className={`px-1.5 py-0.5 text-[10px] font-mono uppercase tracking-wider border ${biasBadgeClass(data.bias_rating)}`}>
                     {data.bias_rating}
@@ -355,12 +395,63 @@ export default function SourceWikiPage() {
       </header>
 
       <main className="container mx-auto px-4 py-6 space-y-8">
+        {(data.overview || data.match_explanation) && (
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+            {data.overview && (
+              <div className="border border-white/10 bg-zinc-950/50 p-4">
+                <h2 className="text-[10px] font-mono uppercase tracking-[0.3em] text-muted-foreground mb-2">
+                  Overview
+                </h2>
+                <p className="text-sm text-foreground/90 leading-relaxed">{data.overview}</p>
+              </div>
+            )}
+            {data.match_explanation && (
+              <div className="border border-white/10 bg-muted/10 p-4">
+                <h2 className="text-[10px] font-mono uppercase tracking-[0.3em] text-muted-foreground mb-2">
+                  Method
+                </h2>
+                <p className="text-sm text-muted-foreground leading-relaxed">{data.match_explanation}</p>
+              </div>
+            )}
+          </div>
+        )}
+
+        {renderEvidenceSections(data.dossier_sections)}
+
+        <section className="border border-white/10 bg-zinc-950/50 p-4">
+          <h2 className="text-[10px] font-mono uppercase tracking-[0.3em] text-muted-foreground mb-3">
+            Methodology Note
+          </h2>
+          <div className="space-y-3 text-sm text-foreground/90 leading-relaxed">
+            <p>
+              This source analysis framework draws on ideas about media bias from
+              Edward Said, Michael Parenti, Noam Chomsky, Edward S. Herman,
+              Mohammed El-Kurd, and the author&apos;s own views on how media bias works.
+              It is not a 1:1 implementation of any single thinker.
+            </p>
+            <p className="text-muted-foreground">
+              The workflow also borrows from hybrid human-plus-LLM annotation work.
+              The paper used here as a methodological reference is{" "}
+              <a
+                href={METHODOLOGY_PAPER_URL}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-blue-400 hover:text-blue-300 underline underline-offset-2"
+              >
+                Hybrid Annotation for Propaganda Detection: Integrating LLM
+                Pre-Annotations with Human Intelligence
+              </a>
+              , used as process inspiration rather than as the basis of this rubric.
+            </p>
+          </div>
+        </section>
+
         {/* Top section: Radar + Quick Stats */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
           {/* Radar Chart */}
           <div className="border border-white/10 bg-zinc-950/50 p-6">
             <h2 className="text-[10px] font-mono uppercase tracking-[0.3em] text-muted-foreground mb-4">
-              Propaganda Filter Profile
+              Source Analysis Profile
             </h2>
             {radarData.length > 0 ? (
               <div className="flex flex-col items-center">
@@ -398,7 +489,7 @@ export default function SourceWikiPage() {
                 {avgScore != null && (
                   <div className="text-center mt-2">
                     <span className="text-[10px] font-mono uppercase tracking-wider text-muted-foreground">
-                      Avg Score:{" "}
+                      Avg Risk:{" "}
                     </span>
                     <span
                       className="font-mono font-bold text-lg"
@@ -412,7 +503,7 @@ export default function SourceWikiPage() {
               </div>
             ) : (
               <div className="flex items-center justify-center h-64 text-muted-foreground text-sm">
-                Source not yet indexed. Click &quot;Index Source&quot; to generate scores.
+                Source not yet indexed. Click &quot;Index Source&quot; to generate analysis.
               </div>
             )}
           </div>
@@ -542,18 +633,18 @@ export default function SourceWikiPage() {
           </div>
         </div>
 
-        {/* Propaganda Filter Scores */}
-        {data.filter_scores.length > 0 && (
+        {/* Source Analysis Scores */}
+        {data.analysis_axes.length > 0 && (
           <section>
             <h2 className="text-[10px] font-mono uppercase tracking-[0.3em] text-muted-foreground mb-4 flex items-center gap-2">
               <BarChart3 className="w-4 h-4" />
-              Manufacturing Consent Filter Analysis
+              Source Analysis Axes
             </h2>
             <div className="space-y-2">
-              {FILTER_ORDER.map((axis) => {
-                const score = data.filter_scores.find((s) => s.filter_name === axis);
+              {ANALYSIS_ORDER.map((axis) => {
+                const score = data.analysis_axes.find((s) => s.axis_name === axis);
                 if (!score) return null;
-                return <FilterScoreCard key={axis} score={score} />;
+                return <AnalysisAxisCard key={axis} score={score} />;
               })}
             </div>
           </section>
@@ -626,6 +717,27 @@ export default function SourceWikiPage() {
           </section>
         )}
 
+        {data.citations.length > 0 && (
+          <section>
+            <h2 className="text-[10px] font-mono uppercase tracking-[0.3em] text-muted-foreground mb-4 flex items-center gap-2">
+              <FileText className="w-4 h-4" />
+              Public Sources
+            </h2>
+            <div className="space-y-2">
+              {data.citations.map((citation, index) => (
+                <div key={`${citation.label}-${index}`} className="text-sm text-muted-foreground">
+                  {citation.url ? (
+                    <a href={citation.url} target="_blank" rel="noopener noreferrer" className="text-blue-400 hover:text-blue-300">
+                      {citation.label}
+                    </a>
+                  ) : citation.label}
+                  {citation.note ? ` · ${citation.note}` : ""}
+                </div>
+              ))}
+            </div>
+          </section>
+        )}
+
         {/* Footer meta */}
         <footer className="border-t border-white/5 pt-4 text-[10px] text-muted-foreground font-mono">
           <div className="flex items-center gap-4">
@@ -635,8 +747,8 @@ export default function SourceWikiPage() {
             )}
           </div>
           <p className="mt-1">
-            Scores based on Chomsky&apos;s 5 propaganda filters + Parenti&apos;s class interest analysis.
-            Higher score = more susceptible. Click each filter to expand analysis.
+            Scores run from 1 to 5. Higher means higher structural bias or credibility risk.
+            Click each axis to expand the analysis and evidence.
           </p>
         </footer>
       </main>

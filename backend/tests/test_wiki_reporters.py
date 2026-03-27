@@ -65,10 +65,14 @@ class TestGetReporterDossier:
         assert resp.status_code == 200
         data = resp.json()
         assert data["name"] == "Jane Doe"
+        assert data["canonical_name"] == "Jane Doe"
+        assert data["match_status"] == "matched"
         assert data["bio"] == "Veteran journalist covering politics."
         assert data["political_leaning"] == "center-left"
         assert data["leaning_confidence"] == "high"
         assert data["article_count"] == 42
+        assert data["wikidata_qid"] == "Q100"
+        assert data["citations"][0]["label"] == "Wikipedia lead"
 
     async def test_includes_career_history(self, client: AsyncClient):
         resp = await client.get("/api/wiki/reporters/1")
