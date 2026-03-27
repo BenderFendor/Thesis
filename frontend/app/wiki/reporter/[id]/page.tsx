@@ -96,6 +96,45 @@ function renderJsonSection(data: Record<string, unknown> | undefined): React.Rea
   );
 }
 
+function renderEvidenceSections(
+  sections: Array<{
+    id: string;
+    title: string;
+    status: "available" | "missing";
+    items: Array<{ label?: string; value?: string; sources?: string[] }>;
+  }>
+): React.ReactNode {
+  if (!sections || sections.length === 0) return null;
+  return (
+    <div className="space-y-3">
+      {sections.map((section) => (
+        <div
+          key={section.id}
+          className={`border p-4 ${section.items.length > 0 ? "border-white/10 bg-zinc-950/50" : "border-white/10 bg-muted/20 opacity-70 grayscale"}`}
+        >
+          <h2 className="text-[10px] font-mono uppercase tracking-[0.3em] text-muted-foreground">
+            {section.title}
+          </h2>
+          {section.items.length > 0 ? (
+            <div className="mt-3 space-y-3">
+              {section.items.slice(0, 6).map((item, index) => (
+                <div key={`${section.id}-${index}`}>
+                  <p className="text-[10px] font-mono uppercase tracking-wider text-muted-foreground">
+                    {item.label || "Fact"}
+                  </p>
+                  <p className="mt-1 text-sm text-foreground/90">{item.value}</p>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <p className="mt-3 text-xs text-muted-foreground">No public record found.</p>
+          )}
+        </div>
+      ))}
+    </div>
+  );
+}
+
 // ── Main Page ────────────────────────────────────────────────────────
 
 export default function ReporterProfilePage() {
@@ -149,8 +188,13 @@ export default function ReporterProfilePage() {
               <ChevronLeft className="w-5 h-5" />
             </Link>
             <div>
-              <h1 className="font-serif text-xl font-semibold">{data.name}</h1>
+              <h1 className="font-serif text-xl font-semibold">{data.canonical_name || data.name}</h1>
               <div className="flex items-center gap-2 mt-0.5">
+                {data.match_status && (
+                  <span className="px-1.5 py-0.5 text-[10px] font-mono uppercase tracking-wider border border-white/10 bg-zinc-900/60 text-muted-foreground">
+                    {data.match_status}
+                  </span>
+                )}
                 {data.political_leaning && (
                   <span className={`px-1.5 py-0.5 text-[10px] font-mono uppercase tracking-wider border ${leaningBadgeClass(data.political_leaning)}`}>
                     {data.political_leaning}
@@ -201,14 +245,25 @@ export default function ReporterProfilePage() {
 
       <main className="container mx-auto px-4 py-6 space-y-4 max-w-4xl">
         {/* Bio */}
-        {data.bio && (
+        {(data.overview || data.bio) && (
           <div className="border border-white/10 bg-zinc-950/50 p-4">
             <h2 className="text-[10px] font-mono uppercase tracking-[0.3em] text-muted-foreground mb-2">
               Biography
             </h2>
-            <p className="text-sm text-foreground/90 leading-relaxed">{data.bio}</p>
+            <p className="text-sm text-foreground/90 leading-relaxed">{data.overview || data.bio}</p>
           </div>
         )}
+
+        {data.match_explanation && (
+          <div className="border border-white/10 bg-muted/10 p-4">
+            <h2 className="text-[10px] font-mono uppercase tracking-[0.3em] text-muted-foreground mb-2">
+              Match Method
+            </h2>
+            <p className="text-sm text-muted-foreground leading-relaxed">{data.match_explanation}</p>
+          </div>
+        )}
+
+        {renderEvidenceSections(data.dossier_sections || [])}
 
         {/* Quick stats */}
         <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
@@ -279,11 +334,11 @@ export default function ReporterProfilePage() {
           </DossierSection>
         )}
 
-        {/* Manufacturing Consent Analysis Sections */}
+        {/* Media systems analysis sections */}
         <div className="pt-4">
           <h2 className="text-[10px] font-mono uppercase tracking-[0.3em] text-muted-foreground mb-4 flex items-center gap-2">
             <BookOpen className="w-4 h-4" />
-            Manufacturing Consent Dossier
+            Media Systems Dossier
           </h2>
         </div>
 
@@ -383,6 +438,26 @@ export default function ReporterProfilePage() {
         )}
 
         {/* Research sources */}
+        {(data.citations && data.citations.length > 0) && (
+          <footer className="border-t border-white/5 pt-4 mt-6">
+            <h3 className="text-[10px] font-mono uppercase tracking-[0.2em] text-muted-foreground mb-1">
+              Citations
+            </h3>
+            <div className="space-y-1">
+              {data.citations.map((citation, index) => (
+                <div key={`${citation.label}-${index}`} className="text-xs text-muted-foreground">
+                  {citation.url ? (
+                    <a href={citation.url} target="_blank" rel="noopener noreferrer" className="text-blue-400 hover:text-blue-300">
+                      {citation.label}
+                    </a>
+                  ) : citation.label}
+                  {citation.note ? ` · ${citation.note}` : ""}
+                </div>
+              ))}
+            </div>
+          </footer>
+        )}
+
         {data.research_sources && data.research_sources.length > 0 && (
           <footer className="border-t border-white/5 pt-4 mt-6">
             <h3 className="text-[10px] font-mono uppercase tracking-[0.2em] text-muted-foreground mb-1">

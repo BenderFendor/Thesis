@@ -13,8 +13,10 @@ from datetime import timedelta
 from app.core.config import settings
 from app.core.logging import get_logger
 from app.services.cache import news_cache
-from app.services.funding_researcher import get_funding_researcher
 from app.services.source_document_collector import MAX_DOCS, collect_source_documents
+from app.services.entity_wiki_service import (
+    build_source_profile as build_deterministic_source_profile,
+)
 from app.services.source_field_extractor import extract_fields_from_documents
 from app.services.source_profile_extractor import (
     FIELD_KEYS,
@@ -123,59 +125,9 @@ async def _build_source_profile(
     source_name: str,
     website: Optional[str],
 ) -> Dict[str, Any]:
-    researcher = get_funding_researcher()
-    org_data = await researcher.research_organization(
-        source_name, website, use_ai=False
-    )
-    sources = _map_research_sources(org_data)
-    resolved_website = website or org_data.get("website")
-
-    fields: Dict[str, List[Dict[str, Any]]] = {}
-
-    _append_field(fields, "funding", org_data.get("funding_type"), sources)
-    for funding_source in org_data.get("funding_sources") or []:
-        _append_field(fields, "funding", funding_source, sources)
-
-    _append_field(fields, "ownership", org_data.get("parent_org"), sources)
-    _append_field(fields, "political_bias", org_data.get("media_bias_rating"), sources)
-    _append_field(
-        fields, "factual_reporting", org_data.get("factual_reporting"), sources
-    )
-
-    _add_wikidata_fields(fields, org_data)
-    _add_propublica_fields(fields, org_data)
-
-    for field_name in [
-        "editorial_stance",
-        "corrections_history",
-        "major_controversies",
-        "reach_traffic",
-        "affiliations",
-        "founded",
-        "headquarters",
-        "official_website",
-        "nonprofit_filings",
-    ]:
-        if field_name not in fields:
-            fields[field_name] = []
-
-    llm_success = await _build_with_llm_extraction(
-        source_name, resolved_website, fields
-    )
-
-    if not llm_success:
-        logger.info(f"LLM extraction failed for {source_name}, using regex fallback")
-        await _build_with_regex_only(source_name, resolved_website, fields)
-
-    profile = {
-        "name": source_name,
-        "website": resolved_website,
-        "fetched_at": datetime.now(timezone.utc).isoformat(),
-        "cached": False,
-        "fields": fields,
-        "key_reporters": _collect_key_reporters(source_name),
-    }
-
+    profile = await build_deterministic_source_profile(source_name, website)
+    profile["fetched_at"] = datetime.now(timezone.utc).isoformat()
+    profile["key_reporters"] = _collect_key_reporters(source_name)
     return profile
 
 

@@ -22,7 +22,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.logging import get_logger
 from app.database import get_db, Reporter, Organization
-from app.services.reporter_profiler import get_reporter_profiler
+from app.services.entity_wiki_service import build_reporter_dossier, build_resolver_key
 from app.services.funding_researcher import get_funding_researcher
 from app.services.source_research import get_source_profile
 
@@ -150,11 +150,21 @@ class ReporterProfileResponse(BaseModel):
     bio: Optional[str] = None
     career_history: Optional[List[Dict[str, Any]]] = None
     topics: Optional[List[str]] = None
+    education: Optional[List[Dict[str, Any]]] = None
     political_leaning: Optional[str] = None
     leaning_confidence: Optional[str] = None
     twitter_handle: Optional[str] = None
     linkedin_url: Optional[str] = None
     wikipedia_url: Optional[str] = None
+    wikidata_qid: Optional[str] = None
+    wikidata_url: Optional[str] = None
+    canonical_name: Optional[str] = None
+    match_status: Optional[str] = None
+    overview: Optional[str] = None
+    dossier_sections: Optional[List[Dict[str, Any]]] = None
+    citations: Optional[List[Dict[str, str]]] = None
+    search_links: Optional[Dict[str, str]] = None
+    match_explanation: Optional[str] = None
     research_sources: Optional[List[str]] = None
     research_confidence: Optional[str] = None
     cached: bool = False
@@ -212,11 +222,21 @@ class SourceReporterSummary(BaseModel):
 
 class SourceResearchResponse(BaseModel):
     name: str
+    canonical_name: Optional[str] = None
     website: Optional[str] = None
     fetched_at: Optional[str] = None
     cached: bool = False
     fields: Dict[str, List[SourceResearchValue]]
     key_reporters: List[SourceReporterSummary] = []
+    overview: Optional[str] = None
+    match_status: Optional[str] = None
+    wikipedia_url: Optional[str] = None
+    wikidata_qid: Optional[str] = None
+    wikidata_url: Optional[str] = None
+    dossier_sections: Optional[List[Dict[str, Any]]] = None
+    citations: Optional[List[Dict[str, str]]] = None
+    search_links: Optional[Dict[str, str]] = None
+    match_explanation: Optional[str] = None
 
 
 class OwnershipChainResponse(BaseModel):
@@ -226,6 +246,39 @@ class OwnershipChainResponse(BaseModel):
 
 
 # Endpoints
+
+
+def _reporter_response_from_record(
+    reporter: Reporter,
+    wikipedia_url: Optional[str],
+    cached: bool,
+) -> ReporterProfileResponse:
+    return ReporterProfileResponse(
+        id=reporter.id,
+        name=_required_str(reporter.name),
+        normalized_name=reporter.normalized_name,
+        bio=reporter.bio,
+        career_history=reporter.career_history,
+        topics=reporter.topics,
+        education=reporter.education,
+        political_leaning=reporter.political_leaning,
+        leaning_confidence=reporter.leaning_confidence,
+        twitter_handle=reporter.twitter_handle,
+        linkedin_url=reporter.linkedin_url,
+        wikipedia_url=wikipedia_url,
+        wikidata_qid=reporter.wikidata_qid,
+        wikidata_url=reporter.wikidata_url,
+        canonical_name=reporter.canonical_name,
+        match_status=reporter.match_status,
+        overview=reporter.overview,
+        dossier_sections=reporter.dossier_sections,
+        citations=reporter.citations,
+        search_links=reporter.search_links,
+        match_explanation=reporter.match_explanation,
+        research_sources=reporter.research_sources,
+        research_confidence=reporter.research_confidence,
+        cached=cached,
+    )
 
 
 @router.post("/reporter/profile", response_model=ReporterProfileResponse)
@@ -240,12 +293,11 @@ async def profile_reporter(
     First checks the database for cached data, then researches if needed.
     """
     logger.info(f"Reporter profile request: {request.name}")
+    resolver_key = build_resolver_key(request.name, request.organization)
 
     # Check cache first
     if not force_refresh:
-        stmt = select(Reporter).where(
-            Reporter.normalized_name == request.name.lower().strip()
-        )
+        stmt = select(Reporter).where(Reporter.resolver_key == resolver_key)
         result = await db.execute(stmt)
         cached = result.scalar_one_or_none()
 
@@ -254,26 +306,11 @@ async def profile_reporter(
             normalized_wikipedia_url = await _ensure_english_wikipedia_url(
                 cached.wikipedia_url
             )
-            return ReporterProfileResponse(
-                id=cached.id,
-                name=_required_str(cached.name),
-                normalized_name=cached.normalized_name,
-                bio=cached.bio,
-                career_history=cached.career_history,
-                topics=cached.topics,
-                political_leaning=cached.political_leaning,
-                leaning_confidence=cached.leaning_confidence,
-                twitter_handle=cached.twitter_handle,
-                linkedin_url=cached.linkedin_url,
-                wikipedia_url=normalized_wikipedia_url,
-                research_sources=cached.research_sources,
-                research_confidence=cached.research_confidence,
-                cached=True,
+            return _reporter_response_from_record(
+                cached, normalized_wikipedia_url, True
             )
 
-    # Research the reporter
-    profiler = get_reporter_profiler()
-    profile_data = await profiler.profile_reporter(
+    profile_data = await build_reporter_dossier(
         name=request.name,
         organization=request.organization,
         article_context=request.article_context,
@@ -283,43 +320,67 @@ async def profile_reporter(
         profile_data.get("wikipedia_url")
     )
 
-    # Save to database
-    reporter = Reporter(
-        name=profile_data.get("name"),
-        normalized_name=profile_data.get("normalized_name"),
-        bio=profile_data.get("bio"),
-        career_history=profile_data.get("career_history"),
-        topics=profile_data.get("topics"),
-        political_leaning=profile_data.get("political_leaning"),
-        leaning_confidence=profile_data.get("leaning_confidence"),
-        leaning_sources=profile_data.get("leaning_sources"),
-        twitter_handle=profile_data.get("twitter_handle"),
-        linkedin_url=profile_data.get("linkedin_url"),
-        wikipedia_url=profile_data.get("wikipedia_url"),
-        research_sources=profile_data.get("research_sources"),
-        research_confidence=profile_data.get("research_confidence"),
-    )
+    if profile_data.get("match_status") != "matched":
+        return ReporterProfileResponse(
+            name=_required_str(profile_data.get("name")),
+            normalized_name=profile_data.get("normalized_name"),
+            bio=profile_data.get("bio"),
+            career_history=profile_data.get("career_history"),
+            topics=profile_data.get("topics"),
+            education=profile_data.get("education"),
+            twitter_handle=profile_data.get("twitter_handle"),
+            linkedin_url=profile_data.get("linkedin_url"),
+            wikipedia_url=profile_data.get("wikipedia_url"),
+            wikidata_qid=profile_data.get("wikidata_qid"),
+            wikidata_url=profile_data.get("wikidata_url"),
+            canonical_name=profile_data.get("canonical_name"),
+            match_status=profile_data.get("match_status"),
+            overview=profile_data.get("overview"),
+            dossier_sections=profile_data.get("dossier_sections"),
+            citations=profile_data.get("citations"),
+            search_links=profile_data.get("search_links"),
+            match_explanation=profile_data.get("match_explanation"),
+            research_sources=profile_data.get("research_sources"),
+            research_confidence=profile_data.get("research_confidence"),
+            cached=False,
+        )
+
+    stmt = select(Reporter).where(Reporter.resolver_key == resolver_key)
+    existing = (await db.execute(stmt)).scalar_one_or_none()
+    reporter = existing or Reporter()
+    reporter.name = profile_data.get("name")
+    reporter.normalized_name = profile_data.get("normalized_name")
+    reporter.bio = profile_data.get("bio")
+    reporter.career_history = profile_data.get("career_history")
+    reporter.topics = profile_data.get("topics")
+    reporter.education = profile_data.get("education")
+    reporter.political_leaning = profile_data.get("political_leaning")
+    reporter.leaning_confidence = profile_data.get("leaning_confidence")
+    reporter.leaning_sources = profile_data.get("leaning_sources")
+    reporter.twitter_handle = profile_data.get("twitter_handle")
+    reporter.linkedin_url = profile_data.get("linkedin_url")
+    reporter.wikipedia_url = profile_data.get("wikipedia_url")
+    reporter.wikidata_qid = profile_data.get("wikidata_qid")
+    reporter.wikidata_url = profile_data.get("wikidata_url")
+    reporter.canonical_name = profile_data.get("canonical_name")
+    reporter.resolver_key = resolver_key
+    reporter.match_status = profile_data.get("match_status")
+    reporter.overview = profile_data.get("overview")
+    reporter.dossier_sections = profile_data.get("dossier_sections")
+    reporter.citations = profile_data.get("citations")
+    reporter.search_links = profile_data.get("search_links")
+    reporter.match_explanation = profile_data.get("match_explanation")
+    reporter.research_sources = profile_data.get("research_sources")
+    reporter.research_confidence = profile_data.get("research_confidence")
 
     db.add(reporter)
     await db.commit()
     await db.refresh(reporter)
 
-    return ReporterProfileResponse(
-        id=reporter.id,
-        name=_required_str(reporter.name),
-        normalized_name=reporter.normalized_name,
-        bio=reporter.bio,
-        career_history=reporter.career_history,
-        topics=reporter.topics,
-        political_leaning=reporter.political_leaning,
-        leaning_confidence=reporter.leaning_confidence,
-        twitter_handle=reporter.twitter_handle,
-        linkedin_url=reporter.linkedin_url,
-        wikipedia_url=reporter.wikipedia_url,
-        research_sources=reporter.research_sources,
-        research_confidence=reporter.research_confidence,
-        cached=False,
+    normalized_wikipedia_url = await _ensure_english_wikipedia_url(
+        reporter.wikipedia_url
     )
+    return _reporter_response_from_record(reporter, normalized_wikipedia_url, False)
 
 
 @router.get("/reporter/{reporter_id}", response_model=ReporterProfileResponse)
@@ -338,22 +399,7 @@ async def get_reporter(
     normalized_wikipedia_url = await _ensure_english_wikipedia_url(
         reporter.wikipedia_url
     )
-    return ReporterProfileResponse(
-        id=reporter.id,
-        name=_required_str(reporter.name),
-        normalized_name=reporter.normalized_name,
-        bio=reporter.bio,
-        career_history=reporter.career_history,
-        topics=reporter.topics,
-        political_leaning=reporter.political_leaning,
-        leaning_confidence=reporter.leaning_confidence,
-        twitter_handle=reporter.twitter_handle,
-        linkedin_url=reporter.linkedin_url,
-        wikipedia_url=normalized_wikipedia_url,
-        research_sources=reporter.research_sources,
-        research_confidence=reporter.research_confidence,
-        cached=True,
-    )
+    return _reporter_response_from_record(reporter, normalized_wikipedia_url, True)
 
 
 @router.post("/organization/research", response_model=OrganizationResearchResponse)
@@ -597,22 +643,7 @@ async def list_reporters(
         [r.wikipedia_url for r in reporters]
     )
     return [
-        ReporterProfileResponse(
-            id=r.id,
-            name=_required_str(r.name),
-            normalized_name=r.normalized_name,
-            bio=r.bio,
-            career_history=r.career_history,
-            topics=r.topics,
-            political_leaning=r.political_leaning,
-            leaning_confidence=r.leaning_confidence,
-            twitter_handle=r.twitter_handle,
-            linkedin_url=r.linkedin_url,
-            wikipedia_url=normalized_wikipedia_urls[idx],
-            research_sources=r.research_sources,
-            research_confidence=r.research_confidence,
-            cached=True,
-        )
+        _reporter_response_from_record(r, normalized_wikipedia_urls[idx], True)
         for idx, r in enumerate(reporters)
     ]
 
