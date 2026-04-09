@@ -1,13 +1,20 @@
 repos:
   # Python: ruff (lint + format)
-  - repo: https://github.com/astral-sh/ruff-pre-commit
-    rev: v0.4.4
+  - repo: local
     hooks:
       - id: ruff
-        args: [--fix]
-        files: ^backend/
+        name: ruff (fix)
+        language: system
+        entry: uvx ruff check backend --fix
+        pass_filenames: false
+        files: ^backend/.*\.py$
+
       - id: ruff-format
-        files: ^backend/
+        name: ruff format
+        language: system
+        entry: uvx ruff format backend
+        pass_filenames: false
+        files: ^backend/.*\.py$
 
   # Python: mypy strict
   - repo: local
