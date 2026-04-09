@@ -6,13 +6,12 @@ jest.mock("@/lib/api", () => {
   const actual = jest.requireActual("@/lib/api")
   return {
     ...actual,
-    fetchBrowseIndex: jest.fn(),
+    fetchLiveBrowseIndex: jest.fn(),
   }
 })
 
-import { useBrowseIndex } from "@/hooks/useBrowseIndex"
-import { fetchBrowseIndex } from "@/lib/api"
-import { mapBackendArticles } from "@/lib/api"
+import { useLiveBrowseIndex } from "@/hooks/useLiveBrowseIndex"
+import { fetchLiveBrowseIndex } from "@/lib/api"
 
 const createWrapper = () => {
   const queryClient = new QueryClient({
@@ -32,17 +31,17 @@ const createWrapper = () => {
   return QueryClientWrapper
 }
 
-describe("useBrowseIndex", () => {
+describe("useLiveBrowseIndex", () => {
   beforeEach(() => {
     jest.clearAllMocks()
   })
 
-  it("fetches the full browse index with stable multi-source serialization", async () => {
-    ;(fetchBrowseIndex as jest.Mock).mockResolvedValue({
+  it("fetches the live browse index with stable multi-source serialization", async () => {
+    ;(fetchLiveBrowseIndex as jest.Mock).mockResolvedValue({
       articles: [
         {
           id: 1,
-          title: "Article A",
+          title: "Live Article",
           source: "Test News",
           sourceId: "test-news",
           country: "US",
@@ -52,7 +51,7 @@ describe("useBrowseIndex", () => {
           image: "/placeholder.svg",
           publishedAt: new Date().toISOString(),
           category: "general",
-          url: "https://example.com/a",
+          url: "https://example.com/live",
           tags: [],
           originalLanguage: "en",
           translated: false,
@@ -63,7 +62,7 @@ describe("useBrowseIndex", () => {
 
     const { result } = renderHook(
       () =>
-        useBrowseIndex({
+        useLiveBrowseIndex({
           sources: ["zeta-news", "alpha-news"],
         }),
       { wrapper: createWrapper() },
@@ -73,7 +72,7 @@ describe("useBrowseIndex", () => {
       expect(result.current.isLoading).toBe(false)
     })
 
-    expect(fetchBrowseIndex).toHaveBeenCalledWith(
+    expect(fetchLiveBrowseIndex).toHaveBeenCalledWith(
       expect.objectContaining({
         sources: "alpha-news,zeta-news",
       }),
@@ -83,46 +82,11 @@ describe("useBrowseIndex", () => {
   })
 
   it("does not fetch when disabled", () => {
-    const { result } = renderHook(() => useBrowseIndex({ enabled: false }), {
+    const { result } = renderHook(() => useLiveBrowseIndex({ enabled: false }), {
       wrapper: createWrapper(),
     })
 
     expect(result.current.isLoading).toBe(false)
-    expect(fetchBrowseIndex).not.toHaveBeenCalled()
-  })
-
-  it("does not synthesize full article content from summary-only browse rows", () => {
-    const [article] = mapBackendArticles([
-      {
-        id: 1,
-        title: "Article A",
-        source: "Test News",
-        description: "Short browse summary",
-        published_at: new Date().toISOString(),
-        category: "general",
-        url: "https://example.com/a",
-      },
-    ])
-
-    expect(article.summary).toBe("Short browse summary")
-    expect(article.content).toBeUndefined()
-    expect(article.hasFullContent).toBe(false)
-  })
-
-  it("marks live cache rows without durable ids as unpersisted", () => {
-    const [article] = mapBackendArticles([
-      {
-        title: "Live cache row",
-        source: "Test News",
-        description: "Short browse summary",
-        published_at: new Date().toISOString(),
-        category: "general",
-        url: "https://example.com/live-cache",
-        is_persisted: false,
-      },
-    ])
-
-    expect(article.id).toEqual(expect.any(Number))
-    expect(article.isPersisted).toBe(false)
+    expect(fetchLiveBrowseIndex).not.toHaveBeenCalled()
   })
 })

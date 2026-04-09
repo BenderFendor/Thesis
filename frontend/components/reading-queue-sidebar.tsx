@@ -46,6 +46,7 @@ import { ArticleDetailModal } from "@/components/article-detail-modal";
 import { ArticleInlineEmbed } from "@/components/article-inline-embed";
 import { NoveltyBadge } from "@/components/novelty-badge";
 import { SemanticTags } from "@/components/semantic-tags";
+import { activateCardFromKeyDown } from "@/lib/keyboard-activation";
 
 export function ReadingQueueSidebar() {
   const READ_SPEED_WPM = 230; // Average adult reading speed
@@ -143,6 +144,13 @@ export function ReadingQueueSidebar() {
 
   const handleRemove = (articleUrl: string) => {
     removeArticleFromQueue(articleUrl);
+  };
+
+  const handleCardKeyDown = (
+    event: React.KeyboardEvent<HTMLElement>,
+    onActivate: () => void,
+  ) => {
+    activateCardFromKeyDown(event, onActivate);
   };
 
   const handleMarkAsRead = (articleUrl: string) => {
@@ -1140,11 +1148,18 @@ export function ReadingQueueSidebar() {
                       const isExpanded = expandedIndex === index;
 
                       return (
-                        <button
+                        <div
                           key={article.url}
                           onClick={() =>
                             setExpandedIndex(isExpanded ? null : index)
                           }
+                          onKeyDown={(event) =>
+                            handleCardKeyDown(event, () =>
+                              setExpandedIndex(isExpanded ? null : index)
+                            )
+                          }
+                          role="button"
+                          tabIndex={0}
                           className={cn(
                             "w-full transition-all duration-300 ease-out cursor-pointer text-left group",
                             "transform hover:scale-105"
@@ -1324,6 +1339,7 @@ export function ReadingQueueSidebar() {
                                     className="flex-1"
                                     onClick={(e) => {
                                       e.preventDefault();
+                                      e.stopPropagation();
                                       setSelectedArticleUrl(article.url);
                                     }}
                                     style={{
@@ -1338,6 +1354,7 @@ export function ReadingQueueSidebar() {
                                     variant="ghost"
                                     onClick={(e) => {
                                       e.preventDefault();
+                                      e.stopPropagation();
                                       handleRemove(article.url);
                                     }}
                                     className="text-destructive hover:text-destructive hover:bg-destructive/10"
@@ -1348,7 +1365,7 @@ export function ReadingQueueSidebar() {
                               </div>
                             )}
                           </div>
-                        </button>
+                        </div>
                       );
                     })}
                   </div>

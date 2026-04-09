@@ -260,6 +260,7 @@ const BackendArticleSchema = z
     authors: z.array(z.string()).optional(),
     original_language: z.string().optional(),
     translated: z.boolean().optional(),
+    is_persisted: z.boolean().optional(),
   })
   .passthrough();
 
@@ -2210,12 +2211,15 @@ export function mapBackendArticles(
       "";
     const stableKey =
       rawUrl || `${sourceName}|${article.title || ""}|${published}`;
+    const hasStableBackendId =
+      typeof article.id === "number" || typeof article.article_id === "number";
     const resolvedId =
       typeof article.id === "number"
         ? article.id
         : typeof article.article_id === "number"
           ? article.article_id
           : hashStringToInt(stableKey);
+    const isPersisted = hasStableBackendId && article.is_persisted !== false;
     const url = rawUrl;
     const author =
       article.author ||
@@ -2296,7 +2300,7 @@ export function mapBackendArticles(
               label: geoSignal.label,
             }
           : undefined,
-      isPersisted: true,
+      isPersisted,
     };
 
     return mappedArticle;
@@ -3108,6 +3112,36 @@ export async function fetchBrowseIndex(
 
   const url = `${API_BASE_URL}/news/index${searchParams.toString() ? "?" + searchParams.toString() : ""}`;
   logger.debug(`[BrowseIndex] Fetching browse index: ${url}`);
+
+  const response = await fetch(url);
+
+  if (!response.ok) {
+    throw new Error(`HTTP error! status: ${response.status}`);
+  }
+
+  const data = await response.json();
+
+  return {
+    articles: mapBackendArticles(data.articles || []),
+    total: typeof data.total === "number" ? data.total : 0,
+  };
+}
+
+export async function fetchLiveBrowseIndex(
+  params: Pick<PaginationParams, "category" | "source" | "sources" | "search"> = {},
+): Promise<BrowseIndexResponse> {
+  const searchParams = new URLSearchParams();
+
+  if (params.category) searchParams.append("category", params.category);
+  if (params.sources) {
+    searchParams.append("sources", params.sources);
+  } else if (params.source) {
+    searchParams.append("source", params.source);
+  }
+  if (params.search) searchParams.append("search", params.search);
+
+  const url = `${API_BASE_URL}/news/index/cached${searchParams.toString() ? "?" + searchParams.toString() : ""}`;
+  logger.debug(`[LiveBrowseIndex] Fetching live browse index: ${url}`);
 
   const response = await fetch(url);
 

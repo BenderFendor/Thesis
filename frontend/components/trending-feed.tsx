@@ -37,6 +37,14 @@ import {
 import { ClusterDetailModal } from "./cluster-detail-modal";
 import { useReadingQueue } from "@/hooks/useReadingQueue";
 import { useLikedArticles } from "@/hooks/useLikedArticles";
+import { activateCardFromKeyDown } from "@/lib/keyboard-activation";
+
+function handleCardKeyDown(
+  event: React.KeyboardEvent<HTMLElement>,
+  onActivate: () => void,
+) {
+  activateCardFromKeyDown(event, onActivate);
+}
 
 function hasRealImage(src?: string | null): boolean {
   return hasRealClusterImage(src);
@@ -307,8 +315,11 @@ function BreakingCard({
   };
 
   return (
-    <button
+    <article
+      role="button"
+      tabIndex={0}
       onClick={handleClick}
+      onKeyDown={(event) => handleCardKeyDown(event, handleClick)}
       className="group relative flex flex-col w-full text-left bg-black/20 rounded-2xl transition-all duration-500 ease-out hover:bg-white/[0.03] shadow-xl hover:shadow-2xl overflow-hidden"
     >
       <div className="absolute top-0 left-0 w-px h-full bg-red-500/40 z-10 shadow-[0_0_20px_rgba(239,68,68,0.4)]" />
@@ -379,7 +390,7 @@ function BreakingCard({
           </span>
         </div>
       </div>
-    </button>
+    </article>
   );
 }
 
@@ -416,8 +427,11 @@ function TrendingCard({
   };
 
   return (
-    <button
+    <article
+      role="button"
+      tabIndex={0}
       onClick={handleClick}
+      onKeyDown={(event) => handleCardKeyDown(event, handleClick)}
       className="group relative flex flex-col w-full text-left bg-black/20 rounded-2xl transition-all duration-500 ease-out hover:bg-white/[0.03] shadow-xl hover:shadow-2xl overflow-hidden"
     >
       <div className="relative m-2 aspect-video overflow-hidden rounded-xl bg-white/5">
@@ -484,7 +498,7 @@ function TrendingCard({
           </span>
         </div>
       </div>
-    </button>
+    </article>
   );
 }
 

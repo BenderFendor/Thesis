@@ -551,3 +551,23 @@ curl http://localhost:8000/trending/diagnostics
 - Reworked globe readiness in `frontend/components/interactive-globe.tsx` to follow the actual `react-globe.gl` instance via a stable ref callback instead of a one-shot effect, so delayed dynamic mounts still run the control and renderer setup path.
 - Fixed `_read_jsonl_tail()` in `backend/app/api/routes/debug.py` so `offset` now paginates backward from the newest matching log entries instead of returning the same tail window for most offsets.
 - Added a frontend regression test for delayed globe mount readiness in `frontend/__tests__/interactive-globe.test.tsx` and a backend property test for log-tail pagination in `backend/tests/test_debug_log_pagination.py`.
+
+2026-04-09 — Live article counts and uncapped RSS cache
+- Removed the main page's collapsed-grid article count override so the dashboard no longer reports only the subset of cards currently visible in source mode.
+- Added `/news/index/cached` plus a dedicated `useLiveBrowseIndex` hook so the main news page reads from the current in-memory RSS snapshot instead of the historical archive index.
+- Switched the header metrics in `frontend/app/page.tsx` to show live article and working-source totals from `/cache/status`, which makes the dashboard reflect the active RSS pull instead of the rendered card subset.
+- Changed the default cache limits in `backend/app/core/config.py` so `NEWS_CACHE_MAX_ARTICLES=0` and `NEWS_CACHE_MAX_PER_SOURCE=0` mean unlimited retention, then updated `backend/app/services/cache.py` to keep all live articles unless an explicit positive cap is configured.
+- Added backend regression coverage for unlimited cache shaping and the new live browse endpoint in `backend/tests/test_live_cache_index.py`, plus frontend hook coverage in `frontend/__tests__/live-browse-index.test.tsx`.
+- Unified the main news page so `globe`, `grid`, and `scroll` now all read from the same live browse dataset instead of globe using a separate stream-only article source.
+- Replaced globe-side country metrics and local-lens fetches with client-side derivations from the shared live article dataset so globe heat, country lens results, and top-line counts now stay aligned with grid and scroll filters.
+- Corrected the shared article and source counters to prefer the current filtered live dataset after load instead of always falling back to the global `/cache/status` totals.
+- Fixed the accessibility regression follow-up where the new keyboard-accessible card wrappers in trending and reading-queue views also activated when inner buttons received `Enter` or `Space`.
+- Added derived notification dismissal state on the main page so per-item and clear-all actions work again without introducing effect-driven render churn.
+- Added frontend regression coverage for live count semantics, globe live-data derivation, keyboard activation guards, and notification dismissal helpers.
+
+2026-04-09 — Live cache persistence and notification recurrence fixes
+- Added an explicit `is_persisted` flag to cached live browse rows in `backend/app/api/routes/news.py` so the frontend can distinguish durable DB-backed articles from in-flight cache rows during incremental refreshes.
+- Updated `frontend/lib/api.ts` so synthesized fallback ids remain usable for React keys, but rows without a real backend article id are marked `isPersisted: false` and no longer try to post nonexistent `article_id` values through like, bookmark, or queue flows.
+- Moved main-page notification dismissal into a small hook in `frontend/lib/notification-state.ts` that prunes stale dismissed ids back into state, allowing `browse-index-error` and `empty-feed` alerts to reappear after they clear and recur later.
+- Added backend coverage for persisted versus unpersisted cached browse rows in `backend/tests/test_live_cache_index.py`, frontend mapping regressions in `frontend/__tests__/browse-index.test.tsx` and `frontend/__tests__/api-mapping.property.test.ts`, and notification recurrence coverage in `frontend/__tests__/notification-state.test.ts`.
+- Verification: `uv run pytest backend/tests/test_live_cache_index.py -q`, `npm --prefix frontend test -- --runInBand __tests__/browse-index.test.tsx __tests__/api-mapping.property.test.ts __tests__/notification-state.test.ts`, `npx tsc --noEmit` in `frontend/`, `npx eslint app/page.tsx lib/api.ts lib/notification-state.ts __tests__/browse-index.test.tsx __tests__/api-mapping.property.test.ts __tests__/notification-state.test.ts` in `frontend/`, and `./verify.sh`.

@@ -152,6 +152,65 @@ def _browse_article_to_dict(row: Mapping[str, Any]) -> Dict[str, Any]:
     }
 
 
+def _cached_article_to_dict(article: NewsArticle) -> Dict[str, Any]:
+    is_persisted = article.id is not None
+    return {
+        "id": article.id,
+        "article_id": article.id,
+        "title": article.title,
+        "source": article.source,
+        "source_id": _source_slug(article.source),
+        "country": article.country,
+        "credibility": "UNKNOWN",
+        "bias": "UNKNOWN",
+        "summary": article.description,
+        "content": None,
+        "image": article.image,
+        "image_url": article.image,
+        "published_at": article.published,
+        "category": article.category,
+        "url": article.link,
+        "author": article.author,
+        "authors": article.authors,
+        "tags": None,
+        "mentioned_countries": article.mentioned_countries,
+        "original_language": None,
+        "translated": False,
+        "is_persisted": is_persisted,
+    }
+
+
+def _filter_cached_articles(
+    *,
+    category: Optional[str],
+    source: Optional[str],
+    sources: Optional[str],
+    search: Optional[str],
+) -> List[NewsArticle]:
+    filtered = news_cache.get_articles()
+
+    if category:
+        filtered = [article for article in filtered if article.category == category]
+
+    selected_sources = _selected_sources(source=source, sources=sources)
+    if selected_sources:
+        selected_source_names = set(selected_sources)
+        filtered = [
+            article for article in filtered if article.source in selected_source_names
+        ]
+
+    if search:
+        search_lower = search.lower()
+        filtered = [
+            article
+            for article in filtered
+            if search_lower in (article.title or "").lower()
+            or search_lower in (article.description or "").lower()
+        ]
+
+    return filtered
+
+
 def _browse_search_country_codes(search: Optional[str]) -> List[str]:
     normalized = " ".join((search or "").split()).strip().lower()
     if not normalized or " " in normalized:
@@ -488,59 +547,19 @@ async def get_cached_news_paginated(
     - Common category filters
     - Real-time updates
     """
-    all_articles = news_cache.get_articles()
-
-    # Apply filters
-    filtered = all_articles
-
-    if category:
-        filtered = [a for a in filtered if a.category == category]
-
-    selected_sources = _selected_sources(source=source, sources=sources)
-    if selected_sources:
-        selected_source_names = set(selected_sources)
-        filtered = [a for a in filtered if a.source in selected_source_names]
-
-    if search:
-        search_lower = search.lower()
-        filtered = [
-            a
-            for a in filtered
-            if search_lower in (a.title or "").lower()
-            or search_lower in (a.description or "").lower()
-        ]
-
+    filtered = _filter_cached_articles(
+        category=category,
+        source=source,
+        sources=sources,
+        search=search,
+    )
     total = len(filtered)
 
     # Apply pagination
     paginated = filtered[offset : offset + limit]
 
     # Convert to dict format
-    articles = [
-        {
-            "id": a.id,
-            "title": a.title,
-            "source": a.source,
-            "source_id": _source_slug(a.source),
-            "country": a.country,
-            "credibility": "UNKNOWN",
-            "bias": "UNKNOWN",
-            "summary": a.description,
-            "content": None,
-            "image": a.image,
-            "image_url": a.image,
-            "published_at": a.published,
-            "category": a.category,
-            "url": a.link,
-            "author": a.author,
-            "authors": a.authors,
-            "tags": None,
-            "mentioned_countries": a.mentioned_countries,
-            "original_language": None,
-            "translated": False,
-        }
-        for a in paginated
-    ]
+    articles = [_cached_article_to_dict(article) for article in paginated]
 
     has_more = offset + limit < total
     next_cursor = str(offset + limit) if has_more else None
@@ -551,6 +570,33 @@ async def get_cached_news_paginated(
         limit=limit,
         next_cursor=next_cursor,
         has_more=has_more,
+    )
+
+
+@router.get("/index/cached", response_model=BrowseIndexResponse)
+async def get_cached_browse_index(
+    response: Response,
+    category: Optional[str] = Query(default=None),
+    source: Optional[str] = Query(default=None),
+    sources: Optional[str] = Query(
+        default=None, description="Comma-separated source names for multi-select"
+    ),
+    search: Optional[str] = Query(default=None),
+) -> BrowseIndexResponse:
+    """Return lightweight article cards for the current in-memory RSS cache."""
+    response.headers["Cache-Control"] = "public, max-age=5, stale-while-revalidate=15"
+    response.headers["Vary"] = "Accept-Encoding"
+
+    articles = _filter_cached_articles(
+        category=category,
+        source=source,
+        sources=sources,
+        search=search,
+    )
+
+    return BrowseIndexResponse(
+        articles=[_cached_article_to_dict(article) for article in articles],
+        total=len(articles),
     )
 
 

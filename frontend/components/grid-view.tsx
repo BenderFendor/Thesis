@@ -57,7 +57,6 @@ import {
 } from "@/lib/cluster-display"
 import {
   buildSourceGroups,
-  getCollapsedVisibleArticleCount,
   getVisibleSourceIds,
 } from "@/lib/source-groups"
 import { fetchAllClusters, fetchClusterArticles } from "@/lib/api"
@@ -75,7 +74,6 @@ const COLLAPSED_SOURCE_ARTICLE_COUNT = 20
 interface GridViewProps {
   articles: NewsArticle[]
   loading: boolean
-  onCountChange?: (count: number) => void
   apiUrl?: string | null
   useVirtualization?: boolean
   showTrending?: boolean
@@ -226,7 +224,6 @@ function SourceArticleCard({
 export function GridView({
   articles,
   loading,
-  onCountChange,
   apiUrl: _apiUrl,
   useVirtualization = false,
   showTrending = true,
@@ -315,10 +312,6 @@ export function GridView({
   const displayArticles = filteredNews
   const isLoadingState = loading
   const resolvedTotalCount = totalCount ?? filteredNews.length
-
-  useEffect(() => {
-    onCountChange?.(filteredNews.length)
-  }, [filteredNews.length, onCountChange])
 
   useEffect(() => {
     if (controlledViewMode) {
@@ -422,21 +415,6 @@ export function GridView({
     () => sourceGroups.filter((group) => visibleSourceIds.has(group.sourceId)),
     [sourceGroups, visibleSourceIds],
   )
-
-  const collapsedVisibleArticleCount = useMemo(
-    () =>
-      getCollapsedVisibleArticleCount(
-        sourceGroups,
-        visibleSourceIds,
-        COLLAPSED_SOURCE_ARTICLE_COUNT,
-      ),
-    [sourceGroups, visibleSourceIds],
-  )
-
-  useEffect(() => {
-    if (viewMode !== "source") return
-    onCountChange?.(collapsedVisibleArticleCount)
-  }, [collapsedVisibleArticleCount, onCountChange, viewMode])
 
   useEffect(() => {
     setSourceBatchCount((prev) => {

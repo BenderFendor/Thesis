@@ -41,17 +41,24 @@ const GlobeView = dynamic(
   }
 )
 
-import { useNewsStream } from "@/hooks/useNewsStream"
 import { useDebugMode } from "@/hooks/useDebugMode"
 import { useFavorites } from "@/hooks/useFavorites"
-import { useBrowseIndex } from "@/hooks/useBrowseIndex"
+import { useLiveBrowseIndex } from "@/hooks/useLiveBrowseIndex"
 import { useSourceFilter } from "@/hooks/useSourceFilter"
-import { fetchCategories, NewsArticle } from "@/lib/api"
-import { logger } from "@/lib/logger"
+import { fetchCacheStatus, fetchCategories, NewsArticle } from "@/lib/api"
 import { ErrorBoundary } from '@/components/ErrorBoundary';
 import { NotificationsPopup, Notification, type NotificationActionType } from '@/components/notification-popup';
 import { SourceSidebar } from "@/components/source-sidebar";
 import { cn } from "@/lib/utils";
+import {
+  getSharedArticleCount,
+  getSharedSourceCount,
+  getSharedViewArticles,
+  getSharedViewLoading,
+} from "@/lib/news-view-state";
+import {
+  useDismissedNotifications,
+} from "@/lib/notification-state";
 
 type ViewMode = "globe" | "grid" | "scroll" | "blindspot"
 
@@ -91,7 +98,6 @@ const HalftoneOverlay = () => (
 function NewsPage() {
   const [currentView, setCurrentView] = useState<ViewMode>("grid")
   const [activeCategory, setActiveCategory] = useState<string>("all")
-  const [gridArticleCount, setGridArticleCount] = useState<number | null>(null)
   const [showNotifications, setShowNotifications] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(false);
 // Remove trendingOpen state as it is no longer used
@@ -108,14 +114,11 @@ function NewsPage() {
     return saved === "topic" ? "topic" : "source"
   });
 
-  const [articlesByCategory, setArticlesByCategory] = useState<Record<string, NewsArticle[]>>({
-    all: [],
-  })
   const router = useRouter()
 
   // Source filtering and favorites
   const { isFavorite } = useFavorites()
-  const { selectedSources, isFilterActive, isSelected } = useSourceFilter()
+  const { selectedSources, isFilterActive } = useSourceFilter()
   const selectedSourceIds = useMemo(() => Array.from(selectedSources), [selectedSources])
 
   const {
@@ -124,10 +127,18 @@ function NewsPage() {
     isLoading: browseIndexLoading,
     error: browseIndexError,
     refetch: refetchBrowseIndex,
-  } = useBrowseIndex({
+  } = useLiveBrowseIndex({
     category: activeCategory === "all" ? undefined : activeCategory,
     sources: selectedSourceIds.length > 0 ? selectedSourceIds : undefined,
-    enabled: currentView !== "globe",
+    enabled: true,
+  })
+  const { data: cacheStatus } = useQuery({
+    queryKey: ["news", "cache-status"],
+    queryFn: fetchCacheStatus,
+    staleTime: 5 * 1000,
+    gcTime: 5 * 60 * 1000,
+    refetchInterval: 15 * 1000,
+    refetchOnWindowFocus: false,
   })
   const categoriesQuery = useQuery<string[]>({
     queryKey: ["categories"],
@@ -155,26 +166,6 @@ function NewsPage() {
     };
     window.addEventListener("storage", handleStorage);
     return () => window.removeEventListener("storage", handleStorage);
-  }, []);
-
-  const activeCategoryRef = useRef(activeCategory);
-
-  useEffect(() => {
-    activeCategoryRef.current = activeCategory;
-  }, [activeCategory]);
-
-  const onUpdate = useCallback((newArticles: NewsArticle[]) => {
-    logger.debug(`onUpdate called with ${newArticles.length} articles for category: ${activeCategoryRef.current}`);
-    setArticlesByCategory(prev => ({
-      ...prev,
-      [activeCategoryRef.current]: newArticles
-    }));
-  }, []);
-
-  const onComplete = useCallback(() => {}, []);
-
-  const onError = useCallback((error: string) => {
-    console.error(`Stream error for ${activeCategoryRef.current}:`, error);
   }, []);
 
   const sortArticles = useCallback(
@@ -223,18 +214,8 @@ function NewsPage() {
     [isFavorite, sortMode]
   )
 
-  const globeArticles = useMemo(() => {
-    const items = articlesByCategory[activeCategory] || []
-    const filtered = isFilterActive()
-      ? items.filter((article) => isSelected(article.sourceId))
-      : items
-
-    return sortArticles(filtered)
-  }, [activeCategory, articlesByCategory, isFilterActive, isSelected, sortArticles])
-
   const browseArticles = useMemo(() => sortArticles(browseIndexArticles), [browseIndexArticles, sortArticles])
-
-  const activeViewArticles = currentView === "globe" ? globeArticles : browseArticles
+  const activeViewArticles = getSharedViewArticles(currentView, browseArticles)
 
   const sourceRecency = useMemo(() => {
     const articles = activeViewArticles
@@ -252,95 +233,113 @@ function NewsPage() {
     return recency
   }, [activeViewArticles])
 
-  const streamHook = useNewsStream({
-    onUpdate,
-    onComplete,
-    onError,
-  });
-  const { abortStream, startStream } = streamHook;
-  const apiUrl = streamHook.apiUrl ?? null
-
-  const resetGlobeCategory = useCallback((category: string) => {
-    setArticlesByCategory((prev) => {
-      if ((prev[category]?.length ?? 0) === 0) {
-        return prev;
-      }
-
-      return {
-        ...prev,
-        [category]: [],
-      };
-    });
-  }, []);
-
   const handleCategoryChange = useCallback(
     (category: string) => {
-      setGridArticleCount(null);
-
-      if (currentView === "globe") {
-        resetGlobeCategory(category);
-      }
-
       setActiveCategory(category);
     },
-    [currentView, resetGlobeCategory],
+    [],
   );
 
   const handleViewChange = useCallback(
     (view: ViewMode) => {
-      setGridArticleCount(null);
-
-      if (view === "globe") {
-        resetGlobeCategory(activeCategory);
-      }
-
       setCurrentView(view);
     },
-    [activeCategory, resetGlobeCategory],
+    [],
   );
+  const loading = getSharedViewLoading(browseIndexLoading)
+  const filterActive = isFilterActive()
+  const notifications = useMemo(() => {
+    const next: Notification[] = []
+    const notificationTimestamp = new Date().toISOString()
+    const notificationCategoryLabel =
+      activeCategory === "all" ? "All" : activeCategory
 
-  useEffect(() => {
-    if (currentView !== "globe") return
-
-    const loadCategory = async () => {
-      abortStream(true);
-
-      try {
-        await startStream({
-          category: activeCategory === 'all' ? undefined : activeCategory
-        });
-      } catch (error) {
-        console.error('Failed to load articles:', error);
-      }
-    };
-
-    void loadCategory();
-  }, [abortStream, activeCategory, currentView, startStream]);
-
-  const loading =
-    currentView === "globe"
-      ? streamHook.status === "starting" ||
-        streamHook.status === "loading" ||
-        streamHook.status.startsWith("retrying-") ||
-        (streamHook.isStreaming && (articlesByCategory[activeCategory]?.length ?? 0) === 0)
-      : browseIndexLoading
-
-
-  const handleClearNotification = (id: string) => {
-    const notificationToClear = notifications.find(n => n.id === id);
-    if (notificationToClear?.type === "error") {
-      streamHook.removeError(notificationToClear.description);
+    if (browseIndexLoading) {
+      next.push({
+        id: "live-index-loading",
+        title: "Live index loading",
+        description: "Loading current live articles.",
+        type: "info",
+        timestamp: notificationTimestamp,
+        meta: {
+          category: notificationCategoryLabel,
+        },
+      })
     }
-  };
 
-  const handleClearAllNotifications = () => {
-    streamHook.clearErrors();
+    if (filterActive) {
+      next.push({
+        id: "filter-active",
+        title: "Source filter active",
+        description: "Only selected sources are visible.",
+        type: "info",
+        timestamp: notificationTimestamp,
+        meta: {
+          sources: selectedSources.size,
+        },
+        action: { label: "Debug", type: "open-debug" },
+      })
+    }
+
+    if (browseIndexError) {
+      next.push({
+        id: "browse-index-error",
+        title: "Browse path unavailable",
+        description: browseIndexError.message,
+        type: "error",
+        timestamp: notificationTimestamp,
+        action: { label: "Retry", type: "retry" },
+      })
+    }
+
+    if (!loading && activeViewArticles.length === 0) {
+      next.push({
+        id: "empty-feed",
+        title: "No articles found",
+        description: "Try changing filters or refreshing the live feed.",
+        type: "warning",
+        timestamp: notificationTimestamp,
+        action: { label: "Retry", type: "retry" },
+      })
+    }
+
+    return next
+  }, [
+    activeCategory,
+    activeViewArticles.length,
+    browseIndexError,
+    browseIndexLoading,
+    filterActive,
+    loading,
+    selectedSources.size,
+  ])
+  const {
+    visibleNotifications,
+    dismissOne: handleClearNotification,
+    dismissAll: handleClearAllNotifications,
+  } = useDismissedNotifications(notifications)
+  const actionableNotificationCount = visibleNotifications.filter(
+    (item) => item.type === "error" || item.type === "warning"
+  ).length;
+
+  const leadArticle = activeViewArticles[0] ?? null
+  const articleCount = getSharedArticleCount(
+    cacheStatus,
+    browseIndexTotalCount,
+    browseArticles,
+    loading,
+  )
+  const sourceCount = getSharedSourceCount(cacheStatus, browseArticles, loading)
+
+  const handleRetry = () => {
+    void refetchBrowseIndex();
   };
 
   const handleNotificationAction = (
     actionType: NotificationActionType,
     notification?: Notification
   ) => {
+    void notification
     if (actionType === "open-debug") {
       router.push("/debug");
       setShowNotifications(false);
@@ -348,128 +347,9 @@ function NewsPage() {
     }
 
     if (actionType === "retry") {
-      if (notification?.type === "error") {
-        streamHook.removeError(notification.description);
-      }
-      streamHook.clearErrors();
       handleRetry();
       setShowNotifications(false);
     }
-  };
-
-  const notifications: Notification[] = [];
-  const notificationTimestamp = new Date().toISOString();
-  const notificationCategoryLabel =
-    activeCategory === "all" ? "All" : activeCategory;
-
-  if (streamHook.status === "starting" || streamHook.status === "loading") {
-    notifications.push({
-      id: "stream-progress",
-      title: "Stream in progress",
-      description: streamHook.currentMessage || "Loading sources and articles.",
-      type: "info",
-      timestamp: notificationTimestamp,
-      meta: {
-        category: notificationCategoryLabel,
-        sources: `${streamHook.progress.completed}/${streamHook.progress.total}`,
-      },
-    });
-  }
-
-  if (streamHook.status === "complete") {
-    notifications.push({
-      id: "stream-complete",
-      title: "Stream complete",
-      description: streamHook.currentMessage || "Articles are ready to read.",
-      type: "success",
-      timestamp: notificationTimestamp,
-      meta: {
-        articles: streamHook.articles.length,
-        sources: streamHook.sources.length,
-      },
-    });
-  }
-
-  if (streamHook.status === "cancelled") {
-    notifications.push({
-      id: "stream-cancelled",
-      title: "Stream paused",
-      description: "Stream cancelled. Restart to refresh the feed.",
-      type: "warning",
-      timestamp: notificationTimestamp,
-      action: { label: "Retry", type: "retry" },
-    });
-  }
-
-  streamHook.errors.forEach((error, index) => {
-    notifications.push({
-      id: `error-${index}`,
-      title: error === "Stream was cancelled" ? "Stream status" : "Stream error",
-      description: error,
-      type: "error",
-      timestamp: notificationTimestamp,
-      action: { label: "Retry", type: "retry" },
-    });
-  });
-
-  if (isFilterActive()) {
-    notifications.push({
-      id: "filter-active",
-      title: "Source filter active",
-      description: "Only selected sources are visible.",
-      type: "info",
-      timestamp: notificationTimestamp,
-      meta: {
-        sources: selectedSources.size,
-      },
-      action: { label: "Debug", type: "open-debug" },
-    });
-  }
-
-  if (browseIndexError) {
-    notifications.push({
-      id: "browse-index-error",
-      title: "Browse path unavailable",
-      description: browseIndexError.message,
-      type: "error",
-      timestamp: notificationTimestamp,
-      action: { label: "Retry", type: "retry" },
-    });
-  }
-
-  if (!loading && activeViewArticles.length === 0) {
-    notifications.push({
-      id: "empty-feed",
-      title: "No articles found",
-      description: "Try changing filters or refreshing the stream.",
-      type: "warning",
-      timestamp: notificationTimestamp,
-      action: { label: "Retry", type: "retry" },
-    });
-  }
-
-  const actionableNotificationCount = notifications.filter(
-    (item) => item.type === "error" || item.type === "warning"
-  ).length;
-
-  const leadArticle = activeViewArticles[0] ?? null
-  const articleCount =
-    currentView === "globe"
-      ? streamHook.articles.length
-      : currentView === "grid"
-        ? gridArticleCount ?? (browseIndexTotalCount || browseArticles.length)
-        : browseIndexTotalCount || browseArticles.length
-
-  const handleRetry = () => {
-    if (currentView === "globe") {
-      resetGlobeCategory(activeCategory);
-      void startStream({
-        category: activeCategory === 'all' ? undefined : activeCategory 
-      });
-      return;
-    }
-
-    void refetchBrowseIndex();
   };
 
   const handleSearchSubmit = (event: KeyboardEvent<HTMLInputElement>) => {
@@ -496,9 +376,7 @@ function NewsPage() {
     <div className="min-h-screen flex bg-[var(--news-bg-primary)] text-foreground">
       <HalftoneOverlay />
       {/* Loading state */}
-      {(currentView === "globe"
-        ? (loading || (streamHook.isStreaming && articlesByCategory[activeCategory]?.length === 0))
-        : (loading && activeViewArticles.length === 0)) && (
+      {loading && activeViewArticles.length === 0 && (
         <div className="fixed bottom-4 left-4 sm:bottom-8 sm:left-8 z-[100] pointer-events-none">
           <div className="pointer-events-auto w-64 overflow-hidden rounded-xl border border-white/10 bg-[var(--news-bg-secondary)]/90 p-4 shadow-2xl backdrop-blur-xl transition-all duration-500 animate-in slide-in-from-bottom-4">
             <div className="absolute inset-0 bg-[radial-gradient(circle_at_top,_rgba(255,255,255,0.08),_transparent_60%)]" />
@@ -506,16 +384,11 @@ function NewsPage() {
               <div className="flex items-center justify-between">
                 <span className="flex items-center gap-2 rounded-full border border-primary/30 bg-primary/15 px-2 py-0.5 text-[9px] font-mono uppercase tracking-[0.2em] text-primary">
                   <Loader2 className="w-3 h-3 animate-spin" />
-                  {currentView === "globe" ? "Live ingest" : "Loading"}
+                  Loading
                 </span>
-                {currentView === "globe" && streamHook.progress.total > 0 && (
-                  <span className="text-[9px] uppercase tracking-[0.2em] text-muted-foreground">
-                    {streamHook.progress.completed}/{streamHook.progress.total}
-                  </span>
-                )}
               </div>
               <h3 className="mt-3 font-serif text-sm font-medium text-foreground">
-                {currentView === "globe" ? "Refreshing news index..." : "Loading articles..."}
+                Loading live articles...
               </h3>
             </div>
           </div>
@@ -626,7 +499,7 @@ function NewsPage() {
 
       {showNotifications && (
         <NotificationsPopup
-          notifications={notifications}
+          notifications={visibleNotifications}
           onClear={handleClearNotification}
           onClearAll={handleClearAllNotifications}
           onAction={handleNotificationAction}
@@ -779,14 +652,12 @@ function NewsPage() {
                   <div className="shrink-0 flex flex-col gap-1 w-full sm:w-64 lg:w-72">
                     <div className="grid grid-cols-2 gap-px bg-white/5 border border-white/10 overflow-hidden">
                       <div className="bg-[var(--news-bg-secondary)] p-2.5 space-y-1">
-                        <span className="block text-[8px] font-mono uppercase tracking-widest text-muted-foreground/50">Articles</span>
+                        <span className="block text-[8px] font-mono uppercase tracking-widest text-muted-foreground/50">Live articles</span>
                         <span className="block text-sm font-semibold tabular-nums">{articleCount}</span>
                       </div>
                       <div className="bg-[var(--news-bg-secondary)] p-2.5 space-y-1">
-                        <span className="block text-[8px] font-mono uppercase tracking-widest text-muted-foreground/50">Sources</span>
-                        <span className="block text-sm font-semibold tabular-nums">
-                          {selectedSources.size > 0 ? selectedSources.size : "All"}
-                        </span>
+                        <span className="block text-[8px] font-mono uppercase tracking-widest text-muted-foreground/50">Live sources</span>
+                        <span className="block text-sm font-semibold tabular-nums">{sourceCount}</span>
                       </div>
                       <div className="bg-[var(--news-bg-secondary)] p-2.5 space-y-1">
                         <span className="block text-[8px] font-mono uppercase tracking-widest text-muted-foreground/50">Bias</span>
@@ -815,14 +686,12 @@ function NewsPage() {
                   {activeCategory === category.id && (
                     <>
                       {currentView === "globe" && (
-                        <GlobeView key={`${category.id}-globe`} articles={globeArticles} loading={loading} />
+                        <GlobeView key={`${category.id}-globe`} articles={browseArticles} loading={loading} />
                       )}
                       {currentView === "grid" && (
                         <GridView
                           articles={browseArticles}
                           loading={loading}
-                          onCountChange={setGridArticleCount}
-                          apiUrl={apiUrl}
                           showTrending={true}
                           topicSortMode={topicSortMode}
                           viewMode={gridMode}

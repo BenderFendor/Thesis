@@ -46,6 +46,7 @@ const backendArticleArb: fc.Arbitrary<BackendArticle> = fc.record({
     nil: undefined,
   }),
   translated: fc.option(fc.boolean(), { nil: undefined }),
+  is_persisted: fc.option(fc.boolean(), { nil: undefined }),
 });
 
 describe("api mapping property tests", () => {
@@ -74,6 +75,24 @@ describe("api mapping property tests", () => {
           expect(new Set(keys).size).toBe(keys.length);
         },
       ),
+    );
+  });
+
+  it("keeps rows without backend ids non-persisted even when a stable fallback id is synthesized", () => {
+    fc.assert(
+      fc.property(backendArticleArb, (article) => {
+        const [mapped] = mapBackendArticles([
+          {
+            ...article,
+            id: undefined,
+            article_id: undefined,
+            is_persisted: false,
+          },
+        ]);
+
+        expect(mapped.id).toEqual(expect.any(Number));
+        expect(mapped.isPersisted).toBe(false);
+      }),
     );
   });
 });

@@ -744,6 +744,9 @@ function ArticleDetailModalContent({ article, isOpen, onClose, onBookmarkChange,
           : "max-h-[85vh] w-full max-w-6xl rounded-2xl sm:max-w-6xl"
           } gap-0 overflow-hidden border border-border/50 bg-background/95 p-0 shadow-2xl shadow-black/60`}
       >
+      <DialogHeader className="sr-only">
+        <DialogTitle>{currentArticle.title}</DialogTitle>
+      </DialogHeader>
       {/* Inline Definition Popover */}
        <InlineDefinition
          result={inlineResult}
