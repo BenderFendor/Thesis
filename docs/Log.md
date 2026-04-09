@@ -1,5 +1,17 @@
 # Log
 
+## 2026-04-09: Pre-commit Ruff Hook Bootstrap Fix
+
+**Problem:** Pre-commit failed while installing `ruff-pre-commit` because the environment pip index was set to an unresolved private GitLab placeholder URL (`{GITLAB_INSTANCE}` / `{GROUP_ID}`), so build dependencies like `setuptools` could not be fetched.
+
+**What Changed:**
+- Replaced the remote `https://github.com/astral-sh/ruff-pre-commit` hooks in `.pre-commit-config.yaml` with local `language: system` hooks that run `uvx ruff check backend --fix` and `uvx ruff format backend`.
+- Kept hook IDs (`ruff`, `ruff-format`) and backend-only file targeting so existing workflow behavior stays aligned while avoiding pre-commit virtualenv bootstrap through pip.
+
+**Verification:**
+- `pre-commit run --all-files` now runs past Ruff hook installation and executes `ruff (fix)` and `ruff format` successfully.
+- Remaining failures are unrelated environment/type issues: missing `backend/.venv/bin/mypy`, missing `pytest` executable in the current `uv` runtime, and existing frontend TypeScript typing gaps.
+
 ## 2026-03-27: Source Analysis Framework Replaces Legacy Propaganda Filters
 
 **Problem:** The wiki source-analysis feature still framed itself as a direct Chomsky/Parenti implementation even though the actual rubric had drifted. The old six-axis schema, API names, UI copy, and reporter headings no longer matched the intended method.
