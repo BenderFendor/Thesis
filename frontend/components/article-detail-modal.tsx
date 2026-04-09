@@ -2,10 +2,10 @@
 
 import { useState, useEffect, useMemo, useRef, useCallback } from "react"
 import { useQuery } from "@tanstack/react-query"
-import { AnimatePresence, motion } from "framer-motion"
+import { motion } from "framer-motion"
 import { logUserAction } from "@/lib/performance-logger"
 import Link from "next/link"
-import { X, ExternalLink, Heart, Bookmark, AlertTriangle, DollarSign, Bug, Link as LinkIcon, Rss, Sparkles, Maximize2, Minimize2, Loader2, Search, RefreshCw, CheckCircle2, XCircle, Copy, PlusCircle, MinusCircle, Star, Edit2, Trash2, Eye, EyeOff, Download, BookOpen } from "lucide-react"
+import { X, ExternalLink, Heart, Bookmark, AlertTriangle, DollarSign, Bug, Link as LinkIcon, Sparkles, Maximize2, Minimize2, Loader2, Search, RefreshCw, CheckCircle2, XCircle, Copy, PlusCircle, MinusCircle, Star, Edit2, Trash2, Eye, EyeOff, Download, BookOpen } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
@@ -132,7 +132,7 @@ export function ArticleDetailModal(props: ArticleDetailModalProps) {
 function ArticleDetailModalContent({ article, isOpen, onClose, onBookmarkChange, onNavigate, layoutIdPrefix }: ArticleDetailModalProps & { article: NewsArticle }) {
   const { isLiked, toggleLike } = useLikedArticles()
   const { isBookmarked, toggleBookmark } = useBookmarks()
-  const { addArticleToQueue, removeArticleFromQueue, isArticleInQueue, queuedArticles } = useReadingQueue()
+  const { addArticleToQueue, removeArticleFromQueue, isArticleInQueue } = useReadingQueue()
   const { isFavorite, toggleFavorite } = useFavorites()
   const { markAsRead } = useReadingHistory()
   const [showSourceDetails, setShowSourceDetails] = useState(false)
@@ -145,10 +145,10 @@ function ArticleDetailModalContent({ article, isOpen, onClose, onBookmarkChange,
   const [aiAnalysis, setAiAnalysis] = useState<ArticleAnalysis | null>(null)
   const [isExpanded, setIsExpanded] = useState(false)
 
-  const handleNavigate = (direction: "prev" | "next") => {
+  const handleNavigate = useCallback((direction: "prev" | "next") => {
     if (!onNavigate) return
     onNavigate(direction)
-  }
+  }, [onNavigate])
 
   const isTextInputFocused = () => {
     const active = document.activeElement
@@ -173,7 +173,7 @@ function ArticleDetailModalContent({ article, isOpen, onClose, onBookmarkChange,
   const [aiAnalysisRequested, setAiAnalysisRequested] = useState(false)
   const [highlights, setHighlights] = useState<LocalHighlight[]>([])
   const [highlightSyncStatus, setHighlightSyncStatus] = useState<"idle" | "syncing" | "failed" | "offline">("idle")
-  const [highlightsHistory, setHighlightsHistory] = useState<LocalHighlight[][]>([])
+  const [, setHighlightsHistory] = useState<LocalHighlight[][]>([])
   const latestHighlightSyncRef = useRef(0)
   const articleContentRef = useRef<HTMLDivElement>(null)
   const [activeHighlightId, setActiveHighlightId] = useState<string | null>(null)
@@ -323,7 +323,7 @@ function ArticleDetailModalContent({ article, isOpen, onClose, onBookmarkChange,
           })
         }
       })
-  }, [article?.url])
+  }, [HIGHLIGHT_DEBUG, article?.url])
 
   const syncHighlights = async (articleUrl: string, current: LocalHighlight[]) => {
     const syncToken = Date.now()
@@ -398,10 +398,10 @@ function ArticleDetailModalContent({ article, isOpen, onClose, onBookmarkChange,
     if (isOpen && article && typeof article.id === "number") {
       markAsRead(article.id, article.title, article.source)
     }
-  }, [isOpen, article?.id, markAsRead])
+  }, [isOpen, article, markAsRead])
 
   useEffect(() => {
-    if (!isOpen || !isExpanded) return
+    if (!isOpen || !isExpanded || !onNavigate) return
 
     const handleKeyDown = (event: KeyboardEvent) => {
       if (isTextInputFocused()) return
@@ -417,7 +417,7 @@ function ArticleDetailModalContent({ article, isOpen, onClose, onBookmarkChange,
 
     window.addEventListener("keydown", handleKeyDown)
     return () => window.removeEventListener("keydown", handleKeyDown)
-  }, [isOpen, isExpanded, onNavigate])
+  }, [handleNavigate, isOpen, isExpanded, onNavigate])
 
   const loadDebug = async () => {
     if (!article) return
@@ -499,8 +499,14 @@ function ArticleDetailModalContent({ article, isOpen, onClose, onBookmarkChange,
   }
 
 
+  const handleLikeToggle = async () => {
+    if (!article?.id || article.isPersisted === false) return
+
+    await toggleLike(article.id)
+  }
+
   const handleBookmarkToggle = async () => {
-    if (!article?.id) return
+    if (!article?.id || article.isPersisted === false) return
 
     setBookmarkLoading(true)
     try {
@@ -514,7 +520,10 @@ function ArticleDetailModalContent({ article, isOpen, onClose, onBookmarkChange,
     }
   }
 
-  const factCheckResults = !isOpen || !article ? [] : (aiAnalysis?.fact_check_results ?? [])
+  const factCheckResults = useMemo(
+    () => (!isOpen || !article ? [] : (aiAnalysis?.fact_check_results ?? [])),
+    [aiAnalysis?.fact_check_results, article, isOpen],
+  )
   const canRequestAiAnalysis = !aiAnalysisRequested || Boolean(aiAnalysis?.error)
   const aiActionLabel = (() => {
     if (!aiAnalysisRequested) return "Run AI Analysis"
@@ -629,6 +638,7 @@ function ArticleDetailModalContent({ article, isOpen, onClose, onBookmarkChange,
   }
 
   const currentArticle = article
+  const canPersistArticle = currentArticle.isPersisted !== false
   const heroImage = currentArticle && hasRealImage(currentArticle.image) ? currentArticle.image : null
   const heroLayoutId = layoutIdPrefix && currentArticle ? `${layoutIdPrefix}-image-${currentArticle.id}` : undefined
   const titleLayoutId = layoutIdPrefix && currentArticle ? `${layoutIdPrefix}-title-${currentArticle.id}` : undefined
@@ -690,7 +700,7 @@ function ArticleDetailModalContent({ article, isOpen, onClose, onBookmarkChange,
         fullArticleText,
         highlights: visibleHighlights,
       }),
-    [currentArticle, fullArticleText, visibleHighlights],
+    [currentArticle, fullArticleText, reporterName, visibleHighlights],
   )
 
   useEffect(() => {
@@ -719,13 +729,20 @@ function ArticleDetailModalContent({ article, isOpen, onClose, onBookmarkChange,
   if (!isOpen || !currentArticle) return null
 
   return (
-    <AnimatePresence>
-      <motion.div
-        className="fixed inset-0 z-50 flex items-center justify-center bg-background/70 p-4 backdrop-blur-xl"
-        initial={{ opacity: 0 }}
-        animate={{ opacity: 1 }}
-        exit={{ opacity: 0 }}
-        transition={{ duration: 0.2, ease: "easeOut" }}
+    <Dialog
+      open={isOpen}
+      onOpenChange={(open) => {
+        if (!open) {
+          onClose()
+        }
+      }}
+    >
+      <DialogContent
+        showCloseButton={false}
+        className={`${isExpanded
+          ? "h-[calc(100vh-1rem)] w-[calc(100vw-1rem)] max-w-[calc(100vw-1rem)] rounded-2xl sm:max-w-[calc(100vw-1rem)]"
+          : "max-h-[85vh] w-full max-w-6xl rounded-2xl sm:max-w-6xl"
+          } gap-0 overflow-hidden border border-border/50 bg-background/95 p-0 shadow-2xl shadow-black/60`}
       >
       {/* Inline Definition Popover */}
        <InlineDefinition
@@ -813,37 +830,32 @@ function ArticleDetailModalContent({ article, isOpen, onClose, onBookmarkChange,
           </SheetContent>
         </Sheet>
 
-        <motion.div
-          layout
-         transition={{ type: "spring", stiffness: 240, damping: 28 }}
-          className={`flex flex-col overflow-hidden border border-border/50 bg-background/95 shadow-2xl shadow-black/60 ${isExpanded
-            ? 'h-[calc(100vh-1rem)] w-[calc(100vw-1rem)] rounded-2xl'
-            : 'max-h-[85vh] w-full max-w-6xl rounded-2xl'
-            }`}
-       >
+        <div className="flex h-full flex-col overflow-hidden">
         {/* Header Controls */}
           <div className="sticky top-0 z-20 flex items-center justify-between gap-2 border-b border-border/40 bg-background/75 p-4 backdrop-blur-xl">
           <div className="flex items-center gap-2 flex-1">
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => handleNavigate("prev")}
-              disabled={!onNavigate}
-              className="rounded-md border border-border/40 bg-card/60 px-4 text-xs uppercase tracking-wider text-foreground transition-all duration-300 ease-out hover:bg-card active:scale-95"
-              title="Previous (ArrowLeft)"
-            >
-              Prev
-            </Button>
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => handleNavigate("next")}
-              disabled={!onNavigate}
-              className="rounded-md border border-border/40 bg-card/60 px-4 text-xs uppercase tracking-wider text-foreground transition-all duration-300 ease-out hover:bg-card active:scale-95"
-              title="Next (ArrowRight)"
-            >
-              Next
-            </Button>
+            {onNavigate ? (
+              <>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => handleNavigate("prev")}
+                  className="rounded-md border border-border/40 bg-card/60 px-4 text-xs uppercase tracking-wider text-foreground transition-all duration-300 ease-out hover:bg-card active:scale-95"
+                  title="Previous (ArrowLeft)"
+                >
+                  Prev
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => handleNavigate("next")}
+                  className="rounded-md border border-border/40 bg-card/60 px-4 text-xs uppercase tracking-wider text-foreground transition-all duration-300 ease-out hover:bg-card active:scale-95"
+                  title="Next (ArrowRight)"
+                >
+                  Next
+                </Button>
+              </>
+            ) : null}
           </div>
           <div className="flex items-center justify-center flex-1">
             <Button
@@ -1093,9 +1105,7 @@ function ArticleDetailModalContent({ article, isOpen, onClose, onBookmarkChange,
                             op: "create",
                           })
 
-                          let newlyCreatedLocal: LocalHighlight | null = null;
                           updateHighlightsWithHistory((prev) => {
-                            newlyCreatedLocal = nextLocal;
                             return dedupeLocalHighlights([...prev, nextLocal])
                           })
 
@@ -1167,8 +1177,12 @@ function ArticleDetailModalContent({ article, isOpen, onClose, onBookmarkChange,
                     <Button
                       variant="ghost"
                       size="sm"
-                      onClick={() => article?.id && toggleLike(article.id)}
+                      onClick={() => {
+                        void handleLikeToggle()
+                      }}
                       className={article?.id && isLiked(article.id) ? "text-red-400" : "text-gray-400"}
+                      disabled={!canPersistArticle}
+                      title={canPersistArticle ? "Like article" : "Only indexed articles can be liked."}
                     >
                       <Heart className={`h-4 w-4 mr-2 ${article?.id && isLiked(article.id) ? "fill-current" : ""}`} />
                       Like
@@ -1188,7 +1202,8 @@ function ArticleDetailModalContent({ article, isOpen, onClose, onBookmarkChange,
                       size="sm"
                       onClick={handleBookmarkToggle}
                       className={article?.id && isBookmarked(article.id) ? "text-yellow-400" : "text-gray-400"}
-                      disabled={bookmarkLoading}
+                      disabled={bookmarkLoading || !canPersistArticle}
+                      title={canPersistArticle ? "Bookmark article" : "Only indexed articles can be bookmarked."}
                     >
                       <Bookmark className={`h-4 w-4 ${article?.id && isBookmarked(article.id) ? "fill-current" : ""}`} />
                       Bookmark
@@ -1229,6 +1244,11 @@ function ArticleDetailModalContent({ article, isOpen, onClose, onBookmarkChange,
                     </Button>
 
                   </div>
+                  {!canPersistArticle ? (
+                    <span className="text-xs text-muted-foreground">
+                      This article is readable here, but likes and bookmarks only work for indexed archive items.
+                    </span>
+                  ) : null}
                   <Button variant="outline" size="sm" asChild>
                     <a href={article.url} target="_blank" rel="noopener noreferrer">
                       <ExternalLink className="h-4 w-4 mr-2" />
@@ -1339,7 +1359,7 @@ function ArticleDetailModalContent({ article, isOpen, onClose, onBookmarkChange,
                             const obsidianUrl = `obsidian://new?file=${encodeURIComponent("News Clippings/" + title)}&clipboard=true`
                             window.location.href = obsidianUrl
                             toast.success("Opening in Obsidian...")
-                          } catch (err) {
+                          } catch {
                             const obsidianUrl = `obsidian://new?file=${encodeURIComponent("News Clippings/" + title)}&content=${encodeURIComponent(markdown)}`
                             window.location.href = obsidianUrl
                             toast.success("Opening in Obsidian...")
@@ -2064,6 +2084,8 @@ function ArticleDetailModalContent({ article, isOpen, onClose, onBookmarkChange,
                 </div>
               )}
 
+            </div>
+
               {/* Compact AI Loading Indicator */}
               {!isExpanded && aiAnalysisLoading && (
                 <div className="flex items-center gap-3 p-4 bg-gradient-to-r from-primary/15 to-amber-500/10 border border-primary/30 rounded-lg">
@@ -2094,8 +2116,7 @@ function ArticleDetailModalContent({ article, isOpen, onClose, onBookmarkChange,
             </div>
           </div>
         </div>
-      </motion.div>
-    </motion.div>
-    </AnimatePresence>
+      </DialogContent>
+    </Dialog>
   )
 }

@@ -13,12 +13,10 @@ import {
     ExternalLink,
     RefreshCw,
     AlertTriangle,
-    CheckCircle,
-    HelpCircle,
     ChevronRight,
     Globe
 } from "lucide-react"
-import { researchOrganization, getOwnershipChain, type OrganizationProfile, type OwnershipChain } from "@/lib/api"
+import { researchOrganization, getOwnershipChain } from "@/lib/api"
 
 interface OrganizationPanelProps {
     organizationName: string
@@ -52,12 +50,6 @@ const FACTUAL_COLORS: Record<string, string> = {
     "very-low": "bg-red-500/20 text-red-400",
 }
 
-const CONFIDENCE_ICONS: Record<string, React.ElementType> = {
-    "high": CheckCircle,
-    "medium": HelpCircle,
-    "low": AlertTriangle,
-}
-
 export function OrganizationPanel({
     organizationName,
     website,
@@ -68,7 +60,6 @@ export function OrganizationPanel({
     const [forceRefresh, setForceRefresh] = useState(false)
     const [showChain, setShowChain] = useState(false)
     const [expanded, setExpanded] = useState(!compact)
-    const [localCompact, setLocalCompact] = useState(compact)
 
     const { data: org, isLoading, error, refetch } = useQuery({
         queryKey: ["organization-research", organizationName, forceRefresh],
@@ -127,7 +118,6 @@ export function OrganizationPanel({
 
     if (!org) return null
 
-    const ConfidenceIcon = CONFIDENCE_ICONS[org.research_confidence || "low"] || HelpCircle
     const fundingColor = FUNDING_TYPE_COLORS[org.funding_type || ""] || "bg-muted"
     const biasColor = BIAS_COLORS[org.media_bias_rating || ""] || ""
     const factualColor = FACTUAL_COLORS[org.factual_reporting || ""] || ""

@@ -228,6 +228,11 @@ export function toRemoteHighlights(local: LocalHighlight[]): Highlight[] {
   return dedupeLocalHighlights(local)
     .filter((item) => !item.deleted)
     .map(({ client_id, server_id, sync_status, pending_op, last_error, local_updated_at, deleted, ...rest }) => {
+      void sync_status
+      void pending_op
+      void last_error
+      void local_updated_at
+      void deleted
       const id = rest.id ?? server_id
       return id ? { ...rest, id, client_id } : { ...rest, client_id }
     })

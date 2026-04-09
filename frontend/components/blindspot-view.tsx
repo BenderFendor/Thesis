@@ -6,17 +6,12 @@
 import { useMemo, useState } from "react"
 import { useQuery } from "@tanstack/react-query"
 import { motion } from "framer-motion"
-import {
-  ArrowRightLeft,
-  BarChart3,
-  Radar,
-  RefreshCcw,
-  ShieldAlert,
-} from "lucide-react"
+import { RefreshCcw, ShieldAlert } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Skeleton } from "@/components/ui/skeleton"
 import { ClusterDetailModal } from "@/components/cluster-detail-modal"
+import { SafeImage } from "@/components/safe-image"
 import {
   type BlindspotCard,
   type BlindspotLane,
@@ -79,28 +74,6 @@ function sortCards(cards: BlindspotCard[], sortMode: SortMode): BlindspotCard[] 
   }
 }
 
-function laneBarClass(laneId: BlindspotLane["id"]): string {
-  switch (laneId) {
-    case "pole_a":
-      return "bg-cyan-400/80"
-    case "pole_b":
-      return "bg-red-500/80"
-    case "shared":
-    default:
-      return "bg-zinc-300/70"
-  }
-}
-
-function laneDirectionalGap(card: BlindspotCard, laneId: BlindspotLane["id"]): number {
-  if (laneId === "pole_a") {
-    return card.coverage_shares.pole_b - card.coverage_shares.pole_a
-  }
-  if (laneId === "pole_b") {
-    return card.coverage_shares.pole_a - card.coverage_shares.pole_b
-  }
-  return Math.min(card.coverage_shares.pole_a, card.coverage_shares.pole_b)
-}
-
 function coverageBar(card: BlindspotCard) {
   const entries: Array<{
     key: keyof BlindspotCard["coverage_shares"]
@@ -159,23 +132,6 @@ function cardToCluster(card: BlindspotCard): TrendingCluster {
   }
 }
 
-function deriveFallbackCards(
-  allCards: BlindspotCard[],
-  laneId: BlindspotLane["id"],
-): BlindspotCard[] {
-  if (laneId === "shared") {
-    return []
-  }
-
-  return [...allCards]
-    .filter((card) => laneDirectionalGap(card, laneId) > 0.08)
-    .sort(
-      (left, right) =>
-        laneDirectionalGap(right, laneId) - laneDirectionalGap(left, laneId),
-    )
-    .slice(0, 5)
-}
-
 function geographySignalBadges(card: BlindspotCard) {
   if (!card.geography_signals || card.geography_signals.length === 0) {
     return null
@@ -225,11 +181,11 @@ function LeadStory({
       {/* Image Header */}
       <div className="relative aspect-[16/9] w-full overflow-hidden bg-white/5">
         {imageUrl ? (
-          <img
+          <SafeImage
             src={imageUrl}
             alt={card.cluster_label}
+            fill
             className="h-full w-full object-cover opacity-80 grayscale transition duration-700 group-hover:opacity-100 group-hover:grayscale-0 group-hover:scale-105"
-            loading="lazy"
           />
         ) : (
           <div className="h-full w-full bg-[radial-gradient(circle_at_top_left,rgba(255,255,255,0.08),transparent_70%)]" />
@@ -389,14 +345,6 @@ export function BlindspotView({ category, sources }: BlindspotViewProps) {
     }
     return grouped
   }, [data, sortedCards])
-
-  const fallbackCards = useMemo(() => {
-    return {
-      pole_a: deriveFallbackCards(sortedCards, "pole_a"),
-      shared: [] as BlindspotCard[],
-      pole_b: deriveFallbackCards(sortedCards, "pole_b"),
-    }
-  }, [sortedCards])
 
   const selectedCluster = useMemo(
     () => (selectedCard ? cardToCluster(selectedCard) : null),

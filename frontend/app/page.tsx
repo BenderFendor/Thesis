@@ -5,7 +5,6 @@ import dynamic from "next/dynamic"
 import { useQuery } from "@tanstack/react-query"
 import { Button } from "@/components/ui/button"
 import { Skeleton } from "@/components/ui/skeleton"
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
 import { Tabs, TabsContent } from "@/components/ui/tabs"
 import {
   Globe,
@@ -14,7 +13,6 @@ import {
   ArrowRightLeft,
   Search,
   Bell,
-  Bug,
   SlidersHorizontal,
   Bookmark,
   Building2,
@@ -33,6 +31,7 @@ import { FeedView } from "@/components/feed-view"
 import { BlindspotView } from "@/components/blindspot-view"
 import { ArticleDetailModal } from "@/components/article-detail-modal"
 import { ThemeToggle } from "@/components/theme-toggle"
+import { SafeImage } from "@/components/safe-image"
 
 const GlobeView = dynamic(
   () => import("@/components/globe-view").then((mod) => mod.GlobeView),
@@ -115,7 +114,7 @@ function NewsPage() {
   const router = useRouter()
 
   // Source filtering and favorites
-  const { favorites, isFavorite } = useFavorites()
+  const { isFavorite } = useFavorites()
   const { selectedSources, isFilterActive, isSelected } = useSourceFilter()
   const selectedSourceIds = useMemo(() => Array.from(selectedSources), [selectedSources])
 
@@ -489,11 +488,8 @@ function NewsPage() {
   }
 
   const leadSummary = leadArticle?.summary?.trim() || "Story summary unavailable."
-  const activeCategoryMeta = categories.find((category) => category.id === activeCategory)
-  const leadCategoryLabel = activeCategoryMeta?.label ?? (activeCategory === "all" ? "All" : activeCategory)
   const leadCredibility = leadArticle?.credibility ? leadArticle.credibility.toUpperCase() : "UNKNOWN"
   const leadBias = leadArticle?.bias ? leadArticle.bias.replace("-", " ").toUpperCase() : "UNKNOWN"
-  const viewLabel = currentView.charAt(0).toUpperCase() + currentView.slice(1)
   const isGlobeView = currentView === "globe"
 
   return (
@@ -530,7 +526,14 @@ function NewsPage() {
       <aside className="group hidden lg:flex w-16 hover:w-64 shrink-0 border-r border-white/10 bg-[var(--news-bg-secondary)] sticky top-0 h-screen flex-col transition-all duration-300 ease-[cubic-bezier(0.25,0.1,0.25,1.0)] z-50 overflow-hidden">
         <div className="px-4 py-5 border-b border-white/10 min-w-[16rem]">
           <div className="flex items-center gap-4">
-            <img src="/favicon.svg" alt="Scoop" className="w-12 h-12 text-[#b88f4d] shrink-0 transition-all duration-300 group-hover:scale-105 -ml-2 group-hover:ml-0" />
+            <SafeImage
+              src="/favicon.svg"
+              alt="Scoop"
+              width={48}
+              height={48}
+              className="h-12 w-12 shrink-0 transition-all duration-300 group-hover:scale-105 -ml-2 group-hover:ml-0"
+              sizes="48px"
+            />
             <div className="opacity-0 group-hover:opacity-100 transition-opacity duration-300 shrink-0">
               <div className="text-[10px] font-mono uppercase tracking-[0.35em] text-muted-foreground">Scoop</div>
               <div className="font-serif text-xl font-semibold tracking-tight text-foreground/90">Dashboard</div>

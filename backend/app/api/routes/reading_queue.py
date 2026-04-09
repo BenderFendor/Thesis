@@ -57,6 +57,8 @@ async def remove_from_queue(
         success = await queue_service.remove_from_queue(session, queue_id)
         if not success:
             raise HTTPException(status_code=404, detail="Queue item not found")
+    except HTTPException:
+        raise
     except Exception as e:
         logger.error("Error removing from queue: %s", e)
         raise HTTPException(status_code=500, detail="Failed to remove from queue")
@@ -71,6 +73,8 @@ async def remove_from_queue_by_url(
         success = await queue_service.remove_by_url(session, article_url)
         if not success:
             raise HTTPException(status_code=404, detail="Article not found in queue")
+    except HTTPException:
+        raise
     except Exception as e:
         logger.error("Error removing from queue by URL: %s", e)
         raise HTTPException(status_code=500, detail="Failed to remove from queue")
@@ -104,6 +108,8 @@ async def update_queue_item(
         if not item:
             raise HTTPException(status_code=404, detail="Queue item not found")
         return item
+    except HTTPException:
+        raise
     except Exception as e:
         logger.error("Error updating queue item: %s", e)
         raise HTTPException(status_code=500, detail="Failed to update queue item")
@@ -185,6 +191,8 @@ async def update_highlight(
         if not highlight:
             raise HTTPException(status_code=404, detail="Highlight not found")
         return highlight
+    except HTTPException:
+        raise
     except Exception as e:
         logger.error("Error updating highlight: %s", e)
         raise HTTPException(status_code=500, detail="Failed to update highlight")
@@ -199,6 +207,8 @@ async def delete_highlight(
         success = await highlights_service.delete_highlight(session, highlight_id)
         if not success:
             raise HTTPException(status_code=404, detail="Highlight not found")
+    except HTTPException:
+        raise
     except Exception as e:
         logger.error("Error deleting highlight: %s", e)
         raise HTTPException(status_code=500, detail="Failed to delete highlight")

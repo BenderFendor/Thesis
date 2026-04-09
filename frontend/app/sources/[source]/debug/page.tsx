@@ -5,9 +5,9 @@ import { useQuery } from "@tanstack/react-query"
 import { fetchSourceDebugData, SourceDebugData } from "@/lib/api"
 import { setDebugMode } from "@/lib/logger"
 import { useDebugMode } from "@/hooks/useDebugMode"
-import { ArrowLeft, RefreshCw, Code, ExternalLink, AlertTriangle, CheckCircle, Image, FileText, Globe, Search, Settings } from "lucide-react"
+import { ArrowLeft, RefreshCw, Code, ExternalLink, AlertTriangle, ImageIcon, FileText, Globe, Search, Settings } from "lucide-react"
 import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Input } from "@/components/ui/input"
 import Link from "next/link"
@@ -118,7 +118,7 @@ export default function SourceDebugPage(props: { params: Promise<{ source: strin
       <header className="mb-6">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-4">
-            <Link href="/sources">
+            <Link href="/debug?tab=sources">
               <Button variant="ghost" size="icon">
                 <ArrowLeft className="w-5 h-5" />
               </Button>
@@ -254,7 +254,7 @@ export default function SourceDebugPage(props: { params: Promise<{ source: strin
             <summary className="cursor-pointer">
               <CardHeader>
                 <CardTitle className="flex items-center gap-2">
-                  <Image className="w-5 h-5" />
+                  <ImageIcon className="w-5 h-5" />
                   Image Parsing Analysis
                 </CardTitle>
               </CardHeader>

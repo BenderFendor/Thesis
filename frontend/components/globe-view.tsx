@@ -30,6 +30,7 @@ import {
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
+import { SafeImage } from "@/components/safe-image"
 
 interface GlobeViewProps {
   articles: NewsArticle[]
@@ -93,6 +94,7 @@ export function GlobeView({ articles, loading }: GlobeViewProps) {
   const { data: countryMetrics } = useQuery({
     queryKey: ["globe-country-metrics", DEFAULT_WINDOW_HOURS],
     queryFn: () => fetchArticleCountsByCountry(),
+    staleTime: 5 * 60 * 1000,
   })
 
   const { data: geoData } = useQuery({
@@ -104,6 +106,7 @@ export function GlobeView({ articles, loading }: GlobeViewProps) {
   const { data: countryList } = useQuery({
     queryKey: ["country-list"],
     queryFn: fetchCountryList,
+    staleTime: 30 * 60 * 1000,
   })
 
   const localLensQuery = useQuery({
@@ -501,7 +504,7 @@ export function GlobeView({ articles, loading }: GlobeViewProps) {
                             </div>
                             {hasRealImage(article.image) && (
                               <div className="h-16 w-16 shrink-0 overflow-hidden rounded-lg border border-white/10 bg-[var(--news-bg-primary)]/40">
-                                <img src={article.image} alt="" className="h-full w-full object-cover opacity-70 transition-opacity group-hover:opacity-100" />
+                                <SafeImage src={article.image} alt="" width={64} height={64} className="h-full w-full object-cover opacity-70 transition-opacity group-hover:opacity-100" />
                               </div>
                             )}
                           </div>
@@ -541,7 +544,7 @@ export function GlobeView({ articles, loading }: GlobeViewProps) {
                   <div className="cursor-pointer p-4 group" onClick={() => handleArticleSelect(leadArticle)}>
                     {hasRealImage(leadArticle.image) && (
                       <div className="relative mb-3 aspect-video w-full overflow-hidden rounded-lg border border-white/10">
-                        <img src={leadArticle.image} className="h-full w-full object-cover opacity-80 group-hover:scale-105 transition-transform duration-500" alt="Lead" />
+                        <SafeImage src={leadArticle.image} className="h-full w-full object-cover opacity-80 group-hover:scale-105 transition-transform duration-500" alt="Lead" fill />
                         <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent" />
                         <div className="absolute bottom-2 left-2 right-2">
                           <h4 className="font-serif text-sm font-medium leading-tight text-foreground drop-shadow-md">

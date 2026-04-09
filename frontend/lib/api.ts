@@ -44,14 +44,6 @@ const resolveBaseUrl = (value?: string) => {
 }
 
 export const API_BASE_URL = resolveBaseUrl(process.env.NEXT_PUBLIC_API_URL);
-const DOCKER_API_BASE_URL = resolveBaseUrl(
-  process.env.NEXT_PUBLIC_DOCKER_API_URL || API_BASE_URL,
-);
-
-// Use DOCKER_API_BASE_URL when running in Docker
-// This allows the frontend to reach the backend when both are in Docker containers
-// Which uses 8001 instead of 8000 to avoid conflict with Next.js dev server
-// (In production, both frontend and backend would be served from the same origin)
 
 // --- Feature Gates ---
 export const ENABLE_DIGEST = process.env.NEXT_PUBLIC_ENABLE_DIGEST === "true";
@@ -164,6 +156,7 @@ export interface NewsArticle {
     preloadedAt?: number;
   };
   hasFullContent?: boolean;
+  isPersisted?: boolean;
 }
 
 export interface BrowseIndexResponse {
@@ -673,6 +666,49 @@ export interface CacheStatus {
   cache_age_seconds: number;
 }
 
+export interface LlmLogEntry {
+  timestamp?: string;
+  request_id?: string;
+  service?: string;
+  model?: string;
+  messages?: Array<Record<string, unknown>>;
+  duration_ms?: number;
+  success?: boolean;
+  finish_reason?: string;
+  error_type?: string;
+  error_message?: string;
+}
+
+export interface LlmLogResponse {
+  available: boolean;
+  path: string;
+  returned: number;
+  total: number;
+  entries: LlmLogEntry[];
+  service?: string | null;
+  success_filter?: boolean | null;
+}
+
+export interface DebugErrorEntry {
+  timestamp?: string;
+  request_id?: string;
+  service?: string;
+  model?: string;
+  error_type?: string;
+  error_message?: string;
+  event_type?: string;
+  message?: string;
+  component?: string;
+  operation?: string;
+}
+
+export interface DebugErrorsResponse {
+  log_file: LlmLogResponse;
+  recent_request_stream_errors: DebugErrorEntry[];
+  returned_recent_errors: number;
+  include_request_stream_events: boolean;
+}
+
 export async function fetchCacheStatus(): Promise<CacheStatus | null> {
   try {
     const response = await fetch(`${API_BASE_URL}/cache/status`);
@@ -686,6 +722,52 @@ export async function fetchCacheStatus(): Promise<CacheStatus | null> {
     console.error("Failed to fetch cache status:", error);
     return null;
   }
+}
+
+export async function fetchLlmLogs(
+  options: {
+    limit?: number;
+    offset?: number;
+    service?: string;
+    success?: boolean;
+  } = {},
+): Promise<LlmLogResponse> {
+  const params = new URLSearchParams();
+  if (typeof options.limit === "number") params.set("limit", String(options.limit));
+  if (typeof options.offset === "number") params.set("offset", String(options.offset));
+  if (options.service) params.set("service", options.service);
+  if (typeof options.success === "boolean") params.set("success", String(options.success));
+
+  const response = await fetch(
+    `${API_BASE_URL}/debug/logs/llm${params.toString() ? `?${params.toString()}` : ""}`,
+  );
+  if (!response.ok) {
+    throw new Error(`HTTP error! status: ${response.status}`);
+  }
+  return response.json();
+}
+
+export async function fetchDebugErrors(
+  options: {
+    limit?: number;
+    offset?: number;
+    includeRequestStreamEvents?: boolean;
+  } = {},
+): Promise<DebugErrorsResponse> {
+  const params = new URLSearchParams();
+  if (typeof options.limit === "number") params.set("limit", String(options.limit));
+  if (typeof options.offset === "number") params.set("offset", String(options.offset));
+  if (typeof options.includeRequestStreamEvents === "boolean") {
+    params.set("include_request_stream_events", String(options.includeRequestStreamEvents));
+  }
+
+  const response = await fetch(
+    `${API_BASE_URL}/debug/logs/errors${params.toString() ? `?${params.toString()}` : ""}`,
+  );
+  if (!response.ok) {
+    throw new Error(`HTTP error! status: ${response.status}`);
+  }
+  return response.json();
 }
 
 export async function refreshCache(
@@ -1127,7 +1209,7 @@ export async function fetchSourceDebugData(
   let decodedSourceName: string;
   try {
     decodedSourceName = decodeURIComponent(sourceName);
-  } catch (decodeError) {
+  } catch {
     // If decoding fails, assume it's not encoded
     decodedSourceName = sourceName;
   }
@@ -1782,7 +1864,7 @@ export function streamNews(options: StreamOptions = {}): {
                 let data: StreamEvent;
                 try {
                   data = JSON.parse(eventData);
-                } catch (e) {
+                } catch {
                   console.warn(
                     "[streamNews] First JSON.parse failed, attempting to re-parse",
                   );
@@ -2089,9 +2171,6 @@ export function streamNews(options: StreamOptions = {}): {
   return { promise, url: sseUrl };
 }
 
-// A simple in-memory cache for API responses
-const apiCache = new Map<string, { data: unknown; timestamp: number }>();
-
 const hashStringToInt = (value: string) => {
   let hash = 0;
   for (let i = 0; i < value.length; i += 1) {
@@ -2217,6 +2296,7 @@ export function mapBackendArticles(
               label: geoSignal.label,
             }
           : undefined,
+      isPersisted: true,
     };
 
     return mappedArticle;
@@ -4219,18 +4299,23 @@ export async function fetchClusterArticles(
     id: article.id,
     title: article.title,
     source: article.source,
-    sourceId: article.source.toLowerCase().replace(/\s+/g, "-"),
-    country: "US",
-    credibility: "medium" as const,
-    bias: "center" as const,
-    summary: "",
+    sourceId:
+      article.source_id?.trim().toLowerCase() ||
+      article.source.toLowerCase().replace(/\s+/g, "-"),
+    country: getCountryFromSource(article.source),
+    credibility: getCredibilityFromSource(article.source),
+    bias: getBiasFromSource(article.source),
+    summary: article.summary || "No description",
     image: article.image_url || "",
     publishedAt: article.published_at || new Date().toISOString(),
-    category: "news",
+    category: "general",
     url: article.url,
-    tags: [],
+    tags: [article.source].filter(Boolean),
     originalLanguage: "en",
     translated: false,
+    author: article.author || undefined,
+    authors: article.authors ?? [],
+    isPersisted: true,
   }));
 }
 

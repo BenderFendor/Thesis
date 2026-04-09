@@ -31,7 +31,7 @@ jest.mock("framer-motion", () => ({
   motion: {
     div: ({ children, ...props }: React.HTMLAttributes<HTMLDivElement>) => <div {...stripMotionProps(props)}>{children}</div>,
     h1: ({ children, ...props }: React.HTMLAttributes<HTMLHeadingElement>) => <h1 {...stripMotionProps(props)}>{children}</h1>,
-    img: (props: React.ImgHTMLAttributes<HTMLImageElement>) => <img alt={props.alt ?? ""} {...stripMotionProps(props)} />,
+    img: (props: React.ImgHTMLAttributes<HTMLImageElement>) => React.createElement("img", { alt: props.alt ?? "", ...stripMotionProps(props) }),
   },
 }));
 

@@ -5,6 +5,7 @@ import { useQuery } from "@tanstack/react-query"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
+import { SafeImage } from "@/components/safe-image"
 import { fetchNewsForCountry, fetchCountryGeoData } from "@/lib/api"
 import type { NewsArticle } from "@/lib/api"
 
@@ -127,13 +128,12 @@ function ArticleCard({ article }: { article: NewsArticle }) {
         >
             <div className="flex gap-3">
                 {article.image && (
-                    <img
+                    <SafeImage
                         src={article.image}
                         alt=""
+                        width={80}
+                        height={56}
                         className="w-20 h-14 object-cover rounded flex-shrink-0"
-                        onError={(e) => {
-                            (e.target as HTMLImageElement).style.display = "none"
-                        }}
                     />
                 )}
                 <div className="flex-1 min-w-0">

@@ -1,11 +1,13 @@
 "use client"
 
-import { useCallback, useMemo, useState } from "react"
+import { useEffect, useMemo, useState } from "react"
 import { useQuery } from "@tanstack/react-query"
 import Link from "next/link"
+import { useRouter } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
+import { SafeImage } from "@/components/safe-image"
 import {
   Table,
   TableBody,
@@ -33,14 +35,25 @@ import {
   fetchCacheDebugArticles,
   fetchCacheDelta,
   fetchChromaDebugArticles,
+  fetchDebugErrors,
   fetchDatabaseDebugArticles,
+  fetchCacheStatus,
+  fetchLlmLogs,
+  fetchSourceStats,
   fetchStorageDrift,
   fetchStartupMetrics,
+  refreshCache,
   API_BASE_URL,
 } from "@/lib/api"
 import { useDebugMode } from "@/hooks/useDebugMode"
 import { logger, setDebugMode } from "@/lib/logger"
 import { exportDebugData } from "@/lib/performance-logger"
+import type {
+  CacheStatus,
+  DebugErrorsResponse,
+  LlmLogResponse,
+  SourceStats,
+} from "@/lib/api"
 
 function usePersistentNumber(initial: number, min: number, max: number): [number, (value: number) => void] {
   const [value, setValue] = useState(initial)
@@ -185,7 +198,26 @@ interface PerformanceDebugData {
   frontendPerfData: ReturnType<typeof exportDebugData>
 }
 
+const DEBUG_TABS = [
+  "system",
+  "sources",
+  "storage",
+  "parser",
+  "controls",
+  "llm",
+  "errors",
+  "performance",
+] as const
+
+type DebugTab = (typeof DEBUG_TABS)[number]
+
+const DEFAULT_DEBUG_TAB: DebugTab = "storage"
+
+const isDebugTab = (value: string | null): value is DebugTab =>
+  Boolean(value) && DEBUG_TABS.includes(value as DebugTab)
+
 export default function DebugDashboardPage() {
+  const router = useRouter()
   const [chromaLimit, setChromaLimit] = usePersistentNumber(25, 5, 500)
   const [chromaOffset, setChromaOffset] = usePersistentNumber(0, 0, 5000)
 
@@ -206,8 +238,11 @@ export default function DebugDashboardPage() {
   const [cacheSourceFilter, setCacheSourceFilter] = useState<string | undefined>(undefined)
 
   // Phase 3: New state for system status, log level, parser tester
-  const [activeTab, setActiveTab] = useState("storage")
+  const [activeTab, setActiveTab] = useState<DebugTab>(DEFAULT_DEBUG_TAB)
   const frontendDebugMode = useDebugMode()
+  const [cacheRefreshRunning, setCacheRefreshRunning] = useState(false)
+  const [cacheRefreshMessage, setCacheRefreshMessage] = useState<string | null>(null)
+  const [cacheRefreshError, setCacheRefreshError] = useState<string | null>(null)
 
   // Parser tester state
   const [rssTestUrl, setRssTestUrl] = useState("")
@@ -279,9 +314,9 @@ export default function DebugDashboardPage() {
     },
     retry: 1,
   })
-  const loadData = useCallback(() => {
+  const loadData = () => {
     void dashboardDataQuery.refetch()
-  }, [dashboardDataQuery.refetch])
+  }
   const chromaData = dashboardDataQuery.data?.chromaData ?? null
   const dbData = dashboardDataQuery.data?.dbData ?? null
   const driftData = dashboardDataQuery.data?.driftData ?? null
@@ -319,6 +354,31 @@ export default function DebugDashboardPage() {
     retry: 1,
   })
   const logLevel = logLevelQuery.data?.level ?? "INFO"
+
+  const sourceStatsQuery = useQuery<SourceStats[]>({
+    queryKey: ["debug-source-stats"],
+    queryFn: fetchSourceStats,
+    enabled: activeTab === "sources",
+    retry: 1,
+  })
+  const cacheStatusQuery = useQuery<CacheStatus | null>({
+    queryKey: ["debug-cache-status"],
+    queryFn: fetchCacheStatus,
+    enabled: activeTab === "sources",
+    retry: 1,
+  })
+  const llmLogsQuery = useQuery<LlmLogResponse>({
+    queryKey: ["debug-llm-logs"],
+    queryFn: () => fetchLlmLogs({ limit: 50 }),
+    enabled: activeTab === "llm",
+    retry: 1,
+  })
+  const debugErrorsQuery = useQuery<DebugErrorsResponse>({
+    queryKey: ["debug-errors"],
+    queryFn: () => fetchDebugErrors({ limit: 50, includeRequestStreamEvents: true }),
+    enabled: activeTab === "errors",
+    retry: 1,
+  })
 
   const performanceDataQuery = useQuery<PerformanceDebugData>({
     queryKey: ["debug-performance", activeTab],
@@ -361,17 +421,27 @@ export default function DebugDashboardPage() {
   const backendLogEvents = performanceDataQuery.data?.backendLogEvents ?? []
   const backendSlowOps = performanceDataQuery.data?.backendSlowOps ?? []
   const backendLogFiles = performanceDataQuery.data?.backendLogFiles ?? []
-  const loadPerformanceData = useCallback(() => {
+  const loadPerformanceData = () => {
     void performanceDataQuery.refetch()
-  }, [performanceDataQuery.refetch])
+  }
 
-  const loadSystemStatus = useCallback(() => {
+  const loadSystemStatus = () => {
     void systemStatusQuery.refetch()
-  }, [systemStatusQuery.refetch])
+  }
 
-  const loadLogLevel = useCallback(() => {
+  const loadLogLevel = () => {
     void logLevelQuery.refetch()
-  }, [logLevelQuery.refetch])
+  }
+  const loadSourceData = () => {
+    void sourceStatsQuery.refetch()
+    void cacheStatusQuery.refetch()
+  }
+  const loadLlmLogs = () => {
+    void llmLogsQuery.refetch()
+  }
+  const loadDebugErrors = () => {
+    void debugErrorsQuery.refetch()
+  }
 
   const handleSetLogLevel = async (level: string) => {
     try {
@@ -388,6 +458,37 @@ export default function DebugDashboardPage() {
 
   const handleToggleFrontendDebug = () => {
     setDebugMode(!frontendDebugMode)
+  }
+
+  const handleRefreshCache = async () => {
+    setCacheRefreshRunning(true)
+    setCacheRefreshError(null)
+    setCacheRefreshMessage("Starting cache refresh...")
+    try {
+      const success = await refreshCache((event) => {
+        const message =
+          event.message ||
+          (event.source
+            ? `Processed ${event.source}${event.articlesFromSource != null ? ` · ${event.articlesFromSource} articles` : ""}`
+            : null) ||
+          (event.totalSourcesProcessed != null
+            ? `Processed ${event.totalSourcesProcessed} sources`
+            : "Refreshing cache...")
+        setCacheRefreshMessage(message)
+      })
+      if (!success) {
+        throw new Error("Cache refresh did not complete successfully.")
+      }
+      setCacheRefreshMessage("Cache refresh completed.")
+      loadSourceData()
+      loadSystemStatus()
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Cache refresh failed."
+      setCacheRefreshError(message)
+      setCacheRefreshMessage(null)
+    } finally {
+      setCacheRefreshRunning(false)
+    }
   }
 
   const chromaStats = useMemo(() => {
@@ -447,7 +548,56 @@ export default function DebugDashboardPage() {
 
   const formatDuration = (value?: number | null, fallback = "—") => {
     if (value == null) return fallback
+    if (value > 1000) {
+      return `${Math.round(value).toLocaleString()}s`
+    }
     return `${value.toFixed(2)}s`
+  }
+
+  useEffect(() => {
+    if (typeof window === "undefined") return
+    const params = new URLSearchParams(window.location.search)
+    const tab = params.get("tab")
+    if (isDebugTab(tab)) {
+      setActiveTab(tab)
+    }
+  }, [])
+
+  const sourceStats = sourceStatsQuery.data ?? []
+  const cacheStatus = cacheStatusQuery.data ?? null
+  const llmLogs = llmLogsQuery.data ?? null
+  const debugErrors = debugErrorsQuery.data ?? null
+  const healthySources = sourceStats.filter((source) => source.status === "success").length
+  const warningSources = sourceStats.filter((source) => source.status === "warning").length
+  const failedSources = sourceStats.filter((source) => source.status === "error").length
+  const sourceStatusTone = (status: SourceStats["status"]) => {
+    switch (status) {
+      case "success":
+        return "text-emerald-600 dark:text-emerald-400"
+      case "warning":
+        return "text-amber-600 dark:text-amber-400"
+      default:
+        return "text-red-600 dark:text-red-400"
+    }
+  }
+
+  const handleTabChange = (value: string) => {
+    if (!isDebugTab(value)) return
+    setActiveTab(value)
+    const nextParams = new URLSearchParams(
+      typeof window === "undefined" ? "" : window.location.search,
+    )
+    nextParams.set("tab", value)
+    router.replace(`/debug?${nextParams.toString()}`)
+    if (value === "performance") {
+      loadPerformanceData()
+    } else if (value === "sources") {
+      loadSourceData()
+    } else if (value === "llm") {
+      loadLlmLogs()
+    } else if (value === "errors") {
+      loadDebugErrors()
+    }
   }
 
   const formatMetadataValue = (value: unknown): string | null => {
@@ -535,13 +685,13 @@ export default function DebugDashboardPage() {
         <div>
           <h1 className="text-2xl font-semibold">Debug Console</h1>
           <p className="text-sm text-muted-foreground">
-            System status, storage inspection, parser testing, and runtime controls.
+            System status, source operations, storage inspection, parser testing, and runtime controls.
           </p>
         </div>
         <div className="flex items-center gap-2">
           {loading && <span className="text-sm text-muted-foreground">Refreshing...</span>}
           <Button asChild variant="outline">
-            <Link href="/sources">Open Source Monitor</Link>
+            <Link href="/wiki">Open Wiki</Link>
           </Button>
           <Button onClick={loadData} variant="default">
             Refresh data
@@ -557,17 +707,15 @@ export default function DebugDashboardPage() {
         </Card>
       )}
 
-      <Tabs value={activeTab} onValueChange={(value) => {
-        setActiveTab(value)
-        if (value === "performance") {
-          loadPerformanceData()
-        }
-      }}>
-      <TabsList className="grid w-full grid-cols-5">
+      <Tabs value={activeTab} onValueChange={handleTabChange}>
+      <TabsList className="grid w-full grid-cols-4 lg:grid-cols-8">
           <TabsTrigger value="system">System</TabsTrigger>
+          <TabsTrigger value="sources">Sources</TabsTrigger>
           <TabsTrigger value="storage">Storage</TabsTrigger>
           <TabsTrigger value="parser">Parser Tester</TabsTrigger>
-          <TabsTrigger value="logs">Logging</TabsTrigger>
+          <TabsTrigger value="controls">Controls</TabsTrigger>
+          <TabsTrigger value="llm">LLM Calls</TabsTrigger>
+          <TabsTrigger value="errors">Errors</TabsTrigger>
           <TabsTrigger value="performance">Performance</TabsTrigger>
         </TabsList>
 
@@ -725,6 +873,158 @@ export default function DebugDashboardPage() {
               </Table>
             </CardContent>
           </Card>
+        </TabsContent>
+
+        <TabsContent value="sources" className="space-y-4">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div>
+              <h2 className="text-lg font-medium">Ingestion And Sources</h2>
+              <p className="text-sm text-muted-foreground">
+                Source health, cache coverage, and refresh controls in one place.
+              </p>
+            </div>
+            <div className="flex items-center gap-2">
+              <Button variant="outline" onClick={loadSourceData}>
+                Refresh source data
+              </Button>
+              <Button onClick={handleRefreshCache} disabled={cacheRefreshRunning}>
+                {cacheRefreshRunning ? "Refreshing cache..." : "Run cache refresh"}
+              </Button>
+            </div>
+          </div>
+
+          {(cacheRefreshMessage || cacheRefreshError) && (
+            <Card className={cacheRefreshError ? "border-red-500/30 bg-red-500/10" : undefined}>
+              <CardContent className="py-4 text-sm">
+                {cacheRefreshError || cacheRefreshMessage}
+              </CardContent>
+            </Card>
+          )}
+
+          <div className="grid gap-4 md:grid-cols-4">
+            <Card>
+              <CardHeader>
+                <CardTitle>Total Sources</CardTitle>
+              </CardHeader>
+              <CardContent className="text-2xl font-semibold">
+                {cacheStatus?.total_sources ?? sourceStats.length}
+              </CardContent>
+            </Card>
+            <Card>
+              <CardHeader>
+                <CardTitle>Healthy</CardTitle>
+              </CardHeader>
+              <CardContent className="text-2xl font-semibold text-emerald-600 dark:text-emerald-400">
+                {cacheStatus?.sources_working ?? healthySources}
+              </CardContent>
+            </Card>
+            <Card>
+              <CardHeader>
+                <CardTitle>Warnings</CardTitle>
+              </CardHeader>
+              <CardContent className="text-2xl font-semibold text-amber-600 dark:text-amber-400">
+                {cacheStatus?.sources_with_warnings ?? warningSources}
+              </CardContent>
+            </Card>
+            <Card>
+              <CardHeader>
+                <CardTitle>Errors</CardTitle>
+              </CardHeader>
+              <CardContent className="text-2xl font-semibold text-red-600 dark:text-red-400">
+                {cacheStatus?.sources_with_errors ?? failedSources}
+              </CardContent>
+            </Card>
+          </div>
+
+          <div className="grid gap-4 lg:grid-cols-[1.2fr_1.8fr]">
+            <Card>
+              <CardHeader>
+                <CardTitle>Cache Snapshot</CardTitle>
+                <CardDescription>
+                  Last update {formatTimestamp(cacheStatus?.last_updated)}
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-2 text-sm">
+                <p>Total cached articles: {cacheStatus?.total_articles ?? "—"}</p>
+                <p>Refresh state: {cacheStatus?.update_in_progress ? "Running" : "Idle"}</p>
+                <p>Cache age: {formatDuration(cacheStatus?.cache_age_seconds)}</p>
+                <div className="space-y-1">
+                  <p className="font-medium">Category breakdown</p>
+                  {cacheStatus?.category_breakdown && Object.keys(cacheStatus.category_breakdown).length > 0 ? (
+                    <div className="space-y-1 text-muted-foreground">
+                      {Object.entries(cacheStatus.category_breakdown)
+                        .sort((a, b) => b[1] - a[1])
+                        .map(([category, count]) => (
+                          <div key={category} className="flex items-center justify-between">
+                            <span>{category}</span>
+                            <span>{count}</span>
+                          </div>
+                        ))}
+                    </div>
+                  ) : (
+                    <p className="text-muted-foreground">No category breakdown available.</p>
+                  )}
+                </div>
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader>
+                <CardTitle>Source Health</CardTitle>
+                <CardDescription>
+                  Current feed status from the ingestion catalog.
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                {sourceStats.length > 0 ? (
+                  <div className="max-h-[32rem] overflow-y-auto">
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead>Source</TableHead>
+                          <TableHead>Status</TableHead>
+                          <TableHead>Country</TableHead>
+                          <TableHead>Articles</TableHead>
+                          <TableHead>Checked</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {sourceStats.map((source) => (
+                          <TableRow key={source.url}>
+                            <TableCell>
+                              <div className="space-y-1">
+                                <div className="font-medium">{source.name}</div>
+                                <div className="text-xs text-muted-foreground">
+                                  {source.category} · {source.funding_type || "unknown funding"}
+                                </div>
+                                {source.error_message && (
+                                  <div className="text-xs text-red-600 dark:text-red-400">
+                                    {source.error_message}
+                                  </div>
+                                )}
+                              </div>
+                            </TableCell>
+                            <TableCell className={sourceStatusTone(source.status)}>
+                              {source.status}
+                            </TableCell>
+                            <TableCell>{source.country || "—"}</TableCell>
+                            <TableCell>{source.article_count}</TableCell>
+                            <TableCell className="text-xs text-muted-foreground">
+                              {formatTimestamp(source.last_checked)}
+                            </TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  </div>
+                ) : (
+                  <p className="text-sm text-muted-foreground">
+                    No source statistics available.
+                  </p>
+                )}
+              </CardContent>
+            </Card>
+          </div>
         </TabsContent>
 
         {/* Storage Tab (existing content) */}
@@ -1264,11 +1564,12 @@ export default function DebugDashboardPage() {
                   {articleTestResult.image_url && (
                     <div className="space-y-2">
                       <p className="text-sm break-all">{articleTestResult.image_url}</p>
-                      <img
+                      <SafeImage
                         src={articleTestResult.image_url}
                         alt="Preview"
+                        width={320}
+                        height={180}
                         className="max-w-xs rounded border"
-                        onError={(e) => (e.currentTarget.style.display = "none")}
                       />
                     </div>
                   )}
@@ -1314,7 +1615,7 @@ export default function DebugDashboardPage() {
         </TabsContent>
 
         {/* Logging Tab */}
-        <TabsContent value="logs" className="space-y-4">
+        <TabsContent value="controls" className="space-y-4">
           <Card>
             <CardHeader>
               <CardTitle>Backend Log Level</CardTitle>
@@ -1362,6 +1663,203 @@ export default function DebugDashboardPage() {
                 When enabled, detailed logs will appear in the browser console.
                 Stored in localStorage as <code>thesis_debug_mode</code>.
               </p>
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        <TabsContent value="llm" className="space-y-4">
+          <div className="flex items-center justify-between gap-3">
+            <div>
+              <h2 className="text-lg font-medium">LLM Calls</h2>
+              <p className="text-sm text-muted-foreground">
+                Parsed model calls with latency and outcome details.
+              </p>
+            </div>
+            <Button variant="outline" onClick={loadLlmLogs}>
+              Refresh LLM logs
+            </Button>
+          </div>
+
+          <Card>
+            <CardHeader>
+              <CardTitle>Call Summary</CardTitle>
+              <CardDescription>
+                {llmLogs?.available
+                  ? `${llmLogs.total} calls logged in ${llmLogs.path}`
+                  : "LLM log file is not available in this session directory."}
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="grid gap-4 md:grid-cols-4">
+              <div>
+                <p className="text-sm text-muted-foreground">Returned</p>
+                <p className="text-2xl font-semibold">{llmLogs?.returned ?? 0}</p>
+              </div>
+              <div>
+                <p className="text-sm text-muted-foreground">Successes</p>
+                <p className="text-2xl font-semibold text-emerald-600 dark:text-emerald-400">
+                  {llmLogs?.entries.filter((entry) => entry.success).length ?? 0}
+                </p>
+              </div>
+              <div>
+                <p className="text-sm text-muted-foreground">Failures</p>
+                <p className="text-2xl font-semibold text-red-600 dark:text-red-400">
+                  {llmLogs?.entries.filter((entry) => entry.success === false).length ?? 0}
+                </p>
+              </div>
+              <div>
+                <p className="text-sm text-muted-foreground">Avg latency</p>
+                <p className="text-2xl font-semibold">
+                  {llmLogs?.entries.length
+                    ? `${Math.round(
+                        llmLogs.entries.reduce(
+                          (total, entry) => total + (entry.duration_ms ?? 0),
+                          0,
+                        ) / llmLogs.entries.length,
+                      )}ms`
+                    : "—"}
+                </p>
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader>
+              <CardTitle>Recent Calls</CardTitle>
+            </CardHeader>
+            <CardContent>
+              {llmLogs?.entries.length ? (
+                <div className="space-y-3 max-h-[36rem] overflow-y-auto">
+                  {llmLogs.entries.map((entry, index) => (
+                    <div key={`${entry.request_id || "llm"}-${index}`} className="rounded-lg border p-3 text-sm">
+                      <div className="flex flex-wrap items-center justify-between gap-3">
+                        <div>
+                          <p className="font-medium">
+                            {entry.service || "unknown service"} · {entry.model || "unknown model"}
+                          </p>
+                          <p className="text-xs text-muted-foreground">
+                            {formatTimestamp(entry.timestamp)} · request {entry.request_id || "n/a"}
+                          </p>
+                        </div>
+                        <div className="flex items-center gap-3 text-xs">
+                          <span className={entry.success ? "text-emerald-600 dark:text-emerald-400" : "text-red-600 dark:text-red-400"}>
+                            {entry.success ? "success" : "failed"}
+                          </span>
+                          <span>{entry.duration_ms != null ? `${Math.round(entry.duration_ms)}ms` : "—"}</span>
+                          <span>{entry.messages?.length ?? 0} messages</span>
+                        </div>
+                      </div>
+                      {(entry.error_type || entry.error_message || entry.finish_reason) && (
+                        <div className="mt-2 text-xs text-muted-foreground">
+                          {entry.finish_reason && <span>Finish: {entry.finish_reason}</span>}
+                          {entry.error_type && <span className="ml-3">Type: {entry.error_type}</span>}
+                          {entry.error_message && <span className="ml-3">{entry.error_message}</span>}
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <p className="text-sm text-muted-foreground">No LLM calls logged yet.</p>
+              )}
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        <TabsContent value="errors" className="space-y-4">
+          <div className="flex items-center justify-between gap-3">
+            <div>
+              <h2 className="text-lg font-medium">Errors</h2>
+              <p className="text-sm text-muted-foreground">
+                Combined API error log plus recent request and stream failures.
+              </p>
+            </div>
+            <Button variant="outline" onClick={loadDebugErrors}>
+              Refresh errors
+            </Button>
+          </div>
+
+          <Card>
+            <CardHeader>
+              <CardTitle>Error Summary</CardTitle>
+              <CardDescription>
+                {debugErrors?.log_file.available
+                  ? `${debugErrors.log_file.total} API errors logged`
+                  : "Session error log file not available."}
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="grid gap-4 md:grid-cols-3">
+              <div>
+                <p className="text-sm text-muted-foreground">Logged API errors</p>
+                <p className="text-2xl font-semibold">
+                  {debugErrors?.log_file.total ?? 0}
+                </p>
+              </div>
+              <div>
+                <p className="text-sm text-muted-foreground">Recent request/stream errors</p>
+                <p className="text-2xl font-semibold text-red-600 dark:text-red-400">
+                  {debugErrors?.returned_recent_errors ?? 0}
+                </p>
+              </div>
+              <div>
+                <p className="text-sm text-muted-foreground">Showing</p>
+                <p className="text-2xl font-semibold">
+                  {(debugErrors?.log_file.entries.length ?? 0) + (debugErrors?.recent_request_stream_errors.length ?? 0)}
+                </p>
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader>
+              <CardTitle>Recent Failures</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              {debugErrors && (debugErrors.log_file.entries.length > 0 || debugErrors.recent_request_stream_errors.length > 0) ? (
+                <>
+                  {debugErrors.log_file.entries.map((entry, index) => (
+                    <div key={`log-${entry.request_id || index}`} className="rounded-lg border p-3 text-sm">
+                      <div className="flex flex-wrap items-center justify-between gap-3">
+                        <div>
+                          <p className="font-medium">
+                            {entry.service || "unknown service"} · {entry.model || "unknown model"}
+                          </p>
+                          <p className="text-xs text-muted-foreground">
+                            {formatTimestamp(entry.timestamp)} · request {entry.request_id || "n/a"}
+                          </p>
+                        </div>
+                        <span className="text-red-600 dark:text-red-400">
+                          {entry.error_type || "error"}
+                        </span>
+                      </div>
+                      <p className="mt-2 text-xs text-muted-foreground">
+                        {entry.error_message || "No error message recorded."}
+                      </p>
+                    </div>
+                  ))}
+                  {debugErrors.recent_request_stream_errors.map((entry, index) => (
+                    <div key={`event-${entry.request_id || index}`} className="rounded-lg border p-3 text-sm">
+                      <div className="flex flex-wrap items-center justify-between gap-3">
+                        <div>
+                          <p className="font-medium">
+                            {entry.event_type || entry.component || "request error"}
+                          </p>
+                          <p className="text-xs text-muted-foreground">
+                            {formatTimestamp(entry.timestamp)} · request {entry.request_id || "n/a"}
+                          </p>
+                        </div>
+                        <span className="text-red-600 dark:text-red-400">
+                          {entry.operation || "request"}
+                        </span>
+                      </div>
+                      <p className="mt-2 text-xs text-muted-foreground">
+                        {entry.message || entry.error_message || "No error message recorded."}
+                      </p>
+                    </div>
+                  ))}
+                </>
+              ) : (
+                <p className="text-sm text-muted-foreground">No recent errors logged.</p>
+              )}
             </CardContent>
           </Card>
         </TabsContent>

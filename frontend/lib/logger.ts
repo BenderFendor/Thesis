@@ -11,8 +11,6 @@
 
 import { saveToStorage } from "@/lib/storage";
 
-type LogLevel = 'debug' | 'info' | 'warn' | 'error';
-
 /**
  * Check if debug mode is enabled.
  */

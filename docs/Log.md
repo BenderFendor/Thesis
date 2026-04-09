@@ -1,5 +1,24 @@
 # Log
 
+## 2026-03-28: Debug Consolidation, Reader Hub Highlights, Research Cancel State, And Globe Budgeting
+
+**Problem:** Operator tooling was split between `/debug` and `/sources`, the saved-reader workflow still left highlights outside the main workspace, research cancellation still ended in a rough partial state, and the globe was paying too much runtime cost for the same visual result.
+
+**What Changed:**
+- Added backend debug log endpoints at `GET /debug/logs/llm` and `GET /debug/logs/errors`, backed by session log readers in `backend/app/api/routes/debug.py`.
+- Extended `frontend/app/debug/page.tsx` into a fuller console with tab query persistence plus dedicated `Sources`, `LLM Calls`, and `Errors` tabs, cache refresh controls, source-health summaries, and parsed log views.
+- Redirected `frontend/app/sources/page.tsx` and `frontend/app/sources/debug/page.tsx` into `/debug?tab=sources`, and updated navigation so the top-level operator entry point is `Debug` instead of a separate source monitor route.
+- Upgraded `frontend/app/saved/page.tsx` into more of a reader hub by adding a `Highlights` tab, highlight counts, and library summary integration while keeping the existing queue and digest flow.
+- Tightened `frontend/app/search/page.tsx` so stopping a research run now finalizes the active assistant message as an explicit cancelled state instead of leaving a half-streaming placeholder behind.
+- Reduced globe overhead in `frontend/components/interactive-globe.tsx` by moving country polygons to a local static asset, adding adaptive quality tiers for pixel ratio, texture size, star count, and sphere geometry density, memoizing visible polygons, and pausing the animation loop when the document is hidden.
+- Added longer query caching for globe country datasets in `frontend/components/globe-view.tsx`.
+
+**Verification:**
+- `python3 -m py_compile backend/app/api/routes/debug.py`
+- `cd frontend && npx tsc --noEmit`
+- `./verify.sh`
+- `./verify.sh` completed successfully; frontend lint still reports many pre-existing warnings elsewhere in the repo, but there were no errors and the full verification suite passed.
+
 ## 2026-03-27: Source Analysis Framework Replaces Legacy Propaganda Filters
 
 **Problem:** The wiki source-analysis feature still framed itself as a direct Chomsky/Parenti implementation even though the actual rubric had drifted. The old six-axis schema, API names, UI copy, and reporter headings no longer matched the intended method.
@@ -517,3 +536,18 @@ curl http://localhost:8000/trending/diagnostics
 - Enriched topic cluster payloads with nested `gdelt_context` for representative and member articles, then surfaced CAMEO, Goldstein, and tone context in the cluster detail modal.
 - Extended blindspot and country-coverage payloads with explicit geography signals so the blindspot viewer and globe sidebar can distinguish source-origin counts from country-mention counts.
 - Verification: `python3 -m py_compile backend/app/services/gdelt_taxonomy.py backend/app/services/gdelt_query.py backend/app/services/gdelt_aggregates.py backend/news_research_agent.py backend/app/api/routes/research.py backend/app/models/research.py backend/app/services/chroma_topics.py backend/app/api/routes/trending.py backend/app/services/blindspot_viewer.py backend/app/api/routes/blindspots.py backend/app/api/routes/news_by_country.py`, `npx tsc --noEmit` in `frontend/`, `npm --prefix frontend test -- --runInBand __tests__/trending-cluster-nullables.test.ts`. Backend `pytest` collection now gets past missing imports after local dependency installs, but targeted runs still hang during execution in this local environment and `uv run mypy backend/app --strict` remains broken by broader repo environment and stub issues outside this change set.
+
+2026-04-09 — Globe texture and interaction performance pass
+- Added a separate `frontend/public/3dmodel/textures/optimized/` asset set and moved the active globe to 2048px textures so the rendered earth no longer starts from the original 8K to 21K source images.
+- Reduced the active globe texture payload from roughly 24 MB on disk to about 1.1 MB for the optimized set, while keeping the same shader-driven look and cloud layer.
+- Removed polygon altitude tweening in `frontend/components/interactive-globe.tsx`, capped anisotropy, lowered renderer pixel ratio ceilings, and trimmed background star and sphere segment density to cut GPU and hover-path cost without changing the overall composition.
+- Kept the globe material stable across lighting-mode toggles so switching between `All lit` and `Day/night` no longer recreates the texture-backed shader material.
+- Removed explicit `fract()` wrapping from the earth and cloud shader UVs so the globe uses texture repeat mode without introducing a visible meridian seam at the sphere UV boundary.
+- Split one-time globe scene setup from resize-time renderer updates so expanding the focus panel or changing layout no longer tears down and reloads the earth land textures.
+- Replaced the `onGlobeReady` state setter with an effect-driven readiness handoff so the globe no longer triggers React's `setState on an unmounted component` warning during mount in Next.js dev.
+- Verification: `./verify.sh` passed. Local browser check on `http://127.0.0.1:3000/` confirmed the globe still matches the existing layout and visual hierarchy after the asset swap.
+
+2026-04-09 — Globe readiness and debug log pagination regressions
+- Reworked globe readiness in `frontend/components/interactive-globe.tsx` to follow the actual `react-globe.gl` instance via a stable ref callback instead of a one-shot effect, so delayed dynamic mounts still run the control and renderer setup path.
+- Fixed `_read_jsonl_tail()` in `backend/app/api/routes/debug.py` so `offset` now paginates backward from the newest matching log entries instead of returning the same tail window for most offsets.
+- Added a frontend regression test for delayed globe mount readiness in `frontend/__tests__/interactive-globe.test.tsx` and a backend property test for log-tail pagination in `backend/tests/test_debug_log_pagination.py`.

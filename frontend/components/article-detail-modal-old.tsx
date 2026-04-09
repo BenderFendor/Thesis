@@ -4,6 +4,7 @@ import { useState, useEffect } from "react"
 import { X, ExternalLink, Heart, Bookmark, AlertTriangle, DollarSign, Bug, Link as LinkIcon, Rss, Sparkles } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
+import { SafeImage } from "@/components/safe-image"
 import { type NewsArticle, getSourceById, type NewsSource, fetchSourceDebugData, type SourceDebugData, analyzeArticle, type ArticleAnalysis } from "@/lib/api"
 import { ArticleAnalysisDisplay } from "@/components/article-analysis"
 
@@ -150,7 +151,7 @@ export function ArticleDetailModal({ article, isOpen, onClose }: ArticleDetailMo
         <div className="overflow-y-auto max-h-[calc(90vh-120px)]">
           {/* Article Image */}
           <div className="relative h-64 bg-gray-900">
-            <img src={article.image || "/placeholder.svg"} alt={article.title} className="w-full h-full object-cover" />
+            <SafeImage src={article.image || "/placeholder.svg"} alt={article.title} fill className="w-full h-full object-cover" />
             <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent" />
           </div>
 

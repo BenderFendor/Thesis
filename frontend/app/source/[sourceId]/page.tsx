@@ -11,6 +11,7 @@ import { Badge } from "@/components/ui/badge"
 import { Card, CardContent } from "@/components/ui/card"
 import { ArticleDetailModal } from "@/components/article-detail-modal"
 import { SourceResearchPanel } from "@/components/source-research-panel"
+import { SafeImage } from "@/components/safe-image"
 import { type NewsArticle, getSourceById } from "@/lib/api"
 import { useBrowseIndex } from "@/hooks/useBrowseIndex"
 import { useDebugMode } from "@/hooks/useDebugMode"
@@ -75,6 +76,15 @@ export default function SourcePage(props: SourcePageProps) {
     setModalOpen(true)
   }
 
+  const handleBack = () => {
+    if (typeof window !== "undefined" && window.history.length > 1) {
+      router.back()
+      return
+    }
+
+    router.push("/")
+  }
+
   if (sourceLoading) {
     return (
       <div className="min-h-screen bg-[var(--news-bg-primary)] flex items-center justify-center">
@@ -96,7 +106,7 @@ export default function SourcePage(props: SourcePageProps) {
           <p className="font-serif text-xl text-foreground">Source Unavailable</p>
           <p className="text-sm text-muted-foreground font-mono">{sourceError ? "Failed to load source data" : "Source not found"}</p>
         </div>
-        <Button variant="outline" onClick={() => router.back()} className="border-white/10 bg-transparent hover:bg-white/5 text-[10px] font-mono uppercase tracking-[0.3em]">
+        <Button variant="outline" onClick={handleBack} className="border-white/10 bg-transparent hover:bg-white/5 text-[10px] font-mono uppercase tracking-[0.3em]">
           <ArrowLeft className="w-3 h-3 mr-2" />
           Return
         </Button>
@@ -121,7 +131,7 @@ export default function SourcePage(props: SourcePageProps) {
             <Button 
               variant="ghost" 
               size="sm" 
-              onClick={() => router.back()}
+              onClick={handleBack}
               className="h-8 px-2 text-muted-foreground hover:text-foreground hover:bg-white/5"
             >
               <ArrowLeft className="w-4 h-4 mr-2" />
@@ -277,10 +287,12 @@ export default function SourcePage(props: SourcePageProps) {
                       >
                         <div className="aspect-[16/9] w-full overflow-hidden bg-white/5 relative">
                           {hasRealImage(article.image) ? (
-                            <img
+                            <SafeImage
                               src={article.image}
-                              alt=""
-                              className="w-full h-full object-cover grayscale transition-all duration-500 group-hover:grayscale-0 group-hover:scale-105 opacity-80 group-hover:opacity-100"
+                              alt={article.title}
+                              fill
+                              sizes="(min-width: 1024px) 33vw, (min-width: 768px) 50vw, 100vw"
+                              className="object-cover grayscale transition-all duration-500 group-hover:grayscale-0 group-hover:scale-105 opacity-80 group-hover:opacity-100"
                             />
                           ) : (
                             <div className="w-full h-full flex items-center justify-center bg-white/5">

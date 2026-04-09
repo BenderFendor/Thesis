@@ -8,6 +8,16 @@ const nextConfig = {
   // No built-in optimization needed
   images: {
     unoptimized: true,
+    remotePatterns: [
+      {
+        protocol: 'https',
+        hostname: '**',
+      },
+      {
+        protocol: 'http',
+        hostname: '**',
+      },
+    ],
   },
 
   // Standalone output for minimal container image size

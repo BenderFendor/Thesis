@@ -2,10 +2,9 @@
 
 import { useState, useCallback } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { Card, CardContent } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
+import { SafeImage } from "@/components/safe-image";
 import {
   Select,
   SelectContent,
@@ -16,7 +15,6 @@ import {
 import {
   Clock,
   TrendingUp,
-  Zap,
   PlusCircle,
   MinusCircle,
   Heart,
@@ -36,12 +34,9 @@ import {
   hasRealClusterImage,
   pickClusterImageUrl,
 } from "@/lib/cluster-display";
-import { get_logger } from "@/lib/utils";
 import { ClusterDetailModal } from "./cluster-detail-modal";
 import { useReadingQueue } from "@/hooks/useReadingQueue";
 import { useLikedArticles } from "@/hooks/useLikedArticles";
-
-const logger = get_logger("TrendingFeed");
 
 function hasRealImage(src?: string | null): boolean {
   return hasRealClusterImage(src);
@@ -320,11 +315,11 @@ function BreakingCard({
       
       <div className="relative m-2 aspect-video overflow-hidden rounded-xl bg-white/5">
         {showImage ? (
-          <img
+          <SafeImage
             src={imageUrl!}
             alt={article.title || label}
+            fill
             className="w-full h-full object-cover grayscale opacity-80 transition duration-700 group-hover:grayscale-0 group-hover:opacity-100 group-hover:scale-105"
-            loading="lazy"
           />
         ) : (
           <div className="w-full h-full bg-[radial-gradient(circle_at_top_left,rgba(239,68,68,0.15),transparent_70%)]" />
@@ -427,11 +422,11 @@ function TrendingCard({
     >
       <div className="relative m-2 aspect-video overflow-hidden rounded-xl bg-white/5">
         {showImage ? (
-          <img
+          <SafeImage
             src={imageUrl!}
             alt={article.title || label}
+            fill
             className="w-full h-full object-cover grayscale opacity-80 transition duration-700 group-hover:grayscale-0 group-hover:opacity-100 group-hover:scale-105"
-            loading="lazy"
           />
         ) : (
           <div className="w-full h-full bg-[radial-gradient(circle_at_top_left,rgba(255,255,255,0.08),transparent_70%)]" />

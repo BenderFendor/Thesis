@@ -3,6 +3,7 @@
 import { useRef, useCallback, useEffect, useMemo, memo, useState } from "react";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import Link from "next/link";
+import { SafeImage } from "@/components/safe-image";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -92,11 +93,11 @@ const ArticleCard = memo(function ArticleCard({
         <div className="relative aspect-video overflow-hidden bg-[var(--news-bg-primary)]/40 flex-shrink-0">
           {hasRealImage ? (
             <>
-              <img
+              <SafeImage
                 src={article.image}
                 alt={article.title}
+                fill
                 className="w-full h-full object-cover grayscale group-hover:grayscale-0 transition duration-300"
-                loading="lazy"
               />
               <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-transparent to-transparent" />
             </>
@@ -230,6 +231,8 @@ export function VirtualizedGrid({
   const rowCount = Math.ceil(articles.length / columnCount);
 
   // Virtual row renderer
+  // TanStack Virtual returns imperative helpers; memoization warnings are expected here.
+  // eslint-disable-next-line react-hooks/incompatible-library
   const rowVirtualizer = useVirtualizer({
     count: hasNextPage ? rowCount + 1 : rowCount, // +1 for loading row
     getScrollElement: () => parentRef.current,
@@ -238,8 +241,9 @@ export function VirtualizedGrid({
   });
 
   // Fetch next page when scrolling near bottom
+  const virtualItems = rowVirtualizer.getVirtualItems();
+
   useEffect(() => {
-    const virtualItems = rowVirtualizer.getVirtualItems();
     const lastItem = virtualItems[virtualItems.length - 1];
 
     if (!lastItem) return;
@@ -249,14 +253,12 @@ export function VirtualizedGrid({
       fetchNextPage();
     }
   }, [
-    rowVirtualizer.getVirtualItems(),
+    virtualItems,
     rowCount,
     hasNextPage,
     isFetchingNextPage,
     fetchNextPage,
   ]);
-
-  const virtualItems = rowVirtualizer.getVirtualItems();
 
   // Calculate card width based on available space
   const cardWidth = useMemo(() => {

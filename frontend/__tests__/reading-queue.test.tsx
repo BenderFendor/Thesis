@@ -188,9 +188,6 @@ describe("HighlightToolbar", () => {
 
 describe("Keyboard Navigation", () => {
   it("handles arrow key navigation", () => {
-    const mockGoNext = jest.fn();
-    const mockGoPrev = jest.fn();
-
     // Test that keyboard events can be simulated
     const event = new KeyboardEvent("keydown", { key: "ArrowRight" });
     fireEvent(window, event);

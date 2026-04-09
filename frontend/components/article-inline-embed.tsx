@@ -3,6 +3,7 @@
 import { useMemo } from "react"
 import { useQuery } from "@tanstack/react-query"
 import { analyzeArticle, type ArticleAnalysis, type NewsArticle } from "@/lib/api"
+import { SafeImage } from "@/components/safe-image"
 import { ExternalLink, ImageOff } from "lucide-react"
 
 interface ArticleInlineEmbedProps {
@@ -78,7 +79,7 @@ export const ArticleInlineEmbed = ({ url, onOpen }: ArticleInlineEmbedProps) => 
     >
       <div className="h-16 w-24 overflow-hidden rounded-lg bg-zinc-950 border border-zinc-900 flex-shrink-0">
         {analysis?.grounding_metadata?.grounding_chunks?.length ? (
-          <img src={"/placeholder.svg"} alt="preview" className="w-full h-full object-cover opacity-80" />
+          <SafeImage src="/placeholder.svg" alt="preview" width={96} height={64} className="w-full h-full object-cover opacity-80" />
         ) : (
           <div className="w-full h-full flex items-center justify-center text-zinc-700">
             <ImageOff className="w-5 h-5" />

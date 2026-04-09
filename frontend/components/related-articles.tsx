@@ -3,6 +3,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { ExternalLink, Loader2 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
+import { SafeImage } from "@/components/safe-image";
 import { fetchRelatedArticles, RelatedArticle } from "@/lib/api";
 
 interface RelatedArticlesProps {
@@ -79,9 +80,11 @@ export function RelatedArticles({
             <div className="rounded-lg border border-white/10 bg-white/5 p-3 transition-colors hover:bg-white/10 hover:border-white/20">
               <div className="flex items-start gap-3">
                 {article.image && (
-                  <img
+                  <SafeImage
                     src={article.image}
                     alt=""
+                    width={64}
+                    height={48}
                     className="w-16 h-12 object-cover rounded flex-shrink-0"
                   />
                 )}

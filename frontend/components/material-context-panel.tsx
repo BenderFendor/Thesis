@@ -9,7 +9,6 @@ import { Skeleton } from "@/components/ui/skeleton"
 import {
     TrendingUp,
     AlertTriangle,
-    DollarSign,
     Globe,
     RefreshCw,
     ChevronDown,
@@ -17,7 +16,7 @@ import {
     Building2,
     AlertCircle
 } from "lucide-react"
-import { analyzeMaterialContext, type MaterialContext } from "@/lib/api"
+import { analyzeMaterialContext } from "@/lib/api"
 
 interface MaterialContextPanelProps {
     source: string

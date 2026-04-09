@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef } from "react";
 import { ENABLE_HIGHLIGHTS, type Highlight } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import { Highlighter, X } from "lucide-react";
@@ -26,21 +26,16 @@ interface HighlightToolbarProps {
 const HIGHLIGHT_DEBUG = true
 
 export function HighlightToolbar({
-  articleUrl: _articleUrl,
   containerRef,
   highlightColor,
   autoCreate,
   highlights,
   onCreate,
-  onUpdate,
-  onDelete,
 }: HighlightToolbarProps) {
   const toolbarRef = useRef<HTMLDivElement>(null);
-  const [editingId, setEditingId] = useState<number | null>(null);
-  const [editingNote, setEditingNote] = useState("");
   const selectionHandledRef = useRef(false)
 
-  const handleCreateHighlight = async () => {
+  const handleCreateHighlight = useCallback(async () => {
     const selection = window.getSelection()
     if (!selection || selection.toString().length === 0 || !containerRef.current) {
       toast.error("No text selected")
@@ -119,7 +114,7 @@ export function HighlightToolbar({
       toast.error("Failed to create highlight");
       console.error(error);
     }
-  };
+  }, [containerRef, highlightColor, highlights, onCreate]);
 
   // Handle text selection
   useEffect(() => {
@@ -259,28 +254,6 @@ export function HighlightToolbar({
   if (!ENABLE_HIGHLIGHTS) {
     return null
   }
-
-  const handleDeleteHighlight = async (id: number) => {
-    try {
-      await onDelete({ highlightId: id });
-      toast.success("Highlight deleted");
-    } catch (error) {
-      toast.error("Failed to delete highlight");
-      console.error(error);
-    }
-  };
-
-  const handleUpdateNote = async (id: number) => {
-    try {
-      await onUpdate({ highlightId: id, note: editingNote });
-      setEditingId(null);
-      setEditingNote("");
-      toast.success("Note updated");
-    } catch (error) {
-      toast.error("Failed to update note");
-      console.error(error);
-    }
-  };
 
   return (
     <>

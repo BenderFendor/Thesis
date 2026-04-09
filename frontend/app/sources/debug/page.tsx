@@ -1,5 +1,5 @@
 import { redirect } from "next/navigation";
 
 export default function SourcesDebugRedirectPage() {
-  redirect("/sources");
+  redirect("/debug?tab=sources");
 }

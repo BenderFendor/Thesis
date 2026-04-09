@@ -1,0 +1,21 @@
+{
+  "active": false,
+  "direction": "zero",
+  "goal": "Fix all frontend lint warnings",
+  "guard": "npx tsc --noEmit",
+  "iteration": 0,
+  "loop_mode": "bounded",
+  "max_iterations": 10,
+  "metric": "",
+  "mode": "fix",
+  "research": "targeted",
+  "results_path": ".autoresearch/results.tsv",
+  "scope": "frontend",
+  "started_at": "2026-03-28T21:01:29.878875+00:00",
+  "status": "completed",
+  "stop_when_done": true,
+  "target": "0",
+  "timeout": "",
+  "updated_at": "2026-03-28T21:11:47.457083+00:00",
+  "verify": "npm run lint"
+}

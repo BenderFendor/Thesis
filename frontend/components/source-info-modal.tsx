@@ -8,7 +8,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
-import { ExternalLink, MapPin, DollarSign, Globe, AlertCircle } from "lucide-react"
+import { ExternalLink, MapPin, Globe } from "lucide-react"
 import { getSourceById, fetchSources, type NewsSource } from "@/lib/api"
 import SourceDebug from "@/components/source-debug"
 import { useDebugMode } from "@/hooks/useDebugMode"
@@ -43,7 +43,7 @@ export function SourceInfoModal({ sourceId, children }: SourceInfoModalProps) {
       const allSources = await fetchSources()
       const found = allSources.find((s) => s.id === sourceId)
       setDebugSource(found || null)
-    } catch (e) {
+    } catch {
       setDebugSource(null)
     } finally {
       setDebugLoading(false)

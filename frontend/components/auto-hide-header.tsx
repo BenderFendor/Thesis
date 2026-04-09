@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { cn } from "@/lib/utils";
-import { Globe, Bookmark, BookOpen } from "lucide-react";
+import { Globe, Bookmark, BookOpen, Wrench } from "lucide-react";
 import Link from "next/link";
 
 export function AutoHideHeader() {
@@ -75,10 +75,11 @@ export function AutoHideHeader() {
             Saved
           </Link>
           <Link
-            href="/sources"
-            className="px-3 py-1 text-sm text-muted-foreground hover:text-foreground transition-colors"
+            href="/debug?tab=sources"
+            className="px-3 py-1 text-sm text-muted-foreground hover:text-foreground transition-colors flex items-center gap-1"
           >
-            Sources
+            <Wrench className="w-3.5 h-3.5" />
+            Debug
           </Link>
           <Link
             href="/wiki"

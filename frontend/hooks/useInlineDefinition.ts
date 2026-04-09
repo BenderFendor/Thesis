@@ -37,7 +37,7 @@ export function useInlineDefinition() {
         let rect: DOMRect | null = null;
         try {
           rect = range.getBoundingClientRect();
-        } catch (err) {
+        } catch {
           rect = null;
         }
 

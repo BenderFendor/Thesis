@@ -28,9 +28,10 @@ import {
   DollarSign,
   Bug,
 } from "lucide-react";
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useCallback } from "react";
 import ReactMarkdown from "react-markdown";
 import { cn } from "@/lib/utils";
+import { SafeImage } from "@/components/safe-image";
 import {
   type NewsArticle,
   analyzeArticle,
@@ -152,8 +153,8 @@ export function ReadingQueueSidebar() {
     });
   };
 
-  const handleNavigateArticle = (direction: "next" | "previous") => {
-    if (!selectedArticle || !queuedArticles) return;
+  const handleNavigateArticle = useCallback((direction: "next" | "previous") => {
+    if (!selectedArticleUrl || !queuedArticles) return;
 
     const currentIndex = queuedArticles.findIndex(
       (a) => a.url === selectedArticleUrl
@@ -169,9 +170,9 @@ export function ReadingQueueSidebar() {
     if (newIndex !== currentIndex) {
       setSelectedArticleUrl(queuedArticles[newIndex].url);
     }
-  };
+  }, [queuedArticles, selectedArticleUrl]);
 
-  const loadAiAnalysis = async (article: NewsArticle) => {
+  const loadAiAnalysis = useCallback(async (article: NewsArticle) => {
     try {
       setAiAnalysisLoading(true);
       const analysis = await analyzeArticle(article.url, article.source);
@@ -186,9 +187,9 @@ export function ReadingQueueSidebar() {
     } finally {
       setAiAnalysisLoading(false);
     }
-  };
+  }, []);
 
-  const loadSource = async (article: NewsArticle) => {
+  const loadSource = useCallback(async (article: NewsArticle) => {
     setSourceLoading(true);
     try {
       const fetchedSource = await getSourceById(article.sourceId);
@@ -199,7 +200,7 @@ export function ReadingQueueSidebar() {
     } finally {
       setSourceLoading(false);
     }
-  };
+  }, []);
 
   const loadDebugData = async (article: NewsArticle) => {
     try {
@@ -214,7 +215,7 @@ export function ReadingQueueSidebar() {
     }
   };
 
-  const loadFullArticle = async (article: NewsArticle) => {
+  const loadFullArticle = useCallback(async (article: NewsArticle) => {
     try {
       setArticleLoading(true);
       setFullArticleText(null);
@@ -248,7 +249,7 @@ export function ReadingQueueSidebar() {
     } finally {
       setArticleLoading(false);
     }
-  };
+  }, []);
 
   const selectedArticle =
     selectedArticleUrl && queuedArticles
@@ -283,7 +284,7 @@ export function ReadingQueueSidebar() {
       loadAiAnalysis(selectedArticle);
       loadSource(selectedArticle);
     }
-  }, [selectedArticleUrl]);
+  }, [loadAiAnalysis, loadFullArticle, loadSource, selectedArticle]);
 
   // Handle keyboard navigation
   useEffect(() => {
@@ -307,7 +308,7 @@ export function ReadingQueueSidebar() {
 
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [selectedArticle, selectedArticleUrl, queuedArticles]);
+  }, [handleNavigateArticle, queuedArticles, selectedArticle, selectedArticleUrl]);
 
   return (
     <>
@@ -415,9 +416,11 @@ export function ReadingQueueSidebar() {
                     {/* Featured Image */}
                     {selectedArticle.image && (
                       <div className="rounded-lg overflow-hidden">
-                        <img
+                        <SafeImage
                           src={selectedArticle.image}
                           alt={selectedArticle.title}
+                          width={1280}
+                          height={384}
                           className="w-full h-96 object-cover"
                         />
                       </div>
@@ -924,56 +927,56 @@ export function ReadingQueueSidebar() {
                   >
                     <ReactMarkdown
                       components={{
-                        h1: ({ node, ...props }) => (
+                        h1: ({ ...props }) => (
                           <h1
                             className="font-semibold font-serif text-2xl mt-6 mb-3"
                             style={{ color: "var(--foreground)" }}
                             {...props}
                           />
                         ),
-                        h2: ({ node, ...props }) => (
+                        h2: ({ ...props }) => (
                           <h2
                             className="font-semibold font-serif text-xl mt-5 mb-2"
                             style={{ color: "var(--foreground)" }}
                             {...props}
                           />
                         ),
-                        h3: ({ node, ...props }) => (
+                        h3: ({ ...props }) => (
                           <h3
                             className="font-semibold font-serif text-lg mt-4 mb-2"
                             style={{ color: "var(--foreground)" }}
                             {...props}
                           />
                         ),
-                        p: ({ node, ...props }) => (
+                        p: ({ ...props }) => (
                           <p
                             className="mb-3 leading-relaxed text-base"
                             style={{ color: "var(--foreground)" }}
                             {...props}
                           />
                         ),
-                        ul: ({ node, ...props }) => (
+                        ul: ({ ...props }) => (
                           <ul
                             className="list-disc list-inside mb-3 space-y-1"
                             style={{ color: "var(--foreground)" }}
                             {...props}
                           />
                         ),
-                        ol: ({ node, ...props }) => (
+                        ol: ({ ...props }) => (
                           <ol
                             className="list-decimal list-inside mb-3 space-y-1"
                             style={{ color: "var(--foreground)" }}
                             {...props}
                           />
                         ),
-                        li: ({ node, ...props }) => (
+                        li: ({ ...props }) => (
                           <li
                             className="ml-2"
                             style={{ color: "var(--foreground)" }}
                             {...props}
                           />
                         ),
-                        blockquote: ({ node, ...props }) => (
+                        blockquote: ({ ...props }) => (
                           <blockquote
                             className="border-l-4 pl-4 italic my-3"
                             style={{
@@ -1033,17 +1036,17 @@ export function ReadingQueueSidebar() {
                             </code>
                           );
                         },
-                        pre: ({ node, ...props }) => (
+                        pre: ({ ...props }) => (
                           <pre
                             className="p-4 rounded mb-3 overflow-x-auto text-sm"
                             style={{ backgroundColor: "rgba(0, 0, 0, 0.4)", color: "var(--foreground)" }}
                             {...props}
                           />
                         ),
-                        strong: ({ node, ...props }) => (
+                        strong: ({ ...props }) => (
                           <strong className="font-semibold" style={{ color: "var(--primary)" }} {...props} />
                         ),
-                        em: ({ node, ...props }) => (
+                        em: ({ ...props }) => (
                           <em className="italic" style={{ color: "var(--foreground)" }} {...props} />
                         ),
                       }}
@@ -1258,9 +1261,11 @@ export function ReadingQueueSidebar() {
                                   className="flex-shrink-0 h-12 w-16 rounded-lg overflow-hidden border"
                                   style={{ borderColor: "var(--border)" }}
                                 >
-                                  <img
+                                  <SafeImage
                                     src={article.image}
                                     alt={article.title}
+                                    width={64}
+                                    height={48}
                                     className="w-full h-full object-cover"
                                   />
                                 </div>
@@ -1287,9 +1292,11 @@ export function ReadingQueueSidebar() {
                                 style={{ borderColor: "var(--border)" }}
                               >
                                 {article.image && (
-                                  <img
+                                  <SafeImage
                                     src={article.image}
                                     alt={article.title}
+                                    width={640}
+                                    height={160}
                                     className="w-full h-40 object-cover rounded-lg"
                                   />
                                 )}
