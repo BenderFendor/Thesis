@@ -272,8 +272,7 @@ async def index_source(
         researcher = get_funding_researcher()
         org_data = await researcher.research_organization(source_name, use_ai=False)
 
-        # Apply RSS config funding_type as authoritative source
-        # Priority: KNOWN_ORGS (already in org_data) > rss_sources.json > ProPublica/Wikipedia
+        # Prefer existing known-org data, then RSS config, then external research.
         rss_funding = source_config.get("funding_type", "").strip()
         if rss_funding and "known_data" not in org_data.get("research_sources", []):
             org_data["funding_type"] = rss_funding.lower()

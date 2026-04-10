@@ -23,7 +23,6 @@ from urllib.parse import urlparse
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.config import settings
 from app.core.logging import get_logger
 from app.database import SourceCredibility as SourceCredibilityModel
 from app.models.verification import SourceInfo, SourceType
@@ -377,23 +376,6 @@ class CredibilityScorer:
                 conflict_penalty = 0.1
 
         return max(0.0, agreement_ratio - conflict_penalty)
-
-    def should_recheck_claim(
-        self,
-        cached_confidence: float,
-        new_context: Optional[str] = None,
-    ) -> Tuple[bool, Optional[str]]:
-        """
-        Determine if a cached claim should be re-verified.
-
-        Returns (should_recheck, reason).
-        """
-        threshold = settings.verification_recheck_threshold
-
-        if cached_confidence < threshold:
-            return True, f"Low confidence ({cached_confidence:.0%}) below threshold"
-
-        return False, None
 
 
 # Module-level singleton for convenience

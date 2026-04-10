@@ -10,7 +10,6 @@ from __future__ import annotations
 import logging
 from typing import Mapping, Optional, Sequence, TypedDict
 
-import numpy as np
 from rank_bm25 import BM25Okapi
 
 logger = logging.getLogger(__name__)
@@ -232,69 +231,3 @@ class BM25Search:
             "b": self.b,
             "built": self.bm25 is not None,
         }
-
-
-def compute_bm25_score(
-    query: str,
-    document: str,
-    doc_length: int,
-    avg_doc_length: float,
-    k1: float = 1.6,
-    b: float = 0.7,
-    idf_cache: Optional[dict[str, float]] = None,
-) -> float:
-    """
-    Compute BM25 score for a single query-document pair.
-
-    Useful for incremental scoring without building full index.
-
-    Args:
-        query: Search query
-        document: Document text
-        doc_length: Length of document in tokens
-        avg_doc_length: Average document length in corpus
-        k1: TF saturation parameter
-        b: Length normalization parameter
-        idf_cache: Optional pre-computed IDF values
-
-    Returns:
-        BM25 score
-    """
-    from collections import Counter
-
-    query_tokens = query.lower().split()
-    doc_tokens = document.lower().split()
-
-    if not query_tokens or not doc_tokens:
-        return 0.0
-
-    doc_counter = Counter(doc_tokens)
-    doc_len = len(doc_tokens)
-
-    # Compute IDF for query terms (simplified)
-    total_docs = 1  # Single document mode
-    idf_sum = 0.0
-
-    for term in set(query_tokens):
-        if idf_cache and term in idf_cache:
-            idf = idf_cache[term]
-        else:
-            # Simplified IDF: log(1 + (N - n + 0.5) / (n + 0.5))
-            n = doc_counter.get(term, 0)
-            idf = max(0, 0.5 * np.log((total_docs - n + 0.5) / (n + 0.5) + 1))
-            if idf_cache is not None:
-                idf_cache[term] = idf
-        idf_sum += idf
-
-    # Compute TF component for each query term
-    tf_sum = 0.0
-    for term in query_tokens:
-        tf = doc_counter.get(term, 0)
-        # BM25 TF formula
-        tf_component = (tf * (k1 + 1)) / (
-            tf + k1 * (1 - b + b * (doc_len / avg_doc_length))
-        )
-        tf_sum += tf_component
-
-    # BM25 score
-    return idf_sum * tf_sum / len(query_tokens) if query_tokens else 0.0

@@ -151,7 +151,7 @@ def create_openai_client(logger: logging.Logger) -> Optional[OpenAI]:
             logger.error("Failed to initialize llama.cpp client: %s", e)
             return None
 
-    # Default: OpenRouter
+    # Fall back to OpenRouter when llama.cpp is not selected.
     if not settings.open_router_api_key:
         logger.warning("OPEN_ROUTER_API_KEY not found in environment variables")
         return None
