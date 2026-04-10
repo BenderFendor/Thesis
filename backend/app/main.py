@@ -109,7 +109,7 @@ def _register_background_task(task: asyncio.Task[Any]) -> None:
     task.add_done_callback(_cleanup)
 
 
-def _handle_shutdown_signal(signum: int, frame: FrameType | None) -> None:
+def _handle_shutdown_signal(signum: int, _frame: FrameType | None) -> None:
     """Handle SIGTERM/SIGINT for graceful shutdown."""
     logger.info("Received shutdown signal %s", signum)
 

@@ -1,7 +1,9 @@
 from __future__ import annotations
 
+import json
 import re
 from datetime import datetime, timezone
+from pathlib import Path
 from typing import Any, Dict, List, cast
 
 import httpx
@@ -28,8 +30,14 @@ from app.services.debug_logger import debug_logger, DEBUG_LOG_DIR
 from app.services.image_extraction import ImageErrorType
 from app.services.country_mentions import backfill_article_mentioned_countries
 from app.vector_store import get_vector_store
+from app.core.logging import get_session_dir
 
 router = APIRouter(prefix="/debug", tags=["debug"])
+
+_ALLOWED_LLM_LOG_FILES = {
+    "llm": "llm_calls.log",
+    "errors": "api_errors.log",
+}
 
 
 async def _fetch_rss_text(url: str) -> str:
@@ -69,6 +77,56 @@ def _as_str_list(value: object) -> List[str]:
     if not isinstance(value, list):
         return []
     return [item for item in value if isinstance(item, str)]
+
+
+def _read_jsonl_tail(
+    path: Path,
+    *,
+    limit: int,
+    offset: int = 0,
+    predicate: Any | None = None,
+) -> Dict[str, object]:
+    if not path.exists():
+        return {
+            "available": False,
+            "path": str(path),
+            "returned": 0,
+            "total": 0,
+            "entries": [],
+        }
+
+    entries: List[Dict[str, object]] = []
+    total = 0
+
+    with path.open("r") as handle:
+        for line in handle:
+            if not line.strip():
+                continue
+            try:
+                payload = json.loads(line)
+            except json.JSONDecodeError:
+                continue
+            if not isinstance(payload, dict):
+                continue
+            if predicate and not predicate(payload):
+                continue
+            total += 1
+            entries.append(payload)
+
+    end = max(total - offset, 0) if offset else total
+    if limit >= 0:
+        start = max(end - limit, 0)
+        entries = entries[start:end]
+    else:
+        entries = entries[:end]
+
+    return {
+        "available": True,
+        "path": str(path),
+        "returned": len(entries),
+        "total": total,
+        "entries": entries,
+    }
 
 
 @router.get("/sources/{source_name}")
@@ -872,8 +930,6 @@ async def read_debug_log_file(
 
     Supports pagination and filtering by event type.
     """
-    import json
-
     log_file = DEBUG_LOG_DIR / filename
     if not log_file.exists():
         raise HTTPException(status_code=404, detail=f"Log file not found: {filename}")
@@ -916,6 +972,63 @@ async def read_debug_log_file(
         "returned": len(events),
         "filter": event_type,
         "events": events,
+    }
+
+
+@router.get("/logs/llm")
+async def read_llm_calls(
+    limit: int = Query(100, ge=1, le=1000),
+    offset: int = Query(0, ge=0),
+    service: str | None = Query(default=None, description="Filter by service name"),
+    success: bool | None = Query(default=None, description="Filter by success status"),
+) -> Dict[str, object]:
+    session_dir = get_session_dir()
+    path = session_dir / _ALLOWED_LLM_LOG_FILES["llm"]
+
+    def _predicate(entry: Dict[str, object]) -> bool:
+        if service and entry.get("service") != service:
+            return False
+        if success is not None and bool(entry.get("success")) != success:
+            return False
+        return True
+
+    payload = _read_jsonl_tail(path, limit=limit, offset=offset, predicate=_predicate)
+    payload.update(
+        {
+            "service": service,
+            "success_filter": success,
+        }
+    )
+    return payload
+
+
+@router.get("/logs/errors")
+async def read_error_logs(
+    limit: int = Query(100, ge=1, le=1000),
+    offset: int = Query(0, ge=0),
+    include_request_stream_events: bool = Query(
+        True,
+        description="When true, append recent request/stream errors from the in-memory debug logger.",
+    ),
+) -> Dict[str, object]:
+    session_dir = get_session_dir()
+    path = session_dir / _ALLOWED_LLM_LOG_FILES["errors"]
+    file_payload = _read_jsonl_tail(path, limit=limit, offset=offset)
+
+    recent_errors: List[Dict[str, object]] = []
+    if include_request_stream_events:
+        request_stream_errors = [
+            event
+            for event in debug_logger.get_recent_events(limit=limit * 4)
+            if str(event.get("event_type")) in {"request_error", "stream_error"}
+        ]
+        recent_errors = request_stream_errors[-limit:]
+
+    return {
+        "log_file": file_payload,
+        "recent_request_stream_errors": recent_errors,
+        "returned_recent_errors": len(recent_errors),
+        "include_request_stream_events": include_request_stream_events,
     }
 
 

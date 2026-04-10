@@ -2,10 +2,9 @@
 
 import { useState, useCallback } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { Card, CardContent } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
+import { SafeImage } from "@/components/safe-image";
 import {
   Select,
   SelectContent,
@@ -16,7 +15,6 @@ import {
 import {
   Clock,
   TrendingUp,
-  Zap,
   PlusCircle,
   MinusCircle,
   Heart,
@@ -36,12 +34,17 @@ import {
   hasRealClusterImage,
   pickClusterImageUrl,
 } from "@/lib/cluster-display";
-import { get_logger } from "@/lib/utils";
 import { ClusterDetailModal } from "./cluster-detail-modal";
 import { useReadingQueue } from "@/hooks/useReadingQueue";
 import { useLikedArticles } from "@/hooks/useLikedArticles";
+import { activateCardFromKeyDown } from "@/lib/keyboard-activation";
 
-const logger = get_logger("TrendingFeed");
+function handleCardKeyDown(
+  event: React.KeyboardEvent<HTMLElement>,
+  onActivate: () => void,
+) {
+  activateCardFromKeyDown(event, onActivate);
+}
 
 function hasRealImage(src?: string | null): boolean {
   return hasRealClusterImage(src);
@@ -312,19 +315,22 @@ function BreakingCard({
   };
 
   return (
-    <button
+    <article
+      role="button"
+      tabIndex={0}
       onClick={handleClick}
+      onKeyDown={(event) => handleCardKeyDown(event, handleClick)}
       className="group relative flex flex-col w-full text-left bg-black/20 rounded-2xl transition-all duration-500 ease-out hover:bg-white/[0.03] shadow-xl hover:shadow-2xl overflow-hidden"
     >
       <div className="absolute top-0 left-0 w-px h-full bg-red-500/40 z-10 shadow-[0_0_20px_rgba(239,68,68,0.4)]" />
       
       <div className="relative m-2 aspect-video overflow-hidden rounded-xl bg-white/5">
         {showImage ? (
-          <img
+          <SafeImage
             src={imageUrl!}
             alt={article.title || label}
+            fill
             className="w-full h-full object-cover grayscale opacity-80 transition duration-700 group-hover:grayscale-0 group-hover:opacity-100 group-hover:scale-105"
-            loading="lazy"
           />
         ) : (
           <div className="w-full h-full bg-[radial-gradient(circle_at_top_left,rgba(239,68,68,0.15),transparent_70%)]" />
@@ -384,7 +390,7 @@ function BreakingCard({
           </span>
         </div>
       </div>
-    </button>
+    </article>
   );
 }
 
@@ -421,17 +427,20 @@ function TrendingCard({
   };
 
   return (
-    <button
+    <article
+      role="button"
+      tabIndex={0}
       onClick={handleClick}
+      onKeyDown={(event) => handleCardKeyDown(event, handleClick)}
       className="group relative flex flex-col w-full text-left bg-black/20 rounded-2xl transition-all duration-500 ease-out hover:bg-white/[0.03] shadow-xl hover:shadow-2xl overflow-hidden"
     >
       <div className="relative m-2 aspect-video overflow-hidden rounded-xl bg-white/5">
         {showImage ? (
-          <img
+          <SafeImage
             src={imageUrl!}
             alt={article.title || label}
+            fill
             className="w-full h-full object-cover grayscale opacity-80 transition duration-700 group-hover:grayscale-0 group-hover:opacity-100 group-hover:scale-105"
-            loading="lazy"
           />
         ) : (
           <div className="w-full h-full bg-[radial-gradient(circle_at_top_left,rgba(255,255,255,0.08),transparent_70%)]" />
@@ -489,7 +498,7 @@ function TrendingCard({
           </span>
         </div>
       </div>
-    </button>
+    </article>
   );
 }
 

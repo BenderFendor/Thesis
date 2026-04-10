@@ -43,6 +43,18 @@ def _is_textual_alias(alias: str) -> bool:
     return any(char.isalpha() for char in stripped)
 
 
+def _requires_exact_token_match(alias: str) -> bool:
+    stripped = alias.strip()
+    if not stripped:
+        return False
+
+    alpha_only = "".join(char for char in stripped if char.isalpha())
+    if not alpha_only or len(alpha_only) > 4:
+        return False
+
+    return stripped.upper() == stripped
+
+
 _COUNTRY_ALIAS_MAP = {
     code: tuple(
         sorted(
@@ -68,19 +80,45 @@ def _alias_tokens(value: str) -> tuple[str, ...]:
     return tuple(token.casefold() for token in _TOKEN_RE.findall(value))
 
 
+def _alias_original_tokens(value: str) -> tuple[str, ...]:
+    return tuple(_TOKEN_RE.findall(value))
+
+
+_EXACT_ALIAS_TO_CODES: dict[tuple[str, ...], set[str]] = {}
+for country_code, aliases in _TEXTUAL_ALIAS_MAP.items():
+    for alias in aliases:
+        if not _requires_exact_token_match(alias):
+            continue
+        normalized = _alias_original_tokens(alias)
+        if normalized:
+            _EXACT_ALIAS_TO_CODES.setdefault(normalized, set()).add(country_code)
+
 _ALIAS_TO_CODES: dict[tuple[str, ...], set[str]] = {}
 for country_code, aliases in _TEXTUAL_ALIAS_MAP.items():
     for alias in aliases:
+        if _requires_exact_token_match(alias):
+            continue
         normalized = _alias_tokens(alias)
         if normalized:
             _ALIAS_TO_CODES.setdefault(normalized, set()).add(country_code)
 
+_UNIQUE_EXACT_ALIAS_TO_CODE = {
+    alias_tokens: next(iter(country_codes))
+    for alias_tokens, country_codes in _EXACT_ALIAS_TO_CODES.items()
+    if len(country_codes) == 1
+}
 _UNIQUE_ALIAS_TO_CODE = {
     alias_tokens: next(iter(country_codes))
     for alias_tokens, country_codes in _ALIAS_TO_CODES.items()
     if len(country_codes) == 1
 }
-_MAX_ALIAS_TOKENS = max((len(tokens) for tokens in _UNIQUE_ALIAS_TO_CODE), default=1)
+_MAX_ALIAS_TOKENS = max(
+    (
+        *(len(tokens) for tokens in _UNIQUE_ALIAS_TO_CODE),
+        *(len(tokens) for tokens in _UNIQUE_EXACT_ALIAS_TO_CODE),
+    ),
+    default=1,
+)
 
 
 def get_country_geo_data() -> dict[str, dict[str, object]]:
@@ -112,11 +150,19 @@ def extract_mentioned_countries(text: str) -> list[str]:
     if not text.strip():
         return []
 
+    original_tokens = _TOKEN_RE.findall(text)
     tokens = [token.casefold() for token in _TOKEN_RE.findall(text)]
     mentions: set[str] = set()
     for index in range(len(tokens)):
         max_width = min(_MAX_ALIAS_TOKENS, len(tokens) - index)
         for width in range(max_width, 0, -1):
+            exact_country_code = _UNIQUE_EXACT_ALIAS_TO_CODE.get(
+                tuple(original_tokens[index : index + width])
+            )
+            if exact_country_code is not None:
+                mentions.add(exact_country_code)
+                break
+
             country_code = _UNIQUE_ALIAS_TO_CODE.get(
                 tuple(tokens[index : index + width])
             )

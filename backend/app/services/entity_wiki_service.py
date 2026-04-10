@@ -34,7 +34,21 @@ JOURNALISM_KEYWORDS = (
     "writer",
     "news",
 )
-ABOUT_PATHS = ("/about", "/about-us", "/about/", "/about-us/")
+OFFICIAL_PAGE_CANDIDATES: Sequence[Tuple[str, Sequence[str]]] = (
+    ("about", ("/about", "/about-us", "/about/", "/about-us/")),
+    ("masthead", ("/masthead", "/staff", "/team", "/authors")),
+    (
+        "editorial",
+        (
+            "/editorial",
+            "/editorial-policy",
+            "/standards",
+            "/ethics",
+            "/corrections",
+        ),
+    ),
+    ("ownership", ("/ownership", "/company", "/about/ownership")),
+)
 
 
 def _normalize_name(value: str) -> str:
@@ -233,27 +247,33 @@ async def _fetch_wikipedia_summary(
     return {}
 
 
-async def _try_fetch_about_page(
+async def _try_fetch_site_pages(
     http_client: httpx.AsyncClient, website: Optional[str]
-) -> Dict[str, Any]:
+) -> List[Dict[str, str]]:
     if not website:
-        return {}
+        return []
     base = website if "://" in website else f"https://{website}"
-    for path in ABOUT_PATHS:
-        candidate = f"{base.rstrip('/')}{path}"
-        try:
-            response = await http_client.get(candidate, follow_redirects=True)
-        except Exception:
-            continue
-        if response.status_code != 200:
-            continue
-        if "text/html" not in response.headers.get("content-type", ""):
-            continue
-        text = _strip_html(response.text)
-        if len(text) < 80:
-            continue
-        return {"url": str(response.url), "summary": text[:420]}
-    return {}
+    pages: List[Dict[str, str]] = []
+    seen_urls: set[str] = set()
+    for label, paths in OFFICIAL_PAGE_CANDIDATES:
+        for path in paths:
+            candidate = f"{base.rstrip('/')}{path}"
+            try:
+                response = await http_client.get(candidate, follow_redirects=True)
+            except Exception:
+                continue
+            if response.status_code != 200:
+                continue
+            if "text/html" not in response.headers.get("content-type", ""):
+                continue
+            text = _strip_html(response.text)
+            final_url = str(response.url)
+            if len(text) < 80 or final_url in seen_urls:
+                continue
+            seen_urls.add(final_url)
+            pages.append({"label": label, "url": final_url, "summary": text[:420]})
+            break
+    return pages
 
 
 def _context_similarity(
@@ -690,10 +710,15 @@ async def build_source_profile(
         Optional[str],
         org_data.get("website") or org_data.get("official_website") or website,
     )
-    about_page: Dict[str, Any] = {}
+    official_pages: List[Dict[str, str]] = []
     async with httpx.AsyncClient(timeout=20.0, follow_redirects=True) as client:
         if official_website:
-            about_page = await _try_fetch_about_page(client, official_website)
+            official_pages = await _try_fetch_site_pages(client, official_website)
+
+    about_page = next(
+        (page for page in official_pages if page.get("label") == "about"),
+        {},
+    )
 
     citation_candidates = [
         org_data.get("wikipedia_url"),
@@ -729,9 +754,25 @@ async def build_source_profile(
             {
                 "label": "About page",
                 "value": about_page["summary"],
-                "sources": _unique_strings(
-                    [cast(Optional[str], about_page.get("url"))]
-                ),
+                "sources": _unique_strings([about_page.get("url")]),
+            }
+        )
+    for official_page in official_pages:
+        label = official_page.get("label") or "page"
+        summary = official_page.get("summary")
+        url = official_page.get("url")
+        if not summary or not url or label == "about":
+            continue
+        target_field = "public_records"
+        if label == "ownership":
+            target_field = "ownership"
+        elif label == "editorial":
+            target_field = "about"
+        fields[target_field].append(
+            {
+                "label": label.replace("_", " ").title(),
+                "value": summary,
+                "sources": [url],
             }
         )
     if official_website:
@@ -869,6 +910,7 @@ async def build_source_profile(
         "wikidata_url": org_data.get("wikidata_url"),
         "wikidata_qid": org_data.get("wikidata_qid"),
         "citations": citations,
+        "official_pages": official_pages,
         "search_links": {
             "wikipedia": org_data.get("wikipedia_url")
             or f"https://en.wikipedia.org/w/index.php?search={quote(name)}",

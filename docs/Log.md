@@ -1,5 +1,6 @@
 # Log
 
+<<<<<<< HEAD
 ## 2026-04-09: Pre-commit Ruff Hook Bootstrap Fix
 
 **Problem:** Pre-commit failed while installing `ruff-pre-commit` because the environment pip index was set to an unresolved private GitLab placeholder URL (`{GITLAB_INSTANCE}` / `{GROUP_ID}`), so build dependencies like `setuptools` could not be fetched.
@@ -11,6 +12,26 @@
 **Verification:**
 - `pre-commit run --all-files` now runs past Ruff hook installation and executes `ruff (fix)` and `ruff format` successfully.
 - Remaining failures are unrelated environment/type issues: missing `backend/.venv/bin/mypy`, missing `pytest` executable in the current `uv` runtime, and existing frontend TypeScript typing gaps.
+=======
+## 2026-03-28: Debug Consolidation, Reader Hub Highlights, Research Cancel State, And Globe Budgeting
+
+**Problem:** Operator tooling was split between `/debug` and `/sources`, the saved-reader workflow still left highlights outside the main workspace, research cancellation still ended in a rough partial state, and the globe was paying too much runtime cost for the same visual result.
+
+**What Changed:**
+- Added backend debug log endpoints at `GET /debug/logs/llm` and `GET /debug/logs/errors`, backed by session log readers in `backend/app/api/routes/debug.py`.
+- Extended `frontend/app/debug/page.tsx` into a fuller console with tab query persistence plus dedicated `Sources`, `LLM Calls`, and `Errors` tabs, cache refresh controls, source-health summaries, and parsed log views.
+- Redirected `frontend/app/sources/page.tsx` and `frontend/app/sources/debug/page.tsx` into `/debug?tab=sources`, and updated navigation so the top-level operator entry point is `Debug` instead of a separate source monitor route.
+- Upgraded `frontend/app/saved/page.tsx` into more of a reader hub by adding a `Highlights` tab, highlight counts, and library summary integration while keeping the existing queue and digest flow.
+- Tightened `frontend/app/search/page.tsx` so stopping a research run now finalizes the active assistant message as an explicit cancelled state instead of leaving a half-streaming placeholder behind.
+- Reduced globe overhead in `frontend/components/interactive-globe.tsx` by moving country polygons to a local static asset, adding adaptive quality tiers for pixel ratio, texture size, star count, and sphere geometry density, memoizing visible polygons, and pausing the animation loop when the document is hidden.
+- Added longer query caching for globe country datasets in `frontend/components/globe-view.tsx`.
+
+**Verification:**
+- `python3 -m py_compile backend/app/api/routes/debug.py`
+- `cd frontend && npx tsc --noEmit`
+- `./verify.sh`
+- `./verify.sh` completed successfully; frontend lint still reports many pre-existing warnings elsewhere in the repo, but there were no errors and the full verification suite passed.
+>>>>>>> 5df79ed6bd07eb056e4395a8d855b4d0d8f4adac
 
 ## 2026-03-27: Source Analysis Framework Replaces Legacy Propaganda Filters
 
@@ -524,8 +545,58 @@ curl http://localhost:8000/trending/diagnostics
 - Verification: `python3 -m py_compile backend/app/database.py backend/app/api/routes/entity_research.py backend/app/api/routes/wiki.py backend/app/services/entity_wiki_service.py backend/app/services/source_research.py`, `npx tsc --noEmit` in `frontend/`, `npm --prefix frontend test -- --runInBand __tests__/article-detail-modal.test.tsx`. `./verify.sh` still reports pre-existing frontend lint warnings across the repo and depends on a backend test environment that is not fully bootstrapped locally.
 
 2026-03-27 — GDELT search, article context, and geography signals
+2026-04-09 — Reporter and source wiki deterministic sidebar pass
+- Rebuilt the reporter and source wiki pages into dedicated left-sidebar explorer layouts so source pages, reporter pages, and the ownership graph each have their own focused navigation and summary rail.
+- Removed the source page's LLM-centric methodology framing and moved the page emphasis to deterministic evidence: official site pages, public records, ownership/funding data, linked reporters, and stored citations.
+- Added `backend/app/services/reporter_public_records.py` to derive reporter corpus activity from local articles and extract official author-page and external profile links from recent article HTML using structured data and author-link heuristics, with placeholder test domains skipped to keep tests deterministic.
+- Extended the wiki backend so reporter dossiers now include `activity_summary`, and source profiles now expose extracted `official_pages` from common official routes such as about, masthead, editorial, ethics, and ownership pages.
+- Added regression coverage for the new reporter activity payload and source official-pages field in the wiki route tests.
+- Verification: `uv run pytest backend/tests/test_wiki_reporters.py backend/tests/test_wiki_sources.py -q`, `npx tsc --noEmit` in `frontend/`, `npx eslint 'app/wiki/source/[sourceName]/page.tsx' 'app/wiki/source/[sourceName]/source-wiki-view.tsx' 'app/wiki/reporter/[id]/page.tsx' 'app/wiki/reporter/[id]/reporter-wiki-view.tsx' lib/api.ts` in `frontend/`, browser checks on local wiki source and reporter pages, and `./verify.sh`.
+
+2026-04-09 — Ownership graph UX redesign
+- Replaced the single dense ownership hairball view with a guided explorer in `frontend/app/wiki/ownership/`, split into focused modules to stay within local file-size limits.
+- Added a left control rail with search, node and link filters, top-hub shortcuts, and a default neighborhood focus mode so the page opens on a readable subgraph instead of the full network.
+- Added a centered graph canvas with zoom, reset, pan, stronger node hierarchy, selective labels, and dimming for non-neighbor nodes when a source or organization is selected.
+- Added a persistent inspector panel with global graph stats, selected-node metadata, and direct related organizations and sources for faster traversal.
+- Verification: `npx tsc --noEmit` in `frontend/`, `npx eslint app/wiki/ownership/page.tsx app/wiki/ownership/ownership-graph-explorer.tsx app/wiki/ownership/ownership-graph-canvas.tsx app/wiki/ownership/ownership-graph-panels.tsx app/wiki/ownership/graph-utils.ts` in `frontend/`, browser screenshot check on `http://127.0.0.1:3000/wiki/ownership`, and `./verify.sh`.
+
 - Added shared GDELT helpers for live `DOC 2.0` and `Context 2.0` queries plus compact CAMEO, Goldstein, tone, and geography aggregation so research, topic, and globe features can share one normalized contract.
 - Updated the research agent to keep internal-first guardrails, prefer GDELT for current-event search, fall back to DuckDuckGo when needed, and carry `source_providers` through the streamed and non-streamed research responses.
 - Enriched topic cluster payloads with nested `gdelt_context` for representative and member articles, then surfaced CAMEO, Goldstein, and tone context in the cluster detail modal.
 - Extended blindspot and country-coverage payloads with explicit geography signals so the blindspot viewer and globe sidebar can distinguish source-origin counts from country-mention counts.
 - Verification: `python3 -m py_compile backend/app/services/gdelt_taxonomy.py backend/app/services/gdelt_query.py backend/app/services/gdelt_aggregates.py backend/news_research_agent.py backend/app/api/routes/research.py backend/app/models/research.py backend/app/services/chroma_topics.py backend/app/api/routes/trending.py backend/app/services/blindspot_viewer.py backend/app/api/routes/blindspots.py backend/app/api/routes/news_by_country.py`, `npx tsc --noEmit` in `frontend/`, `npm --prefix frontend test -- --runInBand __tests__/trending-cluster-nullables.test.ts`. Backend `pytest` collection now gets past missing imports after local dependency installs, but targeted runs still hang during execution in this local environment and `uv run mypy backend/app --strict` remains broken by broader repo environment and stub issues outside this change set.
+
+2026-04-09 — Globe texture and interaction performance pass
+- Added a separate `frontend/public/3dmodel/textures/optimized/` asset set and moved the active globe to 2048px textures so the rendered earth no longer starts from the original 8K to 21K source images.
+- Reduced the active globe texture payload from roughly 24 MB on disk to about 1.1 MB for the optimized set, while keeping the same shader-driven look and cloud layer.
+- Removed polygon altitude tweening in `frontend/components/interactive-globe.tsx`, capped anisotropy, lowered renderer pixel ratio ceilings, and trimmed background star and sphere segment density to cut GPU and hover-path cost without changing the overall composition.
+- Kept the globe material stable across lighting-mode toggles so switching between `All lit` and `Day/night` no longer recreates the texture-backed shader material.
+- Removed explicit `fract()` wrapping from the earth and cloud shader UVs so the globe uses texture repeat mode without introducing a visible meridian seam at the sphere UV boundary.
+- Split one-time globe scene setup from resize-time renderer updates so expanding the focus panel or changing layout no longer tears down and reloads the earth land textures.
+- Replaced the `onGlobeReady` state setter with an effect-driven readiness handoff so the globe no longer triggers React's `setState on an unmounted component` warning during mount in Next.js dev.
+- Verification: `./verify.sh` passed. Local browser check on `http://127.0.0.1:3000/` confirmed the globe still matches the existing layout and visual hierarchy after the asset swap.
+
+2026-04-09 — Globe readiness and debug log pagination regressions
+- Reworked globe readiness in `frontend/components/interactive-globe.tsx` to follow the actual `react-globe.gl` instance via a stable ref callback instead of a one-shot effect, so delayed dynamic mounts still run the control and renderer setup path.
+- Fixed `_read_jsonl_tail()` in `backend/app/api/routes/debug.py` so `offset` now paginates backward from the newest matching log entries instead of returning the same tail window for most offsets.
+- Added a frontend regression test for delayed globe mount readiness in `frontend/__tests__/interactive-globe.test.tsx` and a backend property test for log-tail pagination in `backend/tests/test_debug_log_pagination.py`.
+
+2026-04-09 — Live article counts and uncapped RSS cache
+- Removed the main page's collapsed-grid article count override so the dashboard no longer reports only the subset of cards currently visible in source mode.
+- Added `/news/index/cached` plus a dedicated `useLiveBrowseIndex` hook so the main news page reads from the current in-memory RSS snapshot instead of the historical archive index.
+- Switched the header metrics in `frontend/app/page.tsx` to show live article and working-source totals from `/cache/status`, which makes the dashboard reflect the active RSS pull instead of the rendered card subset.
+- Changed the default cache limits in `backend/app/core/config.py` so `NEWS_CACHE_MAX_ARTICLES=0` and `NEWS_CACHE_MAX_PER_SOURCE=0` mean unlimited retention, then updated `backend/app/services/cache.py` to keep all live articles unless an explicit positive cap is configured.
+- Added backend regression coverage for unlimited cache shaping and the new live browse endpoint in `backend/tests/test_live_cache_index.py`, plus frontend hook coverage in `frontend/__tests__/live-browse-index.test.tsx`.
+- Unified the main news page so `globe`, `grid`, and `scroll` now all read from the same live browse dataset instead of globe using a separate stream-only article source.
+- Replaced globe-side country metrics and local-lens fetches with client-side derivations from the shared live article dataset so globe heat, country lens results, and top-line counts now stay aligned with grid and scroll filters.
+- Corrected the shared article and source counters to prefer the current filtered live dataset after load instead of always falling back to the global `/cache/status` totals.
+- Fixed the accessibility regression follow-up where the new keyboard-accessible card wrappers in trending and reading-queue views also activated when inner buttons received `Enter` or `Space`.
+- Added derived notification dismissal state on the main page so per-item and clear-all actions work again without introducing effect-driven render churn.
+- Added frontend regression coverage for live count semantics, globe live-data derivation, keyboard activation guards, and notification dismissal helpers.
+
+2026-04-09 — Live cache persistence and notification recurrence fixes
+- Added an explicit `is_persisted` flag to cached live browse rows in `backend/app/api/routes/news.py` so the frontend can distinguish durable DB-backed articles from in-flight cache rows during incremental refreshes.
+- Updated `frontend/lib/api.ts` so synthesized fallback ids remain usable for React keys, but rows without a real backend article id are marked `isPersisted: false` and no longer try to post nonexistent `article_id` values through like, bookmark, or queue flows.
+- Moved main-page notification dismissal into a small hook in `frontend/lib/notification-state.ts` that prunes stale dismissed ids back into state, allowing `browse-index-error` and `empty-feed` alerts to reappear after they clear and recur later.
+- Added backend coverage for persisted versus unpersisted cached browse rows in `backend/tests/test_live_cache_index.py`, frontend mapping regressions in `frontend/__tests__/browse-index.test.tsx` and `frontend/__tests__/api-mapping.property.test.ts`, and notification recurrence coverage in `frontend/__tests__/notification-state.test.ts`.
+- Verification: `uv run pytest backend/tests/test_live_cache_index.py -q`, `npm --prefix frontend test -- --runInBand __tests__/browse-index.test.tsx __tests__/api-mapping.property.test.ts __tests__/notification-state.test.ts`, `npx tsc --noEmit` in `frontend/`, `npx eslint app/page.tsx lib/api.ts lib/notification-state.ts __tests__/browse-index.test.tsx __tests__/api-mapping.property.test.ts __tests__/notification-state.test.ts` in `frontend/`, and `./verify.sh`.

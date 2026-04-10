@@ -1,7 +1,7 @@
 "use client"
 
 import { useQuery } from "@tanstack/react-query"
-import { useEffect, useMemo, useRef, useState } from "react"
+import { useEffect, useMemo, useRef, useState, type MutableRefObject } from "react"
 import * as THREE from "three"
 import dynamic from "next/dynamic"
 import type { GlobeMethods } from "react-globe.gl"
@@ -27,6 +27,7 @@ interface InteractiveGlobeProps {
 }
 
 export type EarthLightingMode = "all-lit" | "day-night"
+const EMPTY_COUNTRY_COLLECTION: CountryFeatureCollection = { features: [] }
 
 function getFeatureCenter(geometry?: { coordinates?: unknown } | null) {
   if (!geometry || !geometry.coordinates) return null
@@ -84,6 +85,14 @@ function heatColor(count: number, maxCount: number) {
 
 const EARTH_RADIUS = 100
 const GLOBE_TEXTURE_ROTATION_Y = -Math.PI / 2
+const LOCAL_COUNTRY_GEOJSON_URL = "/globe/ne_110m_admin_0_countries.geojson"
+const OPTIMIZED_TEXTURES = {
+  day: "/3dmodel/textures/optimized/earth-albedo-2048.jpg",
+  bump: "/3dmodel/textures/optimized/earth-bump-2048.jpg",
+  night: "/3dmodel/textures/optimized/earth-night-lights-2048.png",
+  surfaceMask: "/3dmodel/textures/optimized/earth-land-ocean-mask-2048.png",
+  clouds: "/3dmodel/textures/optimized/clouds-earth-2048.webp",
+} as const
 
 const EARTH_VERTEX_SHADER = `
   varying vec2 vUv;
@@ -129,8 +138,8 @@ const EARTH_FRAGMENT_SHADER = `
     vec3 viewDirection = normalize(cameraPosition - vWorldPosition);
     vec3 sunDirection = normalize(uSunDirection);
 
-    vec2 surfaceUv = vec2(fract(vUv.x), vUv.y);
-    vec2 cloudUv = vec2(fract(vUv.x + uCloudOffset), vUv.y);
+    vec2 surfaceUv = vUv;
+    vec2 cloudUv = vec2(vUv.x + uCloudOffset, vUv.y);
 
     vec3 dayColor = texture2D(uDayTexture, surfaceUv).rgb;
     float terrainHeight = texture2D(uBumpTexture, surfaceUv).r;
@@ -216,7 +225,7 @@ const CLOUD_FRAGMENT_SHADER = `
     vec3 viewDirection = normalize(cameraPosition - vWorldPosition);
     vec3 sunDirection = normalize(uSunDirection);
 
-    vec2 cloudUv = vec2(fract(vUv.x + uCloudOffset), vUv.y);
+    vec2 cloudUv = vec2(vUv.x + uCloudOffset, vUv.y);
     float cloudMask = smoothstep(0.24, 0.8, luma(texture2D(uCloudTexture, cloudUv).rgb));
     float daylight = clamp01(dot(normal, sunDirection));
     float lightingMix = clamp01(uLightingMode);
@@ -406,6 +415,49 @@ function findGlobeAnchor(scene: THREE.Scene) {
   )
 }
 
+function getQualityTier(width: number, height: number) {
+  if (typeof window === "undefined") {
+    return {
+      pixelRatioCap: 1.1,
+      maxTextureSize: 2048,
+      starCount: 1400,
+      sphereSegments: 96,
+      anisotropyCap: 4,
+    }
+  }
+
+  const minSide = Math.min(width || 0, height || 0)
+  const dpr = window.devicePixelRatio || 1
+
+  if (minSide < 560 || dpr >= 2.25) {
+    return {
+      pixelRatioCap: 0.9,
+      maxTextureSize: 1024,
+      starCount: 700,
+      sphereSegments: 52,
+      anisotropyCap: 2,
+    }
+  }
+
+  if (minSide < 900 || dpr >= 1.6) {
+    return {
+      pixelRatioCap: 1.0,
+      maxTextureSize: 1536,
+      starCount: 1000,
+      sphereSegments: 72,
+      anisotropyCap: 3,
+    }
+  }
+
+  return {
+    pixelRatioCap: 1.1,
+    maxTextureSize: 2048,
+    starCount: 1400,
+    sphereSegments: 96,
+    anisotropyCap: 4,
+  }
+}
+
 export function InteractiveGlobe({
   articles,
   countryMetrics,
@@ -413,15 +465,32 @@ export function InteractiveGlobe({
   selectedCountry,
   lightingMode,
 }: InteractiveGlobeProps) {
-  const globeEl = useRef<GlobeMethods | undefined>(undefined)
   const containerRef = useRef<HTMLDivElement | null>(null)
   const [dimensions, setDimensions] = useState({ width: 0, height: 0 })
   const [hoverD, setHoverD] = useState<CountryFeature | null>(null)
-  const [isGlobeReady, setIsGlobeReady] = useState(false)
+  const [globeInstance, setGlobeInstance] = useState<GlobeMethods | null>(null)
+  const globeRef = useMemo<MutableRefObject<GlobeMethods | undefined>>(() => {
+    let current: GlobeMethods | undefined
+
+    return {
+      get current() {
+        return current
+      },
+      set current(instance: GlobeMethods | undefined) {
+        current = instance
+        const nextInstance = instance ?? null
+        setGlobeInstance((existing) => (existing === nextInstance ? existing : nextInstance))
+      },
+    }
+  }, [])
+  const qualityTier = useMemo(
+    () => getQualityTier(dimensions.width, dimensions.height),
+    [dimensions.height, dimensions.width],
+  )
   const countriesQuery = useQuery<CountryFeatureCollection>({
     queryKey: ["globe-countries"],
     queryFn: async () => {
-      const response = await fetch("https://raw.githubusercontent.com/vasturiano/react-globe.gl/master/example/datasets/ne_110m_admin_0_countries.geojson")
+      const response = await fetch(LOCAL_COUNTRY_GEOJSON_URL)
       const data: unknown = await response.json()
       if (
         typeof data === "object" &&
@@ -432,9 +501,16 @@ export function InteractiveGlobe({
       }
       return { features: [] }
     },
+    staleTime: Infinity,
+    gcTime: Infinity,
+    refetchOnWindowFocus: false,
     retry: 1,
   })
-  const countries = countriesQuery.data ?? { features: [] }
+  const countries = countriesQuery.data ?? EMPTY_COUNTRY_COLLECTION
+  const visibleCountries = useMemo(
+    () => countries.features.filter((feature) => getCountryIso(feature) !== "AQ"),
+    [countries.features],
+  )
 
   const customGlobeMaterial = useMemo(() => {
     const placeholderDay = createPlaceholderTexture([5, 16, 34, 255], { color: true })
@@ -465,9 +541,8 @@ export function InteractiveGlobe({
       placeholderMask,
       placeholderClouds,
     ]
-    setLightingModeUniform(material, lightingMode)
     return material
-  }, [lightingMode])
+  }, [])
 
   useEffect(() => {
     setLightingModeUniform(customGlobeMaterial, lightingMode)
@@ -505,9 +580,8 @@ export function InteractiveGlobe({
   }, [countries])
 
   useEffect(() => {
-    if (!isGlobeReady || !globeEl.current) return
-    if (!globeEl.current) return
-    const controls = globeEl.current.controls() as {
+    if (!globeInstance) return
+    const controls = globeInstance.controls() as {
       autoRotate?: boolean
       autoRotateSpeed?: number
       enableZoom?: boolean
@@ -517,25 +591,24 @@ export function InteractiveGlobe({
     controls.autoRotateSpeed = 0.5
     controls.enableZoom = false
     controls.enablePan = false
-    globeEl.current.pointOfView({ altitude: 2.5 })
-  }, [isGlobeReady])
+    globeInstance.pointOfView({ altitude: 2.5 })
+  }, [globeInstance])
 
   useEffect(() => {
-    if (!isGlobeReady || !globeEl.current) return
-    if (!globeEl.current) return
-    const controls = globeEl.current.controls() as { autoRotate?: boolean }
+    if (!globeInstance) return
+    const controls = globeInstance.controls() as { autoRotate?: boolean }
     if (!selectedCountry) {
       controls.autoRotate = true
-      globeEl.current.pointOfView({ altitude: 2.5 }, 900)
+      globeInstance.pointOfView({ altitude: 2.5 }, 900)
       return
     }
 
     const center = countryCenters[selectedCountry]
     controls.autoRotate = false
     if (center) {
-      globeEl.current.pointOfView({ lat: center.lat, lng: center.lng, altitude: 1.5 }, 900)
+      globeInstance.pointOfView({ lat: center.lat, lng: center.lng, altitude: 1.5 }, 900)
     }
-  }, [countryCenters, isGlobeReady, selectedCountry])
+  }, [countryCenters, globeInstance, selectedCountry])
 
   useEffect(() => {
     if (!containerRef.current) return
@@ -554,19 +627,30 @@ export function InteractiveGlobe({
   }, [])
 
   useEffect(() => {
-    if (!isGlobeReady || !globeEl.current) return
-    if (!globeEl.current) return
+    if (!globeInstance) return
+    const renderer = globeInstance.renderer()
+    if (!renderer) return
+
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio, qualityTier.pixelRatioCap))
+  }, [globeInstance, qualityTier.pixelRatioCap])
+
+  useEffect(() => {
+    if (!globeInstance) return
     const globeMaterial = customGlobeMaterial
     if (!globeMaterial) return
-    const globe = globeEl.current
+    const globe = globeInstance
     const scene = globe.scene()
     const renderer = globe.renderer()
     if (!scene || !renderer) return
 
+    const setupQualityTier = getQualityTier(
+      containerRef.current?.clientWidth ?? window.innerWidth,
+      containerRef.current?.clientHeight ?? window.innerHeight,
+    )
+
     renderer.outputColorSpace = THREE.SRGBColorSpace
     renderer.toneMapping = THREE.ACESFilmicToneMapping
     renderer.toneMappingExposure = 1.05
-    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1.6))
 
     const sunDirection = globeMaterial.uniforms.uSunDirection.value as THREE.Vector3
     const globeAnchor = findGlobeAnchor(scene)
@@ -585,9 +669,12 @@ export function InteractiveGlobe({
     const textureLoader = new THREE.TextureLoader()
     const clock = new THREE.Clock()
     const globeRadius = globe.getGlobeRadius()
-    const maxTextureSize = Math.min(renderer.capabilities.maxTextureSize || 8192, 8192)
-    const anisotropy = renderer.capabilities.getMaxAnisotropy()
-    const starField = createStarField(5000, globeRadius * 34)
+    const maxTextureSize = Math.min(
+      renderer.capabilities.maxTextureSize || setupQualityTier.maxTextureSize,
+      setupQualityTier.maxTextureSize,
+    )
+    const anisotropy = Math.min(renderer.capabilities.getMaxAnisotropy(), setupQualityTier.anisotropyCap)
+    const starField = createStarField(setupQualityTier.starCount, globeRadius * 34)
     starField.renderOrder = -20
     scene.add(starField)
     sceneObjects.push(starField)
@@ -599,24 +686,24 @@ export function InteractiveGlobe({
     const initEarth = async () => {
       try {
         const [dayTexture, bumpTexture, nightTexture, surfaceMaskTexture, cloudTexture] = await Promise.all([
-          loadManagedTexture(textureLoader, "/3dmodel/textures/earth albedo.jpg", {
+          loadManagedTexture(textureLoader, OPTIMIZED_TEXTURES.day, {
             color: true,
             anisotropy,
             maxTextureSize,
           }),
-          loadManagedTexture(textureLoader, "/3dmodel/textures/earth bump.jpg", {
+          loadManagedTexture(textureLoader, OPTIMIZED_TEXTURES.bump, {
             anisotropy,
             maxTextureSize,
           }),
-          loadManagedTexture(textureLoader, "/3dmodel/textures/earth night_lights_modified.png", {
+          loadManagedTexture(textureLoader, OPTIMIZED_TEXTURES.night, {
             anisotropy,
             maxTextureSize,
           }),
-          loadManagedTexture(textureLoader, "/3dmodel/textures/earth land ocean mask.png", {
+          loadManagedTexture(textureLoader, OPTIMIZED_TEXTURES.surfaceMask, {
             anisotropy,
             maxTextureSize,
           }),
-          loadManagedTexture(textureLoader, "/3dmodel/textures/clouds earth.png", {
+          loadManagedTexture(textureLoader, OPTIMIZED_TEXTURES.clouds, {
             anisotropy,
             maxTextureSize,
           }),
@@ -668,9 +755,20 @@ export function InteractiveGlobe({
           depthWrite: false,
         })
 
-        const cloudsMesh = new THREE.Mesh(new THREE.SphereGeometry(globeRadius * 1.008, 160, 160), cloudsMaterial)
+        const cloudsMesh = new THREE.Mesh(
+          new THREE.SphereGeometry(
+            globeRadius * 1.008,
+            setupQualityTier.sphereSegments,
+            setupQualityTier.sphereSegments,
+          ),
+          cloudsMaterial,
+        )
         const atmosphereMesh = new THREE.Mesh(
-          new THREE.SphereGeometry(globeRadius * 1.03, 160, 160),
+          new THREE.SphereGeometry(
+            globeRadius * 1.03,
+            setupQualityTier.sphereSegments,
+            setupQualityTier.sphereSegments,
+          ),
           atmosphereMaterial,
         )
 
@@ -697,11 +795,37 @@ export function InteractiveGlobe({
       animationFrameId = requestAnimationFrame(animate)
     }
 
-    animate()
+    const startAnimation = () => {
+      if (!animationFrameId && !disposed) {
+        animationFrameId = requestAnimationFrame(animate)
+      }
+    }
+
+    const stopAnimation = () => {
+      if (animationFrameId) {
+        cancelAnimationFrame(animationFrameId)
+        animationFrameId = 0
+      }
+    }
+
+    const handleVisibilityChange = () => {
+      if (document.hidden) {
+        stopAnimation()
+        return
+      }
+      clock.getElapsedTime()
+      startAnimation()
+    }
+
+    document.addEventListener("visibilitychange", handleVisibilityChange)
+    if (!document.hidden) {
+      startAnimation()
+    }
 
     return () => {
       disposed = true
-      if (animationFrameId) cancelAnimationFrame(animationFrameId)
+      document.removeEventListener("visibilitychange", handleVisibilityChange)
+      stopAnimation()
 
       scene.remove(ambientLight)
       scene.remove(hemisphereLight)
@@ -725,7 +849,7 @@ export function InteractiveGlobe({
       sceneMaterials.forEach((material) => material.dispose())
       sceneTextures.forEach((texture) => texture.dispose())
     }
-  }, [customGlobeMaterial, isGlobeReady])
+  }, [customGlobeMaterial, globeInstance])
 
   useEffect(() => {
     return () => {
@@ -738,15 +862,15 @@ export function InteractiveGlobe({
   return (
     <div ref={containerRef} className="relative h-full w-full overflow-hidden bg-[var(--news-bg-primary)]">
       <Globe
-        ref={globeEl}
-        onGlobeReady={() => setIsGlobeReady(true)}
+        ref={globeRef}
         globeMaterial={customGlobeMaterial}
         backgroundImageUrl={null}
         backgroundColor="rgba(0,0,0,0)"
         showAtmosphere={false}
         atmosphereAltitude={0}
+        polygonsTransitionDuration={0}
         lineHoverPrecision={0}
-        polygonsData={countries.features.filter((feature) => getCountryIso(feature) !== "AQ")}
+        polygonsData={visibleCountries}
         polygonAltitude={(polygon: object) => {
           const feature = toCountryFeature(polygon)
           if (!feature) return 0.006
@@ -803,7 +927,7 @@ export function InteractiveGlobe({
           if (selectedCountry === iso) {
             onCountrySelect(null, null)
             // Zoom back out smoothly
-            globeEl.current?.pointOfView({ altitude: 2.0 }, 800)
+            globeInstance?.pointOfView({ altitude: 2.0 }, 800)
           } else {
             onCountrySelect(iso, name)
             
@@ -821,7 +945,7 @@ export function InteractiveGlobe({
             const zoomAlt = isMobile ? 1.0 : 1.2
             
             // Adjust zoom scale.
-            globeEl.current?.pointOfView({ 
+            globeInstance?.pointOfView({ 
               lat: lat + latOffset, 
               lng, 
               altitude: zoomAlt

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef, useEffect, useMemo, useCallback } from "react";
+import { Suspense, useState, useRef, useEffect, useMemo, useCallback } from "react";
 import {
   Copy,
   Pencil,
@@ -28,9 +28,11 @@ import {
 import { Button } from "@/components/ui/button";
 import { ArticleDetailModal } from "@/components/article-detail-modal";
 import ChatSidebar, { ChatSummary } from "@/components/chat-sidebar";
+import { SafeImage } from "@/components/safe-image";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import Link from "next/link";
+import { useRouter, useSearchParams } from "next/navigation";
 import { motion } from "framer-motion";
 import { SearchSuggestions } from "@/components/search-suggestions";
 import { VerificationPanel } from "@/components/verification-panel";
@@ -169,7 +171,37 @@ interface StoredChatState {
   >;
 }
 
-export default function NewsResearchPage() {
+function mapReferencedArticleToNewsArticle(
+  article: ReferencedArticlePayload,
+): NewsArticle {
+  const tags = [article.category, article.source].filter(
+    (value): value is string => Boolean(value),
+  );
+
+  return {
+    id: Date.now() + Math.random(),
+    title: article.title || "No title",
+    source: article.source || "Unknown",
+    sourceId: (article.source || "unknown").toLowerCase().replace(/\s+/g, "-"),
+    country: "International",
+    credibility: "medium",
+    bias: "center",
+    summary: article.description || "No description",
+    content: article.description || "No description",
+    image: article.image || "/placeholder.svg",
+    publishedAt: article.published || new Date().toISOString(),
+    category: article.category || "general",
+    url: article.link || "",
+    tags,
+    originalLanguage: "en",
+    translated: false,
+    isPersisted: false,
+  };
+}
+
+function NewsResearchPageContent() {
+  const { replace } = useRouter();
+  const searchParams = useSearchParams();
   const [query, setQuery] = useState("");
   const [isSearching, setIsSearching] = useState(false);
   const [selectedArticle, setSelectedArticle] = useState<NewsArticle | null>(
@@ -198,6 +230,8 @@ export default function NewsResearchPage() {
   const chatScrollRef = useRef<HTMLDivElement>(null);
   const isHydratingRef = useRef(true);
   const abortControllerRef = useRef<AbortController | null>(null);
+  const consumedHandoffQueryRef = useRef<string | null>(null);
+  const handoffQuery = searchParams.get("query")?.trim() ?? "";
 
   const getChatPreview = useCallback((items: Message[]) => {
     const latest = [...items]
@@ -304,7 +338,7 @@ export default function NewsResearchPage() {
     abortControllerRef.current?.abort();
     abortControllerRef.current = null;
     setIsSearching(false);
-    // Mark the current streaming message as stopped
+    // Finalize the current streaming message with an explicit cancelled state.
     updateChatMessages(
       activeChatId,
       (prev) =>
@@ -314,7 +348,7 @@ export default function NewsResearchPage() {
               ...msg,
               isStreaming: false,
               streamingStatus: undefined,
-              content: msg.content || "[Stopped]",
+              content: msg.content || "Research cancelled.",
             }
           : msg,
       ),
@@ -696,32 +730,9 @@ export default function NewsResearchPage() {
             } else if (isReferencedArticlesMessage(data)) {
               const referencedArticlesPayload: ReferencedArticlePayload[] =
                 Array.isArray(data.articles) ? data.articles : [];
-              const referencedArticles: NewsArticle[] =
-                referencedArticlesPayload.map((article) => {
-                  const tags = [article.category, article.source].filter(
-                    (value): value is string => Boolean(value),
-                  );
-                  return {
-                    id: Date.now() + Math.random(),
-                    title: article.title || "No title",
-                    source: article.source || "Unknown",
-                    sourceId: (article.source || "unknown")
-                      .toLowerCase()
-                      .replace(/\s+/g, "-"),
-                    country: "United States",
-                    credibility: "medium" as const,
-                    bias: "center" as const,
-                    summary: article.description || "No description",
-                    content: article.description || "No description",
-                    image: article.image || "/placeholder.svg",
-                    publishedAt: article.published || new Date().toISOString(),
-                    category: article.category || "general",
-                    url: article.link || "",
-                    tags,
-                    originalLanguage: "en",
-                    translated: false,
-                  };
-                });
+              const referencedArticles = referencedArticlesPayload.map(
+                mapReferencedArticleToNewsArticle,
+              );
               updateChatMessages(chatId, (prev) =>
                 prev.map((msg) =>
                   msg.id !== assistantId
@@ -736,33 +747,9 @@ export default function NewsResearchPage() {
             } else if (isCompleteMessage(data)) {
               window.clearTimeout(stallTimeout);
               finalResult = data.result;
-              const referencedArticles: NewsArticle[] = (
+              const referencedArticles = (
                 finalResult.referenced_articles ?? []
-              ).map((article) => {
-                const tags = [article.category, article.source].filter(
-                  (value): value is string => Boolean(value),
-                );
-                return {
-                  id: Date.now() + Math.random(),
-                  title: article.title || "No title",
-                  source: article.source || "Unknown",
-                  sourceId: (article.source || "unknown")
-                    .toLowerCase()
-                    .replace(/\s+/g, "-"),
-                  country: "United States",
-                  credibility: "medium" as const,
-                  bias: "center" as const,
-                  summary: article.description || "No description",
-                  content: article.description || "No description",
-                  image: article.image || "/placeholder.svg",
-                  publishedAt: article.published || new Date().toISOString(),
-                  category: article.category || "general",
-                  url: article.link || "",
-                  tags,
-                  originalLanguage: "en",
-                  translated: false,
-                };
-              });
+              ).map(mapReferencedArticleToNewsArticle);
               updateChatMessages(chatId, (prev) =>
                 prev.map((msg) =>
                   msg.id !== assistantId
@@ -856,6 +843,20 @@ export default function NewsResearchPage() {
         }
       } catch (error) {
         if (error instanceof Error && error.name === "AbortError") {
+          updateChatMessages(chatId, (prev) =>
+            prev.map((msg) =>
+              msg.id === assistantId && msg.isStreaming
+                ? {
+                    ...msg,
+                    content: msg.content || "Research cancelled.",
+                    isStreaming: false,
+                    streamingStatus: undefined,
+                  }
+                : msg,
+            ),
+          { syncSummary: false });
+          abortControllerRef.current = null;
+          setIsSearching(false);
           return;
         }
         console.error("Failed to start research stream:", error);
@@ -898,17 +899,19 @@ export default function NewsResearchPage() {
       prompt,
       editingTargetId,
       clearComposer,
+      forceNewChat,
     }: {
       prompt: string;
       editingTargetId?: string | null;
       clearComposer?: boolean;
+      forceNewChat?: boolean;
     }) => {
       const trimmedQuery = prompt.trim();
       if (!trimmedQuery) return;
 
       let newChatTitle: string | undefined;
       let targetChatId = activeChatId;
-      if (!activeChatId) {
+      if (!activeChatId || forceNewChat) {
         const firstSentence = (trimmedQuery.split(/[\.\n]/)[0] || "").trim();
         const firstFour = trimmedQuery.split(/\s+/).slice(0, 4).join(" ");
         const titleBase = firstSentence || firstFour || "New Chat";
@@ -1001,6 +1004,21 @@ export default function NewsResearchPage() {
       updateChatMessages,
     ],
   );
+
+  useEffect(() => {
+    if (isHydratingRef.current || isSearching) return;
+    if (!handoffQuery) return;
+    if (consumedHandoffQueryRef.current === handoffQuery) return;
+
+    consumedHandoffQueryRef.current = handoffQuery;
+    setQuery(handoffQuery);
+    void submitPrompt({
+      prompt: handoffQuery,
+      clearComposer: true,
+      forceNewChat: true,
+    });
+    replace("/search");
+  }, [handoffQuery, isSearching, replace, submitPrompt]);
 
   const handleSearch = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -1125,10 +1143,10 @@ export default function NewsResearchPage() {
           <ReactMarkdown
             remarkPlugins={[remarkGfm]}
             components={{
-              strong: ({ node, ...props }) => (
+              strong: ({ ...props }) => (
                 <span className="font-semibold text-foreground" {...props} />
               ),
-              a: ({ node, href, children, ...props }) => {
+              a: ({ href, children, ...props }) => {
                 return (
                   <a
                     href={href}
@@ -1141,31 +1159,31 @@ export default function NewsResearchPage() {
                   </a>
                 );
               },
-              h1: ({ node, ...props }) => (
+              h1: ({ ...props }) => (
                 <h1
                   className="text-xl font-semibold text-foreground mt-6 mb-3"
                   {...props}
                 />
               ),
-              h2: ({ node, ...props }) => (
+              h2: ({ ...props }) => (
                 <h2
                   className="text-lg font-semibold text-foreground mt-5 mb-2"
                   {...props}
                 />
               ),
-              h3: ({ node, ...props }) => (
+              h3: ({ ...props }) => (
                 <h3
                   className="text-base font-medium text-foreground mt-4 mb-2"
                   {...props}
                 />
               ),
-              ul: ({ node, ...props }) => (
+              ul: ({ ...props }) => (
                 <ul className="my-3 space-y-1" {...props} />
               ),
-              li: ({ node, ...props }) => (
+              li: ({ ...props }) => (
                 <li className="text-foreground/80" {...props} />
               ),
-              p: ({ node, ...props }) => (
+              p: ({ ...props }) => (
                 <p className="text-foreground/80 leading-7 mb-4" {...props} />
               ),
             }}
@@ -1191,37 +1209,37 @@ export default function NewsResearchPage() {
         <ReactMarkdown
           remarkPlugins={[remarkGfm]}
           components={{
-            strong: ({ node, ...props }) => (
+            strong: ({ ...props }) => (
               <span className="font-semibold text-foreground" {...props} />
             ),
-            h1: ({ node, ...props }) => (
+            h1: ({ ...props }) => (
               <h1
                 className="text-xl font-semibold text-foreground mt-6 mb-3"
                 {...props}
               />
             ),
-            h2: ({ node, ...props }) => (
+            h2: ({ ...props }) => (
               <h2
                 className="text-lg font-semibold text-foreground mt-5 mb-2"
                 {...props}
               />
             ),
-            h3: ({ node, ...props }) => (
+            h3: ({ ...props }) => (
               <h3
                 className="text-base font-medium text-foreground mt-4 mb-2"
                 {...props}
               />
             ),
-            ul: ({ node, ...props }) => (
+            ul: ({ ...props }) => (
               <ul className="my-3 space-y-1" {...props} />
             ),
-            li: ({ node, ...props }) => (
+            li: ({ ...props }) => (
               <li className="text-foreground/80" {...props} />
             ),
-            p: ({ node, ...props }) => (
+            p: ({ ...props }) => (
               <p className="text-foreground/80 leading-7 mb-4" {...props} />
             ),
-            a: ({ node, href, children, ...props }) => {
+            a: ({ href, children, ...props }) => {
               // Check if this URL matches one of our articles
               const article = href
                 ? urlToArticleMap.get(href) ||
@@ -1238,16 +1256,18 @@ export default function NewsResearchPage() {
                     }}
                     className="not-prose group relative my-6 block w-full overflow-hidden rounded-3xl border border-border/40 bg-card/30 text-left transition-all duration-300 ease-out hover:-translate-y-0.5 hover:bg-card/50 hover:shadow-2xl hover:shadow-black/30"
                   >
-                    <div className="flex flex-col sm:flex-row gap-4 p-4">
-                      {article.image && (
-                        <div className="h-48 flex-shrink-0 overflow-hidden rounded-2xl bg-card sm:h-24 sm:w-32">
-                          <img
-                            src={article.image}
-                            alt={article.title}
-                            className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-105"
-                          />
-                        </div>
-                      )}
+                      <div className="flex flex-col sm:flex-row gap-4 p-4">
+                        {article.image && (
+                          <div className="h-48 flex-shrink-0 overflow-hidden rounded-2xl bg-card sm:h-24 sm:w-32">
+                            <SafeImage
+                              src={article.image}
+                              alt={article.title}
+                              width={128}
+                              height={96}
+                              className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-105"
+                            />
+                          </div>
+                        )}
                       <div className="flex flex-col justify-between py-1 min-w-0 flex-1">
                         <div>
                           <h4 className="font-medium text-foreground line-clamp-2 group-hover:text-primary transition-colors text-base">
@@ -2143,5 +2163,13 @@ export default function NewsResearchPage() {
         }}
       />
     </div>
+  );
+}
+
+export default function NewsResearchPage() {
+  return (
+    <Suspense fallback={<div className="min-h-screen bg-background" />}>
+      <NewsResearchPageContent />
+    </Suspense>
   );
 }

@@ -2,6 +2,7 @@ import React from 'react';
 import { useQuery } from "@tanstack/react-query";
 import { MapPin } from 'lucide-react';
 import { fetchNews, NewsArticle } from '../lib/api';
+import { SafeImage } from './safe-image';
 import { Card } from './ui/card';
 import { Badge } from './ui/badge';
 
@@ -44,9 +45,11 @@ const HorizontalArticleEmbed: React.FC<HorizontalArticleEmbedProps> = ({
             <div className="flex gap-3 p-3">
               {article.image && (
                 <div className="w-32 h-24 flex-shrink-0 overflow-hidden rounded-md bg-black/40 border" style={{ borderColor: 'var(--border)' }}>
-                  <img
+                  <SafeImage
                     src={article.image}
                     alt={article.title}
+                    width={128}
+                    height={96}
                     className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-200"
                   />
                 </div>

@@ -108,4 +108,21 @@ describe("useBrowseIndex", () => {
     expect(article.content).toBeUndefined()
     expect(article.hasFullContent).toBe(false)
   })
+
+  it("marks live cache rows without durable ids as unpersisted", () => {
+    const [article] = mapBackendArticles([
+      {
+        title: "Live cache row",
+        source: "Test News",
+        description: "Short browse summary",
+        published_at: new Date().toISOString(),
+        category: "general",
+        url: "https://example.com/live-cache",
+        is_persisted: false,
+      },
+    ])
+
+    expect(article.id).toEqual(expect.any(Number))
+    expect(article.isPersisted).toBe(false)
+  })
 })

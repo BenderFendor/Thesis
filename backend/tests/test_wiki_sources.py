@@ -104,6 +104,7 @@ class TestGetSourceWiki:
         assert data["bias_rating"] == "center"
         assert "dossier_sections" in data
         assert "citations" in data
+        assert "official_pages" in data
 
     async def test_includes_analysis_axes_array(self, client: AsyncClient):
         resp = await client.get("/api/wiki/sources/Test%20News")

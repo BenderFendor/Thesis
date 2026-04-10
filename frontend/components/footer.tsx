@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { navLinks } from "@/lib/constants";
+import { SafeImage } from "@/components/safe-image";
 
 interface FooterProps {
   hidden: boolean;
@@ -22,7 +23,7 @@ const Footer = ({ hidden }: FooterProps) => {
       <div className="container mx-auto grid grid-cols-1 md:grid-cols-4 gap-8">
         <div className="flex flex-col gap-4">
           <Link href="#" className="flex items-center gap-2" prefetch={false}>
-            <img src="/favicon.svg" alt="GlobalNews" className="h-16 w-16 text-[#b88f4d]" />
+            <SafeImage src="/favicon.svg" alt="GlobalNews" width={64} height={64} className="h-16 w-16 text-[#b88f4d]" />
             <span className="font-semibold text-lg">GlobalNews</span>
           </Link>
           <p className="text-muted-foreground text-sm">

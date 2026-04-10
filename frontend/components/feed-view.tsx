@@ -205,6 +205,7 @@ export function FeedView({
   })
 
   const [selectedArticle, setSelectedArticle] = useState<NewsArticle | null>(null)
+  const [selectedArticleIndex, setSelectedArticleIndex] = useState<number | null>(null)
   const [isArticleModalOpen, setIsArticleModalOpen] = useState(false)
   const [activeIndex, setActiveIndex] = useState(0)
   const [activeArticleId, setActiveArticleId] = useState<number | null>(null)
@@ -363,6 +364,7 @@ export function FeedView({
 
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
+      if (isArticleModalOpen) return
       if (event.key === "ArrowDown") {
         event.preventDefault()
         scrollToNext()
@@ -374,7 +376,7 @@ export function FeedView({
 
     window.addEventListener("keydown", handleKeyDown)
     return () => window.removeEventListener("keydown", handleKeyDown)
-  }, [scrollToNext, scrollToPrev])
+  }, [isArticleModalOpen, scrollToNext, scrollToPrev])
 
   const handleLike = useCallback(
     (articleId: number) => {
@@ -400,9 +402,27 @@ export function FeedView({
     [bookmarkIds, toggleBookmark],
   )
 
-  const handleArticlePreview = useCallback((article: NewsArticle) => {
+  const handleArticlePreview = useCallback((article: NewsArticle, index: number) => {
     setSelectedArticle(article)
+    setSelectedArticleIndex(index)
     setIsArticleModalOpen(true)
+  }, [])
+
+  const handleModalNavigate = useCallback((direction: "prev" | "next") => {
+    if (selectedArticleIndex === null) return
+
+    const nextIndex =
+      direction === "next" ? selectedArticleIndex + 1 : selectedArticleIndex - 1
+    if (nextIndex < 0 || nextIndex >= rankedArticles.length) return
+
+    setSelectedArticleIndex(nextIndex)
+    setSelectedArticle(rankedArticles[nextIndex] ?? null)
+  }, [rankedArticles, selectedArticleIndex])
+
+  const handleModalClose = useCallback(() => {
+    setIsArticleModalOpen(false)
+    setSelectedArticle(null)
+    setSelectedArticleIndex(null)
   }, [])
 
   if (loading) {
@@ -448,7 +468,7 @@ export function FeedView({
             data-index={index}
             className="snap-start w-full relative cursor-pointer group"
             style={{ height: "calc(100vh - 64px)" }}
-            onClick={() => handleArticlePreview(article)}
+            onClick={() => handleArticlePreview(article, index)}
           >
             <div className="absolute inset-0 w-full h-full overflow-hidden">
               <motion.img
@@ -605,7 +625,13 @@ export function FeedView({
         </Button>
       </div>
 
-      <ArticleDetailModal article={selectedArticle} isOpen={isArticleModalOpen} onClose={() => setIsArticleModalOpen(false)} onBookmarkChange={handleModalBookmarkChange} />
+      <ArticleDetailModal
+        article={selectedArticle}
+        isOpen={isArticleModalOpen}
+        onClose={handleModalClose}
+        onBookmarkChange={handleModalBookmarkChange}
+        onNavigate={handleModalNavigate}
+      />
     </div>
   )
 }

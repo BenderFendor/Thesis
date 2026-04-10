@@ -12,20 +12,20 @@ Comprehensive instrumentation for measuring FastAPI backend performance:
 
 from __future__ import annotations
 
-import asyncio
 import gc
 import os
-import psutil
-import statistics
-import time
 import threading
+import time
+import statistics
 from collections import deque
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from functools import wraps
 from types import TracebackType
-from typing import Any, Deque, Dict, List, Optional, Tuple, TypeVar, cast
+from typing import Any, Deque, Dict, List, Optional, Tuple, cast
+
+import psutil
 from starlette.middleware.base import BaseHTTPMiddleware, RequestResponseEndpoint
 from starlette.requests import Request
 from starlette.responses import Response
@@ -33,7 +33,6 @@ from starlette.responses import Response
 from app.core.logging import get_logger
 
 logger = get_logger("profiling")
-F = TypeVar("F", bound=Callable[..., Any])
 
 
 @dataclass
@@ -388,50 +387,6 @@ class ProfilingMiddleware(BaseHTTPMiddleware):
         return response
 
 
-def profile_function(
-    name: Optional[str] = None,
-    record_args: bool = False,
-) -> Callable[[F], F]:
-    """Decorator to profile a function's execution time."""
-
-    def decorator(func: F) -> F:
-        @wraps(func)
-        async def async_wrapper(*args: Any, **kwargs: Any) -> Any:
-            async_func = cast(Callable[..., Awaitable[Any]], func)
-            session = get_profiling_session()
-            start = time.perf_counter()
-            try:
-                result = await async_func(*args, **kwargs)
-                return result
-            finally:
-                duration_ms = (time.perf_counter() - start) * 1000
-                func_name = name or f"{func.__module__}.{func.__name__}"
-                session.record_external_call(
-                    "function", func_name, duration_ms, success=True
-                )
-
-        @wraps(func)
-        def sync_wrapper(*args: Any, **kwargs: Any) -> Any:
-            sync_func = cast(Callable[..., Any], func)
-            session = get_profiling_session()
-            start = time.perf_counter()
-            try:
-                result = sync_func(*args, **kwargs)
-                return result
-            finally:
-                duration_ms = (time.perf_counter() - start) * 1000
-                func_name = name or f"{func.__module__}.{func.__name__}"
-                session.record_external_call(
-                    "function", func_name, duration_ms, success=True
-                )
-
-        if asyncio.iscoroutinefunction(func):
-            return cast(F, async_wrapper)
-        return cast(F, sync_wrapper)
-
-    return decorator
-
-
 class ProfileSection:
     """Async context manager for profiling a section of code."""
 
@@ -450,7 +405,7 @@ class ProfileSection:
         self,
         exc_type: type[BaseException] | None,
         exc_val: BaseException | None,
-        exc_tb: TracebackType | None,
+        _exc_tb: TracebackType | None,
     ) -> None:
         self.duration_ms = (time.perf_counter() - self.start_time) * 1000
         self.session.record_external_call(

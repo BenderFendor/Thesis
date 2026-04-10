@@ -37,7 +37,7 @@ export function HighlightNotePopover({
     if (!open) return;
     if (!highlight) return;
     setNoteDraft(highlight.note || "");
-  }, [open, highlight?.id]);
+  }, [open, highlight]);
 
   useEffect(() => {
     if (!open) return;

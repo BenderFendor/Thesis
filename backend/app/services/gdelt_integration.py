@@ -158,7 +158,6 @@ class GDELTIntegration:
             # Parse date
             date_str = row.get("SQLDATE", "")
             if date_str and len(date_str) == 8:
-                # Format: YYYYMMDD
                 year = int(date_str[:4])
                 month = int(date_str[4:6])
                 day = int(date_str[6:8])

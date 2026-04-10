@@ -1,18 +1,15 @@
 "use client"
 
 import { useMemo, useState } from "react"
-import { useQuery } from "@tanstack/react-query"
 import { InteractiveGlobe } from "./interactive-globe"
 import { ArticleDetailModal } from "./article-detail-modal"
 import { cn } from "@/lib/utils"
 import {
-  fetchArticleCountsByCountry,
   fetchCountryGeoData,
-  fetchCountryList,
-  fetchNewsForCountry,
   type CountryArticleCounts,
   type NewsArticle,
 } from "@/lib/api"
+import { useQuery } from "@tanstack/react-query"
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
 import {
@@ -30,13 +27,17 @@ import {
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
+import { SafeImage } from "@/components/safe-image"
+import {
+  buildCountryListFromArticles,
+  buildCountryMetricsFromArticles,
+  buildLocalLensFromArticles,
+} from "@/lib/globe-live-data"
 
 interface GlobeViewProps {
   articles: NewsArticle[]
   loading: boolean
 }
-
-const DEFAULT_WINDOW_HOURS = 24
 
 function hasRealImage(src?: string | null) {
   if (!src) return false
@@ -90,27 +91,36 @@ export function GlobeView({ articles, loading }: GlobeViewProps) {
   const [lensLimit, setLensLimit] = useState(40)
   const [earthLightingMode, setEarthLightingMode] = useState<"all-lit" | "day-night">("all-lit")
 
-  const { data: countryMetrics } = useQuery({
-    queryKey: ["globe-country-metrics", DEFAULT_WINDOW_HOURS],
-    queryFn: () => fetchArticleCountsByCountry(),
-  })
-
   const { data: geoData } = useQuery({
     queryKey: ["country-geo-data"],
     queryFn: fetchCountryGeoData,
     staleTime: Infinity,
   })
 
-  const { data: countryList } = useQuery({
-    queryKey: ["country-list"],
-    queryFn: fetchCountryList,
-  })
+  const countryMetrics = useMemo<CountryArticleCounts>(
+    () => buildCountryMetricsFromArticles(articles),
+    [articles],
+  )
+  const countryList = useMemo(
+    () => buildCountryListFromArticles(articles),
+    [articles],
+  )
+  const localLensData = useMemo(() => {
+    if (!selectedCountry) {
+      return null
+    }
 
-  const localLensQuery = useQuery({
-    queryKey: ["globe-country-news", selectedCountry, viewMode, DEFAULT_WINDOW_HOURS, lensLimit],
-    queryFn: () => fetchNewsForCountry(selectedCountry || "", viewMode, lensLimit, 0, DEFAULT_WINDOW_HOURS),
-    enabled: Boolean(selectedCountry),
-  })
+    const countryName =
+      geoData?.countries?.[selectedCountry]?.name || selectedCountryName || selectedCountry
+
+    return buildLocalLensFromArticles({
+      articles,
+      code: selectedCountry,
+      countryName,
+      view: viewMode,
+      limit: lensLimit,
+    })
+  }, [articles, geoData, lensLimit, selectedCountry, selectedCountryName, viewMode])
 
   const handleCountrySelect = (country: string | null, name?: string | null) => {
     setSelectedCountry(country)
@@ -138,8 +148,15 @@ export function GlobeView({ articles, loading }: GlobeViewProps) {
       .sort((a, b) => b.count - a.count)
       .slice(0, 5)
   }, [articles])
+  const globalSourceCount = useMemo(() => {
+    return new Set(
+      articles
+        .map((article) => article.sourceId || article.source)
+        .filter((value): value is string => Boolean(value)),
+    ).size
+  }, [articles])
 
-  const selectedLensArticles = selectedCountry ? localLensQuery.data?.articles || [] : []
+  const selectedLensArticles = selectedCountry ? localLensData?.articles || [] : []
   const lensArticles = selectedCountry ? selectedLensArticles : articles
 
   const sourceSummary = useMemo(() => {
@@ -180,14 +197,14 @@ export function GlobeView({ articles, loading }: GlobeViewProps) {
   const leadArticle = lensArticles[0] || null
   const topSources = (selectedCountry ? sourceSummary : globalSourceSummary).slice(0, 5)
   const briefingDescription = selectedCountry
-    ? localLensQuery.data?.view_description || "Choose a lens to compare internal and external coverage."
+    ? localLensData?.view_description || "Choose a lens to compare internal and external coverage."
     : "Select a country to compare what local outlets say with how the rest of the world covers it."
-  const matchingStrategy = localLensQuery.data?.matching_strategy
-  const isBriefingLoading = selectedCountry ? localLensQuery.isLoading : loading
+  const matchingStrategy = localLensData?.matching_strategy
+  const isBriefingLoading = selectedCountry ? false : loading
   const sourceCount = selectedCountry
-    ? localLensQuery.data?.source_count || sourceSummary.length
-    : globalSourceSummary.length
-  const articleCount = selectedCountry ? localLensQuery.data?.total || 0 : articles.length
+    ? localLensData?.source_count || sourceSummary.length
+    : globalSourceCount
+  const articleCount = selectedCountry ? localLensData?.total || 0 : articles.length
   const selectedCountryMeta = useMemo(() => {
     if (!selectedCountry) return null
     return countryList?.countries.find((item) => item.code === selectedCountry) || null
@@ -441,13 +458,13 @@ export function GlobeView({ articles, loading }: GlobeViewProps) {
                         <span className="text-[10px] font-mono uppercase tracking-widest text-muted-foreground">Lens brief</span>
                       </div>
                       <p className="text-sm leading-relaxed text-muted-foreground">{briefingDescription}</p>
-                      {localLensQuery.data?.geo_signal && (
+                      {localLensData?.geo_signal && (
                         <div className="mt-3">
                           <Badge
                             variant="outline"
                             className="rounded-full border-white/10 bg-white/[0.04] px-3 py-1 text-[9px] uppercase tracking-[0.2em] text-muted-foreground"
                           >
-                            {localLensQuery.data.geo_signal.label}
+                            {localLensData.geo_signal.label}
                           </Badge>
                         </div>
                       )}
@@ -501,7 +518,7 @@ export function GlobeView({ articles, loading }: GlobeViewProps) {
                             </div>
                             {hasRealImage(article.image) && (
                               <div className="h-16 w-16 shrink-0 overflow-hidden rounded-lg border border-white/10 bg-[var(--news-bg-primary)]/40">
-                                <img src={article.image} alt="" className="h-full w-full object-cover opacity-70 transition-opacity group-hover:opacity-100" />
+                                <SafeImage src={article.image} alt="" width={64} height={64} className="h-full w-full object-cover opacity-70 transition-opacity group-hover:opacity-100" />
                               </div>
                             )}
                           </div>
@@ -514,7 +531,7 @@ export function GlobeView({ articles, loading }: GlobeViewProps) {
                         </div>
                       )}
 
-                      {selectedCountry && localLensQuery.data?.has_more && (
+                      {selectedCountry && localLensData?.has_more && (
                         <Button
                           variant="outline"
                           size="sm"
@@ -541,7 +558,7 @@ export function GlobeView({ articles, loading }: GlobeViewProps) {
                   <div className="cursor-pointer p-4 group" onClick={() => handleArticleSelect(leadArticle)}>
                     {hasRealImage(leadArticle.image) && (
                       <div className="relative mb-3 aspect-video w-full overflow-hidden rounded-lg border border-white/10">
-                        <img src={leadArticle.image} className="h-full w-full object-cover opacity-80 group-hover:scale-105 transition-transform duration-500" alt="Lead" />
+                        <SafeImage src={leadArticle.image} className="h-full w-full object-cover opacity-80 group-hover:scale-105 transition-transform duration-500" alt="Lead" fill />
                         <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent" />
                         <div className="absolute bottom-2 left-2 right-2">
                           <h4 className="font-serif text-sm font-medium leading-tight text-foreground drop-shadow-md">

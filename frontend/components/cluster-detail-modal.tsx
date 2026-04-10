@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback, useRef } from "react";
+import { useState, useEffect, useCallback, useRef, useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import Link from "next/link";
 import {
@@ -21,6 +21,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { SafeImage } from "@/components/safe-image";
 import {
   fetchClusterDetail,
   AllCluster,
@@ -280,9 +281,10 @@ function ClusterDetailModalContent({
   });
   const resolvedActiveArticleId =
     activeArticleId ?? clusterDetail?.articles[0]?.id.toString() ?? null;
-  const comparisonClusterArticles: ComparisonArticle[] = clusterDetail?.articles.map(
-    normalizeComparisonArticle,
-  ) ?? [];
+  const comparisonClusterArticles: ComparisonArticle[] = useMemo(
+    () => clusterDetail?.articles.map(normalizeComparisonArticle) ?? [],
+    [clusterDetail],
+  );
 
   const loadArticleContent = useCallback(async (article: ClusterArticle) => {
     setLoadingArticle(article.id);
@@ -743,9 +745,10 @@ function ClusterDetailModalContent({
                     <div>
                       {hasRealImage(article.image_url) && (
                         <div className="relative aspect-video max-h-[300px] overflow-hidden rounded-lg mb-6">
-                          <img
+                          <SafeImage
                             src={article.image_url!}
                             alt={article.title}
+                            fill
                             className="w-full h-full object-cover"
                           />
                           <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent" />
@@ -1106,9 +1109,10 @@ function ClusterDetailModalContent({
                                 <div className="bg-[var(--news-bg-secondary)] p-4 rounded-lg border border-border/60">
                                   {hasRealImage(article.image_url) && (
                                     <div className="relative aspect-video max-h-[150px] overflow-hidden rounded-lg mb-3">
-                                      <img
+                                      <SafeImage
                                         src={article.image_url || undefined}
                                         alt={article.title}
+                                        fill
                                         className="w-full h-full object-cover"
                                       />
                                       <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent" />

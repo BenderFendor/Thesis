@@ -2,9 +2,8 @@
 
 import { useState } from "react"
 import { Sparkles, User, Building2, Scale, CheckCircle, AlertCircle, ChevronDown, ChevronUp, ExternalLink, Shield, XCircle, AlertTriangle as AlertTriangleIcon } from "lucide-react"
-import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
-import { type ArticleAnalysis, type FactCheckResult } from "@/lib/api"
+import { type ArticleAnalysis } from "@/lib/api"
 
 interface ArticleAnalysisDisplayProps {
   analysis: ArticleAnalysis

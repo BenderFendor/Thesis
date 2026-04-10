@@ -21,3 +21,15 @@ def test_extract_article_mentioned_countries_dedupes_and_sorts_alias_matches(
 
     assert mentions == sorted(mentions)
     assert mentions == ["CN", "US"]
+
+
+def test_extract_article_mentioned_countries_requires_exact_case_for_short_acronyms() -> (
+    None
+):
+    mentions = extract_article_mentioned_countries(
+        "United States Uk",
+        "Usa is mixed case here on purpose.",
+        "China remains central to the discussion.",
+    )
+
+    assert mentions == ["CN", "US"]

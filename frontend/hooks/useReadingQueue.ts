@@ -174,7 +174,7 @@ export function useReadingQueue() {
       });
 
       // Also sync to database if enabled
-      if (USE_DATABASE) {
+      if (USE_DATABASE && article.isPersisted !== false) {
         try {
           await apiAddToQueue(article, "daily");
         } catch (error) {

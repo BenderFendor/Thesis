@@ -73,6 +73,8 @@ class TestGetReporterDossier:
         assert data["article_count"] == 42
         assert data["wikidata_qid"] == "Q100"
         assert data["citations"][0]["label"] == "Wikipedia lead"
+        assert data["activity_summary"]["article_count"] >= 1
+        assert data["activity_summary"]["outlets"][0]["name"] == "Test News"
 
     async def test_includes_career_history(self, client: AsyncClient):
         resp = await client.get("/api/wiki/reporters/1")
@@ -96,6 +98,8 @@ class TestGetReporterDossier:
         assert "title" in article
         assert "source" in article
         assert "url" in article
+        assert "activity_summary" in data
+        assert "author_pages" in data["activity_summary"]
 
     async def test_not_found(self, client: AsyncClient):
         resp = await client.get("/api/wiki/reporters/999")

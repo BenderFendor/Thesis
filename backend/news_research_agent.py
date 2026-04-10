@@ -1721,9 +1721,6 @@ def research_stream(
         "referenced_articles": referenced_articles,
         "source_providers": source_providers,
     }
-    # if structured_block and structured_block not in final_answer:
-    #     result["answer"] += structured_block
-
     yield "data: " + json.dumps({"type": "complete", "result": result}) + "\n\n"
     yield 'data: {"type": "done"}\n\n'
 

@@ -35,10 +35,10 @@ class NewsCache:
         return article.published or ""
 
     def _shape_articles(self, articles: List[NewsArticle]) -> List[NewsArticle]:
-        max_articles = max(0, settings.news_cache_max_articles)
-        max_per_source = max(0, settings.news_cache_max_per_source)
+        max_articles = settings.news_cache_max_articles
+        max_per_source = settings.news_cache_max_per_source
 
-        if not articles or max_articles == 0 or max_per_source == 0:
+        if not articles:
             return []
 
         grouped: Dict[str, List[NewsArticle]] = defaultdict(list)
@@ -46,7 +46,11 @@ class NewsCache:
             grouped[article.source].append(article)
 
         trimmed_groups = {
-            source: source_articles[:max_per_source]
+            source: (
+                source_articles[:max_per_source]
+                if max_per_source > 0
+                else source_articles
+            )
             for source, source_articles in grouped.items()
             if source_articles
         }
@@ -59,7 +63,7 @@ class NewsCache:
 
         shaped: List[NewsArticle] = []
         round_index = 0
-        while len(shaped) < max_articles:
+        while max_articles <= 0 or len(shaped) < max_articles:
             appended = False
             for source in source_order:
                 source_articles = trimmed_groups[source]
@@ -67,7 +71,7 @@ class NewsCache:
                     continue
                 shaped.append(source_articles[round_index])
                 appended = True
-                if len(shaped) >= max_articles:
+                if max_articles > 0 and len(shaped) >= max_articles:
                     break
             if not appended:
                 break
@@ -129,9 +133,10 @@ class NewsCache:
             self.update_count += 1
 
             logger.info(
-                "Cache updated #%s: %s -> %s articles from %s sources",
+                "Cache updated #%s: %s -> %s cached articles (%s raw) from %s sources",
                 self.update_count,
                 old_count,
+                len(self.articles),
                 len(articles),
                 len(source_stats),
             )
@@ -144,8 +149,8 @@ class NewsCache:
                 len(error_sources),
             )
             self._assert_invariants()
-            assert len(self.articles) == len(articles), (
-                "update_cache must preserve article count"
+            assert len(self.articles) <= len(articles), (
+                "update_cache must not exceed raw article count"
             )
 
     def update_source_cache(

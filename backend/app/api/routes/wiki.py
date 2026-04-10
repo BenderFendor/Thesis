@@ -31,6 +31,7 @@ from app.database import (
     get_db,
 )
 from app.services.source_research import get_source_profile
+from app.services.reporter_public_records import build_reporter_activity_summary
 
 router = APIRouter(prefix="/api/wiki", tags=["wiki"])
 logger = get_logger("wiki_routes")
@@ -85,6 +86,7 @@ class SourceWikiResponse(BaseModel):
     """Full wiki page data for a single source."""
 
     name: str
+    website: Optional[str] = None
     country: Optional[str] = None
     funding_type: Optional[str] = None
     bias_rating: Optional[str] = None
@@ -102,6 +104,7 @@ class SourceWikiResponse(BaseModel):
     citations: List[Dict[str, str]] = []
     search_links: Optional[Dict[str, str]] = None
     match_explanation: Optional[str] = None
+    official_pages: List[Dict[str, str]] = []
 
     # Source analysis scores
     analysis_axes: List[AnalysisAxisResponse] = []
@@ -183,6 +186,7 @@ class ReporterDossierResponse(BaseModel):
 
     # Articles in our system
     recent_articles: List[Dict[str, Any]] = []
+    activity_summary: Optional[Dict[str, Any]] = None
 
     research_sources: Optional[List[str]] = None
     research_confidence: Optional[str] = None
@@ -488,6 +492,7 @@ async def get_source_wiki(
 
     return SourceWikiResponse(
         name=source_name,
+        website=cast(Optional[str], (source_profile or {}).get("website")),
         country=source_config.get("country") or None,
         funding_type=source_config.get("funding_type") or None,
         bias_rating=source_config.get("bias_rating") or None,
@@ -512,6 +517,9 @@ async def get_source_wiki(
         ),
         match_explanation=cast(
             Optional[str], (source_profile or {}).get("match_explanation")
+        ),
+        official_pages=cast(
+            List[Dict[str, str]], (source_profile or {}).get("official_pages") or []
         ),
         analysis_axes=scores,
         reporters=reporters,
@@ -639,6 +647,9 @@ async def get_reporter_dossier(
         }
         for a in article_result.scalars().all()
     ]
+    activity_summary = await build_reporter_activity_summary(
+        _required_str(reporter.name), articles
+    )
 
     return ReporterDossierResponse(
         id=_required_int(reporter.id),
@@ -675,6 +686,7 @@ async def get_reporter_dossier(
             reporter.last_article_at.isoformat() if reporter.last_article_at else None
         ),
         recent_articles=articles,
+        activity_summary=activity_summary,
         research_sources=reporter.research_sources,
         research_confidence=reporter.research_confidence,
     )

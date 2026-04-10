@@ -27,9 +27,11 @@ import Link from "next/link"
 import { useReadingQueue } from "@/hooks/useReadingQueue"
 import { useLikedArticles } from "@/hooks/useLikedArticles"
 import { useBookmarks } from "@/hooks/useBookmarks"
+import { HighlightsView } from "@/components/highlights-view"
 import ReactMarkdown from "react-markdown"
 import { cn } from "@/lib/utils"
-import { API_BASE_URL } from "@/lib/api"
+import { API_BASE_URL, getAllHighlights } from "@/lib/api"
+import { SafeImage } from "@/components/safe-image"
 
 export default function SavedArticlesPage() {
   const [bookmarks, setBookmarks] = useState<NewsArticle[]>([])
@@ -42,6 +44,8 @@ export default function SavedArticlesPage() {
   const [queueDigest, setQueueDigest] = useState<string | null>(null)
   const [digestLoading, setDigestLoading] = useState(false)
   const [showDigest, setShowDigest] = useState(false)
+  const [highlightCount, setHighlightCount] = useState(0)
+  const [loadIssues, setLoadIssues] = useState<string[]>([])
   
   const { 
     queuedArticles, 
@@ -52,27 +56,50 @@ export default function SavedArticlesPage() {
   const { toggleLike, likedIds, refresh: refreshLiked } = useLikedArticles()
   const { toggleBookmark, bookmarkIds, refresh: refreshBookmarks } = useBookmarks()
 
-  const loadData = async () => {
+  const loadData = useCallback(async () => {
     setLoading(true)
+    setLoadIssues([])
     try {
-      const [bookmarksData, likedData] = await Promise.all([
+      const [bookmarksResult, likedResult, highlightsResult] = await Promise.allSettled([
         refreshBookmarks(),
         refreshLiked(),
+        getAllHighlights(),
       ])
-      const bookmarkArticles = (bookmarksData ?? []).map((entry) => entry.article)
-      const likedArticlesList = (likedData ?? []).map((entry) => entry.article)
-      setBookmarks(bookmarkArticles)
-      setLikedArticles(likedArticlesList)
+
+      const issues: string[] = []
+
+      if (bookmarksResult.status === "fulfilled") {
+        const bookmarkArticles = (bookmarksResult.value ?? []).map((entry) => entry.article)
+        setBookmarks(bookmarkArticles)
+      } else {
+        issues.push("Bookmarks could not be loaded.")
+      }
+
+      if (likedResult.status === "fulfilled") {
+        const likedArticlesList = (likedResult.value ?? []).map((entry) => entry.article)
+        setLikedArticles(likedArticlesList)
+      } else {
+        issues.push("Liked articles could not be loaded.")
+      }
+
+      if (highlightsResult.status === "fulfilled") {
+        setHighlightCount(highlightsResult.value.length)
+      } else {
+        issues.push("Highlights could not be loaded.")
+      }
+
+      setLoadIssues(issues)
     } catch (error) {
       console.error("Failed to load saved articles:", error)
+      setLoadIssues(["Saved data could not be loaded."])
     } finally {
       setLoading(false)
     }
-  }
+  }, [refreshBookmarks, refreshLiked])
 
   useEffect(() => {
-    loadData()
-  }, [])
+    void loadData()
+  }, [loadData])
 
   const handleArticleClick = (article: NewsArticle) => {
     setSelectedArticle(article)
@@ -260,10 +287,13 @@ export default function SavedArticlesPage() {
             {/* Image Thumbnail */}
             {showImage && (
               <div className="flex-shrink-0 w-16 h-16 rounded-lg overflow-hidden">
-                <img
+                <SafeImage
                   src={article.image}
                   alt={article.title}
-                  className="w-full h-full object-cover"
+                  width={64}
+                  height={64}
+                  className="h-full w-full object-cover"
+                  sizes="64px"
                 />
               </div>
             )}
@@ -283,10 +313,13 @@ export default function SavedArticlesPage() {
             <div className="mt-4 pt-4 border-t border-border/50">
               {showImage && (
                 <div className="mb-4 rounded-lg overflow-hidden">
-                  <img
+                  <SafeImage
                     src={article.image}
                     alt={article.title}
-                    className="w-full h-48 object-cover"
+                    width={896}
+                    height={192}
+                    className="h-48 w-full object-cover"
+                    sizes="(min-width: 1024px) 50vw, 100vw"
                   />
                 </div>
               )}
@@ -386,9 +419,9 @@ export default function SavedArticlesPage() {
                 </Button>
               </Link>
               <div>
-                <h1 className="text-2xl font-bold font-serif text-foreground">Saved Articles</h1>
+                <h1 className="text-2xl font-bold font-serif text-foreground">Reader Workspace</h1>
                 <p className="text-sm text-muted-foreground">
-                  Your bookmarks, liked articles, and reading queue
+                  Bookmarks, queue, highlights, and reading context in one place
                 </p>
               </div>
             </div>
@@ -411,6 +444,21 @@ export default function SavedArticlesPage() {
       </header>
 
       <div className="container mx-auto px-4 py-6">
+        {loadIssues.length > 0 && (
+          <Card className="mb-6 border-amber-500/30 bg-amber-500/10">
+            <CardContent className="flex items-start justify-between gap-4 p-4">
+              <div>
+                <h2 className="font-semibold text-amber-100">Some saved data is unavailable</h2>
+                <p className="mt-1 text-sm text-amber-50/80">
+                  {loadIssues.join(" ")}
+                </p>
+              </div>
+              <Button variant="outline" size="sm" onClick={() => void loadData()}>
+                Retry
+              </Button>
+            </CardContent>
+          </Card>
+        )}
         <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
           <TabsList className="mb-6 bg-[var(--news-bg-secondary)] border border-white/10">
             <TabsTrigger value="all" className="gap-2">
@@ -439,6 +487,13 @@ export default function SavedArticlesPage() {
               Reading Queue
               <Badge variant="secondary" className="ml-1">
                 {queuedArticles.length}
+              </Badge>
+            </TabsTrigger>
+            <TabsTrigger value="highlights" className="gap-2">
+              <Sparkles className="w-4 h-4" />
+              Highlights
+              <Badge variant="secondary" className="ml-1">
+                {highlightCount}
               </Badge>
             </TabsTrigger>
           </TabsList>
@@ -577,6 +632,12 @@ export default function SavedArticlesPage() {
                           </span>
                           <Badge variant="secondary">{queuedArticles.length}</Badge>
                         </div>
+                        <div className="flex items-center justify-between">
+                          <span className="text-sm text-muted-foreground flex items-center gap-2">
+                            <Sparkles className="w-4 h-4" /> Highlights
+                          </span>
+                          <Badge variant="secondary">{highlightCount}</Badge>
+                        </div>
                         <div className="pt-3 border-t border-white/10">
                           <div className="flex items-center justify-between font-bold">
                             <span className="text-sm">Total Saved</span>
@@ -649,7 +710,12 @@ export default function SavedArticlesPage() {
           <TabsContent value="queue" className="mt-0">
             <div className="space-y-6">
               <div className="flex items-center justify-between">
-                <h2 className="text-xl font-serif font-bold">Articles to Read</h2>
+                <div>
+                  <h2 className="text-xl font-serif font-bold">Articles to Read</h2>
+                  <p className="text-sm text-muted-foreground">
+                    Keep the queue curated, then generate a digest when you want a synthesis pass.
+                  </p>
+                </div>
                 <div className="flex items-center gap-2">
                   <Button
                     variant="outline"
@@ -733,10 +799,13 @@ export default function SavedArticlesPage() {
                         </div>
                         {hasRealImage(article.image) && (
                           <div className="flex-shrink-0 w-20 h-20 rounded-lg overflow-hidden">
-                            <img
+                            <SafeImage
                               src={article.image}
                               alt={article.title}
-                              className="w-full h-full object-cover"
+                              width={80}
+                              height={80}
+                              className="h-full w-full object-cover"
+                              sizes="80px"
                             />
                           </div>
                         )}
@@ -745,6 +814,25 @@ export default function SavedArticlesPage() {
                   ))}
                 </div>
               )}
+            </div>
+          </TabsContent>
+
+          <TabsContent value="highlights" className="mt-0">
+            <div className="space-y-6">
+              <div className="flex items-center justify-between gap-3">
+                <div>
+                  <h2 className="text-xl font-serif font-bold">Highlights And Notes</h2>
+                  <p className="text-sm text-muted-foreground">
+                    Review saved passages across articles and keep the reader workflow centered here.
+                  </p>
+                </div>
+                <Badge className="text-base px-3 py-1">{highlightCount}</Badge>
+              </div>
+              <Card className="border border-white/10 bg-[var(--news-bg-secondary)]">
+                <CardContent className="p-6">
+                  <HighlightsView />
+                </CardContent>
+              </Card>
             </div>
           </TabsContent>
         </Tabs>

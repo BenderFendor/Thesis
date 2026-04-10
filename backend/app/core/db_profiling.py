@@ -236,7 +236,7 @@ def instrument_engine(engine: AsyncEngine) -> None:
         statement: str,
         parameters: Any,
         context: Any,
-        executemany: bool,
+        _executemany: bool,
     ) -> tuple[str, Any]:
         conn.info["query_start_time"] = time.perf_counter()
         return statement, parameters
@@ -248,7 +248,7 @@ def instrument_engine(engine: AsyncEngine) -> None:
         statement: str,
         parameters: Any,
         context: Any,
-        executemany: bool,
+        _executemany: bool,
     ) -> None:
         duration_ms = (time.perf_counter() - conn.info["query_start_time"]) * 1000
 
@@ -285,7 +285,7 @@ class ProfileQueryContext:
         self,
         exc_type: type[BaseException] | None,
         exc_val: BaseException | None,
-        exc_tb: TracebackType | None,
+        _exc_tb: TracebackType | None,
     ) -> None:
         self.duration_ms = (time.perf_counter() - self.start_time) * 1000
         if exc_type:

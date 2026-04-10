@@ -232,7 +232,7 @@ class VerificationSandbox:
         self,
         exc_type: type[BaseException] | None,
         exc_val: BaseException | None,
-        exc_tb: TracebackType | None,
+        _exc_tb: TracebackType | None,
     ) -> None:
         self.cleanup()
 

@@ -118,6 +118,7 @@ export function ThreeGlobe({
     const height = mountRef.current.clientHeight || 500
 
     const scene = new THREE.Scene()
+    const mountNode = mountRef.current
     // Background Environment (Stars)
     const starsGeo = new THREE.BufferGeometry()
     const starsCount = 3000
@@ -153,7 +154,7 @@ export function ThreeGlobe({
     renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2))
     renderer.setClearColor(0x000000, 1)
     renderer.shadowMap.enabled = true
-    mountRef.current.appendChild(renderer.domElement)
+    mountNode.appendChild(renderer.domElement)
 
     const controls = new OrbitControls(camera, renderer.domElement)
     controls.enableDamping = true
@@ -379,8 +380,8 @@ export function ThreeGlobe({
     return () => {
       window.removeEventListener('resize', handleResize)
       renderer.domElement.removeEventListener("click", handleClick)
-      if (mountRef.current && renderer.domElement) {
-        mountRef.current.removeChild(renderer.domElement)
+      if (mountNode && renderer.domElement) {
+        mountNode.removeChild(renderer.domElement)
       }
       renderer.dispose()
       earthGeo.dispose()
@@ -393,7 +394,7 @@ export function ThreeGlobe({
       starsMat.dispose()
       composer.dispose()
     }
-  }, [])
+  }, [countries, intensityData, maxCount, onCountrySelect, selectedCountry])
 
   useEffect(() => {
     if (!markersRef.current || !earthRef.current) return
@@ -436,7 +437,7 @@ export function ThreeGlobe({
       }
       markersGroup.add(marker)
     })
-  }, [selectedCountry, intensityData, countries, maxCount])
+  }, [countries, intensityData, maxCount, onCountrySelect, selectedCountry])
 
   return (
     <div className="w-full h-full relative">

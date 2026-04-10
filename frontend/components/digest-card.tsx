@@ -21,6 +21,7 @@ interface DigestCardProps {
 }
 
 export function DigestCard({ onRefresh }: DigestCardProps) {
+  void onRefresh;
   const [showSchedule, setShowSchedule] = useState(false);
   const [scheduleTime, setScheduleTime] = useState("09:00");
   const { data: digest, isLoading } = useQuery<DigestData>({

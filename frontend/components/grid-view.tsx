@@ -13,6 +13,7 @@ import {
   type MouseEvent,
 } from "react"
 import Link from "next/link"
+import { SafeImage } from "@/components/safe-image"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Skeleton } from "@/components/ui/skeleton"
@@ -56,7 +57,6 @@ import {
 } from "@/lib/cluster-display"
 import {
   buildSourceGroups,
-  getCollapsedVisibleArticleCount,
   getVisibleSourceIds,
 } from "@/lib/source-groups"
 import { fetchAllClusters, fetchClusterArticles } from "@/lib/api"
@@ -74,7 +74,6 @@ const COLLAPSED_SOURCE_ARTICLE_COUNT = 20
 interface GridViewProps {
   articles: NewsArticle[]
   loading: boolean
-  onCountChange?: (count: number) => void
   apiUrl?: string | null
   useVirtualization?: boolean
   showTrending?: boolean
@@ -128,11 +127,12 @@ function SourceArticleCard({
     >
       <div className="relative m-2 aspect-video overflow-hidden rounded-xl bg-white/5">
         {showImage ? (
-          <img
+          <SafeImage
             src={article.image ?? undefined}
             alt={article.title}
-            className="h-full w-full object-cover grayscale transition duration-700 group-hover:scale-105 group-hover:grayscale-0"
-            loading="lazy"
+            fill
+            sizes="(min-width: 1536px) 20vw, (min-width: 1280px) 25vw, (min-width: 1024px) 33vw, (min-width: 640px) 50vw, 100vw"
+            className="object-cover grayscale transition duration-700 group-hover:scale-105 group-hover:grayscale-0"
           />
         ) : (
           <div
@@ -224,7 +224,6 @@ function SourceArticleCard({
 export function GridView({
   articles,
   loading,
-  onCountChange,
   apiUrl: _apiUrl,
   useVirtualization = false,
   showTrending = true,
@@ -248,6 +247,8 @@ export function GridView({
   const [expandedClusterId, setExpandedClusterId] = useState<number | null>(null)
   const [clusterArticlesCache, setClusterArticlesCache] = useState<Map<number, NewsArticle[]>>(new Map())
   const [selectedArticle, setSelectedArticle] = useState<NewsArticle | null>(null)
+  const [selectedArticleIndex, setSelectedArticleIndex] = useState<number | null>(null)
+  const [modalArticles, setModalArticles] = useState<NewsArticle[]>([])
   const [isArticleModalOpen, setIsArticleModalOpen] = useState(false)
   const [selectedCluster, setSelectedCluster] = useState<TrendingCluster | null>(null)
   const [isClusterModalOpen, setIsClusterModalOpen] = useState(false)
@@ -303,17 +304,14 @@ export function GridView({
     return articles.filter(
       (article) =>
         article.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        article.summary?.toLowerCase().includes(searchTerm.toLowerCase()),
+        article.summary?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        article.source.toLowerCase().includes(searchTerm.toLowerCase()),
     )
   }, [articles, searchTerm])
 
   const displayArticles = filteredNews
   const isLoadingState = loading
   const resolvedTotalCount = totalCount ?? filteredNews.length
-
-  useEffect(() => {
-    onCountChange?.(filteredNews.length)
-  }, [filteredNews.length, onCountChange])
 
   useEffect(() => {
     if (controlledViewMode) {
@@ -332,9 +330,34 @@ export function GridView({
     localStorage.setItem("viewMode", viewMode)
   }, [viewMode, controlledViewMode])
 
-  const handleArticleClick = useCallback((article: NewsArticle) => {
+  const handleArticleClick = useCallback((article: NewsArticle, contextArticles: NewsArticle[]) => {
+    const nextIndex = contextArticles.findIndex((item) => {
+      if (article.url && item.url) return item.url === article.url
+      return item.id === article.id
+    })
+
+    setModalArticles(contextArticles)
+    setSelectedArticleIndex(nextIndex >= 0 ? nextIndex : null)
     setSelectedArticle(article)
     setIsArticleModalOpen(true)
+  }, [])
+
+  const handleModalNavigate = useCallback((direction: "prev" | "next") => {
+    if (selectedArticleIndex === null) return
+
+    const nextIndex =
+      direction === "next" ? selectedArticleIndex + 1 : selectedArticleIndex - 1
+    if (nextIndex < 0 || nextIndex >= modalArticles.length) return
+
+    setSelectedArticleIndex(nextIndex)
+    setSelectedArticle(modalArticles[nextIndex] ?? null)
+  }, [modalArticles, selectedArticleIndex])
+
+  const handleModalClose = useCallback(() => {
+    setIsArticleModalOpen(false)
+    setSelectedArticle(null)
+    setSelectedArticleIndex(null)
+    setModalArticles([])
   }, [])
 
   const handleLike = useCallback(
@@ -393,21 +416,6 @@ export function GridView({
     [sourceGroups, visibleSourceIds],
   )
 
-  const collapsedVisibleArticleCount = useMemo(
-    () =>
-      getCollapsedVisibleArticleCount(
-        sourceGroups,
-        visibleSourceIds,
-        COLLAPSED_SOURCE_ARTICLE_COUNT,
-      ),
-    [sourceGroups, visibleSourceIds],
-  )
-
-  useEffect(() => {
-    if (viewMode !== "source") return
-    onCountChange?.(collapsedVisibleArticleCount)
-  }, [collapsedVisibleArticleCount, onCountChange, viewMode])
-
   useEffect(() => {
     setSourceBatchCount((prev) => {
       if (viewMode !== "source") return prev
@@ -431,7 +439,11 @@ export function GridView({
         if (cancelled) return
         setClusters(data.clusters)
         setClustersStatus(data.status ?? null)
-        setExpandedClusterId(null)
+        setExpandedClusterId((prev) =>
+          prev !== null && data.clusters.some((cluster) => cluster.cluster_id === prev)
+            ? prev
+            : null,
+        )
 
         if (data.status === "initializing") {
           retryTimer = setTimeout(() => {
@@ -605,7 +617,7 @@ export function GridView({
               hasNextPage={false}
               isFetchingNextPage={false}
               fetchNextPage={() => {}}
-              onArticleClick={handleArticleClick}
+              onArticleClick={(article) => handleArticleClick(article, displayArticles)}
               totalCount={resolvedTotalCount}
             />
           </Suspense>
@@ -614,10 +626,8 @@ export function GridView({
         <ArticleDetailModal
           article={selectedArticle}
           isOpen={isArticleModalOpen}
-          onClose={() => {
-            setIsArticleModalOpen(false)
-            setSelectedArticle(null)
-          }}
+          onClose={handleModalClose}
+          onNavigate={handleModalNavigate}
         />
       </div>
     )
@@ -721,7 +731,7 @@ export function GridView({
               </p>
             </motion.div>
           ) : viewMode === "source" ? (
-            visibleSourceGroups.map((group, index) => {
+            visibleSourceGroups.map((group) => {
               const isExpanded = expandedSourceId === group.sourceId
               const displayedArticles = isExpanded
                 ? group.articles
@@ -789,7 +799,7 @@ export function GridView({
                               likedIds={likedIds}
                               hasRealImage={hasRealImage}
                               isArticleInQueue={isArticleInQueue}
-                              onArticleClick={handleArticleClick}
+                              onArticleClick={(article) => handleArticleClick(article, group.articles)}
                               onLike={handleLike}
                               onQueueToggle={handleQueueToggle}
                             />
@@ -842,19 +852,28 @@ export function GridView({
                             animate={{ opacity: 1, scale: 1 }}
                             transition={{ delay: index * 0.05 }}
                             data-cluster-id={cluster.cluster_id}
+                            role="button"
+                            tabIndex={0}
                             className={cn(
                               "group flex cursor-pointer flex-col overflow-hidden rounded-2xl border bg-black/20 transition-all duration-500 hover:bg-white/[0.03] scroll-mt-6",
                               isExpanded ? "border-primary/50 ring-1 ring-primary/40" : "border-white/5",
                             )}
-                            
                             onClick={() => handleExpandCluster(cluster)}
+                            onKeyDown={(event) => {
+                              if (event.target !== event.currentTarget) return
+                              if (event.key !== "Enter" && event.key !== " ") return
+                              event.preventDefault()
+                              void handleExpandCluster(cluster)
+                            }}
                           >
                             <div className="relative m-2 aspect-video overflow-hidden rounded-xl bg-white/5">
                               {imageUrl ? (
-                                <img
+                                <SafeImage
                                   src={imageUrl}
                                   alt={representative.title}
-                                  className="h-full w-full object-cover grayscale transition duration-700 group-hover:scale-105 group-hover:grayscale-0"
+                                  fill
+                                  sizes="(min-width: 1280px) 25vw, (min-width: 1024px) 33vw, (min-width: 640px) 50vw, 100vw"
+                                  className="object-cover grayscale transition duration-700 group-hover:scale-105 group-hover:grayscale-0"
                                 />
                               ) : (
                                 <div className="editorial-fallback-surface h-full w-full opacity-50 transition duration-700 group-hover:scale-105" />
@@ -941,7 +960,7 @@ export function GridView({
                                         likedIds={likedIds}
                                         hasRealImage={hasRealImage}
                                         isArticleInQueue={isArticleInQueue}
-                                        onArticleClick={handleArticleClick}
+                                        onArticleClick={(article) => handleArticleClick(article, expandedClusterArticles)}
                                         onLike={handleLike}
                                         onQueueToggle={handleQueueToggle}
                                       />
@@ -996,10 +1015,8 @@ export function GridView({
       <ArticleDetailModal
         article={selectedArticle}
         isOpen={isArticleModalOpen}
-        onClose={() => {
-          setIsArticleModalOpen(false)
-          setSelectedArticle(null)
-        }}
+        onClose={handleModalClose}
+        onNavigate={handleModalNavigate}
       />
       {showScrollTop && (
         <Button

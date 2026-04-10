@@ -212,8 +212,8 @@ def _coerce_where(where: Mapping[str, object] | None) -> "Where | None":
 
 
 def _get_query_batches(
-    results: "QueryResult",
-) -> tuple[list[str], list[float], list["Metadata"], list[str]]:
+    results: QueryResult,
+) -> tuple[list[str], list[float], list[Metadata], list[str]]:
     ids = results["ids"] or []
     distances = results["distances"] or []
     metadatas = results["metadatas"] or []
@@ -224,8 +224,8 @@ def _get_query_batches(
 
 
 def _get_embedding_rows(
-    payload: "GetResult",
-) -> list["Embedding | Sequence[float] | Sequence[int]"]:
+    payload: GetResult,
+) -> list[Embedding | Sequence[float] | Sequence[int]]:
     raw_embeddings = payload["embeddings"]
     if raw_embeddings is None:
         return []
