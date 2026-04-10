@@ -4701,6 +4701,7 @@ export interface WikiSourceCard {
 
 export interface WikiSourceProfile {
   name: string;
+  website?: string;
   country?: string;
   funding_type?: string;
   bias_rating?: string;
@@ -4729,6 +4730,11 @@ export interface WikiSourceProfile {
     label: string;
     url?: string;
     note?: string;
+  }>;
+  official_pages?: Array<{
+    label: string;
+    url: string;
+    summary: string;
   }>;
   search_links?: Record<string, string>;
   match_explanation?: string;
@@ -4832,6 +4838,18 @@ export interface WikiReporterDossier extends WikiReporterCard {
     category?: string;
     image_url?: string | null;
   }>;
+  activity_summary?: {
+    article_count: number;
+    source_count: number;
+    active_since?: string | null;
+    latest_article_at?: string | null;
+    outlets: Array<{ name: string; article_count: number }>;
+    categories: Array<{ name: string; article_count: number }>;
+    domains: Array<{ domain: string; article_count: number }>;
+    author_pages: Array<{ url: string; domain?: string | null; source: string }>;
+    external_profiles: Array<{ url: string; domain?: string | null; source: string }>;
+    meta_author_matches: number;
+  };
   research_sources?: string[];
 }
 

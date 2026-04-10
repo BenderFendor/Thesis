@@ -531,6 +531,21 @@ curl http://localhost:8000/trending/diagnostics
 - Verification: `python3 -m py_compile backend/app/database.py backend/app/api/routes/entity_research.py backend/app/api/routes/wiki.py backend/app/services/entity_wiki_service.py backend/app/services/source_research.py`, `npx tsc --noEmit` in `frontend/`, `npm --prefix frontend test -- --runInBand __tests__/article-detail-modal.test.tsx`. `./verify.sh` still reports pre-existing frontend lint warnings across the repo and depends on a backend test environment that is not fully bootstrapped locally.
 
 2026-03-27 — GDELT search, article context, and geography signals
+2026-04-09 — Reporter and source wiki deterministic sidebar pass
+- Rebuilt the reporter and source wiki pages into dedicated left-sidebar explorer layouts so source pages, reporter pages, and the ownership graph each have their own focused navigation and summary rail.
+- Removed the source page's LLM-centric methodology framing and moved the page emphasis to deterministic evidence: official site pages, public records, ownership/funding data, linked reporters, and stored citations.
+- Added `backend/app/services/reporter_public_records.py` to derive reporter corpus activity from local articles and extract official author-page and external profile links from recent article HTML using structured data and author-link heuristics, with placeholder test domains skipped to keep tests deterministic.
+- Extended the wiki backend so reporter dossiers now include `activity_summary`, and source profiles now expose extracted `official_pages` from common official routes such as about, masthead, editorial, ethics, and ownership pages.
+- Added regression coverage for the new reporter activity payload and source official-pages field in the wiki route tests.
+- Verification: `uv run pytest backend/tests/test_wiki_reporters.py backend/tests/test_wiki_sources.py -q`, `npx tsc --noEmit` in `frontend/`, `npx eslint 'app/wiki/source/[sourceName]/page.tsx' 'app/wiki/source/[sourceName]/source-wiki-view.tsx' 'app/wiki/reporter/[id]/page.tsx' 'app/wiki/reporter/[id]/reporter-wiki-view.tsx' lib/api.ts` in `frontend/`, browser checks on local wiki source and reporter pages, and `./verify.sh`.
+
+2026-04-09 — Ownership graph UX redesign
+- Replaced the single dense ownership hairball view with a guided explorer in `frontend/app/wiki/ownership/`, split into focused modules to stay within local file-size limits.
+- Added a left control rail with search, node and link filters, top-hub shortcuts, and a default neighborhood focus mode so the page opens on a readable subgraph instead of the full network.
+- Added a centered graph canvas with zoom, reset, pan, stronger node hierarchy, selective labels, and dimming for non-neighbor nodes when a source or organization is selected.
+- Added a persistent inspector panel with global graph stats, selected-node metadata, and direct related organizations and sources for faster traversal.
+- Verification: `npx tsc --noEmit` in `frontend/`, `npx eslint app/wiki/ownership/page.tsx app/wiki/ownership/ownership-graph-explorer.tsx app/wiki/ownership/ownership-graph-canvas.tsx app/wiki/ownership/ownership-graph-panels.tsx app/wiki/ownership/graph-utils.ts` in `frontend/`, browser screenshot check on `http://127.0.0.1:3000/wiki/ownership`, and `./verify.sh`.
+
 - Added shared GDELT helpers for live `DOC 2.0` and `Context 2.0` queries plus compact CAMEO, Goldstein, tone, and geography aggregation so research, topic, and globe features can share one normalized contract.
 - Updated the research agent to keep internal-first guardrails, prefer GDELT for current-event search, fall back to DuckDuckGo when needed, and carry `source_providers` through the streamed and non-streamed research responses.
 - Enriched topic cluster payloads with nested `gdelt_context` for representative and member articles, then surfaced CAMEO, Goldstein, and tone context in the cluster detail modal.
