@@ -187,7 +187,7 @@ export function ListView({
         <AnimatePresence mode="popLayout">
           {sortedArticles.map((article, index) => (
             <motion.article
-              key={article.id}
+              key={`${article.id}-${article.url}-${index}`}
               initial={{ opacity: 0, y: 15 }}
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, y: -15 }}

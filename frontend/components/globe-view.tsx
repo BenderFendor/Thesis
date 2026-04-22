@@ -64,6 +64,11 @@ function sourceLabel(article: NewsArticle) {
     : article.source
 }
 
+function articleRenderKey(article: NewsArticle, index: number): string {
+  const identity = article.id > 0 ? String(article.id) : article.url
+  return `${identity}-${article.url}-${index}`
+}
+
 function intensityLabel(metrics?: CountryArticleCounts) {
   if (!metrics?.counts) return "Coverage heat"
   return metrics.window_hours ? `Coverage heat · ${metrics.window_hours}h` : "Coverage heat"
@@ -481,9 +486,9 @@ export function GlobeView({ articles, loading }: GlobeViewProps) {
                     </div>
 
                     {lensArticles.length > 0 ? (
-                       lensArticles.map((article) => (
+                       lensArticles.map((article, index) => (
                          <div
-                          key={article.id}
+                          key={articleRenderKey(article, index)}
                           onClick={() => handleArticleSelect(article)}
                           className="group cursor-pointer rounded-xl border border-white/10 bg-[var(--news-bg-primary)]/40 p-4 transition-all hover:border-white/40 hover:bg-[var(--news-bg-primary)] hover:scale-[1.02]"
                         >

@@ -35,9 +35,9 @@ const HorizontalArticleEmbed: React.FC<HorizontalArticleEmbedProps> = ({
 
   return (
     <div className="grid grid-cols-1 gap-3 my-3">
-      {articles.map(article => (
+      {articles.map((article, index) => (
         <button
-          key={article.id}
+          key={`${article.id}-${article.url}-${index}`}
           onClick={() => onArticleClick?.(article)}
           className="text-left w-full"
         >

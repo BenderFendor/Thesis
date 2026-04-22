@@ -96,11 +96,19 @@ class BlindspotPreviewArticleResponse(BaseModel):
     id: int
     title: str
     source: str
+    source_id: Optional[str] = None
     url: str
     image_url: Optional[str] = None
     published_at: Optional[str] = None
     summary: Optional[str] = None
     similarity: float
+    country: Optional[str] = None
+    source_country: Optional[str] = None
+    category: Optional[str] = None
+    bias: Optional[str] = None
+    credibility: Optional[str] = None
+    author: Optional[str] = None
+    authors: List[str] = []
 
 
 class BlindspotCardResponse(BaseModel):

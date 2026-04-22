@@ -1,6 +1,7 @@
 {
     "BBC": {
         "url": "https://feeds.bbci.co.uk/news/rss.xml",
+        "site_url": "https://www.bbc.com",
         "category": "general",
         "country": "GB",
         "funding_type": "Public",
@@ -10,6 +11,7 @@
     },
     "BBC News - Home": {
         "url": "http://feeds.bbci.co.uk/news/rss.xml",
+        "site_url": "https://www.bbc.com",
         "category": "BBC News - Home",
         "country": "GB",
         "funding_type": "Public",
@@ -19,6 +21,7 @@
     },
     "BBC News - India": {
         "url": "http://feeds.bbci.co.uk/news/world/asia/india/rss.xml",
+        "site_url": "https://www.bbc.com",
         "category": "BBC News - India",
         "country": "IN",
         "funding_type": "Public",
@@ -28,6 +31,7 @@
     },
     "BBC News - Science & Environment": {
         "url": "http://feeds.bbci.co.uk/news/science_and_environment/rss.xml",
+        "site_url": "https://www.bbc.com",
         "category": "60-Second Science",
         "country": "GB",
         "funding_type": "Public",
@@ -37,6 +41,7 @@
     },
     "BBC News - World": {
         "url": "http://feeds.bbci.co.uk/news/world/rss.xml",
+        "site_url": "https://www.bbc.com",
         "category": "BBC News - World",
         "country": "GB",
         "funding_type": "Public",
@@ -46,6 +51,7 @@
     },
     "BBC Sport - Sport": {
         "url": "http://feeds.bbci.co.uk/sport/rss.xml",
+        "site_url": "https://www.bbc.com",
         "category": "BBC Sport - Sport",
         "country": "GB",
         "funding_type": "Public",
@@ -55,6 +61,7 @@
     },
     "CNN": {
         "url": "https://news.google.com/rss/search?q=site:cnn.com&hl=en-US&gl=US&ceid=US:en",
+        "site_url": "https://www.cnn.com",
         "category": "general",
         "country": "US",
         "funding_type": "Commercial",
@@ -63,7 +70,8 @@
         "factual_reporting": "mixed"
     },
     "Reuters": {
-        "url": "https://reutersbest.com/feed/",
+        "url": "https://news.google.com/rss/search?q=site:reuters.com&hl=en-US&gl=US&ceid=US:en",
+        "site_url": "https://www.reuters.com",
         "category": "general",
         "country": "GB",
         "funding_type": "Commercial",
@@ -73,6 +81,7 @@
     },
     "NPR": {
         "url": "https://feeds.npr.org/1001/rss.xml",
+        "site_url": "https://www.npr.org",
         "category": "general",
         "country": "US",
         "funding_type": "Non-profit",
@@ -91,6 +100,7 @@
     },
     "Fox News": {
         "url": "https://feeds.foxnews.com/foxnews/latest",
+        "site_url": "https://www.foxnews.com",
         "category": "politics",
         "country": "US",
         "funding_type": "Commercial",
@@ -106,6 +116,7 @@
             "https://rss.nytimes.com/services/xml/rss/nyt/MiddleEast.xml",
             "https://rss.nytimes.com/services/xml/rss/nyt/US.xml"
         ],
+        "site_url": "https://www.nytimes.com",
         "category": "general",
         "country": "US",
         "funding_type": "Commercial",
@@ -116,6 +127,7 @@
     },
     "The Guardian": {
         "url": "https://www.theguardian.com/world/rss",
+        "site_url": "https://www.theguardian.com",
         "category": "general",
         "country": "GB",
         "funding_type": "Trust-owned",
@@ -125,6 +137,7 @@
     },
     "The Washington Post": {
         "url": "http://feeds.washingtonpost.com/rss/national",
+        "site_url": "https://www.washingtonpost.com",
         "category": "general",
         "country": "US",
         "funding_type": "Commercial",
@@ -134,6 +147,7 @@
     },
     "Al Jazeera": {
         "url": "https://www.aljazeera.com/xml/rss/all.xml",
+        "site_url": "https://www.aljazeera.com",
         "category": "general",
         "country": "QA",
         "funding_type": "State-funded",

@@ -1,7 +1,9 @@
 import json
 from pathlib import Path
-from typing import Dict, Any
+from typing import Any, Dict
+
 from app.core.logging import get_logger
+from app.services.source_url_guard import normalize_site_url
 
 logger = get_logger(__name__)
 
@@ -25,6 +27,9 @@ def get_rss_sources() -> Dict[str, Dict[str, Any]]:
     ) -> Dict[str, Any]:
         config = {
             "url": url_value,
+            "site_url": source_value.get("site_url")
+            or normalize_site_url(url_value)
+            or "",
             "category": source_value.get("category", "general"),
             "country": source_value.get("country", ""),
             "funding_type": source_value.get("funding_type", ""),

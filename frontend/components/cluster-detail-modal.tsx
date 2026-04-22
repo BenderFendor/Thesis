@@ -345,18 +345,18 @@ function ClusterDetailModalContent({
     setComparisonLoading(true);
     try {
       const contentEntries = await Promise.all(
-        comparisonArticles.map(async (article) => {
+        comparisonArticles.map((article) => {
           const cachedContent = articleContents.get(article.id);
           if (cachedContent !== undefined) {
-            return [article.id, cachedContent] as const;
+            return Promise.resolve([article.id, cachedContent] as const);
           }
-          try {
-            const text = await fetchArticleContentText(article);
-            return [article.id, text] as const;
-          } catch (error) {
-            console.error("Failed to extract comparison article:", error);
-            return [article.id, null] as const;
-          }
+
+          return fetchArticleContentText(article)
+            .then((text) => [article.id, text] as const)
+            .catch((error: unknown) => {
+              console.error("Failed to extract comparison article:", error);
+              return [article.id, null] as const;
+            });
         }),
       );
       const contentById = new Map(contentEntries);
@@ -714,7 +714,7 @@ function ClusterDetailModalContent({
                 <TabsList className="h-auto p-1 bg-transparent gap-1">
                   {clusterDetail.articles.map((article) => (
                     <TabsTrigger
-                      key={article.id}
+                      key={`${article.id}-${article.url}`}
                       value={article.id.toString()}
                       className="data-[state=active]:bg-[var(--news-bg-secondary)] data-[state=active]:border-primary/40 border border-transparent px-4 py-2 text-xs font-medium"
                     >
@@ -736,7 +736,7 @@ function ClusterDetailModalContent({
               {/* Article Content */}
               {clusterDetail.articles.map((article) => (
                 <TabsContent
-                  key={article.id}
+                  key={`${article.id}-${article.url}`}
                   value={article.id.toString()}
                   className="flex-1 overflow-y-auto m-0 p-0"
                 >
@@ -920,7 +920,7 @@ function ClusterDetailModalContent({
                               <SelectContent>
                                 {sourceOption.articles.map((article) => (
                                   <SelectItem
-                                    key={article.id}
+                                    key={`${article.id}-${article.url}`}
                                     value={article.id.toString()}
                                   >
                                     {article.title}
@@ -1104,7 +1104,7 @@ function ClusterDetailModalContent({
                             const content = articleContents.get(article.id);
                             const isFirst = idx === 0;
                             return (
-                              <div key={article.id} className="space-y-4">
+                              <div key={`${article.id}-${article.url}`} className="space-y-4">
                                 {/* Article Header */}
                                 <div className="bg-[var(--news-bg-secondary)] p-4 rounded-lg border border-border/60">
                                   {hasRealImage(article.image_url) && (

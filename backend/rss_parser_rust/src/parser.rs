@@ -352,6 +352,50 @@ fn extract_articles(
         .collect()
 }
 
+fn pick_description(entry: &feed_rs::model::Entry) -> Option<String> {
+    if let Some(summary) = &entry.summary {
+        return Some(summary.content.clone());
+    }
+
+    if let Some(Content {
+        body: Some(body), ..
+    }) = &entry.content
+    {
+        return Some(body.clone());
+    }
+
+    entry
+        .links
+        .first()
+        .map(|link| link.title.clone().unwrap_or_default())
+}
+
+fn pick_image(entry: &feed_rs::model::Entry) -> Option<String> {
+    if let Some(media) = entry.media.first() {
+        if let Some(content) = media.content.first() {
+            if let Some(url) = &content.url {
+                return Some(url.to_string());
+            }
+        }
+    }
+
+    if let Some(link) = entry
+        .links
+        .iter()
+        .find(|l| matches_media_image(l.media_type.as_deref()))
+    {
+        return Some(link.href.clone());
+    }
+
+    None
+}
+
+fn matches_media_image(media_type: Option<&str>) -> bool {
+    media_type
+        .map(|t| t.starts_with("image/") || t == "application/octet-stream")
+        .unwrap_or(false)
+}
+
 #[cfg(test)]
 mod tests {
     use super::extract_rss_item_metadata;
@@ -415,48 +459,4 @@ mod tests {
         assert_eq!(items.len(), 1);
         assert!(items[0].authors.is_empty());
     }
-}
-
-fn pick_description(entry: &feed_rs::model::Entry) -> Option<String> {
-    if let Some(summary) = &entry.summary {
-        return Some(summary.content.clone());
-    }
-
-    if let Some(Content {
-        body: Some(body), ..
-    }) = &entry.content
-    {
-        return Some(body.clone());
-    }
-
-    entry
-        .links
-        .first()
-        .map(|link| link.title.clone().unwrap_or_default())
-}
-
-fn pick_image(entry: &feed_rs::model::Entry) -> Option<String> {
-    if let Some(media) = entry.media.first() {
-        if let Some(content) = media.content.first() {
-            if let Some(url) = &content.url {
-                return Some(url.to_string());
-            }
-        }
-    }
-
-    if let Some(link) = entry
-        .links
-        .iter()
-        .find(|l| matches_media_image(l.media_type.as_deref()))
-    {
-        return Some(link.href.clone());
-    }
-
-    None
-}
-
-fn matches_media_image(media_type: Option<&str>) -> bool {
-    media_type
-        .map(|t| t.starts_with("image/") || t == "application/octet-stream")
-        .unwrap_or(false)
 }

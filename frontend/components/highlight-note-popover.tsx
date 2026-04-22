@@ -4,13 +4,14 @@ import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { Button } from "@/components/ui/button";
 import { type Highlight } from "@/lib/api";
+import { highlightStableId } from "@/lib/highlight-utils";
 
 interface HighlightNotePopoverProps {
   open: boolean;
   highlight: Highlight | null;
   anchorEl: HTMLElement | null;
   onClose: () => void;
-  onSave: (highlightId: number, note: string) => Promise<void>;
+  onSave: (highlightId: string, note: string) => Promise<void>;
 }
 
 export function HighlightNotePopover({
@@ -100,10 +101,9 @@ export function HighlightNotePopover({
   if (!open || !highlight || !anchorEl) return null;
 
   const handleSave = async () => {
-    if (!highlight.id) return;
     try {
       setSaving(true);
-      await onSave(highlight.id, noteDraft);
+      await onSave(highlightStableId(highlight), noteDraft);
       onClose();
     } finally {
       setSaving(false);

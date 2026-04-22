@@ -1149,7 +1149,7 @@ export function ReadingQueueSidebar() {
 
                       return (
                         <div
-                          key={article.url}
+                          key={`${article.url}-${index}`}
                           onClick={() =>
                             setExpandedIndex(isExpanded ? null : index)
                           }

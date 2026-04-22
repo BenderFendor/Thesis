@@ -23,6 +23,25 @@ ARTICLE_USER_AGENT = (
     "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 "
     "(KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
 )
+ACCESS_CHALLENGE_PATTERNS = (
+    "please enable js and disable any ad blocker",
+    "security verification",
+    "verify you are human",
+    "attention required",
+    "captcha",
+    "cf-challenge",
+    "bot verification",
+)
+PAYWALL_PATTERNS = (
+    "subscribe to continue",
+    "subscription required",
+    "sign in to continue reading",
+    "subscribe for full access",
+    "log in to continue reading",
+    "unlock this article",
+    "this content is for subscribers",
+)
+ACCESS_BLOCK_STATUS_CODES = {401, 402, 403, 429}
 
 
 async def extract_article_full_text(url: str) -> Dict[str, Any]:
@@ -54,16 +73,11 @@ def _extract_sync(url: str) -> Dict[str, Any]:
     This is a blocking operation that fetches article HTML and applies
     site-specific and Rust-based extraction.
     """
-    if _is_paywalled_source(url):
-        return {
-            "success": False,
-            "error": "Paywalled source blocked",
-            "text": None,
-        }
     try:
         html = ""
+        status_code: Optional[int] = None
         try:
-            html = _fetch_article_html(url)
+            html, status_code = _fetch_article_response(url)
         except Exception as fetch_exc:
             logger.debug("Direct HTML fetch failed for %s: %s", url, fetch_exc)
 
@@ -75,6 +89,23 @@ def _extract_sync(url: str) -> Dict[str, Any]:
                 )
 
             rust_payload = _extract_with_rust(html)
+            access_barrier = _detect_access_barrier(
+                html=html,
+                status_code=status_code,
+                extracted_payload=rust_payload,
+            )
+            if access_barrier:
+                logger.info(
+                    "Article extraction blocked by %s for %s (status %s)",
+                    access_barrier["kind"],
+                    url,
+                    status_code,
+                )
+                return {
+                    "success": False,
+                    "error": access_barrier["error"],
+                    "text": None,
+                }
             if _has_extracted_text(rust_payload):
                 return _log_success(
                     url,
@@ -105,17 +136,23 @@ def _extract_sync(url: str) -> Dict[str, Any]:
         }
 
 
-def _fetch_article_html(url: str) -> str:
+def _fetch_article_response(url: str) -> tuple[str, int]:
     response = requests.get(
         url,
         headers={"User-Agent": ARTICLE_USER_AGENT},
         timeout=DEFAULT_REQUEST_TIMEOUT,
     )
-    response.raise_for_status()
     content_type = response.headers.get("content-type", "").lower()
     if content_type and "html" not in content_type and "xml" not in content_type:
         raise ValueError(f"Unsupported article content type: {content_type}")
-    return response.text or ""
+    return response.text or "", response.status_code
+
+
+def _fetch_article_html(url: str) -> str:
+    html, status_code = _fetch_article_response(url)
+    if status_code >= 400:
+        raise requests.HTTPError(f"HTTP {status_code} for {url}")
+    return html
 
 
 def _log_success(url: str, extractor: str, payload: Dict[str, Any]) -> Dict[str, Any]:
@@ -131,28 +168,55 @@ def _has_extracted_text(payload: Dict[str, Any]) -> bool:
 
 def extract_article_content(url: str) -> Dict[str, Any]:
     """Blocking helper for contexts that cannot await coroutines."""
-    if _is_paywalled_source(url):
-        return {
-            "success": False,
-            "error": "Paywalled source blocked",
-            "text": None,
-        }
     return _extract_sync(url)
 
 
-def _is_paywalled_source(url: str) -> bool:
-    if not url:
-        return False
-    lowered = url.lower()
-    blocked_domains = [
-        "nytimes.com",
-        "wsj.com",
-        "reuters.com",
-        "ft.com",
-        "bloomberg.com",
-        "economist.com",
-    ]
-    return any(domain in lowered for domain in blocked_domains)
+def _normalize_text(text: Optional[str]) -> str:
+    if not isinstance(text, str):
+        return ""
+    return re.sub(r"\s+", " ", text).strip().lower()
+
+
+def _contains_pattern(text: str, patterns: tuple[str, ...]) -> bool:
+    return any(pattern in text for pattern in patterns)
+
+
+def _detect_access_barrier(
+    *,
+    html: str,
+    status_code: Optional[int],
+    extracted_payload: Dict[str, Any],
+) -> Optional[Dict[str, str]]:
+    normalized_html = _normalize_text(html)
+    normalized_title = _normalize_text(extracted_payload.get("title"))
+    normalized_description = _normalize_text(extracted_payload.get("meta_description"))
+    normalized_text = _normalize_text(extracted_payload.get("text"))
+    combined = " ".join(
+        value
+        for value in (normalized_title, normalized_description, normalized_text)
+        if value
+    )
+
+    page_looks_short = len(normalized_text.split()) < 120
+    blocked_status = status_code in ACCESS_BLOCK_STATUS_CODES
+
+    if _contains_pattern(normalized_html, ACCESS_CHALLENGE_PATTERNS) and (
+        blocked_status or page_looks_short
+    ):
+        return {
+            "kind": "access_challenge",
+            "error": "Publisher blocked automated access with a verification page",
+        }
+
+    if _contains_pattern(combined or normalized_html, PAYWALL_PATTERNS) and (
+        status_code in {401, 402, 403} or page_looks_short
+    ):
+        return {
+            "kind": "paywall",
+            "error": "Publisher requires a subscription or sign-in for full text",
+        }
+
+    return None
 
 
 def _extract_with_rust(html: str) -> Dict[str, Any]:

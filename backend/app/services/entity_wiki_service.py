@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 import re
 from collections import OrderedDict
 from difflib import SequenceMatcher
@@ -98,6 +99,138 @@ def _unique_strings(values: Iterable[Optional[str]]) -> List[str]:
         if cleaned and cleaned not in unique:
             unique[cleaned] = None
     return list(unique.keys())
+
+
+def _condense_overview_text(value: str, max_chars: int = 900) -> str:
+    cleaned = re.sub(r"\s+", " ", value).strip()
+    if len(cleaned) <= max_chars:
+        return cleaned
+    sentence_chunks = re.split(r"(?<=[.!?])\s+", cleaned)
+    selected: List[str] = []
+    total = 0
+    for chunk in sentence_chunks:
+        piece = chunk.strip()
+        if not piece:
+            continue
+        if selected and (total + 1 + len(piece)) > max_chars:
+            break
+        selected.append(piece)
+        total += len(piece) + (1 if selected else 0)
+    if selected:
+        return " ".join(selected).strip()
+    return cleaned[:max_chars].rstrip() + "..."
+
+
+def _build_fallback_overview(name: str, org_data: Dict[str, Any]) -> Optional[str]:
+    description = str(org_data.get("description") or "").strip()
+    if description:
+        return _condense_overview_text(description)
+
+    pieces: List[str] = []
+    funding_type = str(org_data.get("funding_type") or "").strip()
+    parent_org = str(org_data.get("parent_org") or "").strip()
+    media_bias = str(org_data.get("media_bias_rating") or "").strip()
+    factual = str(org_data.get("factual_reporting") or "").strip()
+
+    if funding_type:
+        pieces.append(f"Funding model: {funding_type}.")
+    if parent_org:
+        pieces.append(f"Parent organization: {parent_org}.")
+    if media_bias:
+        pieces.append(f"Catalog bias label: {media_bias}.")
+    if factual:
+        pieces.append(f"Catalog factual reporting label: {factual}.")
+
+    if not pieces:
+        return None
+    prefix = f"{name} public profile summary."
+    return _condense_overview_text(f"{prefix} {' '.join(pieces)}")
+
+
+def _coerce_sources_to_urls(values: Iterable[Any]) -> List[str]:
+    urls: List[str] = []
+    for value in values:
+        if isinstance(value, str) and value.strip():
+            urls.append(value.strip())
+    return _unique_strings(urls)
+
+
+def _append_claim_items(
+    fields: Dict[str, List[Dict[str, Any]]],
+    claim_type: str,
+    claim_value: Dict[str, Any],
+    evidence_urls: List[str],
+) -> None:
+    if claim_type == "parent_company":
+        parent = str(claim_value.get("name") or "").strip()
+        if parent:
+            fields["ownership"].append(
+                {
+                    "label": "Parent company",
+                    "value": parent,
+                    "sources": evidence_urls,
+                }
+            )
+    elif claim_type == "legal_entity_name":
+        legal_name = str(claim_value.get("name") or "").strip()
+        if legal_name:
+            fields["public_records"].append(
+                {
+                    "label": "Legal entity",
+                    "value": legal_name,
+                    "sources": evidence_urls,
+                }
+            )
+    elif claim_type == "article_count_30d":
+        count = claim_value.get("count")
+        if isinstance(count, int):
+            fields["public_records"].append(
+                {
+                    "label": "Article count (30d)",
+                    "value": str(count),
+                    "sources": evidence_urls,
+                }
+            )
+    elif claim_type == "top_topics_30d":
+        topics = claim_value.get("topics")
+        if isinstance(topics, list) and topics:
+            fields["public_records"].append(
+                {
+                    "label": "Top topics (30d)",
+                    "value": ", ".join(str(topic) for topic in topics if topic),
+                    "sources": evidence_urls,
+                }
+            )
+    elif claim_type == "bias_label_catalog":
+        label = str(claim_value.get("label") or "").strip()
+        provider = str(claim_value.get("provider") or "catalog").strip()
+        if label:
+            fields["public_records"].append(
+                {
+                    "label": f"Bias label ({provider})",
+                    "value": label,
+                    "sources": evidence_urls,
+                }
+            )
+    elif claim_type == "source_url_guard":
+        status = str(claim_value.get("status") or "unknown").strip()
+        configured_host = str(claim_value.get("configured_host") or "").strip()
+        website_host = str(claim_value.get("website_host") or "").strip()
+        reason = str(claim_value.get("reason") or "").strip()
+        details = [f"status={status}"]
+        if configured_host:
+            details.append(f"configured={configured_host}")
+        if website_host:
+            details.append(f"inferred={website_host}")
+        if reason:
+            details.append(f"reason={reason}")
+        fields["public_records"].append(
+            {
+                "label": "Source URL quality",
+                "value": "; ".join(details),
+                "sources": evidence_urls,
+            }
+        )
 
 
 def _strip_html(value: str) -> str:
@@ -793,6 +926,26 @@ async def build_source_profile(
                 ),
             }
         )
+    if org_data.get("media_bias_rating"):
+        fields["public_records"].append(
+            {
+                "label": "Catalog bias rating",
+                "value": str(org_data["media_bias_rating"]),
+                "sources": _unique_strings(
+                    cast(List[Optional[str]], citation_candidates)
+                ),
+            }
+        )
+    if org_data.get("factual_reporting"):
+        fields["public_records"].append(
+            {
+                "label": "Catalog factual reporting",
+                "value": str(org_data["factual_reporting"]),
+                "sources": _unique_strings(
+                    cast(List[Optional[str]], citation_candidates)
+                ),
+            }
+        )
     for value in _unique_strings(
         [cast(Optional[str], org_data.get("parent_org"))]
         + cast(List[Optional[str]], org_data.get("owned_by") or [])
@@ -877,6 +1030,43 @@ async def build_source_profile(
             }
         )
 
+    claim_rows = cast(List[Dict[str, Any]], org_data.get("source_claims") or [])
+    for claim in claim_rows:
+        claim_type = str(claim.get("type") or "").strip()
+        claim_value_raw = claim.get("value")
+        claim_value: Dict[str, Any]
+        if isinstance(claim_value_raw, dict):
+            claim_value = cast(Dict[str, Any], claim_value_raw)
+        elif isinstance(claim_value_raw, str):
+            parsed_value: Dict[str, Any] = {}
+            try:
+                loaded = json.loads(claim_value_raw)
+                if isinstance(loaded, dict):
+                    parsed_value = cast(Dict[str, Any], loaded)
+            except Exception:
+                parsed_value = {}
+            claim_value = parsed_value
+        else:
+            claim_value = {}
+
+        evidence = cast(List[Dict[str, Any]], claim.get("evidence") or [])
+        evidence_urls = _coerce_sources_to_urls(
+            evidence_row.get("source_url") for evidence_row in evidence
+        )
+        _append_claim_items(fields, claim_type, claim_value, evidence_urls)
+
+    fallback_overview = _build_fallback_overview(name, org_data)
+    if fallback_overview and not any(item.get("value") for item in fields["overview"]):
+        fields["overview"].append(
+            {
+                "label": "Profile summary",
+                "value": fallback_overview,
+                "sources": _unique_strings(
+                    cast(List[Optional[str]], citation_candidates)
+                ),
+            }
+        )
+
     citations = [
         _citation(url, "Public source")
         for url in _unique_strings(cast(List[Optional[str]], citation_candidates))
@@ -905,7 +1095,9 @@ async def build_source_profile(
             )
         )
         else "none",
-        "overview": wikipedia_description or about_page.get("summary"),
+        "overview": (
+            wikipedia_description or about_page.get("summary") or fallback_overview
+        ),
         "wikipedia_url": org_data.get("wikipedia_url"),
         "wikidata_url": org_data.get("wikidata_url"),
         "wikidata_qid": org_data.get("wikidata_qid"),

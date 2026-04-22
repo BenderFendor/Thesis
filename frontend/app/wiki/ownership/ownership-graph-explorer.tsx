@@ -4,6 +4,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { useQuery } from "@tanstack/react-query";
 import { ChevronLeft, Maximize2, Minimize2 } from "lucide-react";
+import { GlobalNavigation } from "@/components/global-navigation";
 import { fetchWikiOwnershipGraph, type WikiOwnershipGraph } from "@/lib/api";
 import type { LayoutNode } from "./graph-utils";
 import { ControlsPanel, InspectorPanel } from "./ownership-graph-panels";
@@ -152,21 +153,26 @@ export function OwnershipGraphExplorer() {
   }
 
   return (
-    <div className={`bg-[var(--news-bg-primary)] text-foreground ${fullscreen ? "fixed inset-0 z-50" : "min-h-screen"}`}>
-      <header className="sticky top-0 z-40 border-b border-white/10 bg-background/94 backdrop-blur">
+    <div className={`flex overflow-hidden bg-background text-foreground ${fullscreen ? "fixed inset-0 z-50 h-screen w-screen" : "relative z-0 h-screen w-full"}`}>
+      <div className="fixed inset-0 z-[-1] pointer-events-none bg-[radial-gradient(circle_at_top,rgba(201,166,107,0.12),transparent_26%),radial-gradient(circle_at_18%_22%,rgba(91,140,255,0.1),transparent_24%),linear-gradient(180deg,#0a0d12_0%,#0e1218_48%,#12161d_100%)]" />
+      
+      {!fullscreen && <GlobalNavigation />}
+
+      <div className="relative flex-1 min-w-0 overflow-hidden h-screen flex flex-col">
+        <header className="absolute left-0 right-0 top-0 z-40 border-b border-white/10 bg-[#090c11]/78 backdrop-blur-xl">
         <div className="mx-auto flex max-w-[1600px] items-center justify-between gap-4 px-4 py-3">
           <div className="flex items-center gap-3">
-            <Link href="/wiki" className="text-muted-foreground transition-colors hover:text-foreground">
+            <Link href="/wiki" className="text-muted-foreground transition-colors hover:text-[#f5ecd7]">
               <ChevronLeft className="h-5 w-5" />
             </Link>
             <div>
-              <h1 className="font-serif text-xl font-semibold">Ownership Graph</h1>
-              <p className="font-mono text-[11px] uppercase tracking-[0.22em] text-muted-foreground">
+              <h1 className="font-serif text-xl font-semibold text-[#f6f1e8]">Ownership Graph</h1>
+              <p className="font-mono text-[11px] uppercase tracking-[0.22em] text-[#b4ab9b]">
                 Guided network explorer
               </p>
             </div>
           </div>
-          <div className="flex items-center gap-2 text-xs font-mono text-muted-foreground">
+          <div className="flex items-center gap-2 text-xs font-mono text-[#b4ab9b]">
             {processedGraph && (
               <span>
                 {processedGraph.stats.organizations} orgs / {processedGraph.stats.sources} sources / {processedGraph.edges.length} links
@@ -174,7 +180,7 @@ export function OwnershipGraphExplorer() {
             )}
             <button
               onClick={() => setFullscreen((current) => !current)}
-              className="rounded-md border border-white/10 p-1.5 transition-colors hover:border-white/20 hover:text-foreground"
+              className="rounded-md border border-white/10 bg-black/20 p-1.5 transition-colors hover:border-[#c9a66b]/40 hover:text-[#f5ecd7]"
               title={fullscreen ? "Exit fullscreen" : "Fullscreen"}
             >
               {fullscreen ? <Minimize2 className="h-4 w-4" /> : <Maximize2 className="h-4 w-4" />}
@@ -183,25 +189,7 @@ export function OwnershipGraphExplorer() {
         </div>
       </header>
 
-      <main
-        className="mx-auto grid max-w-[1600px] gap-4 p-4 lg:grid-cols-[300px_minmax(0,1fr)_320px]"
-        style={{ minHeight: fullscreen ? "calc(100vh - 61px)" : "calc(100vh - 88px)" }}
-      >
-        <ControlsPanel
-          search={search}
-          selectedNodeId={effectiveSelectedNodeId}
-          nodeFilter={nodeFilter}
-          edgeFilter={edgeFilter}
-          focusNeighborhood={focusNeighborhood}
-          matchingNodes={matchingNodes}
-          topHubs={topHubs}
-          onSearchChange={setSearch}
-          onNodeFilterChange={setNodeFilter}
-          onEdgeFilterChange={setEdgeFilter}
-          onFocusNeighborhoodChange={setFocusNeighborhood}
-          onSelectNode={centerOnNode}
-        />
-
+      <div className="absolute inset-0 z-0">
         <OwnershipGraphCanvas
           dimensions={dimensions}
           loading={loading}
@@ -221,7 +209,26 @@ export function OwnershipGraphExplorer() {
           onZoom={zoom}
           onResetView={resetView}
         />
+      </div>
 
+      <div className="absolute top-20 bottom-4 left-4 z-10 w-[320px] pointer-events-auto overflow-y-auto custom-scrollbar">
+        <ControlsPanel
+          search={search}
+          selectedNodeId={effectiveSelectedNodeId}
+          nodeFilter={nodeFilter}
+          edgeFilter={edgeFilter}
+          focusNeighborhood={focusNeighborhood}
+          matchingNodes={matchingNodes}
+          topHubs={topHubs}
+          onSearchChange={setSearch}
+          onNodeFilterChange={setNodeFilter}
+          onEdgeFilterChange={setEdgeFilter}
+          onFocusNeighborhoodChange={setFocusNeighborhood}
+          onSelectNode={centerOnNode}
+        />
+      </div>
+
+      <div className="absolute top-20 bottom-4 right-4 z-10 w-[340px] pointer-events-auto overflow-y-auto custom-scrollbar">
         <InspectorPanel
           processedGraph={processedGraph}
           selectedNode={selectedNode}
@@ -230,7 +237,8 @@ export function OwnershipGraphExplorer() {
           relatedSources={relatedSources}
           onSelectNode={centerOnNode}
         />
-      </main>
+      </div>
+      </div>
     </div>
   );
 }

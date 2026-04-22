@@ -23,7 +23,11 @@ def test_extract_article_uses_rust_html(monkeypatch) -> None:
     </html>
     """
 
-    monkeypatch.setattr(article_extraction, "_fetch_article_html", lambda url: html)
+    monkeypatch.setattr(
+        article_extraction,
+        "_fetch_article_response",
+        lambda url: (html, 200),
+    )
     monkeypatch.setattr(
         article_extraction,
         "_extract_with_rust",
@@ -52,15 +56,99 @@ def test_extract_article_returns_error_after_direct_fetch_failure_without_fallba
 ) -> None:
     from app.services import article_extraction
 
-    def _raise_fetch(url: str) -> str:
+    def _raise_fetch(url: str) -> tuple[str, int]:
         raise RuntimeError("network blocked")
 
-    monkeypatch.setattr(article_extraction, "_fetch_article_html", _raise_fetch)
+    monkeypatch.setattr(article_extraction, "_fetch_article_response", _raise_fetch)
 
     result = article_extraction.extract_article_content("https://example.com/story")
 
     assert result["success"] is False
     assert result["error"] == "No article text extracted"
+
+
+def test_extract_article_detects_access_challenge_page(monkeypatch) -> None:
+    from app.services import article_extraction
+
+    html = """
+    <html>
+      <head><title>reuters.com</title></head>
+      <body>Please enable JS and disable any ad blocker</body>
+    </html>
+    """
+
+    monkeypatch.setattr(
+        article_extraction,
+        "_fetch_article_response",
+        lambda url: (html, 401),
+    )
+    monkeypatch.setattr(
+        article_extraction,
+        "_extract_with_rust",
+        lambda html: {
+            "text": "Please enable JS and disable any ad blocker",
+            "title": "reuters.com",
+            "authors": [],
+            "publish_date": None,
+            "top_image": None,
+            "images": [],
+            "keywords": [],
+            "meta_description": None,
+        },
+    )
+
+    result = article_extraction.extract_article_content(
+        "https://www.reuters.com/world/"
+    )
+
+    assert result["success"] is False
+    assert (
+        result["error"] == "Publisher blocked automated access with a verification page"
+    )
+
+
+def test_extract_article_detects_paywall_from_response_content(monkeypatch) -> None:
+    from app.services import article_extraction
+
+    html = """
+    <html>
+      <head><title>Subscriber Exclusive</title></head>
+      <body>
+        <main>
+          <p>Subscribe to continue reading this article.</p>
+        </main>
+      </body>
+    </html>
+    """
+
+    monkeypatch.setattr(
+        article_extraction,
+        "_fetch_article_response",
+        lambda url: (html, 403),
+    )
+    monkeypatch.setattr(
+        article_extraction,
+        "_extract_with_rust",
+        lambda html: {
+            "text": "Subscribe to continue reading this article.",
+            "title": "Subscriber Exclusive",
+            "authors": [],
+            "publish_date": None,
+            "top_image": None,
+            "images": [],
+            "keywords": [],
+            "meta_description": None,
+        },
+    )
+
+    result = article_extraction.extract_article_content(
+        "https://example.com/paywalled-story"
+    )
+
+    assert result["success"] is False
+    assert (
+        result["error"] == "Publisher requires a subscription or sign-in for full text"
+    )
 
 
 @pytest.mark.asyncio

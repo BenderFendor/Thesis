@@ -27,7 +27,7 @@ import { toast } from "sonner"
 import { ArticleContent } from "@/components/article-content"
 import { HighlightToolbar } from "@/components/highlight-toolbar"
 import { HighlightNotePopover } from "@/components/highlight-note-popover"
-import { buildObsidianMarkdown } from "@/lib/highlight-utils"
+import { buildObsidianMarkdown, highlightStableId } from "@/lib/highlight-utils"
 
 type FactCheckStatus = FactCheckResult["verification_status"]
 type FactCheckStatusFilter = FactCheckStatus | "all"
@@ -168,7 +168,7 @@ function ArticleDetailModalContent({ article, isOpen, onClose, onBookmarkChange,
   const [agenticHistory, setAgenticHistory] = useState<Array<{ claim: string; answer: string; timestamp: number }>>([])
   const [showHighlights, setShowHighlights] = useState(true)
   const [highlightColor, setHighlightColor] = useState<Highlight["color"]>("yellow")
-  const [sidebarEditingId, setSidebarEditingId] = useState<number | null>(null)
+  const [sidebarEditingId, setSidebarEditingId] = useState<string | null>(null)
   const [sidebarEditingNote, setSidebarEditingNote] = useState("")
   const [aiAnalysisRequested, setAiAnalysisRequested] = useState(false)
   const [highlights, setHighlights] = useState<LocalHighlight[]>([])
@@ -179,7 +179,7 @@ function ArticleDetailModalContent({ article, isOpen, onClose, onBookmarkChange,
   const [activeHighlightId, setActiveHighlightId] = useState<string | null>(null)
   const [highlightPopoverOpen, setHighlightPopoverOpen] = useState(false)
   const [highlightPopoverAnchorEl, setHighlightPopoverAnchorEl] = useState<HTMLElement | null>(null)
-  const [highlightPopoverHighlight, setHighlightPopoverHighlight] = useState<Highlight | null>(null)
+  const [highlightPopoverHighlight, setHighlightPopoverHighlight] = useState<LocalHighlight | null>(null)
   const lastCreatedClientIdRef = useRef<string | null>(null)
   const contentScrollRef = useRef<HTMLDivElement>(null)
   const [articleScrollProgress, setArticleScrollProgress] = useState(0)
@@ -578,30 +578,47 @@ function ArticleDetailModalContent({ article, isOpen, onClose, onBookmarkChange,
     }
   }
 
+  const getNextHighlightOp = useCallback((highlight: LocalHighlight, fallback: "update" | "delete") => {
+    if (highlight.pending_op === "create") return "create"
+    if (!(highlight.server_id ?? highlight.id)) {
+      return fallback === "delete" ? "delete" : "create"
+    }
+    return fallback
+  }, [])
+
+  const updateHighlightByStableId = useCallback(
+    (
+      stableId: string,
+      updater: (highlight: LocalHighlight) => LocalHighlight
+    ) => {
+      updateHighlightsWithHistory((prev) =>
+        prev.map((item) => (highlightStableId(item) === stableId ? updater(item) : item))
+      )
+    },
+    [updateHighlightsWithHistory],
+  )
+
    // Inline definition hook (Alt+select)
    const { result: inlineResult, open: inlineOpen, setOpen: setInlineOpen, anchorPosition: inlineAnchorPosition } = useInlineDefinition()
 
-   const handleHighlightClick = (highlightStableId: string, element: HTMLElement) => {
+   const handleHighlightClick = (stableId: string, element: HTMLElement) => {
      const found = highlights.find((item) => {
-       const stableId = item.id ? `server:${item.id}` : `client:${item.client_id}`
-       return stableId === highlightStableId
+       return highlightStableId(item) === stableId
      }) ?? null
-     setActiveHighlightId(highlightStableId)
-     setHighlightPopoverHighlight(found ? toRemoteHighlights([found])[0] ?? null : null)
+     setActiveHighlightId(stableId)
+     setHighlightPopoverHighlight(found)
      setHighlightPopoverAnchorEl(element)
      setHighlightPopoverOpen(true)
    }
 
-    const handleSaveHighlightNote = async (highlightId: number, note: string) => {
+    const handleSaveHighlightNote = async (highlightId: string, note: string) => {
       if (!article) return
-      updateHighlightsWithHistory((prev) => {
-        const updatedLocal = prev.map((item) => {
-          const id = item.server_id ?? item.id
-          if (id !== highlightId) return item
-          return markPending({ highlight: { ...item, note }, op: "update" })
+      updateHighlightByStableId(highlightId, (item) =>
+        markPending({
+          highlight: { ...item, note },
+          op: getNextHighlightOp(item, "update"),
         })
-        return updatedLocal
-      })
+      )
     }
 
 
@@ -1117,7 +1134,7 @@ function ArticleDetailModalContent({ article, isOpen, onClose, onBookmarkChange,
                               `mark[data-highlight-stable-id=\"client:${clientId}\"]`
                             ) as HTMLElement | null
 
-                            setHighlightPopoverHighlight(toRemoteHighlights([nextLocal])[0] ?? null)
+                            setHighlightPopoverHighlight(nextLocal)
                             setHighlightPopoverAnchorEl(anchor)
                             setHighlightPopoverOpen(true)
                           }, 10)
@@ -1328,7 +1345,10 @@ function ArticleDetailModalContent({ article, isOpen, onClose, onBookmarkChange,
                             updateHighlightsWithHistory((prev) => {
                               return prev.map((item) => {
                                 if (item.client_id !== lastClientId) return item
-                                return markPending({ highlight: { ...item, color }, op: "update" })
+                                return markPending({
+                                  highlight: { ...item, color },
+                                  op: getNextHighlightOp(item, "update"),
+                                })
                               })
                             })
                           }}
@@ -1447,7 +1467,7 @@ function ArticleDetailModalContent({ article, isOpen, onClose, onBookmarkChange,
                         .filter(h => !h.deleted)
                         .sort((a, b) => a.character_start - b.character_start)
                         .map((highlight, idx) => (
-                           <div key={highlight.id ? `server:${highlight.id}` : `client:${highlight.client_id}`} className="relative rounded-lg border border-border/60 bg-background/60 p-4 space-y-3">
+                           <div key={highlightStableId(highlight)} className="relative rounded-lg border border-border/60 bg-background/60 p-4 space-y-3">
                             <div className="absolute -left-2 -top-2 flex h-5 w-5 items-center justify-center rounded-full border border-border/60 bg-background font-mono text-xs font-bold text-muted-foreground shadow-sm">
                               {idx + 1}
                             </div>
@@ -1455,7 +1475,7 @@ function ArticleDetailModalContent({ article, isOpen, onClose, onBookmarkChange,
                               type="button"
                               className="w-full text-left"
                               onClick={() => {
-                                 const stableId = highlight.id ? `server:${highlight.id}` : `client:${highlight.client_id}`
+                                 const stableId = highlightStableId(highlight)
                                   const el = articleContentRef.current?.querySelector(
                                     `mark[data-highlight-stable-id=\"${stableId}\"]`
                                   ) as HTMLElement | null
@@ -1482,7 +1502,7 @@ function ArticleDetailModalContent({ article, isOpen, onClose, onBookmarkChange,
                               </div>
                             </button>
 
-                            {sidebarEditingId === highlight.id ? (
+                            {sidebarEditingId === highlightStableId(highlight) ? (
                               <div className="space-y-2">
                                 <textarea
                                   value={sidebarEditingNote}
@@ -1495,7 +1515,7 @@ function ArticleDetailModalContent({ article, isOpen, onClose, onBookmarkChange,
                                   <Button
                                     size="sm"
                                     onClick={async () => {
-                                      await handleSaveHighlightNote(highlight.id!, sidebarEditingNote)
+                                      await handleSaveHighlightNote(highlightStableId(highlight), sidebarEditingNote)
                                       setSidebarEditingId(null)
                                       setSidebarEditingNote("")
                                     }}
@@ -1525,7 +1545,7 @@ function ArticleDetailModalContent({ article, isOpen, onClose, onBookmarkChange,
                                     variant="ghost"
                                     size="sm"
                                     onClick={() => {
-                                      setSidebarEditingId(highlight.id!)
+                                      setSidebarEditingId(highlightStableId(highlight))
                                       setSidebarEditingNote(highlight.note || "")
                                     }}
                                   >
@@ -1539,13 +1559,12 @@ function ArticleDetailModalContent({ article, isOpen, onClose, onBookmarkChange,
                                       try {
                                         const removed = highlight
 
-                                        updateHighlightsWithHistory((prev) => {
-                                          return prev.map((item) => {
-                                            const id = item.server_id ?? item.id
-                                            if (id !== removed.id) return item
-                                            return markPending({ highlight: item, op: "delete" })
+                                        updateHighlightByStableId(highlightStableId(removed), (item) =>
+                                          markPending({
+                                            highlight: item,
+                                            op: getNextHighlightOp(item, "delete"),
                                           })
-                                        })
+                                        )
 
                                         toast("Annotation removed", {
                                           action: {

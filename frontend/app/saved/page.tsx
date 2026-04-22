@@ -199,7 +199,7 @@ export default function SavedArticlesPage() {
 
     return (
       <div
-        key={article.url}
+        key={`${article.url}-${index ?? article.id ?? article.title}`}
         onClick={() => setExpandedArticleUrl(isExpanded ? null : article.url)}
         className={cn(
           "w-full transition-all duration-300 ease-out cursor-pointer text-left group",
@@ -565,7 +565,7 @@ export default function SavedArticlesPage() {
                         <div className="space-y-2 max-h-64 overflow-y-auto">
                           {queuedArticles.slice(0, 5).map((article, index) => (
                             <div
-                              key={article.url}
+                              key={`${article.url}-${index}`}
                               className="flex items-center gap-2 p-2 rounded-lg bg-[var(--news-bg-primary)]/50 cursor-pointer hover:bg-[var(--news-bg-primary)]"
                               onClick={() => handleArticleClick(article)}
                             >
@@ -754,7 +754,7 @@ export default function SavedArticlesPage() {
                 <div className="space-y-3">
                   {queuedArticles.map((article, index) => (
                     <div
-                      key={article.url}
+                      key={`${article.url}-${index}`}
                       className="group relative rounded-2xl border border-white/10 bg-[var(--news-bg-secondary)] p-4 transition-all hover:border-primary/50"
                       style={{
                         marginLeft: `${Math.min(index * 4, 16)}px`,

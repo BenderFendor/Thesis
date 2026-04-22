@@ -1,5 +1,69 @@
 # Log
 
+## 2026-04-21: Live Multi-Turn Research Lab And Tool-Router System Prompt Fix
+
+**Problem:** The existing research lab could stream one live turn, but it could not replay a real back-to-back conversation with carried chat history. Once that live history path was exercised, the second turn exposed a backend `500` from the research agent: tool-router mode prepended a new system prompt ahead of an existing system prompt, which broke the active chat template with `System message must be at the beginning`.
+
+**What Changed:**
+- Extended `backend/tools/research_lab.py` so the live harness can carry prior user and assistant messages across turns, record the exact tool sequence from streamed `tool_start` events, and persist per-turn metadata such as `history_messages_sent` and `source_providers`.
+- Added `_replace_system_message()` in `backend/news_research_agent.py` and used it for tool-router mode so the router swaps the active system prompt instead of stacking a second `SystemMessage` into the payload.
+- Added regression coverage in `backend/tests/test_news_research_agent_recovery.py` to prove tool-router mode now sends exactly one leading system message.
+
+**Verification:**
+- `uv run pytest backend/tests/test_news_research_agent_tools.py backend/tests/test_news_research_agent_recovery.py -q`
+- `python3 -m py_compile backend/news_research_agent.py backend/tools/research_lab.py backend/tests/test_news_research_agent_recovery.py backend/tests/test_news_research_agent_tools.py`
+- `uv run python backend/tools/research_lab.py --api-base http://localhost:8000 --carry-history --query 'what is going on with trump and iran right now' --query 'summarize that again and focus on the sources you already used' --max-seconds 60 --output backend/lab_runs/latest.json`
+- Live result after restart: `backend/lab_runs/latest.json` recorded `failures: 0`, the first turn produced real tool calls, and the second turn completed with `history_messages_sent: 2` instead of the previous `500`.
+
+## 2026-04-21: Research Tool Smoke Coverage And Automatic GDELT Fallbacks
+
+**Problem:** The research agent could pick `gdelt_context_search` or `gdelt_doc_search`, get back a plain error or empty result, and stop on that dead-end instead of advancing to another tool. There was also no single smoke test covering the full registered research-tool set.
+
+**What Changed:**
+- Updated `backend/news_research_agent.py` so the tool executor automatically retries the next allowed tool when `gdelt_context_search` or `gdelt_doc_search` returns an error or empty result. The fallback chain is `gdelt_context_search -> gdelt_doc_search -> news_search`.
+- Kept the existing prompt/tool-planner policy intact. The change is in the harness layer, so the agent now recovers deterministically even when the model does not explicitly request the next tool.
+- Added `backend/tests/test_news_research_agent_tools.py` with a full smoke test for every registered research tool and a regression test proving the GDELT fallback chain reaches `news_search` when both GDELT tools fail to answer.
+
+**Verification:**
+- `uv run pytest backend/tests/test_news_research_agent_tools.py -q`
+- `./verify.sh`
+
+## 2026-04-10: Canonical Source Site URLs, RSS Guard Rerun, And Coverage Refresh
+
+**Problem:** Source wiki enrichment quality was still dragged down by weak catalog URLs, especially Reuters and aggregator-style source entries. The lightweight URL guard and coverage benchmark needed a rerun after canonical site corrections.
+
+**What Changed:**
+- Updated `backend/app/data/rss_sources.json` to add explicit `site_url` values for key outlets (`BBC`, `CNN`, `Reuters`, `NPR`, `Fox News`, `New York Times`, `The Guardian`, `The Washington Post`, `Al Jazeera`) and replaced Reuters' invalid feed with a public Google News query feed scoped to `site:reuters.com`.
+- Re-ran selected source validation with guard output and stored the run log in `.autoresearch/rss-validate-selected-rerun.log`.
+- Re-ran dossier coverage measurement for the priority 8 outlets with forced refresh and stored the run log in `.autoresearch/coverage-rerun-limit8.log`.
+- Fixed strict typing regressions in `backend/app/services/source_claims.py` discovered by `verify.sh`.
+- Fixed lint/import-order issues in `backend/scripts/measure_wiki_profile_coverage.py` discovered by `verify.sh`.
+- Updated `backend/app/api/routes/wiki.py` to gracefully skip claim loading when a mock DB session in regression tests runs out of scripted execute results, preserving existing route behavior while keeping claim support for real sessions.
+
+**Verification:**
+- `python backend/scripts/validate_rss_sources.py --only "Fox News" BBC Reuters NPR "Al Jazeera" CNN "The Guardian" "New York Times"`
+- `uv run python backend/scripts/measure_wiki_profile_coverage.py --limit 8 --force-refresh`
+- `./verify.sh`
+- `./verify.sh` now passes fully (`274 passed, 3 deselected`).
+
+## 2026-04-10: Shared URL Guard Precision Pass For Wiki Source Profiles
+
+**Problem:** The RSS URL guard still produced false mismatches for valid site families like `feeds.bbci.co.uk` versus `bbc.com`, and the 25-source wiki coverage benchmark was not surfacing URL-guard status because `get_source_profile()` does not hydrate persisted source claims.
+
+**What Changed:**
+- Added a shared guard helper in `backend/app/services/source_url_guard.py` so RSS validation, source-claim generation, catalog site normalization, and benchmark fallback all use the same host extraction and host-family rules.
+- Taught the guard to accept site-scoped Google News feeds when the `site:` target matches the inferred website, and to treat BBC hosts (`bbc.com`, `bbc.co.uk`, `bbci.co.uk`) as the same publisher family.
+- Updated `backend/scripts/validate_rss_sources.py` to use the shared helper and to read publisher domains from `<source url="...">` in Google News RSS items instead of only the Google redirect link.
+- Updated `backend/scripts/measure_wiki_profile_coverage.py` to compute URL-guard status directly from the catalog plus resolved profile website when dossier sections do not yet include a `Source URL quality` item.
+- Added regression coverage in `backend/tests/test_source_url_guard.py` for BBC-family hosts and site-scoped Google News feeds.
+
+**Verification:**
+- Baseline selected validator mismatches: `3` in `.autoresearch/url-guard-baseline-selected.log`
+- Post-change selected validator mismatches: `0` in `.autoresearch/url-guard-postchange-selected.log`
+- Baseline 25-source benchmark: `avg_coverage_percent=62.39`, `url_guard_ok_count=0`, `url_guard_mismatch_count=0` in `.autoresearch/coverage-rerun-limit25.log`
+- Post-change 25-source benchmark: `avg_coverage_percent=63.24`, `url_guard_ok_count=25`, `url_guard_mismatch_count=0` in `.autoresearch/url-guard-postchange-limit25.log`
+- `uv run pytest backend/tests/test_source_url_guard.py backend/tests/test_wiki_sources.py backend/tests/test_wiki_indexer.py`
+
 ## 2026-03-28: Debug Consolidation, Reader Hub Highlights, Research Cancel State, And Globe Budgeting
 
 **Problem:** Operator tooling was split between `/debug` and `/sources`, the saved-reader workflow still left highlights outside the main workspace, research cancellation still ended in a rough partial state, and the globe was paying too much runtime cost for the same visual result.
@@ -586,3 +650,27 @@ curl http://localhost:8000/trending/diagnostics
 - Moved main-page notification dismissal into a small hook in `frontend/lib/notification-state.ts` that prunes stale dismissed ids back into state, allowing `browse-index-error` and `empty-feed` alerts to reappear after they clear and recur later.
 - Added backend coverage for persisted versus unpersisted cached browse rows in `backend/tests/test_live_cache_index.py`, frontend mapping regressions in `frontend/__tests__/browse-index.test.tsx` and `frontend/__tests__/api-mapping.property.test.ts`, and notification recurrence coverage in `frontend/__tests__/notification-state.test.ts`.
 - Verification: `uv run pytest backend/tests/test_live_cache_index.py -q`, `npm --prefix frontend test -- --runInBand __tests__/browse-index.test.tsx __tests__/api-mapping.property.test.ts __tests__/notification-state.test.ts`, `npx tsc --noEmit` in `frontend/`, `npx eslint app/page.tsx lib/api.ts lib/notification-state.ts __tests__/browse-index.test.tsx __tests__/api-mapping.property.test.ts __tests__/notification-state.test.ts` in `frontend/`, and `./verify.sh`.
+2026-04-17 — Blindspot viewer wider cluster context and lane expansion
+- Increased cluster snapshot article retention in `backend/app/services/chroma_topics.py` from 5 to 12 recent articles so blindspot scoring and preview payloads can see more of each topic.
+- Extended blindspot preview articles in `backend/app/services/blindspot_viewer.py` and `backend/app/api/routes/blindspots.py` with richer metadata, raised the per-card sample budget to 8 articles, and preferred source-diverse samples instead of repeated outlet duplicates.
+- Updated `frontend/components/blindspot-view.tsx` and `frontend/lib/api.ts` to surface the wider article sample, show sampled-source context on cards, and let each lane expand beyond the default visible set instead of clipping the board at a fixed small slice.
+- Added regression coverage in `backend/tests/test_blindspot_viewer.py` and `frontend/__tests__/blindspot-view.test.tsx`.
+- Verification: `backend/.venv/bin/pytest backend/tests/test_blindspot_viewer.py -q`, `npm --prefix frontend test -- --runInBand blindspot-view.test.tsx`, `cd frontend && npx tsc --noEmit`, and `python3 -m py_compile backend/app/services/chroma_topics.py backend/app/services/blindspot_viewer.py backend/app/api/routes/blindspots.py backend/tests/test_blindspot_viewer.py`.
+2026-04-17 — Duplicate React key lint warning and key hardening
+- Added a local ESLint rule in `frontend/eslint.config.mjs` that warns on fragile `key={item.id}` and `key={item.url}` usage inside `.map()` callbacks, so duplicate-key risks show up during lint instead of only in the browser console.
+- Hardened current duplicate-prone render sites in `frontend/app/debug/page.tsx` and `frontend/components/globe-view.tsx` with composite keys, and deduped globe local-lens articles in `frontend/lib/globe-live-data.ts`.
+- Added regression coverage for lens deduplication in `frontend/__tests__/globe-live-data.test.ts`.
+- Verification: `npm --prefix frontend test -- --runInBand globe-live-data.test.ts`, `cd frontend && npx tsc --noEmit`, `cd frontend && npx eslint .`.
+2026-04-17 — Article extraction barrier detection and local highlight fixes
+- Replaced the full-article extractor's domain denylist in `backend/app/services/article_extraction.py` with response-based barrier detection, so readable pages still parse while verification walls and real subscription prompts return explicit errors based on the fetched HTML and status code.
+- Expanded the Rust article-body selector list in `backend/rss_parser_rust/src/html_extract.rs` and added unit coverage for common article wrappers to improve extraction on sites that do not use plain `<article>` blocks.
+- Fixed local-only highlight editing in `frontend/components/article-detail-modal.tsx` and `frontend/components/highlight-note-popover.tsx` by switching note edits and sidebar actions to stable ids that work before a server id exists.
+- Reordered auto-highlight creation in `frontend/components/highlight-toolbar.tsx` so selections outside the article container no longer trigger create attempts.
+- Added regression coverage in `backend/tests/test_extraction_image_flow.py`, `frontend/__tests__/highlight-note-popover.test.tsx`, and `frontend/__tests__/highlight-toolbar.test.tsx`.
+- Verification: `uv run pytest backend/tests/test_extraction_image_flow.py -q`, `npm --prefix frontend test -- --runInBand highlight-note-popover.test.tsx highlight-toolbar.test.tsx article-detail-modal.test.tsx`, `cd frontend && npx tsc --noEmit`, `cd backend/rss_parser_rust && cargo test html_extract -- --nocapture`, `uv run python` live checks against BBC and Reuters extraction, and `./verify.sh`.
+2026-04-22 — Research stress harness executed-tool tracing and loop-safe internal search
+- Updated `backend/news_research_agent.py` and `backend/app/api/routes/research.py` so streamed `tool_result` events now carry the actual tool name that executed, including automatic fallback tools.
+- Updated `backend/tools/research_lab.py` to track executed tools separately from requested `tool_start` events, report executed-tool coverage in the aggregate summary, and stop using a trailing `Tool request:` step as the fallback answer when a live run stops early.
+- Changed `_run_async_blocking()` in `backend/news_research_agent.py` to submit async work to the FastAPI worker's main event loop when a research tool runs from a worker thread, which prevents the `Future attached to a different loop` crash in `search_internal_news`.
+- Added regression coverage in `backend/tests/test_research_lab.py`, `backend/tests/test_news_research_agent_stream.py`, and `backend/tests/test_news_research_agent_recovery.py`.
+- Live stress verification on `http://127.0.0.1:8000`: `backend/lab_runs/stress_latest.json` reproduced the pre-fix loop error, `backend/lab_runs/stress_targets.json` confirmed the `Responsible Statecraft` query no longer crashes and captured executed `news_search` fallback for the bird-flu query, and `backend/lab_runs/stress_carry_latest.json` completed four carried-history turns with `history_messages_sent` growing `0 -> 2 -> 4 -> 6`.

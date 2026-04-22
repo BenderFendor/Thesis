@@ -1206,7 +1206,7 @@ class ChromaTopicService:
         }
 
     def _serialize_recent_articles(
-        self, articles: Dict[int, Article], limit: int = 5
+        self, articles: Dict[int, Article], limit: int = 12
     ) -> List[Dict[str, Any]]:
         ordered = sorted(
             articles.values(),

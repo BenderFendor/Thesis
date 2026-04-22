@@ -751,6 +751,7 @@ class FundingResearcher:
         org: Dict[str, Any] = {
             "name": name,
             "normalized_name": normalized_name,
+            "description": None,
             "org_type": "publisher",
             "parent_org": None,
             "ownership_percentage": None,
@@ -782,6 +783,7 @@ class FundingResearcher:
         if known:
             org["funding_type"] = known.get("funding_type") or org["funding_type"]
             org["parent_org"] = known.get("parent") or org["parent_org"]
+            org["description"] = known.get("description") or org["description"]
             org["media_bias_rating"] = known.get("media_bias_rating")
             org["factual_reporting"] = known.get("factual_reporting")
             org["research_sources"].append("known_data")
@@ -794,6 +796,8 @@ class FundingResearcher:
                 org["parent_org"] = wiki_ownership["parent"]
             if not org["funding_type"] and wiki_ownership.get("funding_type"):
                 org["funding_type"] = wiki_ownership["funding_type"]
+            if not org["description"]:
+                org["description"] = wikipedia.get("description")
             org["wikipedia_url"] = wikipedia.get("url")
             org["research_sources"].append("wikipedia")
             if org["research_confidence"] == "low":

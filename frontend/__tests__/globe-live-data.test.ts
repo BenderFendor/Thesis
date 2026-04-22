@@ -122,4 +122,31 @@ describe("globe live data", () => {
     expect(externalLens.total).toBe(1)
     expect(externalLens.articles[0]?.source).toBe("World Wire")
   })
+
+  it("dedupes duplicate articles in local lens results", () => {
+    const duplicate = makeArticle({
+      id: 42,
+      source: "World Wire",
+      sourceId: "world-wire",
+      country: "US",
+      source_country: "US",
+      mentioned_countries: ["JP"],
+      publishedAt: "2026-04-09T03:00:00.000Z",
+      _parsedTimestamp: Date.parse("2026-04-09T03:00:00.000Z"),
+      url: "https://example.com/world-wire-jp",
+    })
+
+    const externalLens = buildLocalLensFromArticles({
+      articles: [duplicate, duplicate],
+      code: "JP",
+      countryName: "Japan",
+      view: "external",
+      limit: 10,
+    })
+
+    expect(externalLens.total).toBe(1)
+    expect(externalLens.returned).toBe(1)
+    expect(externalLens.articles).toHaveLength(1)
+    expect(externalLens.articles[0]?.id).toBe(42)
+  })
 })

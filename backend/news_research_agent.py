@@ -47,6 +47,7 @@ from app.services.gdelt_query import (
     DEFAULT_TIMESPAN as GDELT_DEFAULT_TIMESPAN,
     get_gdelt_query_service,
 )
+from app.services.persistence import get_main_event_loop
 from app.services.prompting import (
     ANSWER_SECTION_RULE,
     FACT_GROUNDING_RULES,
@@ -117,6 +118,10 @@ MIN_FINAL_ANSWER_CHARS = 120
 MIN_FINAL_ANSWER_SECTIONS = ("answer",)
 EXTERNAL_SEARCH_TOOLS = {"web_search", "news_search"}
 EXTERNAL_SEARCH_TOOLS.update({"gdelt_context_search", "gdelt_doc_search"})
+AUTO_FALLBACK_TOOL_ORDER = {
+    "gdelt_context_search": ("gdelt_doc_search", "news_search"),
+    "gdelt_doc_search": ("news_search",),
+}
 
 
 class RunnableMessageInvoker(Protocol):
@@ -239,6 +244,9 @@ def _run_async_blocking(coro: Any) -> Any:
     try:
         asyncio.get_running_loop()
     except RuntimeError:
+        target_loop = get_main_event_loop()
+        if target_loop is not None and target_loop.is_running():
+            return asyncio.run_coroutine_threadsafe(coro, target_loop).result()
         return asyncio.run(coro)
 
     result: Dict[str, Any] = {}
@@ -589,6 +597,139 @@ def _required_internal_fetches_for_state(
     if internal_reference_count <= 0:
         return 0
     return min(2, internal_reference_count)
+
+
+def _should_auto_fallback_tool_result(tool_name: str, content: Any) -> bool:
+    text = _content_to_text(content).strip()
+    if tool_name == "gdelt_context_search":
+        return (
+            not text
+            or text == "No results found."
+            or text.startswith("GDELT context search failed:")
+        )
+    if tool_name == "gdelt_doc_search":
+        return (
+            not text
+            or text == "No results found."
+            or text.startswith("GDELT doc search failed:")
+        )
+    return False
+
+
+def _coerce_positive_int(value: Any, default: int) -> int:
+    try:
+        parsed = int(value)
+    except (TypeError, ValueError):
+        return default
+    return parsed if parsed > 0 else default
+
+
+def _build_fallback_tool_call(
+    call: Dict[str, Any],
+    fallback_tool_name: str,
+    *,
+    attempt: int,
+) -> Dict[str, Any] | None:
+    args = call.get("args", {})
+    if not isinstance(args, dict):
+        return None
+
+    if fallback_tool_name == "gdelt_doc_search":
+        query = _normalize_query(str(args.get("query") or args.get("keywords") or ""))
+        if not query:
+            return None
+        fallback_args: Dict[str, Any] = {
+            "query": query,
+            "max_results": _coerce_positive_int(args.get("max_results"), 10),
+        }
+        timespan = str(args.get("timespan") or "").strip()
+        if timespan:
+            fallback_args["timespan"] = timespan
+    elif fallback_tool_name == "news_search":
+        keywords = _normalize_query(
+            str(args.get("keywords") or args.get("query") or "")
+        )
+        if not keywords:
+            return None
+        fallback_args = {
+            "keywords": keywords,
+            "max_results": _coerce_positive_int(args.get("max_results"), 10),
+            "region": str(args.get("region") or "wt-wt").strip() or "wt-wt",
+        }
+    else:
+        return None
+
+    base_id = str(call.get("id", "tool-fallback"))
+    return {
+        "id": f"{base_id}__fallback__{attempt}__{fallback_tool_name}",
+        "name": fallback_tool_name,
+        "args": fallback_args,
+    }
+
+
+def _invoke_tool_calls(
+    state: "AgentState",
+    tool_calls: Sequence[Dict[str, Any]],
+) -> List[ToolMessage]:
+    if not tool_calls:
+        return []
+    trimmed = AIMessage(content="", tool_calls=list(tool_calls))
+    trimmed_state = {**state, "messages": [*state["messages"][:-1], trimmed]}
+    tool_results = ToolNode(list(_tools_by_name.values())).invoke(trimmed_state)
+    return list(tool_results.get("messages", []))
+
+
+def _execute_tool_call_with_fallbacks(
+    state: "AgentState",
+    call: Dict[str, Any],
+    tool_history: Set[str],
+    tool_calls_used: int,
+) -> tuple[List[ToolMessage], int]:
+    current_call = call
+
+    while True:
+        tool_messages = _invoke_tool_calls(state, [current_call])
+        if not tool_messages:
+            return [], tool_calls_used
+
+        current_tool_name = str(current_call.get("name", "unknown_tool"))
+        current_message = tool_messages[0]
+        if not _should_auto_fallback_tool_result(
+            current_tool_name, current_message.content
+        ):
+            return tool_messages, tool_calls_used
+
+        fallback_call: Dict[str, Any] | None = None
+        for attempt, fallback_tool_name in enumerate(
+            AUTO_FALLBACK_TOOL_ORDER.get(current_tool_name, ()),
+            start=1,
+        ):
+            candidate = _build_fallback_tool_call(
+                current_call,
+                fallback_tool_name,
+                attempt=attempt,
+            )
+            if candidate is None:
+                continue
+            candidate_key = _tool_call_key(candidate)
+            if candidate_key in tool_history:
+                continue
+            if tool_calls_used >= MAX_TOOL_CALLS_PER_SESSION:
+                return tool_messages, tool_calls_used
+            tool_history.add(candidate_key)
+            tool_calls_used += 1
+            fallback_call = candidate
+            logger.info(
+                "Auto-fallback research tool %s -> %s",
+                current_tool_name,
+                fallback_tool_name,
+            )
+            break
+
+        if fallback_call is None:
+            return tool_messages, tool_calls_used
+
+        current_call = fallback_call
 
 
 @tool
@@ -952,6 +1093,16 @@ def _sanitize_messages_for_llamacpp(
     return _trim_trailing_assistant_runs(_coalesce_assistant_runs(messages))
 
 
+def _replace_system_message(
+    messages: Sequence[BaseMessage],
+    system_content: str,
+) -> List[BaseMessage]:
+    return [
+        SystemMessage(content=system_content),
+        *[message for message in messages if not isinstance(message, SystemMessage)],
+    ]
+
+
 def _refresh_llamacpp_model() -> None:
     try:
         from app.core.config import check_llamacpp_server
@@ -1195,12 +1346,16 @@ def _dedup_tool_node(state: "AgentState") -> Dict[str, Any]:
             internal_fetch_calls_done += 1
 
     if unique_calls:
-        # Build a trimmed AIMessage with only the unique calls so ToolNode
-        # processes exactly those and nothing else.
-        trimmed = AIMessage(content=last_msg.content, tool_calls=unique_calls)
-        trimmed_state = {**state, "messages": [*state["messages"][:-1], trimmed]}
-        tool_results = ToolNode(list(_tools_by_name.values())).invoke(trimmed_state)
-        results = list(tool_results.get("messages", [])) + results
+        executed_results: List[ToolMessage] = []
+        for call in unique_calls:
+            tool_messages, tool_calls_used = _execute_tool_call_with_fallbacks(
+                state,
+                call,
+                tool_history,
+                tool_calls_used,
+            )
+            executed_results.extend(tool_messages)
+        results = executed_results + results
 
     return {
         "messages": results,
@@ -1280,10 +1435,10 @@ def call_model(state: AgentState) -> Dict[str, Any]:
         }
 
     if mode == "tool_router":
-        messages = [
-            SystemMessage(content=_tool_router_system_prompt()),
-            *state["messages"],
-        ]
+        messages = _replace_system_message(
+            state["messages"],
+            _tool_router_system_prompt(),
+        )
         response = _invoke_with_llamacpp_recovery(
             lambda payload: _get_tool_router().invoke(payload),
             messages,
@@ -1663,6 +1818,7 @@ def research_stream(
                     + json.dumps(
                         {
                             "type": "tool_result",
+                            "tool": tool_name,
                             "content": snippet,
                         }
                     )

@@ -793,7 +793,7 @@ async def get_sources(db: AsyncSession = Depends(get_db)) -> List[SourceInfo]:
 
     sources: List[SourceInfo] = []
     for name, info in get_rss_sources().items():
-        url_field = info.get("url")
+        url_field = info.get("site_url") or info.get("url")
         url = ""
         if isinstance(url_field, list):
             first_url = url_field[0] if url_field else None

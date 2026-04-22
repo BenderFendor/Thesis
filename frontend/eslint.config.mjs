@@ -129,6 +129,61 @@ function hasDescendantElement(node, targetNames) {
   return false;
 }
 
+function isMapCallback(node) {
+  return (
+    node &&
+    (node.type === "ArrowFunctionExpression" ||
+      node.type === "FunctionExpression") &&
+    node.parent &&
+    node.parent.type === "CallExpression" &&
+    node.parent.callee.type === "MemberExpression" &&
+    !node.parent.callee.computed &&
+    node.parent.callee.property.type === "Identifier" &&
+    node.parent.callee.property.name === "map"
+  );
+}
+
+function findEnclosingMapCallback(node) {
+  let current = node?.parent ?? null;
+
+  while (current) {
+    if (isMapCallback(current)) {
+      return current;
+    }
+    current = current.parent;
+  }
+
+  return null;
+}
+
+function getMapCallbackParamName(node) {
+  if (!node?.params?.length) {
+    return null;
+  }
+
+  const [firstParam] = node.params;
+  return firstParam?.type === "Identifier" ? firstParam.name : null;
+}
+
+function isFragileMapKeyExpression(node, callbackParamName) {
+  if (
+    !node ||
+    node.type !== "MemberExpression" ||
+    node.computed ||
+    node.object.type !== "Identifier" ||
+    node.object.name !== callbackParamName ||
+    node.property.type !== "Identifier"
+  ) {
+    return false;
+  }
+
+  if (node.property.name === "url") {
+    return true;
+  }
+
+  return node.property.name === "id" && callbackParamName === "article";
+}
+
 const noArbitraryValueRule = {
   meta: {
     type: "problem",
@@ -330,6 +385,56 @@ const requireDialogTitleRule = {
   },
 };
 
+const noFragileMapKeysRule = {
+  meta: {
+    type: "problem",
+    docs: {
+      description:
+        "Disallow fragile React list keys inside map callbacks when they rely on a single field",
+    },
+    schema: [],
+    messages: {
+      fragileMapKey:
+        "Do not use a single-field key inside a .map() render. Build a composite key or dedupe the list first.",
+    },
+  },
+  create(context) {
+    return {
+      JSXAttribute(node) {
+        if (node.name.type !== "JSXIdentifier" || node.name.name !== "key") {
+          return;
+        }
+
+        const mapCallback = findEnclosingMapCallback(node);
+        if (!mapCallback) {
+          return;
+        }
+
+        const callbackParamName = getMapCallbackParamName(mapCallback);
+        if (!callbackParamName) {
+          return;
+        }
+
+        if (
+          !node.value ||
+          node.value.type !== "JSXExpressionContainer" ||
+          !isFragileMapKeyExpression(
+            node.value.expression,
+            callbackParamName,
+          )
+        ) {
+          return;
+        }
+
+        context.report({
+          node,
+          messageId: "fragileMapKey",
+        });
+      },
+    };
+  },
+};
+
 const config = [
   ...nextCoreWebVitals,
   ...nextTypescript,
@@ -344,6 +449,7 @@ const config = [
       thesis: {
         rules: {
           "no-hook-object-dependencies": noHookObjectDependenciesRule,
+          "no-fragile-map-keys": noFragileMapKeysRule,
           "no-nested-button-content": noNestedButtonContentRule,
           "require-dialog-title": requireDialogTitleRule,
         },
@@ -353,6 +459,7 @@ const config = [
       "@typescript-eslint/no-explicit-any": "error",
       "react-hooks/set-state-in-effect": "error",
       "react-hooks/set-state-in-render": "error",
+      "thesis/no-fragile-map-keys": "warn",
       "thesis/no-hook-object-dependencies": "error",
       "thesis/no-nested-button-content": "error",
       "thesis/require-dialog-title": "error",

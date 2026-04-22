@@ -3,7 +3,8 @@
 import { useState, useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import Link from "next/link";
-import { Search, ArrowUpDown, Filter, BookOpen, ChevronLeft, Loader2 } from "lucide-react";
+import { Search, ArrowUpDown, Filter, BookOpen, ChevronLeft, Loader2, List, Database, Activity } from "lucide-react";
+import { GlobalNavigation } from "@/components/global-navigation";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -36,14 +37,6 @@ const ANALYSIS_LABELS: Record<string, string> = {
 // ── Mini Radar ──────────────────────────────────────────────────────
 
 function MiniRadar({ scores }: { scores: Record<string, number> | null | undefined }) {
-  if (!scores || Object.keys(scores).length === 0) {
-    return (
-      <div className="w-16 h-16 flex items-center justify-center text-[10px] text-muted-foreground border border-white/5 rounded">
-        N/A
-      </div>
-    );
-  }
-
   const size = 64;
   const cx = size / 2;
   const cy = size / 2;
@@ -57,7 +50,36 @@ function MiniRadar({ scores }: { scores: Record<string, number> | null | undefin
     return `${cx + maxR * Math.cos(angle)},${cy + maxR * Math.sin(angle)}`;
   });
 
-  // Data polygon
+  if (!scores || Object.keys(scores).length === 0) {
+    return (
+      <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`} className="shrink-0">
+        <polygon
+          points={ringPoints.join(" ")}
+          fill="none"
+          stroke="rgba(255,255,255,0.04)"
+          strokeWidth="0.5"
+        />
+        {axes.map((_, i) => {
+          const angle = (Math.PI * 2 * i) / n - Math.PI / 2;
+          return (
+            <line
+              key={i}
+              x1={cx}
+              y1={cy}
+              x2={cx + maxR * Math.cos(angle)}
+              y2={cy + maxR * Math.sin(angle)}
+              stroke="rgba(255,255,255,0.03)"
+              strokeWidth="0.5"
+            />
+          );
+        })}
+        <text x={cx} y={cy} textAnchor="middle" dominantBaseline="middle" fill="rgba(255,255,255,0.3)" fontSize="8" fontFamily="monospace" fontWeight="bold" letterSpacing="0.05em">
+          NO DATA
+        </text>
+      </svg>
+    );
+  }
+
   const dataPoints = axes.map((axis, i) => {
     const val = (scores[axis] ?? 0) / 5;
     const r = val * maxR;
@@ -157,29 +179,32 @@ function SourceCard({ source }: { source: WikiSourceCard }) {
   return (
     <Link
       href={`/wiki/source/${encodeURIComponent(source.name)}`}
-      className="group block border border-white/10 bg-zinc-950/50 hover:bg-zinc-900/60 transition-colors p-4"
+      className="group block relative overflow-hidden bg-black/20 border border-white/5 transition-all duration-500 hover:bg-white/[0.03] hover:-translate-y-1 hover:shadow-2xl hover:shadow-primary/5 rounded-2xl p-4"
     >
-      <div className="flex items-start justify-between gap-3">
+      <div className="absolute inset-0 bg-gradient-to-br from-white/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500 pointer-events-none" />
+      <div className="absolute h-px w-full top-0 left-0 bg-gradient-to-r from-transparent via-primary/50 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500 pointer-events-none" />
+      
+      <div className="relative z-10 flex items-start justify-between gap-3">
         <div className="min-w-0 flex-1">
           <div className="flex items-center gap-2 mb-1">
             {source.country && (
-              <span className="text-sm" title={source.country}>
+              <span className="bg-white/10 text-white px-1.5 py-0.5 rounded-[4px] text-[10px]" title={source.country}>
                 {countryCodeLabel(source.country)}
               </span>
             )}
-            <h3 className="font-serif text-sm font-semibold text-foreground truncate group-hover:text-white">
+            <h3 className="font-serif text-base lg:text-lg font-semibold text-foreground truncate group-hover:text-white">
               {source.name}
             </h3>
           </div>
 
           <div className="flex flex-wrap gap-1 mt-2">
             {source.bias_rating && (
-              <span className={`inline-flex px-1.5 py-0.5 text-[10px] font-mono uppercase tracking-wider border ${biasBadgeClass(source.bias_rating)}`}>
+              <span className={`inline-flex px-1.5 py-0.5 text-[10px] font-mono uppercase tracking-wider border rounded-sm ${biasBadgeClass(source.bias_rating)}`}>
                 {source.bias_rating}
               </span>
             )}
             {source.funding_type && (
-              <span className={`inline-flex px-1.5 py-0.5 text-[10px] font-mono uppercase tracking-wider border ${fundingBadgeClass(source.funding_type)}`}>
+              <span className={`inline-flex px-1.5 py-0.5 text-[10px] font-mono uppercase tracking-wider border rounded-sm ${fundingBadgeClass(source.funding_type)}`}>
                 {source.funding_type}
               </span>
             )}
@@ -197,7 +222,7 @@ function SourceCard({ source }: { source: WikiSourceCard }) {
 
       {/* Analysis score bar */}
       {source.analysis_scores && Object.keys(source.analysis_scores).length > 0 && (
-        <div className="mt-3 flex gap-1">
+        <div className="relative z-10 mt-3 flex gap-1">
           {ANALYSIS_AXES.map((axis) => {
             const val = source.analysis_scores?.[axis];
             if (val == null) return null;
@@ -219,7 +244,7 @@ function SourceCard({ source }: { source: WikiSourceCard }) {
       )}
 
       {/* Index status indicator */}
-      <div className="mt-2 flex items-center justify-between">
+      <div className="relative z-10 mt-2 flex items-center justify-between">
         <span className="text-[9px] font-mono text-muted-foreground uppercase tracking-wider">
           {source.index_status === "complete" ? "indexed" : source.index_status ?? "unindexed"}
         </span>
@@ -318,189 +343,222 @@ export default function WikiIndexPage() {
   const scoredCount = sources.filter((s) => s.analysis_scores && Object.keys(s.analysis_scores).length > 0).length;
 
   return (
-    <div className="min-h-screen bg-[var(--news-bg-primary)]">
-      {/* Header */}
-      <header className="sticky top-0 z-40 bg-background/95 backdrop-blur border-b border-white/10">
-        <div className="container mx-auto px-4 py-3 flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <Link href="/" className="text-muted-foreground hover:text-foreground transition-colors">
-              <ChevronLeft className="w-5 h-5" />
-            </Link>
-            <div>
-              <h1 className="font-serif text-xl font-semibold flex items-center gap-2">
-                <BookOpen className="w-5 h-5" />
-                Media Accountability Wiki
-              </h1>
-              <p className="text-xs text-muted-foreground font-mono uppercase tracking-[0.2em]">
-                Source Analysis
-              </p>
+    <div className="bg-[var(--news-bg-primary)] text-foreground min-h-screen flex relative z-0">
+      <div className="fixed inset-0 pointer-events-none bg-[radial-gradient(ellipse_at_top_right,_var(--tw-gradient-stops))] from-primary/10 via-[var(--news-bg-primary)] to-[var(--news-bg-primary)] z-[-1]" />
+      
+      <GlobalNavigation />
+
+      <div className="flex-1 flex flex-col min-w-0">
+        <main className="mx-auto grid w-full max-w-[1500px] gap-5 p-4 lg:grid-cols-[300px_minmax(0,1fr)]">
+          {/* Secondary Context Sidebar (Filters) */}
+          <aside className="rounded-2xl border border-white/10 bg-black/40 backdrop-blur-xl p-4 shadow-[0_24px_80px_rgba(0,0,0,0.25)] lg:sticky lg:top-4 lg:h-[calc(100vh-2rem)] lg:overflow-y-auto flex flex-col gap-5">
+            <div className="flex items-center gap-3">
+              <Link href="/" className="lg:hidden text-muted-foreground hover:text-foreground transition-colors">
+                <ChevronLeft className="w-5 h-5" />
+              </Link>
+              <div>
+                <h1 className="font-serif text-lg font-semibold flex items-center gap-2">
+                  <BookOpen className="w-4 h-4" />
+                  Media Accountability
+                </h1>
+                <p className="text-[10px] text-muted-foreground font-mono uppercase tracking-[0.2em]">
+                  Source Analysis Wiki
+                </p>
+              </div>
             </div>
-          </div>
 
-          <div className="text-right text-xs text-muted-foreground font-mono">
-            <div>{sources.length} sources</div>
-            <div>{scoredCount} scored / {indexedCount} indexed</div>
-          </div>
-        </div>
-      </header>
-
-      <main className="container mx-auto px-4 py-6">
-        {/* Filters bar */}
-        <div className="flex flex-wrap items-center gap-3 mb-6">
-          {/* Search */}
-          <div className="relative flex-1 min-w-[200px] max-w-sm">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-            <Input
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="Search sources..."
-              className="pl-9 h-9 bg-zinc-900/50 border-white/10 text-sm"
-            />
-          </div>
-
-          {/* Bias filter */}
-          <Select value={biasFilter} onValueChange={setBiasFilter}>
-            <SelectTrigger className="w-[140px] h-9 bg-zinc-900/50 border-white/10 text-sm">
-              <Filter className="w-3.5 h-3.5 mr-1.5 text-muted-foreground" />
-              <SelectValue placeholder="Bias" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">All Bias</SelectItem>
-              {biasOptions.map((b) => (
-                <SelectItem key={b} value={b}>{b}</SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-
-          {/* Funding filter */}
-          <Select value={fundingFilter} onValueChange={setFundingFilter}>
-            <SelectTrigger className="w-[140px] h-9 bg-zinc-900/50 border-white/10 text-sm">
-              <Filter className="w-3.5 h-3.5 mr-1.5 text-muted-foreground" />
-              <SelectValue placeholder="Funding" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">All Funding</SelectItem>
-              {fundingOptions.map((f) => (
-                <SelectItem key={f} value={f}>{f}</SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-
-          {/* Country filter */}
-          <Select value={countryFilter} onValueChange={setCountryFilter}>
-            <SelectTrigger className="w-[140px] h-9 bg-zinc-900/50 border-white/10 text-sm">
-              <Filter className="w-3.5 h-3.5 mr-1.5 text-muted-foreground" />
-              <SelectValue placeholder="Country" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">All Countries</SelectItem>
-              {countries.map((c) => (
-                <SelectItem key={c} value={c}>
-                  {countryCodeLabel(c)} {c}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-
-          {/* Sort */}
-          <Select value={sortBy} onValueChange={setSortBy}>
-            <SelectTrigger className="w-[130px] h-9 bg-zinc-900/50 border-white/10 text-sm">
-              <ArrowUpDown className="w-3.5 h-3.5 mr-1.5 text-muted-foreground" />
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="name">Name</SelectItem>
-              <SelectItem value="country">Country</SelectItem>
-              <SelectItem value="bias">Bias</SelectItem>
-            </SelectContent>
-          </Select>
-        </div>
-
-        {/* Active filters */}
-        {(biasFilter !== "all" || fundingFilter !== "all" || countryFilter !== "all" || searchQuery) && (
-          <div className="flex items-center gap-2 mb-4">
-            <span className="text-[10px] font-mono uppercase tracking-wider text-muted-foreground">
-              Filters:
-            </span>
-            {searchQuery && (
-              <Badge variant="secondary" className="text-xs cursor-pointer" onClick={() => setSearchQuery("")}>
-                &quot;{searchQuery}&quot; x
-              </Badge>
-            )}
-            {biasFilter !== "all" && (
-              <Badge variant="secondary" className="text-xs cursor-pointer" onClick={() => setBiasFilter("all")}>
-                {biasFilter} x
-              </Badge>
-            )}
-            {fundingFilter !== "all" && (
-              <Badge variant="secondary" className="text-xs cursor-pointer" onClick={() => setFundingFilter("all")}>
-                {fundingFilter} x
-              </Badge>
-            )}
-            {countryFilter !== "all" && (
-              <Badge variant="secondary" className="text-xs cursor-pointer" onClick={() => setCountryFilter("all")}>
-                {countryCodeLabel(countryFilter)} {countryFilter} x
-              </Badge>
-            )}
-          </div>
-        )}
-
-        {/* Results count */}
-        <div className="mb-4 text-xs font-mono text-muted-foreground uppercase tracking-wider">
-          {filtered.length} result{filtered.length !== 1 ? "s" : ""}
-        </div>
-
-        {/* Loading */}
-        {loading && (
-          <div className="flex items-center justify-center py-20">
-            <Loader2 className="w-6 h-6 animate-spin text-muted-foreground" />
-          </div>
-        )}
-
-        {/* Error */}
-        {error && !loading && (
-          <div className="border border-red-800/40 bg-red-950/20 p-4 text-sm text-red-300">
-            {errorMessage}
-          </div>
-        )}
-
-        {/* Card grid */}
-        {!loading && !error && (
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3">
-            {filtered.map((source) => (
-              <SourceCard key={source.name} source={source} />
-            ))}
-          </div>
-        )}
-
-        {/* Empty state */}
-        {!loading && !error && filtered.length === 0 && (
-          <div className="text-center py-20 text-muted-foreground">
-            <p className="font-serif text-lg">No sources match your filters</p>
-            <p className="text-sm mt-1">Try adjusting your search or filter criteria.</p>
-          </div>
-        )}
-
-        {/* Legend */}
-        {!loading && sources.length > 0 && (
-          <div className="mt-8 border-t border-white/5 pt-6">
-            <h2 className="text-[10px] font-mono uppercase tracking-[0.3em] text-muted-foreground mb-3">
-              Source Analysis Axes
-            </h2>
-            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3">
-              {ANALYSIS_AXES.map((axis) => (
-                <div key={axis} className="text-xs">
-                  <span className="font-mono text-muted-foreground">{ANALYSIS_LABELS[axis]}</span>
-                  <span className="text-foreground ml-1.5 capitalize">{axis.replace("_", " ")}</span>
+            <div className="grid grid-cols-1 gap-2 text-xs text-muted-foreground font-mono">
+              <div className="flex items-center justify-between bg-black/20 border border-white/5 rounded-lg p-2.5">
+                <div className="flex items-center gap-2">
+                  <List className="w-3.5 h-3.5" />
+                  <span>Results</span>
                 </div>
-              ))}
+                <span className="text-foreground">{filtered.length}</span>
+              </div>
+              <div className="flex items-center justify-between bg-black/20 border border-white/5 rounded-lg p-2.5">
+                <div className="flex items-center gap-2">
+                  <Database className="w-3.5 h-3.5" />
+                  <span>Sources</span>
+                </div>
+                <span className="text-foreground">{sources.length}</span>
+              </div>
+              <div className="flex items-center justify-between bg-black/20 border border-white/5 rounded-lg p-2.5">
+                <div className="flex items-center gap-2">
+                  <Activity className="w-3.5 h-3.5" />
+                  <span>Scored / Indexed</span>
+                </div>
+                <span className="text-foreground">{scoredCount} / {indexedCount}</span>
+              </div>
             </div>
-            <p className="text-[10px] text-muted-foreground mt-2">
-              Score 1-5. Higher means higher structural bias or credibility risk. Red radar fill shows the source profile.
-            </p>
-          </div>
-        )}
-      </main>
+
+            <div className="h-px bg-white/10" />
+
+            {/* Filters section */}
+            <div className="space-y-4">
+              <h2 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider font-mono">Filters</h2>
+
+              {/* Search */}
+              <div className="relative">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                <Input
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  placeholder="Search sources..."
+                  className="pl-9 h-9 bg-black/20 border-white/10 text-sm rounded-xl"
+                />
+              </div>
+
+              {/* Bias filter */}
+              <Select value={biasFilter} onValueChange={setBiasFilter}>
+                <SelectTrigger className="w-full h-9 bg-black/20 border-white/10 text-sm rounded-xl">
+                  <div className="flex items-center">
+                    <Filter className="w-3.5 h-3.5 mr-1.5 text-muted-foreground shrink-0" />
+                    <SelectValue placeholder="Bias" />
+                  </div>
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Bias</SelectItem>
+                  {biasOptions.map((b) => (
+                    <SelectItem key={b} value={b}>{b}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+
+              {/* Funding filter */}
+              <Select value={fundingFilter} onValueChange={setFundingFilter}>
+                <SelectTrigger className="w-full h-9 bg-black/20 border-white/10 text-sm rounded-xl">
+                  <div className="flex items-center">
+                    <Filter className="w-3.5 h-3.5 mr-1.5 text-muted-foreground shrink-0" />
+                    <SelectValue placeholder="Funding" />
+                  </div>
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Funding</SelectItem>
+                  {fundingOptions.map((f) => (
+                    <SelectItem key={f} value={f}>{f}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+
+              {/* Country filter */}
+              <Select value={countryFilter} onValueChange={setCountryFilter}>
+                <SelectTrigger className="w-full h-9 bg-black/20 border-white/10 text-sm rounded-xl">
+                  <div className="flex items-center">
+                    <Filter className="w-3.5 h-3.5 mr-1.5 text-muted-foreground shrink-0" />
+                    <SelectValue placeholder="Country" />
+                  </div>
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Countries</SelectItem>
+                  {countries.map((c) => (
+                    <SelectItem key={c} value={c}>
+                      {countryCodeLabel(c)} {c}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+
+              {/* Sort */}
+              <Select value={sortBy} onValueChange={setSortBy}>
+                <SelectTrigger className="w-full h-9 bg-black/20 border-white/10 text-sm rounded-xl">
+                  <div className="flex items-center">
+                    <ArrowUpDown className="w-3.5 h-3.5 mr-1.5 text-muted-foreground shrink-0" />
+                    <SelectValue placeholder="Sort" />
+                  </div>
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="name">Name</SelectItem>
+                  <SelectItem value="country">Country</SelectItem>
+                  <SelectItem value="bias">Bias</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            {/* Active filters */}
+            {(biasFilter !== "all" || fundingFilter !== "all" || countryFilter !== "all" || searchQuery) && (
+              <div className="flex flex-wrap items-center gap-2 mt-2">
+                <span className="text-[10px] font-mono uppercase tracking-wider text-muted-foreground w-full">
+                  Active:
+                </span>
+                {searchQuery && (
+                  <Badge variant="secondary" className="text-xs cursor-pointer bg-white/5 hover:bg-white/10 rounded-sm" onClick={() => setSearchQuery("")}>
+                    &quot;{searchQuery}&quot; ✕
+                  </Badge>
+                )}
+                {biasFilter !== "all" && (
+                  <Badge variant="secondary" className="text-xs cursor-pointer bg-white/5 hover:bg-white/10 rounded-sm" onClick={() => setBiasFilter("all")}>
+                    {biasFilter} ✕
+                  </Badge>
+                )}
+                {fundingFilter !== "all" && (
+                  <Badge variant="secondary" className="text-xs cursor-pointer bg-white/5 hover:bg-white/10 rounded-sm" onClick={() => setFundingFilter("all")}>
+                    {fundingFilter} ✕
+                  </Badge>
+                )}
+                {countryFilter !== "all" && (
+                  <Badge variant="secondary" className="text-xs cursor-pointer bg-white/5 hover:bg-white/10 rounded-sm" onClick={() => setCountryFilter("all")}>
+                    {countryCodeLabel(countryFilter)} {countryFilter} ✕
+                  </Badge>
+                )}
+              </div>
+            )}
+          </aside>
+
+          {/* Main content area */}
+          <section className="space-y-5">
+            {/* Loading */}
+            {loading && (
+              <div className="flex items-center justify-center py-20 bg-black/20 border border-white/5 rounded-2xl h-full min-h-[300px]">
+                <Loader2 className="w-6 h-6 animate-spin text-muted-foreground" />
+              </div>
+            )}
+
+            {/* Error */}
+            {error && !loading && (
+              <div className="border border-red-800/40 bg-red-950/20 p-4 text-sm text-red-300 rounded-2xl">
+                {errorMessage}
+              </div>
+            )}
+
+            {/* Card grid */}
+            {!loading && !error && (
+              <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4 gap-5">
+                {filtered.map((source) => (
+                  <SourceCard key={source.name} source={source} />
+                ))}
+              </div>
+            )}
+
+            {/* Empty state */}
+            {!loading && !error && filtered.length === 0 && (
+              <div className="flex flex-col items-center justify-center py-20 text-muted-foreground bg-black/20 border border-white/5 rounded-2xl h-full min-h-[300px]">
+                <p className="font-serif text-lg text-white/80">No sources match your filters</p>
+                <p className="text-sm mt-1">Try adjusting your search or filter criteria.</p>
+              </div>
+            )}
+
+            {/* Legend */}
+            {!loading && sources.length > 0 && (
+              <div className="mt-8 bg-black/20 border border-white/5 rounded-2xl p-6">
+                <h2 className="text-[10px] font-mono uppercase tracking-[0.3em] text-muted-foreground mb-4">
+                  Source Analysis Axes
+                </h2>
+                <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4">
+                  {ANALYSIS_AXES.map((axis) => (
+                    <div key={axis} className="text-xs">
+                      <span className="font-mono text-muted-foreground">{ANALYSIS_LABELS[axis]}</span>
+                      <span className="text-foreground ml-2 capitalize">{axis.replace("_", " ")}</span>
+                    </div>
+                  ))}
+                </div>
+                <p className="text-[10px] text-muted-foreground mt-4 max-w-2xl">
+                  Score 1-5. Higher means higher structural bias or credibility risk. Red radar fill shows the source profile.
+                </p>
+              </div>
+            )}
+          </section>
+        </main>
+      </div>
     </div>
   );
 }

@@ -201,8 +201,9 @@ async def news_research_stream_endpoint(
                             yield f"data: {json.dumps({'type': 'thinking_step', 'step': {'type': 'tool_start', 'content': content, 'timestamp': timestamp}, 'timestamp': timestamp})}\n\n"
 
                     elif event["type"] == "tool_result":
+                        tool_name = event.get("tool")
                         yield f"data: {json.dumps({'type': 'status', 'message': 'Reviewing results.', 'timestamp': timestamp})}\n\n"
-                        yield f"data: {json.dumps({'type': 'tool_result', 'content': event['content'], 'timestamp': timestamp})}\n\n"
+                        yield f"data: {json.dumps({'type': 'tool_result', 'tool': tool_name, 'content': event['content'], 'timestamp': timestamp})}\n\n"
                         if include_thinking:
                             yield f"data: {json.dumps({'type': 'thinking_step', 'step': {'type': 'observation', 'content': event['content'], 'timestamp': timestamp}, 'timestamp': timestamp})}\n\n"
 

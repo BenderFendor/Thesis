@@ -28,12 +28,19 @@ from app.core.logging import get_logger
 from app.database import (
     AsyncSessionLocal,
     Organization,
+    SourceClaim,
+    SourceClaimEvidence,
     SourceAnalysisScore,
     WikiIndexStatus,
     get_utc_now,
 )
 from app.data.rss_sources import get_rss_sources
 from app.services.funding_researcher import get_funding_researcher
+from app.services.source_claims import (
+    build_source_claim_inputs,
+    collect_article_behavior_stats,
+    sync_source_claims,
+)
 
 logger = get_logger("wiki_indexer")
 
@@ -243,6 +250,51 @@ async def _upsert_organization(
     await session.commit()
 
 
+async def _hydrate_org_claims(
+    session: AsyncSession,
+    org_data: Dict[str, Any],
+    source_name: str,
+) -> Dict[str, Any]:
+    claim_result = await session.execute(
+        select(SourceClaim).where(
+            SourceClaim.source_name == source_name,
+            SourceClaim.is_current.is_(True),
+        )
+    )
+    claim_rows = claim_result.scalars().all()
+
+    hydrated_claims: list[Dict[str, Any]] = []
+    for claim_row in claim_rows:
+        evidence_result = await session.execute(
+            select(SourceClaimEvidence).where(
+                SourceClaimEvidence.claim_id == claim_row.id
+            )
+        )
+        evidence_rows = evidence_result.scalars().all()
+        hydrated_claims.append(
+            {
+                "id": claim_row.id,
+                "type": claim_row.claim_type,
+                "kind": claim_row.claim_kind,
+                "value": claim_row.claim_value,
+                "confidence": claim_row.confidence,
+                "evidence": [
+                    {
+                        "source_type": evidence_row.source_type,
+                        "source_name": evidence_row.source_name,
+                        "source_url": evidence_row.source_url,
+                        "raw_excerpt": evidence_row.raw_excerpt,
+                    }
+                    for evidence_row in evidence_rows
+                ],
+            }
+        )
+
+    hydrated = dict(org_data)
+    hydrated["source_claims"] = hydrated_claims
+    return hydrated
+
+
 async def index_source(
     source_name: str,
     source_config: Dict[str, Any],
@@ -284,7 +336,12 @@ async def index_source(
             "funding_type": source_config.get("funding_type", ""),
             "political_bias": source_config.get("bias_rating", ""),
             "source_type": source_config.get("category", "general"),
+            "site_url": source_config.get("site_url", ""),
         }
+
+        configured_site = source_config.get("site_url")
+        if isinstance(configured_site, str) and configured_site.strip():
+            org_data.setdefault("website", configured_site.strip())
 
         # Score source-analysis axes (LLM call) - only when explicitly enabled
         result: _ScoringResultLike
@@ -317,6 +374,25 @@ async def index_source(
 
         # Persist analysis scores (empty when LLM disabled)
         await _save_analysis_scores(session, source_name, result.scores)
+
+        # Persist claim-level dossier fields with provenance and versioning
+        article_count_30d, top_topics_30d = await collect_article_behavior_stats(
+            session,
+            source_name,
+            days=30,
+        )
+        claim_inputs = build_source_claim_inputs(
+            source_name=source_name,
+            source_config=source_config,
+            org_data=org_data,
+            article_count_30d=article_count_30d,
+            top_topics_30d=top_topics_30d,
+        )
+        await sync_source_claims(session, source_name, claim_inputs)
+
+        # Keep organization profile in sync with freshly persisted claim provenance.
+        hydrated_org_data = await _hydrate_org_claims(session, org_data, source_name)
+        await _upsert_organization(session, hydrated_org_data)
 
         duration_ms = int((time.monotonic() - start) * 1000)
         await _upsert_index_status(

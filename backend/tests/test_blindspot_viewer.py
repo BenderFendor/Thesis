@@ -12,6 +12,7 @@ from app.services.blindspot_viewer import (
     _load_embeddings_for_articles,
     _metadata_counts_for_lens,
     _geography_signals_for_articles,
+    _select_preview_articles,
     _shares_from_counts,
     _source_catalog_lookup,
     classify_lane,
@@ -226,3 +227,44 @@ def test_geography_counts_consume_snapshot_geo_and_baseline_fields() -> None:
         {"id": "baseline_country", "label": "Baseline country", "count": 1},
         {"id": "country", "label": "Article country", "count": 1},
     ]
+
+
+def test_select_preview_articles_prefers_source_diversity() -> None:
+    articles = [
+        {
+            "id": 1,
+            "title": "A1",
+            "source": "Outlet A",
+            "source_id": "outlet-a",
+            "url": "https://example.com/a1",
+            "similarity": 1.0,
+        },
+        {
+            "id": 2,
+            "title": "A2",
+            "source": "Outlet A",
+            "source_id": "outlet-a",
+            "url": "https://example.com/a2",
+            "similarity": 0.9,
+        },
+        {
+            "id": 3,
+            "title": "B1",
+            "source": "Outlet B",
+            "source_id": "outlet-b",
+            "url": "https://example.com/b1",
+            "similarity": 0.8,
+        },
+        {
+            "id": 4,
+            "title": "C1",
+            "source": "Outlet C",
+            "source_id": "outlet-c",
+            "url": "https://example.com/c1",
+            "similarity": 0.7,
+        },
+    ]
+
+    selected = _select_preview_articles(articles, limit=3)
+
+    assert [article["id"] for article in selected] == [1, 3, 4]

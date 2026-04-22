@@ -24,6 +24,7 @@ BucketId = Literal["pole_a", "shared", "pole_b"]
 MIN_CLUSTER_ARTICLES = 3
 MIN_CLUSTER_SOURCES = 4
 DEFAULT_PER_LANE = 10
+DEFAULT_CARD_ARTICLES = 8
 BLINDSPOT_SHARE_GAP = 0.35
 
 GLOBAL_NORTH_COUNTRY_CODES = {
@@ -98,6 +99,8 @@ class SnapshotArticlePayload(TypedDict, total=False):
     category: Optional[str]
     bias: Optional[str]
     credibility: Optional[str]
+    author: Optional[str]
+    authors: list[str]
     geo: dict[str, Any]
     baseline: dict[str, Any]
 
@@ -483,11 +486,19 @@ def _article_preview(article: SnapshotArticlePayload) -> SnapshotArticlePayload:
         "id": article.get("id", 0),
         "title": article.get("title", "Untitled article"),
         "source": article.get("source", "Unknown"),
+        "source_id": article.get("source_id"),
         "url": article.get("url", ""),
         "image_url": article.get("image_url"),
         "published_at": article.get("published_at"),
         "summary": article.get("summary"),
         "similarity": article.get("similarity", 1.0),
+        "country": article.get("country"),
+        "source_country": article.get("source_country"),
+        "category": article.get("category"),
+        "bias": article.get("bias"),
+        "credibility": article.get("credibility"),
+        "author": article.get("author"),
+        "authors": list(article.get("authors", [])),
     }
 
 
@@ -498,6 +509,38 @@ def _choose_representative_article(
         return None
     with_image = [article for article in articles if article.get("image_url")]
     return _article_preview(with_image[0] if with_image else articles[0])
+
+
+def _select_preview_articles(
+    articles: list[SnapshotArticlePayload],
+    limit: int = DEFAULT_CARD_ARTICLES,
+) -> list[SnapshotArticlePayload]:
+    if limit <= 0 or not articles:
+        return []
+
+    selected: list[SnapshotArticlePayload] = []
+    seen_sources: set[str] = set()
+    for article in articles:
+        source_key = str(
+            article.get("source_id", "")
+        ).strip().lower() or _slugify_source_name(
+            str(article.get("source", "unknown-source"))
+        )
+        if source_key in seen_sources:
+            continue
+        selected.append(_article_preview(article))
+        seen_sources.add(source_key)
+        if len(selected) >= limit:
+            return selected
+
+    for article in articles:
+        preview = _article_preview(article)
+        if any(existing["id"] == preview["id"] for existing in selected):
+            continue
+        selected.append(preview)
+        if len(selected) >= limit:
+            break
+    return selected
 
 
 def _embedding_text(article: Article) -> str:
@@ -1089,6 +1132,7 @@ class BlindspotViewerService:
                     published_candidates.append(cast(Any, published_at).isoformat())
                 elif isinstance(published_at, str) and published_at.strip():
                     published_candidates.append(published_at)
+            selected_preview_articles = _select_preview_articles(preview_articles)
             card_payload: BlindspotCardPayload = {
                 "cluster_id": cluster_id,
                 "cluster_label": cluster.get("label") or "Topic",
@@ -1105,9 +1149,9 @@ class BlindspotViewerService:
                 "coverage_counts": counts,
                 "coverage_shares": shares,
                 "representative_article": _choose_representative_article(
-                    preview_articles
+                    selected_preview_articles or preview_articles
                 ),
-                "articles": preview_articles[:4],
+                "articles": selected_preview_articles,
                 "geography_signals": _geography_signals_for_articles(matching_articles)
                 if lens == "geography"
                 else [],

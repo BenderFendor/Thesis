@@ -178,6 +178,9 @@ jest.mock("@/lib/highlight-store", () => ({
 
 jest.mock("@/lib/highlight-utils", () => ({
   buildObsidianMarkdown: jest.fn(() => ""),
+  highlightStableId: jest.fn((highlight) =>
+    highlight.id ? `server:${highlight.id}` : `client:${highlight.client_id}`
+  ),
 }));
 
 jest.mock("@/lib/api", () => ({

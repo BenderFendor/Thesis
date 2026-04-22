@@ -3915,11 +3915,19 @@ export interface BlindspotPreviewArticle {
   id: number;
   title: string;
   source: string;
+  source_id?: string | null;
   url: string;
   image_url?: string | null;
   published_at?: string | null;
   summary?: string | null;
   similarity: number;
+  country?: string | null;
+  source_country?: string | null;
+  category?: string | null;
+  bias?: string | null;
+  credibility?: string | null;
+  author?: string | null;
+  authors?: string[];
 }
 
 export interface BlindspotCard {
@@ -4134,11 +4142,19 @@ const BlindspotPreviewArticleSchema = z.object({
   id: z.number(),
   title: z.string(),
   source: z.string(),
+  source_id: z.string().nullish(),
   url: z.string(),
   image_url: z.string().nullish(),
   published_at: z.string().nullish(),
   summary: z.string().nullish(),
   similarity: z.number(),
+  country: z.string().nullish(),
+  source_country: z.string().nullish(),
+  category: z.string().nullish(),
+  bias: z.string().nullish(),
+  credibility: z.string().nullish(),
+  author: z.string().nullable().optional(),
+  authors: z.array(z.string()).optional(),
 });
 
 const BlindspotCardSchema = z.object({

@@ -70,9 +70,9 @@ export function RelatedArticles({
         Related Articles
       </h4>
       <div className="space-y-3">
-        {related.map((article) => (
+        {related.map((article, index) => (
           <button
-            key={article.id}
+            key={`${article.id}-${article.url}-${index}`}
             type="button"
             onClick={() => onArticleClick?.(article)}
             className="w-full text-left group"

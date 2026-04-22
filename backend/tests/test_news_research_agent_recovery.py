@@ -1,5 +1,7 @@
+import asyncio
 from types import SimpleNamespace
 import json
+from typing import Any, cast
 
 from langchain_core.messages import AIMessage, HumanMessage, SystemMessage
 
@@ -98,3 +100,72 @@ def test_answer_denial_detection_matches_bad_fallback_copy() -> None:
     )
 
     assert agent._answer_denies_available_context(bad_answer)
+
+
+def test_tool_router_replaces_prior_system_message(monkeypatch) -> None:
+    captured_messages: list[Any] = []
+
+    class FakeToolRouter:
+        def invoke(self, payload):
+            captured_messages.extend(payload)
+            system_indexes = [
+                index
+                for index, message in enumerate(payload)
+                if isinstance(message, SystemMessage)
+            ]
+            assert system_indexes == [0]
+            assert payload[0].content == agent._tool_router_system_prompt()
+            return AIMessage(content="Answer\nTool router completed.", tool_calls=[])
+
+    monkeypatch.setattr(agent, "_get_tool_router", lambda: FakeToolRouter())
+
+    state = cast(
+        Any,
+        {
+            "messages": agent._build_initial_messages(
+                "follow up",
+                [
+                    {"type": "user", "content": "first question"},
+                    {"type": "assistant", "content": "first answer"},
+                ],
+            ),
+            "iteration": 1,
+            "mode": "tool_router",
+            "tool_history": set(),
+            "tool_calls_used": 0,
+        },
+    )
+
+    result = agent.call_model(state)
+
+    assert len(captured_messages) == 4
+    assert isinstance(result["messages"][0], AIMessage)
+
+
+def test_run_async_blocking_uses_main_event_loop_from_worker_thread(
+    monkeypatch,
+) -> None:
+    target_loop = SimpleNamespace(is_running=lambda: True)
+    captured_loop: list[Any] = []
+
+    def fake_run_coroutine_threadsafe(coro, loop):
+        captured_loop.append(loop)
+
+        class FakeFuture:
+            def result(self) -> str:
+                return asyncio.run(coro)
+
+        return FakeFuture()
+
+    monkeypatch.setattr(agent, "get_main_event_loop", lambda: target_loop)
+    monkeypatch.setattr(
+        agent.asyncio,
+        "run_coroutine_threadsafe",
+        fake_run_coroutine_threadsafe,
+    )
+
+    async def sample() -> str:
+        return "ok"
+
+    assert agent._run_async_blocking(sample()) == "ok"
+    assert captured_loop == [target_loop]

@@ -43,18 +43,21 @@ export function OwnershipGraphCanvas({
   onResetView,
 }: OwnershipGraphCanvasProps) {
   const dragStateRef = useRef<null | { startX: number; startY: number; x: number; y: number }>(null);
+  const ownershipTint = "rgba(201,166,107,0.16)";
+  const sourceTint = "rgba(91,140,255,0.12)";
 
   return (
-    <section className="relative min-h-[680px] overflow-hidden rounded-[28px] border border-white/10 bg-[#06080d]">
-      <div className="absolute inset-0 bg-[radial-gradient(circle_at_top,rgba(214,167,255,0.12),transparent_28%),radial-gradient(circle_at_bottom_left,rgba(79,140,255,0.1),transparent_34%)]" />
+    <section className="relative min-h-[680px] overflow-hidden rounded-[28px] border border-white/10 bg-[#0b0f15]/88 backdrop-blur-md shadow-2xl">
+      <div className="absolute inset-0 bg-[radial-gradient(circle_at_top,rgba(201,166,107,0.18),transparent_38%),radial-gradient(circle_at_bottom_left,rgba(91,140,255,0.14),transparent_34%)]" />
       <div
-        className="absolute inset-0 opacity-[0.14]"
+        className="absolute inset-0 opacity-[0.25]"
         style={{
           backgroundImage:
-            "linear-gradient(rgba(255,255,255,0.06) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.06) 1px, transparent 1px)",
-          backgroundSize: "32px 32px",
+            "linear-gradient(rgba(255,248,230,0.05) 1px, transparent 1px), linear-gradient(90deg, rgba(255,248,230,0.05) 1px, transparent 1px)",
+          backgroundSize: "48px 48px",
         }}
       />
+      <div className="pointer-events-none absolute inset-0 shadow-[inset_0_0_120px_rgba(0,0,0,0.82)]" />
 
       <div className="absolute left-4 top-4 z-10 flex gap-2">
         <CanvasButton onClick={() => onZoom("in")}>
@@ -68,17 +71,17 @@ export function OwnershipGraphCanvas({
         </CanvasButton>
       </div>
 
-      <div className="absolute bottom-4 left-4 z-10 rounded-2xl border border-white/10 bg-black/45 p-3 text-[11px] text-muted-foreground backdrop-blur">
-        <div className="mb-2 font-mono uppercase tracking-[0.18em]">How to read</div>
-        <div>Large violet nodes are owner groups.</div>
-        <div>Small colored nodes are news sources by bias.</div>
+      <div className="absolute bottom-4 left-4 z-10 rounded-2xl border border-white/10 bg-[#090c11]/80 p-3 text-[11px] text-[#b4ab9b] backdrop-blur">
+        <div className="mb-2 font-mono uppercase tracking-[0.18em] text-[#f0debc]">How to read</div>
+        <div>Large brass nodes are owner groups.</div>
+        <div>Small blue-to-red nodes are news sources by bias.</div>
         <div>Solid lines are ownership. Dashed lines are publishing links.</div>
       </div>
 
       <div ref={containerRef} className="relative h-full min-h-[680px]">
         {loading && (
-          <div className="absolute inset-0 flex items-center justify-center">
-            <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+            <div className="absolute inset-0 flex items-center justify-center">
+            <Loader2 className="h-6 w-6 animate-spin text-[#c9a66b]" />
           </div>
         )}
 
@@ -143,6 +146,7 @@ export function OwnershipGraphCanvas({
                     strokeWidth={isSelectedEdge ? 2.2 : edge.type === "ownership" ? 1.5 : 1}
                     strokeDasharray={edgeDash(edge.type)}
                     opacity={dimmed ? 0.18 : edge.type === "ownership" ? 0.88 : 0.65}
+                    style={isSelectedEdge ? { filter: `drop-shadow(0 0 8px ${edge.type === "ownership" ? ownershipTint : sourceTint})` } : undefined}
                   />
                 );
               })}
@@ -169,7 +173,7 @@ export function OwnershipGraphCanvas({
                       cy={node.y}
                       r={isSelected ? node.radius + 3.5 : isHovered ? node.radius + 2 : node.radius}
                       fill={nodeColor(node)}
-                      stroke={isSelected ? "#fff5d6" : "rgba(255,255,255,0.32)"}
+                      stroke={isSelected ? "#f4dfb6" : "rgba(255,248,230,0.24)"}
                       strokeWidth={isSelected ? 2.4 : 0.8}
                       opacity={selectedNode && !emphasize ? 0.28 : 0.97}
                     />
@@ -178,7 +182,7 @@ export function OwnershipGraphCanvas({
                         x={node.x}
                         y={node.y - node.radius - 8}
                         textAnchor="middle"
-                        fill={isSelected ? "#fff5d6" : "rgba(244,246,251,0.86)"}
+                        fill={isSelected ? "#f6e7c7" : "rgba(241,235,222,0.82)"}
                         fontSize={isSource(node) ? 11 : 12}
                         fontFamily="ui-monospace, SFMono-Regular, monospace"
                         opacity={selectedNode && !emphasize && !alwaysLabel ? 0.35 : 1}
@@ -194,9 +198,9 @@ export function OwnershipGraphCanvas({
         )}
 
         {!loading && !errorMessage && nodes.length === 0 && (
-          <div className="absolute inset-0 flex items-center justify-center p-6 text-center text-muted-foreground">
+          <div className="absolute inset-0 flex items-center justify-center p-6 text-center text-[#b4ab9b]">
             <div>
-              <p className="font-serif text-lg text-foreground">No nodes match the current view</p>
+              <p className="font-serif text-lg text-[#f6f1e8]">No nodes match the current view</p>
               <p className="mt-2 text-sm">Clear the search or relax the filters to restore the network.</p>
             </div>
           </div>
@@ -216,7 +220,7 @@ function CanvasButton({
   return (
     <button
       onClick={onClick}
-      className="rounded-lg border border-white/10 bg-black/40 p-2 text-muted-foreground transition-colors hover:text-foreground"
+      className="rounded-lg border border-white/10 bg-black/40 p-2 text-[#b4ab9b] transition-colors hover:border-[#c9a66b]/35 hover:text-[#f5ecd7]"
     >
       {children}
     </button>

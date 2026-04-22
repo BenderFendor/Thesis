@@ -597,6 +597,94 @@ async def test_stream_route_fallback_answer_contract(monkeypatch) -> None:
 
 
 @pytest.mark.asyncio
+async def test_stream_route_includes_tool_name_on_tool_results(monkeypatch) -> None:
+    class FakeRequest:
+        async def is_disconnected(self) -> bool:
+            return False
+
+    async def fake_load_articles(_query: str):
+        return {
+            "articles": [],
+            "summary": {
+                "total": 0,
+                "semantic_count": 0,
+                "keyword_count": 0,
+                "recent_count": 0,
+                "vector_enabled": False,
+            },
+        }
+
+    def fake_stream_agent(*_args, **_kwargs):
+        yield (
+            "data: "
+            + json.dumps(
+                {
+                    "type": "tool_start",
+                    "tool": "gdelt_context_search",
+                    "args": {"query": "bird flu"},
+                }
+            )
+            + "\n\n"
+        )
+        yield (
+            "data: "
+            + json.dumps(
+                {
+                    "type": "tool_result",
+                    "tool": "news_search",
+                    "content": "Fallback provider result",
+                }
+            )
+            + "\n\n"
+        )
+        yield (
+            "data: "
+            + json.dumps(
+                {
+                    "type": "complete",
+                    "result": {
+                        "success": True,
+                        "query": "bird flu",
+                        "answer": "Answer\nFallback landed.",
+                        "structured_articles": "",
+                        "articles_searched": 0,
+                        "referenced_articles": [],
+                        "source_providers": ["duckduckgo"],
+                    },
+                }
+            )
+            + "\n\n"
+        )
+
+    monkeypatch.setattr(
+        research_route, "load_articles_for_research", fake_load_articles
+    )
+    monkeypatch.setattr(research_route, "stream_research_agent", fake_stream_agent)
+
+    response = await research_route.news_research_stream_endpoint(
+        request=cast(Request[Any], FakeRequest()),
+        query="bird flu",
+        include_thinking=True,
+        history=None,
+    )
+
+    parsed_events = []
+    async for chunk in response.body_iterator:
+        text = chunk.decode() if isinstance(chunk, (bytes, bytearray)) else str(chunk)
+        for line in text.splitlines():
+            if line.startswith("data: "):
+                parsed_events.append(json.loads(line[6:]))
+
+    tool_results = [
+        event for event in parsed_events if event.get("type") == "tool_result"
+    ]
+    assert len(tool_results) == 1
+    assert tool_results[0]["tool"] == "news_search"
+    assert tool_results[0]["content"] == "Fallback provider result"
+    assert "timestamp" in tool_results[0]
+
+
+@pytest.mark.asyncio
 async def test_stream_route_stops_when_client_disconnects(monkeypatch) -> None:
     class FakeRequest:
         def __init__(self) -> None:

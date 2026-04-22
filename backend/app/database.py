@@ -2,6 +2,7 @@ from sqlalchemy import (
     and_,
     cast as sa_cast,
     Column,
+    ForeignKey,
     Float,
     Index,
     Integer,
@@ -735,6 +736,58 @@ class WikiIndexStatus(Base):
         ),
         Index("ix_wiki_index_status_next", "status", "next_index_at"),
     )
+
+
+class SourceClaim(Base):
+    """Versioned claim records for source dossiers with provenance metadata."""
+
+    __tablename__ = "source_claims"
+
+    id = Column(Integer, primary_key=True, index=True)
+    source_name = Column(String, nullable=False, index=True)
+    claim_type = Column(String, nullable=False, index=True)
+    claim_value = Column(JSON, nullable=False)
+    claim_kind = Column(
+        String, nullable=False
+    )  # factual, third_party_opinion, computed
+    confidence = Column(Float, default=0.5)
+    parser_version = Column(String, nullable=False, default="source-claims/v1")
+
+    is_current = Column(Boolean, default=True, index=True)
+    valid_from = Column(DateTime, default=get_utc_now)
+    valid_to = Column(DateTime)
+
+    created_at = Column(DateTime, default=get_utc_now)
+    updated_at = Column(DateTime, default=get_utc_now, onupdate=get_utc_now)
+
+    __table_args__ = (
+        Index("ix_source_claims_source_current", "source_name", "is_current"),
+        Index("ix_source_claims_source_type", "source_name", "claim_type"),
+    )
+
+
+class SourceClaimEvidence(Base):
+    """Supporting evidence rows for each source claim."""
+
+    __tablename__ = "source_claim_evidence"
+
+    id = Column(Integer, primary_key=True, index=True)
+    claim_id = Column(
+        Integer,
+        ForeignKey("source_claims.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+    source_type = Column(
+        String, nullable=False
+    )  # wikidata, wikipedia, rss_config, etc.
+    source_name = Column(String)
+    source_url = Column(String, nullable=False)
+    retrieved_at = Column(DateTime, default=get_utc_now, nullable=False)
+    raw_excerpt = Column(Text)
+    raw_hash = Column(String, nullable=False, index=True)
+
+    created_at = Column(DateTime, default=get_utc_now)
 
 
 # Dependency for FastAPI

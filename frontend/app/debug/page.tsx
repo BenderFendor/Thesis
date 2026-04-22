@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react"
 import { useQuery } from "@tanstack/react-query"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
+import { GlobalNavigation } from "@/components/global-navigation"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
@@ -96,6 +97,20 @@ const getImageErrorLabel = (value?: string | null) => {
 const getImageErrorDetails = (value?: string | null) => {
   if (!value) return ""
   return IMAGE_ERROR_DETAILS[value] || ""
+}
+
+function sourceStatsRowKey(
+  source: SourceStats,
+  index: number,
+): string {
+  return `${source.name}-${source.category}-${source.country}-${source.url}-${index}`
+}
+
+function debugArticleRowKey(
+  articleId: number | string,
+  fallback: string,
+): string {
+  return `${articleId}-${fallback}`
 }
 
 type UnknownRecord = Record<string, unknown>
@@ -680,10 +695,14 @@ export default function DebugDashboardPage() {
   }
 
   return (
-    <div className="space-y-6 p-6">
-      <div className="flex flex-wrap items-center justify-between gap-4">
+    <div className="flex bg-background min-h-screen text-foreground overflow-hidden">
+      <GlobalNavigation />
+      <div className="flex-1 overflow-y-auto relative z-10 custom-scrollbar p-6">
+        <div className="fixed inset-0 pointer-events-none bg-[radial-gradient(ellipse_at_top_right,_var(--tw-gradient-stops))] from-primary/10 via-background to-background z-[-1]" />
+        <div className="space-y-6">
+          <div className="flex flex-wrap items-center justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-semibold">Debug Console</h1>
+          <h1 className="text-2xl font-semibold font-serif">Debug Console</h1>
           <p className="text-sm text-muted-foreground">
             System status, source operations, storage inspection, parser testing, and runtime controls.
           </p>
@@ -700,7 +719,7 @@ export default function DebugDashboardPage() {
       </div>
 
       {error && (
-        <Card className="border-red-500/30 bg-red-500/10">
+        <Card className="border-red-500/30 bg-red-500/10 bg-black/20 border-white/5 transition-all hover:bg-white/[0.03] hover:-translate-y-px hover:shadow-lg">
           <CardContent className="py-4 text-sm text-red-600 dark:text-red-400">
             {error}
           </CardContent>
@@ -721,10 +740,10 @@ export default function DebugDashboardPage() {
 
         {/* System Status Tab */}
         <TabsContent value="system" className="space-y-4">
-          <Card>
+          <Card className="bg-black/20 border-white/5 transition-all hover:bg-white/[0.03] hover:-translate-y-px hover:shadow-lg">
             <CardHeader>
-              <CardTitle>System Status</CardTitle>
-              <CardDescription>Component health and runtime information</CardDescription>
+              <CardTitle className="font-serif">System Status</CardTitle>
+              <CardDescription className="font-mono text-[10px] tracking-widest uppercase">Component health and runtime information</CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
               {systemStatus ? (
@@ -783,10 +802,10 @@ export default function DebugDashboardPage() {
             </CardContent>
           </Card>
 
-          <Card>
+          <Card className="bg-black/20 border-white/5 transition-all hover:bg-white/[0.03] hover:-translate-y-px hover:shadow-lg">
             <CardHeader>
-              <CardTitle>Pipeline Signals</CardTitle>
-              <CardDescription>RSS fetch cadence, cache behavior, and embeddings</CardDescription>
+              <CardTitle className="font-serif">Pipeline Signals</CardTitle>
+              <CardDescription className="font-mono text-[10px] tracking-widest uppercase">RSS fetch cadence, cache behavior, and embeddings</CardDescription>
             </CardHeader>
             <CardContent className="grid gap-4 md:grid-cols-3 text-sm">
               <div>
@@ -821,10 +840,10 @@ export default function DebugDashboardPage() {
           </Card>
 
           {/* Startup Timeline (existing content) */}
-          <Card>
+          <Card className="bg-black/20 border-white/5 transition-all hover:bg-white/[0.03] hover:-translate-y-px hover:shadow-lg">
             <CardHeader>
-              <CardTitle>Startup Timeline</CardTitle>
-              <CardDescription>Backend startup phase breakdown</CardDescription>
+              <CardTitle className="font-serif">Startup Timeline</CardTitle>
+              <CardDescription className="font-mono text-[10px] tracking-widest uppercase">Backend startup phase breakdown</CardDescription>
             </CardHeader>
             <CardContent className="space-y-4 text-sm">
               <div className="grid gap-2 md:grid-cols-3">
@@ -878,7 +897,7 @@ export default function DebugDashboardPage() {
         <TabsContent value="sources" className="space-y-4">
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div>
-              <h2 className="text-lg font-medium">Ingestion And Sources</h2>
+              <h2 className="text-lg font-medium font-serif">Ingestion And Sources</h2>
               <p className="text-sm text-muted-foreground">
                 Source health, cache coverage, and refresh controls in one place.
               </p>
@@ -894,7 +913,7 @@ export default function DebugDashboardPage() {
           </div>
 
           {(cacheRefreshMessage || cacheRefreshError) && (
-            <Card className={cacheRefreshError ? "border-red-500/30 bg-red-500/10" : undefined}>
+            <Card className={cacheRefreshError ? "border-red-500/30 bg-red-500/10 bg-black/20 border-white/5 transition-all hover:bg-white/[0.03] hover:-translate-y-px hover:shadow-lg" : "bg-black/20 border-white/5 transition-all hover:bg-white/[0.03] hover:-translate-y-px hover:shadow-lg"}>
               <CardContent className="py-4 text-sm">
                 {cacheRefreshError || cacheRefreshMessage}
               </CardContent>
@@ -902,33 +921,33 @@ export default function DebugDashboardPage() {
           )}
 
           <div className="grid gap-4 md:grid-cols-4">
-            <Card>
+            <Card className="bg-black/20 border-white/5 transition-all hover:bg-white/[0.03] hover:-translate-y-px hover:shadow-lg">
               <CardHeader>
-                <CardTitle>Total Sources</CardTitle>
+                <CardTitle className="font-serif">Total Sources</CardTitle>
               </CardHeader>
               <CardContent className="text-2xl font-semibold">
                 {cacheStatus?.total_sources ?? sourceStats.length}
               </CardContent>
             </Card>
-            <Card>
+            <Card className="bg-black/20 border-white/5 transition-all hover:bg-white/[0.03] hover:-translate-y-px hover:shadow-lg">
               <CardHeader>
-                <CardTitle>Healthy</CardTitle>
+                <CardTitle className="font-serif">Healthy</CardTitle>
               </CardHeader>
               <CardContent className="text-2xl font-semibold text-emerald-600 dark:text-emerald-400">
                 {cacheStatus?.sources_working ?? healthySources}
               </CardContent>
             </Card>
-            <Card>
+            <Card className="bg-black/20 border-white/5 transition-all hover:bg-white/[0.03] hover:-translate-y-px hover:shadow-lg">
               <CardHeader>
-                <CardTitle>Warnings</CardTitle>
+                <CardTitle className="font-serif">Warnings</CardTitle>
               </CardHeader>
               <CardContent className="text-2xl font-semibold text-amber-600 dark:text-amber-400">
                 {cacheStatus?.sources_with_warnings ?? warningSources}
               </CardContent>
             </Card>
-            <Card>
+            <Card className="bg-black/20 border-white/5 transition-all hover:bg-white/[0.03] hover:-translate-y-px hover:shadow-lg">
               <CardHeader>
-                <CardTitle>Errors</CardTitle>
+                <CardTitle className="font-serif">Errors</CardTitle>
               </CardHeader>
               <CardContent className="text-2xl font-semibold text-red-600 dark:text-red-400">
                 {cacheStatus?.sources_with_errors ?? failedSources}
@@ -937,10 +956,10 @@ export default function DebugDashboardPage() {
           </div>
 
           <div className="grid gap-4 lg:grid-cols-[1.2fr_1.8fr]">
-            <Card>
+            <Card className="bg-black/20 border-white/5 transition-all hover:bg-white/[0.03] hover:-translate-y-px hover:shadow-lg">
               <CardHeader>
-                <CardTitle>Cache Snapshot</CardTitle>
-                <CardDescription>
+                <CardTitle className="font-serif">Cache Snapshot</CardTitle>
+                <CardDescription className="font-mono text-[10px] tracking-widest uppercase">
                   Last update {formatTimestamp(cacheStatus?.last_updated)}
                 </CardDescription>
               </CardHeader>
@@ -968,10 +987,10 @@ export default function DebugDashboardPage() {
               </CardContent>
             </Card>
 
-            <Card>
+            <Card className="bg-black/20 border-white/5 transition-all hover:bg-white/[0.03] hover:-translate-y-px hover:shadow-lg">
               <CardHeader>
-                <CardTitle>Source Health</CardTitle>
-                <CardDescription>
+                <CardTitle className="font-serif">Source Health</CardTitle>
+                <CardDescription className="font-mono text-[10px] tracking-widest uppercase">
                   Current feed status from the ingestion catalog.
                 </CardDescription>
               </CardHeader>
@@ -989,8 +1008,8 @@ export default function DebugDashboardPage() {
                         </TableRow>
                       </TableHeader>
                       <TableBody>
-                        {sourceStats.map((source) => (
-                          <TableRow key={source.url}>
+                        {sourceStats.map((source, index) => (
+                          <TableRow key={sourceStatsRowKey(source, index)}>
                             <TableCell>
                               <div className="space-y-1">
                                 <div className="font-medium">{source.name}</div>
@@ -1030,9 +1049,9 @@ export default function DebugDashboardPage() {
         {/* Storage Tab (existing content) */}
         <TabsContent value="storage" className="space-y-4">
           <div className="grid gap-4 md:grid-cols-4">
-            <Card>
+            <Card className="bg-black/20 border-white/5 transition-all hover:bg-white/[0.03] hover:-translate-y-px hover:shadow-lg">
               <CardHeader>
-                <CardTitle>Cache Snapshot</CardTitle>
+                <CardTitle className="font-serif">Cache Snapshot</CardTitle>
               </CardHeader>
               <CardContent className="space-y-2 text-sm">
                 <p>Total cached: {cacheStats?.total ?? "-"}</p>
@@ -1065,9 +1084,9 @@ export default function DebugDashboardPage() {
               </CardContent>
             </Card>
 
-            <Card>
+            <Card className="bg-black/20 border-white/5 transition-all hover:bg-white/[0.03] hover:-translate-y-px hover:shadow-lg">
               <CardHeader>
-                <CardTitle>Chroma Snapshot</CardTitle>
+                <CardTitle className="font-serif">Chroma Snapshot</CardTitle>
               </CardHeader>
               <CardContent className="space-y-2 text-sm">
                 <p>Total vectors: {chromaStats?.total ?? "-"}</p>
@@ -1100,9 +1119,9 @@ export default function DebugDashboardPage() {
               </CardContent>
             </Card>
 
-            <Card>
+            <Card className="bg-black/20 border-white/5 transition-all hover:bg-white/[0.03] hover:-translate-y-px hover:shadow-lg">
               <CardHeader>
-                <CardTitle>Database Snapshot</CardTitle>
+                <CardTitle className="font-serif">Database Snapshot</CardTitle>
               </CardHeader>
               <CardContent className="space-y-2 text-sm">
                 <p>Total rows: {dbStats?.total ?? "-"}</p>
@@ -1150,9 +1169,9 @@ export default function DebugDashboardPage() {
               </CardContent>
             </Card>
 
-            <Card>
+            <Card className="bg-black/20 border-white/5 transition-all hover:bg-white/[0.03] hover:-translate-y-px hover:shadow-lg">
               <CardHeader>
-                <CardTitle>Storage Drift</CardTitle>
+                <CardTitle className="font-serif">Storage Drift</CardTitle>
               </CardHeader>
               <CardContent className="space-y-2 text-sm">
                 <p>DB rows with embeddings: {driftStats?.database_with_embeddings ?? "-"}</p>
@@ -1163,9 +1182,9 @@ export default function DebugDashboardPage() {
             </Card>
           </div>
 
-          <Card>
+          <Card className="bg-black/20 border-white/5 transition-all hover:bg-white/[0.03] hover:-translate-y-px hover:shadow-lg">
             <CardHeader className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
-              <CardTitle>Cache filters</CardTitle>
+              <CardTitle className="font-serif">Cache filters</CardTitle>
               <div className="flex flex-wrap items-center gap-2">
                 <Input
                   placeholder="Source (e.g. bbc)"
@@ -1180,9 +1199,9 @@ export default function DebugDashboardPage() {
             </CardHeader>
           </Card>
 
-          <Card>
+          <Card className="bg-black/20 border-white/5 transition-all hover:bg-white/[0.03] hover:-translate-y-px hover:shadow-lg">
             <CardHeader className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
-              <CardTitle>Database filters</CardTitle>
+              <CardTitle className="font-serif">Database filters</CardTitle>
               <div className="flex flex-wrap items-center gap-2">
                 <Input
                   placeholder="Source (e.g. bbc)"
@@ -1211,10 +1230,10 @@ export default function DebugDashboardPage() {
             </CardHeader>
           </Card>
 
-          <Card>
+          <Card className="bg-black/20 border-white/5 transition-all hover:bg-white/[0.03] hover:-translate-y-px hover:shadow-lg">
             <CardHeader>
-              <CardTitle>Cache vs database delta</CardTitle>
-              <CardDescription>Compares the current cache window against Postgres</CardDescription>
+              <CardTitle className="font-serif">Cache vs database delta</CardTitle>
+              <CardDescription className="font-mono text-[10px] tracking-widest uppercase">Compares the current cache window against Postgres</CardDescription>
             </CardHeader>
             <CardContent className="space-y-4 text-sm">
               <div className="grid gap-2 md:grid-cols-4">
@@ -1253,9 +1272,9 @@ export default function DebugDashboardPage() {
             </CardContent>
           </Card>
 
-          <Card>
+          <Card className="bg-black/20 border-white/5 transition-all hover:bg-white/[0.03] hover:-translate-y-px hover:shadow-lg">
             <CardHeader>
-              <CardTitle>Startup timeline</CardTitle>
+              <CardTitle className="font-serif">Startup timeline</CardTitle>
               <p className="text-sm text-muted-foreground">
                 Breakdown of backend startup phases: DB init, cache preload, vector store, and RSS refresh.
               </p>
@@ -1309,9 +1328,9 @@ export default function DebugDashboardPage() {
             </CardContent>
           </Card>
 
-          <Card>
+          <Card className="bg-black/20 border-white/5 transition-all hover:bg-white/[0.03] hover:-translate-y-px hover:shadow-lg">
             <CardHeader>
-              <CardTitle>Chroma documents</CardTitle>
+              <CardTitle className="font-serif">Chroma documents</CardTitle>
             </CardHeader>
             <CardContent>
               <Table>
@@ -1325,7 +1344,12 @@ export default function DebugDashboardPage() {
                 </TableHeader>
                 <TableBody>
                   {chromaData?.articles.map((article) => (
-                    <TableRow key={article.id}>
+                    <TableRow
+                      key={debugArticleRowKey(
+                        article.id,
+                        String(article.metadata?.source || "unknown"),
+                      )}
+                    >
                       <TableCell className="font-mono text-xs">{article.id}</TableCell>
                       <TableCell>{String(article.metadata?.title || "(no title)")}</TableCell>
                       <TableCell>{String(article.metadata?.source || "?")}</TableCell>
@@ -1340,9 +1364,9 @@ export default function DebugDashboardPage() {
             </CardContent>
           </Card>
 
-          <Card>
+          <Card className="bg-black/20 border-white/5 transition-all hover:bg-white/[0.03] hover:-translate-y-px hover:shadow-lg">
             <CardHeader>
-              <CardTitle>Cached articles</CardTitle>
+              <CardTitle className="font-serif">Cached articles</CardTitle>
             </CardHeader>
             <CardContent>
               <Table>
@@ -1380,9 +1404,9 @@ export default function DebugDashboardPage() {
             </CardContent>
           </Card>
 
-          <Card>
+          <Card className="bg-black/20 border-white/5 transition-all hover:bg-white/[0.03] hover:-translate-y-px hover:shadow-lg">
             <CardHeader>
-              <CardTitle>Postgres articles</CardTitle>
+              <CardTitle className="font-serif">Postgres articles</CardTitle>
             </CardHeader>
             <CardContent>
               <Table>
@@ -1397,7 +1421,9 @@ export default function DebugDashboardPage() {
                 </TableHeader>
                 <TableBody>
                   {dbData?.articles?.map((article) => (
-                    <TableRow key={article.id}>
+                    <TableRow
+                      key={debugArticleRowKey(article.id, article.url)}
+                    >
                       <TableCell className="font-mono text-xs">{article.id}</TableCell>
                       <TableCell>{article.source}</TableCell>
                       <TableCell>
@@ -1432,9 +1458,9 @@ export default function DebugDashboardPage() {
             </CardContent>
           </Card>
 
-          <Card>
+          <Card className="bg-black/20 border-white/5 transition-all hover:bg-white/[0.03] hover:-translate-y-px hover:shadow-lg">
             <CardHeader>
-              <CardTitle>Drift samples</CardTitle>
+              <CardTitle className="font-serif">Drift samples</CardTitle>
             </CardHeader>
             <CardContent className="grid gap-4 md:grid-cols-2">
               <div>
@@ -1442,7 +1468,10 @@ export default function DebugDashboardPage() {
                 <ul className="space-y-1 text-xs">
                   {missingSamples.length > 0 ? (
                     missingSamples.map((entry) => (
-                      <li key={entry.id} className="rounded bg-muted p-2">
+                      <li
+                        key={debugArticleRowKey(entry.id, entry.chroma_id || "missing")}
+                        className="rounded bg-muted p-2"
+                      >
                         #{entry.id} - {entry.chroma_id || "(no chroma id)"}
                       </li>
                     ))
@@ -1471,10 +1500,10 @@ export default function DebugDashboardPage() {
 
         {/* Parser Tester Tab */}
         <TabsContent value="parser" className="space-y-4">
-          <Card>
+          <Card className="bg-black/20 border-white/5 transition-all hover:bg-white/[0.03] hover:-translate-y-px hover:shadow-lg">
             <CardHeader>
-              <CardTitle>RSS Feed Parser</CardTitle>
-              <CardDescription>Test RSS parsing on any feed URL</CardDescription>
+              <CardTitle className="font-serif">RSS Feed Parser</CardTitle>
+              <CardDescription className="font-mono text-[10px] tracking-widest uppercase">Test RSS parsing on any feed URL</CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="flex gap-2">
@@ -1537,10 +1566,10 @@ export default function DebugDashboardPage() {
             </CardContent>
           </Card>
 
-          <Card>
+          <Card className="bg-black/20 border-white/5 transition-all hover:bg-white/[0.03] hover:-translate-y-px hover:shadow-lg">
             <CardHeader>
-              <CardTitle>Article Image Extractor</CardTitle>
-              <CardDescription>Test og:image extraction from article pages</CardDescription>
+              <CardTitle className="font-serif">Article Image Extractor</CardTitle>
+              <CardDescription className="font-mono text-[10px] tracking-widest uppercase">Test og:image extraction from article pages</CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="flex gap-2">
@@ -1595,10 +1624,10 @@ export default function DebugDashboardPage() {
             </CardContent>
           </Card>
 
-          <Card>
+          <Card className="bg-black/20 border-white/5 transition-all hover:bg-white/[0.03] hover:-translate-y-px hover:shadow-lg">
             <CardHeader>
-              <CardTitle>Image Error Taxonomy</CardTitle>
-              <CardDescription>Standardized error labels used by image extraction</CardDescription>
+              <CardTitle className="font-serif">Image Error Taxonomy</CardTitle>
+              <CardDescription className="font-mono text-[10px] tracking-widest uppercase">Standardized error labels used by image extraction</CardDescription>
             </CardHeader>
             <CardContent>
               <ul className="grid gap-2 text-sm md:grid-cols-2">
@@ -1616,10 +1645,10 @@ export default function DebugDashboardPage() {
 
         {/* Logging Tab */}
         <TabsContent value="controls" className="space-y-4">
-          <Card>
+          <Card className="bg-black/20 border-white/5 transition-all hover:bg-white/[0.03] hover:-translate-y-px hover:shadow-lg">
             <CardHeader>
-              <CardTitle>Backend Log Level</CardTitle>
-              <CardDescription>Change runtime log verbosity</CardDescription>
+              <CardTitle className="font-serif">Backend Log Level</CardTitle>
+              <CardDescription className="font-mono text-[10px] tracking-widest uppercase">Change runtime log verbosity</CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="flex items-center gap-4">
@@ -1642,10 +1671,10 @@ export default function DebugDashboardPage() {
             </CardContent>
           </Card>
 
-          <Card>
+          <Card className="bg-black/20 border-white/5 transition-all hover:bg-white/[0.03] hover:-translate-y-px hover:shadow-lg">
             <CardHeader>
-              <CardTitle>Frontend Debug Mode</CardTitle>
-              <CardDescription>Toggle verbose frontend logging</CardDescription>
+              <CardTitle className="font-serif">Frontend Debug Mode</CardTitle>
+              <CardDescription className="font-mono text-[10px] tracking-widest uppercase">Toggle verbose frontend logging</CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="flex items-center gap-4">
@@ -1670,7 +1699,7 @@ export default function DebugDashboardPage() {
         <TabsContent value="llm" className="space-y-4">
           <div className="flex items-center justify-between gap-3">
             <div>
-              <h2 className="text-lg font-medium">LLM Calls</h2>
+              <h2 className="text-lg font-medium font-serif">LLM Calls</h2>
               <p className="text-sm text-muted-foreground">
                 Parsed model calls with latency and outcome details.
               </p>
@@ -1680,10 +1709,10 @@ export default function DebugDashboardPage() {
             </Button>
           </div>
 
-          <Card>
+          <Card className="bg-black/20 border-white/5 transition-all hover:bg-white/[0.03] hover:-translate-y-px hover:shadow-lg">
             <CardHeader>
-              <CardTitle>Call Summary</CardTitle>
-              <CardDescription>
+              <CardTitle className="font-serif">Call Summary</CardTitle>
+              <CardDescription className="font-mono text-[10px] tracking-widest uppercase">
                 {llmLogs?.available
                   ? `${llmLogs.total} calls logged in ${llmLogs.path}`
                   : "LLM log file is not available in this session directory."}
@@ -1722,9 +1751,9 @@ export default function DebugDashboardPage() {
             </CardContent>
           </Card>
 
-          <Card>
+          <Card className="bg-black/20 border-white/5 transition-all hover:bg-white/[0.03] hover:-translate-y-px hover:shadow-lg">
             <CardHeader>
-              <CardTitle>Recent Calls</CardTitle>
+              <CardTitle className="font-serif">Recent Calls</CardTitle>
             </CardHeader>
             <CardContent>
               {llmLogs?.entries.length ? (
@@ -1768,7 +1797,7 @@ export default function DebugDashboardPage() {
         <TabsContent value="errors" className="space-y-4">
           <div className="flex items-center justify-between gap-3">
             <div>
-              <h2 className="text-lg font-medium">Errors</h2>
+              <h2 className="text-lg font-medium font-serif">Errors</h2>
               <p className="text-sm text-muted-foreground">
                 Combined API error log plus recent request and stream failures.
               </p>
@@ -1778,10 +1807,10 @@ export default function DebugDashboardPage() {
             </Button>
           </div>
 
-          <Card>
+          <Card className="bg-black/20 border-white/5 transition-all hover:bg-white/[0.03] hover:-translate-y-px hover:shadow-lg">
             <CardHeader>
-              <CardTitle>Error Summary</CardTitle>
-              <CardDescription>
+              <CardTitle className="font-serif">Error Summary</CardTitle>
+              <CardDescription className="font-mono text-[10px] tracking-widest uppercase">
                 {debugErrors?.log_file.available
                   ? `${debugErrors.log_file.total} API errors logged`
                   : "Session error log file not available."}
@@ -1809,9 +1838,9 @@ export default function DebugDashboardPage() {
             </CardContent>
           </Card>
 
-          <Card>
+          <Card className="bg-black/20 border-white/5 transition-all hover:bg-white/[0.03] hover:-translate-y-px hover:shadow-lg">
             <CardHeader>
-              <CardTitle>Recent Failures</CardTitle>
+              <CardTitle className="font-serif">Recent Failures</CardTitle>
             </CardHeader>
             <CardContent className="space-y-3">
               {debugErrors && (debugErrors.log_file.entries.length > 0 || debugErrors.recent_request_stream_errors.length > 0) ? (
@@ -1867,7 +1896,7 @@ export default function DebugDashboardPage() {
         {/* Performance Tab */}
         <TabsContent value="performance" className="space-y-4">
           <div className="flex items-center justify-between mb-4">
-            <h2 className="text-lg font-medium">Performance Debugging</h2>
+            <h2 className="text-lg font-medium font-serif">Performance Debugging</h2>
             <Button onClick={loadPerformanceData} variant="outline" size="sm">
               Refresh
             </Button>
@@ -1875,10 +1904,10 @@ export default function DebugDashboardPage() {
 
           {/* Backend Debug Report Summary */}
           {backendDebugReport && (
-            <Card>
+            <Card className="bg-black/20 border-white/5 transition-all hover:bg-white/[0.03] hover:-translate-y-px hover:shadow-lg">
               <CardHeader>
-                <CardTitle>Backend Debug Report</CardTitle>
-                <CardDescription>
+                <CardTitle className="font-serif">Backend Debug Report</CardTitle>
+                <CardDescription className="font-mono text-[10px] tracking-widest uppercase">
                   Generated at {backendDebugReport.generated_at ? new Date(String(backendDebugReport.generated_at)).toLocaleString() : "unknown"}
                 </CardDescription>
               </CardHeader>
@@ -1940,10 +1969,10 @@ export default function DebugDashboardPage() {
 
           {/* Slow Operations */}
           {backendSlowOps.length > 0 && (
-            <Card>
+            <Card className="bg-black/20 border-white/5 transition-all hover:bg-white/[0.03] hover:-translate-y-px hover:shadow-lg">
               <CardHeader>
-                <CardTitle>Slow Operations</CardTitle>
-                <CardDescription>Operations exceeding performance thresholds</CardDescription>
+                <CardTitle className="font-serif">Slow Operations</CardTitle>
+                <CardDescription className="font-mono text-[10px] tracking-widest uppercase">Operations exceeding performance thresholds</CardDescription>
               </CardHeader>
               <CardContent>
                 <div className="space-y-2 max-h-80 overflow-y-auto">
@@ -1974,10 +2003,10 @@ export default function DebugDashboardPage() {
           )}
 
           {/* Recent Backend Events */}
-          <Card>
+          <Card className="bg-black/20 border-white/5 transition-all hover:bg-white/[0.03] hover:-translate-y-px hover:shadow-lg">
             <CardHeader>
-              <CardTitle>Recent Backend Events</CardTitle>
-              <CardDescription>Last 100 debug events from the backend</CardDescription>
+              <CardTitle className="font-serif">Recent Backend Events</CardTitle>
+              <CardDescription className="font-mono text-[10px] tracking-widest uppercase">Last 100 debug events from the backend</CardDescription>
             </CardHeader>
             <CardContent>
               {backendLogEvents.length > 0 ? (
@@ -2007,10 +2036,10 @@ export default function DebugDashboardPage() {
 
           {/* Frontend Performance */}
           {frontendPerfData && (
-            <Card>
+            <Card className="bg-black/20 border-white/5 transition-all hover:bg-white/[0.03] hover:-translate-y-px hover:shadow-lg">
               <CardHeader>
-                <CardTitle>Frontend Performance</CardTitle>
-                <CardDescription>Browser-side metrics and stream tracking</CardDescription>
+                <CardTitle className="font-serif">Frontend Performance</CardTitle>
+                <CardDescription className="font-mono text-[10px] tracking-widest uppercase">Browser-side metrics and stream tracking</CardDescription>
               </CardHeader>
               <CardContent className="space-y-4">
                 <div className="grid gap-4 md:grid-cols-4">
@@ -2076,10 +2105,10 @@ export default function DebugDashboardPage() {
           )}
 
           {/* Log Files Browser */}
-          <Card>
+          <Card className="bg-black/20 border-white/5 transition-all hover:bg-white/[0.03] hover:-translate-y-px hover:shadow-lg">
             <CardHeader>
-              <CardTitle>Debug Log Files</CardTitle>
-              <CardDescription>JSON Lines log files saved on the backend</CardDescription>
+              <CardTitle className="font-serif">Debug Log Files</CardTitle>
+              <CardDescription className="font-mono text-[10px] tracking-widest uppercase">JSON Lines log files saved on the backend</CardDescription>
             </CardHeader>
             <CardContent>
               {backendLogFiles.length > 0 ? (
@@ -2110,6 +2139,8 @@ export default function DebugDashboardPage() {
           </Card>
         </TabsContent>
       </Tabs >
-    </div >
+        </div>
+      </div>
+    </div>
   )
 }

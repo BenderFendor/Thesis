@@ -50,26 +50,26 @@ export function nodeColor(node: LayoutNode): string {
   if (isSource(node)) {
     switch (node.bias?.toLowerCase()) {
       case "left":
-        return "#4f8cff";
+        return "#5b8cff";
       case "left-center":
       case "center-left":
-        return "#78b7ff";
+        return "#88b4ff";
       case "center":
-        return "#b5bbc9";
+        return "#c9c2af";
       case "center-right":
       case "right-center":
-        return "#ff9f7f";
+        return "#d98f63";
       case "right":
-        return "#ff6b6b";
+        return "#cf6d5c";
       default:
-        return "#8b95a7";
+        return "#8d8778";
     }
   }
-  return "#d6a7ff";
+  return "#c9a66b";
 }
 
 export function edgeColor(type: string): string {
-  return type === "ownership" ? "rgba(214,167,255,0.52)" : "rgba(133,148,176,0.24)";
+  return type === "ownership" ? "rgba(201,166,107,0.48)" : "rgba(136,180,255,0.24)";
 }
 
 export function edgeDash(type: string): string | undefined {

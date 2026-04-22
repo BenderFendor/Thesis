@@ -1,3 +1,10 @@
 timestamp	commit	mode	metric	delta	status	description	log_path
 2026-03-28T21:10:35.714956+00:00	fc4d3497800678765c6fd1de213dfe6e123bb817	fix	94	0	baseline	Baseline frontend lint warnings	.autoresearch/baseline-lint.log
 2026-03-28T21:10:43.064836+00:00	fc4d3497800678765c6fd1de213dfe6e123bb817	fix	0	-94	keep	Frontend lint warnings reduced to zero	.autoresearch/final-lint.log
+2026-04-10T12:30:47.306657+00:00	5df79ed6bd07eb056e4395a8d855b4d0d8f4adac	optimize	59.60	0	baseline	Baseline wiki profile coverage across 8 sources	.autoresearch/baseline-coverage.log
+2026-04-10T12:37:21.532918+00:00	5df79ed6bd07eb056e4395a8d855b4d0d8f4adac	optimize	69.60	10.00	keep	Iteration 1: source selection + catalog website fallback improved coverage	.autoresearch/iter1-coverage.log
+2026-04-10T12:42:08.379103+00:00	5df79ed6bd07eb056e4395a8d855b4d0d8f4adac	optimize	81.92	3.57	keep	Iteration 3: add catalog bias/factual records into dossier sections	.autoresearch/iter3-coverage.log
+2026-04-10T13:21:51.538416+00:00	5df79ed6bd07eb056e4395a8d855b4d0d8f4adac	optimize	3	0	baseline	Baseline selected validator URL guard mismatches across 8 priority sources	.autoresearch/url-guard-baseline-selected.log
+2026-04-10T13:21:51.710485+00:00	5df79ed6bd07eb056e4395a8d855b4d0d8f4adac	optimize	0	-3	keep	Shared URL guard helper removed BBC and Google News false mismatches; benchmark now reports 25 ok / 0 mismatch	.autoresearch/url-guard-postchange-selected.log
+2026-04-21T16:18:58.395585+00:00	5df79ed	fix	0	0	keep	Live multi-turn research harness passed with carried history after tool-router system-message fix	backend/lab_runs/latest.json
+2026-04-22T01:22:00.484390+00:00	5df79ed	fix	0	0	keep	Stress harness now records executed fallback tools and search_internal_news no longer crashes on loop mismatch in live runs	backend/lab_runs/stress_targets.json

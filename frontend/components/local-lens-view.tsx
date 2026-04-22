@@ -87,8 +87,8 @@ export function LocalLensView({ countryCode, onClose }: LocalLensViewProps) {
                             </div>
                         ) : (
                             <div className="space-y-3">
-                                {data?.articles?.map((article: NewsArticle) => (
-                                    <ArticleCard key={article.id} article={article} />
+                                {data?.articles?.map((article: NewsArticle, index: number) => (
+                                    <ArticleCard key={`${article.id}-${article.url}-${index}`} article={article} />
                                 ))}
 
                                 {data?.articles?.length === 0 && (

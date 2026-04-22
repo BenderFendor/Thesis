@@ -167,12 +167,6 @@ export function HighlightToolbar({
          return
        }
 
-       if (autoCreate && !selectionHandledRef.current) {
-          void handleCreateHighlight()
-          hideToolbar()
-          return
-       }
-
       const range = selection.getRangeAt(0)
       const inside = selectionInsideContainer(selection, range)
       if (!inside) {
@@ -185,6 +179,12 @@ export function HighlightToolbar({
             containerNode: containerRef.current?.nodeName,
           })
         }
+        hideToolbar()
+        return
+      }
+
+      if (autoCreate && !selectionHandledRef.current) {
+        void handleCreateHighlight()
         hideToolbar()
         return
       }

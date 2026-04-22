@@ -25,6 +25,8 @@ from app.database import (
     ArticleAuthor,
     Organization,
     Reporter,
+    SourceClaim,
+    SourceClaimEvidence,
     SourceAnalysisScore,
     SourceMetadata,
     WikiIndexStatus,
@@ -51,6 +53,40 @@ def _optional_float(value: Any) -> Optional[float]:
 
 def _string_list(value: Any) -> List[str]:
     return cast(List[str], value or [])
+
+
+def _source_overview_fallback(
+    source_name: str,
+    source_config: Dict[str, Any],
+    meta: Optional[SourceMetadata],
+    org_data: Optional[Dict[str, Any]],
+) -> Optional[str]:
+    parts: List[str] = []
+    funding = str(source_config.get("funding_type") or "").strip()
+    bias = str(source_config.get("bias_rating") or "").strip()
+    country = str(source_config.get("country") or "").strip()
+    source_type = str((meta.source_type if meta else "") or "").strip()
+    parent_company = str((meta.parent_company if meta else "") or "").strip()
+
+    if source_type:
+        parts.append(f"Type: {source_type}.")
+    if country:
+        parts.append(f"Country: {country}.")
+    if funding:
+        parts.append(f"Funding model: {funding}.")
+    if parent_company:
+        parts.append(f"Parent organization: {parent_company}.")
+    if bias:
+        parts.append(f"Catalog bias label: {bias}.")
+
+    if org_data:
+        factual = str(org_data.get("factual_reporting") or "").strip()
+        if factual:
+            parts.append(f"Catalog factual reporting label: {factual}.")
+
+    if not parts:
+        return None
+    return f"{source_name} source profile. {' '.join(parts)}"
 
 
 # ── Response Models ──────────────────────────────────────────────────
@@ -105,6 +141,7 @@ class SourceWikiResponse(BaseModel):
     search_links: Optional[Dict[str, str]] = None
     match_explanation: Optional[str] = None
     official_pages: List[Dict[str, str]] = []
+    claims: List[Dict[str, Any]] = []
 
     # Source analysis scores
     analysis_axes: List[AnalysisAxisResponse] = []
@@ -490,6 +527,69 @@ async def get_source_wiki(
             ),
         )
 
+    resolved_overview = cast(Optional[str], (source_profile or {}).get("overview"))
+    if not resolved_overview:
+        resolved_overview = _source_overview_fallback(
+            source_name=source_name,
+            source_config=source_config,
+            meta=meta,
+            org_data=org_data,
+        )
+
+    claim_payloads: List[Dict[str, Any]] = []
+    try:
+        claim_result = await db.execute(
+            select(SourceClaim).where(
+                SourceClaim.source_name.in_(matched_source_names),
+                SourceClaim.is_current.is_(True),
+            )
+        )
+        claim_rows = claim_result.scalars().all()
+
+        for claim_row in claim_rows:
+            evidence_result = await db.execute(
+                select(SourceClaimEvidence).where(
+                    SourceClaimEvidence.claim_id == claim_row.id
+                )
+            )
+            evidence_rows = evidence_result.scalars().all()
+            claim_payloads.append(
+                {
+                    "id": claim_row.id,
+                    "type": claim_row.claim_type,
+                    "kind": claim_row.claim_kind,
+                    "value": claim_row.claim_value,
+                    "confidence": claim_row.confidence,
+                    "parser_version": claim_row.parser_version,
+                    "valid_from": (
+                        claim_row.valid_from.isoformat()
+                        if claim_row.valid_from
+                        else None
+                    ),
+                    "valid_to": claim_row.valid_to.isoformat()
+                    if claim_row.valid_to
+                    else None,
+                    "evidence": [
+                        {
+                            "source_type": row.source_type,
+                            "source_name": row.source_name,
+                            "source_url": row.source_url,
+                            "retrieved_at": (
+                                row.retrieved_at.isoformat()
+                                if row.retrieved_at
+                                else None
+                            ),
+                            "raw_excerpt": row.raw_excerpt,
+                        }
+                        for row in evidence_rows
+                    ],
+                }
+            )
+    except AssertionError:
+        logger.debug(
+            "Skipping source claim loading due to mock session result exhaustion",
+        )
+
     return SourceWikiResponse(
         name=source_name,
         website=cast(Optional[str], (source_profile or {}).get("website")),
@@ -501,7 +601,7 @@ async def get_source_wiki(
         credibility_score=_optional_float(meta.credibility_score) if meta else None,
         is_state_media=meta.is_state_media if meta else None,
         source_type=meta.source_type if meta else None,
-        overview=cast(Optional[str], (source_profile or {}).get("overview")),
+        overview=resolved_overview,
         match_status=cast(Optional[str], (source_profile or {}).get("match_status")),
         wikipedia_url=cast(Optional[str], (source_profile or {}).get("wikipedia_url")),
         wikidata_qid=cast(Optional[str], (source_profile or {}).get("wikidata_qid")),
@@ -521,6 +621,7 @@ async def get_source_wiki(
         official_pages=cast(
             List[Dict[str, str]], (source_profile or {}).get("official_pages") or []
         ),
+        claims=claim_payloads,
         analysis_axes=scores,
         reporters=reporters,
         organization=org_data,

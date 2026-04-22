@@ -31,6 +31,7 @@ type SortMode = "asymmetry" | "largest" | "recent"
 const DEFAULT_LENS: BlindspotLens["id"] = "bias"
 const DEFAULT_WINDOW = "1w"
 const CARDS_PER_LANE = 18
+const DEFAULT_VISIBLE_PER_LANE = 10
 
 const SORT_OPTIONS: Array<{ value: SortMode; label: string }> = [
   { value: "asymmetry", label: "Most asymmetric" },
@@ -152,6 +153,17 @@ function geographySignalBadges(card: BlindspotCard) {
   )
 }
 
+function articleSourceSummary(card: BlindspotCard): string | null {
+  const uniqueSources = Array.from(new Set(card.articles.map((article) => article.source)))
+  if (uniqueSources.length === 0) {
+    return null
+  }
+
+  const visibleSources = uniqueSources.slice(0, 3).join(" · ")
+  const remaining = uniqueSources.length - Math.min(uniqueSources.length, 3)
+  return remaining > 0 ? `${visibleSources} +${remaining} more` : visibleSources
+}
+
 function LeadStory({
   card,
   laneId,
@@ -171,6 +183,7 @@ function LeadStory({
   const blindspotValue = isLackingPoleA 
     ? Math.round(card.coverage_shares.pole_a * 100) 
     : Math.round(card.coverage_shares.pole_b * 100)
+  const sourceSummary = articleSourceSummary(card)
 
   return (
     <button
@@ -224,6 +237,11 @@ function LeadStory({
 
         <div className="space-y-4">
           {geographySignalBadges(card)}
+          {sourceSummary ? (
+            <p className="text-[10px] font-mono uppercase tracking-[0.16em] text-muted-foreground/45">
+              Comparing {card.articles.length} sampled articles from {sourceSummary}
+            </p>
+          ) : null}
           <div className="flex items-center justify-between text-[9px] font-mono uppercase tracking-[0.2em] text-muted-foreground/40">
             <div className="flex items-center gap-2">
               <div className="h-2 w-2 rounded-full bg-cyan-400" />
@@ -254,6 +272,8 @@ function StoryRow({
   poleLabels: { pole_a: string; pole_b: string }
   onOpen: (card: BlindspotCard) => void
 }) {
+  const sourceSummary = articleSourceSummary(card)
+
   return (
     <button
       type="button"
@@ -278,6 +298,11 @@ function StoryRow({
       </div>
       
       <div className="space-y-2">
+        {sourceSummary ? (
+          <p className="text-[9px] font-mono uppercase tracking-[0.14em] text-muted-foreground/35">
+            {card.articles.length} sampled articles · {sourceSummary}
+          </p>
+        ) : null}
         {geographySignalBadges(card)}
         <div className="flex items-center justify-between text-[8px] font-mono uppercase tracking-widest text-muted-foreground/30">
           <span>{poleLabels.pole_a.charAt(0)} {Math.round(card.coverage_shares.pole_a * 100)}%</span>
@@ -294,6 +319,11 @@ export function BlindspotView({ category, sources }: BlindspotViewProps) {
   const [selectedLens, setSelectedLens] = useState<BlindspotLens["id"]>(DEFAULT_LENS)
   const [sortMode, setSortMode] = useState<SortMode>("asymmetry")
   const [selectedCard, setSelectedCard] = useState<BlindspotCard | null>(null)
+  const [expandedLanes, setExpandedLanes] = useState<Record<BlindspotLane["id"], boolean>>({
+    pole_a: false,
+    shared: false,
+    pole_b: false,
+  })
 
   const serializedSources = useMemo(() => serializeSources(sources), [sources])
 
@@ -360,6 +390,49 @@ export function BlindspotView({ category, sources }: BlindspotViewProps) {
       pole_b: laneB?.label || "Pole B"
     }
   }, [data])
+
+  function renderLaneCards(
+    laneId: BlindspotLane["id"],
+    emptyLabel: string,
+  ) {
+    const cards = laneMap.get(laneId) ?? []
+    const leadCard = cards[0]
+    const isExpanded = expandedLanes[laneId]
+    const visibleCount = isExpanded ? cards.length : DEFAULT_VISIBLE_PER_LANE
+    const listCards = cards.slice(1, visibleCount)
+    const hiddenCount = Math.max(cards.length - visibleCount, 0)
+
+    if (!leadCard) {
+      return (
+        <div className="bg-white/[0.01] py-12 text-center rounded-2xl text-xs font-mono text-muted-foreground/20">
+          {emptyLabel}
+        </div>
+      )
+    }
+
+    return (
+      <>
+        <LeadStory card={leadCard} laneId={laneId} poleLabels={poleLabels} onOpen={setSelectedCard} />
+        <div className="flex flex-col gap-3">
+          {listCards.map((card) => (
+            <StoryRow key={card.cluster_id} card={card} poleLabels={poleLabels} onOpen={setSelectedCard} />
+          ))}
+        </div>
+        {hiddenCount > 0 ? (
+          <Button
+            type="button"
+            variant="outline"
+            onClick={() =>
+              setExpandedLanes((current) => ({ ...current, [laneId]: true }))
+            }
+            className="w-full rounded-2xl border-white/10 bg-white/[0.02] py-6 text-[10px] font-mono uppercase tracking-[0.2em] text-muted-foreground"
+          >
+            Show {hiddenCount} more blindspots
+          </Button>
+        ) : null}
+      </>
+    )
+  }
 
   if (isLoading && !data) {
     return (
@@ -486,24 +559,7 @@ export function BlindspotView({ category, sources }: BlindspotViewProps) {
               </div>
 
               <div className="flex flex-col space-y-8">
-                {(() => {
-                  const cards = laneMap.get("pole_b") ?? []
-                  const leadCard = cards[0]
-                  const listCards = cards.slice(1, 8)
-                  
-                  if (!leadCard) return <div className="bg-white/[0.01] py-12 text-center rounded-2xl text-xs font-mono text-muted-foreground/20">No significant blindspots detected</div>
-                  
-                  return (
-                    <>
-                      <LeadStory card={leadCard} laneId="pole_b" poleLabels={poleLabels} onOpen={setSelectedCard} />
-                      <div className="flex flex-col gap-3">
-                        {listCards.map((card) => (
-                          <StoryRow key={card.cluster_id} card={card} poleLabels={poleLabels} onOpen={setSelectedCard} />
-                        ))}
-                      </div>
-                    </>
-                  )
-                })()}
+                {renderLaneCards("pole_b", "No significant blindspots detected")}
               </div>
             </motion.section>
 
@@ -522,24 +578,7 @@ export function BlindspotView({ category, sources }: BlindspotViewProps) {
               </div>
 
               <div className="flex flex-col space-y-8">
-                {(() => {
-                  const cards = laneMap.get("shared") ?? []
-                  const leadCard = cards[0]
-                  const listCards = cards.slice(1, 8)
-                  
-                  if (!leadCard) return <div className="bg-white/[0.01] py-12 text-center rounded-2xl text-xs font-mono text-muted-foreground/20">No balanced signals detected</div>
-                  
-                  return (
-                    <>
-                      <LeadStory card={leadCard} laneId="shared" poleLabels={poleLabels} onOpen={setSelectedCard} />
-                      <div className="flex flex-col gap-3">
-                        {listCards.map((card) => (
-                          <StoryRow key={card.cluster_id} card={card} poleLabels={poleLabels} onOpen={setSelectedCard} />
-                        ))}
-                      </div>
-                    </>
-                  )
-                })()}
+                {renderLaneCards("shared", "No balanced signals detected")}
               </div>
             </motion.section>
 
@@ -558,24 +597,7 @@ export function BlindspotView({ category, sources }: BlindspotViewProps) {
               </div>
 
               <div className="flex flex-col space-y-8">
-                {(() => {
-                  const cards = laneMap.get("pole_a") ?? []
-                  const leadCard = cards[0]
-                  const listCards = cards.slice(1, 8)
-                  
-                  if (!leadCard) return <div className="bg-white/[0.01] py-12 text-center rounded-2xl text-xs font-mono text-muted-foreground/20">No significant blindspots detected</div>
-                  
-                  return (
-                    <>
-                      <LeadStory card={leadCard} laneId="pole_a" poleLabels={poleLabels} onOpen={setSelectedCard} />
-                      <div className="flex flex-col gap-3">
-                        {listCards.map((card) => (
-                          <StoryRow key={card.cluster_id} card={card} poleLabels={poleLabels} onOpen={setSelectedCard} />
-                        ))}
-                      </div>
-                    </>
-                  )
-                })()}
+                {renderLaneCards("pole_a", "No significant blindspots detected")}
               </div>
             </motion.section>
           </div>

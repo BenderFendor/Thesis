@@ -174,7 +174,22 @@ fn extract_text_from_selectors(document: &Html, selectors: &[&str]) -> String {
 pub fn extract_article_from_html(html: &str) -> ArticleExtraction {
     let document = Html::parse_document(html);
 
-    let text = extract_text_from_selectors(&document, &["article p", "main p", "body p"]);
+    let text = extract_text_from_selectors(
+        &document,
+        &[
+            "[itemprop='articleBody'] p",
+            "[data-testid='article-body'] p",
+            "[data-component='text-block'] p",
+            "[role='article'] p",
+            ".article-body p",
+            ".article__body p",
+            ".story-body p",
+            ".caas-body p",
+            "article p",
+            "main p",
+            "body p",
+        ],
+    );
     let title = extract_title(&document);
     let authors = extract_authors(&document);
     let publish_date = extract_publish_date(&document);
@@ -236,5 +251,48 @@ pub fn extract_og_image_from_html(html: &str) -> OgImageExtraction {
     OgImageExtraction {
         image_url,
         candidates,
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::extract_article_from_html;
+
+    #[test]
+    fn extracts_itemprop_article_body_paragraphs() {
+        let html = r#"
+        <html>
+            <head><title>Example</title></head>
+            <body>
+                <div itemprop="articleBody">
+                    <p>First paragraph.</p>
+                    <p>Second paragraph.</p>
+                </div>
+            </body>
+        </html>
+        "#;
+
+        let extracted = extract_article_from_html(html);
+
+        assert_eq!(extracted.text, "First paragraph.\n\nSecond paragraph.");
+    }
+
+    #[test]
+    fn prefers_article_body_wrappers_over_generic_body_paragraphs() {
+        let html = r#"
+        <html>
+            <head><title>Example</title></head>
+            <body>
+                <p>Navigation blurb.</p>
+                <section class="article-body">
+                    <p>Primary story paragraph.</p>
+                </section>
+            </body>
+        </html>
+        "#;
+
+        let extracted = extract_article_from_html(html);
+
+        assert_eq!(extracted.text, "Primary story paragraph.");
     }
 }

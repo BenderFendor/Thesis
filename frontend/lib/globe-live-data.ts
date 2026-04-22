@@ -27,6 +27,25 @@ function sortByNewest(articles: NewsArticle[]): NewsArticle[] {
   return [...articles].sort((left, right) => getArticleTimestamp(right) - getArticleTimestamp(left))
 }
 
+function dedupeArticles(articles: NewsArticle[]): NewsArticle[] {
+  const seenIds = new Set<number>()
+  const seenFallbackKeys = new Set<string>()
+
+  return articles.filter((article) => {
+    if (seenIds.has(article.id)) {
+      return false
+    }
+    seenIds.add(article.id)
+
+    const fallbackKey = `${article.url}::${article.source}::${article.title}`
+    if (seenFallbackKeys.has(fallbackKey)) {
+      return false
+    }
+    seenFallbackKeys.add(fallbackKey)
+    return true
+  })
+}
+
 function countDistinctSources(articles: NewsArticle[]): number {
   return new Set(
     articles
@@ -156,12 +175,13 @@ export function buildLocalLensFromArticles({
     return sourceCountry !== null && sourceCountry !== codeUpper && (article.mentioned_countries ?? []).includes(codeUpper)
   })
 
-  const fullResult =
+  const fullResult = dedupeArticles(
     view === "internal"
       ? internalPrimary.length > 0
         ? internalPrimary
         : internalFallback
-      : externalMatches
+      : externalMatches,
+  )
 
   const usesSourceFallback = view === "internal" && internalPrimary.length === 0 && internalFallback.length > 0
   const limitedArticles = fullResult.slice(0, limit)
