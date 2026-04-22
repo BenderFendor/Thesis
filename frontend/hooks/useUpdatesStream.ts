@@ -2,8 +2,7 @@
 
 import { useEffect, useCallback, useRef } from "react";
 import { useQueryClient } from "@tanstack/react-query";
-
-const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+import { API_BASE_URL } from "@/lib/api";
 
 interface UpdateEvent {
     id: number;
@@ -40,7 +39,7 @@ export function useUpdatesStream(options: UseUpdatesStreamOptions = {}) {
             eventSourceRef.current.close();
         }
 
-        const eventSource = new EventSource(`${API_BASE}/api/updates/stream`);
+        const eventSource = new EventSource(`${API_BASE_URL}/api/updates/stream`);
         eventSourceRef.current = eventSource;
 
         eventSource.onmessage = (event) => {

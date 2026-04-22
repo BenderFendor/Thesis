@@ -80,6 +80,8 @@ services:
       - CHROMA_HOST=chromadb
       - CHROMA_PORT=8000
       - EMBEDDING_SERVICE_URL=http://embedding-worker:8002
+      - CORS_ORIGINS=http://localhost:3000,http://localhost:3001,https://test.jordandgreen.com
+      - CORS_ORIGIN_REGEX=^https://([a-z0-9-]+\.)?jordandgreen\.com$
     volumes:
       - ./backend:/app
       - backend_cache:/app/.venv
@@ -112,6 +114,8 @@ services:
       - NODE_ENV=development 
       - NEXT_PUBLIC_API_URL=https://api.jordandgreen.com/ # use to be localhost:8000 for local dev but now using deployed backend
       - NEXT_PUBLIC_DOCKER_API_URL=https://api.jordandgreen.com/
+      - NEXT_PUBLIC_PUBLIC_API_URL=https://api.jordandgreen.com/
+      - NEXT_PUBLIC_FRONTEND_HOST_SUFFIX=jordandgreen.com
     depends_on:
       - backend
     restart: unless-stopped

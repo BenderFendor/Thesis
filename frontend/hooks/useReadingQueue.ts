@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from "react";
-import { NewsArticle } from "@/lib/api";
+import { NewsArticle, API_BASE_URL } from "@/lib/api";
 import {
   addToReadingQueue as apiAddToQueue,
   removeFromReadingQueueByUrl as apiRemoveFromQueue,
@@ -9,7 +9,6 @@ import { toast } from "sonner";
 
 const READING_QUEUE_STORAGE_KEY = "readingQueue";
 const USE_DATABASE = process.env.NEXT_PUBLIC_USE_DB_QUEUE === "true";
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
 
 // Event emitter for cross-component updates
 type QueueListener = (articles: NewsArticle[]) => void;

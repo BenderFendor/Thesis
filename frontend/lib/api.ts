@@ -9,9 +9,43 @@ import type {
 const DEFAULT_BACKEND_PORT = "8000"
 const LOCAL_BACKEND_FALLBACK = `http://localhost:${DEFAULT_BACKEND_PORT}`
 const LOCAL_HOSTNAMES = new Set(["localhost", "127.0.0.1", "0.0.0.0", "[::1]"])
+const PUBLIC_FRONTEND_DOMAIN = process.env.NEXT_PUBLIC_FRONTEND_HOST_SUFFIX?.trim().replace(/^\./, "") || ""
+const PUBLIC_API_FALLBACK = process.env.NEXT_PUBLIC_PUBLIC_API_URL?.trim().replace(/\/+$/, "") || ""
+const PRIVATE_IPV4_PATTERNS = [
+  /^10\.\d{1,3}\.\d{1,3}\.\d{1,3}$/,
+  /^192\.168\.\d{1,3}\.\d{1,3}$/,
+  /^172\.(1[6-9]|2\d|3[0-1])\.\d{1,3}\.\d{1,3}$/,
+]
 
 function isLocalHostname(hostname: string): boolean {
   return LOCAL_HOSTNAMES.has(hostname.trim().toLowerCase())
+}
+
+function isLanHostname(hostname: string): boolean {
+  const normalized = hostname.trim().toLowerCase()
+
+  if (isLocalHostname(normalized)) {
+    return true
+  }
+
+  if (normalized.endsWith(".local")) {
+    return true
+  }
+
+  return PRIVATE_IPV4_PATTERNS.some((pattern) => pattern.test(normalized))
+}
+
+function isPublicFrontendHostname(hostname: string): boolean {
+  const normalized = hostname.trim().toLowerCase()
+
+  if (!PUBLIC_FRONTEND_DOMAIN) {
+    return false
+  }
+
+  return (
+    normalized === PUBLIC_FRONTEND_DOMAIN ||
+    normalized.endsWith(`.${PUBLIC_FRONTEND_DOMAIN}`)
+  )
 }
 
 // Default to localhost backend when env var is not set. If the UI is opened from
@@ -29,14 +63,29 @@ const resolveBaseUrl = (value?: string) => {
     const url = new URL(normalized)
     const browserHostname = window.location.hostname
 
-    if (!browserHostname || isLocalHostname(browserHostname) || !isLocalHostname(url.hostname)) {
+    if (
+      PUBLIC_FRONTEND_DOMAIN &&
+      PUBLIC_API_FALLBACK &&
+      isLocalHostname(url.hostname) &&
+      isPublicFrontendHostname(browserHostname) &&
+      !browserHostname.startsWith("api.")
+    ) {
+      return PUBLIC_API_FALLBACK
+    }
+
+    if (!browserHostname || !isLocalHostname(url.hostname) || !isLanHostname(browserHostname)) {
       return normalized
     }
 
     url.hostname = browserHostname
-    if (!url.port) {
+    url.protocol = window.location.protocol
+
+    if (window.location.protocol === 'https:') {
+      url.port = ''
+    } else if (!url.port) {
       url.port = DEFAULT_BACKEND_PORT
     }
+
     return url.toString().replace(/\/+$/, "")
   } catch {
     return normalized
@@ -1693,9 +1742,7 @@ export function streamNews(options: StreamOptions = {}): {
   );
 
   // Build SSE URL with parameters
-  const baseUrl = (
-    process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000"
-  ).replace(/\/+$/, "");
+  const baseUrl = API_BASE_URL;
   const params = new URLSearchParams({
     use_cache: String(useCache),
   });

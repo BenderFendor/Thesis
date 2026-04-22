@@ -34,6 +34,7 @@ export default function RootLayout({
     <html lang="en" suppressHydrationWarning>
       <body
         className={`font-sans text-foreground antialiased ${GeistMono.variable} ${outfit.variable} ${instrumentSerif.variable}`}
+        suppressHydrationWarning
       >
         <Providers>
           <div className="min-h-screen bg-background text-foreground selection:bg-primary selection:text-primary-foreground">

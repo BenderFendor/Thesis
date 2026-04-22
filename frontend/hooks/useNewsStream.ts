@@ -12,9 +12,7 @@ import {
   logStreamEvent as perfLogStreamEvent,
   endStream as perfEndStream,
 } from "@/lib/performance-logger";
-
-const NEXT_PUBLIC_DOCKER_API_URL =
-  process.env.NEXT_PUBLIC_DOCKER_API_URL || "http://localhost:8000";
+import { API_BASE_URL } from "@/lib/api";
 
 interface UseNewsStreamOptions extends Omit<
   StreamOptions,
@@ -307,7 +305,7 @@ export const useNewsStream = (options: UseNewsStreamOptions = {}) => {
   // WebSocket listener for image updates
   useEffect(() => {
     const ws = new WebSocket(
-      NEXT_PUBLIC_DOCKER_API_URL.replace(/^http/, "ws") + "/ws" ||
+      API_BASE_URL.replace(/^http/, "ws") + "/ws" ||
         "ws://localhost:8000/ws",
     );
 
