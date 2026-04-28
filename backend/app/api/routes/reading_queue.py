@@ -10,6 +10,7 @@ from app.models.reading_queue import (
     AddToQueueRequest,
     UpdateQueueItemRequest,
     QueueResponse,
+    QueueOverviewResponse,
     Highlight,
     CreateHighlightRequest,
     UpdateHighlightRequest,
@@ -22,18 +23,6 @@ from app.core.logging import get_logger
 logger = get_logger("reading_queue_routes")
 
 router = APIRouter(prefix="/api/queue", tags=["reading_queue"])
-
-
-class QueueOverviewResponse(BaseModel):
-    """Queue overview statistics."""
-
-    total_items: int
-    daily_items: int
-    permanent_items: int
-    unread_count: int
-    reading_count: int
-    completed_count: int
-    estimated_total_read_time_minutes: int
 
 
 @router.post("/add", response_model=ReadingQueueItem)

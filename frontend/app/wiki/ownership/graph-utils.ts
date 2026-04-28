@@ -98,30 +98,40 @@ export function runSimulation(
   const nodeMap = new Map(nodes.map((node) => [node.id, node]));
   const centerX = width / 2;
   const centerY = height / 2;
-  const orgCount = nodes.filter((node) => !isSource(node)).length || 1;
-  let orgIndex = 0;
-  let sourceIndex = 0;
+  const organizations = nodes.filter((node) => !isSource(node));
+  const sources = nodes.filter((node) => isSource(node));
 
-  for (const node of nodes) {
-    if (isSource(node)) {
-      const angle = (2 * Math.PI * sourceIndex) / Math.max(nodes.length - orgCount, 1);
-      const ring = Math.min(width, height) * 0.38;
-      node.x = centerX + Math.cos(angle) * ring;
-      node.y = centerY + Math.sin(angle) * ring;
-      sourceIndex += 1;
-      continue;
-    }
+  organizations
+    .sort((a, b) => b.degree - a.degree)
+    .forEach((node, index) => {
+      const angle = index * 2.399963229728653;
+      const distance = 18 + Math.sqrt(index + 1) * Math.min(width, height) * 0.03;
+      node.x = centerX + Math.cos(angle) * distance;
+      node.y = centerY + Math.sin(angle) * distance;
+    });
 
-    const angle = (2 * Math.PI * orgIndex) / orgCount;
-    const ring = Math.min(width, height) * 0.18;
-    node.x = centerX + Math.cos(angle) * ring;
-    node.y = centerY + Math.sin(angle) * ring;
-    orgIndex += 1;
+  sources
+    .sort((a, b) => b.degree - a.degree)
+    .forEach((node, index) => {
+      const progress = index / Math.max(sources.length - 1, 1);
+      const angle = index * 2.399963229728653;
+      const ring = Math.min(width, height) * (0.31 + progress * 0.17);
+      const wobble = 20 + (index % 5) * 7;
+      node.x = centerX + Math.cos(angle) * ring + Math.sin(angle * 3.2) * wobble;
+      node.y = centerY + Math.sin(angle) * ring + Math.cos(angle * 2.4) * wobble * 0.65;
+    });
+
+  if (edges.length === 0) {
+    return nodes.map((node) => ({
+      ...node,
+      x: Math.max(28, Math.min(width - 28, node.x)),
+      y: Math.max(28, Math.min(height - 28, node.y)),
+    }));
   }
 
-  for (let iteration = 0; iteration < 220; iteration += 1) {
-    const alpha = 1 - iteration / 220;
-    const repulsion = 2100 * alpha;
+  for (let iteration = 0; iteration < 260; iteration += 1) {
+    const alpha = 1 - iteration / 260;
+    const repulsion = 3400 * alpha;
 
     for (let i = 0; i < nodes.length; i += 1) {
       for (let j = i + 1; j < nodes.length; j += 1) {
@@ -131,7 +141,8 @@ export function runSimulation(
         const dy = b.y - a.y;
         const distSq = Math.max(dx * dx + dy * dy, 1);
         const dist = Math.sqrt(distSq);
-        const force = repulsion / distSq;
+        const collisionPadding = (a.radius + b.radius + 8) ** 2;
+        const force = (repulsion + collisionPadding * 14) / distSq;
         const fx = (dx / dist) * force;
         const fy = (dy / dist) * force;
         a.x -= fx;
@@ -148,8 +159,9 @@ export function runSimulation(
       const dx = target.x - source.x;
       const dy = target.y - source.y;
       const dist = Math.max(Math.sqrt(dx * dx + dy * dy), 1);
-      const targetDistance = edge.type === "ownership" ? 110 : 82;
-      const force = (dist - targetDistance) * 0.04 * alpha;
+      const baseDistance = edge.type === "ownership" ? 128 : 96;
+      const targetDistance = baseDistance + source.radius + target.radius;
+      const force = (dist - targetDistance) * 0.055 * alpha;
       const fx = (dx / dist) * force;
       const fy = (dy / dist) * force;
       source.x += fx;
@@ -159,11 +171,11 @@ export function runSimulation(
     }
 
     for (const node of nodes) {
-      const gravity = isSource(node) ? 0.004 : 0.0075;
+      const gravity = isSource(node) ? 0.0035 : 0.008;
       node.x += (centerX - node.x) * gravity;
       node.y += (centerY - node.y) * gravity;
-      node.x = Math.max(28, Math.min(width - 28, node.x));
-      node.y = Math.max(28, Math.min(height - 28, node.y));
+      node.x = Math.max(34, Math.min(width - 34, node.x));
+      node.y = Math.max(34, Math.min(height - 34, node.y));
     }
   }
 

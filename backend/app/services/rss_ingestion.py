@@ -216,10 +216,7 @@ def _merge_partial_cache_update(
         if article.source not in updated_names
     ]
     merged_articles = existing_articles + updated_articles
-    try:
-        merged_articles.sort(key=lambda article: article.published, reverse=True)
-    except Exception:
-        pass
+    merged_articles.sort(key=lambda article: article.published, reverse=True)
 
     stats_by_name: Dict[str, Dict[str, object]] = {}
     for existing_stat in news_cache.get_source_stats():
@@ -498,10 +495,7 @@ async def _refresh_news_cache_with_rust(
             total_articles = len(news_cache.get_articles())
             total_sources = len(news_cache.get_source_stats())
         else:
-            try:
-                all_articles.sort(key=lambda article: article.published, reverse=True)
-            except Exception:
-                pass
+            all_articles.sort(key=lambda article: article.published, reverse=True)
 
             news_cache.update_cache(all_articles, source_stats)
             total_articles = len(all_articles)

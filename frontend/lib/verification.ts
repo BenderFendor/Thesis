@@ -6,102 +6,24 @@
 
 import { API_BASE_URL } from "./api";
 import { logger } from "./logger";
-
-// --- Types ---
-
-export type ConfidenceLevel = "high" | "medium" | "low" | "very_low";
-
-export interface SourceInfo {
-  id: string;
-  url: string;
-  title: string | null;
-  domain: string;
-  credibility_score: number;
-  source_type: string;
-  published_at: string | null;
-  supports_claim: boolean;
-  excerpt: string | null;
-}
-
-export interface VerifiedClaim {
-  id: string;
-  claim_text: string;
-  confidence: number;
-  confidence_level: ConfidenceLevel;
-  supporting_sources: string[];
-  conflicting_sources: string[];
-  footnotes: number[];
-  needs_recheck: boolean;
-  recheck_reason: string | null;
-}
-
-export interface VerificationResult {
-  query: string;
-  overall_confidence: number;
-  overall_confidence_level: ConfidenceLevel;
-  verified_claims: VerifiedClaim[];
-  sources: Record<string, SourceInfo>;
-  markdown_report: string;
-  generated_at: string;
-  duration_ms: number;
-  error: string | null;
-}
-
-export interface VerificationRequest {
-  query: string;
-  main_answer: string;
-  main_findings?: Array<Record<string, unknown>>;
-}
-
-export interface VerificationStatus {
-  enabled: boolean;
-  max_duration_seconds: number;
-  max_claims: number;
-  max_sources_per_claim: number;
-  cache_ttl_hours: number;
-  recheck_threshold: number;
-  allowed_domains_count: number;
-}
-
-export interface VerificationSummary {
-  summary: {
-    overall_confidence: number;
-    overall_level: ConfidenceLevel;
-    total_claims: number;
-    high_confidence: number;
-    medium_confidence: number;
-    low_confidence: number;
-    total_sources: number;
-  };
-  claims: Array<{
-    id: string;
-    text: string;
-    confidence: number;
-    level: ConfidenceLevel;
-    supporting_sources: string[];
-    conflicting_sources: string[];
-    needs_recheck: boolean;
-    recheck_reason: string | null;
-  }>;
-  sources: Record<string, {
-    id: string;
-    url: string;
-    title: string | null;
-    domain: string;
-    credibility: number;
-    type: string;
-    supports_claim: boolean;
-    excerpt: string | null;
-  }>;
-}
-
-// --- SSE Stream Event Types ---
-
-export type VerificationStreamEvent =
-  | { type: "started"; query: string }
-  | { type: "claim"; claim: VerifiedClaim; progress: number }
-  | { type: "complete"; result: VerificationResult }
-  | { type: "error"; content: string };
+import type {
+  ConfidenceLevel,
+  VerificationRequest,
+  VerificationResult,
+  VerificationStatus,
+  VerificationSummary,
+  VerificationStreamEvent,
+} from "@/lib/types/verification";
+export type {
+  ConfidenceLevel,
+  SourceInfo,
+  VerifiedClaim,
+  VerificationRequest,
+  VerificationResult,
+  VerificationStatus,
+  VerificationSummary,
+  VerificationStreamEvent,
+} from "@/lib/types/verification";
 
 // --- API Functions ---
 

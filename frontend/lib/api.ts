@@ -4,6 +4,7 @@ import type {
   components as OpenApiComponents,
   paths as OpenApiPaths,
 } from "@/lib/generated/openapi";
+import type { ArticleCore, SourceCore } from "@/lib/types/core";
 // API utility for communicating with FastAPI backend
 
 const DEFAULT_BACKEND_PORT = "8000"
@@ -15,6 +16,10 @@ const PRIVATE_IPV4_PATTERNS = [
   /^10\.\d{1,3}\.\d{1,3}\.\d{1,3}$/,
   /^192\.168\.\d{1,3}\.\d{1,3}$/,
   /^172\.(1[6-9]|2\d|3[0-1])\.\d{1,3}\.\d{1,3}$/,
+]
+const CLOUDFLARED_TUNNEL_PATTERNS = [
+  /\.trycloudflare\.com$/,
+  /\.cfargotunnel\.com$/,
 ]
 
 function isLocalHostname(hostname: string): boolean {
@@ -48,9 +53,14 @@ function isPublicFrontendHostname(hostname: string): boolean {
   )
 }
 
+function isCloudflaredTunnelHostname(hostname: string): boolean {
+  const normalized = hostname.trim().toLowerCase()
+  return CLOUDFLARED_TUNNEL_PATTERNS.some((pattern) => pattern.test(normalized))
+}
+
 // Default to localhost backend when env var is not set. If the UI is opened from
-// another device on the LAN, rewrite localhost-style backend URLs to the current
-// browser hostname so the remote browser still talks to this machine.
+// another device on the LAN or Cloudflare tunnel, rewrite localhost-style backend
+// URLs to the current browser hostname so remote browsers can reach this machine.
 const resolveBaseUrl = (value?: string) => {
   const raw = value && value.trim().length > 0 ? value : LOCAL_BACKEND_FALLBACK
   const normalized = raw.replace(/\/+$/, "")
@@ -73,7 +83,11 @@ const resolveBaseUrl = (value?: string) => {
       return PUBLIC_API_FALLBACK
     }
 
-    if (!browserHostname || !isLocalHostname(url.hostname) || !isLanHostname(browserHostname)) {
+    const shouldRewriteLocalHost =
+      isLanHostname(browserHostname) ||
+      isCloudflaredTunnelHostname(browserHostname)
+
+    if (!browserHostname || !isLocalHostname(url.hostname) || !shouldRewriteLocalHost) {
       return normalized
     }
 
@@ -154,10 +168,8 @@ const pruneOgImageCache = () => {
 
 // Data types
 
-export interface NewsSource {
-  id: string;
+export interface NewsSource extends Pick<SourceCore, "id" | "name"> {
   slug: string;
-  name: string;
   country: string;
   url: string;
   rssUrl: string;
@@ -170,21 +182,17 @@ export interface NewsSource {
   factualRating?: string;
 }
 
-export interface NewsArticle {
+export interface NewsArticle
+  extends Pick<ArticleCore, "title" | "source" | "sourceId" | "url" | "publishedAt"> {
   id: number;
-  title: string;
-  source: string;
-  sourceId: string;
   country: string;
   credibility: "high" | "medium" | "low";
   bias: "left" | "center" | "right";
   summary: string;
   content?: string;
   image: string;
-  publishedAt: string;
   _parsedTimestamp?: number;
   category: string;
-  url: string;
   tags: string[];
   originalLanguage: string;
   translated: boolean;
@@ -1547,6 +1555,33 @@ export interface StartupMetricsResponse {
   notes: Record<string, unknown>;
 }
 
+function withDebugQuery(path: string, searchParams?: URLSearchParams): string {
+  const query = searchParams?.toString()
+  return `${API_BASE_URL}${path}${query ? `?${query}` : ""}`
+}
+
+async function fetchDebugJson(
+  path: string,
+  errorMessage: string,
+  searchParams?: URLSearchParams,
+): Promise<unknown> {
+  const response = await fetch(withDebugQuery(path, searchParams))
+  if (!response.ok) {
+    throw new Error(`${errorMessage} (${response.status})`)
+  }
+  return response.json()
+}
+
+async function fetchDebugParsed<T>(
+  path: string,
+  schema: z.ZodType<T>,
+  errorMessage: string,
+  searchParams?: URLSearchParams,
+): Promise<T> {
+  const payload = await fetchDebugJson(path, errorMessage, searchParams)
+  return schema.parse(payload)
+}
+
 export async function fetchChromaDebugArticles(params?: {
   limit?: number;
   offset?: number;
@@ -1554,18 +1589,12 @@ export async function fetchChromaDebugArticles(params?: {
   const searchParams = new URLSearchParams();
   if (params?.limit) searchParams.append("limit", String(params.limit));
   if (params?.offset) searchParams.append("offset", String(params.offset));
-
-  const query = searchParams.toString();
-  const response = await fetch(
-    `${API_BASE_URL}/debug/chromadb/articles${query ? `?${query}` : ""}`,
-  );
-
-  if (!response.ok) {
-    throw new Error(`Failed to fetch Chroma debug data (${response.status})`);
-  }
-
-  const payload: unknown = await response.json();
-  return ChromaDebugResponseSchema.parse(payload);
+  return fetchDebugParsed(
+    "/debug/chromadb/articles",
+    ChromaDebugResponseSchema,
+    "Failed to fetch Chroma debug data",
+    searchParams,
+  )
 }
 
 export async function fetchDatabaseDebugArticles(params?: {
@@ -1593,35 +1622,26 @@ export async function fetchDatabaseDebugArticles(params?: {
   if (params?.published_after) {
     searchParams.append("published_after", params.published_after);
   }
-
-  const query = searchParams.toString();
-  const response = await fetch(
-    `${API_BASE_URL}/debug/database/articles${query ? `?${query}` : ""}`,
-  );
-
-  if (!response.ok) {
-    throw new Error(`Failed to fetch database debug data (${response.status})`);
-  }
-
-  const payload: unknown = await response.json();
-  return DatabaseDebugResponseSchema.parse(payload);
+  return fetchDebugParsed(
+    "/debug/database/articles",
+    DatabaseDebugResponseSchema,
+    "Failed to fetch database debug data",
+    searchParams,
+  )
 }
 
 export async function fetchStorageDrift(
   sampleLimit: number = 50,
 ): Promise<StorageDriftReport> {
-  const response = await fetch(
-    `${API_BASE_URL}/debug/storage/drift?sample_limit=${sampleLimit}`,
-  );
-
-  if (!response.ok) {
-    throw new Error(
-      `Failed to fetch storage drift report (${response.status})`,
-    );
-  }
-
-  const payload: unknown = await response.json();
-  return StorageDriftReportSchema.parse(payload);
+  const searchParams = new URLSearchParams({
+    sample_limit: String(sampleLimit),
+  })
+  return fetchDebugParsed(
+    "/debug/storage/drift",
+    StorageDriftReportSchema,
+    "Failed to fetch storage drift report",
+    searchParams,
+  )
 }
 
 export async function fetchCacheDebugArticles(params?: {
@@ -1633,18 +1653,12 @@ export async function fetchCacheDebugArticles(params?: {
   if (params?.limit) searchParams.append("limit", String(params.limit));
   if (params?.offset) searchParams.append("offset", String(params.offset));
   if (params?.source) searchParams.append("source", params.source);
-
-  const query = searchParams.toString();
-  const response = await fetch(
-    `${API_BASE_URL}/debug/cache/articles${query ? `?${query}` : ""}`,
-  );
-
-  if (!response.ok) {
-    throw new Error(`Failed to fetch cache debug data (${response.status})`);
-  }
-
-  const payload: unknown = await response.json();
-  return CacheDebugResponseSchema.parse(payload);
+  return fetchDebugParsed(
+    "/debug/cache/articles",
+    CacheDebugResponseSchema,
+    "Failed to fetch cache debug data",
+    searchParams,
+  )
 }
 
 export async function fetchCacheDelta(params?: {
@@ -1669,18 +1683,12 @@ export async function fetchCacheDelta(params?: {
       String(params.sample_preview_limit),
     );
   }
-
-  const query = searchParams.toString();
-  const response = await fetch(
-    `${API_BASE_URL}/debug/cache/delta${query ? `?${query}` : ""}`,
-  );
-
-  if (!response.ok) {
-    throw new Error(`Failed to fetch cache delta (${response.status})`);
-  }
-
-  const payload: unknown = await response.json();
-  return CacheDeltaResponseSchema.parse(payload);
+  return fetchDebugParsed(
+    "/debug/cache/delta",
+    CacheDeltaResponseSchema,
+    "Failed to fetch cache delta",
+    searchParams,
+  )
 }
 
 export async function fetchStartupMetrics(): Promise<StartupMetricsResponse> {
@@ -2648,10 +2656,14 @@ export async function performAgenticSearch(
   maxSteps: number = 8,
 ): Promise<AgenticSearchResponse> {
   try {
-    const response = await fetch(`${API_BASE_URL}/api/search/agentic`, {
+    void maxSteps;
+    const response = await fetch(`${API_BASE_URL}/api/news/research`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ query, max_steps: maxSteps }),
+      body: JSON.stringify({
+        query,
+        include_thinking: false,
+      }),
     });
 
     if (!response.ok) {
@@ -2659,7 +2671,14 @@ export async function performAgenticSearch(
     }
 
     const data = await response.json();
-    return data as AgenticSearchResponse;
+    const researchResponse = data as NewsResearchResponse;
+
+    return {
+      success: researchResponse.success,
+      answer: researchResponse.answer,
+      reasoning: researchResponse.thinking_steps,
+      citations: researchResponse.referenced_articles,
+    };
   } catch (error) {
     console.error("Agentic search failed:", error);
     throw error;
@@ -5161,3 +5180,6 @@ export async function fetchOGImage(url: string): Promise<string | null> {
     pruneOgImageCache();
   }
 }
+
+// Re-export shared types for backward compatibility
+export type { ArticleCore, SourceCore, ClusterCore, QueuedItem, HighlightCore } from "./types/core";

@@ -56,6 +56,7 @@ export function GlobalNavigation({
   const isOwnerGraph = pathname.includes("/ownership")
 
   return (
+    <>
     <aside className="group hidden lg:flex w-16 hover:w-64 shrink-0 border-r border-white/10 bg-[var(--news-bg-secondary)] sticky top-0 h-screen flex-col transition-all duration-300 ease-[cubic-bezier(0.25,0.1,0.25,1.0)] z-50 overflow-hidden">
       <div className="px-4 py-5 border-b border-white/10 min-w-[16rem]">
         <Link href="/" className="flex items-center gap-4">
@@ -190,5 +191,6 @@ export function GlobalNavigation({
         </div>
       )}
     </aside>
+    </>
   )
 }

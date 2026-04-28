@@ -1,5 +1,6 @@
 import React from "react";
 import { fireEvent, screen, waitFor } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 
 import { ArticleDetailModal } from "@/components/article-detail-modal";
 import type { NewsArticle } from "@/lib/api";
@@ -197,7 +198,9 @@ jest.mock("@/lib/api", () => ({
 
 const mockedApi = jest.requireMock("@/lib/api") as {
   getSourceById: jest.Mock;
+  analyzeArticle: jest.Mock;
   getHighlightsForArticle: jest.Mock;
+  performAgenticSearch: jest.Mock;
 };
 
 const baseArticle: NewsArticle = {
@@ -223,7 +226,9 @@ describe("ArticleDetailModal", () => {
   beforeEach(() => {
     markAsRead.mockClear();
     mockedApi.getSourceById.mockClear();
+    mockedApi.analyzeArticle.mockClear();
     mockedApi.getHighlightsForArticle.mockClear();
+    mockedApi.performAgenticSearch.mockClear();
   });
 
   it("renders the reporter label from article.author", async () => {
@@ -286,5 +291,148 @@ describe("ArticleDetailModal", () => {
     await waitFor(() => {
       expect(screen.queryByText("Reporter profile")).not.toBeInTheDocument();
     });
+  });
+
+  it("uses vertical keys to scroll the popup instead of changing the article", async () => {
+    const onNavigate = jest.fn();
+    const scrollBy = jest.fn();
+
+    renderWithQueryClient(
+      <ArticleDetailModal
+        article={{ ...baseArticle, id: 4, url: "article-4" }}
+        isOpen={true}
+        onClose={jest.fn()}
+        onNavigate={onNavigate}
+      />
+    );
+
+    const scrollRegion = document.getElementById("article-detail-scroll-region") as HTMLDivElement;
+    expect(scrollRegion).not.toBeNull();
+
+    Object.defineProperty(scrollRegion, "clientHeight", {
+      configurable: true,
+      value: 600,
+    });
+    Object.defineProperty(scrollRegion, "scrollBy", {
+      configurable: true,
+      value: scrollBy,
+    });
+
+    await waitFor(() => {
+      expect(mockedApi.getHighlightsForArticle).toHaveBeenCalledWith("article-4");
+    });
+
+    fireEvent.keyDown(window, { key: "ArrowDown" });
+    fireEvent.keyDown(window, { key: "PageDown" });
+
+    expect(scrollBy).toHaveBeenNthCalledWith(1, { top: 72, behavior: "smooth" });
+    expect(scrollBy).toHaveBeenNthCalledWith(2, { top: 540, behavior: "smooth" });
+    expect(onNavigate).not.toHaveBeenCalled();
+  });
+
+  it("lets the progress rail control the popup scroll position", async () => {
+    const scrollTo = jest.fn();
+
+    renderWithQueryClient(
+      <ArticleDetailModal
+        article={{ ...baseArticle, id: 5, url: "article-5" }}
+        isOpen={true}
+        onClose={jest.fn()}
+      />
+    );
+
+    const scrollRegion = document.getElementById("article-detail-scroll-region") as HTMLDivElement;
+    const progressRail = screen.getByRole("scrollbar", { name: "Article reading progress" });
+
+    Object.defineProperty(scrollRegion, "clientHeight", {
+      configurable: true,
+      get: () => 400,
+    });
+    Object.defineProperty(scrollRegion, "scrollHeight", {
+      configurable: true,
+      get: () => 1400,
+    });
+    Object.defineProperty(scrollRegion, "scrollTo", {
+      configurable: true,
+      value: scrollTo,
+    });
+    Object.defineProperty(progressRail, "getBoundingClientRect", {
+      configurable: true,
+      value: () => ({
+        top: 100,
+        bottom: 300,
+        height: 200,
+        left: 0,
+        right: 12,
+        width: 12,
+        x: 0,
+        y: 100,
+        toJSON: () => ({}),
+      }),
+    });
+
+    await waitFor(() => {
+      expect(mockedApi.getHighlightsForArticle).toHaveBeenCalledWith("article-5");
+    });
+
+    const pointerDownEvent = new Event("pointerdown", {
+      bubbles: true,
+      cancelable: true,
+    }) as PointerEvent;
+    Object.defineProperty(pointerDownEvent, "clientY", {
+      configurable: true,
+      value: 250,
+    });
+
+    progressRail.dispatchEvent(pointerDownEvent);
+
+    expect(scrollTo).toHaveBeenCalledWith({ top: 750, behavior: "auto" });
+  });
+
+  it("renders AI analysis results after the analysis action runs", async () => {
+    const user = userEvent.setup();
+    mockedApi.analyzeArticle.mockResolvedValueOnce({
+      success: true,
+      article_url: "article-6",
+      summary: "A concise summary for the selected article.",
+      bias_analysis: {
+        overall_bias_score: "6",
+        tone_bias: "Measured but skeptical",
+        framing_bias: "Centers the policy conflict",
+      },
+      source_analysis: {
+        credibility_assessment: "medium",
+        political_leaning: "left",
+      },
+      fact_check_results: [
+        {
+          claim: "A disputed claim from the article",
+          verification_status: "unverified",
+          confidence: "low",
+          evidence: "No confirming public record was provided.",
+          sources: [],
+        },
+      ],
+    });
+
+    renderWithQueryClient(
+      <ArticleDetailModal
+        article={{ ...baseArticle, id: 6, url: "article-6" }}
+        isOpen={true}
+        onClose={jest.fn()}
+      />
+    );
+
+    await user.click(screen.getByRole("button", { name: /run ai analysis/i }));
+
+    expect(await screen.findByText("AI Summary")).toBeInTheDocument();
+    expect(screen.getByText("A concise summary for the selected article.")).toBeInTheDocument();
+    expect(screen.getByText("1 claim ready for verification review")).toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: /expand for full ai analysis/i }));
+
+    expect(await screen.findByText("Fact Check Results")).toBeInTheDocument();
+    expect(screen.getByText("1 claims")).toBeInTheDocument();
+    expect(mockedApi.analyzeArticle).toHaveBeenCalledWith("article-6", "Example News");
   });
 });

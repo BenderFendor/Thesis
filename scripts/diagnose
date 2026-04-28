@@ -1,0 +1,44 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+cd "$ROOT_DIR"
+
+echo "== Diagnose =="
+echo "Root: $ROOT_DIR"
+echo
+
+echo "== Last verification log snapshot =="
+if [[ -f "chroma.log" ]]; then
+	echo "- chroma.log exists"
+else
+	echo "- chroma.log missing"
+fi
+
+if [[ -f "backend/server.log" ]]; then
+	echo "- backend/server.log exists"
+else
+	echo "- backend/server.log missing"
+fi
+
+if [[ -f "backend/gunicorn.log" ]]; then
+	echo "- backend/gunicorn.log exists"
+else
+	echo "- backend/gunicorn.log missing"
+fi
+
+echo
+echo "== Verify scripts available =="
+for path in verify.sh scripts/self-test scripts/agent-summary; do
+	if [[ -f "$path" ]]; then
+		echo "- $path"
+	else
+		echo "- missing: $path"
+	fi
+done
+
+echo
+echo "== Suggested next actions =="
+echo "- Run scripts/agent-summary"
+echo "- Run scripts/self-test"
+echo "- If failures repeat, record them in docs/agent/known-errors.md"

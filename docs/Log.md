@@ -1,5 +1,75 @@
 # Log
 
+## 2026-04-27: Circular Dependency Cleanup Pass (Task 4/8)
+
+**Problem:** We needed a fresh circular-dependency audit across frontend and backend source trees, plus high-confidence fixes where cycles existed.
+
+**What Changed:**
+- Ran frontend import graph checks with `madge` on `frontend/{app,components,hooks,lib}` and confirmed no TS/TSX cycles.
+- Added a reusable cycle-check command: `npm run deps:cycles` -> `scripts/check-cycles`.
+- Added `backend/scripts/check_import_cycles.py` to statically analyze backend internal imports and fail on SCC cycles.
+- Fixed a real backend cycle: `app.api.routes.reading_queue` <-> `app.services.reading_queue`.
+  - Moved `QueueOverviewResponse` into `app/models/reading_queue.py`.
+  - Updated route and service imports to depend on shared model types instead of each other.
+
+**Verification:**
+- `npm run deps:cycles` (passes; frontend cycles `0`, backend cycles `0`)
+- `python -m py_compile backend/app/api/routes/reading_queue.py backend/app/services/reading_queue.py backend/app/models/reading_queue.py`
+- `cd backend && .venv/bin/pytest test_reading_queue.py -q` (15 passed)
+- `scripts/self-test` (same pre-existing property-test failures remain: `tests/test_country_mentions.py`, `tests/test_source_url_guard.py`)
+
+## 2026-04-27: Unused Code Cleanup Pass (Task 3/8)
+
+**Problem:** The frontend/root JS manifests contained stale dependencies and legacy component files that were no longer referenced, increasing install size and maintenance overhead.
+
+**What Changed:**
+- Ran `knip` from both repo root and `frontend/`, then validated candidates with `rg` and `madge --depends`.
+- Removed confirmed-unused legacy files: `frontend/components/article-detail-modal-old.tsx`, `frontend/components/globe-view.original.tsx`.
+- Removed confirmed-unused UI wrappers with no call sites: `frontend/components/ui/avatar.tsx`, `frontend/components/ui/progress.tsx`.
+- Removed unused export `__testUtils` from `frontend/components/interactive-globe.tsx`.
+- Removed unused root dev dependencies: `@next/bundle-analyzer`, `@playwright/test`.
+- Removed unused frontend dependencies: `@hookform/resolvers`, `@radix-ui/react-avatar`, `@radix-ui/react-popover`, `@radix-ui/react-progress`, `d3-scale`, `d3-scale-chromatic`, `date-fns`, `react-hook-form`, `react-resizable-panels`, `recharts`, `vaul`.
+- Removed unused frontend dev dependencies: `@types/react-window`, `ts-jest`.
+
+**Verification:**
+- `cd frontend && npx --yes knip --reporter compact --no-progress`
+- `scripts/self-test` (same pre-existing backend property-test failures remain: `test_country_mentions`, `test_source_url_guard`)
+
+## 2026-04-27: Codex Harness Restructure For Agent Workflow
+
+**Problem:** The repository had a large mixed-instruction `AGENTS.md` and no dedicated Codex harness layer (`scripts/self-test`, `scripts/agent-summary`, `docs/agent/*`) to support a consistent orient-to-verify loop for future agents.
+
+**What Changed:**
+- Replaced root `AGENTS.md` with a concise Codex-first map that points to deeper operational docs instead of embedding a long manual.
+- Added `scripts/self-test` as the repo-local verification entrypoint; it delegates to `./verify.sh` as the strongest existing path and falls back to stack checks when needed.
+- Added `scripts/agent-summary` for fast orientation and `scripts/diagnose` for lightweight triage.
+- Added `docs/agent/repo-map.md`, `docs/agent/testing.md`, `docs/agent/workflows.md`, `docs/agent/known-errors.md`, `docs/agent/learnings.md`, and `docs/agent/restructure-plan.md`.
+- Added global Codex scaffolding under `~/.codex`: updated `AGENTS.md`, created `skills/self-test/SKILL.md`, and added helper scripts/resources for the reusable self-test skill.
+
+**Verification:**
+- `scripts/agent-summary`
+- `scripts/self-test`
+
+## 2026-04-23: Added Presentation Brief In Docs
+
+**Problem:** A full, presentation-ready summary was needed in a single document for a general audience, with plain-language explanations of what the app does and how it works.
+
+**What Changed:**
+- Added `docs/presentation-brief.md` with a complete non-technical briefing that covers product purpose, user value, key features, architecture in plain language, strengths, limitations, Q&A prep, and slide-ready talking points.
+- Included a repository evidence map section that links claims to concrete project paths for presenter confidence.
+
+## 2026-04-22: Cloudflared-Friendly Frontend API Resolution
+
+**Problem:** Local startup paths could force frontend API env vars to `localhost:8000`, which breaks browser access when the UI is opened through a Cloudflare tunnel hostname.
+
+**What Changed:**
+- Updated `frontend/lib/api.ts` to treat Cloudflare tunnel hostnames (`*.trycloudflare.com`, `*.cfargotunnel.com`) like LAN hosts when the configured API target is local, rewriting requests to the browser host/protocol instead of leaving `localhost`.
+- Updated `runlocal.sh` so it no longer exports `NEXT_PUBLIC_*` API variables by default; overrides are now exported only when explicitly provided, which prevents accidental override of frontend `.env` settings.
+- Updated `docker-compose.yml` frontend service to stop hardcoding `NEXT_PUBLIC_*` API env vars, allowing frontend env files or explicit runtime overrides to control API routing.
+
+**Verification:**
+- `./verify.sh`
+
 ## 2026-04-21: Live Multi-Turn Research Lab And Tool-Router System Prompt Fix
 
 **Problem:** The existing research lab could stream one live turn, but it could not replay a real back-to-back conversation with carried chat history. Once that live history path was exercised, the second turn exposed a backend `500` from the research agent: tool-router mode prepended a new system prompt ahead of an existing system prompt, which broke the active chat template with `System message must be at the beginning`.
@@ -674,3 +744,24 @@ curl http://localhost:8000/trending/diagnostics
 - Changed `_run_async_blocking()` in `backend/news_research_agent.py` to submit async work to the FastAPI worker's main event loop when a research tool runs from a worker thread, which prevents the `Future attached to a different loop` crash in `search_internal_news`.
 - Added regression coverage in `backend/tests/test_research_lab.py`, `backend/tests/test_news_research_agent_stream.py`, and `backend/tests/test_news_research_agent_recovery.py`.
 - Live stress verification on `http://127.0.0.1:8000`: `backend/lab_runs/stress_latest.json` reproduced the pre-fix loop error, `backend/lab_runs/stress_targets.json` confirmed the `Responsible Statecraft` query no longer crashes and captured executed `news_search` fallback for the bird-flu query, and `backend/lab_runs/stress_carry_latest.json` completed four carried-history turns with `history_messages_sent` growing `0 -> 2 -> 4 -> 6`.
+2026-04-23 — Article verification workspace and highlight note interaction fixes
+- Repointed the frontend `performAgenticSearch()` compatibility helper in `frontend/lib/api.ts` from the removed `/api/search/agentic` route to the supported `/api/news/research` endpoint and normalized the response back into the existing caller shape.
+- Restyled the AI analysis and verification surfaces in `frontend/components/article-detail-modal.tsx` so the compact summary, fact-check preview, and verification dialog use the same visual system as the rest of the article modal, while keeping claim selection in sync with the current analysis payload.
+- Fixed `frontend/components/highlight-note-popover.tsx` so the note editor stays interactive inside the article dialog by keeping it in the dialog tree, stopping pointer propagation on the popover shell, and focusing the textarea when it opens.
+- Added frontend regression coverage in `frontend/__tests__/api.agentic-search.test.ts`, `frontend/__tests__/article-detail-modal.test.tsx`, and `frontend/__tests__/highlight-note-popover.test.tsx`.
+- Verification: `npm --prefix frontend test -- --runInBand frontend/__tests__/api.agentic-search.test.ts frontend/__tests__/highlight-note-popover.test.tsx frontend/__tests__/article-detail-modal.test.tsx`, `npm --prefix frontend run lint`, `cd frontend && npx tsc --noEmit`, and `./verify.sh`.
+2026-04-27 — DRY cleanup for saved-article routes and debug/view-mode helpers
+- Extracted shared saved-article route helpers in `backend/app/api/routes/saved_article_helpers.py` and reused them from `bookmarks.py` and `liked.py` to remove duplicated query construction, response serialization, and create/delete lookup flow.
+- Added `frontend/lib/view-mode-storage.ts` and switched both `frontend/app/page.tsx` and `frontend/components/grid-view.tsx` to one shared read/write/validation path for persisted `"viewMode"` state.
+- Consolidated repeated debug fetch/parse/error logic in `frontend/lib/api.ts` with shared `fetchDebugJson` and `fetchDebugParsed` helpers for the Chroma/database/cache/storage debug endpoints.
+- Verification: `cd backend && .venv/bin/pytest tests/test_bookmarks.py tests/test_liked.py -q`, `npm --prefix frontend run lint`, `npm --prefix frontend exec -- tsc -p frontend/tsconfig.json --noEmit`, and `scripts/self-test` (known pre-existing failures in `tests/test_source_url_guard.py` and `tests/test_country_mentions.py`).
+2026-04-27 — Verification/OpenAPI type consolidation and core API type reuse
+- Added `frontend/lib/types/verification.ts` as a shared verification contract module derived from generated OpenAPI schemas, including disambiguated verification `SourceInfo` mapping and stricter frontend-required fields.
+- Updated `frontend/lib/verification.ts` to consume and re-export the shared verification types so existing caller imports remain stable.
+- Updated `frontend/lib/api.ts` core DTOs to reuse `ArticleCore`/`SourceCore` via `Pick<>` for `NewsArticle` and `NewsSource`, reducing duplicated base field declarations.
+- Verification: `npm --prefix frontend run lint` and `npm --prefix frontend exec -- tsc -p frontend/tsconfig.json --noEmit`.
+2026-04-28 — Analyzer-backed dead frontend removal and direct dependency cleanup
+- Removed 15 zero-reference frontend files reported by package-local `knip`, including unused legacy view/components, old debug helpers, stale constants, and an unimported duplicate stylesheet.
+- Added direct frontend dependencies for imported runtime/config packages (`d3-geo`, `eslint-plugin-react-hooks`, and `postcss-load-config`) so the package manifest matches code and tool configuration.
+- Tightened the saved-article helper record types for bookmark/liked flows and reused the shared `GridViewMode` type in `frontend/components/grid-view.tsx`.
+- Verification: `uvx ruff check backend/`, `uvx vulture backend/app backend/scripts --exclude 'backend/.venv/*' --min-confidence 90`, `python backend/scripts/check_import_cycles.py --source backend/app --package-root backend`, `npx --yes madge --circular --json --no-spinner --extensions ts,tsx --ts-config tsconfig.json app components hooks lib` in `frontend/`, `npx --yes knip` in `frontend/` (remaining findings are exported API/UI surface only), `bash -lc 'cd backend && .venv/bin/pytest tests/test_bookmarks.py tests/test_liked.py tests/test_scroll_personalization_flow.py -q'`, `npm --prefix frontend run lint`, and `npm --prefix frontend exec -- tsc -p frontend/tsconfig.json --noEmit`.

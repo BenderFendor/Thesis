@@ -164,6 +164,10 @@ function articleSourceSummary(card: BlindspotCard): string | null {
   return remaining > 0 ? `${visibleSources} +${remaining} more` : visibleSources
 }
 
+function displayPoleLabel(label: string): string {
+  return label.replace(/^For the\s+/i, "the ").replace(/^For\s+/i, "")
+}
+
 function LeadStory({
   card,
   laneId,
@@ -189,34 +193,32 @@ function LeadStory({
     <button
       type="button"
       onClick={() => onOpen(card)}
-      className="group relative flex w-full flex-col overflow-hidden rounded-3xl bg-black/20 text-left transition-all duration-500 ease-out hover:bg-white/[0.03] shadow-2xl"
+      className="group relative flex w-full flex-col overflow-hidden rounded-xl border border-white/10 bg-white/[0.025] text-left transition-all duration-500 ease-out hover:bg-white/[0.05] lg:rounded-3xl lg:border-0 lg:bg-black/20 lg:shadow-2xl lg:hover:bg-white/[0.03]"
     >
-      {/* Image Header */}
-      <div className="relative aspect-[16/9] w-full overflow-hidden bg-white/5">
+      <div className="relative aspect-square w-full overflow-hidden bg-white/5 lg:aspect-video">
         {imageUrl ? (
           <SafeImage
             src={imageUrl}
             alt={card.cluster_label}
             fill
-            className="h-full w-full object-cover opacity-80 grayscale transition duration-700 group-hover:opacity-100 group-hover:grayscale-0 group-hover:scale-105"
+            className="h-full w-full object-cover opacity-75 grayscale transition duration-700 group-hover:scale-105 group-hover:opacity-100 group-hover:grayscale-0"
           />
         ) : (
           <div className="h-full w-full bg-[radial-gradient(circle_at_top_left,rgba(255,255,255,0.08),transparent_70%)]" />
         )}
         <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent" />
         
-        {/* Top Badges */}
-        <div className="absolute top-4 left-4 flex items-center gap-2">
+        <div className="absolute left-2 top-2 flex max-w-[calc(100%-1rem)] items-center gap-2 lg:left-4 lg:top-4 lg:max-w-[calc(100%-2rem)]">
           <span className={cn(
-            "px-2.5 py-1 text-[10px] font-bold font-mono uppercase tracking-widest text-white shadow-lg",
+            "truncate px-1.5 py-1 text-[8px] font-bold uppercase tracking-wide text-white shadow-lg lg:px-2.5 lg:font-mono lg:text-[10px] lg:tracking-widest",
             isLackingPoleA ? "bg-red-500/80" : isLackingPoleB ? "bg-cyan-500/80" : "bg-primary/80"
           )}>
             {blindspotLabel}: {blindspotValue}%
           </span>
         </div>
 
-        <div className="absolute bottom-4 left-4 right-4">
-          <div className="flex items-center gap-3 text-[10px] font-mono uppercase tracking-[0.2em] text-white/60">
+        <div className="absolute bottom-2 left-2 right-2 lg:bottom-4 lg:left-4 lg:right-4">
+          <div className="flex flex-wrap items-center gap-1.5 text-[9px] font-medium text-white/70 lg:gap-3 lg:font-mono lg:text-[10px] lg:uppercase lg:tracking-[0.2em] lg:text-white/60">
             <span>{card.source_count} sources</span>
             <span className="h-1 w-1 rounded-full bg-white/40" />
             <span>{formatDate(card.published_at)}</span>
@@ -224,35 +226,34 @@ function LeadStory({
         </div>
       </div>
 
-      {/* Content */}
-      <div className="flex flex-1 flex-col justify-between p-6 space-y-6">
-        <div className="space-y-3">
-          <h3 className="font-serif text-2xl leading-[1.15] text-foreground/90 transition-colors group-hover:text-white sm:text-3xl">
+      <div className="flex flex-1 flex-col justify-between space-y-3 p-2.5 lg:space-y-6 lg:p-6">
+        <div className="space-y-1.5 lg:space-y-3">
+          <h3 className="line-clamp-3 font-serif text-base leading-tight text-foreground/90 transition-colors group-hover:text-white lg:text-3xl lg:leading-[1.15]">
             {card.cluster_label}
           </h3>
-          <p className="line-clamp-2 text-sm leading-relaxed text-muted-foreground/60 italic">
+          <p className="hidden text-sm italic leading-relaxed text-muted-foreground/60 lg:line-clamp-2">
             {card.explanation}
           </p>
         </div>
 
-        <div className="space-y-4">
-          {geographySignalBadges(card)}
+        <div className="space-y-2 lg:space-y-4">
+          <div className="hidden lg:block">{geographySignalBadges(card)}</div>
           {sourceSummary ? (
-            <p className="text-[10px] font-mono uppercase tracking-[0.16em] text-muted-foreground/45">
+            <p className="line-clamp-2 text-[10px] font-medium leading-snug text-muted-foreground/55 lg:font-mono lg:uppercase lg:tracking-[0.16em] lg:text-muted-foreground/45">
               Comparing {card.articles.length} sampled articles from {sourceSummary}
             </p>
           ) : null}
-          <div className="flex items-center justify-between text-[9px] font-mono uppercase tracking-[0.2em] text-muted-foreground/40">
+          <div className="hidden grid-cols-3 gap-2 text-[8px] font-mono uppercase tracking-[0.12em] text-muted-foreground/40 lg:flex lg:items-center lg:justify-between lg:text-[9px] lg:tracking-[0.2em]">
             <div className="flex items-center gap-2">
               <div className="h-2 w-2 rounded-full bg-cyan-400" />
-              <span>{poleLabels.pole_a} {Math.round(card.coverage_shares.pole_a * 100)}%</span>
+              <span className="truncate">{poleLabels.pole_a} {Math.round(card.coverage_shares.pole_a * 100)}%</span>
             </div>
             <div className="flex items-center gap-2">
               <div className="h-2 w-2 rounded-full bg-zinc-400" />
-              <span>Balanced {Math.round(card.coverage_shares.shared * 100)}%</span>
+              <span className="truncate">Balanced {Math.round(card.coverage_shares.shared * 100)}%</span>
             </div>
-            <div className="flex items-center gap-2">
-              <span>{poleLabels.pole_b} {Math.round(card.coverage_shares.pole_b * 100)}%</span>
+            <div className="flex items-center justify-end gap-2">
+              <span className="truncate">{poleLabels.pole_b} {Math.round(card.coverage_shares.pole_b * 100)}%</span>
               <div className="h-2 w-2 rounded-full bg-red-500" />
             </div>
           </div>
@@ -278,20 +279,20 @@ function StoryRow({
     <button
       type="button"
       onClick={() => onOpen(card)}
-      className="group flex w-full flex-col gap-3 rounded-2xl bg-white/[0.02] p-4 text-left transition-all duration-300 hover:bg-white/[0.05]"
+      className="group flex w-full flex-col gap-2 rounded-xl border border-white/10 bg-white/[0.025] p-2.5 text-left transition-all duration-300 hover:bg-white/[0.05] lg:gap-3 lg:rounded-2xl lg:border-0 lg:bg-white/[0.02] lg:p-4"
     >
-      <div className="flex items-start justify-between gap-4">
+      <div className="flex items-start justify-between gap-2 lg:gap-4">
         <div className="min-w-0 flex-1">
-          <div className="flex items-center gap-2 text-[9px] font-mono uppercase tracking-[0.15em] text-muted-foreground/40">
+          <div className="flex items-center gap-1.5 text-[9px] font-medium text-muted-foreground/50 lg:gap-2 lg:font-mono lg:uppercase lg:tracking-[0.15em] lg:text-muted-foreground/40">
             <span>{card.source_count} sources</span>
             <span className="h-0.5 w-0.5 rounded-full bg-white/10" />
-            <span>{formatDate(card.published_at)}</span>
+            <span className="hidden lg:inline">{formatDate(card.published_at)}</span>
           </div>
-          <h4 className="mt-1.5 line-clamp-2 font-serif text-lg leading-snug text-foreground/80 transition-colors group-hover:text-white">
+          <h4 className="mt-1 line-clamp-3 font-serif text-sm leading-tight text-foreground/85 transition-colors group-hover:text-white lg:mt-1.5 lg:line-clamp-2 lg:text-lg lg:leading-snug lg:text-foreground/80">
             {card.cluster_label}
           </h4>
         </div>
-        <div className="mt-1 flex shrink-0 flex-col items-end gap-1">
+        <div className="mt-1 hidden shrink-0 flex-col items-end gap-1 lg:flex">
           <span className="font-mono text-[10px] text-primary/60 tracking-wider">GAP SCORE</span>
           <span className="font-mono text-lg font-bold text-foreground/70">{Math.round(card.blindspot_score * 10) / 10}</span>
         </div>
@@ -299,12 +300,74 @@ function StoryRow({
       
       <div className="space-y-2">
         {sourceSummary ? (
-          <p className="text-[9px] font-mono uppercase tracking-[0.14em] text-muted-foreground/35">
+          <p className="line-clamp-2 text-[10px] leading-snug text-muted-foreground/45 lg:text-[9px] lg:font-mono lg:uppercase lg:tracking-[0.14em] lg:text-muted-foreground/35">
             {card.articles.length} sampled articles · {sourceSummary}
           </p>
         ) : null}
-        {geographySignalBadges(card)}
-        <div className="flex items-center justify-between text-[8px] font-mono uppercase tracking-widest text-muted-foreground/30">
+        <div className="hidden lg:block">{geographySignalBadges(card)}</div>
+        <div className="flex items-center justify-between text-[8px] font-mono uppercase tracking-wide text-muted-foreground/35 lg:tracking-widest lg:text-muted-foreground/30">
+          <span>{poleLabels.pole_a.charAt(0)} {Math.round(card.coverage_shares.pole_a * 100)}%</span>
+          <span>B {Math.round(card.coverage_shares.shared * 100)}%</span>
+          <span>{poleLabels.pole_b.charAt(0)} {Math.round(card.coverage_shares.pole_b * 100)}%</span>
+        </div>
+        {coverageBar(card)}
+      </div>
+    </button>
+  )
+}
+
+function MobileBlindspotTile({
+  card,
+  laneId,
+  poleLabels,
+  onOpen,
+}: {
+  card: BlindspotCard
+  laneId: BlindspotLane["id"]
+  poleLabels: { pole_a: string; pole_b: string }
+  onOpen: (card: BlindspotCard) => void
+}) {
+  const imageUrl = card.representative_article?.image_url
+  const isLackingPoleA = laneId === "pole_b"
+  const isLackingPoleB = laneId === "pole_a"
+  const blindspotLabel = isLackingPoleA ? `Missed by ${displayPoleLabel(poleLabels.pole_a)}` : isLackingPoleB ? `Missed by ${displayPoleLabel(poleLabels.pole_b)}` : "Asymmetric"
+  const blindspotValue = isLackingPoleA
+    ? Math.round(card.coverage_shares.pole_a * 100)
+    : Math.round(card.coverage_shares.pole_b * 100)
+
+  return (
+    <button
+      type="button"
+      onClick={() => onOpen(card)}
+      className="group overflow-hidden rounded-xl border border-white/10 bg-white/[0.025] text-left transition duration-300 active:scale-[0.98]"
+    >
+      <div className="relative aspect-square overflow-hidden bg-white/[0.04]">
+        {imageUrl ? (
+          <SafeImage
+            src={imageUrl}
+            alt={card.cluster_label}
+            fill
+            className="h-full w-full object-cover opacity-75 grayscale transition duration-500 group-hover:opacity-95"
+          />
+        ) : (
+          <div className="h-full w-full bg-[radial-gradient(circle_at_top_left,rgba(255,255,255,0.1),transparent_72%)]" />
+        )}
+        <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/20 to-black/5" />
+        <div className="absolute left-2 top-2 max-w-[calc(100%-1rem)] truncate bg-primary px-1.5 py-0.5 text-[8px] font-semibold uppercase tracking-wide text-black">
+          {blindspotLabel}: {blindspotValue}%
+        </div>
+        <div className="absolute bottom-2 left-2 right-2 flex items-center gap-1.5 text-[9px] font-medium text-white/75">
+          <span>{card.source_count} sources</span>
+          <span className="h-1 w-1 rounded-full bg-white/40" />
+          <span>{formatDate(card.published_at)}</span>
+        </div>
+      </div>
+
+      <div className="space-y-2 p-2.5">
+        <h4 className="line-clamp-3 font-serif text-sm leading-tight text-foreground/90">
+          {card.cluster_label}
+        </h4>
+        <div className="flex items-center justify-between text-[8px] font-medium uppercase tracking-wide text-muted-foreground/45">
           <span>{poleLabels.pole_a.charAt(0)} {Math.round(card.coverage_shares.pole_a * 100)}%</span>
           <span>B {Math.round(card.coverage_shares.shared * 100)}%</span>
           <span>{poleLabels.pole_b.charAt(0)} {Math.round(card.coverage_shares.pole_b * 100)}%</span>
@@ -412,11 +475,24 @@ export function BlindspotView({ category, sources }: BlindspotViewProps) {
 
     return (
       <>
-        <LeadStory card={leadCard} laneId={laneId} poleLabels={poleLabels} onOpen={setSelectedCard} />
-        <div className="flex flex-col gap-3">
+        <div className="grid grid-cols-2 gap-2 lg:hidden">
+          {cards.slice(0, visibleCount).map((card) => (
+            <MobileBlindspotTile
+              key={card.cluster_id}
+              card={card}
+              laneId={laneId}
+              poleLabels={poleLabels}
+              onOpen={setSelectedCard}
+            />
+          ))}
+        </div>
+        <div className="hidden lg:flex lg:flex-col lg:space-y-8">
+          <LeadStory card={leadCard} laneId={laneId} poleLabels={poleLabels} onOpen={setSelectedCard} />
+          <div className="flex flex-col gap-3">
           {listCards.map((card) => (
             <StoryRow key={card.cluster_id} card={card} poleLabels={poleLabels} onOpen={setSelectedCard} />
           ))}
+          </div>
         </div>
         {hiddenCount > 0 ? (
           <Button
@@ -484,29 +560,29 @@ export function BlindspotView({ category, sources }: BlindspotViewProps) {
 
   return (
     <>
-      <div className="flex flex-col space-y-16 p-6 lg:p-10">
+      <div className="flex flex-col space-y-10 p-4 sm:p-6 lg:space-y-16 lg:p-10">
         {/* Compact Controls Area */}
         <motion.div
           initial={{ opacity: 0, y: -8 }}
           animate={{ opacity: 1, y: 0 }}
-          className="flex flex-col gap-8 lg:flex-row lg:items-center lg:justify-between"
+          className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between lg:gap-6"
         >
-          <div className="space-y-2">
-            <h2 className="font-serif text-4xl font-medium tracking-tight text-foreground/90">
+          <div className="space-y-1.5 lg:space-y-2">
+            <h2 className="font-serif text-2xl font-medium tracking-tight text-foreground/90 lg:text-4xl">
               Media Blindspots
             </h2>
-            <p className="max-w-xl text-sm leading-relaxed text-muted-foreground/50 italic">
+            <p className="max-w-xl text-sm italic leading-snug text-muted-foreground/50 lg:leading-relaxed">
               Detecting asymmetric reporting where one perspective is missing.
             </p>
           </div>
 
-          <div className="flex flex-wrap items-center gap-4">
-            <div className="flex items-center gap-1.5 rounded-sm border border-white/5 bg-white/[0.03] p-1">
-              <span className="px-2 text-[8px] font-mono uppercase tracking-widest text-muted-foreground/40">Perspective</span>
+          <div className="grid grid-cols-2 gap-2 lg:flex lg:flex-wrap lg:items-center lg:gap-4">
+            <div className="flex min-w-0 items-center gap-1.5 rounded-sm border border-white/5 bg-white/[0.03] p-1">
+              <span className="sr-only px-1.5 text-[8px] font-mono uppercase tracking-widest text-muted-foreground/40 lg:not-sr-only lg:px-2">Perspective</span>
               <select
                 value={selectedLens}
                 onChange={(e) => setSelectedLens(e.target.value as BlindspotLens["id"])}
-                className="cursor-pointer border-none bg-transparent px-2 py-1 font-mono text-[9px] uppercase tracking-widest text-foreground/80 focus:ring-0"
+                className="min-w-0 flex-1 cursor-pointer border-none bg-transparent px-2 py-1 font-mono text-[9px] uppercase tracking-widest text-foreground/80 focus:ring-0"
               >
                 {data.available_lenses.map((lens) => (
                   <option key={lens.id} value={lens.id} disabled={!lens.available} className="bg-[#0a0a0a]">
@@ -516,12 +592,12 @@ export function BlindspotView({ category, sources }: BlindspotViewProps) {
               </select>
             </div>
 
-            <div className="flex items-center gap-1.5 rounded-sm border border-white/5 bg-white/[0.03] p-1">
-              <span className="px-2 text-[8px] font-mono uppercase tracking-widest text-muted-foreground/40">Rank By</span>
+            <div className="flex min-w-0 items-center gap-1.5 rounded-sm border border-white/5 bg-white/[0.03] p-1">
+              <span className="sr-only px-1.5 text-[8px] font-mono uppercase tracking-widest text-muted-foreground/40 lg:not-sr-only lg:px-2">Rank By</span>
               <select
                 value={sortMode}
                 onChange={(e) => setSortMode(e.target.value as SortMode)}
-                className="cursor-pointer border-none bg-transparent px-2 py-1 font-mono text-[9px] uppercase tracking-widest text-foreground/80 focus:ring-0"
+                className="min-w-0 flex-1 cursor-pointer border-none bg-transparent px-2 py-1 font-mono text-[9px] uppercase tracking-widest text-foreground/80 focus:ring-0"
               >
                 {SORT_OPTIONS.map((option) => (
                   <option key={option.value} value={option.value} className="bg-[#0a0a0a]">
@@ -543,22 +619,26 @@ export function BlindspotView({ category, sources }: BlindspotViewProps) {
             </p>
           </div>
         ) : (
-          <div className="grid gap-8 xl:grid-cols-3 xl:gap-12">
+          <div className="grid gap-7 xl:grid-cols-3 xl:gap-12">
             {/* Missed by Pole A (Covered by Pole B) */}
             <motion.section
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.5, ease: "easeOut" }}
-              className="flex flex-col space-y-8"
+              className="flex flex-col space-y-3 lg:space-y-8"
             >
-              <div className="space-y-2 border-l-2 border-red-500/40 pl-6">
-                <h3 className="font-serif text-3xl font-medium text-foreground/90 text-balance">Missed by {poleLabels.pole_a}</h3>
-                <p className="text-[10px] text-muted-foreground/40 font-mono uppercase tracking-widest">
-                  Reported primarily by {poleLabels.pole_b.toLowerCase()} outlets
+              <div className="space-y-1 border-l-2 border-red-500/40 pl-3 lg:space-y-2 lg:pl-6">
+                <h3 className="font-serif text-xl font-medium text-foreground/90 text-balance lg:text-3xl">
+                  <span className="lg:hidden">Missed by {displayPoleLabel(poleLabels.pole_a)}</span>
+                  <span className="hidden lg:inline">Missed by {poleLabels.pole_a}</span>
+                </h3>
+                <p className="text-[9px] text-muted-foreground/40 font-mono uppercase tracking-wider lg:text-[10px] lg:tracking-widest">
+                  <span className="lg:hidden">Reported primarily by {displayPoleLabel(poleLabels.pole_b).toLowerCase()} outlets</span>
+                  <span className="hidden lg:inline">Reported primarily by {poleLabels.pole_b.toLowerCase()} outlets</span>
                 </p>
               </div>
 
-              <div className="flex flex-col space-y-8">
+              <div className="flex flex-col space-y-3 lg:space-y-8">
                 {renderLaneCards("pole_b", "No significant blindspots detected")}
               </div>
             </motion.section>
@@ -568,16 +648,16 @@ export function BlindspotView({ category, sources }: BlindspotViewProps) {
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.5, ease: "easeOut", delay: 0.1 }}
-              className="flex flex-col space-y-8"
+              className="flex flex-col space-y-3 lg:space-y-8"
             >
-              <div className="space-y-2 border-l-2 border-zinc-500/40 pl-6">
-                <h3 className="font-serif text-3xl font-medium text-foreground/90 text-balance">Balanced & Center</h3>
-                <p className="text-[10px] text-muted-foreground/40 font-mono uppercase tracking-widest">
+              <div className="space-y-1 border-l-2 border-zinc-500/40 pl-3 lg:space-y-2 lg:pl-6">
+                <h3 className="font-serif text-xl font-medium text-foreground/90 text-balance lg:text-3xl">Balanced & Center</h3>
+                <p className="text-[9px] text-muted-foreground/40 font-mono uppercase tracking-wider lg:text-[10px] lg:tracking-widest">
                   Stories with consensus or neutral coverage
                 </p>
               </div>
 
-              <div className="flex flex-col space-y-8">
+              <div className="flex flex-col space-y-3 lg:space-y-8">
                 {renderLaneCards("shared", "No balanced signals detected")}
               </div>
             </motion.section>
@@ -587,16 +667,20 @@ export function BlindspotView({ category, sources }: BlindspotViewProps) {
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.5, ease: "easeOut", delay: 0.2 }}
-              className="flex flex-col space-y-8"
+              className="flex flex-col space-y-3 lg:space-y-8"
             >
-              <div className="space-y-2 border-l-2 border-cyan-500/40 pl-6">
-                <h3 className="font-serif text-3xl font-medium text-foreground/90 text-balance">Missed by {poleLabels.pole_b}</h3>
-                <p className="text-[10px] text-muted-foreground/40 font-mono uppercase tracking-widest">
-                  Reported primarily by {poleLabels.pole_a.toLowerCase()} outlets
+              <div className="space-y-1 border-l-2 border-cyan-500/40 pl-3 lg:space-y-2 lg:pl-6">
+                <h3 className="font-serif text-xl font-medium text-foreground/90 text-balance lg:text-3xl">
+                  <span className="lg:hidden">Missed by {displayPoleLabel(poleLabels.pole_b)}</span>
+                  <span className="hidden lg:inline">Missed by {poleLabels.pole_b}</span>
+                </h3>
+                <p className="text-[9px] text-muted-foreground/40 font-mono uppercase tracking-wider lg:text-[10px] lg:tracking-widest">
+                  <span className="lg:hidden">Reported primarily by {displayPoleLabel(poleLabels.pole_a).toLowerCase()} outlets</span>
+                  <span className="hidden lg:inline">Reported primarily by {poleLabels.pole_a.toLowerCase()} outlets</span>
                 </p>
               </div>
 
-              <div className="flex flex-col space-y-8">
+              <div className="flex flex-col space-y-3 lg:space-y-8">
                 {renderLaneCards("pole_a", "No significant blindspots detected")}
               </div>
             </motion.section>

@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import {
   Sheet,
+  SheetClose,
   SheetContent,
   SheetHeader,
   SheetTitle,
@@ -1010,7 +1011,7 @@ export function ReadingQueueSidebar() {
                               const items = Array.isArray(payload.articles) ? payload.articles : [];
                               return (
                                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 my-3">
-                                  {items.map((it: unknown, idx: number) => {
+                                  {items.map((it: { url?: string; link?: string } | null, idx: number) => {
                                     const articleRef =
                                       typeof it === "object" && it !== null
                                         ? (it as { url?: string; link?: string })
@@ -1089,11 +1090,11 @@ export function ReadingQueueSidebar() {
             /* List View */
             <>
               <SheetHeader
-                className="px-6 pt-6 pb-4 border-b"
+                className="px-4 pt-5 pb-4 border-b sm:px-6 sm:pt-6"
                 style={{ borderColor: "var(--border)" }}
               >
-                <div className="flex items-center justify-between">
-                  <SheetTitle className="text-4xl font-bold font-serif">
+                <div className="flex items-center justify-between gap-3">
+                  <SheetTitle className="min-w-0 flex-1 truncate text-3xl font-bold font-serif sm:text-4xl">
                     Articles to Read
                   </SheetTitle>
                   <div className="flex items-center gap-2">
@@ -1106,9 +1107,23 @@ export function ReadingQueueSidebar() {
                       }}
                       disabled={queuedArticles.length === 0}
                       title="Generate a digest of all articles"
+                      className="hidden sm:inline-flex"
                     >
                       <Sparkles className="h-4 w-4 mr-1" />
                       Reading digest
+                    </Button>
+                    <Button
+                      size="icon"
+                      variant="outline"
+                      onClick={() => {
+                        setShowQueueOverview(true);
+                        generateQueueDigest();
+                      }}
+                      disabled={queuedArticles.length === 0}
+                      title="Generate a digest of all articles"
+                      className="h-9 w-9 sm:hidden"
+                    >
+                      <Sparkles className="h-4 w-4" />
                     </Button>
                     <span
                       className="text-sm font-medium px-3 py-1 rounded-full"
@@ -1119,11 +1134,21 @@ export function ReadingQueueSidebar() {
                     >
                       {queuedArticles.length}
                     </span>
+                    <SheetClose asChild>
+                      <Button
+                        size="icon"
+                        variant="outline"
+                        className="h-9 w-9 rounded-full"
+                        title="Close reading queue"
+                      >
+                        <X className="h-4 w-4" />
+                      </Button>
+                    </SheetClose>
                   </div>
                 </div>
               </SheetHeader>
 
-              <div className="flex-1 overflow-y-auto flex flex-col px-6 py-6">
+              <div className="flex-1 overflow-y-auto flex flex-col px-4 py-5 sm:px-6 sm:py-6">
                 {isLoaded && queuedArticles.length === 0 ? (
                   <div className="flex h-full items-center justify-center text-center">
                     <div className="space-y-2">

@@ -3,11 +3,19 @@ from __future__ import annotations
 from typing import Dict
 
 from fastapi import APIRouter, Depends, HTTPException
-from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.api.routes.saved_article_helpers import (
+    build_saved_article_detail_stmt,
+    build_saved_article_list_stmt,
+    get_article_or_404,
+    get_saved_article_item,
+    get_saved_article_item_or_404,
+    serialize_saved_article_create,
+    serialize_saved_article_detail,
+    serialize_saved_article_row,
+)
 from app.database import (
-    Article as ArticleRecord,
     LikedArticle as LikedArticleRecord,
     get_db,
 )
@@ -18,44 +26,14 @@ router = APIRouter(prefix="/api/liked", tags=["liked"])
 
 @router.get("")
 async def list_liked_articles(db: AsyncSession = Depends(get_db)) -> Dict[str, object]:
-    liked_stmt = (
-        select(
-            LikedArticleRecord.id.label("liked_id"),
-            LikedArticleRecord.article_id,
-            LikedArticleRecord.created_at,
-            ArticleRecord.title,
-            ArticleRecord.source,
-            ArticleRecord.summary,
-            ArticleRecord.image_url,
-            ArticleRecord.published_at,
-            ArticleRecord.category,
-            ArticleRecord.url,
-        )
-        .join(ArticleRecord, ArticleRecord.id == LikedArticleRecord.article_id)
-        .order_by(LikedArticleRecord.created_at.desc())
-    )
+    liked_stmt = build_saved_article_list_stmt(LikedArticleRecord, "liked_id")
 
     result = await db.execute(liked_stmt)
     rows = result.all()
 
-    liked_articles = []
-    for row in rows:
-        created_at = row.created_at
-        created_at_value = created_at.isoformat() if created_at is not None else None
-        liked_articles.append(
-            {
-                "liked_id": row.liked_id,
-                "article_id": row.article_id,
-                "title": row.title,
-                "source": row.source,
-                "summary": row.summary,
-                "image": row.image_url,
-                "published": row.published_at.isoformat() if row.published_at else None,
-                "category": row.category,
-                "url": row.url,
-                "created_at": created_at_value,
-            }
-        )
+    liked_articles = [
+        serialize_saved_article_row(row, id_field="liked_id") for row in rows
+    ]
 
     return {"liked": liked_articles, "total": len(liked_articles)}
 
@@ -64,11 +42,7 @@ async def list_liked_articles(db: AsyncSession = Depends(get_db)) -> Dict[str, o
 async def get_liked_article(
     article_id: int, db: AsyncSession = Depends(get_db)
 ) -> Dict[str, object]:
-    liked_stmt = (
-        select(LikedArticleRecord, ArticleRecord)
-        .join(ArticleRecord, ArticleRecord.id == LikedArticleRecord.article_id)
-        .where(LikedArticleRecord.article_id == article_id)
-    )
+    liked_stmt = build_saved_article_detail_stmt(LikedArticleRecord, article_id)
 
     result = await db.execute(liked_stmt)
     row = result.one_or_none()
@@ -76,71 +50,49 @@ async def get_liked_article(
         raise HTTPException(status_code=404, detail="Liked article not found")
 
     liked, article = row
-    created_at = liked.created_at
-    return {
-        "liked_id": liked.id,
-        "article_id": article.id,
-        "title": article.title,
-        "source": article.source,
-        "summary": article.summary,
-        "image": article.image_url,
-        "published": article.published_at.isoformat() if article.published_at else None,
-        "category": article.category,
-        "url": article.url,
-        "created_at": created_at.isoformat() if created_at is not None else None,
-    }
+    return serialize_saved_article_detail(
+        id_field="liked_id",
+        item=liked,
+        article=article,
+    )
 
 
 @router.post("", status_code=201)
 async def create_liked_article(
     payload: BookmarkCreateRequest, db: AsyncSession = Depends(get_db)
 ) -> Dict[str, object]:
-    article_stmt = select(ArticleRecord).where(ArticleRecord.id == payload.article_id)
-    article_result = await db.execute(article_stmt)
-    article = article_result.scalar_one_or_none()
-    if not article:
-        raise HTTPException(status_code=404, detail="Article not found")
-
-    existing_stmt = select(LikedArticleRecord).where(
-        LikedArticleRecord.article_id == payload.article_id
-    )
-    existing_result = await db.execute(existing_stmt)
-    existing = existing_result.scalar_one_or_none()
+    article = await get_article_or_404(db, payload.article_id)
+    existing = await get_saved_article_item(db, LikedArticleRecord, payload.article_id)
 
     if existing:
-        created_at = existing.created_at
-        return {
-            "created": False,
-            "liked_id": existing.id,
-            "article_id": existing.article_id,
-            "created_at": created_at.isoformat() if created_at is not None else None,
-        }
+        return serialize_saved_article_create(
+            id_field="liked_id",
+            item=existing,
+            created=False,
+        )
 
     liked = LikedArticleRecord(article_id=article.id)
     db.add(liked)
     await db.flush()
     await db.refresh(liked)
 
-    created_at = liked.created_at
-    return {
-        "created": True,
-        "liked_id": liked.id,
-        "article_id": liked.article_id,
-        "created_at": created_at.isoformat() if created_at is not None else None,
-    }
+    return serialize_saved_article_create(
+        id_field="liked_id",
+        item=liked,
+        created=True,
+    )
 
 
 @router.delete("/{article_id}")
 async def delete_liked_article(
     article_id: int, db: AsyncSession = Depends(get_db)
 ) -> Dict[str, object]:
-    liked_stmt = select(LikedArticleRecord).where(
-        LikedArticleRecord.article_id == article_id
+    liked = await get_saved_article_item_or_404(
+        db,
+        LikedArticleRecord,
+        article_id,
+        not_found_detail="Liked article not found",
     )
-    result = await db.execute(liked_stmt)
-    liked = result.scalar_one_or_none()
-    if not liked:
-        raise HTTPException(status_code=404, detail="Liked article not found")
 
     await db.delete(liked)
     await db.flush()

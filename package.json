@@ -2,11 +2,10 @@
   "scripts": {
     "openapi:export": "venv/bin/python backend/scripts/export_openapi.py",
     "openapi:types": "npm --prefix frontend run openapi:types",
-    "openapi:refresh": "npm run openapi:export && npm run openapi:types"
+    "openapi:refresh": "npm run openapi:export && npm run openapi:types",
+    "deps:cycles": "bash ./scripts/check-cycles"
   },
   "devDependencies": {
-    "@next/bundle-analyzer": "^16.1.2",
-    "@playwright/test": "^1.56.1",
     "@types/d3-geo": "^3.1.0",
     "@types/three": "^0.180.0"
   },

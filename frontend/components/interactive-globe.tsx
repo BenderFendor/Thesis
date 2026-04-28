@@ -72,18 +72,87 @@ function toCountryFeature(polygon: object | null): CountryFeature | null {
   return feature
 }
 
-export const __testUtils = {
-  getCountryIso,
+function heatColor(count: number, maxCount: number) {
+  if (count <= 0 || maxCount <= 0) return "rgba(0, 0, 0, 0)"
+  const ratio = Math.min(1, count / maxCount)
+  const red = Math.round(214 + ratio * 34)
+  const green = Math.round(192 - ratio * 96)
+  const blue = Math.round(128 - ratio * 78)
+  const alpha = 0.54 + ratio * 0.28
+  return `rgba(${red}, ${green}, ${Math.max(34, blue)}, ${alpha.toFixed(3)})`
 }
 
-function heatColor(count: number, maxCount: number) {
-  if (count <= 0 || maxCount <= 0) return "rgba(214, 154, 92, 0.018)"
+function hoverHeatColor(count: number, maxCount: number) {
+  const ratio = maxCount > 0 ? Math.min(1, count / maxCount) : 0
+  const red = 255
+  const green = Math.round(232 - ratio * 48)
+  const blue = Math.round(176 - ratio * 88)
+  const alpha = 0.78 + ratio * 0.16
+  return `rgba(${red}, ${green}, ${Math.max(72, blue)}, ${alpha.toFixed(3)})`
+}
+
+function sourceHeatRatio(count: number, maxCount: number) {
+  if (count <= 0 || maxCount <= 0) return 0
+  return Math.min(1, count / maxCount)
+}
+
+function externalHeatColor(count: number, maxCount: number) {
+  if (count <= 0 || maxCount <= 0) return "rgba(0, 0, 0, 0)"
   const ratio = Math.min(1, count / maxCount)
-  const alpha = 0.035 + ratio * 0.2
-  return `rgba(225, 131, 62, ${alpha.toFixed(3)})`
+  const red = Math.round(102 + ratio * 42)
+  const green = Math.round(132 + ratio * 48)
+  const blue = Math.round(162 + ratio * 58)
+  const alpha = 0.42 + ratio * 0.24
+  return `rgba(${red}, ${green}, ${blue}, ${alpha.toFixed(3)})`
+}
+
+function externalHoverHeatColor(count: number, maxCount: number) {
+  const ratio = maxCount > 0 ? Math.min(1, count / maxCount) : 0
+  const red = Math.round(154 + ratio * 28)
+  const green = Math.round(188 + ratio * 28)
+  const blue = Math.round(216 + ratio * 24)
+  const alpha = 0.72 + ratio * 0.16
+  return `rgba(${red}, ${green}, ${blue}, ${alpha.toFixed(3)})`
+}
+
+function normalizeCountryKey(value: string) {
+  return value.trim().toLowerCase()
+}
+
+function remapCountryCounts(
+  counts: Record<string, number>,
+  visibleCountries: CountryFeature[],
+) {
+  const nameToIso = new Map<string, string>()
+  const isoSet = new Set<string>()
+
+  visibleCountries.forEach((feature) => {
+    const iso = getCountryIso(feature)
+    const countryName = typeof feature.properties.NAME === "string" ? feature.properties.NAME : null
+    if (!iso) return
+    isoSet.add(iso)
+    if (countryName) {
+      nameToIso.set(normalizeCountryKey(countryName), iso)
+    }
+  })
+
+  const remappedCounts: Record<string, number> = {}
+  Object.entries(counts).forEach(([key, count]) => {
+    const normalizedKey = key.trim().toUpperCase()
+    const iso = isoSet.has(normalizedKey)
+      ? normalizedKey
+      : nameToIso.get(normalizeCountryKey(key))
+
+    if (!iso) return
+    remappedCounts[iso] = (remappedCounts[iso] || 0) + count
+  })
+
+  return remappedCounts
 }
 
 const EARTH_RADIUS = 100
+const MOBILE_OVERVIEW_ALTITUDE = 4.25
+const DESKTOP_OVERVIEW_ALTITUDE = 2.5
 const GLOBE_TEXTURE_ROTATION_Y = -Math.PI / 2
 const LOCAL_COUNTRY_GEOJSON_URL = "/globe/ne_110m_admin_0_countries.geojson"
 const OPTIMIZED_TEXTURES = {
@@ -410,7 +479,9 @@ function updateAnimationUniforms(material: THREE.ShaderMaterial, elapsed: number
 function findGlobeAnchor(scene: THREE.Scene) {
   return (
     scene.children.find(
-      (child) => (child as THREE.Object3D & { __globeObjType?: string }).__globeObjType === "globe",
+      (child): child is THREE.Object3D =>
+        Boolean(child) &&
+        (child as THREE.Object3D & { __globeObjType?: string }).__globeObjType === "globe",
     ) ?? scene
   )
 }
@@ -508,7 +579,7 @@ export function InteractiveGlobe({
   })
   const countries = countriesQuery.data ?? EMPTY_COUNTRY_COLLECTION
   const visibleCountries = useMemo(
-    () => countries.features.filter((feature) => getCountryIso(feature) !== "AQ"),
+    () => countries.features.filter((feature) => Boolean(feature) && getCountryIso(feature) !== "AQ"),
     [countries.features],
   )
 
@@ -551,20 +622,35 @@ export function InteractiveGlobe({
   const fallbackSourceCounts = useMemo(() => {
     const counts: Record<string, number> = {}
     articles.forEach((article) => {
-      if (!article.country) return
-      counts[article.country] = (counts[article.country] || 0) + 1
+      const sourceCountry = article.source_country || article.country
+      if (!sourceCountry || sourceCountry === "International") return
+      counts[sourceCountry] = (counts[sourceCountry] || 0) + 1
     })
     return counts
   }, [articles])
 
-  const displayCounts = countryMetrics?.counts && Object.keys(countryMetrics.counts).length > 0
-    ? countryMetrics.counts
-    : fallbackSourceCounts
+  const sourceOriginCounts =
+    countryMetrics?.source_counts && Object.keys(countryMetrics.source_counts).length > 0
+      ? countryMetrics.source_counts
+      : fallbackSourceCounts
+
+  const displayCounts = useMemo(
+    () => remapCountryCounts(sourceOriginCounts, visibleCountries),
+    [sourceOriginCounts, visibleCountries],
+  )
+  const mentionCounts = useMemo(
+    () => remapCountryCounts(countryMetrics?.counts || {}, visibleCountries),
+    [countryMetrics?.counts, visibleCountries],
+  )
 
   const maxCount = useMemo(() => {
     const values = Object.values(displayCounts)
     return values.length > 0 ? Math.max(...values) : 0
   }, [displayCounts])
+  const maxMentionCount = useMemo(() => {
+    const values = Object.values(mentionCounts)
+    return values.length > 0 ? Math.max(...values) : 0
+  }, [mentionCounts])
 
   const countryCenters = useMemo(() => {
     const centers: Record<string, { lat: number; lng: number }> = {}
@@ -591,7 +677,9 @@ export function InteractiveGlobe({
     controls.autoRotateSpeed = 0.5
     controls.enableZoom = false
     controls.enablePan = false
-    globeInstance.pointOfView({ altitude: 2.5 })
+    globeInstance.pointOfView({
+      altitude: window.innerWidth < 1024 ? MOBILE_OVERVIEW_ALTITUDE : DESKTOP_OVERVIEW_ALTITUDE,
+    })
   }, [globeInstance])
 
   useEffect(() => {
@@ -599,14 +687,17 @@ export function InteractiveGlobe({
     const controls = globeInstance.controls() as { autoRotate?: boolean }
     if (!selectedCountry) {
       controls.autoRotate = true
-      globeInstance.pointOfView({ altitude: 2.5 }, 900)
+      globeInstance.pointOfView({
+        altitude: window.innerWidth < 1024 ? MOBILE_OVERVIEW_ALTITUDE : DESKTOP_OVERVIEW_ALTITUDE,
+      }, 900)
       return
     }
 
     const center = countryCenters[selectedCountry]
     controls.autoRotate = false
     if (center) {
-      globeInstance.pointOfView({ lat: center.lat, lng: center.lng, altitude: 1.5 }, 900)
+      const isMobile = window.innerWidth < 1024
+      globeInstance.pointOfView({ lat: center.lat, lng: center.lng, altitude: isMobile ? 2.35 : 1.5 }, 900)
     }
   }, [countryCenters, globeInstance, selectedCountry])
 
@@ -875,21 +966,67 @@ export function InteractiveGlobe({
           const feature = toCountryFeature(polygon)
           if (!feature) return 0.006
           const iso = getCountryIso(feature)
-          return feature === hoverD ? 0.09 : selectedCountry === iso ? 0.05 : 0.006
+          const sourceCount = iso ? displayCounts[iso] || 0 : 0
+          const mentionCount = iso ? mentionCounts[iso] || 0 : 0
+          const ratio = sourceCount > 0
+            ? sourceHeatRatio(sourceCount, maxCount)
+            : sourceHeatRatio(mentionCount, maxMentionCount)
+          if (feature === hoverD) return 0.1 + ratio * 0.03
+          if (selectedCountry === iso) return 0.055 + ratio * 0.025
+          return sourceCount > 0 ? 0.01 + ratio * 0.024 : 0.008 + ratio * 0.016
         }}
         polygonCapColor={(polygon: object) => {
           const feature = toCountryFeature(polygon)
           if (!feature) return "rgba(255, 255, 255, 0.03)"
           const iso = getCountryIso(feature) ?? ""
-          const count = iso ? displayCounts[iso] || 0 : 0
+          const sourceCount = iso ? displayCounts[iso] || 0 : 0
+          const mentionCount = iso ? mentionCounts[iso] || 0 : 0
 
-          if (feature === hoverD) return "rgba(255, 255, 255, 0.18)"
+          if (feature === hoverD) {
+            return sourceCount > 0
+              ? hoverHeatColor(sourceCount, maxCount)
+              : externalHoverHeatColor(mentionCount, maxMentionCount)
+          }
           if (selectedCountry === iso) return "rgba(233, 118, 43, 0.82)"
-
-          return heatColor(count, maxCount)
+          if (sourceCount > 0) return heatColor(sourceCount, maxCount)
+          return externalHeatColor(mentionCount, maxMentionCount)
         }}
-        polygonSideColor={() => "rgba(255, 255, 255, 0.028)"}
-        polygonStrokeColor={() => "rgba(255, 255, 255, 0.05)"}
+        polygonSideColor={(polygon: object) => {
+          const feature = toCountryFeature(polygon)
+          if (!feature) return "rgba(255, 255, 255, 0.028)"
+          const iso = getCountryIso(feature) ?? ""
+          const sourceCount = iso ? displayCounts[iso] || 0 : 0
+          const mentionCount = iso ? mentionCounts[iso] || 0 : 0
+          const ratio = sourceCount > 0
+            ? sourceHeatRatio(sourceCount, maxCount)
+            : sourceHeatRatio(mentionCount, maxMentionCount)
+          if (feature === hoverD) {
+            return sourceCount > 0 ? "rgba(255, 214, 138, 0.58)" : "rgba(150, 196, 224, 0.5)"
+          }
+          if (selectedCountry === iso) return "rgba(233, 118, 43, 0.42)"
+          if (sourceCount > 0) {
+            return `rgba(214, 166, 90, ${(0.08 + ratio * 0.16).toFixed(3)})`
+          }
+          return `rgba(122, 162, 190, ${(0.08 + ratio * 0.14).toFixed(3)})`
+        }}
+        polygonStrokeColor={(polygon: object) => {
+          const feature = toCountryFeature(polygon)
+          if (!feature) return "rgba(255, 255, 255, 0.08)"
+          const iso = getCountryIso(feature) ?? ""
+          const sourceCount = iso ? displayCounts[iso] || 0 : 0
+          const mentionCount = iso ? mentionCounts[iso] || 0 : 0
+          const ratio = sourceCount > 0
+            ? sourceHeatRatio(sourceCount, maxCount)
+            : sourceHeatRatio(mentionCount, maxMentionCount)
+          if (feature === hoverD) {
+            return sourceCount > 0 ? "rgba(255, 240, 204, 0.95)" : "rgba(198, 224, 242, 0.9)"
+          }
+          if (selectedCountry === iso) return "rgba(233, 118, 43, 0.85)"
+          if (sourceCount > 0) {
+            return `rgba(228, 190, 120, ${(0.16 + ratio * 0.26).toFixed(3)})`
+          }
+          return `rgba(162, 196, 220, ${(0.16 + ratio * 0.22).toFixed(3)})`
+        }}
         polygonLabel={(polygon: object) => {
           const feature = toCountryFeature(polygon)
           if (!feature) return ""
@@ -898,9 +1035,9 @@ export function InteractiveGlobe({
           
           if (selectedCountry === iso) return ""
           
-          const coverageCount = iso !== "--" ? displayCounts[iso] || 0 : 0
-          const originCount = iso !== "--"
-            ? countryMetrics?.source_counts?.[iso] || fallbackSourceCounts[iso] || 0
+          const originCount = iso !== "--" ? displayCounts[iso] || 0 : 0
+          const coverageCount = iso !== "--"
+            ? mentionCounts[iso] || 0
             : 0
           return `
           <div style="background: rgba(10,10,10,0.92); color: #EAEAEA; padding: 12px; border: 1px solid rgba(255,255,255,0.12); box-shadow: 0 20px 40px rgba(0,0,0,0.35); min-width: 180px;">
@@ -909,7 +1046,7 @@ export function InteractiveGlobe({
               ISO ${iso}
             </p>
             <p style="margin: 8px 0 0; font-size: 12px; color: rgba(234,234,234,0.82);">
-              Coverage heat: ${coverageCount}
+              External coverage: ${coverageCount}
             </p>
             <p style="margin: 4px 0 0; font-size: 12px; color: rgba(234,234,234,0.82);">
               Local outlets: ${originCount}
@@ -927,7 +1064,9 @@ export function InteractiveGlobe({
           if (selectedCountry === iso) {
             onCountrySelect(null, null)
             // Zoom back out smoothly
-            globeInstance?.pointOfView({ altitude: 2.0 }, 800)
+            globeInstance?.pointOfView({
+              altitude: window.innerWidth < 1024 ? MOBILE_OVERVIEW_ALTITUDE : 2.0,
+            }, 800)
           } else {
             onCountrySelect(iso, name)
             
@@ -941,8 +1080,8 @@ export function InteractiveGlobe({
             
             // Apply a slight latitude offset (tilt up) so the country isn't hidden behind the bottom UI drawer
             // On mobile, we offset more aggressively because the drawer takes up ~60vh
-            const latOffset = isMobile ? -25 : -5
-            const zoomAlt = isMobile ? 1.0 : 1.2
+            const latOffset = isMobile ? -18 : -5
+            const zoomAlt = isMobile ? 2.25 : 1.2
             
             // Adjust zoom scale.
             globeInstance?.pointOfView({ 

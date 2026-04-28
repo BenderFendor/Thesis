@@ -1,0 +1,158 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+cd "$ROOT_DIR"
+
+checks_ran=0
+
+run_cmd() {
+	checks_ran=$((checks_ran + 1))
+	printf '+ %s\n' "$*"
+	"$@"
+}
+
+npm_script_exists() {
+	local manifest="$1"
+	local script="$2"
+
+	if ! command -v node >/dev/null 2>&1; then
+		return 1
+	fi
+
+	node -e 'const fs=require("fs");const p=process.argv[1];const s=process.argv[2];if(!fs.existsSync(p)){process.exit(1);}const pkg=require(p);process.exit(pkg.scripts&&pkg.scripts[s]?0:1);' "$manifest" "$script" >/dev/null 2>&1
+}
+
+detect_node_manager() {
+	local dir="$1"
+
+	if [[ -f "$dir/pnpm-lock.yaml" ]] && command -v pnpm >/dev/null 2>&1; then
+		echo "pnpm"
+		return
+	fi
+
+	if [[ -f "$dir/yarn.lock" ]] && command -v yarn >/dev/null 2>&1; then
+		echo "yarn"
+		return
+	fi
+
+	echo "npm"
+}
+
+run_node_script() {
+	local dir="$1"
+	local manager="$2"
+	local script="$3"
+
+	case "$manager" in
+		pnpm)
+			run_cmd pnpm --dir "$dir" run "$script"
+			;;
+		yarn)
+			run_cmd yarn --cwd "$dir" run "$script"
+			;;
+		*)
+			run_cmd npm --prefix "$dir" run "$script"
+			;;
+	esac
+}
+
+run_typecheck_fallback() {
+	local dir="$1"
+	local manager="$2"
+	local tsconfig="$3"
+
+	case "$manager" in
+		pnpm)
+			run_cmd pnpm --dir "$dir" exec tsc -p "$tsconfig" --noEmit
+			;;
+		yarn)
+			run_cmd yarn --cwd "$dir" tsc -p "$tsconfig" --noEmit
+			;;
+		*)
+			run_cmd npm --prefix "$dir" exec -- tsc -p "$tsconfig" --noEmit
+			;;
+	esac
+}
+
+run_node_checks() {
+	local dir="$1"
+	local manifest="$2"
+	local manager
+
+	manager="$(detect_node_manager "$dir")"
+	echo "Detected Node project at $dir using $manager"
+
+	for script_name in lint typecheck test build; do
+		if npm_script_exists "$manifest" "$script_name"; then
+			run_node_script "$dir" "$manager" "$script_name"
+		else
+			echo "- skip: $manifest has no '$script_name' script"
+		fi
+	done
+
+	if ! npm_script_exists "$manifest" "typecheck"; then
+		if [[ -f "$dir/tsconfig.json" ]]; then
+			run_typecheck_fallback "$dir" "$manager" "tsconfig.json"
+		fi
+	fi
+}
+
+echo "== Self-test =="
+echo "Root: $ROOT_DIR"
+echo
+
+if [[ -f "./verify.sh" ]]; then
+	echo "Detected strongest verification path: ./verify.sh"
+	run_cmd bash "./verify.sh"
+	echo
+	echo "Self-test completed via ./verify.sh"
+	exit 0
+fi
+
+echo "No repo-level verify.sh found. Running stack-aware fallback checks."
+echo
+
+if [[ -f "./package.json" ]]; then
+	run_node_checks "." "./package.json"
+	echo
+fi
+
+if [[ -f "./frontend/package.json" ]]; then
+	run_node_checks "./frontend" "./frontend/package.json"
+	echo
+fi
+
+if [[ -f "./backend/mypy.ini" ]] && [[ -x "./backend/.venv/bin/mypy" ]]; then
+	run_cmd bash -lc "cd ./backend && MYPYPATH=. ./.venv/bin/mypy --explicit-package-bases app --strict"
+elif [[ -f "./backend/mypy.ini" ]]; then
+	echo "- skip: backend/.venv/bin/mypy not found"
+fi
+
+if [[ -d "./backend" ]] && command -v uvx >/dev/null 2>&1; then
+	run_cmd uvx ruff check ./backend/
+	run_cmd uvx ruff format --check ./backend/
+elif [[ -d "./backend" ]]; then
+	echo "- skip: uvx not found"
+fi
+
+if [[ -f "./backend/pytest.ini" ]] && [[ -x "./backend/.venv/bin/pytest" ]]; then
+	run_cmd bash -lc "cd ./backend && ./.venv/bin/pytest tests -m \"not slow\""
+elif [[ -f "./backend/pytest.ini" ]]; then
+	echo "- skip: backend/.venv/bin/pytest not found"
+fi
+
+if [[ -f "./backend/rss_parser_rust/Cargo.toml" ]]; then
+	run_cmd cargo clippy --manifest-path ./backend/rss_parser_rust/Cargo.toml --all-targets --all-features -- -D warnings
+	run_cmd cargo fmt --manifest-path ./backend/rss_parser_rust/Cargo.toml --all -- --check
+	run_cmd cargo test --manifest-path ./backend/rss_parser_rust/Cargo.toml
+fi
+
+if [[ "$checks_ran" -eq 0 ]]; then
+	echo "No verification commands were discovered."
+	echo "Add scripts/self-test or verify.sh for this repository."
+	exit 1
+fi
+
+echo
+echo "Self-test completed."

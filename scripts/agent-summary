@@ -1,0 +1,76 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+cd "$ROOT_DIR"
+
+print_package_scripts() {
+	local manifest="$1"
+
+	if [[ ! -f "$manifest" ]]; then
+		return
+	fi
+
+	echo "- $manifest"
+	if command -v node >/dev/null 2>&1; then
+		node -e 'const fs=require("fs");const p=process.argv[1];const pkg=JSON.parse(fs.readFileSync(p,"utf8"));const scripts=Object.keys(pkg.scripts||{});if(!scripts.length){console.log("  (none)");process.exit(0);}for(const name of scripts){console.log(`  - ${name}`)}' "$manifest" 2>/dev/null || echo "  (unable to parse)"
+	else
+		echo "  (node not installed; unable to parse scripts)"
+	fi
+}
+
+echo "== Agent Summary =="
+echo "Root: $ROOT_DIR"
+echo
+
+echo "== Important files =="
+for path in AGENTS.md README.md verify.sh runlocal.sh package.json frontend/package.json backend/requirements.txt backend/mypy.ini backend/pytest.ini backend/rss_parser_rust/Cargo.toml; do
+	if [[ -f "$path" ]]; then
+		echo "- $path"
+	fi
+done
+
+echo
+echo "== Top-level directories =="
+if command -v python3 >/dev/null 2>&1; then
+	python3 - <<'PY'
+import os
+entries = [name for name in os.listdir('.') if os.path.isdir(name) and not name.startswith('.')]
+for name in sorted(entries):
+    print(f"- {name}/")
+PY
+else
+	echo "- (python3 unavailable; directory listing skipped)"
+fi
+
+echo
+echo "== Package scripts =="
+print_package_scripts "package.json"
+print_package_scripts "frontend/package.json"
+
+echo
+echo "== Agent docs =="
+if [[ -d "docs/agent" ]]; then
+	if command -v python3 >/dev/null 2>&1; then
+		python3 - <<'PY'
+import os
+for dirpath, _, filenames in os.walk('docs/agent'):
+    for name in sorted(filenames):
+        print(f"- {os.path.join(dirpath, name)}")
+PY
+	else
+		echo "- docs/agent/ (python3 unavailable; file list skipped)"
+	fi
+else
+	echo "- docs/agent/ (missing)"
+fi
+
+echo
+echo "== Test locations =="
+for path in frontend/__tests__ backend/tests backend/test_async_ingestion.py backend/test_categories.py backend/test_connections.py backend/test_pagination.py backend/test_reading_queue.py backend/test_source_profile_extractor.py backend/test_verification_agent.py; do
+	if [[ -d "$path" ]]; then
+		echo "- $path/"
+	elif [[ -f "$path" ]]; then
+		echo "- $path"
+	fi
+done

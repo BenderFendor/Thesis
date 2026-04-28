@@ -1,17 +1,18 @@
 from __future__ import annotations
 
 from datetime import datetime, timedelta, timezone
-from typing import TYPE_CHECKING, List, Optional, Tuple
+from typing import List, Optional, Tuple
 from sqlalchemy import select, desc
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import ReadingQueueItem
 from app.models.reading_queue import ReadingQueueItem as ReadingQueueItemSchema
-from app.models.reading_queue import AddToQueueRequest, UpdateQueueItemRequest
+from app.models.reading_queue import (
+    AddToQueueRequest,
+    QueueOverviewResponse,
+    UpdateQueueItemRequest,
+)
 from app.core.logging import get_logger
-
-if TYPE_CHECKING:
-    from app.api.routes.reading_queue import QueueOverviewResponse
 
 logger = get_logger("reading_queue_service")
 
@@ -273,8 +274,6 @@ async def get_queue_overview(
     session: AsyncSession, user_id: int = 1
 ) -> QueueOverviewResponse:
     """Get queue statistics and overview."""
-    from app.api.routes.reading_queue import QueueOverviewResponse
-
     result = await session.execute(
         select(ReadingQueueItem).where(ReadingQueueItem.user_id == user_id)
     )

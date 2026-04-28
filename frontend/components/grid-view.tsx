@@ -57,9 +57,15 @@ import {
 } from "@/lib/cluster-display"
 import {
   buildSourceGroups,
+  compareSourceGroupsForGrid,
   getVisibleSourceIds,
 } from "@/lib/source-groups"
 import { fetchAllClusters, fetchClusterArticles } from "@/lib/api"
+import {
+  type GridViewMode,
+  getStoredGridViewMode,
+  setStoredGridViewMode,
+} from "@/lib/view-mode-storage"
 
 const VirtualizedGrid = lazy(() =>
   import("./virtualized-grid").then((module) => ({
@@ -78,8 +84,8 @@ interface GridViewProps {
   useVirtualization?: boolean
   showTrending?: boolean
   topicSortMode?: "sources" | "articles" | "recent"
-  viewMode?: "source" | "topic"
-  onViewModeChange?: (mode: "source" | "topic") => void
+  viewMode?: GridViewMode
+  onViewModeChange?: (mode: GridViewMode) => void
   isScrollMode?: boolean
   totalCount?: number
 }
@@ -123,9 +129,9 @@ function SourceArticleCard({
       tabIndex={0}
       onClick={() => onArticleClick(article)}
       onKeyDown={handleCardKeyDown}
-      className="group flex h-full min-h-80 w-full flex-col overflow-hidden rounded-2xl bg-black/20 text-left shadow-xl transition-all duration-500 ease-out hover:bg-white/[0.03] hover:shadow-2xl"
+      className="group flex h-full min-h-48 w-full flex-col overflow-hidden rounded-md border border-white/10 bg-black/25 text-left shadow-xl transition-all duration-500 ease-out hover:bg-white/[0.03] hover:shadow-2xl sm:min-h-80 sm:rounded-2xl"
     >
-      <div className="relative m-2 aspect-video overflow-hidden rounded-xl bg-white/5">
+      <div className="relative m-1 aspect-square overflow-hidden rounded bg-white/5 sm:m-2 sm:aspect-video sm:rounded-xl">
         {showImage ? (
           <SafeImage
             src={article.image ?? undefined}
@@ -145,30 +151,30 @@ function SourceArticleCard({
 
         <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/20 to-transparent opacity-80 transition-opacity duration-500 group-hover:opacity-100" />
 
-        <div className="absolute right-3 top-3 z-10 flex translate-y-[-10px] gap-2 opacity-0 transition-all duration-300 group-hover:translate-y-0 md:group-focus-within:opacity-100 md:group-hover:opacity-100">
+        <div className="absolute right-1 top-1 z-10 flex gap-1 opacity-100 transition-all duration-300 sm:right-3 sm:top-3 sm:gap-2 md:translate-y-[-10px] md:opacity-0 md:group-hover:translate-y-0 md:group-focus-within:opacity-100 md:group-hover:opacity-100">
           <Button
             variant="ghost"
             size="sm"
             onClick={(event) => onQueueToggle(article, event)}
-            className="h-8 w-8 rounded-full bg-black/40 p-0 text-white backdrop-blur-md transition-all duration-300 hover:bg-white hover:text-black active:scale-95"
+            className="h-5 w-5 rounded-full bg-black/45 p-0 text-white backdrop-blur-md transition-all duration-300 hover:bg-white hover:text-black active:scale-95 sm:h-8 sm:w-8"
             title={isArticleInQueue(article.url) ? "Remove from queue" : "Add to queue"}
           >
             {isArticleInQueue(article.url) ? (
-              <MinusCircle className="h-4 w-4" />
+              <MinusCircle className="h-2.5 w-2.5 sm:h-4 sm:w-4" />
             ) : (
-              <PlusCircle className="h-4 w-4" />
+              <PlusCircle className="h-2.5 w-2.5 sm:h-4 sm:w-4" />
             )}
           </Button>
           <Button
             variant="ghost"
             size="sm"
             onClick={(event) => onLike(article.id as number, event)}
-            className="h-8 w-8 rounded-full bg-black/40 p-0 text-white backdrop-blur-md transition-all duration-300 hover:bg-white hover:text-black active:scale-95"
+            className="h-5 w-5 rounded-full bg-black/45 p-0 text-white backdrop-blur-md transition-all duration-300 hover:bg-white hover:text-black active:scale-95 sm:h-8 sm:w-8"
             title={likedIds.has(article.id as number) ? "Unlike" : "Like"}
           >
             <Heart
               className={cn(
-                "h-4 w-4 transition-colors",
+                "h-2.5 w-2.5 transition-colors sm:h-4 sm:w-4",
                 likedIds.has(article.id as number)
                   ? "fill-red-500 text-red-500 hover:text-red-600"
                   : "text-white",
@@ -177,11 +183,11 @@ function SourceArticleCard({
           </Button>
         </div>
 
-        <div className="absolute left-3 top-3 z-10 flex flex-wrap gap-2">
+        <div className="absolute left-1 top-1 z-10 flex max-w-20 flex-wrap gap-1 sm:left-3 sm:top-3 sm:max-w-none sm:gap-2">
           <Badge
             variant={article.category === "breaking" ? "destructive" : "outline"}
             className={cn(
-              "rounded-md border-0 px-2 py-0.5 text-xs font-medium uppercase tracking-widest backdrop-blur-md",
+              "truncate rounded-sm border-0 px-1 py-0.5 text-xs font-medium tracking-normal backdrop-blur-md sm:rounded-md sm:px-2 sm:uppercase sm:tracking-widest",
               article.category === "breaking"
                 ? "bg-red-500/90 text-white shadow-lg"
                 : "bg-black/50 text-white/90",
@@ -192,18 +198,18 @@ function SourceArticleCard({
         </div>
       </div>
 
-      <CardContent className="flex flex-1 flex-col p-5 pt-4">
-        <div className="mb-3 flex items-center text-xs font-semibold uppercase tracking-widest text-primary/80">
-          <span>{article.source}</span>
+      <CardContent className="flex flex-1 flex-col p-1.5 pt-1 sm:p-5 sm:pt-4">
+        <div className="mb-1 flex min-w-0 items-center text-xs font-semibold tracking-normal text-primary/80 sm:mb-3 sm:uppercase sm:tracking-widest">
+          <span className="truncate">{article.source}</span>
         </div>
-        <h3 className="mb-3 font-serif text-lg font-medium leading-snug text-foreground/90 transition-colors duration-300 group-hover:text-white md:text-xl">
+        <h3 className="mb-1 line-clamp-4 font-serif text-sm font-medium leading-tight text-foreground/90 transition-colors duration-300 group-hover:text-white sm:mb-3 sm:text-lg sm:leading-snug md:text-xl">
           {article.title}
         </h3>
 
-        <p className="line-clamp-3 text-sm leading-relaxed text-muted-foreground/80">{article.summary}</p>
+        <p className="hidden text-sm leading-relaxed text-muted-foreground/80 sm:line-clamp-3">{article.summary}</p>
 
-        <div className="mt-auto flex items-center justify-between pt-5 text-xs uppercase tracking-widest text-muted-foreground/60 transition-opacity duration-300 group-hover:text-muted-foreground">
-          <div className="flex items-center gap-2">
+        <div className="mt-auto flex items-center justify-between pt-1.5 text-xs tracking-normal text-muted-foreground/60 transition-opacity duration-300 group-hover:text-muted-foreground sm:pt-5 sm:uppercase sm:tracking-widest">
+          <div className="flex min-w-0 items-center gap-1 sm:gap-2">
             <Clock className="h-3 w-3" />
             <span>
               {new Date(article.publishedAt).toLocaleDateString("en-US", {
@@ -212,7 +218,7 @@ function SourceArticleCard({
               })}
             </span>
           </div>
-          <span className="text-primary/0 transition-colors duration-300 group-hover:text-primary">
+          <span className="hidden text-primary/0 transition-colors duration-300 group-hover:text-primary sm:inline">
             Open brief -&gt;
           </span>
         </div>
@@ -239,7 +245,7 @@ export function GridView({
   const hasRealImage = useCallback((src?: string | null) => hasRealClusterImage(src), [])
 
   const [searchTerm, setSearchTerm] = useState("")
-  const [viewMode, setViewMode] = useState<"source" | "topic">(controlledViewMode ?? "source")
+  const [viewMode, setViewMode] = useState<GridViewMode>(controlledViewMode ?? "source")
   const [clusters, setClusters] = useState<AllCluster[]>([])
   const [clustersLoading, setClustersLoading] = useState(false)
   const [clustersStatus, setClustersStatus] = useState<string | null>(null)
@@ -319,15 +325,12 @@ export function GridView({
       return
     }
 
-    const saved = localStorage.getItem("viewMode") as "source" | "topic" | null
-    if (saved === "source" || saved === "topic") {
-      setViewMode(saved)
-    }
+    setViewMode(getStoredGridViewMode())
   }, [controlledViewMode])
 
   useEffect(() => {
     if (controlledViewMode) return
-    localStorage.setItem("viewMode", viewMode)
+    setStoredGridViewMode(viewMode)
   }, [viewMode, controlledViewMode])
 
   const handleArticleClick = useCallback((article: NewsArticle, contextArticles: NewsArticle[]) => {
@@ -386,7 +389,7 @@ export function GridView({
       const bFav = isFavorite(b.sourceId) ? 1 : 0
       if (aFav !== bFav) return bFav - aFav
 
-      return 0
+      return compareSourceGroupsForGrid(a, b)
     })
   }, [filteredNews, isFavorite])
 
@@ -634,12 +637,12 @@ export function GridView({
   }
 
   return (
-    <div className="relative flex w-full flex-col overflow-hidden bg-background" style={{ height: "calc(100vh - 140px)" }}>
+    <div className="relative flex w-full flex-col overflow-hidden bg-background lg:h-[calc(100vh-140px)]">
       <div className="sticky top-0 z-40 shrink-0 bg-background/80 backdrop-blur-xl">
-        <div className="mx-auto flex w-full flex-col gap-4 px-6 py-4 lg:px-8">
-          <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+        <div className="mx-auto flex w-full flex-col gap-2 px-3 py-3 sm:gap-4 sm:px-6 sm:py-4 lg:px-8">
+          <div className="flex flex-col gap-2 sm:gap-4 lg:flex-row lg:items-center lg:justify-between">
             <div className="relative w-full max-w-xl">
-              <Search className="absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground/70" />
+              <Search className="absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground/70 sm:left-3.5 sm:h-4 sm:w-4" />
               <input
                 type="text"
                 placeholder="Search the news..."
@@ -648,11 +651,11 @@ export function GridView({
                   resetSourceBrowseState()
                   setSearchTerm(event.target.value)
                 }}
-                className="w-full rounded-xl bg-white/5 px-10 py-2 text-sm text-foreground placeholder:text-muted-foreground/50 transition-all focus:outline-none focus:ring-1 focus:ring-primary/50"
+                className="w-full rounded-lg bg-white/5 px-9 py-2 text-sm text-foreground placeholder:text-muted-foreground/50 transition-all focus:outline-none focus:ring-1 focus:ring-primary/50 sm:rounded-xl sm:px-10"
               />
             </div>
 
-            <div className="flex flex-wrap items-center gap-3">
+            <div className="flex w-full flex-wrap items-center gap-2 sm:gap-3 lg:w-auto lg:justify-end">
               <div className="flex w-full sm:w-auto rounded-lg border border-white/5 bg-white/5 p-1">
                 <Button
                   variant={viewMode === "source" ? "default" : "ghost"}
@@ -717,10 +720,18 @@ export function GridView({
 
       <div
         ref={containerRef}
-        className="flex-1 overflow-y-auto scroll-smooth pb-24"
+        className="scroll-smooth pb-24 lg:flex-1 lg:overflow-y-auto"
       >
-        <div className="mx-auto flex w-full flex-col gap-16 px-6 py-8 lg:px-8">
-          {showTrending && <TrendingFeed />}
+        <div className="mx-auto flex w-full flex-col gap-5 px-3 py-4 sm:gap-10 sm:px-6 sm:py-6 lg:gap-16 lg:px-8 lg:py-8">
+          {showTrending && (
+            viewMode === "topic" ? (
+              <div className="hidden sm:block">
+                <TrendingFeed />
+              </div>
+            ) : (
+              <TrendingFeed />
+            )
+          )}
 
           {displayArticles.length === 0 && !isLoadingState ? (
             <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="flex flex-col items-center justify-center py-32 text-center">
@@ -743,12 +754,12 @@ export function GridView({
                   data-source-id={group.sourceId}
                   className="grid-source-group flex flex-col"
                 >
-                  <div className="mb-4 sm:mb-6 flex flex-col gap-3 sm:gap-4 pb-3 sm:pb-4 lg:flex-row lg:items-end lg:justify-between">
-                    <div className="space-y-2 sm:space-y-3">
-                      <div className="flex items-center gap-3 sm:gap-4">
+                  <div className="mb-2 flex flex-col gap-2 border-t border-white/10 pt-3 sm:mb-6 sm:gap-4 sm:border-t-0 sm:pt-0 sm:pb-4 lg:flex-row lg:items-end lg:justify-between">
+                    <div className="space-y-1 sm:space-y-3">
+                      <div className="flex items-center gap-2 sm:gap-4">
                         <Link
                           href={`/source/${encodeURIComponent(group.sourceId)}`}
-                          className="font-serif text-4xl leading-none text-foreground transition-colors hover:text-primary sm:text-4xl md:text-5xl"
+                          className="min-w-0 break-words font-serif text-2xl leading-none text-foreground transition-colors hover:text-primary sm:text-4xl md:text-5xl"
                         >
                           {group.sourceName}
                         </Link>
@@ -756,11 +767,11 @@ export function GridView({
                           variant="ghost"
                           size="sm"
                           onClick={() => toggleFavorite(group.sourceId)}
-                          className="h-10 w-10 sm:h-9 sm:w-9 rounded-full bg-white/5 p-0 text-muted-foreground transition-all duration-300 hover:bg-white/10 hover:text-primary active:scale-95 shrink-0"
+                          className="h-8 w-8 rounded-full bg-white/5 p-0 text-muted-foreground transition-all duration-300 hover:bg-white/10 hover:text-primary active:scale-95 shrink-0 sm:h-9 sm:w-9"
                         >
                           <Star
                             className={cn(
-                              "h-5 w-5 sm:h-4 sm:w-4",
+                              "h-4 w-4",
                               isFavorite(group.sourceId)
                                 ? "fill-amber-400 text-amber-400"
                                 : "text-white/40",
@@ -770,7 +781,7 @@ export function GridView({
                       </div>
                     </div>
 
-                    <div className="flex flex-wrap items-center gap-2 text-xs uppercase tracking-widest text-muted-foreground">
+                    <div className="flex flex-wrap items-center gap-1.5 text-xs uppercase tracking-widest text-muted-foreground sm:gap-2">
                       <span className="rounded-full border border-white/10 bg-white/5 px-2 py-1 sm:px-3 sm:py-1.5 font-medium text-white/80">
                         {group.articles.length} articles
                       </span>
@@ -789,7 +800,7 @@ export function GridView({
 
                   {displayedArticles.length > 0 && (
                     <div className="flex-1">
-                      <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5">
+                      <div className="grid grid-cols-3 gap-2 sm:grid-cols-2 sm:gap-6 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5">
                         <AnimatePresence>
                           {displayedArticles.map((article, itemIndex) => (
                             <SourceArticleCard
@@ -810,11 +821,11 @@ export function GridView({
                   )}
 
                   {group.articles.length > COLLAPSED_SOURCE_ARTICLE_COUNT && (
-                    <div className="mt-8 flex justify-center pb-8">
+                    <div className="mt-4 flex justify-center pb-4 sm:mt-8 sm:pb-8">
                       <Button
                         variant="outline"
                         onClick={() => setExpandedSourceId(isExpanded ? null : group.sourceId)}
-                        className="rounded-full border-white/10 bg-transparent px-8 py-5 text-xs font-semibold uppercase tracking-widest text-muted-foreground transition-all duration-300 hover:bg-white/5 hover:text-white"
+                        className="rounded-full border-white/10 bg-transparent px-5 py-3 text-xs font-semibold uppercase tracking-widest text-muted-foreground transition-all duration-300 hover:bg-white/5 hover:text-white sm:px-8 sm:py-5"
                       >
                         {isExpanded ? "Show fewer stories" : `View all ${group.articles.length} stories`}
                       </Button>
@@ -824,7 +835,7 @@ export function GridView({
               )
             })
           ) : (
-            <div className="space-y-6">
+            <div className="space-y-4 sm:space-y-6">
               {clustersLoading ? (
                 <div className="py-24 text-center text-xs uppercase tracking-widest text-muted-foreground">
                   <Loader2 className="mx-auto mb-4 h-10 w-10 animate-spin text-primary/40" />
@@ -836,7 +847,7 @@ export function GridView({
                 </div>
               ) : (
                 <>
-                  <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+                  <div className="grid grid-cols-3 gap-2 sm:grid-cols-2 sm:gap-6 lg:grid-cols-3 xl:grid-cols-4">
                     {sortedClusters.map((cluster, index) => {
                       const representative = cluster.representative_article
                       if (!representative) return null
@@ -854,10 +865,10 @@ export function GridView({
                             data-cluster-id={cluster.cluster_id}
                             role="button"
                             tabIndex={0}
-                            className={cn(
-                              "group flex cursor-pointer flex-col overflow-hidden rounded-2xl border bg-black/20 transition-all duration-500 hover:bg-white/[0.03] scroll-mt-6",
-                              isExpanded ? "border-primary/50 ring-1 ring-primary/40" : "border-white/5",
-                            )}
+	                            className={cn(
+	                              "group flex cursor-pointer flex-col overflow-hidden rounded-md border bg-black/25 transition-all duration-500 hover:bg-white/[0.03] scroll-mt-6 sm:rounded-2xl sm:bg-black/20",
+	                              isExpanded ? "border-primary/50 ring-1 ring-primary/40" : "border-white/10 sm:border-white/5",
+	                            )}
                             onClick={() => handleExpandCluster(cluster)}
                             onKeyDown={(event) => {
                               if (event.target !== event.currentTarget) return
@@ -866,7 +877,7 @@ export function GridView({
                               void handleExpandCluster(cluster)
                             }}
                           >
-                            <div className="relative m-2 aspect-video overflow-hidden rounded-xl bg-white/5">
+	                            <div className="relative m-1 aspect-square overflow-hidden rounded bg-white/5 sm:m-2 sm:aspect-video sm:rounded-xl">
                               {imageUrl ? (
                                 <SafeImage
                                   src={imageUrl}
@@ -879,15 +890,15 @@ export function GridView({
                                 <div className="editorial-fallback-surface h-full w-full opacity-50 transition duration-700 group-hover:scale-105" />
                               )}
                               <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/30 to-transparent" />
-                              <div className="absolute right-4 top-4 z-10 text-white drop-shadow-md">
-                                {isExpanded ? (
-                                  <ChevronDown className="h-5 w-5" />
-                                ) : (
-                                  <ChevronRight className="h-5 w-5 text-white/75 group-hover:text-white" />
-                                )}
-                              </div>
-                              <div className="absolute left-4 top-4 z-10">
-                                <Button
+	                              <div className="absolute right-1 top-1 z-10 text-white drop-shadow-md sm:right-4 sm:top-4">
+	                                {isExpanded ? (
+	                                  <ChevronDown className="h-3.5 w-3.5 sm:h-5 sm:w-5" />
+	                                ) : (
+	                                  <ChevronRight className="h-3.5 w-3.5 text-white/75 group-hover:text-white sm:h-5 sm:w-5" />
+	                                )}
+	                              </div>
+	                              <div className="absolute left-4 top-4 z-10 hidden sm:block">
+	                                <Button
                                   variant="ghost"
                                   size="sm"
                                   onClick={(event) => handleOpenClusterCompare(cluster, event)}
@@ -896,20 +907,31 @@ export function GridView({
                                   Compare
                                 </Button>
                               </div>
-                              <div className="absolute bottom-4 left-4 right-4">
-                                <h3 className="font-serif text-xl font-medium leading-snug text-white drop-shadow-md">
-                                  {getClusterDisplayLabel(cluster)}
-                                </h3>
-                              </div>
-                            </div>
-                            <CardContent className="flex items-center justify-between p-5 pt-3 text-xs uppercase tracking-widest text-muted-foreground/70">
-                              <span className="flex items-center gap-2">
-                                <Newspaper className="h-3.5 w-3.5 text-primary/70" /> {previewStats.sourceCount} sources
-                              </span>
-                              <span className="flex items-center gap-2">
-                                <List className="h-3.5 w-3.5 text-primary/70" /> {previewStats.articleCount} stories
-                              </span>
-                            </CardContent>
+	                              <div className="absolute bottom-4 left-4 right-4 hidden sm:block">
+	                                <h3 className="font-serif text-xl font-medium leading-snug text-white drop-shadow-md">
+	                                  {getClusterDisplayLabel(cluster)}
+	                                </h3>
+	                              </div>
+	                            </div>
+	                            <CardContent className="flex flex-1 flex-col gap-1.5 p-1.5 pt-1 text-xs text-muted-foreground/70 sm:flex-row sm:items-center sm:justify-between sm:p-5 sm:pt-3 sm:uppercase sm:tracking-widest">
+	                              <h3 className="line-clamp-3 font-serif text-sm leading-tight text-foreground/90 sm:hidden">
+	                                {getClusterDisplayLabel(cluster)}
+	                              </h3>
+	                              <span className="flex items-center gap-1 sm:gap-2">
+	                                <Newspaper className="h-3 w-3 text-primary/70 sm:h-3.5 sm:w-3.5" /> {previewStats.sourceCount} sources
+	                              </span>
+	                              <span className="flex items-center gap-1 sm:gap-2">
+	                                <List className="h-3 w-3 text-primary/70 sm:h-3.5 sm:w-3.5" /> {previewStats.articleCount} stories
+	                              </span>
+	                              <Button
+	                                variant="ghost"
+	                                size="sm"
+	                                onClick={(event) => handleOpenClusterCompare(cluster, event)}
+	                                className="mt-auto h-6 w-full rounded-full bg-white/5 px-2 text-xs font-medium text-foreground hover:bg-white/10 sm:hidden"
+	                              >
+	                                Compare
+	                              </Button>
+	                            </CardContent>
                           </motion.div>
 
                           {isExpanded && expandedCluster && (
@@ -949,9 +971,9 @@ export function GridView({
                                 </Button>
                               </div>
 
-                              <div className="space-y-6 px-6 py-6">
+                              <div className="space-y-4 px-3 py-4 sm:space-y-6 sm:px-6 sm:py-6">
                                 {expandedClusterArticles.length > 0 ? (
-                                  <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+                                  <div className="grid grid-cols-3 gap-2 sm:grid-cols-2 sm:gap-6 lg:grid-cols-3 xl:grid-cols-4">
                                     {expandedClusterArticles.map((article, index) => (
                                       <SourceArticleCard
                                         key={article.url ? `cluster-url:${article.url}` : `cluster-id:${article.id}`}

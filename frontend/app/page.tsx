@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect, useRef, useCallback, useMemo } from "react"
+import { useState, useEffect, useRef, useCallback, useMemo, type TouchEvent } from "react"
 import dynamic from "next/dynamic"
 import { useQuery } from "@tanstack/react-query"
 import { Button } from "@/components/ui/button"
@@ -18,6 +18,7 @@ import {
   Trophy,
   Newspaper,
   Loader2,
+  Bell,
 } from "lucide-react"
 import { GlobalNavigation, type ViewMode } from "@/components/global-navigation"
 import Link from "next/link"
@@ -46,6 +47,11 @@ import { NotificationsPopup, Notification, type NotificationActionType } from '@
 import { SourceSidebar } from "@/components/source-sidebar";
 import { cn } from "@/lib/utils";
 import {
+  GRID_VIEW_MODE_STORAGE_KEY,
+  getStoredGridViewMode,
+  isGridViewMode,
+} from "@/lib/view-mode-storage"
+import {
   getSharedArticleCount,
   getSharedSourceCount,
   getSharedViewArticles,
@@ -61,6 +67,8 @@ const VIEW_OPTIONS: Array<{ value: ViewMode; label: string }> = [
   { value: "scroll", label: "Scroll" },
   { value: "blindspot", label: "Blindspot" },
 ]
+
+const MOBILE_VIEW_OPTIONS = VIEW_OPTIONS
 
 const categoryIcons: { [key: string]: React.ElementType } = {
   politics: Building2,
@@ -93,18 +101,13 @@ function NewsPage() {
   const [activeCategory, setActiveCategory] = useState<string>("all")
   const [showNotifications, setShowNotifications] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(false);
-// Remove trendingOpen state as it is no longer used
-// const [trendingOpen, setTrendingOpen] = useState(false);
   const alertsButtonRef = useRef<HTMLButtonElement>(null);
+  const touchStartRef = useRef<{ x: number; y: number } | null>(null)
   const [leadModalOpen, setLeadModalOpen] = useState(false);
   const debugMode = useDebugMode();
   const [sortMode, setSortMode] = useState<"favorites" | "newest" | "oldest" | "source-freshness">("favorites");
   const [topicSortMode, setTopicSortMode] = useState<"sources" | "articles" | "recent">("sources");
-  const [gridMode, setGridMode] = useState<"source" | "topic">(() => {
-    if (typeof window === "undefined") return "source"
-    const saved = localStorage.getItem("viewMode") as "source" | "topic" | null
-    return saved === "topic" ? "topic" : "source"
-  });
+  const [gridMode, setGridMode] = useState<"source" | "topic">(getStoredGridViewMode);
 
   const router = useRouter()
 
@@ -149,11 +152,8 @@ function NewsPage() {
 
   useEffect(() => {
     const handleStorage = (event: StorageEvent) => {
-      if (event.key === "viewMode") {
-        const value = event.newValue as "source" | "topic" | null
-        if (value === "source" || value === "topic") {
-          setGridMode(value)
-        }
+      if (event.key === GRID_VIEW_MODE_STORAGE_KEY && isGridViewMode(event.newValue)) {
+        setGridMode(event.newValue)
       }
     };
     window.addEventListener("storage", handleStorage);
@@ -238,6 +238,36 @@ function NewsPage() {
     },
     [],
   );
+
+  const moveView = useCallback((direction: 1 | -1) => {
+    setCurrentView((view) => {
+      const currentIndex = VIEW_OPTIONS.findIndex((option) => option.value === view)
+      const nextIndex = Math.min(
+        VIEW_OPTIONS.length - 1,
+        Math.max(0, currentIndex + direction),
+      )
+      return VIEW_OPTIONS[nextIndex]?.value ?? view
+    })
+  }, [])
+
+  const handleTouchStart = useCallback((event: TouchEvent<HTMLElement>) => {
+    const touch = event.touches[0]
+    if (!touch) return
+    touchStartRef.current = { x: touch.clientX, y: touch.clientY }
+  }, [])
+
+  const handleTouchEnd = useCallback((event: TouchEvent<HTMLElement>) => {
+    const start = touchStartRef.current
+    touchStartRef.current = null
+    const touch = event.changedTouches[0]
+    if (!start || !touch) return
+
+    const deltaX = touch.clientX - start.x
+    const deltaY = touch.clientY - start.y
+    if (Math.abs(deltaX) < 72 || Math.abs(deltaX) < Math.abs(deltaY) * 1.25) return
+
+    moveView(deltaX < 0 ? 1 : -1)
+  }, [moveView])
   const loading = getSharedViewLoading(browseIndexLoading)
   const filterActive = isFilterActive()
   const notifications = useMemo(() => {
@@ -356,9 +386,10 @@ function NewsPage() {
   const leadCredibility = leadArticle?.credibility ? leadArticle.credibility.toUpperCase() : "UNKNOWN"
   const leadBias = leadArticle?.bias ? leadArticle.bias.replace("-", " ").toUpperCase() : "UNKNOWN"
   const isGlobeView = currentView === "globe"
+  const isBlindspotView = currentView === "blindspot"
 
   return (
-    <div className="min-h-screen flex bg-[var(--news-bg-primary)] text-foreground">
+    <div className="min-h-screen overflow-x-hidden flex bg-[var(--news-bg-primary)] text-foreground">
       <HalftoneOverlay />
       {/* Loading state */}
       {loading && activeViewArticles.length === 0 && (
@@ -400,43 +431,109 @@ function NewsPage() {
       )}
 
       <div className={cn("flex-1 flex flex-col min-w-0", currentView === "scroll" ? "h-screen overflow-hidden" : "")}>
-        <header className="sticky top-0 z-40 bg-[var(--news-bg-primary)]/95 px-6 py-4 backdrop-blur supports-[backdrop-filter]:bg-[var(--news-bg-primary)]/80">
-          <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
-            <div className="flex items-center justify-between lg:justify-start lg:gap-6">
-              <div className="flex items-center gap-4">
-                <h3 className="whitespace-nowrap font-serif text-xl font-black uppercase tracking-tight text-foreground/90 sm:text-2xl">
+        <header
+          className={cn(
+            "z-40 px-3 py-3 backdrop-blur sm:px-4 lg:sticky lg:top-0 lg:border-b-0 lg:bg-[var(--news-bg-primary)]/95 lg:px-6 lg:py-4 supports-[backdrop-filter]:lg:bg-[var(--news-bg-primary)]/80",
+            isGlobeView
+              ? "absolute inset-x-0 top-0 border-b-0 bg-transparent"
+              : "sticky top-0 border-b border-white/5 bg-[var(--news-bg-primary)]/95 supports-[backdrop-filter]:bg-[var(--news-bg-primary)]/80",
+          )}
+        >
+          <div className={cn(
+            "flex min-w-0 flex-col lg:flex-row lg:items-center lg:justify-between",
+            isGlobeView ? "gap-2" : "gap-3",
+          )}>
+            <div
+              className={cn(
+                "flex items-center justify-between lg:justify-start lg:gap-6",
+                "absolute right-3 top-2 z-10 lg:static",
+              )}
+            >
+              <div className="flex min-w-0 items-center gap-3 sm:gap-4">
+                <h3
+                  className={cn(
+                    "min-w-0 truncate whitespace-nowrap font-serif text-lg font-black uppercase tracking-tight text-foreground/90 sm:text-2xl",
+                    "hidden lg:block",
+                  )}
+                >
                   {VIEW_OPTIONS.find((v) => v.value === currentView)?.label} View
                 </h3>
-                <div className="hidden h-4 w-px bg-white/10 sm:block" />
-                <span className="whitespace-nowrap font-mono text-[10px] uppercase tracking-[0.2em] text-muted-foreground/50">
+                <div className={cn("hidden h-4 w-px bg-white/10 sm:block", isGlobeView && "lg:block")} />
+                <span className={cn(
+                  "hidden whitespace-nowrap font-mono text-[10px] uppercase tracking-[0.2em] text-muted-foreground/50 sm:inline",
+                  isGlobeView && "lg:inline",
+                )}>
                   {articleCount} articles indexed
                 </span>
               </div>
 
-              <div className="flex items-center gap-2 lg:hidden">
-                <ThemeToggle />
-                <select
-                  value={currentView}
-                  onChange={(event) => handleViewChange(event.target.value as ViewMode)}
-                  className="h-8 rounded-md border border-white/10 bg-[var(--news-bg-secondary)] px-2 font-mono text-[9px] uppercase tracking-widest text-foreground focus:outline-none focus:border-primary"
+              <div className="flex shrink-0 items-center gap-2 lg:hidden">
+                <Button
+                  ref={alertsButtonRef}
+                  type="button"
+                  variant="outline"
+                  size="icon"
+                  onClick={() => setShowNotifications(!showNotifications)}
+                  className="relative h-8 w-8 border-white/10 bg-[var(--news-bg-secondary)] p-0"
+                  title="Alerts"
                 >
-                  {VIEW_OPTIONS.map((option) => (
-                    <option key={option.value} value={option.value}>
-                      {option.label}
-                    </option>
-                  ))}
-                </select>
+                  <Bell className="h-3.5 w-3.5" />
+                  {actionableNotificationCount > 0 && (
+                    <span className="absolute -right-1 -top-1 flex h-3.5 min-w-3.5 items-center justify-center rounded-full bg-primary px-1 text-[8px] font-bold text-primary-foreground">
+                      {actionableNotificationCount}
+                    </span>
+                  )}
+                </Button>
+                <ThemeToggle />
               </div>
             </div>
 
-            <div className="flex flex-wrap items-center justify-between gap-3 lg:justify-end">
-              <div className="flex items-center gap-2">
-                <div className="flex items-center gap-1.5 rounded-sm border border-white/5 bg-white/[0.03] p-1">
-                  <span className="px-2 text-[8px] font-mono uppercase tracking-widest text-muted-foreground/40">Category</span>
+            <nav
+              aria-label="Mobile view tabs"
+              className={cn(
+                "flex items-center justify-center gap-5 overflow-x-auto px-1 py-0.5 no-scrollbar lg:hidden",
+                "order-first -mb-1 justify-start pr-24",
+              )}
+            >
+              {MOBILE_VIEW_OPTIONS.map((option) => (
+                <button
+                  key={option.value}
+                  type="button"
+                  onClick={() => handleViewChange(option.value)}
+                  className={cn(
+                    "shrink-0 border-b px-0.5 pb-1 font-mono text-[10px] uppercase tracking-[0.18em] transition-colors",
+                    currentView === option.value
+                      ? "border-primary text-foreground"
+                      : "border-transparent text-muted-foreground/70",
+                  )}
+                >
+                  {option.label}
+                </button>
+              ))}
+            </nav>
+
+            <div
+              className={cn(
+                "flex min-w-0 flex-col sm:flex-row sm:flex-wrap sm:items-center sm:justify-between lg:justify-end lg:gap-3",
+                isGlobeView ? "gap-1.5" : "gap-2",
+              )}
+            >
+              <div className="grid min-w-0 grid-cols-2 gap-2 sm:flex sm:items-center">
+                <div className={cn(
+                  "flex items-center gap-1.5 rounded-sm border border-white/5 bg-white/[0.03] p-1",
+                  isGlobeView && "bg-black/25 backdrop-blur-xl",
+                )}>
+                  <span className={cn(
+                    "px-1.5 text-[8px] font-mono uppercase tracking-widest text-muted-foreground/40 sm:px-2",
+                    isGlobeView && "sr-only sm:not-sr-only",
+                  )}>Category</span>
                   <select
                     value={activeCategory}
                     onChange={(event) => handleCategoryChange(event.target.value)}
-                    className="cursor-pointer border-none bg-transparent px-2 py-1 font-mono text-[9px] uppercase tracking-widest text-foreground/80 focus:ring-0"
+                    className={cn(
+                      "min-w-0 flex-1 cursor-pointer border-none bg-transparent px-1 font-mono text-[9px] uppercase tracking-widest text-foreground/80 focus:ring-0 sm:px-2",
+                      isGlobeView ? "py-0.5" : "py-1",
+                    )}
                   >
                     {categories.map((category) => (
                       <option key={category.id} value={category.id} className="bg-[#0a0a0a]">
@@ -446,8 +543,14 @@ function NewsPage() {
                   </select>
                 </div>
 
-                <div className="flex items-center gap-1.5 rounded-sm border border-white/5 bg-white/[0.03] p-1">
-                  <span className="px-2 text-[8px] font-mono uppercase tracking-widest text-muted-foreground/40">Sort</span>
+                <div className={cn(
+                  "flex items-center gap-1.5 rounded-sm border border-white/5 bg-white/[0.03] p-1",
+                  isGlobeView && "bg-black/25 backdrop-blur-xl",
+                )}>
+                  <span className={cn(
+                    "px-1.5 text-[8px] font-mono uppercase tracking-widest text-muted-foreground/40 sm:px-2",
+                    isGlobeView && "sr-only sm:not-sr-only",
+                  )}>Sort</span>
                   <select
                     value={currentView === "grid" && gridMode === "topic" ? topicSortMode : sortMode}
                     onChange={(event) => {
@@ -458,7 +561,10 @@ function NewsPage() {
                         setSortMode(value as typeof sortMode)
                       }
                     }}
-                    className="cursor-pointer border-none bg-transparent px-2 py-1 font-mono text-[9px] uppercase tracking-widest text-foreground/80 focus:ring-0"
+                    className={cn(
+                      "min-w-0 flex-1 cursor-pointer border-none bg-transparent px-1 font-mono text-[9px] uppercase tracking-widest text-foreground/80 focus:ring-0 sm:px-2",
+                      isGlobeView ? "py-0.5" : "py-1",
+                    )}
                   >
                     {currentView === "grid" && gridMode === "topic" ? (
                       <>
@@ -476,17 +582,25 @@ function NewsPage() {
                 </div>
               </div>
 
-              <div className="flex items-center gap-2">
+              <div className={cn("grid grid-cols-3 gap-2 sm:flex sm:items-center", isGlobeView && "gap-1.5")}>
                 <div className="hidden h-4 w-px bg-white/10 lg:block" />
-                <div className="hidden items-center gap-1.5 lg:flex">
-                  <ThemeToggle />
-                  <Button asChild variant="outline" size="sm" className="h-8 border-white/5 bg-white/[0.03] px-3 font-mono text-[9px] uppercase tracking-widest hover:bg-white/10">
+                <div className="contents lg:flex lg:items-center lg:gap-1.5">
+                  <div className="hidden lg:block">
+                    <ThemeToggle />
+                  </div>
+                  <Button asChild variant="outline" size="sm" className={cn(
+                    "h-8 min-w-0 border-white/5 bg-white/[0.03] px-2 font-mono text-[9px] uppercase tracking-widest hover:bg-white/10 lg:px-3",
+                    isGlobeView && "h-7 bg-black/25 backdrop-blur-xl",
+                  )}>
                     <Link href="/saved">
                       <Bookmark className="mr-1.5 h-3.5 w-3.5" />
                       Saved
                     </Link>
                   </Button>
-                  <Button asChild variant="outline" size="sm" className="h-8 border-white/5 bg-white/[0.03] px-3 font-mono text-[9px] uppercase tracking-widest hover:bg-white/10">
+                  <Button asChild variant="outline" size="sm" className={cn(
+                    "h-8 min-w-0 border-white/5 bg-white/[0.03] px-2 font-mono text-[9px] uppercase tracking-widest hover:bg-white/10 lg:px-3",
+                    isGlobeView && "h-7 bg-black/25 backdrop-blur-xl",
+                  )}>
                     <Link href="/search">
                       <Search className="mr-1.5 h-3.5 w-3.5" />
                       Research
@@ -497,7 +611,10 @@ function NewsPage() {
                   variant="outline"
                   size="sm"
                   onClick={() => setSidebarOpen(true)}
-                  className="h-8 border-white/5 bg-white/[0.03] px-3 font-mono text-[9px] uppercase tracking-widest hover:bg-white/10"
+                  className={cn(
+                    "h-8 min-w-0 border-white/5 bg-white/[0.03] px-2 font-mono text-[9px] uppercase tracking-widest hover:bg-white/10 lg:px-3",
+                    isGlobeView && "h-7 bg-black/25 backdrop-blur-xl",
+                  )}
                 >
                   Sources
                 </Button>
@@ -506,56 +623,60 @@ function NewsPage() {
           </div>
         </header>
 
-      <main className={cn("flex-1 bg-[var(--news-bg-primary)]", (currentView === "scroll" || currentView === "globe") ? "overflow-hidden" : "")}>
-        <div className={cn("w-full grid grid-cols-1 lg:grid-cols-12 gap-0", (currentView === "scroll" || currentView === "globe") ? "h-full" : "")}>
+      <main className={cn("flex-1 min-w-0 bg-[var(--news-bg-primary)]", (currentView === "scroll" || currentView === "globe") ? "overflow-hidden" : "")}>
+        <div
+          className={cn("w-full grid grid-cols-1 lg:grid-cols-12 gap-0", (currentView === "scroll" || currentView === "globe") ? "h-full" : "")}
+          onTouchStart={handleTouchStart}
+          onTouchEnd={handleTouchEnd}
+        >
 
               <section className={cn(
             "lg:col-span-12 bg-[var(--news-bg-primary)] flex flex-col",
             (currentView === "scroll" || isGlobeView) ? "h-full overflow-hidden" : "min-h-[calc(100vh-80px)]"
           )}>
             {!isGlobeView && currentView !== "scroll" && (
-              <div className="relative p-6">
+              <div className={cn("relative p-3 sm:p-6", isBlindspotView && "hidden lg:block")}>
               <div
                 className="pointer-events-none absolute inset-0 opacity-[0.04] bg-primary"
                 style={{ filter: "url(#halftone-pattern)" }}
               />
-              <div className="flex flex-col gap-6">
-                <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-4">
+              <div className="flex flex-col gap-3 sm:gap-6">
+                <div className="flex flex-col justify-between gap-3 sm:flex-row sm:items-start sm:gap-4">
                   <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-3 mb-3">
-                      <span className="px-2 py-0.5 border font-mono text-[9px] uppercase tracking-[0.4em] bg-primary/10 text-primary border-primary/30">
+                    <div className="mb-2 flex items-center gap-2 sm:mb-3 sm:gap-3">
+                      <span className="border bg-primary/10 px-2 py-0.5 font-mono text-[8px] uppercase tracking-[0.28em] text-primary border-primary/30 sm:text-[9px] sm:tracking-[0.4em]">
                         Lead
                       </span>
-                      <span className="font-mono text-[10px] text-muted-foreground/60 tracking-wider">
+                      <span className="font-mono text-[9px] text-muted-foreground/60 tracking-wider sm:text-[10px]">
                         {leadArticle ? formatDate(leadArticle.publishedAt) : "Updating feed"}
                       </span>
                     </div>
                     
-                    <h2 className="font-serif text-3xl sm:text-5xl leading-[1.1] font-semibold tracking-tight mb-4">
+                    <h2 className="mb-2 line-clamp-3 font-serif text-2xl font-semibold leading-tight tracking-tight sm:mb-4 sm:text-5xl">
                       {leadArticle?.title || "Loading coverage..."}
                     </h2>
                     
-                    <p className="max-w-3xl text-base sm:text-lg text-foreground/70 leading-relaxed font-serif italic line-clamp-2">
+                    <p className="max-w-3xl text-sm leading-snug text-foreground/65 font-serif italic line-clamp-2 sm:text-lg sm:leading-relaxed">
                       {leadSummary}
                     </p>
                   </div>
 
                   <div className="shrink-0 flex flex-col gap-1 w-full sm:w-64 lg:w-72">
                     <div className="grid grid-cols-2 gap-px bg-white/5 border border-white/10 overflow-hidden">
-                      <div className="bg-[var(--news-bg-secondary)] p-2.5 space-y-1">
-                        <span className="block text-[8px] font-mono uppercase tracking-widest text-muted-foreground/50">Live articles</span>
+                      <div className="bg-[var(--news-bg-secondary)] p-2 space-y-0.5 sm:p-2.5 sm:space-y-1">
+                        <span className="block text-[7px] font-mono uppercase tracking-widest text-muted-foreground/50 sm:text-[8px]">Live articles</span>
                         <span className="block text-sm font-semibold tabular-nums">{articleCount}</span>
                       </div>
-                      <div className="bg-[var(--news-bg-secondary)] p-2.5 space-y-1">
-                        <span className="block text-[8px] font-mono uppercase tracking-widest text-muted-foreground/50">Live sources</span>
+                      <div className="bg-[var(--news-bg-secondary)] p-2 space-y-0.5 sm:p-2.5 sm:space-y-1">
+                        <span className="block text-[7px] font-mono uppercase tracking-widest text-muted-foreground/50 sm:text-[8px]">Live sources</span>
                         <span className="block text-sm font-semibold tabular-nums">{sourceCount}</span>
                       </div>
-                      <div className="bg-[var(--news-bg-secondary)] p-2.5 space-y-1">
-                        <span className="block text-[8px] font-mono uppercase tracking-widest text-muted-foreground/50">Bias</span>
+                      <div className="bg-[var(--news-bg-secondary)] p-2 space-y-0.5 sm:p-2.5 sm:space-y-1">
+                        <span className="block text-[7px] font-mono uppercase tracking-widest text-muted-foreground/50 sm:text-[8px]">Bias</span>
                         <span className="block text-xs font-semibold text-primary/80 uppercase tracking-tighter">{leadBias}</span>
                       </div>
-                      <div className="bg-[var(--news-bg-secondary)] p-2.5 space-y-1">
-                        <span className="block text-[8px] font-mono uppercase tracking-widest text-muted-foreground/50">Signal</span>
+                      <div className="bg-[var(--news-bg-secondary)] p-2 space-y-0.5 sm:p-2.5 sm:space-y-1">
+                        <span className="block text-[7px] font-mono uppercase tracking-widest text-muted-foreground/50 sm:text-[8px]">Signal</span>
                         <span className="block text-xs font-semibold text-foreground/90 uppercase tracking-tighter">{leadCredibility}</span>
                       </div>
                     </div>
@@ -630,8 +751,6 @@ function NewsPage() {
         isOpen={leadModalOpen}
         onClose={() => setLeadModalOpen(false)}
       />
-
-      {/* Footer removed as per request */}
     </div>
   )
 }

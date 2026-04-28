@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { createPortal } from "react-dom";
 import { Button } from "@/components/ui/button";
 import { type Highlight } from "@/lib/api";
 import { highlightStableId } from "@/lib/highlight-utils";
@@ -22,7 +21,7 @@ export function HighlightNotePopover({
   onSave,
 }: HighlightNotePopoverProps) {
   const popoverRef = useRef<HTMLDivElement>(null);
-  const [mounted, setMounted] = useState(false);
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
   const [position, setPosition] = useState<{ top: number; left: number }>({
     top: 0,
     left: 0,
@@ -31,13 +30,19 @@ export function HighlightNotePopover({
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
-    setMounted(true);
-  }, []);
-
-  useEffect(() => {
     if (!open) return;
     if (!highlight) return;
     setNoteDraft(highlight.note || "");
+  }, [open, highlight]);
+
+  useEffect(() => {
+    if (!open) return;
+
+    const focusTimer = window.setTimeout(() => {
+      textareaRef.current?.focus();
+    }, 0);
+
+    return () => window.clearTimeout(focusTimer);
   }, [open, highlight]);
 
   useEffect(() => {
@@ -97,7 +102,6 @@ export function HighlightNotePopover({
     };
   }, [open, onClose, anchorEl]);
 
-  if (!mounted) return null;
   if (!open || !highlight || !anchorEl) return null;
 
   const handleSave = async () => {
@@ -110,13 +114,15 @@ export function HighlightNotePopover({
     }
   };
 
-  const popover = (
+  return (
     <div
       ref={popoverRef}
       className="fixed z-[110] w-[min(420px,calc(100vw-24px))]"
       style={{ top: position.top, left: position.left, transform: "translateX(-50%)" }}
       role="dialog"
       aria-label="Highlight note"
+      onMouseDown={(event) => event.stopPropagation()}
+      onPointerDown={(event) => event.stopPropagation()}
     >
       <div className="rounded-lg border border-border/60 bg-[var(--news-bg-secondary)]/95 backdrop-blur p-3 shadow-2xl">
         <div className="text-[10px] uppercase tracking-[0.24em] text-muted-foreground">
@@ -128,6 +134,7 @@ export function HighlightNotePopover({
         </div>
 
         <textarea
+          ref={textareaRef}
           value={noteDraft}
           onChange={(e) => setNoteDraft(e.target.value)}
           className="mt-3 w-full min-h-[96px] rounded-md border border-border/60 bg-background/40 px-3 py-2 text-sm text-foreground outline-none focus-visible:border-ring focus-visible:ring-ring/50 focus-visible:ring-[3px]"
@@ -157,6 +164,4 @@ export function HighlightNotePopover({
       </div>
     </div>
   );
-
-  return createPortal(popover, document.body);
 }

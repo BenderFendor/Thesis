@@ -54,6 +54,16 @@ class QueueResponse(StrictBaseModel):
     total_count: int
 
 
+class QueueOverviewResponse(StrictBaseModel):
+    total_items: int
+    daily_items: int
+    permanent_items: int
+    unread_count: int
+    reading_count: int
+    completed_count: int
+    estimated_total_read_time_minutes: int
+
+
 class Highlight(StrictBaseModel):
     id: Optional[int] = None
     user_id: Optional[int] = None

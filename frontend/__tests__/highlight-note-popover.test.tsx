@@ -58,4 +58,49 @@ describe("HighlightNotePopover", () => {
       expect(onSave).toHaveBeenCalledWith("client:client-123", "local draft note");
     });
   });
+
+  it("keeps the popover open while typing inside the note field", async () => {
+    const anchor = document.createElement("button");
+    document.body.appendChild(anchor);
+    Object.defineProperty(anchor, "getBoundingClientRect", {
+      value: () => ({
+        top: 10,
+        left: 20,
+        bottom: 30,
+        right: 60,
+        width: 40,
+        height: 20,
+        x: 20,
+        y: 10,
+        toJSON: () => ({}),
+      }),
+    });
+
+    const onClose = jest.fn();
+
+    render(
+      <HighlightNotePopover
+        open={true}
+        highlight={{
+          client_id: "client-456",
+          article_url: "https://example.com/story",
+          highlighted_text: "Another important sentence",
+          color: "yellow",
+          note: "",
+          character_start: 4,
+          character_end: 31,
+        }}
+        anchorEl={anchor}
+        onClose={onClose}
+        onSave={jest.fn(async () => undefined)}
+      />,
+    );
+
+    const textarea = await screen.findByPlaceholderText("Add a note");
+    fireEvent.mouseDown(textarea);
+    fireEvent.change(textarea, { target: { value: "keep this open" } });
+
+    expect(onClose).not.toHaveBeenCalled();
+    expect(textarea).toHaveValue("keep this open");
+  });
 });

@@ -1,9 +1,11 @@
-"use client";
+import type { Metadata } from "next";
 
-// Design thesis: Guided constellation. The network should read as a map you can interrogate, not a wall of dots.
+import { SourceIntelligenceWorkspace } from "./source-intelligence-workspace";
 
-import { OwnershipGraphExplorer } from "./ownership-graph-explorer";
+export const metadata: Metadata = {
+  title: "Source Intelligence",
+};
 
-export default function OwnershipGraphPage() {
-  return <OwnershipGraphExplorer />;
+export default function SourceIntelligencePage() {
+  return <SourceIntelligenceWorkspace />;
 }

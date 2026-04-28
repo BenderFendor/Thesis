@@ -6,6 +6,26 @@ export interface SourceGroup {
   articles: NewsArticle[]
   credibility?: string
   bias?: string
+  sourceCountry?: string
+}
+
+const UNITED_STATES_PRIORITY_COUNTRIES = new Set(["US", "USA", "UNITED STATES", "UNITED STATES OF AMERICA"])
+
+function isUnitedStatesSource(group: SourceGroup): boolean {
+  const sourceCountry = group.sourceCountry?.trim().toUpperCase()
+  if (sourceCountry && UNITED_STATES_PRIORITY_COUNTRIES.has(sourceCountry)) {
+    return true
+  }
+
+  return group.articles.some((article) => {
+    const articleSourceCountry = article.source_country?.trim().toUpperCase()
+    if (articleSourceCountry && UNITED_STATES_PRIORITY_COUNTRIES.has(articleSourceCountry)) {
+      return true
+    }
+
+    const articleCountry = article.country?.trim().toUpperCase()
+    return Boolean(articleCountry && UNITED_STATES_PRIORITY_COUNTRIES.has(articleCountry))
+  })
 }
 
 function getArticleKey(article: NewsArticle): string {
@@ -39,10 +59,32 @@ export function buildSourceGroups(articles: NewsArticle[]): SourceGroup[] {
       articles: [article],
       credibility: article.credibility,
       bias: article.bias,
+      sourceCountry: article.source_country || article.country,
     })
   }
 
   return Array.from(groups.values())
+}
+
+export function compareSourceGroupsForGrid(a: SourceGroup, b: SourceGroup): number {
+  const aIsUnitedStates = isUnitedStatesSource(a) ? 1 : 0
+  const bIsUnitedStates = isUnitedStatesSource(b) ? 1 : 0
+  if (aIsUnitedStates !== bIsUnitedStates) {
+    return bIsUnitedStates - aIsUnitedStates
+  }
+
+  const aLatestTimestamp = Math.max(...a.articles.map((article) => article._parsedTimestamp ?? 0))
+  const bLatestTimestamp = Math.max(...b.articles.map((article) => article._parsedTimestamp ?? 0))
+  if (aLatestTimestamp !== bLatestTimestamp) {
+    return bLatestTimestamp - aLatestTimestamp
+  }
+
+  const nameSort = a.sourceName.localeCompare(b.sourceName)
+  if (nameSort !== 0) {
+    return nameSort
+  }
+
+  return a.sourceId.localeCompare(b.sourceId)
 }
 
 export function getVisibleSourceIds(

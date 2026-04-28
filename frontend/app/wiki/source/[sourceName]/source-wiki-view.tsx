@@ -1,6 +1,6 @@
 "use client";
 
-import { type ReactNode, useMemo, useState } from "react";
+import { type ReactNode, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useQuery } from "@tanstack/react-query";
 import {
@@ -36,6 +36,7 @@ const ANALYSIS_ORDER = [
 ] as const;
 
 export function SourceWikiView({ sourceName }: { sourceName: string }) {
+  const [embedded, setEmbedded] = useState(false);
   const [indexing, setIndexing] = useState(false);
   const {
     data,
@@ -56,6 +57,13 @@ export function SourceWikiView({ sourceName }: { sourceName: string }) {
     );
   }, [data?.analysis_axes]);
 
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      const params = new URLSearchParams(window.location.search);
+      setEmbedded(params.get("embedded") === "1");
+    }
+  }, []);
+
   async function handleTriggerIndex() {
     setIndexing(true);
     try {
@@ -69,7 +77,7 @@ export function SourceWikiView({ sourceName }: { sourceName: string }) {
   if (isLoading) {
     return (
       <div className="flex bg-background min-h-screen text-foreground overflow-hidden">
-        <GlobalNavigation />
+        {!embedded && <GlobalNavigation />}
         <div className="flex-1 overflow-y-auto relative z-10 custom-scrollbar flex items-center justify-center">
           <div className="fixed inset-0 pointer-events-none bg-[radial-gradient(ellipse_at_top_right,_var(--tw-gradient-stops))] from-primary/10 via-background to-background z-[-1]" />
           <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
@@ -82,13 +90,15 @@ export function SourceWikiView({ sourceName }: { sourceName: string }) {
     const message = error instanceof Error ? error.message : "Source not found";
     return (
       <div className="flex bg-background min-h-screen text-foreground overflow-hidden">
-        <GlobalNavigation />
-        <div className="flex-1 overflow-y-auto relative z-10 custom-scrollbar p-6">
+        {!embedded && <GlobalNavigation />}
+        <div className={`flex-1 overflow-y-auto relative z-10 custom-scrollbar ${embedded ? "p-4" : "p-6"}`}>
           <div className="fixed inset-0 pointer-events-none bg-[radial-gradient(ellipse_at_top_right,_var(--tw-gradient-stops))] from-primary/10 via-background to-background z-[-1]" />
-          <Link href="/wiki" className="inline-flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground">
-            <ChevronLeft className="h-4 w-4" />
-            <span className="font-mono text-[10px] tracking-widest uppercase">Back to source wiki</span>
-          </Link>
+          {!embedded && (
+            <Link href="/wiki" className="inline-flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground">
+              <ChevronLeft className="h-4 w-4" />
+              <span className="font-mono text-[10px] tracking-widest uppercase">Back to source wiki</span>
+            </Link>
+          )}
           <div className="mt-16 text-center text-red-400 font-mono">{message}</div>
         </div>
       </div>
@@ -97,15 +107,17 @@ export function SourceWikiView({ sourceName }: { sourceName: string }) {
 
   return (
     <div className="flex bg-background min-h-screen text-foreground overflow-hidden">
-      <GlobalNavigation />
+      {!embedded && <GlobalNavigation />}
       <div className="flex-1 overflow-y-auto relative z-10 custom-scrollbar">
         <div className="fixed inset-0 pointer-events-none bg-[radial-gradient(ellipse_at_top_right,_var(--tw-gradient-stops))] from-primary/10 via-background to-background z-[-1]" />
-        <main className="mx-auto grid max-w-[1500px] gap-5 p-4 lg:grid-cols-[300px_minmax(0,1fr)]">
-          <aside className="rounded-2xl bg-black/40 backdrop-blur-2xl border border-white/10 shadow-[0_8px_32px_rgba(0,0,0,0.4)] ring-1 ring-white/5 p-4 lg:sticky lg:top-4 lg:h-[calc(100vh-2rem)] lg:overflow-y-auto">
-            <Link href="/wiki" className="inline-flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground">
-              <ChevronLeft className="h-4 w-4" />
-              <span className="font-mono text-[10px] tracking-widest uppercase">Source wiki</span>
-            </Link>
+        <main className={`mx-auto grid gap-5 p-4 ${embedded ? "max-w-none lg:grid-cols-[280px_minmax(0,1fr)]" : "max-w-[1500px] lg:grid-cols-[300px_minmax(0,1fr)]"}`}>
+          <aside className={`rounded-2xl bg-black/40 backdrop-blur-2xl border border-white/10 shadow-[0_8px_32px_rgba(0,0,0,0.4)] ring-1 ring-white/5 p-4 ${embedded ? "lg:max-h-[calc(100vh-2rem)] lg:overflow-y-auto" : "lg:sticky lg:top-4 lg:h-[calc(100vh-2rem)] lg:overflow-y-auto"}`}>
+            {!embedded && (
+              <Link href="/wiki" className="inline-flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground">
+                <ChevronLeft className="h-4 w-4" />
+                <span className="font-mono text-[10px] tracking-widest uppercase">Source wiki</span>
+              </Link>
+            )}
 
             <div className="mt-5">
               <div className="font-mono text-[10px] uppercase tracking-widest text-muted-foreground">

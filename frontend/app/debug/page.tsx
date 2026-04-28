@@ -254,6 +254,7 @@ export default function DebugDashboardPage() {
 
   // Phase 3: New state for system status, log level, parser tester
   const [activeTab, setActiveTab] = useState<DebugTab>(DEFAULT_DEBUG_TAB)
+  const [embedded, setEmbedded] = useState(false)
   const frontendDebugMode = useDebugMode()
   const [cacheRefreshRunning, setCacheRefreshRunning] = useState(false)
   const [cacheRefreshMessage, setCacheRefreshMessage] = useState<string | null>(null)
@@ -573,6 +574,7 @@ export default function DebugDashboardPage() {
     if (typeof window === "undefined") return
     const params = new URLSearchParams(window.location.search)
     const tab = params.get("tab")
+    setEmbedded(params.get("embedded") === "1")
     if (isDebugTab(tab)) {
       setActiveTab(tab)
     }
@@ -696,27 +698,29 @@ export default function DebugDashboardPage() {
 
   return (
     <div className="flex bg-background min-h-screen text-foreground overflow-hidden">
-      <GlobalNavigation />
-      <div className="flex-1 overflow-y-auto relative z-10 custom-scrollbar p-6">
+      {!embedded && <GlobalNavigation />}
+      <div className={`flex-1 overflow-y-auto relative z-10 custom-scrollbar ${embedded ? "p-4" : "p-6"}`}>
         <div className="fixed inset-0 pointer-events-none bg-[radial-gradient(ellipse_at_top_right,_var(--tw-gradient-stops))] from-primary/10 via-background to-background z-[-1]" />
         <div className="space-y-6">
-          <div className="flex flex-wrap items-center justify-between gap-4">
-        <div>
-          <h1 className="text-2xl font-semibold font-serif">Debug Console</h1>
-          <p className="text-sm text-muted-foreground">
-            System status, source operations, storage inspection, parser testing, and runtime controls.
-          </p>
-        </div>
-        <div className="flex items-center gap-2">
-          {loading && <span className="text-sm text-muted-foreground">Refreshing...</span>}
-          <Button asChild variant="outline">
-            <Link href="/wiki">Open Wiki</Link>
-          </Button>
-          <Button onClick={loadData} variant="default">
-            Refresh data
-          </Button>
-        </div>
-      </div>
+          {!embedded && (
+            <div className="flex flex-wrap items-center justify-between gap-4">
+              <div>
+                <h1 className="text-2xl font-semibold font-serif">Debug Console</h1>
+                <p className="text-sm text-muted-foreground">
+                  System status, source operations, storage inspection, parser testing, and runtime controls.
+                </p>
+              </div>
+              <div className="flex items-center gap-2">
+                {loading && <span className="text-sm text-muted-foreground">Refreshing...</span>}
+                <Button asChild variant="outline">
+                  <Link href="/wiki">Open Wiki</Link>
+                </Button>
+                <Button onClick={loadData} variant="default">
+                  Refresh data
+                </Button>
+              </div>
+            </div>
+          )}
 
       {error && (
         <Card className="border-red-500/30 bg-red-500/10 bg-black/20 border-white/5 transition-all hover:bg-white/[0.03] hover:-translate-y-px hover:shadow-lg">

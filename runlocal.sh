@@ -27,15 +27,31 @@ CHROMA_LOG_FILE="${CHROMA_LOG_FILE:-$LOG_DIR/chroma.log}"
 EMBEDDING_SERVICE_LOG_FILE="${EMBEDDING_SERVICE_LOG_FILE:-$LOG_DIR/embedding-service.log}"
 AUTO_INSTALL="${AUTO_INSTALL:-1}"
 GUNICORN_WORKERS="${GUNICORN_WORKERS:-1}"
-NEXT_PUBLIC_API_URL="${NEXT_PUBLIC_API_URL:-http://localhost:${BACKEND_PORT}}"
+NEXT_PUBLIC_API_URL="${NEXT_PUBLIC_API_URL:-}"
 NEXT_PUBLIC_DOCKER_API_URL="${NEXT_PUBLIC_DOCKER_API_URL:-$NEXT_PUBLIC_API_URL}"
-NEXT_PUBLIC_PUBLIC_API_URL="${NEXT_PUBLIC_PUBLIC_API_URL:-$NEXT_PUBLIC_API_URL}"
+NEXT_PUBLIC_PUBLIC_API_URL="${NEXT_PUBLIC_PUBLIC_API_URL:-}"
 NEXT_PUBLIC_FRONTEND_HOST_SUFFIX="${NEXT_PUBLIC_FRONTEND_HOST_SUFFIX:-}"
 CORS_ORIGIN_REGEX="${CORS_ORIGIN_REGEX:-^https?://(localhost|127\.0\.0\.1|10\.[0-9.]+|172\.(1[6-9]|2[0-9]|3[0-1])\.[0-9.]+|192\.168\.[0-9.]+)(:[0-9]+)?$|^https://([a-z0-9-]+\\.)?jordandgreen\\.com$}"
 RUNLOCAL_STATE_DIR="${RUNLOCAL_STATE_DIR:-$ROOT_DIR/.runlocal}"
 RUNLOCAL_PID_FILE="${RUNLOCAL_PID_FILE:-$RUNLOCAL_STATE_DIR/pids}"
 
-export DATABASE_URL CHROMA_HOST CHROMA_PORT EMBEDDING_SERVICE_URL GUNICORN_WORKERS NEXT_PUBLIC_API_URL NEXT_PUBLIC_DOCKER_API_URL NEXT_PUBLIC_PUBLIC_API_URL NEXT_PUBLIC_FRONTEND_HOST_SUFFIX CORS_ORIGIN_REGEX
+export DATABASE_URL CHROMA_HOST CHROMA_PORT EMBEDDING_SERVICE_URL GUNICORN_WORKERS CORS_ORIGIN_REGEX
+
+if [[ -n "$NEXT_PUBLIC_API_URL" ]]; then
+	export NEXT_PUBLIC_API_URL
+fi
+
+if [[ -n "$NEXT_PUBLIC_DOCKER_API_URL" ]]; then
+	export NEXT_PUBLIC_DOCKER_API_URL
+fi
+
+if [[ -n "$NEXT_PUBLIC_PUBLIC_API_URL" ]]; then
+	export NEXT_PUBLIC_PUBLIC_API_URL
+fi
+
+if [[ -n "$NEXT_PUBLIC_FRONTEND_HOST_SUFFIX" ]]; then
+	export NEXT_PUBLIC_FRONTEND_HOST_SUFFIX
+fi
 
 log() {
 	echo "[runlocal] $*"
@@ -62,13 +78,15 @@ PIDS=()
 
 usage() {
 	cat <<'USAGE'
-Usage: ./runlocal.sh [setup|services|backend|frontend|all|killall|help]
+Usage: ./runlocal.sh [setup|services|backend|frontend|frontend-release|all|release|killall|help]
 
   setup     Install local Postgres + Chroma dependencies and prep defaults
   services  Start Postgres + Chroma locally (no Docker)
   backend   Create/refresh the Python venv, install deps, start FastAPI (gunicorn)
   frontend  Install npm deps if needed and start Next.js dev server (also starts Postgres + Chroma)
+  frontend-release Install deps if needed, build frontend, and start Next.js production server
   all       Run backend and frontend together (default)
+  release   Run backend and the built frontend production server together
   killall   Stop processes spawned by previous runlocal.sh runs
   help      Show this message
 
@@ -92,8 +110,10 @@ Usage: ./runlocal.sh [setup|services|backend|frontend|all|killall|help]
   LOG_DIR         Directory for all log files (default ./logs)
   AUTO_INSTALL   Set to 1 to auto-install Postgres if missing (default 1)
   GUNICORN_WORKERS Worker count for backend (default 1)
-  NEXT_PUBLIC_API_URL        Frontend base URL for local backend (default http://localhost:<BACKEND_PORT>)
-  NEXT_PUBLIC_DOCKER_API_URL Overrides API URL when frontend runs in Docker (default matches NEXT_PUBLIC_API_URL)
+  NEXT_PUBLIC_API_URL        Frontend API base URL override (default unset; frontend fallback logic applies)
+  NEXT_PUBLIC_DOCKER_API_URL Frontend Docker API base URL override (default matches NEXT_PUBLIC_API_URL when set)
+  NEXT_PUBLIC_PUBLIC_API_URL Public API hostname override for public frontend domains
+  NEXT_PUBLIC_FRONTEND_HOST_SUFFIX Public frontend domain suffix (for API fallback mapping)
   CORS_ORIGIN_REGEX          Extra FastAPI CORS regex for LAN/dev origins
 USAGE
 
@@ -588,6 +608,8 @@ run_backend() {
 }
 
 run_frontend() {
+	local mode="${1:-dev}"
+
 	require_cmd npm
 	free_port "$FRONTEND_PORT"
 
@@ -598,11 +620,19 @@ run_frontend() {
 		npm install
 	fi
 
-	log "Starting Next.js dev server on port $FRONTEND_PORT"
-	npm run dev -- --port "$FRONTEND_PORT" &
+	if [[ "$mode" == "release" ]]; then
+		log "Building Next.js frontend for release..."
+		npm run build
+		log "Starting Next.js production server on port $FRONTEND_PORT"
+		npm run start -- -p "$FRONTEND_PORT" &
+	else
+		log "Starting Next.js dev server on port $FRONTEND_PORT"
+		npm run dev -- --port "$FRONTEND_PORT" &
+	fi
+
 	local frontend_pid=$!
 	PIDS+=("$frontend_pid")
-	record_pid "$frontend_pid" "frontend"
+	record_pid "$frontend_pid" "frontend_${mode}"
 
 	popd >/dev/null
 }
@@ -625,10 +655,19 @@ main() {
 			start_services
 			run_frontend
 			;;
+		frontend-release)
+			start_services
+			run_frontend release
+			;;
 		all)
 			start_services
 			run_backend
 			run_frontend
+			;;
+		release)
+			start_services
+			run_backend
+			run_frontend release
 			;;
 		killall)
 			killall_services

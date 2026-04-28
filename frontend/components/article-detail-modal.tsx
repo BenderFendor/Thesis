@@ -182,6 +182,7 @@ function ArticleDetailModalContent({ article, isOpen, onClose, onBookmarkChange,
   const [highlightPopoverHighlight, setHighlightPopoverHighlight] = useState<LocalHighlight | null>(null)
   const lastCreatedClientIdRef = useRef<string | null>(null)
   const contentScrollRef = useRef<HTMLDivElement>(null)
+  const progressTrackRef = useRef<HTMLDivElement>(null)
   const [articleScrollProgress, setArticleScrollProgress] = useState(0)
   const [wikiPanelOpen, setWikiPanelOpen] = useState(false)
   const [wikiPanelTab, setWikiPanelTab] = useState<"source" | "reporter">("source")
@@ -400,24 +401,116 @@ function ArticleDetailModalContent({ article, isOpen, onClose, onBookmarkChange,
     }
   }, [isOpen, article, markAsRead])
 
+  const scrollArticleContentBy = useCallback((delta: number) => {
+    const container = contentScrollRef.current
+    if (!container) return
+
+    container.scrollBy({ top: delta, behavior: "smooth" })
+  }, [])
+
+  const scrollArticleContentToProgress = useCallback((nextProgress: number) => {
+    const container = contentScrollRef.current
+    if (!container) return
+
+    const maxScroll = Math.max(0, container.scrollHeight - container.clientHeight)
+    const clampedProgress = Math.min(1, Math.max(0, nextProgress))
+    container.scrollTo({ top: maxScroll * clampedProgress, behavior: "auto" })
+  }, [])
+
+  const resolveProgressFromPointer = useCallback((clientY: number) => {
+    const track = progressTrackRef.current
+    if (!track) return null
+
+    const rect = track.getBoundingClientRect()
+    if (rect.height <= 0) return null
+    return (clientY - rect.top) / rect.height
+  }, [])
+
   useEffect(() => {
-    if (!isOpen || !isExpanded || !onNavigate) return
+    if (!isOpen) return
 
     const handleKeyDown = (event: KeyboardEvent) => {
       if (isTextInputFocused()) return
+      if (claimsOpen || wikiPanelOpen) return
 
-      if (event.key === "ArrowRight" || event.key === "ArrowDown") {
+      const container = contentScrollRef.current
+      if (!container) return
+
+      const pageStep = Math.max(container.clientHeight * 0.9, 240)
+      const lineStep = Math.max(container.clientHeight * 0.12, 72)
+
+      if (event.key === "ArrowDown") {
         event.preventDefault()
+        event.stopPropagation()
+        event.stopImmediatePropagation()
+        scrollArticleContentBy(lineStep)
+      } else if (event.key === "ArrowUp") {
+        event.preventDefault()
+        event.stopPropagation()
+        event.stopImmediatePropagation()
+        scrollArticleContentBy(-lineStep)
+      } else if (event.key === "PageDown") {
+        event.preventDefault()
+        event.stopPropagation()
+        event.stopImmediatePropagation()
+        scrollArticleContentBy(pageStep)
+      } else if (event.key === "PageUp") {
+        event.preventDefault()
+        event.stopPropagation()
+        event.stopImmediatePropagation()
+        scrollArticleContentBy(-pageStep)
+      } else if (isExpanded && onNavigate && event.key === "ArrowRight") {
+        event.preventDefault()
+        event.stopPropagation()
+        event.stopImmediatePropagation()
         handleNavigate("next")
-      } else if (event.key === "ArrowLeft" || event.key === "ArrowUp") {
+      } else if (isExpanded && onNavigate && event.key === "ArrowLeft") {
         event.preventDefault()
+        event.stopPropagation()
+        event.stopImmediatePropagation()
         handleNavigate("prev")
       }
     }
 
-    window.addEventListener("keydown", handleKeyDown)
-    return () => window.removeEventListener("keydown", handleKeyDown)
-  }, [handleNavigate, isOpen, isExpanded, onNavigate])
+    window.addEventListener("keydown", handleKeyDown, true)
+    return () => window.removeEventListener("keydown", handleKeyDown, true)
+  }, [claimsOpen, handleNavigate, isExpanded, isOpen, onNavigate, scrollArticleContentBy, wikiPanelOpen])
+
+  useEffect(() => {
+    if (!isOpen) return
+
+    const handlePointerMove = (event: PointerEvent) => {
+      const nextProgress = resolveProgressFromPointer(event.clientY)
+      if (nextProgress === null) return
+      scrollArticleContentToProgress(nextProgress)
+    }
+
+    const handlePointerUp = () => {
+      window.removeEventListener("pointermove", handlePointerMove)
+      window.removeEventListener("pointerup", handlePointerUp)
+    }
+
+    const handlePointerDown = (event: PointerEvent) => {
+      const track = progressTrackRef.current
+      if (!track || !track.contains(event.target as Node)) return
+
+      event.preventDefault()
+      const nextProgress = resolveProgressFromPointer(event.clientY)
+      if (nextProgress !== null) {
+        scrollArticleContentToProgress(nextProgress)
+      }
+
+      window.addEventListener("pointermove", handlePointerMove)
+      window.addEventListener("pointerup", handlePointerUp)
+    }
+
+    window.addEventListener("pointerdown", handlePointerDown)
+    return () => {
+      window.removeEventListener("pointerdown", handlePointerDown)
+      window.removeEventListener("pointermove", handlePointerMove)
+      window.removeEventListener("pointerup", handlePointerUp)
+    }
+  }, [isOpen, resolveProgressFromPointer, scrollArticleContentToProgress])
 
   const loadDebug = async () => {
     if (!article) return
@@ -699,6 +792,25 @@ function ArticleDetailModalContent({ article, isOpen, onClose, onBookmarkChange,
       setSelectedClaim(factCheckResults[0])
     }
   }
+
+  useEffect(() => {
+    if (!claimsOpen) return
+
+    if (factCheckResults.length === 0) {
+      setSelectedClaim(null)
+      return
+    }
+
+    if (!selectedClaim) {
+      setSelectedClaim(factCheckResults[0])
+      return
+    }
+
+    const stillPresent = factCheckResults.some((claim) => claim.claim === selectedClaim.claim)
+    if (!stillPresent) {
+      setSelectedClaim(factCheckResults[0])
+    }
+  }, [claimsOpen, factCheckResults, selectedClaim])
   const visibleHighlights = useMemo(
     () => toRemoteHighlights(highlights.filter((h) => !h.deleted)),
     [highlights],
@@ -900,10 +1012,23 @@ function ArticleDetailModalContent({ article, isOpen, onClose, onBookmarkChange,
          </div>
 
         {/* Content Wrapper */}
-        <div ref={contentScrollRef} className="no-scrollbar relative flex-1 overflow-y-auto bg-background">
-          <div className="pointer-events-none absolute inset-y-24 right-2 z-10 hidden w-2 rounded-full bg-white/5 lg:block">
+        <div
+          id="article-detail-scroll-region"
+          ref={contentScrollRef}
+          className="no-scrollbar relative flex-1 overflow-y-auto bg-background"
+        >
+          <div
+            ref={progressTrackRef}
+            role="scrollbar"
+            aria-label="Article reading progress"
+            aria-controls="article-detail-scroll-region"
+            aria-valuemin={0}
+            aria-valuemax={100}
+            aria-valuenow={Math.round(articleScrollProgress * 100)}
+            className="absolute inset-y-24 right-2 z-10 hidden w-3 cursor-row-resize rounded-full bg-white/5 lg:block"
+          >
             <div
-              className="w-full rounded-full bg-primary/80 transition-[height] duration-150"
+              className="pointer-events-none w-full rounded-full bg-primary/80 transition-[height] duration-150"
               style={{ height: `${Math.max(articleScrollProgress * 100, 8)}%` }}
             />
           </div>
@@ -1642,19 +1767,19 @@ function ArticleDetailModalContent({ article, isOpen, onClose, onBookmarkChange,
                     <div className="sticky top-6 space-y-6">
                       {/* AI Summary */}
                       {aiAnalysis.summary && (
-                        <div className="bg-gradient-to-br from-primary/15 to-amber-500/10 border border-primary/30 rounded-lg p-6">
-                          <div className="flex items-center gap-2 mb-3">
+                        <div className="rounded-2xl border border-border/60 bg-slate-950/85 p-6 shadow-2xl shadow-black/40">
+                          <div className="mb-3 flex items-center gap-2">
                             <Sparkles className="h-5 w-5 text-primary" />
-                            <h3 className="text-lg font-semibold text-white">AI Summary</h3>
+                            <h3 className="text-lg font-semibold text-foreground">AI Summary</h3>
                           </div>
-                          <p className="text-gray-300 leading-relaxed text-sm">{aiAnalysis.summary}</p>
+                          <p className="text-sm leading-relaxed text-foreground/85">{aiAnalysis.summary}</p>
                         </div>
                       )}
 
                       {/* Bias Analysis */}
                       {aiAnalysis.bias_analysis && (
-                        <div className="bg-gray-900/50 border border-gray-800 rounded-lg p-6">
-                          <h3 className="text-lg font-semibold text-white mb-4 flex items-center gap-2">
+                        <div className="rounded-2xl border border-border/60 bg-card/60 p-6">
+                          <h3 className="mb-4 flex items-center gap-2 text-lg font-semibold text-foreground">
                             <AlertTriangle className="h-5 w-5 text-yellow-400" />
                             Bias Analysis
                           </h3>
@@ -1667,12 +1792,12 @@ function ArticleDetailModalContent({ article, isOpen, onClose, onBookmarkChange,
                           )}
                           <div className="space-y-3 text-sm">
                             <div>
-                              <span className="text-gray-400">Tone:</span>
-                              <p className="text-white mt-1">{aiAnalysis.bias_analysis.tone_bias}</p>
+                              <span className="text-muted-foreground">Tone:</span>
+                              <p className="mt-1 text-foreground">{aiAnalysis.bias_analysis.tone_bias}</p>
                             </div>
                             <div>
-                              <span className="text-gray-400">Framing:</span>
-                              <p className="text-white mt-1">{aiAnalysis.bias_analysis.framing_bias}</p>
+                              <span className="text-muted-foreground">Framing:</span>
+                              <p className="mt-1 text-foreground">{aiAnalysis.bias_analysis.framing_bias}</p>
                             </div>
                           </div>
                         </div>
@@ -1680,16 +1805,16 @@ function ArticleDetailModalContent({ article, isOpen, onClose, onBookmarkChange,
 
                       {/* Source Analysis */}
                       {aiAnalysis.source_analysis && (
-                        <div className="bg-gray-900/50 border border-gray-800 rounded-lg p-6">
-                          <h3 className="text-lg font-semibold text-white mb-4">Source Info</h3>
+                        <div className="rounded-2xl border border-border/60 bg-card/60 p-6">
+                          <h3 className="mb-4 text-lg font-semibold text-foreground">Source Info</h3>
                           <div className="space-y-3 text-sm">
                             <div>
-                              <span className="text-gray-400">Credibility:</span>
-                              <p className="text-white mt-1">{aiAnalysis.source_analysis.credibility_assessment}</p>
+                              <span className="text-muted-foreground">Credibility:</span>
+                              <p className="mt-1 text-foreground">{aiAnalysis.source_analysis.credibility_assessment}</p>
                             </div>
                             <div>
-                              <span className="text-gray-400">Political Leaning:</span>
-                              <p className="text-white mt-1">{aiAnalysis.source_analysis.political_leaning}</p>
+                              <span className="text-muted-foreground">Political Leaning:</span>
+                              <p className="mt-1 text-foreground">{aiAnalysis.source_analysis.political_leaning}</p>
                             </div>
                           </div>
                         </div>
@@ -1706,34 +1831,37 @@ function ArticleDetailModalContent({ article, isOpen, onClose, onBookmarkChange,
                                   setSelectedClaim(factCheckResults[0])
                                 }
                               }}
-                              className="group relative w-full overflow-hidden rounded-xl border border-primary/30 bg-gradient-to-br from-primary/15 via-primary/10 to-transparent p-6 text-left transition-all duration-300 hover:-translate-y-1 hover:border-primary/60 hover:shadow-xl hover:shadow-black/20 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
+                              className="group relative w-full overflow-hidden rounded-2xl border border-border/60 bg-card/70 p-6 text-left transition-all duration-300 hover:-translate-y-1 hover:border-primary/40 hover:bg-card/90 hover:shadow-xl hover:shadow-black/20 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
                               aria-label="Open verified claims report"
                             >
-                              <div className="pointer-events-none absolute -right-20 -top-20 h-40 w-40 rounded-full bg-primary/10 blur-3xl transition-opacity duration-500 group-hover:opacity-60" />
-                              <div className="mb-4 flex items-center justify-between">
+                              <div className="pointer-events-none absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-primary/50 to-transparent opacity-80" />
+                              <div className="mb-4 flex items-center justify-between gap-3">
                                 <div className="flex items-center gap-2">
                                   <Sparkles className="h-5 w-5 text-primary/80 transition-transform duration-300 group-hover:rotate-3" />
                                   <h3 className="text-lg font-semibold text-foreground">Fact Check Results</h3>
                                 </div>
-                                <span className="rounded-full border border-primary/40 bg-primary/15 px-3 py-1 text-xs font-semibold uppercase tracking-wide text-foreground/90">
+                                <span className="rounded-full border border-primary/30 bg-primary/10 px-3 py-1 text-xs font-semibold uppercase tracking-wide text-foreground/85">
                                   {factCheckResults.length} claims
                                 </span>
                               </div>
+                              <p className="mb-4 max-w-xl text-sm text-muted-foreground">
+                                Review each claim, inspect the model’s evidence summary, and run live research without leaving the article.
+                              </p>
                               <div className="space-y-3">
                                 {factCheckResults.slice(0, 3).map((result, index) => (
                                   <div
                                     key={`${result.claim}-${index}`}
-                                    className="flex items-start gap-3 rounded-lg border border-transparent bg-primary/10 p-3 transition-all duration-300 group-hover:border-primary/40"
+                                    className="flex items-start gap-3 rounded-xl border border-border/60 bg-background/40 p-3 transition-all duration-300 group-hover:border-primary/30"
                                   >
                                     <Badge className={`${VERIFICATION_STYLE_MAP[result.verification_status]} text-xs uppercase tracking-wide`}>
                                       {VERIFICATION_LABEL_MAP[result.verification_status]}
                                     </Badge>
-                                    <p className="text-sm text-foreground/80 line-clamp-2">&quot;{result.claim}&quot;</p>
+                                    <p className="line-clamp-2 text-sm text-foreground/80">&quot;{result.claim}&quot;</p>
                                   </div>
                                 ))}
                               </div>
                               <div className="mt-5 flex items-center justify-between text-xs text-foreground/70">
-                                <span>Click to review the full verification report</span>
+                                <span>Open the verification workspace</span>
                                 <div className="flex items-center gap-2 font-semibold">
                                   <span>Open</span>
                                   <ExternalLink className="h-3.5 w-3.5" />
@@ -1742,19 +1870,25 @@ function ArticleDetailModalContent({ article, isOpen, onClose, onBookmarkChange,
                             </button>
                           </DialogTrigger>
 
-                          <DialogContent className="sm:max-w-2xl border border-primary/30 bg-slate-950/95 text-slate-100 shadow-2xl shadow-primary/10">
-                            <DialogHeader className="space-y-1">
+                          <DialogContent className="max-h-screen overflow-hidden border border-border/60 bg-background/95 p-0 text-foreground shadow-2xl shadow-black/60 sm:max-w-5xl">
+                            <DialogHeader className="border-b border-border/60 px-6 py-5">
                               <DialogTitle className="flex items-center gap-2 text-foreground">
                                 <Sparkles className="h-5 w-5 text-primary/80" />
-                                Verified Claims
+                                Verification Report
                               </DialogTitle>
-                              <p className="text-xs text-foreground/70">
-                                Check statements, filter by confidence, and run live searches for evidence.
+                              <p className="text-sm text-muted-foreground">
+                                Review claims, inspect evidence, and run live research against the same article context.
                               </p>
                             </DialogHeader>
 
-                            <div className="grid gap-6 md:grid-cols-3">
-                              <div className="space-y-4">
+                            <div className="grid max-h-screen md:grid-cols-12">
+                              <div className="border-b border-border/60 bg-card/40 p-5 md:col-span-4 md:border-b-0 md:border-r lg:col-span-3">
+                                <div className="mb-4">
+                                  <p className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">
+                                    Claim Filters
+                                  </p>
+                                </div>
+
                                 <div className="flex flex-wrap gap-2">
                                   {STATUS_FILTERS.map((status) => {
                                     const isAll = status === "all"
@@ -1766,14 +1900,14 @@ function ArticleDetailModalContent({ article, isOpen, onClose, onBookmarkChange,
                                       <button
                                         key={status}
                                         type="button"
-                                        className={`rounded-full border px-3 py-1 text-xs font-semibold uppercase tracking-wide transition-all ${isActive ? "border-primary/60 bg-primary/15 text-foreground shadow-lg shadow-black/20" : "border-primary/30 text-foreground/75 hover:border-primary/60 hover:text-foreground"} ${isDisabled ? "cursor-not-allowed opacity-40 hover:border-primary/30 hover:text-foreground/75" : "cursor-pointer"}`}
+                                        className={`rounded-full border px-3 py-1 text-xs font-semibold uppercase tracking-wide transition-all ${isActive ? "border-primary/50 bg-primary/10 text-foreground" : "border-border/60 bg-background/40 text-foreground/75 hover:border-primary/40 hover:text-foreground"} ${isDisabled ? "cursor-not-allowed opacity-40 hover:border-border/60 hover:text-foreground/75" : "cursor-pointer"}`}
                                         onClick={() => {
                                           if (isDisabled) return
                                           setActiveStatusFilter(status)
                                         }}
                                       >
                                         {status === "all" ? "All" : VERIFICATION_LABEL_MAP[status as FactCheckStatus]}
-                                        <span className="ml-2 rounded-full bg-primary/15 px-2 py-0.5 text-xs font-bold text-foreground/80">
+                                        <span className="ml-2 rounded-full bg-background/70 px-2 py-0.5 text-xs font-bold text-foreground/80">
                                           {count}
                                         </span>
                                       </button>
@@ -1781,34 +1915,34 @@ function ArticleDetailModalContent({ article, isOpen, onClose, onBookmarkChange,
                                   })}
                                 </div>
 
-                                <div>
-                                  <h4 className="mb-2 text-xs font-semibold uppercase tracking-wide text-foreground/70">Claims</h4>
-                                  <div className="max-h-72 space-y-2 overflow-y-auto pr-1">
+                                <div className="mt-5">
+                                  <h4 className="mb-2 text-xs font-semibold uppercase tracking-widest text-muted-foreground">Claims</h4>
+                                  <div className="max-h-96 space-y-2 overflow-y-auto pr-1 md:max-h-full">
                                     {filteredClaims.map((claim, index) => {
                                       const isActive = selectedClaim?.claim === claim.claim
                                       return (
                                         <button
                                           key={`${claim.claim}-${index}`}
                                           type="button"
-                                          className={`w-full rounded-lg border bg-slate-900/70 p-3 text-left transition-all duration-200 hover:-translate-y-0.5 hover:border-primary/60 hover:shadow-lg hover:shadow-primary/10 ${isActive ? "border-primary/60 shadow-lg shadow-primary/20" : "border-slate-800/80"}`}
+                                          className={`w-full rounded-xl border p-3 text-left transition-all duration-200 hover:-translate-y-0.5 hover:border-primary/40 ${isActive ? "border-primary/50 bg-primary/10 shadow-lg shadow-black/20" : "border-border/60 bg-background/45"}`}
                                           onClick={() => {
                                             setSelectedClaim(claim)
                                             setAgenticAnswer(null)
                                             setAgenticError(null)
                                           }}
                                         >
-                                          <div className="flex items-center gap-2">
+                                          <div className="mb-2 flex items-center gap-2">
                                             <Badge className={`${VERIFICATION_STYLE_MAP[claim.verification_status]} text-xs uppercase tracking-wide`}>
                                               {VERIFICATION_LABEL_MAP[claim.verification_status]}
                                             </Badge>
-                                            <span className="text-xs text-foreground/80 line-clamp-2">{claim.claim}</span>
                                           </div>
+                                          <span className="line-clamp-3 text-sm text-foreground/85">{claim.claim}</span>
                                         </button>
                                       )
                                     })}
 
                                     {filteredClaims.length === 0 && (
-                                      <div className="rounded-lg border border-slate-800/80 bg-slate-900/70 p-4 text-xs text-slate-300/70">
+                                      <div className="rounded-xl border border-border/60 bg-background/40 p-4 text-xs text-muted-foreground">
                                         No claims in this category yet. Try another filter.
                                       </div>
                                     )}
@@ -1816,35 +1950,37 @@ function ArticleDetailModalContent({ article, isOpen, onClose, onBookmarkChange,
                                 </div>
                               </div>
 
-                              <div className="space-y-4">
+                              <div className="space-y-5 overflow-y-auto p-6 md:col-span-8 lg:col-span-9">
                                 {selectedClaim ? (
                                   <div className="space-y-4">
-                                    <div className="rounded-xl border border-slate-800/80 bg-slate-900/70 p-5 shadow-inner shadow-primary/10">
+                                    <div className="rounded-2xl border border-border/60 bg-card/60 p-5">
                                       <div className="mb-4 flex items-start justify-between gap-3">
-                                        <Badge className={`${VERIFICATION_STYLE_MAP[selectedClaim.verification_status]} text-xs uppercase tracking-wide`}>
-                                          {VERIFICATION_LABEL_MAP[selectedClaim.verification_status]}
-                                        </Badge>
-                                        <Badge className={`${getConfidenceColor(selectedClaim.confidence)} text-xs uppercase tracking-wide`}>
-                                          confidence: {selectedClaim.confidence}
-                                        </Badge>
+                                        <div className="flex flex-wrap gap-2">
+                                          <Badge className={`${VERIFICATION_STYLE_MAP[selectedClaim.verification_status]} text-xs uppercase tracking-wide`}>
+                                            {VERIFICATION_LABEL_MAP[selectedClaim.verification_status]}
+                                          </Badge>
+                                          <Badge className={`${getConfidenceColor(selectedClaim.confidence)} text-xs uppercase tracking-wide`}>
+                                            confidence: {selectedClaim.confidence}
+                                          </Badge>
+                                        </div>
                                       </div>
-                                      <p className="text-sm text-foreground/90">&quot;{selectedClaim.claim}&quot;</p>
+                                      <p className="text-base font-medium leading-relaxed text-foreground">&quot;{selectedClaim.claim}&quot;</p>
                                       {selectedClaim.notes && (
-                                        <p className="mt-3 text-xs text-slate-300/80">{selectedClaim.notes}</p>
+                                        <p className="mt-3 text-sm text-muted-foreground">{selectedClaim.notes}</p>
                                       )}
                                       <div className="mt-4 space-y-2">
-                                        <h5 className="text-xs font-semibold uppercase tracking-wide text-foreground/60">Evidence</h5>
-                                        <div className="rounded-lg border border-slate-800 bg-slate-950/70 p-3 text-xs text-slate-200/80">
+                                        <h5 className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">Evidence</h5>
+                                        <div className="rounded-xl border border-border/60 bg-background/40 p-4 text-sm leading-relaxed text-foreground/85">
                                           {selectedClaim.evidence || "Evidence details not provided."}
                                         </div>
-                                        <div className="flex flex-wrap gap-2 text-xs text-slate-300/70">
+                                        <div className="flex flex-wrap gap-2 text-xs text-foreground/75">
                                           {selectedClaim.sources?.slice(0, 4).map((source, idx) => (
                                             <a
                                               key={`${source}-${idx}`}
                                               href={source}
                                               target="_blank"
                                               rel="noopener noreferrer"
-                                              className="group/link inline-flex items-center gap-1 rounded-full border border-slate-700 bg-slate-800/60 px-3 py-1 transition hover:border-primary/60 hover:text-foreground"
+                                              className="group/link inline-flex items-center gap-1 rounded-full border border-border/60 bg-background/50 px-3 py-1 transition hover:border-primary/40 hover:text-foreground"
                                             >
                                               <LinkIcon className="h-3 w-3" />
                                               <span className="max-w-48 truncate">{source}</span>
@@ -1852,14 +1988,14 @@ function ArticleDetailModalContent({ article, isOpen, onClose, onBookmarkChange,
                                             </a>
                                           ))}
                                           {(!selectedClaim.sources || selectedClaim.sources.length === 0) && (
-                                            <span className="rounded-full border border-slate-700 px-3 py-1">No sources provided</span>
+                                            <span className="rounded-full border border-border/60 px-3 py-1">No sources provided</span>
                                           )}
                                         </div>
                                       </div>
-                                      <div className="mt-4 flex flex-wrap gap-2 text-xs text-slate-400">
+                                      <div className="mt-4 flex flex-wrap gap-2 text-xs text-muted-foreground">
                                         <button
                                           type="button"
-                                          className="inline-flex items-center gap-1 rounded-full border border-slate-700 px-3 py-1 transition hover:border-primary/60 hover:text-foreground"
+                                          className="inline-flex items-center gap-1 rounded-full border border-border/60 px-3 py-1 transition hover:border-primary/40 hover:text-foreground"
                                           onClick={() => {
                                             if (typeof navigator !== "undefined") {
                                               navigator.clipboard.writeText(`${selectedClaim.claim}\n\nEvidence: ${selectedClaim.evidence ?? "N/A"}`).catch(() => null)
@@ -1882,18 +2018,18 @@ function ArticleDetailModalContent({ article, isOpen, onClose, onBookmarkChange,
                                       </div>
                                     </div>
 
-                                    <div className="rounded-xl border border-primary/30 bg-primary/10 p-5">
+                                    <div className="rounded-2xl border border-border/60 bg-slate-950/90 p-5">
                                       <div className="mb-3 flex items-start justify-between gap-3">
                                         <div>
                                           <h4 className="flex items-center gap-2 text-sm font-semibold text-foreground">
                                             <Search className="h-4 w-4" /> Live Research
                                           </h4>
-                                          <p className="text-xs text-foreground/70">
-                                            Search for recent evidence.
+                                          <p className="text-xs text-muted-foreground">
+                                            Query the current research backend with this claim and article context.
                                           </p>
                                         </div>
                                         {agenticHistory.length > 0 && (
-                                          <div className="rounded-lg border border-primary/30 bg-primary/10 px-3 py-1 text-xs uppercase tracking-wide text-foreground/80">
+                                          <div className="rounded-lg border border-border/60 bg-background/40 px-3 py-1 text-xs uppercase tracking-wide text-foreground/80">
                                             Last run {new Date(agenticHistory[0].timestamp).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
                                           </div>
                                         )}
@@ -1930,17 +2066,17 @@ function ArticleDetailModalContent({ article, isOpen, onClose, onBookmarkChange,
                                       </div>
 
                                       {agenticError && (
-                                        <div className="mt-3 flex items-start gap-2 rounded-lg border border-rose-500/40 bg-rose-500/10 p-3 text-xs text-rose-200">
+                                        <div className="mt-3 flex items-start gap-2 rounded-xl border border-rose-500/40 bg-rose-500/10 p-3 text-xs text-rose-200">
                                           <XCircle className="mt-0.5 h-4 w-4" />
                                           <span>{agenticError}</span>
                                         </div>
                                       )}
 
                                       {agenticAnswer && (
-                                        <div className="mt-4 space-y-2 rounded-lg border border-primary/40 bg-primary/10 p-4 text-sm text-foreground">
-                                          <div className="flex items-start gap-2 text-xs uppercase tracking-wide text-foreground/70">
+                                        <div className="mt-4 space-y-2 rounded-xl border border-primary/25 bg-primary/10 p-4 text-sm text-foreground">
+                                          <div className="flex items-start gap-2 text-xs uppercase tracking-widest text-foreground/70">
                                             <CheckCircle2 className="mt-0.5 h-4 w-4" />
-                                            Agent response
+                                            Research answer
                                           </div>
                                           <p className="whitespace-pre-line text-sm leading-relaxed text-foreground/90">{agenticAnswer}</p>
                                         </div>
@@ -1948,7 +2084,7 @@ function ArticleDetailModalContent({ article, isOpen, onClose, onBookmarkChange,
                                     </div>
                                   </div>
                                 ) : (
-                                  <div className="flex h-full flex-col items-center justify-center gap-3 rounded-xl border border-slate-800/80 bg-slate-900/70 p-6 text-center text-sm text-slate-300/70">
+                                  <div className="flex h-full min-h-64 flex-col items-center justify-center gap-3 rounded-2xl border border-border/60 bg-card/40 p-6 text-center text-sm text-muted-foreground">
                                     <Sparkles className="h-6 w-6 text-primary/80" />
                                     <p>Select a claim from the list to view its evidence and run deeper research.</p>
                                   </div>
@@ -2110,25 +2246,30 @@ function ArticleDetailModalContent({ article, isOpen, onClose, onBookmarkChange,
 
               {/* Compact AI Loading Indicator */}
               {!isExpanded && aiAnalysisLoading && (
-                <div className="flex items-center gap-3 p-4 bg-gradient-to-r from-primary/15 to-amber-500/10 border border-primary/30 rounded-lg">
+                <div className="flex items-center gap-3 rounded-2xl border border-border/60 bg-slate-950/85 p-4">
                   <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-primary"></div>
-                  <p className="text-sm text-gray-400">AI is analyzing article in background...</p>
+                  <p className="text-sm text-muted-foreground">AI is analyzing the article in the background.</p>
                 </div>
               )}
 
               {/* Compact AI Summary - Show when not expanded */}
               {!isExpanded && aiAnalysis?.summary && (
-                <div className="bg-gradient-to-br from-primary/15 to-amber-500/10 border border-primary/30 rounded-lg p-4">
-                  <div className="flex items-center gap-2 mb-2">
+                <div className="rounded-2xl border border-border/60 bg-slate-950/85 p-4">
+                  <div className="mb-2 flex items-center gap-2">
                     <Sparkles className="h-4 w-4 text-primary" />
-                    <h3 className="text-sm font-semibold text-white">AI Summary</h3>
+                    <h3 className="text-sm font-semibold text-foreground">AI Summary</h3>
                   </div>
-                  <p className="text-gray-300 leading-relaxed text-sm">{aiAnalysis.summary}</p>
+                  <p className="text-sm leading-relaxed text-foreground/85">{aiAnalysis.summary}</p>
+                  {factCheckResults.length > 0 && (
+                    <p className="mt-3 text-xs uppercase tracking-widest text-muted-foreground">
+                      {factCheckResults.length} claim{factCheckResults.length === 1 ? "" : "s"} ready for verification review
+                    </p>
+                  )}
                   <Button
                     variant="outline"
                     size="sm"
                     onClick={() => setIsExpanded(true)}
-                    className="mt-3 w-full"
+                    className="mt-3 w-full border-border/60 bg-background/50"
                   >
                     <Maximize2 className="h-4 w-4 mr-2" />
                     Expand for Full AI Analysis
