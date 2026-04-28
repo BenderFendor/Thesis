@@ -1,116 +1,125 @@
 # Thesis News Platform
 
-A full-stack news aggregation platform that blends curated RSS feeds with AI-assisted research, analysis, and fact-checking. The project consists of a FastAPI backend and a Next.js frontend, with PostgreSQL and ChromaDB for storage and semantic search.
+Thesis is a local-first news analysis platform. It combines curated RSS feeds, a FastAPI backend, a Next.js frontend, PostgreSQL, ChromaDB, and AI-assisted research tools for source analysis, article discovery, and verification workflows.
 
-## Architecture
+## Status
 
-- **Backend**: FastAPI (Python 3.11+), `backend/app/main.py`
-- **Frontend**: Next.js 15 (TypeScript, Tailwind CSS, shadcn/ui)
-- **Database**: PostgreSQL 17 + ChromaDB for vector storage
-- **State**: Zustand for client state, React Query for server state
-- **AI**: OpenRouter or direct Gemini via LangChain
-
-## Quick Start
-
-```bash
-./runlocal.sh or docker-compose up -d
-```
-
-Frontend: http://localhost:3000  
-Backend docs: http://localhost:8000/docs
-
-## Environment Variables
-
-Create `backend/.env` from `.env.example`:
-
-```env
-OPEN_ROUTER_API_KEY=your_key_here
-GEMINI_API_KEY=your_key_here
-```
-
-Restart the backend after updating keys.
+Active thesis project. The app runs locally with `runlocal.sh` or Docker Compose and is still changing quickly.
 
 ## Features
 
-### AI Article Analysis
-Full-text extraction via newspaper3k, source credibility scoring, bias detection, reporter profiling, and fact-check suggestions.
+- Curated RSS ingestion with source ownership, funding, country, and bias metadata.
+- News feed, saved queue, source pages, topic clusters, and country/lens views.
+- Source and reporter wiki pages backed by deterministic indexing and public-source evidence.
+- Research agents for article search, source context, and verification workflows.
+- Semantic search through ChromaDB with lexical fallback paths.
+- Operator/debug surfaces for cache status, source health, logs, and wiki indexing.
 
-### Topic Clustering
-ChromaDB embeddings with HDBSCAN clustering surface trending topics. The `/trending/clusters` endpoint returns semantically grouped articles with velocity scoring.
+## Requirements
 
-### Research Agents
-- **News Research**: searches cached articles first, then falls back to web search with chain-of-thought visualization
-- **Entity Research**: reporter profiles and organization research via Wikipedia integration
-- **Verification**: fact-check claims with streaming evidence
+- Python 3.11 or newer.
+- Node.js and npm.
+- Rust toolchain for `backend/rss_parser_rust`.
+- PostgreSQL and ChromaDB, either local or through Docker Compose.
+- Optional API keys in `backend/.env` for AI-backed research:
+  - `OPEN_ROUTER_API_KEY`
+  - `GEMINI_API_KEY`
 
-### Search
-- Semantic search via ChromaDB embeddings
-- BM25 lexical fallback
-- Hybrid search combining both
+## Quick Start
 
-### Data Sources
-- 94-country RSS catalog with ownership, funding type, and bias ratings
-- GDELT global event integration
-- Wikipedia-sourced source and reporter dossiers
+From the repo root, run the local setup once:
 
-## Key Endpoints
-
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| GET | `/news` | Paginated news feed |
-| GET | `/trending/clusters` | Topic clusters with articles |
-| GET | `/news/country/{code}` | Local lens for a country |
-| POST | `/api/search/semantic` | Vector similarity search |
-| POST | `/api/research` | AI research agent |
-| POST | `/api/verification/verify` | Fact-check claims |
-| GET | `/wiki/source/{id}` | Source credibility profile |
-| GET | `/ws` | Real-time updates |
-
-## Project Structure
-
-```
-backend/
-├── app/
-│   ├── main.py              # FastAPI entry point
-│   ├── api/routes/          # REST endpoints
-│   ├── services/            # Business logic
-│   └── data/rss_sources.json  # 1972 curated feeds
-frontend/
-├── app/                    # Next.js 15 pages
-├── components/             # UI components
-└── lib/                    # API client
-docker-compose.yml
-```
-
-## Troubleshooting
-
-### ChromaDB version mismatch
 ```bash
-rm -rf .chroma
-docker-compose restart
+./runlocal.sh setup
 ```
 
-### Missing API key
-Ensure `.env` exists in `backend/` and restart the backend.
+Start the backend, frontend, PostgreSQL, and ChromaDB locally:
+
+```bash
+./runlocal.sh all
+```
+
+Or start the Docker stack:
+
+```bash
+docker-compose up -d
+```
+
+Open:
+
+- Frontend: <http://localhost:3000>
+- Backend API docs: <http://localhost:8000/docs>
+
+## Configuration
+
+Create `backend/.env` from the example file:
+
+```bash
+cp backend/.env.example backend/.env
+```
+
+Common variables:
+
+| Variable | Purpose |
+| --- | --- |
+| `OPEN_ROUTER_API_KEY` | Enables OpenRouter-backed research and analysis. |
+| `GEMINI_API_KEY` | Enables Gemini-backed research and analysis. |
+| `DATABASE_URL` | Overrides the default PostgreSQL connection string. |
+| `CHROMA_HOST` / `CHROMA_PORT` | Points the backend at ChromaDB. |
+| `EMBEDDING_SERVICE_URL` | Points the backend at the embedding worker. |
+| `NEXT_PUBLIC_API_URL` | Overrides the browser API base URL when needed. |
+
+Restart the backend after changing `backend/.env`.
 
 ## Development
 
-Run the full verification suite:
+Run the repo verifier:
+
+```bash
+scripts/self-test
+```
+
+Run the strongest existing verification path directly:
+
 ```bash
 ./verify.sh
 ```
 
-Frontend type check:
+Run focused frontend checks:
+
 ```bash
-npx tsc --noEmit
+npm --prefix frontend run lint
+npm --prefix frontend exec -- tsc -p frontend/tsconfig.json --noEmit
+npm --prefix frontend run build
 ```
 
-Backend linting:
+Run dependency cycle checks:
+
 ```bash
-uvx ruff check backend/
+npm run deps:cycles
 ```
 
-## See Also
+## Documentation
 
-- `docs/Todo.md` for roadmap and task tracking
-- `docs/Log.md` for change history
+- GitHub Wiki: end-user guides, workflows, troubleshooting, architecture overview, and release notes.
+- `docs/`: developer, maintainer, and agent-facing docs.
+- [Documentation maintenance](docs/documentation-maintenance.md): README, docs, and wiki sync workflow.
+- [Documentation style guide](docs/documentation-style-guide.md): writing rules for README, docs, and wiki updates.
+- [Agent workflows](docs/agent/workflows.md): Codex workflows for development tasks.
+- [Known errors](docs/agent/known-errors.md): reusable failure signatures and fixes.
+- [Log](docs/Log.md): project change history.
+
+## Troubleshooting
+
+If ChromaDB local state is incompatible with the current runtime and the data is disposable:
+
+```bash
+rm -rf .chroma
+docker-compose restart chromadb
+```
+
+If backend tools are missing:
+
+```bash
+./runlocal.sh setup
+```

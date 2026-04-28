@@ -9,6 +9,8 @@ This map helps Codex agents orient quickly before editing.
 - `backend/`: FastAPI app, services, scripts, and tests.
 - `frontend/`: Next.js app, UI components, hooks, and tests.
 - `docs/`: project docs, including `docs/agent/` operational guidance.
+- `docs/documentation-maintenance.md`: README, docs, and GitHub Wiki sync workflow.
+- `docs/documentation-style-guide.md`: project documentation writing rules.
 - `scripts/`: repo-local Codex helper commands.
 - `verify.sh`: strongest full-stack verification path.
 

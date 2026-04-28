@@ -1,5 +1,54 @@
 # Learnings
 
+## 2026-04-28 — Documentation health spans README, docs, and GitHub Wiki
+
+Context:
+- The repo needed a durable Codex rule for keeping user-facing documentation synced without treating `docs/` as the GitHub Wiki.
+- GitHub Wikis are edited through a separate `.wiki.git` repository, while `/docs` remains better suited for developer, maintainer, and agent-facing material.
+
+What worked:
+- Adding a short rule to `AGENTS.md` and putting the detailed workflow in `docs/documentation-maintenance.md`.
+- Adding `docs/documentation-style-guide.md` so documentation updates follow concrete, maintainer-like writing instead of generic AI-sounding prose.
+- Making final responses report whether docs were updated, checked, or blocked.
+
+Future Codex agents should:
+- Check documentation health when public behavior, setup, config, architecture, troubleshooting, dependencies, or user workflows change.
+- Keep README short, keep `/docs` for developer and agent material, and use the GitHub Wiki for longer end-user guides.
+- Read the documentation style guide before editing README, docs, or wiki pages.
+
+## 2026-04-28 — Broad cleanup needs lockfile and deletion verification
+
+Context:
+- A cleanup commit removed unused frontend dependencies and deleted unused components.
+- The code was clean, but a stale `frontend/pnpm-lock.yaml` still referenced removed packages and would have kept an alternate install path out of sync.
+- A stop hook also attempted to lint a deleted TSX file path, causing a false ESLint failure.
+
+What worked:
+- Verifying deleted components with `rg` and import/build checks before committing.
+- Removing the stale alternate lockfile instead of leaving two package-manager states.
+- Updating the global lint hook to skip deleted paths before invoking ESLint.
+
+Future Codex agents should:
+- Treat package manifests and tracked lockfiles as one change unit.
+- Before committing cleanup, inspect `git diff --cached --name-status` and confirm deleted files have no live references.
+- If hook failures reference deleted files, fix hook scope or stale targets instead of restoring dead code.
+
+## 2026-04-28 — Merge repairs need explicit conflict-marker checks
+
+Context:
+- A push was rejected because local and remote `main` diverged.
+- The merge resolution had left conflict markers in `docs/Log.md`, even though Git considered all conflicts fixed.
+
+What worked:
+- Keeping both useful changelog entries in chronological order.
+- Running `rg -n '<<<<<<<|=======|>>>>>>>'` across touched files before concluding the merge.
+- Validating structured files touched by the merge, including RSS JSON.
+
+Future Codex agents should:
+- After resolving merges, always search touched text files for conflict markers.
+- For changelog conflicts, preserve both sides unless one entry is clearly duplicate or obsolete.
+- Run `git status -sb` before push and only push once the branch is ahead without unresolved worktree changes.
+
 ## 2026-04-27 — Keep API response DTOs out of route modules
 
 Context:

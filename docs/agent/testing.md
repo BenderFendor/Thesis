@@ -35,7 +35,7 @@
 
 - No canonical root-level command for focused frontend unit-only pass besides npm scripts under `frontend/`.
 - No canonical root-level command for focused backend lint-only/typecheck-only pass besides explicit shell commands.
-- No codified Playwright e2e command despite Playwright dependency presence at repo root.
+- No codified Playwright e2e command.
 
 ## Known Environment Requirements
 
@@ -51,3 +51,4 @@
 - Re-run the failed command after each fix.
 - Re-run full `scripts/self-test` before final handoff.
 - Record reusable failures in `docs/agent/known-errors.md`.
+- For merge repairs, also run `rg -n '<<<<<<<|=======|>>>>>>>'` on touched files and `git diff --check`.
