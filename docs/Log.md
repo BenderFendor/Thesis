@@ -134,6 +134,18 @@
 - Post-change 25-source benchmark: `avg_coverage_percent=63.24`, `url_guard_ok_count=25`, `url_guard_mismatch_count=0` in `.autoresearch/url-guard-postchange-limit25.log`
 - `uv run pytest backend/tests/test_source_url_guard.py backend/tests/test_wiki_sources.py backend/tests/test_wiki_indexer.py`
 
+## 2026-04-09: Pre-commit Ruff Hook Bootstrap Fix
+
+**Problem:** Pre-commit failed while installing `ruff-pre-commit` because the environment pip index was set to an unresolved private GitLab placeholder URL (`{GITLAB_INSTANCE}` / `{GROUP_ID}`), so build dependencies like `setuptools` could not be fetched.
+
+**What Changed:**
+- Replaced the remote `https://github.com/astral-sh/ruff-pre-commit` hooks in `.pre-commit-config.yaml` with local `language: system` hooks that run `uvx ruff check backend --fix` and `uvx ruff format backend`.
+- Kept hook IDs (`ruff`, `ruff-format`) and backend-only file targeting so existing workflow behavior stays aligned while avoiding pre-commit virtualenv bootstrap through pip.
+
+**Verification:**
+- `pre-commit run --all-files` now runs past Ruff hook installation and executes `ruff (fix)` and `ruff format` successfully.
+- Remaining failures are unrelated environment/type issues: missing `backend/.venv/bin/mypy`, missing `pytest` executable in the current `uv` runtime, and existing frontend TypeScript typing gaps.
+
 ## 2026-03-28: Debug Consolidation, Reader Hub Highlights, Research Cancel State, And Globe Budgeting
 
 **Problem:** Operator tooling was split between `/debug` and `/sources`, the saved-reader workflow still left highlights outside the main workspace, research cancellation still ended in a rough partial state, and the globe was paying too much runtime cost for the same visual result.

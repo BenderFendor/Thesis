@@ -108,7 +108,7 @@
         "ownership_label": "private broadcast network",
         "factual_reporting": "mixed"
     },
-    "New York Times": {
+    "New York Times": {  
         "url": [
             "https://rss.nytimes.com/services/xml/rss/nyt/HomePage.xml",
             "https://rss.nytimes.com/services/xml/rss/nyt/World.xml",
@@ -405,7 +405,7 @@
         "funding_type": "Public",
         "bias_rating": "Center",
         "ownership_label": "public broadcaster",
-        "factual_reporting": "unknown"
+        "factual_reporting": "high"
     },
     "PhillyVoice": {
         "url": "https://www.phillyvoice.com/feed/",
@@ -456,7 +456,7 @@
         "funding_type": "Independent",
         "bias_rating": "Left",
         "ownership_label": "independent digital outlet",
-        "factual_reporting": "unknown"
+        "factual_reporting": "high"
     },
     "Current Affairs": {
         "url": "https://currentaffairs.org/news/rss.xml",
@@ -483,7 +483,7 @@
         "funding_type": "Non-profit",
         "bias_rating": "Center",
         "ownership_label": "nonprofit media organization",
-        "factual_reporting": "unknown"
+        "factual_reporting": "high"
     },
     "Religion Dispatches": {
         "url": "https://religiondispatches.org/feed/",
@@ -528,7 +528,7 @@
         "funding_type": "Commercial",
         "bias_rating": "Center",
         "ownership_label": "private broadcast network",
-        "factual_reporting": "unknown"
+        "factual_reporting": "high"
     },
     "The Atlantic - National": {
         "url": "https://feeds.feedburner.com/AtlanticNational",
@@ -650,7 +650,7 @@
         "funding_type": "Commercial",
         "bias_rating": "Right",
         "ownership_label": "private media company",
-        "factual_reporting": "unknown"
+        "factual_reporting": "low"
     },
     "Washington Times": {
         "url": "https://www.washingtontimes.com/rss/headlines/news/",
@@ -731,7 +731,7 @@
         "funding_type": "Commercial",
         "bias_rating": "Right",
         "ownership_label": "private media company",
-        "factual_reporting": "unknown"
+        "factual_reporting": "low"
     },
     "Deutsche Welle": {
         "url": "https://rss.dw.com/rdf/rss-en-all",
@@ -740,7 +740,7 @@
         "funding_type": "Public",
         "bias_rating": "Center",
         "ownership_label": "public broadcaster",
-        "factual_reporting": "unknown"
+        "factual_reporting": "high"
     },
     "NBC10 Philadelphia": {
         "url": "https://news.google.com/rss/search?q=site:nbcphiladelphia.com",
@@ -749,7 +749,7 @@
         "funding_type": "Commercial",
         "bias_rating": "Center",
         "ownership_label": "private broadcast affiliate",
-        "factual_reporting": "unknown"
+        "factual_reporting": "high"
     },
     "CBC": {
         "url": "https://www.cbc.ca/cmlink/rss-topstories",
@@ -911,7 +911,7 @@
         "funding_type": "Commercial",
         "bias_rating": "Center",
         "ownership_label": "private newspaper",
-        "factual_reporting": "unknown"
+        "factual_reporting": "high"
     },
     "South China Morning Post": {
         "url": "https://www.scmp.com/rss/91/feed",
@@ -1316,7 +1316,7 @@
         "funding_type": "State-funded",
         "bias_rating": "Left",
         "ownership_label": "state media network",
-        "factual_reporting": "unknown"
+        "factual_reporting": "mixed"
     },
     "Anadolu Agency": {
         "url": "https://www.aa.com.tr/en/rss/default?cat=live",

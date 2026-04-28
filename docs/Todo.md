@@ -1,5 +1,7 @@
 # Active TODOs
 
+Add keyboard support for the gridview so that you can use your arrow keys to scroll up and down, having it snap to each row
+
 ---
 
 # Completed
