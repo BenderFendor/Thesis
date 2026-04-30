@@ -1,6 +1,7 @@
 "use client"
 
 import { useState, useEffect, useCallback, useRef, useMemo } from "react"
+import dynamic from "next/dynamic"
 import { type NewsArticle, fetchOGImage } from "@/lib/api"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
@@ -15,7 +16,6 @@ import {
   Sparkles,
   Loader2,
 } from "lucide-react"
-import { ArticleDetailModal } from "./article-detail-modal"
 import { useFavorites } from "@/hooks/useFavorites"
 import { useLikedArticles } from "@/hooks/useLikedArticles"
 import { useBookmarks } from "@/hooks/useBookmarks"
@@ -35,6 +35,14 @@ import {
   CollapsibleContent,
   CollapsibleTrigger,
 } from "@/components/ui/collapsible"
+
+const ArticleDetailModal = dynamic(
+  () => import("./article-detail-modal").then((module) => module.ArticleDetailModal),
+  {
+    ssr: false,
+    loading: () => null,
+  },
+)
 
 const OG_FETCH_CONCURRENCY = 4
 const OG_LOOKAHEAD = 6
@@ -625,13 +633,15 @@ export function FeedView({
         </Button>
       </div>
 
-      <ArticleDetailModal
-        article={selectedArticle}
-        isOpen={isArticleModalOpen}
-        onClose={handleModalClose}
-        onBookmarkChange={handleModalBookmarkChange}
-        onNavigate={handleModalNavigate}
-      />
+      {isArticleModalOpen && selectedArticle && (
+        <ArticleDetailModal
+          article={selectedArticle}
+          isOpen={isArticleModalOpen}
+          onClose={handleModalClose}
+          onBookmarkChange={handleModalBookmarkChange}
+          onNavigate={handleModalNavigate}
+        />
+      )}
     </div>
   )
 }

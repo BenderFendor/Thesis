@@ -36,6 +36,7 @@ from app.database import (
 )
 from app.data.rss_sources import get_rss_sources
 from app.services.funding_researcher import get_funding_researcher
+from app.services.reporter_indexer import index_stale_reporters
 from app.services.source_claims import (
     build_source_claim_inputs,
     collect_article_behavior_stats,
@@ -595,8 +596,12 @@ async def periodic_wiki_refresh(
     while True:
         try:
             logger.info("Running periodic wiki refresh...")
-            summary = await index_stale_sources(stale_days=stale_days)
-            logger.info("Periodic wiki refresh complete: %s", summary)
+            source_summary = await index_stale_sources(stale_days=stale_days)
+            logger.info("Periodic wiki refresh complete (sources): %s", source_summary)
+            reporter_summary = await index_stale_reporters(stale_days=stale_days)
+            logger.info(
+                "Periodic wiki refresh complete (reporters): %s", reporter_summary
+            )
         except asyncio.CancelledError:
             logger.info("Wiki refresh task cancelled")
             return

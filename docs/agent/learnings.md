@@ -131,19 +131,22 @@ Future Codex agents should:
 - Apply type consolidation in phased approach with backward-compatible re-exports
 - Test after each change category to isolate regressions
 
-## 2026-04-27 — Property tests can fail outside touched scope
+## 2026-04-27 — Property tests must match their generators
 
 Context:
-- Full `scripts/self-test` can expose existing Hypothesis counterexamples unrelated to the files being edited.
-- In this repo, `test_source_url_guard` and `test_country_mentions` may fail depending on generated examples.
+- Full `scripts/self-test` can expose Hypothesis counterexamples unrelated to the files being edited.
+- The source URL guard normalizes `www.` away, so property tests must assert normalized hosts.
+- The country mention extractor returns every valid country alias in the generated text, so arbitrary generated prefix/suffix text can add valid countries.
 
 What worked:
 - Running focused tests for changed modules first to validate refactors.
-- Recording pre-existing property-test failures in `docs/agent/known-errors.md` with concrete symptom/cause text.
+- Updating property assertions to match the real invariant instead of expecting fixed output from arbitrary generated text.
+- Keeping a deterministic fixed-input test for the exact country mention output.
 
 Future Codex agents should:
-- Treat these failures as known baseline issues unless your task modifies the extraction logic.
-- Still run `scripts/self-test` and report the failures explicitly rather than skipping full verification.
+- Keep generated text strategies and exact assertions in sync.
+- If arbitrary generated text may contain extra valid entities, assert inclusion, sorting, and uniqueness, then use a separate fixed-input test for exact output.
+- Still run `scripts/self-test` before final handoff.
 
 ## 2026-04-27 — Use generated OpenAPI types for verification contracts
 

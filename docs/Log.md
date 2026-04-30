@@ -1,5 +1,39 @@
 # Log
 
+## 2026-04-29: Reporter Wiki Improvement - Multisource Seeding Pipeline
+
+**Problem:** Reporter wiki had only 1 reporter in DB. Reporters were resolved only on demand through `/api/research/entity/reporter/profile`. Background indexing, bulk seeding, public-record extraction depth, MBFC imports, and a reporter network graph were missing.
+
+**What Changed:**
+- Created `backend/app/services/reporter_indexer.py`: background reporter indexing with 3 modes: Wikidata SPARQL bulk seed (queries all journalists at RSS catalog outlets), unresolved article author indexing, stale reporter re-indexing.
+- Created `backend/app/services/reporter_profile_store.py`: shared reporter profile upsert helper so background jobs update existing `Reporter` rows in one SQLAlchemy session.
+- Created `backend/app/services/littlesis_integration.py`: LittleSis bulk data download/parse/cross-reference (entities, relationships, affiliations).
+- Created `backend/app/services/mbfc_integration.py`: MBFC HuggingFace dataset integration for outlet-level bias/factuality labels, with RSS crosswalk.
+- Created CLIs: `scripts/seed_reporters_wikidata.py`, `scripts/import_littlesis.py`, `scripts/import_mbfc.py`.
+- Expanded `entity_wiki_service.py`: added 22 Wikidata properties (Twitter P2002, LinkedIn P6634, Instagram P2003, field of work P101, affiliations P1416, DOB, etc.). Added `WIKIMEDIA_USER_AGENT` to all Wikimedia API calls (fixes 403 responses).
+- Expanded `reporter_public_records.py`: article extraction limit from 6 to 30 articles.
+- Modified `wiki_indexer.py`: added `index_stale_reporters()` call in `periodic_wiki_refresh()` for daily reporter re-indexing.
+- Added to `wiki.py` routes: `GET /api/wiki/reporters/graph` endpoint for force-directed graph, `POST /api/wiki/index/reporters` admin endpoint, `_build_employer_rss_context()` for cross-referencing reporter employers against RSS catalog, `employer_context` field on `ReporterDossierResponse`.
+- Fixed the reporter graph route order so `/api/wiki/reporters/graph` is not parsed as `/api/wiki/reporters/{reporter_id}`.
+- Capped reporter graph edge generation with an `edge_limit` query parameter so shared-outlet graphs cannot materialize unbounded pairwise connections.
+- Fixed reporter Wikidata candidate handling so field-of-work and affiliation metadata comes from the selected best candidate, not the last candidate scanned.
+- Added to `main.py`: `_initial_reporter_index()` runs 120s after startup (SPARQL seed + 100 author index) on the leader worker only.
+- Created frontend `/wiki/reporter-graph`: canvas force-directed graph with political-leaning coloring, search, drag interaction, co-authorship and shared-outlet edges.
+- Linked the reporter graph from the global navigation and moved its data fetching to React Query. Canvas resize now runs through `ResizeObserver` instead of resizing the backing canvas every animation frame.
+- Added `WikiReporterGraph` type and `fetchWikiReporterGraph()` to `frontend/lib/api.ts`.
+- Seeded 146 reporters from Wikidata SPARQL (Wikidata journalists at Al Jazeera, BBC, CNN, Deutsche Welle, etc.) with Wikipedia articles and Twitter handles.
+
+**Verification:**
+- `scripts/self-test`: passed through `./verify.sh` with 294 passed, 3 deselected, 7 warnings.
+- `uv run pytest backend/tests/test_entity_wiki_service.py backend/tests/test_wiki_reporters.py -q`: 18 passed.
+- `uv run pytest backend/tests/test_reporter_indexer.py backend/tests/test_wiki_reporters.py backend/tests/test_wiki_indexer.py -q`: 36 passed.
+- `npm --prefix frontend run lint`: passed.
+- `npm --prefix frontend exec -- tsc -p frontend/tsconfig.json --noEmit`: passed.
+- `bash -lc 'cd backend && MYPYPATH=. .venv/bin/mypy --explicit-package-bases app --strict'`: passed.
+- `uvx ruff check backend/`: passed.
+- `uvx ruff format --check backend/`: passed.
+- Reporter SPARQL seeding: verified journalist data includes Wikipedia URLs, Twitter handles, employer affiliations, education from Wikidata.
+
 ## 2026-04-27: Circular Dependency Cleanup Pass (Task 4/8)
 
 **Problem:** We needed a fresh circular-dependency audit across frontend and backend source trees, plus high-confidence fixes where cycles existed.

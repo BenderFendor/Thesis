@@ -219,7 +219,7 @@ async def build_reporter_activity_summary(
         if isinstance(article.get("url"), str)
         and article.get("url")
         and _is_fetchable_article_url(str(article["url"]))
-    ][:6]
+    ][:30]
 
     for article in recent_articles:
         source = article.get("source")

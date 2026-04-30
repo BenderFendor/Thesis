@@ -4954,6 +4954,26 @@ export interface WikiOwnershipGraph {
   }>;
 }
 
+export interface WikiReporterGraph {
+  nodes: Array<{
+    id: string;
+    label: string;
+    type?: string;
+    political_leaning?: string;
+    article_count?: number;
+    match_status?: string;
+    research_confidence?: string;
+    [key: string]: unknown;
+  }>;
+  edges: Array<{
+    source: string;
+    target: string;
+    type?: string;
+    weight?: number;
+    [key: string]: unknown;
+  }>;
+}
+
 export interface WikiIndexStatus {
   total_entries: number;
   by_status: Record<string, number>;
@@ -5083,6 +5103,19 @@ export async function fetchWikiReporterArticles(reporterId: number): Promise<
  */
 export async function fetchWikiOwnershipGraph(): Promise<WikiOwnershipGraph> {
   const response = await fetch(`${API_BASE_URL}/api/wiki/organizations/graph`);
+  if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+  return response.json();
+}
+
+/**
+ * Fetch the reporter network graph for force-directed visualization
+ */
+export async function fetchWikiReporterGraph(
+  limit = 200,
+): Promise<WikiReporterGraph> {
+  const response = await fetch(
+    `${API_BASE_URL}/api/wiki/reporters/graph?limit=${limit}`,
+  );
   if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
   return response.json();
 }

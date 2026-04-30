@@ -11,7 +11,7 @@ Provides endpoints for:
 
 from __future__ import annotations
 
-from typing import Any, Dict, List, Optional, cast
+from typing import Any, Dict, List, Literal, Optional, Tuple, cast
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel
@@ -87,6 +87,62 @@ def _source_overview_fallback(
     if not parts:
         return None
     return f"{source_name} source profile. {' '.join(parts)}"
+
+
+def _build_employer_rss_context(reporter: Reporter) -> Optional[Dict[str, Any]]:
+    """Cross-reference a reporter's employers against the RSS catalog.
+
+    Returns employer context with funding, bias, country from RSS config.
+    """
+    career_history = reporter.career_history or []
+    employer_names: List[str] = []
+    for entry in career_history:
+        if isinstance(entry, dict):
+            org = entry.get("organization", "")
+            if org:
+                employer_names.append(str(org))
+
+    if not employer_names:
+        return None
+
+    sources = get_rss_sources()
+    rss_by_name: Dict[str, Dict[str, Any]] = {}
+    for name, cfg in sources.items():
+        base_name = name.split(" - ")[0].strip()
+        rss_by_name[base_name.lower()] = {
+            "rss_name": base_name,
+            "funding_type": cfg.get("funding_type", ""),
+            "bias_rating": cfg.get("bias_rating", ""),
+            "country": cfg.get("country", ""),
+            "category": cfg.get("category", "general"),
+            "factual_reporting": cfg.get("factual_reporting", ""),
+        }
+
+    matches: List[Dict[str, Any]] = []
+    for employer in employer_names:
+        employer_lower = employer.lower()
+        if employer_lower in rss_by_name:
+            matches.append(rss_by_name[employer_lower])
+        else:
+            for rss_key, rss_data in rss_by_name.items():
+                if rss_key in employer_lower or employer_lower in rss_key:
+                    matches.append(rss_data)
+                    break
+
+    if not matches:
+        return None
+
+    primary = matches[0]
+    return {
+        "employers_matched": len(matches),
+        "primary_outlet": primary["rss_name"],
+        "funding_type": primary["funding_type"],
+        "bias_rating": primary["bias_rating"],
+        "country": primary["country"],
+        "category": primary["category"],
+        "factual_reporting": primary["factual_reporting"],
+        "all_matches": matches[:5],
+    }
 
 
 # ── Response Models ──────────────────────────────────────────────────
@@ -224,6 +280,9 @@ class ReporterDossierResponse(BaseModel):
     # Articles in our system
     recent_articles: List[Dict[str, Any]] = []
     activity_summary: Optional[Dict[str, Any]] = None
+
+    # Employer context from RSS catalog
+    employer_context: Optional[Dict[str, Any]] = None
 
     research_sources: Optional[List[str]] = None
     research_confidence: Optional[str] = None
@@ -717,6 +776,139 @@ async def list_wiki_reporters(
     ]
 
 
+class ReporterGraphResponse(BaseModel):
+    nodes: List[Dict[str, Any]] = []
+    edges: List[Dict[str, Any]] = []
+
+
+REPORTER_GRAPH_DEFAULT_EDGE_LIMIT = 3000
+
+
+@router.get("/reporters/graph", response_model=ReporterGraphResponse)
+async def get_reporter_graph(
+    db: AsyncSession = Depends(get_db),
+    limit: int = Query(200, ge=1, le=1000),
+    edge_limit: int = Query(
+        REPORTER_GRAPH_DEFAULT_EDGE_LIMIT,
+        ge=0,
+        le=10000,
+        description="Maximum number of graph edges to return.",
+    ),
+) -> ReporterGraphResponse:
+    """Get reporter network graph data for force-directed visualization."""
+    from collections import Counter
+
+    reporter_result = await db.execute(
+        select(
+            Reporter.id,
+            Reporter.name,
+            Reporter.political_leaning,
+            Reporter.article_count,
+            Reporter.match_status,
+            Reporter.research_confidence,
+        )
+        .order_by(Reporter.article_count.desc().nullslast())
+        .limit(limit)
+    )
+    reporter_rows = reporter_result.all()
+
+    reporter_ids = [r[0] for r in reporter_rows]
+    nodes: List[Dict[str, Any]] = []
+    reporter_index: Dict[int, int] = {}
+    for i, (rid, rname, leaning, art_count, match_status, confidence) in enumerate(
+        reporter_rows
+    ):
+        nodes.append(
+            {
+                "id": f"reporter:{rid}",
+                "label": rname,
+                "type": "reporter",
+                "political_leaning": leaning,
+                "article_count": art_count or 0,
+                "match_status": match_status,
+                "research_confidence": confidence,
+            }
+        )
+        reporter_index[rid] = i
+
+    if not reporter_ids:
+        return ReporterGraphResponse(nodes=nodes, edges=[])
+
+    author_result = await db.execute(
+        select(ArticleAuthor.article_id, ArticleAuthor.reporter_id, Article.source)
+        .join(Article, Article.id == ArticleAuthor.article_id)
+        .where(ArticleAuthor.reporter_id.in_(reporter_ids))
+    )
+    author_rows = author_result.all()
+
+    article_reporters: Dict[int, List[int]] = {}
+    source_reporters: Dict[str, set[int]] = {}
+    for article_id, reporter_id, source_name in author_rows:
+        article_reporters.setdefault(article_id, []).append(reporter_id)
+        if source_name:
+            source_reporters.setdefault(str(source_name), set()).add(reporter_id)
+
+    coauthor_weights: Counter[Tuple[int, int]] = Counter()
+    for reporter_list in article_reporters.values():
+        if len(coauthor_weights) >= edge_limit:
+            break
+        for i in range(len(reporter_list)):
+            if len(coauthor_weights) >= edge_limit:
+                break
+            for j in range(i + 1, len(reporter_list)):
+                sorted_ids = sorted([reporter_list[i], reporter_list[j]])
+                coauthor_weights[(sorted_ids[0], sorted_ids[1])] += 1
+                if len(coauthor_weights) >= edge_limit:
+                    break
+
+    shared_outlet_weights: Counter[Tuple[int, int]] = Counter()
+    for reporter_set in source_reporters.values():
+        if len(coauthor_weights) + len(shared_outlet_weights) >= edge_limit:
+            break
+        reporter_list = sorted(reporter_set)
+        for i in range(len(reporter_list)):
+            if len(coauthor_weights) + len(shared_outlet_weights) >= edge_limit:
+                break
+            for j in range(i + 1, len(reporter_list)):
+                pair = (reporter_list[i], reporter_list[j])
+                if pair in coauthor_weights:
+                    continue
+                shared_outlet_weights[pair] += 1
+                if len(coauthor_weights) + len(shared_outlet_weights) >= edge_limit:
+                    break
+
+    edges: List[Dict[str, Any]] = []
+    for (r1, r2), weight in coauthor_weights.items():
+        if len(edges) >= edge_limit:
+            break
+        if r1 not in reporter_index or r2 not in reporter_index:
+            continue
+        edges.append(
+            {
+                "source": f"reporter:{r1}",
+                "target": f"reporter:{r2}",
+                "type": "coauthor",
+                "weight": weight,
+            }
+        )
+
+    for (r1, r2), weight in shared_outlet_weights.items():
+        if len(edges) >= edge_limit:
+            break
+        if r1 not in reporter_index or r2 not in reporter_index:
+            continue
+        edges.append(
+            {
+                "source": f"reporter:{r1}",
+                "target": f"reporter:{r2}",
+                "type": "shared_outlet",
+                "weight": weight,
+            }
+        )
+
+    return ReporterGraphResponse(nodes=nodes, edges=edges)
+
+
 @router.get("/reporters/{reporter_id}", response_model=ReporterDossierResponse)
 async def get_reporter_dossier(
     reporter_id: int,
@@ -751,6 +943,8 @@ async def get_reporter_dossier(
     activity_summary = await build_reporter_activity_summary(
         _required_str(reporter.name), articles
     )
+
+    employer_context = _build_employer_rss_context(reporter)
 
     return ReporterDossierResponse(
         id=_required_int(reporter.id),
@@ -788,6 +982,7 @@ async def get_reporter_dossier(
         ),
         recent_articles=articles,
         activity_summary=activity_summary,
+        employer_context=employer_context,
         research_sources=reporter.research_sources,
         research_confidence=reporter.research_confidence,
     )
@@ -986,3 +1181,44 @@ async def trigger_source_index(source_name: str) -> Dict[str, str]:
     if success:
         return {"status": "complete", "source": source_name}
     raise HTTPException(status_code=500, detail=f"Failed to index {source_name}")
+
+
+@router.post("/index/reporters")
+async def trigger_reporter_index(
+    limit: int = Query(500, ge=1, le=2000),
+    mode: Literal["all", "unresolved", "sparql"] = Query(
+        "all", description="all, unresolved, or sparql"
+    ),
+) -> Dict[str, Any]:
+    """Trigger reporter indexing (admin endpoint).
+
+    mode=all: Run both SPARQL seed and unresolved author indexing.
+    mode=unresolved: Only index unresolved article authors.
+    mode=sparql: Only run Wikidata SPARQL seed.
+    """
+    from app.services.reporter_indexer import (
+        index_unresolved_reporters,
+        seed_reporters_from_wikidata,
+    )
+
+    import httpx
+
+    async with httpx.AsyncClient(timeout=30.0) as client:
+        if mode in ("all", "sparql"):
+            sparql_result = await seed_reporters_from_wikidata(http_client=client)
+        else:
+            sparql_result = {"total": 0, "resolved": 0, "failed": 0}
+
+        if mode in ("all", "unresolved"):
+            author_result = await index_unresolved_reporters(
+                limit=limit, http_client=client
+            )
+        else:
+            author_result = {"total": 0, "resolved": 0, "failed": 0, "skipped": 0}
+
+    return {
+        "status": "complete",
+        "mode": mode,
+        "sparql_seed": sparql_result,
+        "unresolved_author_index": author_result,
+    }

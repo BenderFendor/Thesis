@@ -6,6 +6,7 @@ from app.services.source_url_guard import (
     build_source_url_guard,
     extract_domain,
     hosts_match,
+    normalize_host,
 )
 
 _HOST_CHARS = string.ascii_lowercase + string.digits
@@ -53,7 +54,7 @@ def test_extract_domain_uses_google_news_site_scope(
     site_and_feed: tuple[str, str],
 ) -> None:
     site_host, feed_url = site_and_feed
-    assert extract_domain(feed_url) == site_host
+    assert extract_domain(feed_url) == normalize_host(site_host)
 
 
 def test_build_source_url_guard_accepts_site_scoped_google_news_feed() -> None:

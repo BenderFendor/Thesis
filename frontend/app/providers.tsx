@@ -1,10 +1,18 @@
 "use client"
 
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
+import dynamic from "next/dynamic"
 import { ThemeProvider } from "@/components/theme-provider"
 import { Toaster } from "sonner"
-import { ReadingQueueSidebar } from "@/components/reading-queue-sidebar"
 import { ReactNode, useState } from "react"
+
+const ReadingQueueSidebar = dynamic(
+  () => import("@/components/reading-queue-sidebar").then((mod) => mod.ReadingQueueSidebar),
+  {
+    ssr: false,
+    loading: () => null,
+  },
+)
 
 interface ProvidersProps {
   children: ReactNode

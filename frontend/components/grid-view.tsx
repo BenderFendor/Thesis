@@ -12,6 +12,7 @@ import {
   type KeyboardEvent,
   type MouseEvent,
 } from "react"
+import dynamic from "next/dynamic"
 import Link from "next/link"
 import { SafeImage } from "@/components/safe-image"
 import { Badge } from "@/components/ui/badge"
@@ -41,8 +42,6 @@ import {
   Loader2,
 } from "lucide-react"
 import { motion, AnimatePresence } from "framer-motion"
-import { ArticleDetailModal } from "./article-detail-modal"
-import { ClusterDetailModal } from "./cluster-detail-modal"
 import { TrendingFeed } from "./trending-feed"
 import type { NewsArticle, AllCluster, TrendingCluster } from "@/lib/api"
 import { get_logger, cn } from "@/lib/utils"
@@ -71,6 +70,22 @@ const VirtualizedGrid = lazy(() =>
   import("./virtualized-grid").then((module) => ({
     default: module.VirtualizedGrid,
   })),
+)
+
+const ArticleDetailModal = dynamic(
+  () => import("./article-detail-modal").then((module) => module.ArticleDetailModal),
+  {
+    ssr: false,
+    loading: () => null,
+  },
+)
+
+const ClusterDetailModal = dynamic(
+  () => import("./cluster-detail-modal").then((module) => module.ClusterDetailModal),
+  {
+    ssr: false,
+    loading: () => null,
+  },
 )
 
 const logger = get_logger("GridView")
@@ -626,12 +641,14 @@ export function GridView({
           </Suspense>
         )}
 
-        <ArticleDetailModal
-          article={selectedArticle}
-          isOpen={isArticleModalOpen}
-          onClose={handleModalClose}
-          onNavigate={handleModalNavigate}
-        />
+        {isArticleModalOpen && selectedArticle && (
+          <ArticleDetailModal
+            article={selectedArticle}
+            isOpen={isArticleModalOpen}
+            onClose={handleModalClose}
+            onNavigate={handleModalNavigate}
+          />
+        )}
       </div>
     )
   }
@@ -1034,12 +1051,14 @@ export function GridView({
         </div>
       </div>
 
-      <ArticleDetailModal
-        article={selectedArticle}
-        isOpen={isArticleModalOpen}
-        onClose={handleModalClose}
-        onNavigate={handleModalNavigate}
-      />
+      {isArticleModalOpen && selectedArticle && (
+        <ArticleDetailModal
+          article={selectedArticle}
+          isOpen={isArticleModalOpen}
+          onClose={handleModalClose}
+          onNavigate={handleModalNavigate}
+        />
+      )}
       {showScrollTop && (
         <Button
           type="button"
@@ -1050,15 +1069,17 @@ export function GridView({
           <ChevronUp className="h-5 w-5" />
         </Button>
       )}
-      <ClusterDetailModal
-        cluster={selectedCluster}
-        isBreaking={false}
-        isOpen={isClusterModalOpen}
-        onClose={() => {
-          setIsClusterModalOpen(false)
-          setSelectedCluster(null)
-        }}
-      />
+      {isClusterModalOpen && selectedCluster && (
+        <ClusterDetailModal
+          cluster={selectedCluster}
+          isBreaking={false}
+          isOpen={isClusterModalOpen}
+          onClose={() => {
+            setIsClusterModalOpen(false)
+            setSelectedCluster(null)
+          }}
+        />
+      )}
     </div>
   )
 }

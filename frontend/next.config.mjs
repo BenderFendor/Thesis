@@ -1,9 +1,18 @@
+import path from 'node:path'
+import { fileURLToPath } from 'node:url'
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url))
+
 /**
  * Next.js configuration for Scoop news reader
  *
  * @type {import('next').NextConfig}
  */
 const nextConfig = {
+  turbopack: {
+    root: __dirname,
+  },
+
   // Images are served via external image proxy (cloudinary/imgproxy)
   // No built-in optimization needed
   images: {

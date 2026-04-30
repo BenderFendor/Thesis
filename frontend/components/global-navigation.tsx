@@ -13,7 +13,8 @@ import {
   SlidersHorizontal,
   Bookmark,
   BookOpen,
-  Network
+  Network,
+  UsersRound,
 } from "lucide-react"
 import { SafeImage } from "@/components/safe-image"
 
@@ -22,6 +23,7 @@ export type ViewMode = "globe" | "grid" | "scroll" | "blindspot"
 interface GlobalNavigationProps {
   currentView?: ViewMode
   onViewChange?: (view: ViewMode) => void
+  onViewPreload?: (view: ViewMode) => void
   onAlertsClick?: () => void
   alertCount?: number
 }
@@ -29,6 +31,7 @@ interface GlobalNavigationProps {
 export function GlobalNavigation({
   currentView,
   onViewChange,
+  onViewPreload,
   onAlertsClick,
   alertCount = 0
 }: GlobalNavigationProps) {
@@ -52,8 +55,9 @@ export function GlobalNavigation({
   }
 
   const isHome = pathname === "/"
-  const isWiki = pathname.startsWith("/wiki") && !pathname.includes("/ownership")
   const isOwnerGraph = pathname.includes("/ownership")
+  const isReporterGraph = pathname.includes("/reporter-graph")
+  const isWiki = pathname.startsWith("/wiki") && !isOwnerGraph && !isReporterGraph
 
   return (
     <>
@@ -102,6 +106,8 @@ export function GlobalNavigation({
             ].map(({ key, label, Icon }) => (
               <button
                 key={key}
+                onFocus={() => onViewPreload?.(key as ViewMode)}
+                onPointerEnter={() => onViewPreload?.(key as ViewMode)}
                 onClick={() => handleViewClick(key as ViewMode)}
                 className={`w-10 group-hover:w-full overflow-hidden flex items-center gap-4 px-2.5 py-2.5 rounded-lg text-xs font-mono uppercase tracking-[0.2em] transition-all duration-200 ${
                   isHome && currentView === key
@@ -143,6 +149,18 @@ export function GlobalNavigation({
             >
               <Network className="w-5 h-5 shrink-0" strokeWidth={1.5} />
               <span className="opacity-0 group-hover:opacity-100 transition-opacity duration-300 whitespace-nowrap">Owner Graph</span>
+            </Link>
+            <Link
+              href="/wiki/reporter-graph"
+              className={`w-10 group-hover:w-full overflow-hidden flex items-center gap-4 px-2.5 py-2.5 rounded-lg text-xs font-mono uppercase tracking-[0.2em] transition-all duration-200 ${
+                isReporterGraph
+                  ? "bg-primary/10 text-primary"
+                  : "text-muted-foreground hover:bg-white/5 hover:text-foreground"
+              }`}
+              title="Reporter Graph"
+            >
+              <UsersRound className="w-5 h-5 shrink-0" strokeWidth={1.5} />
+              <span className="opacity-0 group-hover:opacity-100 transition-opacity duration-300 whitespace-nowrap">Reporter Graph</span>
             </Link>
           </div>
         </div>

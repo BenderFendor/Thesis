@@ -24,6 +24,7 @@ logger = get_logger("entity_wiki_service")
 WIKIDATA_API_URL = "https://www.wikidata.org/w/api.php"
 WIKIPEDIA_API_URL = "https://en.wikipedia.org/w/api.php"
 WIKIDATA_SEARCH_LIMIT = 8
+WIKIMEDIA_USER_AGENT = "ScoopNewsWikiService/1.0 (https://github.com/anomalyco/Thesis)"
 INSTANCE_HUMAN = "Q5"
 JOURNALISM_KEYWORDS = (
     "journalist",
@@ -35,6 +36,30 @@ JOURNALISM_KEYWORDS = (
     "writer",
     "news",
 )
+EXPANDED_WIKIDATA_PROPS = {
+    "P31": "instance_of",
+    "P106": "occupation",
+    "P108": "employer",
+    "P69": "educated_at",
+    "P27": "country_of_citizenship",
+    "P856": "official_website",
+    "P2002": "twitter",
+    "P2003": "instagram",
+    "P6634": "linkedin",
+    "P101": "field_of_work",
+    "P2031": "work_period_start",
+    "P2032": "work_period_end",
+    "P569": "date_of_birth",
+    "P19": "place_of_birth",
+    "P21": "sex_or_gender",
+    "P1416": "affiliation",
+    "P8687": "social_media_followers",
+    "P2397": "youtube_channel_id",
+    "P4012": "semantic_scholar_author_id",
+    "P1960": "google_scholar_author_id",
+    "P214": "viaf_id",
+    "P244": "library_of_congress_id",
+}
 OFFICIAL_PAGE_CANDIDATES: Sequence[Tuple[str, Sequence[str]]] = (
     ("about", ("/about", "/about-us", "/about/", "/about-us/")),
     ("masthead", ("/masthead", "/staff", "/team", "/authors")),
@@ -90,6 +115,19 @@ def _extract_entity_id(value: Optional[str]) -> Optional[str]:
     if not value:
         return None
     return value.rsplit("/", 1)[-1]
+
+
+def _extract_wikidata_string(claims: Dict[str, Any], prop: str) -> Optional[str]:
+    """Extract a string value from a Wikidata claim property."""
+    claim_list = claims.get(prop) or []
+    if not claim_list:
+        return None
+    try:
+        return str(
+            claim_list[0].get("mainsnak", {}).get("datavalue", {}).get("value", "")
+        )
+    except (TypeError, KeyError, IndexError):
+        return None
 
 
 def _unique_strings(values: Iterable[Optional[str]]) -> List[str]:
@@ -288,6 +326,7 @@ async def _resolve_labels(
             "format": "json",
             "formatversion": 2,
         },
+        headers={"User-Agent": WIKIMEDIA_USER_AGENT},
     )
     if response.status_code != 200:
         return {}
@@ -320,6 +359,7 @@ async def _fetch_entities(
             "format": "json",
             "formatversion": 2,
         },
+        headers={"User-Agent": WIKIMEDIA_USER_AGENT},
     )
     if response.status_code != 200:
         return []
@@ -343,6 +383,7 @@ async def _search_wikidata(
             "type": "item",
             "format": "json",
         },
+        headers={"User-Agent": WIKIMEDIA_USER_AGENT},
     )
     if response.status_code != 200:
         return []
@@ -365,6 +406,7 @@ async def _fetch_wikipedia_summary(
             "inprop": "url",
             "format": "json",
         },
+        headers={"User-Agent": WIKIMEDIA_USER_AGENT},
     )
     if response.status_code != 200:
         return {}
@@ -441,7 +483,9 @@ def _build_reporter_sections(
     match_explanation: str,
     summary: Dict[str, Any],
     occupations: Sequence[str],
+    field_of_work: Sequence[str],
     employers: Sequence[str],
+    affiliations: Sequence[str],
     education: Sequence[str],
     citizenships: Sequence[str],
     official_website: Optional[str],
@@ -479,7 +523,7 @@ def _build_reporter_sections(
             "id": "occupations",
             "title": "Public Record",
             "status": "available"
-            if occupations or employers or citizenships
+            if occupations or field_of_work or employers or affiliations or citizenships
             else "missing",
             "items": [
                 {
@@ -491,11 +535,27 @@ def _build_reporter_sections(
             ]
             + [
                 {
+                    "label": "Field of work",
+                    "value": value,
+                    "sources": _unique_strings([wikidata_url]),
+                }
+                for value in field_of_work
+            ]
+            + [
+                {
                     "label": "Employer",
                     "value": value,
                     "sources": _unique_strings([wikidata_url]),
                 }
                 for value in employers
+            ]
+            + [
+                {
+                    "label": "Affiliation",
+                    "value": value,
+                    "sources": _unique_strings([wikidata_url]),
+                }
+                for value in affiliations
             ]
             + [
                 {
@@ -603,7 +663,7 @@ async def build_reporter_dossier(
             [
                 item_id
                 for entity in entity_candidates
-                for prop in ("P31", "P106", "P108", "P69", "P27")
+                for prop in ("P31", "P106", "P108", "P69", "P27", "P101", "P1416")
                 for item_id in _extract_wikidata_item_ids(
                     entity.get("claims") or {}, prop
                 )
@@ -633,6 +693,19 @@ async def build_reporter_dossier(
             wiki_title = ((entity.get("sitelinks") or {}).get("enwiki") or {}).get(
                 "title"
             )
+            twitter_handle = _extract_wikidata_string(claims, "P2002")
+            linkedin_url = _extract_wikidata_url(claims, "P6634")
+            instagram_handle = _extract_wikidata_string(claims, "P2003")
+            field_of_work = [
+                label_map[item_id]
+                for item_id in _extract_wikidata_item_ids(claims, "P101")
+                if item_id in label_map
+            ]
+            affiliations = [
+                label_map[item_id]
+                for item_id in _extract_wikidata_item_ids(claims, "P1416")
+                if item_id in label_map
+            ]
             name_score = _text_similarity(normalized_name, label)
             organization_score = max(
                 _token_overlap(organization, " ".join(employer_labels)),
@@ -674,6 +747,11 @@ async def build_reporter_dossier(
                     if item_id in label_map
                 ],
                 "official_website": _extract_wikidata_url(claims, "P856"),
+                "twitter_handle": twitter_handle,
+                "linkedin_url": linkedin_url,
+                "instagram_handle": instagram_handle,
+                "field_of_work": field_of_work,
+                "affiliations": affiliations,
                 "wiki_title": wiki_title,
                 "scores": {
                     "name": round(name_score, 3),
@@ -749,7 +827,9 @@ async def build_reporter_dossier(
             ),
             summary=summary,
             occupations=best_meta["occupations"],
+            field_of_work=best_meta["field_of_work"],
             employers=best_meta["employers"],
+            affiliations=best_meta["affiliations"],
             education=best_meta["education"],
             citizenships=best_meta["citizenships"],
             official_website=cast(Optional[str], best_meta.get("official_website")),
@@ -768,7 +848,9 @@ async def build_reporter_dossier(
                 {"organization": employer, "role": "employer", "source": "wikidata"}
                 for employer in best_meta["employers"]
             ],
-            "topics": best_meta["occupations"],
+            "topics": _unique_strings(
+                [*best_meta["occupations"], *best_meta["field_of_work"]]
+            ),
             "education": [
                 {"institution": institution, "source": "wikidata"}
                 for institution in best_meta["education"]
@@ -791,8 +873,11 @@ async def build_reporter_dossier(
             ),
             "research_sources": ["wikidata_search", "wikidata_entities", "wikipedia"],
             "research_confidence": "high" if match_status == "matched" else "medium",
-            "twitter_handle": None,
-            "linkedin_url": None,
+            "twitter_handle": best_meta.get("twitter_handle"),
+            "linkedin_url": best_meta.get("linkedin_url"),
+            "instagram_handle": best_meta.get("instagram_handle"),
+            "field_of_work": best_meta.get("field_of_work"),
+            "affiliations": best_meta.get("affiliations"),
             "citizenships": best_meta["citizenships"],
             "official_website": best_meta.get("official_website"),
             "raw_match_scores": best_meta["scores"],

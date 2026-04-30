@@ -24,16 +24,34 @@ import { GlobalNavigation, type ViewMode } from "@/components/global-navigation"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
 import { GridView } from "@/components/grid-view"
-import { FeedView } from "@/components/feed-view"
-import { BlindspotView } from "@/components/blindspot-view"
-import { ArticleDetailModal } from "@/components/article-detail-modal"
 import { ThemeToggle } from "@/components/theme-toggle"
 
-const GlobeView = dynamic(
-  () => import("@/components/globe-view").then((mod) => mod.GlobeView),
+const loadGlobeView = () => import("@/components/globe-view").then((mod) => mod.GlobeView)
+const loadFeedView = () => import("@/components/feed-view").then((mod) => mod.FeedView)
+const loadBlindspotView = () => import("@/components/blindspot-view").then((mod) => mod.BlindspotView)
+const loadArticleDetailModal = () =>
+  import("@/components/article-detail-modal").then((mod) => mod.ArticleDetailModal)
+
+const GlobeView = dynamic(loadGlobeView, {
+  ssr: false,
+  loading: () => <Skeleton className="h-[400px] w-full" />,
+})
+
+const FeedView = dynamic(loadFeedView, {
+  ssr: false,
+  loading: () => <Skeleton className="h-[400px] w-full" />,
+})
+
+const BlindspotView = dynamic(loadBlindspotView, {
+  ssr: false,
+  loading: () => <Skeleton className="h-[400px] w-full" />,
+})
+
+const ArticleDetailModal = dynamic(
+  loadArticleDetailModal,
   {
     ssr: false,
-    loading: () => <Skeleton className="h-[400px] w-full" />,
+    loading: () => null,
   }
 )
 
@@ -239,6 +257,20 @@ function NewsPage() {
     [],
   );
 
+  const preloadView = useCallback((view: ViewMode) => {
+    if (view === "globe") {
+      void loadGlobeView()
+      return
+    }
+    if (view === "scroll") {
+      void loadFeedView()
+      return
+    }
+    if (view === "blindspot") {
+      void loadBlindspotView()
+    }
+  }, [])
+
   const moveView = useCallback((direction: 1 | -1) => {
     setCurrentView((view) => {
       const currentIndex = VIEW_OPTIONS.findIndex((option) => option.value === view)
@@ -415,6 +447,7 @@ function NewsPage() {
       <GlobalNavigation
         currentView={currentView}
         onViewChange={handleViewChange}
+        onViewPreload={preloadView}
         onAlertsClick={() => setShowNotifications(!showNotifications)}
         alertCount={actionableNotificationCount}
       />
@@ -499,6 +532,8 @@ function NewsPage() {
                 <button
                   key={option.value}
                   type="button"
+                  onFocus={() => preloadView(option.value)}
+                  onPointerEnter={() => preloadView(option.value)}
                   onClick={() => handleViewChange(option.value)}
                   className={cn(
                     "shrink-0 border-b px-0.5 pb-1 font-mono text-[10px] uppercase tracking-[0.18em] transition-colors",
@@ -746,11 +781,13 @@ function NewsPage() {
         sourceRecency={sourceRecency}
       />
 
-      <ArticleDetailModal
-        article={leadArticle}
-        isOpen={leadModalOpen}
-        onClose={() => setLeadModalOpen(false)}
-      />
+      {leadModalOpen && leadArticle && (
+        <ArticleDetailModal
+          article={leadArticle}
+          isOpen={leadModalOpen}
+          onClose={() => setLeadModalOpen(false)}
+        />
+      )}
     </div>
   )
 }

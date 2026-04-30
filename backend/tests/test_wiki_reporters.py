@@ -1,7 +1,12 @@
 """Tests for wiki reporter endpoints: listing and dossier."""
 
+from datetime import datetime, timezone
+
 import pytest
 from httpx import AsyncClient
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from app.database import Article, ArticleAuthor, Reporter
 
 
 @pytest.mark.asyncio
@@ -54,6 +59,55 @@ class TestListWikiReporters:
         assert jane["leaning_confidence"] == "high"
         assert jane["article_count"] == 42
         assert jane["wikipedia_url"] is not None
+
+    async def test_reporter_graph_route(self, client: AsyncClient):
+        resp = await client.get("/api/wiki/reporters/graph")
+        assert resp.status_code == 200
+        data = resp.json()
+        node_ids = {node["id"] for node in data["nodes"]}
+        assert {"reporter:1", "reporter:2"}.issubset(node_ids)
+        assert isinstance(data["edges"], list)
+
+    async def test_reporter_graph_respects_edge_limit(
+        self, client: AsyncClient, db_session: AsyncSession
+    ):
+        now = datetime.now(timezone.utc).replace(tzinfo=None)
+        reporters = [
+            Reporter(
+                id=reporter_id,
+                name=f"Graph Reporter {reporter_id}",
+                normalized_name=f"graph reporter {reporter_id}",
+                article_count=10 - reporter_id,
+            )
+            for reporter_id in range(10, 14)
+        ]
+        articles = [
+            Article(
+                id=article_id,
+                title=f"Graph Article {article_id}",
+                source="Shared Outlet",
+                url=f"https://shared.example.com/{article_id}",
+                author=f"Graph Reporter {article_id}",
+                authors=[f"Graph Reporter {article_id}"],
+                published_at=now,
+                category="general",
+            )
+            for article_id in range(10, 14)
+        ]
+        db_session.add_all(reporters)
+        db_session.add_all(articles)
+        db_session.add_all(
+            [
+                ArticleAuthor(article_id=article_id, reporter_id=article_id)
+                for article_id in range(10, 14)
+            ]
+        )
+        await db_session.commit()
+
+        resp = await client.get("/api/wiki/reporters/graph?limit=20&edge_limit=2")
+
+        assert resp.status_code == 200
+        assert len(resp.json()["edges"]) <= 2
 
 
 @pytest.mark.asyncio

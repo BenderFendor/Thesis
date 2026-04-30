@@ -271,6 +271,49 @@ async def _maybe_migrate_cached_articles() -> None:
         startup_metrics.add_note("cache_age_error", str(exc))
 
 
+async def _initial_reporter_index() -> None:
+    """Run initial reporter seeding on startup (non-blocking, best-effort)."""
+    import time as time_mod
+
+    from app.core.logging import get_logger
+
+    _logger = get_logger("main")
+
+    await asyncio.sleep(120)
+    _logger.info("Initial reporter index starting...")
+
+    start = time_mod.time()
+    try:
+        from app.services.reporter_indexer import (
+            index_unresolved_reporters,
+            seed_reporters_from_wikidata,
+        )
+
+        _logger.info("Phase 1/2: Wikidata SPARQL reporter seed...")
+        sparql_result = await seed_reporters_from_wikidata()
+        _logger.info(
+            "SPARQL seed: %d total, %d resolved, %d failed",
+            sparql_result.get("total", 0),
+            sparql_result.get("resolved", 0),
+            sparql_result.get("failed", 0),
+        )
+
+        _logger.info("Phase 2/2: Unresolved article author indexing...")
+        author_result = await index_unresolved_reporters(limit=100)
+        _logger.info(
+            "Author index: %d total, %d resolved, %d failed",
+            author_result.get("total", 0),
+            author_result.get("resolved", 0),
+            author_result.get("failed", 0),
+        )
+
+        elapsed = time_mod.time() - start
+        _logger.info("Initial reporter index complete (%.1fs)", elapsed)
+
+    except Exception as exc:
+        _logger.error("Initial reporter index failed: %s", exc, exc_info=True)
+
+
 @app.on_event("startup")
 async def on_startup() -> None:
     startup_start = time.time()
@@ -439,6 +482,11 @@ async def on_startup() -> None:
         )
         _register_background_task(wiki_task)
         startup_metrics.add_note("wiki_refresh_task", wiki_task.get_name())
+
+        reporter_index_task = asyncio.create_task(
+            _initial_reporter_index(), name="initial_reporter_index"
+        )
+        _register_background_task(reporter_index_task)
 
     logger.info(
         "API startup complete (%.2fs) - cache ready with %d articles",

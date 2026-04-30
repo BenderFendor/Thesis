@@ -20,6 +20,19 @@ def test_extract_article_mentioned_countries_dedupes_and_sorts_alias_matches(
     )
 
     assert mentions == sorted(mentions)
+    assert len(mentions) == len(set(mentions))
+    assert {"CN", "US"}.issubset(mentions)
+
+
+def test_extract_article_mentioned_countries_returns_expected_aliases_without_extra_text() -> (
+    None
+):
+    mentions = extract_article_mentioned_countries(
+        "United States",
+        "USA and Beijing appear in the same briefing.",
+        "China remains central to the discussion.",
+    )
+
     assert mentions == ["CN", "US"]
 
 
