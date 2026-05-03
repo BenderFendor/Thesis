@@ -122,73 +122,94 @@ class LLMClient:
                 else settings.open_router_model
             )
 
-        # Apply llama.cpp Instruct mode params automatically
-        if settings.llm_backend == "llamacpp":
-            instruct_params = get_llamacpp_instruct_params()
-            # Keep OpenAI-compatible params at the top level and move
-            # llama.cpp-specific sampling args into extra_body.
-            kwargs.setdefault("temperature", instruct_params["temperature"])
-            kwargs.setdefault("top_p", instruct_params["top_p"])
-            kwargs.setdefault("presence_penalty", instruct_params["presence_penalty"])
+        from app.core.tracing import get_tracer
 
-            extra_body = dict(kwargs.pop("extra_body", {}) or {})
-            for key in ("top_k", "min_p", "repetition_penalty"):
-                if key in kwargs:
-                    extra_body[key] = kwargs.pop(key)
-                else:
-                    extra_body.setdefault(key, instruct_params[key])
-            if extra_body:
-                kwargs["extra_body"] = extra_body
+        tracer = get_tracer("scoop-backend")
+        span_name = f"llm_call_{service_name}"
 
-        request_id = str(uuid.uuid4())[:8]
-        start_time = time.monotonic()
+        with tracer.start_as_current_span(span_name) as span:
+            span.set_attribute("service", service_name)
+            span.set_attribute("model", model)
+            span.set_attribute("message_count", len(messages))
 
-        try:
-            client = cast(OpenAI, self._client)
-            response = cast(
-                ChatCompletion,
-                client.chat.completions.create(
+            # Apply llama.cpp Instruct mode params automatically
+            if settings.llm_backend == "llamacpp":
+                instruct_params = get_llamacpp_instruct_params()
+                kwargs.setdefault("temperature", instruct_params["temperature"])
+                kwargs.setdefault("top_p", instruct_params["top_p"])
+                kwargs.setdefault(
+                    "presence_penalty", instruct_params["presence_penalty"]
+                )
+
+                extra_body = dict(kwargs.pop("extra_body", {}) or {})
+                for key in ("top_k", "min_p", "repetition_penalty"):
+                    if key in kwargs:
+                        extra_body[key] = kwargs.pop(key)
+                    else:
+                        extra_body.setdefault(key, instruct_params[key])
+                if extra_body:
+                    kwargs["extra_body"] = extra_body
+
+            request_id = str(uuid.uuid4())[:8]
+            start_time = time.monotonic()
+
+            try:
+                client = cast(OpenAI, self._client)
+                response = cast(
+                    ChatCompletion,
+                    client.chat.completions.create(
+                        model=model,
+                        messages=cast(
+                            Iterable[ChatCompletionMessageParam], messages
+                        ),
+                        **kwargs,
+                    ),
+                )
+
+                duration_ms = int((time.monotonic() - start_time) * 1000)
+
+                finish_reason = (
+                    response.choices[0].finish_reason
+                    if response.choices
+                    else "unknown"
+                )
+
+                span.set_attribute("duration_ms", duration_ms)
+                span.set_attribute("finish_reason", finish_reason)
+
+                self._logger.log_call(
+                    request_id=request_id,
+                    service_name=service_name,
                     model=model,
-                    messages=cast(Iterable[ChatCompletionMessageParam], messages),
-                    **kwargs,
-                ),
-            )
+                    messages=messages,
+                    duration_ms=duration_ms,
+                    success=True,
+                    finish_reason=finish_reason,
+                )
 
-            duration_ms = int((time.monotonic() - start_time) * 1000)
+                return response
 
-            finish_reason = (
-                response.choices[0].finish_reason if response.choices else "unknown"
-            )
+            except Exception as e:
+                duration_ms = int((time.monotonic() - start_time) * 1000)
+                error_type = type(e).__name__
+                error_message = str(e)
 
-            self._logger.log_call(
-                request_id=request_id,
-                service_name=service_name,
-                model=model,
-                messages=messages,
-                duration_ms=duration_ms,
-                success=True,
-                finish_reason=finish_reason,
-            )
+                span.set_attribute("duration_ms", duration_ms)
+                span.set_attribute("error_type", error_type)
+                span.record_exception(e)
 
-            return response
+                self._logger.log_call(
+                    request_id=request_id,
+                    service_name=service_name,
+                    model=model,
+                    messages=messages,
+                    duration_ms=duration_ms,
+                    success=False,
+                    error_type=error_type,
+                    error_message=error_message,
+                )
 
-        except Exception as e:
-            duration_ms = int((time.monotonic() - start_time) * 1000)
-            error_type = type(e).__name__
-            error_message = str(e)
-
-            self._logger.log_call(
-                request_id=request_id,
-                service_name=service_name,
-                model=model,
-                messages=messages,
-                duration_ms=duration_ms,
-                success=False,
-                error_type=error_type,
-                error_message=error_message,
-            )
-
-            raise
+                raise
 
 
 _llm_client_instance: Optional[LLMClient] = None

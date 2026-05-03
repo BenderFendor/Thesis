@@ -1,0 +1,290 @@
+{
+    "US": {
+        "natural_resources": ["coal", "copper", "lead", "molybdenum", "phosphates", "rare earth elements", "uranium", "bauxite", "gold", "iron ore", "mercury", "nickel", "potash", "silver", "tungsten", "zinc", "petroleum", "natural gas", "timber"],
+        "top_exports": ["refined petroleum", "crude petroleum", "petroleum gas", "cars", "integrated circuits", "aircraft parts", "gas turbines", "medical instruments", "soybeans", "corn"],
+        "top_imports": ["cars", "crude petroleum", "computers", "broadcasting equipment", "packaged medicaments", "telephones", "vehicle parts", "office machine parts", "furniture", "semiconductors"],
+        "economic_sectors": ["services", "manufacturing", "agriculture", "energy", "technology"]
+    },
+    "CN": {
+        "natural_resources": ["coal", "iron ore", "petroleum", "natural gas", "mercury", "tin", "tungsten", "antimony", "manganese", "molybdenum", "vanadium", "magnetite", "aluminum", "lead", "zinc", "uranium", "rare earth elements", "hydropower"],
+        "top_exports": ["computers", "broadcasting equipment", "telephones", "integrated circuits", "office machine parts", "semiconductors", "electric batteries", "electrical transformers", "cars", "coated flat-rolled iron"],
+        "top_imports": ["crude petroleum", "iron ore", "integrated circuits", "gold", "soybeans", "copper ore", "petroleum gas", "coal briquettes", "cars", "copper"],
+        "economic_sectors": ["manufacturing", "technology", "agriculture", "construction", "energy"]
+    },
+    "JP": {
+        "natural_resources": ["fish", "negligible mineral resources"],
+        "top_exports": ["cars", "integrated circuits", "vehicle parts", "machinery", "ships", "electrical machinery", "optical instruments", "steel"],
+        "top_imports": ["crude petroleum", "petroleum gas", "coal briquettes", "integrated circuits", "telephones", "computers", "iron ore", "copper ore", "soybeans", "packaged medicaments"],
+        "economic_sectors": ["manufacturing", "technology", "services", "automotive", "electronics"]
+    },
+    "DE": {
+        "natural_resources": ["coal", "lignite", "natural gas", "iron ore", "copper", "nickel", "uranium", "potash", "salt", "construction materials", "timber"],
+        "top_exports": ["cars", "vehicle parts", "packaged medicaments", "aircraft", "medical instruments", "electrical machinery", "industrial machinery", "plastics"],
+        "top_imports": ["cars", "crude petroleum", "vehicle parts", "packaged medicaments", "computers", "natural gas", "electrical machinery", "iron ore"],
+        "economic_sectors": ["manufacturing", "automotive", "chemicals", "machinery", "services"]
+    },
+    "GB": {
+        "natural_resources": ["coal", "petroleum", "natural gas", "iron ore", "lead", "zinc", "gold", "tin", "limestone", "salt", "clay", "chalk", "gypsum", "potash", "silica sand", "slate"],
+        "top_exports": ["gold", "cars", "gas turbines", "packaged medicaments", "crude petroleum", "aircraft parts", "liquor", "oil"],
+        "top_imports": ["gold", "cars", "crude petroleum", "packaged medicaments", "refined petroleum", "telephones", "computers", "natural gas", "clothing"],
+        "economic_sectors": ["services", "financial services", "manufacturing", "energy", "aerospace"]
+    },
+    "FR": {
+        "natural_resources": ["coal", "iron ore", "bauxite", "zinc", "uranium", "antimony", "arsenic", "potash", "feldspar", "fluorspar", "gypsum", "timber", "fish"],
+        "top_exports": ["aircraft", "packaged medicaments", "cars", "vehicle parts", "wine", "perfumes", "gas turbines", "cosmetics", "cheese"],
+        "top_imports": ["cars", "crude petroleum", "refined petroleum", "packaged medicaments", "aircraft parts", "computers", "natural gas", "telephones"],
+        "economic_sectors": ["services", "manufacturing", "agriculture", "aerospace", "luxury goods"]
+    },
+    "IN": {
+        "natural_resources": ["coal", "iron ore", "manganese", "mica", "bauxite", "titanium ore", "chromite", "natural gas", "diamonds", "petroleum", "limestone"],
+        "top_exports": ["refined petroleum", "diamonds", "packaged medicaments", "jewelry", "rice", "cars", "textiles", "organic chemicals", "steel"],
+        "top_imports": ["crude petroleum", "gold", "coal briquettes", "diamonds", "petroleum gas", "computers", "telephones", "palm oil", "silver"],
+        "economic_sectors": ["agriculture", "manufacturing", "services", "IT", "pharmaceuticals"]
+    },
+    "RU": {
+        "natural_resources": ["oil", "natural gas", "coal", "rare earth elements", "timber", "gold", "diamonds", "copper", "iron ore", "platinum", "palladium"],
+        "top_exports": ["crude petroleum", "refined petroleum", "petroleum gas", "coal briquettes", "gold", "wheat", "semi-finished iron", "diamonds", "fertilizers", "aluminum"],
+        "top_imports": ["cars", "packaged medicaments", "broadcasting equipment", "computers", "telephones", "vehicle parts", "ships", "machinery"],
+        "economic_sectors": ["energy", "mining", "manufacturing", "agriculture", "defense"]
+    },
+    "BR": {
+        "natural_resources": ["bauxite", "gold", "iron ore", "manganese", "nickel", "phosphates", "platinum", "tin", "rare earth elements", "uranium", "petroleum", "hydropower", "timber"],
+        "top_exports": ["iron ore", "soybeans", "crude petroleum", "raw sugar", "coffee", "corn", "frozen bovine meat", "sulfate chemical woodpulp"],
+        "top_imports": ["refined petroleum", "cars", "vehicle parts", "broadcasting equipment", "computers", "packaged medicaments", "fertilizers", "natural gas"],
+        "economic_sectors": ["agriculture", "mining", "manufacturing", "energy", "services"]
+    },
+    "CA": {
+        "natural_resources": ["iron ore", "nickel", "zinc", "copper", "gold", "lead", "rare earth elements", "molybdenum", "potash", "diamonds", "silver", "fish", "timber", "wildlife", "coal", "petroleum", "natural gas", "hydropower"],
+        "top_exports": ["crude petroleum", "cars", "petroleum gas", "gold", "refined petroleum", "sawn wood", "wheat", "iron ore", "aluminum"],
+        "top_imports": ["cars", "refined petroleum", "computers", "delivery trucks", "gold", "packaged medicaments", "broadcasting equipment", "vehicle parts"],
+        "economic_sectors": ["energy", "mining", "manufacturing", "agriculture", "services"]
+    },
+    "AU": {
+        "natural_resources": ["bauxite", "coal", "iron ore", "copper", "tin", "gold", "silver", "uranium", "nickel", "tungsten", "rare earth elements", "mineral sands", "lead", "zinc", "diamonds", "natural gas", "petroleum"],
+        "top_exports": ["iron ore", "coal briquettes", "petroleum gas", "gold", "wheat", "aluminum oxide", "copper ore", "frozen bovine meat", "precious metal ore"],
+        "top_imports": ["refined petroleum", "cars", "computers", "telephones", "packaged medicaments", "delivery trucks", "broadcasting equipment"],
+        "economic_sectors": ["mining", "agriculture", "services", "manufacturing", "energy"]
+    },
+    "SA": {
+        "natural_resources": ["petroleum", "natural gas", "iron ore", "gold", "copper"],
+        "top_exports": ["crude petroleum", "refined petroleum", "polymers", "industrial alcohols", "gold", "fertilizers", "aluminum"],
+        "top_imports": ["cars", "refined petroleum", "broadcasting equipment", "telephones", "computers", "packaged medicaments", "wheat", "rice"],
+        "economic_sectors": ["energy", "petrochemicals", "financial services", "construction", "mining"]
+    },
+    "KR": {
+        "natural_resources": ["coal", "tungsten", "graphite", "molybdenum", "lead", "hydropower"],
+        "top_exports": ["integrated circuits", "cars", "refined petroleum", "vehicle parts", "passenger and cargo ships", "telephones", "computers", "electrical machinery"],
+        "top_imports": ["crude petroleum", "integrated circuits", "petroleum gas", "coal briquettes", "semiconductor machinery", "iron ore", "computers"],
+        "economic_sectors": ["manufacturing", "technology", "shipbuilding", "automotive", "electronics"]
+    },
+    "IT": {
+        "natural_resources": ["coal", "mercury", "zinc", "potash", "marble", "barite", "asbestos", "pumice", "fluorspar", "feldspar", "pyrite", "natural gas", "crude oil", "fish"],
+        "top_exports": ["packaged medicaments", "cars", "refined petroleum", "vehicle parts", "wine", "jewelry", "leather footwear", "machinery"],
+        "top_imports": ["crude petroleum", "cars", "packaged medicaments", "natural gas", "refined petroleum", "gold", "computers", "telephones"],
+        "economic_sectors": ["manufacturing", "automotive", "fashion", "tourism", "agriculture"]
+    },
+    "MX": {
+        "natural_resources": ["petroleum", "silver", "copper", "gold", "lead", "zinc", "natural gas", "timber"],
+        "top_exports": ["cars", "vehicle parts", "computers", "delivery trucks", "crude petroleum", "telephones", "electrical machinery", "machinery"],
+        "top_imports": ["refined petroleum", "vehicle parts", "integrated circuits", "computers", "telephones", "machinery", "cars", "packaged medicaments"],
+        "economic_sectors": ["manufacturing", "automotive", "energy", "agriculture", "tourism"]
+    },
+    "ID": {
+        "natural_resources": ["petroleum", "tin", "natural gas", "nickel", "timber", "bauxite", "copper", "coal", "gold", "silver"],
+        "top_exports": ["coal briquettes", "palm oil", "petroleum gas", "crude petroleum", "copper ore", "nickel", "gold", "rubber"],
+        "top_imports": ["refined petroleum", "crude petroleum", "telephones", "computers", "cars", "integrated circuits", "wheat", "raw sugar"],
+        "economic_sectors": ["mining", "agriculture", "manufacturing", "energy", "tourism"]
+    },
+    "TR": {
+        "natural_resources": ["coal", "iron ore", "copper", "chromium", "antimony", "mercury", "gold", "barite", "borate", "emery", "feldspar", "limestone", "magnesite", "marble", "perlite", "pumice", "pyrites", "clay"],
+        "top_exports": ["cars", "refined petroleum", "gold", "jewelry", "vehicle parts", "t-shirts", "textiles", "machinery", "iron"],
+        "top_imports": ["refined petroleum", "gold", "cars", "scrap iron", "broadcasting equipment", "computers", "crude petroleum", "packaged medicaments"],
+        "economic_sectors": ["manufacturing", "textiles", "tourism", "agriculture", "construction"]
+    },
+    "NL": {
+        "natural_resources": ["natural gas", "petroleum", "peat", "limestone", "salt", "sand and gravel"],
+        "top_exports": ["refined petroleum", "computers", "packaged medicaments", "broadcasting equipment", "crude petroleum", "telephones", "machinery", "chemicals"],
+        "top_imports": ["crude petroleum", "refined petroleum", "computers", "broadcasting equipment", "packaged medicaments", "telephones", "cars", "machinery"],
+        "economic_sectors": ["services", "logistics", "agriculture", "energy", "chemicals"]
+    },
+    "ES": {
+        "natural_resources": ["coal", "lignite", "iron ore", "copper", "lead", "zinc", "uranium", "tungsten", "mercury", "pyrites", "magnesite", "fluorspar", "gypsum", "sepiolite", "kaolin", "potash"],
+        "top_exports": ["cars", "refined petroleum", "vehicle parts", "packaged medicaments", "wine", "olive oil", "fruits", "textiles"],
+        "top_imports": ["crude petroleum", "cars", "vehicle parts", "refined petroleum", "packaged medicaments", "natural gas", "computers", "telephones"],
+        "economic_sectors": ["tourism", "manufacturing", "agriculture", "energy", "services"]
+    },
+    "CH": {
+        "natural_resources": ["hydropower", "timber", "salt"],
+        "top_exports": ["gold", "packaged medicaments", "blood and vaccines", "watches", "jewelry", "machinery", "chemical products", "medical instruments"],
+        "top_imports": ["gold", "packaged medicaments", "jewelry", "cars", "computers", "crude petroleum", "telephones", "clothing"],
+        "economic_sectors": ["financial services", "pharmaceuticals", "precision instruments", "tourism", "technology"]
+    },
+    "SE": {
+        "natural_resources": ["iron ore", "copper", "lead", "zinc", "gold", "silver", "tungsten", "uranium", "arsenic", "feldspar", "timber", "hydropower"],
+        "top_exports": ["cars", "refined petroleum", "packaged medicaments", "telephone instruments", "machinery", "iron ore", "wood products", "paper"],
+        "top_imports": ["crude petroleum", "cars", "computers", "packaged medicaments", "telephones", "natural gas", "refined petroleum"],
+        "economic_sectors": ["manufacturing", "technology", "mining", "forestry", "services"]
+    },
+    "NO": {
+        "natural_resources": ["petroleum", "natural gas", "iron ore", "copper", "lead", "zinc", "titanium", "pyrites", "nickel", "fish", "timber", "hydropower"],
+        "top_exports": ["crude petroleum", "petroleum gas", "fish", "refined petroleum", "aluminum", "machinery", "ships"],
+        "top_imports": ["cars", "ships", "refined petroleum", "computers", "broadcasting equipment", "packaged medicaments", "telephones"],
+        "economic_sectors": ["energy", "fisheries", "maritime", "manufacturing", "services"]
+    },
+    "ZA": {
+        "natural_resources": ["gold", "chromium", "antimony", "coal", "iron ore", "manganese", "nickel", "phosphates", "tin", "rare earth elements", "uranium", "gem diamonds", "platinum", "copper", "vanadium", "salt", "natural gas"],
+        "top_exports": ["gold", "platinum", "coal briquettes", "cars", "diamonds", "iron ore", "manganese ore", "citrus fruits"],
+        "top_imports": ["crude petroleum", "refined petroleum", "cars", "computers", "telephones", "packaged medicaments", "broadcasting equipment"],
+        "economic_sectors": ["mining", "manufacturing", "agriculture", "financial services", "tourism"]
+    },
+    "AE": {
+        "natural_resources": ["petroleum", "natural gas"],
+        "top_exports": ["crude petroleum", "refined petroleum", "gold", "jewelry", "diamonds", "aircraft parts", "telephones", "computers"],
+        "top_imports": ["gold", "broadcasting equipment", "jewelry", "refined petroleum", "diamonds", "cars", "computers", "telephones"],
+        "economic_sectors": ["energy", "logistics", "financial services", "tourism", "real estate"]
+    },
+    "SG": {
+        "natural_resources": ["fish", "deepwater ports"],
+        "top_exports": ["integrated circuits", "refined petroleum", "gold", "computers", "packaged medicaments", "machinery", "telephones", "ships"],
+        "top_imports": ["integrated circuits", "refined petroleum", "gold", "computers", "crude petroleum", "telephones", "broadcasting equipment", "packaged medicaments"],
+        "economic_sectors": ["financial services", "logistics", "electronics", "pharmaceuticals", "tourism"]
+    },
+    "NG": {
+        "natural_resources": ["natural gas", "petroleum", "tin", "iron ore", "coal", "limestone", "niobium", "lead", "zinc"],
+        "top_exports": ["crude petroleum", "petroleum gas", "scrap vessels", "cocoa beans", "refined petroleum", "gold"],
+        "top_imports": ["refined petroleum", "cars", "wheat", "machinery", "telephones", "packaged medicaments", "rice"],
+        "economic_sectors": ["energy", "agriculture", "manufacturing", "telecommunications", "services"]
+    },
+    "AR": {
+        "natural_resources": ["lead", "zinc", "tin", "copper", "iron ore", "manganese", "petroleum", "uranium", "lithium"],
+        "top_exports": ["soybean meal", "corn", "soybean oil", "cars", "wheat", "frozen bovine meat", "gold", "wine"],
+        "top_imports": ["cars", "refined petroleum", "vehicle parts", "computers", "natural gas", "packaged medicaments", "telephones", "fertilizers"],
+        "economic_sectors": ["agriculture", "manufacturing", "mining", "services", "energy"]
+    },
+    "EG": {
+        "natural_resources": ["petroleum", "natural gas", "iron ore", "phosphates", "manganese", "limestone", "gypsum", "talc", "asbestos", "lead", "rare earth elements", "zinc"],
+        "top_exports": ["crude petroleum", "refined petroleum", "gold", "nitrogenous fertilizers", "citrus fruits", "garments", "carpets"],
+        "top_imports": ["refined petroleum", "wheat", "cars", "crude petroleum", "corn", "packaged medicaments", "raw iron bars", "telephones"],
+        "economic_sectors": ["energy", "tourism", "agriculture", "manufacturing", "Suez Canal"]
+    },
+    "PK": {
+        "natural_resources": ["natural gas", "petroleum", "coal", "iron ore", "copper", "salt", "limestone"],
+        "top_exports": ["house linens", "rice", "non-knit suits", "leather garments", "knit sweaters", "cement", "copper", "fruits"],
+        "top_imports": ["refined petroleum", "crude petroleum", "petroleum gas", "palm oil", "scrap iron", "telephones", "cars", "computers"],
+        "economic_sectors": ["agriculture", "textiles", "manufacturing", "services", "energy"]
+    },
+    "BD": {
+        "natural_resources": ["natural gas", "coal", "timber"],
+        "top_exports": ["non-knit suits", "knit t-shirts", "knit sweaters", "shoes", "leather", "jute", "fish"],
+        "top_imports": ["refined petroleum", "cotton", "heavy machinery", "cars", "computers", "wheat", "palm oil", "rice"],
+        "economic_sectors": ["textiles", "agriculture", "manufacturing", "services", "energy"]
+    },
+    "VN": {
+        "natural_resources": ["phosphates", "coal", "manganese", "rare earth elements", "bauxite", "chromate", "offshore oil and gas deposits", "timber", "hydropower"],
+        "top_exports": ["telephones", "computers", "textiles", "shoes", "machinery", "furniture", "fish", "coffee"],
+        "top_imports": ["integrated circuits", "telephones", "refined petroleum", "computers", "machinery", "steel", "fabric", "plastics"],
+        "economic_sectors": ["manufacturing", "agriculture", "textiles", "technology", "tourism"]
+    },
+    "PL": {
+        "natural_resources": ["coal", "sulfur", "copper", "natural gas", "silver", "lead", "salt", "amber"],
+        "top_exports": ["vehicle parts", "cars", "furniture", "computers", "machinery", "copper", "televisions", "tobacco"],
+        "top_imports": ["cars", "vehicle parts", "crude petroleum", "computers", "packaged medicaments", "telephones", "natural gas", "machinery"],
+        "economic_sectors": ["manufacturing", "agriculture", "mining", "services", "energy"]
+    },
+    "TH": {
+        "natural_resources": ["tin", "rubber", "natural gas", "tungsten", "tantalum", "timber", "lead", "fish", "gypsum", "lignite", "fluorite"],
+        "top_exports": ["computers", "cars", "delivery trucks", "rubber", "gold", "integrated circuits", "refined petroleum", "jewelry"],
+        "top_imports": ["crude petroleum", "integrated circuits", "gold", "telephones", "computers", "vehicle parts", "refined petroleum", "machinery"],
+        "economic_sectors": ["manufacturing", "agriculture", "tourism", "technology", "services"]
+    },
+    "MY": {
+        "natural_resources": ["tin", "petroleum", "timber", "copper", "iron ore", "natural gas", "bauxite"],
+        "top_exports": ["integrated circuits", "refined petroleum", "petroleum gas", "palm oil", "computers", "rubber", "machinery", "solar panels"],
+        "top_imports": ["integrated circuits", "refined petroleum", "crude petroleum", "telephones", "computers", "vehicle parts", "cars", "machinery"],
+        "economic_sectors": ["manufacturing", "electronics", "energy", "agriculture", "services"]
+    },
+    "PH": {
+        "natural_resources": ["timber", "petroleum", "nickel", "cobalt", "silver", "gold", "salt", "copper"],
+        "top_exports": ["integrated circuits", "computers", "machinery", "telephones", "copper", "gold", "coconut oil", "bananas"],
+        "top_imports": ["integrated circuits", "refined petroleum", "computers", "telephones", "machinery", "cars", "wheat", "packaged medicaments"],
+        "economic_sectors": ["manufacturing", "agriculture", "remittances", "services", "mining"]
+    },
+    "IR": {
+        "natural_resources": ["petroleum", "natural gas", "coal", "chromium", "copper", "iron ore", "lead", "manganese", "zinc", "sulfur"],
+        "top_exports": ["crude petroleum", "polymers", "raw aluminum", "iron ore", "pistachios", "fertilizers", "saffron", "carpets"],
+        "top_imports": ["rice", "corn", "soybean meal", "vehicle parts", "packaged medicaments", "machinery", "iron"],
+        "economic_sectors": ["energy", "manufacturing", "agriculture", "mining", "services"]
+    },
+    "CL": {
+        "natural_resources": ["copper", "timber", "iron ore", "nitrates", "precious metals", "molybdenum", "hydropower"],
+        "top_exports": ["copper ore", "refined copper", "lithium", "gold", "wine", "fish", "fruits", "wood pulp"],
+        "top_imports": ["refined petroleum", "crude petroleum", "cars", "delivery trucks", "computers", "telephones", "packaged medicaments"],
+        "economic_sectors": ["mining", "agriculture", "fisheries", "services", "manufacturing"]
+    },
+    "CO": {
+        "natural_resources": ["petroleum", "natural gas", "coal", "iron ore", "nickel", "gold", "copper", "emeralds", "hydropower"],
+        "top_exports": ["crude petroleum", "coal briquettes", "coffee", "gold", "refined petroleum", "cut flowers", "bananas", "ferroalloys"],
+        "top_imports": ["refined petroleum", "cars", "broadcasting equipment", "computers", "packaged medicaments", "telephones", "machinery"],
+        "economic_sectors": ["energy", "mining", "agriculture", "manufacturing", "services"]
+    },
+    "PE": {
+        "natural_resources": ["copper", "silver", "gold", "petroleum", "timber", "fish", "iron ore", "coal", "phosphate", "potash", "hydropower", "natural gas"],
+        "top_exports": ["copper ore", "gold", "refined petroleum", "animal meal and pellets", "coffee", "natural gas", "fish", "fruits"],
+        "top_imports": ["refined petroleum", "crude petroleum", "cars", "computers", "telephones", "broadcasting equipment", "packaged medicaments"],
+        "economic_sectors": ["mining", "agriculture", "fisheries", "manufacturing", "services"]
+    },
+    "KZ": {
+        "natural_resources": ["petroleum", "natural gas", "coal", "iron ore", "manganese", "chrome ore", "nickel", "cobalt", "copper", "molybdenum", "lead", "zinc", "bauxite", "gold", "uranium"],
+        "top_exports": ["crude petroleum", "gold", "refined copper", "iron ore", "uranium", "wheat", "ferroalloys", "coal briquettes"],
+        "top_imports": ["cars", "packaged medicaments", "computers", "machinery", "telephones", "broadcasting equipment", "refined petroleum"],
+        "economic_sectors": ["energy", "mining", "agriculture", "manufacturing", "services"]
+    },
+    "UA": {
+        "natural_resources": ["iron ore", "coal", "manganese", "natural gas", "oil", "salt", "sulfur", "graphite", "titanium", "magnesium", "kaolin", "nickel", "mercury", "timber"],
+        "top_exports": ["iron ore", "corn", "sunflower seed oil", "wheat", "semi-finished iron", "rapeseed", "soybeans", "barley"],
+        "top_imports": ["refined petroleum", "petroleum gas", "cars", "packaged medicaments", "coal briquettes", "computers", "telephones", "machinery"],
+        "economic_sectors": ["agriculture", "mining", "manufacturing", "energy", "IT services"]
+    },
+    "NG": {
+        "natural_resources": ["natural gas", "petroleum", "tin", "iron ore", "coal", "limestone", "niobium", "lead", "zinc"],
+        "top_exports": ["crude petroleum", "petroleum gas", "scrap vessels", "cocoa beans", "refined petroleum", "gold"],
+        "top_imports": ["refined petroleum", "cars", "wheat", "machinery", "telephones", "packaged medicaments", "rice"],
+        "economic_sectors": ["energy", "agriculture", "manufacturing", "telecommunications", "services"]
+    },
+    "KE": {
+        "natural_resources": ["limestone", "soda ash", "salt", "gemstones", "fluorspar", "zinc", "diatomite", "gypsum", "hydropower"],
+        "top_exports": ["tea", "cut flowers", "coffee", "refined petroleum", "gold", "vegetables", "fruits", "knit garments"],
+        "top_imports": ["refined petroleum", "cars", "packaged medicaments", "wheat", "telephones", "computers", "machinery", "palm oil"],
+        "economic_sectors": ["agriculture", "tourism", "services", "manufacturing", "technology"]
+    },
+    "QA": {
+        "natural_resources": ["petroleum", "natural gas", "fish"],
+        "top_exports": ["petroleum gas", "crude petroleum", "refined petroleum", "polymers", "aluminum", "fertilizers", "steel"],
+        "top_imports": ["aircraft", "cars", "computers", "broadcasting equipment", "jewelry", "packaged medicaments", "telephones"],
+        "economic_sectors": ["energy", "petrochemicals", "financial services", "construction", "tourism"]
+    },
+    "IL": {
+        "natural_resources": ["timber", "potash", "copper ore", "natural gas", "phosphate rock", "magnesium bromide", "clays", "sand"],
+        "top_exports": ["diamonds", "integrated circuits", "refined petroleum", "packaged medicaments", "medical instruments", "machinery", "potash", "aircraft"],
+        "top_imports": ["diamonds", "cars", "crude petroleum", "telephones", "computers", "broadcasting equipment", "packaged medicaments", "machinery"],
+        "economic_sectors": ["technology", "manufacturing", "diamond trading", "agriculture", "tourism"]
+    },
+    "TW": {
+        "natural_resources": ["coal", "natural gas", "limestone", "marble", "asbestos"],
+        "top_exports": ["integrated circuits", "computers", "telephones", "semiconductors", "office machine parts", "machinery", "optical instruments", "vehicle parts"],
+        "top_imports": ["integrated circuits", "crude petroleum", "coal briquettes", "natural gas", "computers", "semiconductor machinery", "gold", "machinery"],
+        "economic_sectors": ["technology", "manufacturing", "semiconductors", "electronics", "services"]
+    },
+    "IE": {
+        "natural_resources": ["natural gas", "peat", "copper", "lead", "zinc", "silver", "barite", "gypsum", "limestone", "dolomite"],
+        "top_exports": ["vaccines and blood products", "packaged medicaments", "computers", "integrated circuits", "medical instruments", "perfumes", "butter"],
+        "top_imports": ["aircraft", "computers", "packaged medicaments", "cars", "refined petroleum", "telephones", "broadcasting equipment"],
+        "economic_sectors": ["pharmaceuticals", "technology", "financial services", "agriculture", "tourism"]
+    },
+    "HU": {
+        "natural_resources": ["bauxite", "coal", "natural gas"],
+        "top_exports": ["cars", "vehicle parts", "electrical machinery", "packaged medicaments", "computers", "machinery", "broadcasting equipment", "cereals"],
+        "top_imports": ["cars", "vehicle parts", "computers", "crude petroleum", "packaged medicaments", "telephones", "natural gas", "broadcasting equipment"],
+        "economic_sectors": ["manufacturing", "automotive", "pharmaceuticals", "IT", "agriculture"]
+    }
+}

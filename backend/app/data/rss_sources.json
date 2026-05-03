@@ -7,7 +7,8 @@
         "funding_type": "Public",
         "bias_rating": "Center",
         "ownership_label": "public broadcaster",
-        "factual_reporting": "high"
+        "factual_reporting": "high",
+        "wikidata_qid": "Q9531"
     },
     "BBC News - Home": {
         "url": "http://feeds.bbci.co.uk/news/rss.xml",
@@ -67,7 +68,8 @@
         "funding_type": "Commercial",
         "bias_rating": "Left-Center",
         "ownership_label": "private broadcast network",
-        "factual_reporting": "mixed"
+        "factual_reporting": "mixed",
+        "wikidata_qid": "Q48340"
     },
     "Reuters": {
         "url": "https://news.google.com/rss/search?q=site:reuters.com&hl=en-US&gl=US&ceid=US:en",
@@ -77,7 +79,8 @@
         "funding_type": "Commercial",
         "bias_rating": "Center",
         "ownership_label": "private news and data company",
-        "factual_reporting": "very-high"
+        "factual_reporting": "very-high",
+        "wikidata_qid": "Q130879"
     },
     "NPR": {
         "url": "https://feeds.npr.org/1001/rss.xml",
@@ -87,7 +90,8 @@
         "funding_type": "Non-profit",
         "bias_rating": "Left-Center",
         "ownership_label": "nonprofit broadcaster",
-        "factual_reporting": "very-high"
+        "factual_reporting": "very-high",
+        "wikidata_qid": "Q671510"
     },
     "National Post": {
         "url": "https://nationalpost.com/feed/",
@@ -106,7 +110,8 @@
         "funding_type": "Commercial",
         "bias_rating": "Right",
         "ownership_label": "private broadcast network",
-        "factual_reporting": "mixed"
+        "factual_reporting": "mixed",
+        "wikidata_qid": "Q186068"
     },
     "New York Times": {  
         "url": [
@@ -123,7 +128,8 @@
         "bias_rating": "Left",
         "consolidate": true,
         "ownership_label": "private newspaper",
-        "factual_reporting": "high"
+        "factual_reporting": "high",
+        "wikidata_qid": "Q9684"
     },
     "The Guardian": {
         "url": "https://www.theguardian.com/world/rss",
@@ -133,7 +139,8 @@
         "funding_type": "Trust-owned",
         "bias_rating": "Left",
         "ownership_label": "trust-owned newspaper",
-        "factual_reporting": "high"
+        "factual_reporting": "high",
+        "wikidata_qid": "Q11148"
     },
     "The Washington Post": {
         "url": "http://feeds.washingtonpost.com/rss/national",
@@ -143,7 +150,8 @@
         "funding_type": "Commercial",
         "bias_rating": "Left-Center",
         "ownership_label": "private owner-controlled newspaper",
-        "factual_reporting": "high"
+        "factual_reporting": "high",
+        "wikidata_qid": "Q166032"
     },
     "Al Jazeera": {
         "url": "https://www.aljazeera.com/xml/rss/all.xml",
@@ -153,7 +161,8 @@
         "funding_type": "State-funded",
         "bias_rating": "Left-Center",
         "ownership_label": "state-owned media network",
-        "factual_reporting": "mixed"
+        "factual_reporting": "mixed",
+        "wikidata_qid": "Q13477"
     },
     "972mag.com": {
         "url": "https://972mag.com/feed/",
@@ -521,6 +530,24 @@
         "ownership_label": "private broadcast network",
         "factual_reporting": "high"
     },
+    "ArXiv CS (AI)": {
+        "url": "http://export.arxiv.org/rss/cs.AI",
+        "category": "technology",
+        "country": "US",
+        "funding_type": "Non-profit",
+        "bias_rating": "Center",
+        "ownership_label": "academic preprint repository",
+        "factual_reporting": "unknown"
+    },
+    "ArXiv CS (CL)": {
+        "url": "http://export.arxiv.org/rss/cs.CL",
+        "category": "technology",
+        "country": "US",
+        "funding_type": "Non-profit",
+        "bias_rating": "Center",
+        "ownership_label": "academic preprint repository",
+        "factual_reporting": "unknown"
+    },
     "CBS News": {
         "url": "https://www.cbsnews.com/latest/rss/main",
         "category": "general",
@@ -740,7 +767,8 @@
         "funding_type": "Public",
         "bias_rating": "Center",
         "ownership_label": "public broadcaster",
-        "factual_reporting": "high"
+        "factual_reporting": "high",
+        "wikidata_qid": "Q153770"
     },
     "NBC10 Philadelphia": {
         "url": "https://news.google.com/rss/search?q=site:nbcphiladelphia.com",

@@ -39,6 +39,8 @@ def get_rss_sources() -> Dict[str, Dict[str, Any]]:
         }
         if source_value.get("consolidate", False):
             config["consolidate"] = True
+        if source_value.get("wikidata_qid"):
+            config["wikidata_qid"] = source_value["wikidata_qid"]
         return config
 
     for key, value in _RAW_SOURCES.items():
@@ -76,3 +78,9 @@ def get_rss_sources() -> Dict[str, Dict[str, Any]]:
 
     logger.info(f"Loaded {len(flattened)} RSS sources")
     return flattened
+
+
+def reload_rss_sources() -> None:
+    global _RAW_SOURCES
+    _RAW_SOURCES = json.loads(_DATA_PATH.read_text(encoding="utf-8"))
+    logger.info("RSS sources reloaded from disk")

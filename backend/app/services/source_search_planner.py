@@ -8,14 +8,17 @@ from typing import List, Optional
 from app.core.config import settings
 from app.core.llm_client import get_llm_client
 from app.core.logging import get_logger
+from app.services.prompting import build_json_system_prompt
 
 logger = get_logger("source_search_planner")
 
-SYSTEM_PROMPT = (
-    "You are a research assistant planning web searches for a news organization. "
-    "Generate concise search queries that will find authoritative sources for "
-    "funding, ownership, corrections policy, editorial standards, and bias ratings. "
-    "Do not invent facts. Output only JSON."
+SYSTEM_PROMPT = build_json_system_prompt(
+    role="research assistant",
+    task=(
+        "Plan web searches for a news organization. Generate concise search "
+        "queries to find authoritative sources for funding, ownership, corrections "
+        "policy, editorial standards, and bias ratings. Do not invent facts."
+    ),
 )
 
 

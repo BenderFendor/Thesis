@@ -1137,6 +1137,33 @@ export async function deleteLikedArticle(articleId: number): Promise<boolean> {
 let cachedSources: NewsSource[] = [];
 let cachedArticles: NewsArticle[] = [];
 
+export interface AddRssResponse {
+  success: boolean;
+  name: string;
+  url: string;
+  article_count: number;
+  status: string;
+}
+
+export async function validateRssUrl(
+  url: string,
+): Promise<AddRssResponse> {
+  const response = await fetch(`${API_BASE_URL}/sources/add-rss`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ url }),
+  });
+
+  if (!response.ok) {
+    const body = await response.json().catch(() => null);
+    const detail =
+      body && typeof body.detail === "string" ? body.detail : `HTTP ${response.status}`;
+    throw new Error(detail);
+  }
+
+  return response.json();
+}
+
 export async function getSourceById(
   id: string,
 ): Promise<NewsSource | undefined> {
@@ -1724,6 +1751,41 @@ export async function fetchStartupMetrics(): Promise<StartupMetricsResponse> {
     events,
     notes: data?.notes ?? {},
   };
+}
+
+// --- Credibility Engine Types (Plan 35) ---
+
+export interface CredibilityDimension {
+  score: number | null
+  confidence: number
+  explanation: string
+  signals_available: number
+  signals_missing: number
+  provenance: Array<{ source: string; url: string; last_updated?: string; provenance_tag?: string }>
+  status: string
+  dimension: string
+}
+
+export interface CredibilityDataQuality {
+  dimensions_available: number
+  dimensions_total: number
+  completeness_pct: number
+  last_updated: string | null
+}
+
+export interface SourceCredibilityProfile {
+  domain: string
+  dimensions: Record<string, CredibilityDimension>
+  data_quality: CredibilityDataQuality
+  status: string
+}
+
+export async function fetchSourceCredibility(domain: string): Promise<SourceCredibilityProfile> {
+  const response = await fetch(`${API_BASE_URL}/api/source/${encodeURIComponent(domain)}/credibility`)
+  if (!response.ok) {
+    throw new Error(`Failed to fetch source credibility (${response.status})`)
+  }
+  return response.json()
 }
 
 // Enhanced news streaming function

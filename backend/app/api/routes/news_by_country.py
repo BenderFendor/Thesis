@@ -4,7 +4,7 @@ from datetime import datetime, timedelta, timezone
 from typing import Any
 
 from fastapi import APIRouter, Depends, Query
-from sqlalchemy import any_, func, literal, select
+from sqlalchemy import any_, func, literal, select, text as sql_text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.logging import get_logger
@@ -159,20 +159,47 @@ async def get_article_counts_by_country(
         if isinstance(country, str) and isinstance(count, int):
             source_counts[country] = count
 
-    mention_stmt = select(Article.mentioned_countries).where(
-        Article.published_at >= since
-    )
-    mention_rows = list((await db.execute(mention_stmt)).scalars().all())
-
     counts: dict[str, int] = {}
     covered_article_count = 0
-    for mentions in mention_rows:
-        mentions = mentions or []
-        if not mentions:
-            continue
-        covered_article_count += 1
-        for mention in mentions:
-            counts[mention] = counts.get(mention, 0) + 1
+
+    dialect_name = get_session_dialect_name(db)
+    if dialect_name == "postgresql":
+        unnest_stmt = sql_text(
+            """
+            SELECT unnest(mentioned_countries) AS country, count(*) AS cnt
+            FROM articles
+            WHERE published_at >= :since
+              AND mentioned_countries IS NOT NULL
+              AND cardinality(mentioned_countries) > 0
+            GROUP BY 1
+            ORDER BY 2 DESC
+            """
+        )
+        result = await db.execute(unnest_stmt, {"since": since})
+        for row in result.all():
+            country = row[0]
+            cnt = row[1]
+            if isinstance(country, str) and isinstance(cnt, int):
+                counts[country] = cnt
+
+        covered_stmt = select(func.count(Article.id)).where(
+            Article.published_at >= since,
+            Article.mentioned_countries.isnot(None),
+            func.cardinality(Article.mentioned_countries) > 0,
+        )
+        covered_article_count = int((await db.execute(covered_stmt)).scalar_one())
+    else:
+        mention_stmt = select(Article.mentioned_countries).where(
+            Article.published_at >= since
+        )
+        mention_rows = list((await db.execute(mention_stmt)).scalars().all())
+        for mentions in mention_rows:
+            mentions = mentions or []
+            if not mentions:
+                continue
+            covered_article_count += 1
+            for mention in mentions:
+                counts[mention] = counts.get(mention, 0) + 1
 
     total_stmt = select(func.count(Article.id)).where(Article.published_at >= since)
     total = int((await db.execute(total_stmt)).scalar_one())

@@ -296,3 +296,39 @@ async def build_reporter_activity_summary(
         ],
         "meta_author_matches": matched_meta_articles,
     }
+
+
+def compute_author_confidence(
+    reporter_name: str,
+    article_page_html: str,
+    article_url: str,
+    rss_byline: Optional[str] = None,
+) -> float:
+    """Score how confident we are about an article-reporter link.
+
+    Confidence tiers:
+    - JSON-LD structured data author match: 1.0
+    - Meta author tag match: 0.9
+    - Anchor link to author page: 0.7
+    - RSS byline match only: 0.5
+
+    Returns the highest-confidence tier that matches.
+    """
+    highest_confidence = 0.0
+
+    json_ld_result = _parse_json_ld_author_data(article_page_html, reporter_name, article_url)
+    if json_ld_result.get("author_pages"):
+        return 1.0
+
+    meta_author = _author_name_from_meta(article_page_html)
+    if meta_author and _name_matches(meta_author, reporter_name):
+        highest_confidence = max(highest_confidence, 0.9)
+
+    anchor_links = _parse_anchor_author_links(article_page_html, reporter_name, article_url)
+    if anchor_links:
+        highest_confidence = max(highest_confidence, 0.7)
+
+    if rss_byline and _name_matches(rss_byline, reporter_name):
+        highest_confidence = max(highest_confidence, 0.5)
+
+    return highest_confidence

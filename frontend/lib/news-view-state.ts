@@ -1,6 +1,6 @@
 import type { NewsArticle, CacheStatus } from "@/lib/api"
 
-export type UnifiedNewsView = "globe" | "grid" | "scroll" | "blindspot"
+export type UnifiedNewsView = "globe" | "grid" | "scroll" | "blindspot" | "live-news"
 
 export function getSharedViewArticles(
   _view: UnifiedNewsView,

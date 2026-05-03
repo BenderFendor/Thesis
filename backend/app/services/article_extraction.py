@@ -221,7 +221,14 @@ def _detect_access_barrier(
 
 def _extract_with_rust(html: str) -> Dict[str, Any]:
     """Extract article content via Rust HTML parser."""
-    payload = extract_article_html(html)
+    from app.core.tracing import get_tracer
+
+    tracer = get_tracer("scoop-backend")
+    with tracer.start_as_current_span("article_extraction_rust") as span:
+        span.set_attribute("html_length", len(html))
+        payload = extract_article_html(html)
+        text = payload.get("text")
+        span.set_attribute("text_length", len(text) if isinstance(text, str) else 0)
     return {
         "text": payload.get("text"),
         "title": payload.get("title"),

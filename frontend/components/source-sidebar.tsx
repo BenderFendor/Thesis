@@ -11,6 +11,7 @@ import { useFavorites } from "@/hooks/useFavorites";
 import { useSourceFilter } from "@/hooks/useSourceFilter";
 import { fetchSources, NewsSource } from "@/lib/api";
 import { SourceCoverageComparison } from "@/components/source-coverage-comparison";
+import { AddRssDialog } from "@/components/add-rss-dialog";
 
 interface SourceSidebarProps {
   isOpen: boolean;
@@ -133,14 +134,17 @@ export function SourceSidebar({ isOpen, onClose, sourceRecency }: SourceSidebarP
         {/* Header */}
         <div className="flex items-center justify-between p-4 border-b border-white/10">
           <h2 className="text-sm font-mono uppercase tracking-[0.3em] text-muted-foreground">Sources</h2>
-          <Button
-            variant="ghost"
-            size="icon"
-            onClick={onClose}
-            className="h-8 w-8 rounded-none"
-          >
-            <X className="h-4 w-4" />
-          </Button>
+          <div className="flex items-center gap-2">
+            <AddRssDialog onSourceAdded={() => refetch()} />
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={onClose}
+              className="h-8 w-8 rounded-md"
+            >
+              <X className="h-4 w-4" />
+            </Button>
+          </div>
         </div>
 
         {/* Filter Badge */}
@@ -170,7 +174,7 @@ export function SourceSidebar({ isOpen, onClose, sourceRecency }: SourceSidebarP
               placeholder="Search sources..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="pl-8 h-9 rounded-none border-white/10 bg-[var(--news-bg-primary)] text-foreground"
+              className="pl-8 h-9 rounded-md border-white/10 bg-[var(--news-bg-primary)] text-foreground"
             />
           </div>
         </div>
@@ -182,7 +186,7 @@ export function SourceSidebar({ isOpen, onClose, sourceRecency }: SourceSidebarP
           <div className="space-y-2">
             <Link
               href="/wiki"
-              className="flex items-center justify-between rounded-none border border-white/10 bg-[var(--news-bg-primary)]/40 px-3 py-2 text-sm text-foreground transition-colors hover:bg-[var(--news-bg-primary)]"
+              className="flex items-center justify-between rounded-md border border-white/10 bg-[var(--news-bg-primary)]/40 px-3 py-2 text-sm text-foreground transition-colors hover:bg-[var(--news-bg-primary)]"
               onClick={onClose}
             >
               <span className="flex items-center gap-2">
@@ -192,7 +196,7 @@ export function SourceSidebar({ isOpen, onClose, sourceRecency }: SourceSidebarP
             </Link>
             <Link
               href="/wiki/reporters"
-              className="flex items-center justify-between rounded-none border border-white/10 bg-[var(--news-bg-primary)]/40 px-3 py-2 text-sm text-foreground transition-colors hover:bg-[var(--news-bg-primary)]"
+              className="flex items-center justify-between rounded-md border border-white/10 bg-[var(--news-bg-primary)]/40 px-3 py-2 text-sm text-foreground transition-colors hover:bg-[var(--news-bg-primary)]"
               onClick={onClose}
             >
               <span className="flex items-center gap-2">
@@ -202,7 +206,7 @@ export function SourceSidebar({ isOpen, onClose, sourceRecency }: SourceSidebarP
             </Link>
             <Link
               href="/wiki/ownership"
-              className="flex items-center justify-between rounded-none border border-white/10 bg-[var(--news-bg-primary)]/40 px-3 py-2 text-sm text-foreground transition-colors hover:bg-[var(--news-bg-primary)]"
+              className="flex items-center justify-between rounded-md border border-white/10 bg-[var(--news-bg-primary)]/40 px-3 py-2 text-sm text-foreground transition-colors hover:bg-[var(--news-bg-primary)]"
               onClick={onClose}
             >
               <span className="flex items-center gap-2">
@@ -221,7 +225,7 @@ export function SourceSidebar({ isOpen, onClose, sourceRecency }: SourceSidebarP
             </div>
           ) : loadError ? (
             <div className="space-y-3 p-4">
-              <div className="flex items-start gap-3 rounded-none border border-white/10 bg-[var(--news-bg-primary)]/40 p-4 text-sm text-muted-foreground">
+              <div className="flex items-start gap-3 rounded-md border border-white/10 bg-[var(--news-bg-primary)]/40 p-4 text-sm text-muted-foreground">
                 <AlertTriangle className="mt-0.5 h-4 w-4 text-primary" />
                 <div>
                   <div className="font-medium text-foreground">Source catalog unavailable</div>
@@ -234,7 +238,7 @@ export function SourceSidebar({ isOpen, onClose, sourceRecency }: SourceSidebarP
                 variant="outline"
                 size="sm"
                 onClick={() => void refetch()}
-                className="w-full rounded-none border-white/10"
+                className="w-full rounded-md border-white/10"
               >
                 Retry
               </Button>
@@ -304,7 +308,7 @@ export function SourceSidebar({ isOpen, onClose, sourceRecency }: SourceSidebarP
                         variant="outline"
                         size="sm"
                         onClick={handleSelectAll}
-                        className="h-8 text-[10px] font-mono uppercase tracking-[0.2em] border-white/10 rounded-none"
+                        className="h-8 text-[10px] font-mono uppercase tracking-[0.2em] border-white/10 rounded-md"
                       >
                         All
                       </Button>
@@ -312,7 +316,7 @@ export function SourceSidebar({ isOpen, onClose, sourceRecency }: SourceSidebarP
                         variant="outline"
                         size="sm"
                         onClick={handleClearAll}
-                        className="h-8 text-[10px] font-mono uppercase tracking-[0.2em] border-white/10 rounded-none"
+                        className="h-8 text-[10px] font-mono uppercase tracking-[0.2em] border-white/10 rounded-md"
                       >
                         Clear
                       </Button>
@@ -374,7 +378,7 @@ function SourceItem({
 }) {
   return (
     <div
-      className={`flex items-center gap-2 p-2 rounded-none transition-colors border ${
+      className={`flex items-center gap-2 p-2 rounded-md transition-colors border ${
         isSelected
           ? "bg-white/5 border-white/20"
           : "hover:bg-[var(--news-bg-primary)] border-white/10"
@@ -415,7 +419,7 @@ function SourceItem({
       {/* Favorite Button */}
       <button
         onClick={onToggleFavorite}
-        className="flex-shrink-0 p-1 rounded-none hover:bg-[var(--news-bg-primary)] transition-colors"
+        className="flex-shrink-0 p-1 rounded-md hover:bg-[var(--news-bg-primary)] transition-colors"
         title={isFavorite ? "Remove favorite" : "Add to favorites"}
       >
         <Star

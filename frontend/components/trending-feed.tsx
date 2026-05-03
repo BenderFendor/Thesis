@@ -227,7 +227,7 @@ export function TrendingFeed() {
                 >
                   <SelectValue placeholder="Window" />
                 </SelectTrigger>
-                <SelectContent className="bg-[#0a0a0a] border-white/10">
+                <SelectContent className="bg-[var(--card)] border-white/10">
                   <SelectItem value="1d" className="text-[9px] font-mono uppercase tracking-widest">Last 24h</SelectItem>
                   <SelectItem value="1w" className="text-[9px] font-mono uppercase tracking-widest">Last 7d</SelectItem>
                   <SelectItem value="1m" className="text-[9px] font-mono uppercase tracking-widest">Last 30d</SelectItem>
@@ -320,11 +320,11 @@ function BreakingCard({
       tabIndex={0}
       onClick={handleClick}
       onKeyDown={(event) => handleCardKeyDown(event, handleClick)}
-      className="group relative flex min-h-48 w-full flex-col overflow-hidden rounded-md border border-white/10 bg-black/25 text-left shadow-xl transition-all duration-500 ease-out hover:bg-white/[0.03] hover:shadow-2xl sm:min-h-0 sm:rounded-2xl"
+      className="group relative flex min-h-48 w-full flex-col overflow-hidden rounded-md border border-white/10 bg-black/25 text-left shadow-xl transition-all duration-500 ease-out hover:bg-white/[0.03] hover:shadow-2xl sm:min-h-0 sm:rounded-lg"
     >
       <div className="absolute top-0 left-0 w-px h-full bg-red-500/40 z-10 shadow-[0_0_20px_rgba(239,68,68,0.4)]" />
       
-      <div className="relative m-1 aspect-square overflow-hidden rounded bg-white/5 sm:m-2 sm:aspect-video sm:rounded-xl">
+      <div className="relative m-1 aspect-square overflow-hidden rounded bg-white/5 sm:m-2 sm:aspect-video sm:rounded-lg">
         {showImage ? (
           <SafeImage
             src={imageUrl!}
@@ -432,9 +432,9 @@ function TrendingCard({
       tabIndex={0}
       onClick={handleClick}
       onKeyDown={(event) => handleCardKeyDown(event, handleClick)}
-      className="group relative flex min-h-48 w-full flex-col overflow-hidden rounded-md border border-white/10 bg-black/25 text-left shadow-xl transition-all duration-500 ease-out hover:bg-white/[0.03] hover:shadow-2xl sm:min-h-0 sm:rounded-2xl"
+      className="group relative flex min-h-48 w-full flex-col overflow-hidden rounded-md border border-white/10 bg-black/25 text-left shadow-xl transition-all duration-500 ease-out hover:bg-white/[0.03] hover:shadow-2xl sm:min-h-0 sm:rounded-lg"
     >
-      <div className="relative m-1 aspect-square overflow-hidden rounded bg-white/5 sm:m-2 sm:aspect-video sm:rounded-xl">
+      <div className="relative m-1 aspect-square overflow-hidden rounded bg-white/5 sm:m-2 sm:aspect-video sm:rounded-lg">
         {showImage ? (
           <SafeImage
             src={imageUrl!}
@@ -513,9 +513,9 @@ function TrendingSkeleton() {
       </div>
       <div className="grid grid-cols-3 gap-2 sm:grid-cols-2 sm:gap-4 lg:grid-cols-4 xl:grid-cols-5">
         {[1, 2, 3, 4, 5].map((i) => (
-          <div key={i} className="overflow-hidden rounded-lg border border-white/5 bg-black/20 sm:rounded-2xl">
+          <div key={i} className="overflow-hidden rounded-lg border border-white/5 bg-black/20 sm:rounded-lg">
             <div className="m-1.5 sm:m-2">
-              <Skeleton className="aspect-[4/3] w-full rounded-md sm:aspect-video sm:rounded-xl" />
+              <Skeleton className="aspect-[4/3] w-full rounded-md sm:aspect-video sm:rounded-lg" />
             </div>
             <div className="space-y-2 p-2 sm:space-y-3 sm:p-4">
               <Skeleton className="h-4 w-full" />

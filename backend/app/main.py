@@ -40,14 +40,17 @@ from app.services.rss_ingestion import (
     refresh_news_cache_async,
     _shutdown_event,
     _process_pool,
+    apply_saved_polling_state,
 )
 from app.services.scheduler import (
     periodic_rss_refresh,
     periodic_blind_spots_update,
 )
 from app.services.wiki_indexer import periodic_wiki_refresh
+from app.services.source_credibility import run_credibility_scoring_scheduler
 from app.services.startup_metrics import startup_metrics
 from app.services.websocket_manager import manager
+from app.core.tracing import setup_tracing, get_tracer
 
 configure_logging()
 logger = get_logger("app.main")
@@ -80,6 +83,44 @@ app.add_middleware(ProfilingMiddleware)
 app.add_middleware(GZipMiddleware, minimum_size=1000)
 
 app.include_router(api_router)
+
+setup_tracing(app)
+
+if settings.otel_enabled:
+    from starlette.middleware.base import BaseHTTPMiddleware
+    from starlette.requests import Request as _StarletteRequest
+    from starlette.responses import Response as _StarletteResponse
+
+    class _TraceIdResponseMiddleware(BaseHTTPMiddleware):
+        async def dispatch(
+            self,
+            request: _StarletteRequest,
+            call_next: Any,
+        ) -> _StarletteResponse:
+            response = await call_next(request)
+            try:
+                from opentelemetry.trace import (
+                    format_span_id,
+                    format_trace_id,
+                )
+                from opentelemetry.trace import (
+                    get_current_span as _otel_get_span,
+                )
+
+                span_context = _otel_get_span().get_span_context()
+                if span_context.trace_id:
+                    response.headers["X-Trace-Id"] = format_trace_id(
+                        span_context.trace_id
+                    )
+                    response.headers["X-Span-Id"] = format_span_id(
+                        span_context.span_id
+                    )
+            except Exception:
+                pass
+            return response
+
+    app.add_middleware(_TraceIdResponseMiddleware)
+    logger.info("OpenTelemetry trace-id response middleware enabled")
 
 _background_tasks: list[asyncio.Task[Any]] = []
 _leader_lock_file: str | None = None  # Set only in the leader worker
@@ -427,6 +468,7 @@ async def on_startup() -> None:
 
     # Only leader runs initial RSS refresh
     if is_leader:
+        apply_saved_polling_state()
         scheduler_task = asyncio.create_task(
             periodic_rss_refresh(interval_seconds=600), name="rss_refresh_scheduler"
         )
@@ -487,6 +529,15 @@ async def on_startup() -> None:
             _initial_reporter_index(), name="initial_reporter_index"
         )
         _register_background_task(reporter_index_task)
+
+    # Start credibility scoring scheduler (daily)
+    if settings.enable_database and is_leader:
+        credibility_task = asyncio.create_task(
+            run_credibility_scoring_scheduler(interval_seconds=86400),
+            name="credibility_scoring_scheduler",
+        )
+        _register_background_task(credibility_task)
+        startup_metrics.add_note("credibility_scoring_task", credibility_task.get_name())
 
     logger.info(
         "API startup complete (%.2fs) - cache ready with %d articles",

@@ -361,3 +361,79 @@ def extract_affiliations_from_relationships(
         "Extracted %d reporter affiliations from relationships", len(affiliations)
     )
     return affiliations
+
+
+def get_littlesis_affiliations_for_reporter(
+    reporter_name: str,
+    employer_name: Optional[str] = None,
+    wikidata_qid: Optional[str] = None,
+) -> Dict[str, Any]:
+    """Look up a single reporter in the local LittleSis bulk data.
+
+    Uses Wikidata QID as primary bridge if available, falls back to name +
+    employer fuzzy match.
+
+    Returns:
+        {littlesis_url, institutional_affiliations: [...], match_score}
+    """
+    result: Dict[str, Any] = {
+        "littlesis_url": None,
+        "institutional_affiliations": [],
+        "match_score": 0.0,
+    }
+
+    entities_file = os.path.join(_ensure_data_dir(), LITTLESIS_ENTITIES_FILE)
+    if not os.path.exists(entities_file):
+        logger.debug("LittleSis entities file not cached; skipping reporter lookup")
+        return result
+
+    entities = load_littlesis_entities(entities_file)
+    if not entities:
+        return result
+
+    reporter_names = [(0, reporter_name, reporter_name.lower().strip())]
+    matches = cross_reference_entities_with_reporters(entities, reporter_names)
+
+    if not matches and employer_name:
+        search_name = f"{reporter_name} {employer_name}"
+        reporter_names = [(0, search_name, search_name.lower().strip())]
+        matches = cross_reference_entities_with_reporters(entities, reporter_names)
+
+    if not matches:
+        return result
+
+    best_match = max(matches, key=lambda m: m.get("score", 0))
+    match_entity = best_match.get("littlesis_entity") or {}
+    result["match_score"] = best_match.get("score", 0.0)
+    entity_id = match_entity.get("id")
+    if entity_id:
+        result["littlesis_url"] = f"https://littlesis.org/entities/{entity_id}"
+
+    rels_file = os.path.join(_ensure_data_dir(), LITTLESIS_RELATIONSHIPS_FILE)
+    if os.path.exists(rels_file) and entity_id:
+        entity_id_set: Set[int] = {int(entity_id)}
+        relationships = load_littlesis_relationships(rels_file, entity_ids=entity_id_set)
+        entities_by_id: Dict[int, Dict[str, Any]] = {}
+        for entity in entities:
+            eid = entity.get("id")
+            if eid is not None:
+                entities_by_id[int(eid)] = entity
+
+        affiliated_orgs = extract_affiliations_from_relationships(
+            matches, relationships, entities_by_id
+        )
+        result["institutional_affiliations"] = [
+            {
+                "organization": a.get("organization"),
+                "category": a.get("category"),
+                "org_type": a.get("org_type"),
+                "start_date": a.get("start_date"),
+                "end_date": a.get("end_date"),
+                "source": a.get("source"),
+                "littlesis_url": a.get("littlesis_url"),
+            }
+            for a in affiliated_orgs
+            if a.get("reporter_id") == 0
+        ]
+
+    return result

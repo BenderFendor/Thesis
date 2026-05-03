@@ -102,6 +102,8 @@ export function HighlightToolbar({
 
       toast.success("Highlight created");
 
+      window.getSelection()?.removeAllRanges()
+
       selectionHandledRef.current = true
       window.setTimeout(() => {
         selectionHandledRef.current = false

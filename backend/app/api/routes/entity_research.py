@@ -25,11 +25,13 @@ from app.database import get_db, Reporter, Organization
 from app.services.entity_wiki_service import build_reporter_dossier, build_resolver_key
 from app.services.funding_researcher import get_funding_researcher
 from app.services.source_research import get_source_profile
+from app.services.async_utils import gather_limited
 
 router = APIRouter(prefix="/research/entity", tags=["entity-research"])
 logger = get_logger("entity_research_routes")
 
 _WIKIPEDIA_URL_CACHE: Dict[str, str] = {}
+_external_semaphore = asyncio.Semaphore(5)
 
 
 def _required_str(value: Optional[str]) -> str:
@@ -86,9 +88,10 @@ async def _resolve_english_wikipedia_url(url: str, client: httpx.AsyncClient) ->
             "titles": title,
             "format": "json",
         }
-        response = await client.get(
-            f"https://{lang}.wikipedia.org/w/api.php", params=params
-        )
+        async with _external_semaphore:
+            response = await client.get(
+                f"https://{lang}.wikipedia.org/w/api.php", params=params
+            )
         if response.status_code != 200:
             _WIKIPEDIA_URL_CACHE[url] = url
             return url
@@ -557,15 +560,21 @@ async def research_source_batch(
         )
         return source_name, profile
 
-    fetch_results = await asyncio.gather(
-        *[fetch_profile(sr, sn) for sr, sn in valid_sources]
+    fetch_results = await gather_limited(
+        [fetch_profile(sr, sn) for sr, sn in valid_sources],
+        limit=5,
+        return_exceptions=True,
     )
 
     results: Dict[str, Optional[SourceResearchResponse]] = {}
     cached_count = 0
     newly_researched_count = 0
 
-    for source_name, profile in fetch_results:
+    for idx, result in enumerate(fetch_results):
+        if isinstance(result, BaseException):
+            results[valid_sources[idx][1]] = None
+            continue
+        source_name, profile = result
         if profile:
             results[source_name] = SourceResearchResponse(**profile)
             if profile.get("cached"):

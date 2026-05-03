@@ -423,12 +423,41 @@ build_rust_parser() {
 		return 0
 	fi
 
+	local rust_src_dir="$BACKEND_DIR/rss_parser_rust/src"
+	local rust_toml="$BACKEND_DIR/rss_parser_rust/Cargo.toml"
+	local pyproj_toml="$BACKEND_DIR/rss_parser_rust/pyproject.toml"
+	local stamp_file="$RUNLOCAL_STATE_DIR/rust-parser-build.stamp"
+
+	local current_hash
+	if command -v sha256sum >/dev/null 2>&1; then
+		current_hash="$(cat "$rust_src_dir"/*.rs "$rust_toml" "$pyproj_toml" 2>/dev/null | sha256sum | cut -d' ' -f1)"
+	elif command -v shasum >/dev/null 2>&1; then
+		current_hash="$(cat "$rust_src_dir"/*.rs "$rust_toml" "$pyproj_toml" 2>/dev/null | shasum -a 256 | cut -d' ' -f1)"
+	else
+		current_hash="$(cat "$rust_src_dir"/*.rs "$rust_toml" "$pyproj_toml" 2>/dev/null | md5sum | cut -d' ' -f1)"
+	fi
+
+	if [[ "${FORCE_RUST_REBUILD:-0}" != "1" ]] && [[ -f "$stamp_file" ]]; then
+		local cached_hash
+		cached_hash="$(<"$stamp_file")"
+		if [[ "$current_hash" == "$cached_hash" ]] && [[ -n "$current_hash" ]]; then
+			log "Rust RSS parser sources unchanged; skipping build"
+			return 0
+		fi
+	fi
+
 	log "Building Rust RSS parser extension..."
 	if ! (
 		cd "$BACKEND_DIR/rss_parser_rust"
 		"$maturin_bin" develop --release
 	); then
 		log "Rust RSS parser build failed; continuing with Python fallback"
+		return 1
+	fi
+
+	if [[ -n "$current_hash" ]]; then
+		mkdir -p "$RUNLOCAL_STATE_DIR"
+		printf "%s\n" "$current_hash" >"$stamp_file"
 	fi
 }
 

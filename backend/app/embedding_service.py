@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from contextlib import asynccontextmanager
 from importlib import import_module
 from threading import Lock
 from typing import TYPE_CHECKING, cast
@@ -9,6 +10,11 @@ from pydantic import BaseModel, Field
 
 from app.core.config import settings
 from app.core.logging import configure_logging, get_logger
+from app.core.process_limits import (
+    get_nofile_limits,
+    get_open_file_descriptor_count,
+    raise_nofile_soft_limit,
+)
 
 if TYPE_CHECKING:
     from sentence_transformers import SentenceTransformer
@@ -17,16 +23,32 @@ if TYPE_CHECKING:
 configure_logging()
 logger = get_logger("embedding_service")
 
+_model_lock = Lock()
+_embedding_model: "SentenceTransformer | None" = None
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    raise_nofile_soft_limit(logger)
+    soft_nofile, hard_nofile = get_nofile_limits()
+    logger.info(
+        "Embedding service startup: open_fds=%s soft_nofile=%s hard_nofile=%s",
+        get_open_file_descriptor_count(),
+        soft_nofile,
+        hard_nofile,
+    )
+    _get_embedding_model()
+    yield
+
+
 app = FastAPI(
     title="Embedding Service",
     version="1.0.0",
     docs_url=None,
     redoc_url=None,
     openapi_url=None,
+    lifespan=lifespan,
 )
-
-_model_lock = Lock()
-_embedding_model: "SentenceTransformer | None" = None
 
 
 class EmbedRequest(BaseModel):

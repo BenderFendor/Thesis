@@ -1055,11 +1055,18 @@ async def get_ownership_graph(
 ) -> OwnershipGraphResponse:
     """Get the full ownership graph for force-directed visualization.
 
-    Returns nodes (sources + organizations) and edges (ownership relationships).
+    Returns nodes (sources + organizations + reporters) and edges (ownership,
+    publishes, employed_by relationships).
     """
     # Load all organizations
     org_result = await db.execute(select(Organization))
     orgs = org_result.scalars().all()
+
+    # Load all reporters for employed_by edges
+    reporter_result = await db.execute(
+        select(Reporter).where(Reporter.article_count > 0)
+    )
+    reporters = reporter_result.scalars().all()
 
     # Load source configs for additional data
     sources = get_rss_sources()
@@ -1072,6 +1079,13 @@ async def get_ownership_graph(
     nodes: List[Dict[str, Any]] = []
     edges: List[Dict[str, Any]] = []
     seen_nodes: set[str] = set()
+
+    # Build org name -> org id lookup for Wikidata array edges
+    org_name_to_id: Dict[str, int] = {}
+    for org in orgs:
+        org_name_to_id[_required_str(org.name).lower()] = cast(int, org.id)
+        if org.normalized_name:
+            org_name_to_id[_required_str(org.normalized_name).lower()] = cast(int, org.id)
 
     # Add source nodes
     for name, config in unique_sources.items():
@@ -1089,7 +1103,22 @@ async def get_ownership_graph(
                 }
             )
 
-    # Add organization nodes and ownership edges
+    # Add reporter nodes
+    for reporter in reporters:
+        node_id = f"reporter:{reporter.id}"
+        if node_id not in seen_nodes:
+            seen_nodes.add(node_id)
+            nodes.append(
+                {
+                    "id": node_id,
+                    "label": _required_str(reporter.name),
+                    "type": "reporter",
+                    "article_count": reporter.article_count or 0,
+                    "bias": reporter.political_leaning,
+                }
+            )
+
+    # Add organization nodes and edges
     for org in orgs:
         node_id = f"org:{org.id}"
         if node_id not in seen_nodes:
@@ -1104,7 +1133,7 @@ async def get_ownership_graph(
                 }
             )
 
-        # Create ownership edges
+        # Resolved parent_org_id ownership edges
         if org.parent_org_id:
             edges.append(
                 {
@@ -1114,6 +1143,56 @@ async def get_ownership_graph(
                     "percentage": org.ownership_percentage,
                 }
             )
+
+        # Wikidata owned_by edges (P127)
+        for owner_name in (org.owned_by or []):
+            if not isinstance(owner_name, str):
+                continue
+            owner_id = org_name_to_id.get(owner_name.lower())
+            if owner_id and owner_id != org.id:
+                edges.append(
+                    {
+                        "source": f"org:{owner_id}",
+                        "target": node_id,
+                        "type": "owned_by",
+                    }
+                )
+
+        # Wikidata parent_orgs edges (P749)
+        for parent_name in (org.parent_orgs or []):
+            if not isinstance(parent_name, str):
+                continue
+            parent_id = org_name_to_id.get(parent_name.lower())
+            if parent_id and parent_id != org.id and not org.parent_org_id:
+                # Only add if parent_org_id wasn't already resolved
+                existing_parent = any(
+                    e["source"] == f"org:{parent_id}"
+                    and e["target"] == node_id
+                    and e["type"] == "ownership"
+                    for e in edges
+                )
+                if not existing_parent:
+                    edges.append(
+                        {
+                            "source": f"org:{parent_id}",
+                            "target": node_id,
+                            "type": "parent_org",
+                        }
+                    )
+
+        # Wikidata part_of edges (P361)
+        for part_name in (org.part_of or []):
+            if not isinstance(part_name, str):
+                continue
+            part_id = org_name_to_id.get(part_name.lower())
+            if part_id and part_id != org.id:
+                edges.append(
+                    {
+                        "source": node_id,
+                        "target": f"org:{part_id}",
+                        "type": "part_of",
+                    }
+                )
 
         # Try to link source nodes to their organization
         org_name_lower = _required_str(org.name).lower()
@@ -1131,6 +1210,28 @@ async def get_ownership_graph(
                             "type": "publishes",
                         }
                     )
+
+    # employed_by edges: connect reporters to orgs via institutional_affiliations
+    for reporter in reporters:
+        affiliations = reporter.institutional_affiliations or []
+        if not isinstance(affiliations, list):
+            continue
+        for aff in affiliations:
+            if not isinstance(aff, dict):
+                continue
+            aff_org_name = (aff.get("org") or aff.get("name") or "").lower()
+            if not aff_org_name:
+                continue
+            org_id = org_name_to_id.get(aff_org_name)
+            if org_id:
+                edges.append(
+                    {
+                        "source": f"reporter:{reporter.id}",
+                        "target": f"org:{org_id}",
+                        "type": "employed_by",
+                    }
+                )
+                break
 
     return OwnershipGraphResponse(nodes=nodes, edges=edges)
 

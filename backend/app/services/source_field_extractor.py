@@ -7,23 +7,27 @@ from typing import Any, Dict, List, Sequence
 
 from app.core.config import get_openai_client, settings
 from app.core.logging import get_logger
+from app.services.prompting import build_json_system_prompt
 from app.services.source_profile_extractor import FIELD_KEYS, SourceDocument
 
 logger = get_logger("source_field_extractor")
 
 MAX_CHARS_PER_DOC = 3000
 
-EXTRACTION_PROMPT = """You are a media research analyst. Extract structured information about a news source from the provided documents.
-
-For each piece of information you find, extract:
-- field: the category (funding, ownership, political_bias, factual_reporting, editorial_stance, corrections_history, major_controversies, reach_traffic, affiliations, founded, headquarters, official_website, nonprofit_filings)
-- value: the actual information found
-- source: the URL where you found this
-- evidence: a brief quote or summary from the source
-
-Return ONLY valid JSON array. Each entry should have: field, value, source, evidence
-If no useful information is found for a field, skip it.
-Do not invent information - only extract what is actually in the documents."""
+EXTRACTION_PROMPT = build_json_system_prompt(
+    role="media research analyst",
+    task=(
+        "Extract structured information about a news source from the provided "
+        "documents. For each piece of information found, extract field (category: "
+        "funding, ownership, political_bias, factual_reporting, editorial_stance, "
+        "corrections_history, major_controversies, reach_traffic, affiliations, "
+        "founded, headquarters, official_website, nonprofit_filings), value, "
+        "source URL, and evidence (brief quote/summary). Return a JSON array of "
+        "objects with keys: field, value, source, evidence. If no useful "
+        "information is found for a field, skip it. Do not invent information."
+    ),
+    output_rules="Return a valid JSON array only. No markdown fences or extra prose.",
+)
 
 
 async def extract_fields_from_documents(

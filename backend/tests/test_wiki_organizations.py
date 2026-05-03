@@ -73,7 +73,11 @@ class TestOwnershipGraph:
         resp = await client.get("/api/wiki/organizations/graph")
         data = resp.json()
         for node in data["nodes"]:
-            assert node["id"].startswith("source:") or node["id"].startswith("org:")
+            assert (
+                node["id"].startswith("source:")
+                or node["id"].startswith("org:")
+                or node["id"].startswith("reporter:")
+            )
 
     async def test_graph_edges_reference_valid_nodes(self, client: AsyncClient):
         resp = await client.get("/api/wiki/organizations/graph")

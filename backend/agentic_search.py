@@ -16,6 +16,7 @@ from langchain_google_genai import ChatGoogleGenerativeAI
 from langchain_openai import ChatOpenAI
 
 from app.core.config import get_llamacpp_model, settings
+from app.services.prompting import build_text_system_prompt
 
 # Load environment variables from .env file
 load_dotenv()
@@ -105,15 +106,18 @@ def create_agent_executor():
         [
             (
                 "system",
-                """You are a helpful AI assistant with access to web search capabilities.
-        
-When a user asks a question:
-1. Determine if you can answer it with your existing knowledge
-2. If the question requires current, real-time, or factual information that may have changed, use the web search tool
-3. After receiving search results, synthesize them into a clear, helpful answer
-4. Always cite when you've used web search results
-
-Be conversational and helpful. If search results are unclear or unavailable, say so and provide your best answer based on general knowledge.""",
+                build_text_system_prompt(
+                    role="research assistant",
+                    task=(
+                        "Use web search when a question requires current, real-time, "
+                        "or factual information. After receiving search results, "
+                        "synthesize them into a clear, helpful answer. Always cite "
+                        "when search results were used. If search results are "
+                        "unclear or unavailable, say so and provide your best answer "
+                        "based on general knowledge."
+                    ),
+                    output_rules="Be conversational and helpful.",
+                ),
             ),
             MessagesPlaceholder(variable_name="chat_history", optional=True),
             ("user", "{input}"),
@@ -153,7 +157,7 @@ def _create_chat_llm():
         )
     if settings.gemini_api_key:
         return ChatGoogleGenerativeAI(
-            model="gemini-3-flash-preview",
+            model=settings.gemini_model,
             temperature=0.7,
             google_api_key=settings.gemini_api_key,
         )

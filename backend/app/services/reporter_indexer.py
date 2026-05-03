@@ -34,6 +34,9 @@ from app.database import (
 from app.data.rss_sources import get_rss_sources
 from app.services.entity_wiki_service import build_reporter_dossier, build_resolver_key
 from app.services.reporter_profile_store import upsert_reporter_profile
+from app.services.mbfc_integration import compute_weighted_mbfc_bias
+from app.services.littlesis_integration import get_littlesis_affiliations_for_reporter
+from app.services.reporter_profiler import build_deep_dossier
 
 logger = get_logger("reporter_indexer")
 
@@ -55,6 +58,72 @@ SELECT DISTINCT ?journalist ?journalistLabel ?employerLabel ?twitter ?beatLabel 
   OPTIONAL { ?journalist wdt:P101 ?beat .  ?beat rdfs:label ?beatLabel . FILTER(LANG(?beatLabel) = "en") }
 }
 """
+
+
+def _enrich_profile_mbfc(profile: Dict[str, Any]) -> None:
+    """Attach MBFC outlet-level bias data to a resolved reporter profile.
+
+    Uses weighted average by recency: most recent employer gets highest weight.
+    Stores result in political_leaning and leaning_confidence with source="mbfc".
+    """
+    employers = profile.get("career_history") or []
+    if not employers:
+        return
+
+    mbfc_bias = compute_weighted_mbfc_bias(employers)
+    if not mbfc_bias:
+        return
+
+    if not profile.get("political_leaning"):
+        profile["political_leaning"] = mbfc_bias["political_leaning"]
+    if not profile.get("leaning_confidence") or profile.get("leaning_confidence") == "low":
+        profile["leaning_confidence"] = mbfc_bias.get("leaning_confidence", "medium")
+    sources = profile.get("leaning_sources") or []
+    if isinstance(sources, list) and "mbfc" not in sources:
+        sources.append("mbfc")
+        profile["leaning_sources"] = sources
+
+
+def _enrich_profile_littlesis(profile: Dict[str, Any]) -> None:
+    """Cross-reference a reporter against LittleSis and attach affiliations.
+
+    Uses Wikidata QID as primary bridge, falls back to name + employer fuzzy match.
+    """
+    name = profile.get("canonical_name") or profile.get("name") or ""
+    employer = None
+    career_history = profile.get("career_history") or []
+    if career_history:
+        employer = career_history[0].get("organization")
+    wikidata_qid = profile.get("wikidata_qid")
+
+    try:
+        ls_result = get_littlesis_affiliations_for_reporter(
+            reporter_name=name,
+            employer_name=employer,
+            wikidata_qid=wikidata_qid,
+        )
+    except Exception as exc:
+        logger.debug("LittleSis lookup failed for %s: %s", name, exc)
+        return
+
+    if ls_result.get("littlesis_url"):
+        profile["littlesis_url"] = ls_result["littlesis_url"]
+
+    affiliations = ls_result.get("institutional_affiliations") or []
+    if affiliations:
+        existing = profile.get("institutional_affiliations") or []
+        if isinstance(existing, list):
+            existing_source_urls = {
+                a.get("littlesis_url") for a in existing
+                if isinstance(a, dict) and a.get("littlesis_url")
+            }
+            for aff in affiliations:
+                ls_url = aff.get("littlesis_url")
+                if ls_url and ls_url not in existing_source_urls:
+                    existing.append(aff)
+            profile["institutional_affiliations"] = existing
+        else:
+            profile["institutional_affiliations"] = affiliations
 
 
 def _normalize_for_resolver(name: str) -> str:
@@ -192,6 +261,8 @@ async def index_unresolved_reporters(
                 )
 
                 if profile.get("match_status") == "matched":
+                    _enrich_profile_mbfc(profile)
+                    _enrich_profile_littlesis(profile)
                     await upsert_reporter_profile(session, profile)
                     await _upsert_index_status(
                         session, "reporter", entity_name, "complete"
@@ -344,6 +415,8 @@ async def seed_reporters_from_wikidata(
                     )
 
                     if profile.get("match_status") == "matched":
+                        _enrich_profile_mbfc(profile)
+                        _enrich_profile_littlesis(profile)
                         await upsert_reporter_profile(session, profile)
                         await _upsert_index_status(
                             session, "reporter", entity_name, "complete"
@@ -430,6 +503,8 @@ async def index_stale_reporters(
                     )
 
                     if profile.get("match_status") == "matched":
+                        _enrich_profile_mbfc(profile)
+                        _enrich_profile_littlesis(profile)
                         await upsert_reporter_profile(session, profile)
 
                     await _upsert_index_status(

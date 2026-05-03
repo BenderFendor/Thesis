@@ -7,31 +7,20 @@ from typing import List, Optional
 
 from app.core.config import get_openai_client, settings
 from app.core.logging import get_logger
+from app.services.prompting import build_json_system_prompt
 
 logger = get_logger("source_query_generator")
 
-SYSTEM_PROMPT = """You are a media research specialist. Your task is to generate optimal search queries to research a news source.
-
-Generate queries that will help find information about:
-- Ownership and parent companies
-- Funding sources and revenue
-- Political bias and editorial stance
-- Factual reporting history
-- Corrections policies
-- Reach and audience size
-- Affiliations and memberships
-- Founding date and history
-- Headquarters location
-
-Return ONLY a JSON array of 6-8 search queries. Each query should be specific and targeted."""
-
-
-QUERY_SYSTEM_PROMPT = """You are a media research specialist. Generate search queries to research a news source.
-
-Return ONLY valid JSON in this exact format:
-{"queries": ["query 1", "query 2", ...]}
-
-Generate 6-8 queries covering: ownership, funding, bias, factual reporting, editorial stance, reach, affiliations, history."""
+QUERY_SYSTEM_PROMPT = build_json_system_prompt(
+    role="media research specialist",
+    task=(
+        "Generate optimal search queries to research a news source covering "
+        "ownership, funding, political bias, factual reporting, editorial stance, "
+        "reach, affiliations, and history. Generate 6-8 queries. Each query "
+        "should be specific and targeted."
+    ),
+    output_rules="Return only valid JSON: {\"queries\": [\"query 1\", \"query 2\", ...]}",
+)
 
 
 async def generate_search_queries(

@@ -118,6 +118,11 @@ export default function SavedArticlesPage() {
     )
   }, [])
 
+  function stripStructuredBlock(digest: string): string {
+    const fenceRe = /```json:articles\n[\s\S]*?\n```/g;
+    return digest.replace(fenceRe, "").trim();
+  }
+
   const generateQueueDigest = async () => {
     if (queuedArticles.length === 0) return;
 
@@ -155,7 +160,8 @@ export default function SavedArticlesPage() {
 
       if (response.ok) {
         const data = await response.json();
-        setQueueDigest(data.digest || data.content);
+        const raw = data.digest || data.content || "";
+        setQueueDigest(stripStructuredBlock(raw));
         setShowDigest(true);
       }
     } catch (e) {

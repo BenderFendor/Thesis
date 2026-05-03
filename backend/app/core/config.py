@@ -47,6 +47,7 @@ class Settings:
     gemini_api_key: Optional[str] = os.getenv("GEMINI_API_KEY")
     open_router_api_key: Optional[str] = os.getenv("OPEN_ROUTER_API_KEY")
     open_router_model: str = os.getenv("OPEN_ROUTER_MODEL", "z-ai/glm-4.5-air:free")
+    gemini_model: str = os.getenv("GEMINI_MODEL", "gemini-3-flash-preview")
     source_research_model: str = os.getenv(
         "SOURCE_RESEARCH_MODEL", "z-ai/glm-4.5-air:free"
     )
@@ -110,6 +111,18 @@ class Settings:
     verification_allowed_domains: Tuple[str, ...] = _parse_domain_list(
         "VERIFICATION_ALLOWED_DOMAINS", _DEFAULT_VERIFICATION_DOMAINS
     )
+
+    # Background LLM scoring (propaganda, verification, source analysis)
+    background_llm_scoring_enabled: bool = _env_enabled(
+        "BACKGROUND_LLM_SCORING_ENABLED", "0"
+    )
+
+    # OpenTelemetry tracing settings
+    otel_enabled: bool = _env_enabled("OTEL_ENABLED", "0")
+    otel_exporter_endpoint: Optional[str] = _parse_optional_str(
+        "OTEL_EXPORTER_ENDPOINT"
+    )
+    otel_sample_rate: float = float(os.getenv("OTEL_SAMPLE_RATE", "1.0"))
 
 
 settings = Settings()

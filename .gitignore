@@ -374,8 +374,6 @@ dev-browser/
 # Backend logs
 backend/logs/
 
-# Jira sync
-.jira-sync-state.json
 scripts/.pytest_cache/
 scripts/__pycache__/
 scripts/*.pyc
@@ -385,3 +383,6 @@ Firefox 2026-03-05 22.51 profile.json
 # OpenCode Gemini
 .opencode-gemini/
 .autoresearch/
+
+# Runtime polling state (auto-generated)
+backend/app/data/feed_polling_state.json

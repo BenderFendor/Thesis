@@ -167,80 +167,112 @@ class SourceAnalysisScorer:
     def _score_funding(
         self, source_name: str, context: Dict[str, Any]
     ) -> AnalysisAxisScore:
+        """Score funding TRANSPARENCY, not the funding model itself.
+
+        A state-funded outlet that fully discloses its budget scores well.
+        A commercial outlet hiding behind shell companies scores poorly.
+        """
         org = context.get("org_data", {})
         metadata = context.get("source_metadata", {})
 
         funding_type = (
             org.get("funding_type") or metadata.get("funding_type") or ""
         ).lower()
+        funding_transparency = (org.get("funding_transparency") or "").lower()
         citations: List[Dict[str, str]] = []
         if org.get("wikipedia_url"):
             citations.append(
                 {"url": org["wikipedia_url"], "title": f"{source_name} funding context"}
             )
 
-        if funding_type in {"state-funded", "state-affiliated", "state"}:
-            return AnalysisAxisScore(
-                axis_name="funding",
-                score=5,
-                confidence="high",
-                prose=(
-                    f"{source_name} relies on state-linked funding, which creates a high "
-                    "risk of structural alignment with government priorities."
-                ),
-                citations=citations,
-                empirical_basis="Funding type is recorded as state-linked.",
-                scored_by="data",
-            )
-        if funding_type in {"commercial", "corporate"}:
-            return AnalysisAxisScore(
-                axis_name="funding",
-                score=4,
-                confidence="high",
-                prose=(
-                    f"{source_name} operates on a commercial funding model, which creates "
-                    "pressure from owners, advertisers, and audience retention."
-                ),
-                citations=citations,
-                empirical_basis="Funding type is recorded as commercial.",
-                scored_by="data",
-            )
-        if funding_type in {"public", "public broadcaster"}:
-            return AnalysisAxisScore(
-                axis_name="funding",
-                score=3,
-                confidence="medium",
-                prose=(
-                    f"{source_name} has public funding support. That reduces direct ad "
-                    "pressure but still leaves budget and institutional pressures."
-                ),
-                citations=citations,
-                empirical_basis="Funding type is recorded as public.",
-                scored_by="data",
-            )
-        if funding_type in {"non-profit", "nonprofit", "independent"}:
-            return AnalysisAxisScore(
-                axis_name="funding",
-                score=2,
-                confidence="medium",
-                prose=(
-                    f"{source_name} is described as non-profit or independent, which lowers "
-                    "some market pressure but can still introduce donor or network dependence."
-                ),
-                citations=citations,
-                empirical_basis=f"Funding type is recorded as {funding_type}.",
-                scored_by="data",
-            )
+        # Sub-score builders
+        sub_risks: List[str] = []
+        base_score = 3  # neutral default
+
+        # 1. Ownership concentration risk
+        parent_orgs_data = org.get("parent_orgs") or []
+        owned_by_data = org.get("owned_by") or []
+        if len(parent_orgs_data) == 1 or len(owned_by_data) == 1:
+            sub_risks.append("single concentrated owner")
+        elif len(parent_orgs_data) >= 3 or len(owned_by_data) >= 3:
+            sub_risks.append("complex multi-owner structure")
+
+        # 2. Funding transparency level
+        if funding_transparency == "transparent":
+            base_score = min(base_score, 2)
+            sub_risks.append("discloses funding sources publicly")
+        elif funding_transparency == "partial":
+            sub_risks.append("partial funding disclosure")
+        elif funding_transparency == "opaque":
+            base_score = max(base_score, 4)
+            sub_risks.append("opaque funding structure")
+        elif funding_transparency == "unknown":
+            sub_risks.append("funding transparency unknown")
+        else:
+            # No transparency label — use funding_type as heuristic
+            if funding_type in {"state-funded", "state"}:
+                sub_risks.append("state-linked funding with uncertain transparency")
+                base_score = max(base_score, 4)
+            elif funding_type in {"commercial", "corporate"}:
+                advertisers = org.get("major_advertisers") or []
+                if not advertisers:
+                    sub_risks.append("commercial but undisclosed advertisers")
+                    base_score = max(base_score, 4)
+                else:
+                    sub_risks.append("commercial with disclosed advertisers")
+                    base_score = min(base_score, 3)
+            elif funding_type in {"non-profit", "nonprofit", "independent"}:
+                donors = org.get("top_donors") or []
+                if not donors:
+                    sub_risks.append("nonprofit with undisclosed donors")
+                    base_score = max(base_score, 3)
+                else:
+                    sub_risks.append("nonprofit with disclosed donors")
+                    base_score = min(base_score, 2)
+            elif funding_type in {"public", "public broadcaster"}:
+                sub_risks.append("public funding model")
+                base_score = min(base_score, 3)
+
+        # 3. Advertiser dependency risk
+        advertisers = org.get("major_advertisers") or []
+        if isinstance(advertisers, list) and len(advertisers) >= 5:
+            sub_risks.append("high advertiser diversity")
+        elif isinstance(advertisers, list) and 1 <= len(advertisers) <= 2:
+            sub_risks.append("heavy reliance on few advertisers")
+
+        # 4. Market power / vertical integration risk
+        if parent_orgs_data and owned_by_data:
+            sub_risks.append("vertical integration detected")
+            base_score = max(base_score, 4)
+
+        # Confidence depends on data completeness
+        if funding_transparency in {"transparent", "partial"}:
+            confidence = "high"
+        elif org.get("funding_type") and not funding_transparency:
+            confidence = "medium"
+        else:
+            confidence = "low"
+
+        # Compose prose
+        risk_summary = "; ".join(sub_risks) if sub_risks else "minimal funding data available"
+        prose = (
+            f"{source_name} funding risk analysis: {risk_summary}. "
+            f"Score {base_score}/5 reflects transparency of funding structure, "
+            f"not the funding model itself."
+        )
+
         return AnalysisAxisScore(
             axis_name="funding",
-            score=3,
-            confidence="low",
-            prose=(
-                f"Funding details for {source_name} are incomplete, so this axis defaults "
-                "to a neutral risk score until the funding model is verified."
-            ),
+            score=base_score,
+            confidence=confidence,
+            prose=prose,
             citations=citations,
-            empirical_basis="No verified funding type was available.",
+            empirical_basis=(
+                f"Funding transparency={funding_transparency or 'missing'}, "
+                f"funding_type={funding_type or 'missing'}, "
+                f"observed parent_orgs={len(parent_orgs_data)}, "
+                f"disclosed advertisers={len(advertisers) if isinstance(advertisers, list) else 0}."
+            ),
             scored_by="data",
         )
 

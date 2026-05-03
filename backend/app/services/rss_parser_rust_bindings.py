@@ -27,6 +27,22 @@ class RssParserRustProtocol(Protocol):
         num_hashes: int | None = None,
     ) -> Mapping[str, List[str]]: ...
 
+    def parse_gdelt_csv(
+        self, content: str, limit: int
+    ) -> list[dict[str, Any]]: ...
+
+    def filter_gdelt_by_domain(
+        self, events: list[dict[str, str]], domain: str
+    ) -> list[dict[str, Any]]: ...
+
+    def rank_articles(
+        self,
+        articles: list[dict[str, Any]],
+        liked_article_ids: list[int],
+        bookmarked_article_ids: list[int],
+        favorite_source_ids: list[str],
+    ) -> list[dict[str, Any]]: ...
+
 
 RUST = cast(RssParserRustProtocol, rss_parser_rust)
 
@@ -64,3 +80,29 @@ def deduplicate_article_groups(
         str(representative): {str(member) for member in members}
         for representative, members in payload.items()
     }
+
+
+def parse_gdelt_csv(content: str, limit: int) -> list[dict[str, Any]]:
+    return list(RUST.parse_gdelt_csv(content, limit))
+
+
+def filter_gdelt_by_domain(
+    events: list[dict[str, str]], domain: str
+) -> list[dict[str, Any]]:
+    return list(RUST.filter_gdelt_by_domain(events, domain))
+
+
+def rank_articles(
+    articles: list[dict[str, Any]],
+    liked_article_ids: list[int] | None = None,
+    bookmarked_article_ids: list[int] | None = None,
+    favorite_source_ids: list[str] | None = None,
+) -> list[dict[str, Any]]:
+    return list(
+        RUST.rank_articles(
+            articles,
+            liked_article_ids or [],
+            bookmarked_article_ids or [],
+            favorite_source_ids or [],
+        )
+    )

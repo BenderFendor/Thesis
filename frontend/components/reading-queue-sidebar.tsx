@@ -124,7 +124,9 @@ export function ReadingQueueSidebar() {
 
       if (response.ok) {
         const data = await response.json();
-        setQueueDigest(data.digest || data.content);
+        const raw = data.digest || data.content || "";
+        const fenceRe = /```json:articles\n[\s\S]*?\n```/g;
+        setQueueDigest(raw.replace(fenceRe, "").trim());
       } else {
         console.error("Failed to generate digest");
         setQueueDigest(null);
@@ -1196,7 +1198,7 @@ export function ReadingQueueSidebar() {
                         >
                           <div
                             className={cn(
-                              "relative rounded-2xl border overflow-hidden backdrop-blur-sm",
+                              "relative rounded-xl border overflow-hidden backdrop-blur-sm",
                               "transition-all duration-300",
                               "p-4 flex flex-col",
                               isExpanded

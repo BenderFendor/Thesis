@@ -248,9 +248,21 @@ async def _persist_articles_async(
 
             if vector_store and (embedding_payloads or vector_deletes):
                 try:
-                    embedding_generation_queue.put_nowait(
-                        (embedding_payloads, vector_deletes)
-                    )
+                    from app.core.tracing import get_tracer
+
+                    tracer = get_tracer("scoop-backend")
+                    with tracer.start_as_current_span(
+                        "vector_store_batch_ops"
+                    ) as vs_span:
+                        vs_span.set_attribute(
+                            "embedding_payload_count", len(embedding_payloads)
+                        )
+                        vs_span.set_attribute(
+                            "vector_delete_count", len(vector_deletes)
+                        )
+                        embedding_generation_queue.put_nowait(
+                            (embedding_payloads, vector_deletes)
+                        )
                 except asyncio.QueueFull:
                     logger.warning(
                         "Embedding queue full; dropping %s embeddings",

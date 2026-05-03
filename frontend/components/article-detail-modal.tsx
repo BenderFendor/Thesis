@@ -889,6 +889,8 @@ function ArticleDetailModalContent({ article, isOpen, onClose, onBookmarkChange,
           anchorEl={highlightPopoverAnchorEl}
           onClose={() => setHighlightPopoverOpen(false)}
           onSave={handleSaveHighlightNote}
+          articleTitle={currentArticle.title}
+          articleSource={currentArticle.source}
         />
         <Sheet open={wikiPanelOpen} onOpenChange={setWikiPanelOpen}>
           <SheetContent className="w-full border-l border-white/10 bg-background p-0 sm:max-w-xl">
@@ -1664,7 +1666,16 @@ function ArticleDetailModalContent({ article, isOpen, onClose, onBookmarkChange,
                                 <div className="text-xs text-muted-foreground line-clamp-2 whitespace-pre-wrap break-words">
                                   {highlight.note?.trim() ? highlight.note : "No note"}
                                 </div>
-                                <div className="flex items-center gap-2">
+                                <div className="flex items-center gap-1">
+                                  <Link
+                                    href={`/search?query=${encodeURIComponent(`Context: ${currentArticle.title} by ${currentArticle.source}\n\nExplain this highlighted passage:\n\n> ${highlight.highlighted_text}`)}`}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="inline-flex h-8 w-8 items-center justify-center rounded-md border border-border/40 bg-transparent text-muted-foreground transition-all hover:bg-primary/15 hover:border-primary/40 hover:text-primary"
+                                    title="Research this highlight"
+                                  >
+                                    <Search className="h-3.5 w-3.5" />
+                                  </Link>
                                   <Button
                                     type="button"
                                     variant="ghost"

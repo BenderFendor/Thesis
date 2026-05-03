@@ -111,3 +111,180 @@ def _as_float(value: Any) -> float | None:
         return float(value)
     except (TypeError, ValueError):
         return None
+
+
+async def compute_source_tone_deviation(
+    source_domain: str,
+    db_session: Any,
+    days: int = 90,
+) -> dict[str, Any]:
+    """Compute per-source tone deviation vs global and language-matched peers.
+
+    For each GDELT event from source_domain within the last `days`:
+      - Compute mean tone per event cluster (articles about same event)
+      - Compute global mean tone per cluster
+      - Derive per-source deviation: (source_tone - global_tone) / global_stddev
+      - Also compute language-matched deviation vs only sources in same language
+
+    Returns dict with global_sigma and language_sigma keys.
+    """
+    from datetime import datetime, timezone, timedelta
+
+    from sqlalchemy import select, func
+    from app.database import GDELTEvent, SourceMetadata
+
+    cutoff = datetime.now(timezone.utc) - timedelta(days=days)
+    cutoff_naive = cutoff.replace(tzinfo=None)
+
+    language = "en"
+
+    lang_result = await db_session.execute(
+        select(SourceMetadata.language).where(SourceMetadata.domain == source_domain)
+    )
+    lang_row = lang_result.scalars().first()
+    lang_row_val = lang_row
+    if lang_row_val is not None:
+        language = lang_row_val
+
+    tone_result = await db_session.execute(
+        select(func.avg(GDELTEvent.tone)).where(
+            GDELTEvent.source == source_domain,
+            GDELTEvent.published_at >= cutoff_naive,
+        )
+    )
+    source_mean_tone = tone_result.scalar()
+
+    global_tone_result = await db_session.execute(
+        select(func.avg(GDELTEvent.tone)).where(
+            GDELTEvent.published_at >= cutoff_naive,
+        )
+    )
+    global_mean_tone = global_tone_result.scalar()
+
+    global_stddev_result = await db_session.execute(
+        select(func.stddev_pop(GDELTEvent.tone)).where(
+            GDELTEvent.published_at >= cutoff_naive,
+        )
+    )
+    global_stddev = global_stddev_result.scalar() or 1.0
+
+    global_sigma = 0.0
+    if source_mean_tone is not None and global_mean_tone is not None and global_stddev > 0:
+        global_sigma = round((source_mean_tone - global_mean_tone) / global_stddev, 3)
+
+    language_sigma = global_sigma
+
+    lang_domains_result = await db_session.execute(
+        select(SourceMetadata.domain).where(SourceMetadata.language == language)
+    )
+    lang_domains = [row[0] for row in lang_domains_result.all() if row[0]]
+
+    if lang_domains and source_mean_tone is not None:
+        lang_tone_result = await db_session.execute(
+            select(func.avg(GDELTEvent.tone)).where(
+                GDELTEvent.source.in_(lang_domains),
+                GDELTEvent.published_at >= cutoff_naive,
+            )
+        )
+        lang_mean_tone = lang_tone_result.scalar()
+
+        lang_stddev_result = await db_session.execute(
+            select(func.stddev_pop(GDELTEvent.tone)).where(
+                GDELTEvent.source.in_(lang_domains),
+                GDELTEvent.published_at >= cutoff_naive,
+            )
+        )
+        lang_stddev = lang_stddev_result.scalar() or 1.0
+
+        if lang_mean_tone is not None and lang_stddev > 0:
+            language_sigma = round((source_mean_tone - lang_mean_tone) / lang_stddev, 3)
+
+    return {
+        "source_domain": source_domain,
+        "days": days,
+        "source_mean_tone": round(source_mean_tone, 3) if source_mean_tone else None,
+        "global_mean_tone": round(global_mean_tone, 3) if global_mean_tone else None,
+        "global_stddev": round(global_stddev, 3),
+        "global_sigma": global_sigma,
+        "language_sigma": language_sigma,
+        "language": language,
+    }
+
+
+async def get_economic_events_between(
+    country1: str,
+    country2: str,
+    days: int = 30,
+) -> dict[str, Any]:
+    from datetime import datetime, timedelta, timezone
+    from app.database import AsyncSessionLocal
+    from sqlalchemy import text
+    from sqlalchemy.ext.asyncio import async_sessionmaker, AsyncSession
+    from typing import cast
+
+    if AsyncSessionLocal is None:
+        return {"total_events": 0, "error": "database disabled"}
+
+    factory = cast(async_sessionmaker[AsyncSession], AsyncSessionLocal)
+    cutoff = datetime.now(timezone.utc) - timedelta(days=days)
+
+    async with factory() as session:
+        result = await session.execute(
+            text(
+                """
+                SELECT
+                    COUNT(*) AS total_events,
+                    AVG(tone) AS avg_tone,
+                    AVG(goldstein_scale) AS avg_goldstein
+                FROM gdelt_events
+                WHERE published_at >= :cutoff
+                  AND (
+                      (actor1_country = :c1 AND actor2_country = :c2)
+                      OR (actor1_country = :c2 AND actor2_country = :c1)
+                  )
+            """
+            ),
+            {"cutoff": cutoff, "c1": country1.upper(), "c2": country2.upper()},
+        )
+        row = result.one()
+        return {
+            "total_events": int(row.total_events or 0),
+            "avg_tone": round(row.avg_tone, 3) if row.avg_tone is not None else None,
+            "avg_goldstein": round(row.avg_goldstein, 3) if row.avg_goldstein is not None else None,
+        }
+
+
+async def get_country_resource_events(
+    country_code: str,
+    days: int = 30,
+) -> dict[str, Any]:
+    from datetime import datetime, timedelta, timezone
+    from app.database import AsyncSessionLocal
+    from sqlalchemy import text
+    from sqlalchemy.ext.asyncio import async_sessionmaker, AsyncSession
+    from typing import cast
+
+    if AsyncSessionLocal is None:
+        return {"total_events": 0, "error": "database disabled"}
+
+    factory = cast(async_sessionmaker[AsyncSession], AsyncSessionLocal)
+    cutoff = datetime.now(timezone.utc) - timedelta(days=days)
+
+    async with factory() as session:
+        result = await session.execute(
+            text(
+                """
+                SELECT COUNT(*) AS total_events
+                FROM gdelt_events
+                WHERE published_at >= :cutoff
+                  AND (
+                      actor1_country = :code
+                      OR actor2_country = :code
+                  )
+                  AND CAST(event_root_code AS FLOAT) BETWEEN 14 AND 20
+            """
+            ),
+            {"cutoff": cutoff, "code": country_code.upper()},
+        )
+        row = result.one()
+        return {"total_events": int(row.total_events or 0)}

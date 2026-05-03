@@ -33,6 +33,7 @@ REPORTER_PROFILE_FIELDS = (
     "match_explanation",
     "research_sources",
     "research_confidence",
+    "littlesis_url",
 )
 
 
@@ -84,11 +85,15 @@ async def upsert_reporter_profile(
     )
     reporter.topics = topics
 
-    affiliations = _profile_strings(profile, "affiliations")
-    if affiliations:
-        reporter.institutional_affiliations = [
-            {"organization": value, "source": "wikidata"} for value in affiliations
-        ]
+    existing_institutional = profile.get("institutional_affiliations")
+    if existing_institutional and isinstance(existing_institutional, list) and existing_institutional:
+        reporter.institutional_affiliations = existing_institutional
+    else:
+        affiliations = _profile_strings(profile, "affiliations")
+        if affiliations:
+            reporter.institutional_affiliations = [
+                {"organization": value, "source": "wikidata"} for value in affiliations
+            ]
 
     reporter.last_researched_at = get_utc_now()
     session.add(reporter)

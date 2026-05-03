@@ -5,6 +5,7 @@ from typing import Any, Dict, Optional
 from app.core.config import settings
 from app.core.llm_client import get_llm_client
 from app.core.logging import get_logger
+from app.services.prompting import build_text_system_prompt
 
 logger = get_logger("inline_definition")
 
@@ -34,7 +35,10 @@ async def define_term_with_gemini(
             messages=[
                 {
                     "role": "system",
-                    "content": "You are a helpful assistant providing definitions.",
+                    "content": build_text_system_prompt(
+                        role="definition assistant",
+                        task="Provide short, context-aware definitions for terms.",
+                    ),
                 },
                 {"role": "user", "content": prompt},
             ],

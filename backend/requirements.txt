@@ -43,6 +43,14 @@ hdbscan>=0.8.33   # Density-based clustering (C++ backend, fast)
 # Build helpers for the Rust RSS parser
 maturin>=1.10.0
 
+# OpenTelemetry distributed tracing
+opentelemetry-api>=1.28.0
+opentelemetry-sdk>=1.28.0
+opentelemetry-instrumentation-fastapi>=0.49b0
+opentelemetry-instrumentation-httpx>=0.49b0
+opentelemetry-instrumentation-sqlalchemy>=0.49b0
+opentelemetry-exporter-otlp-proto-http>=1.28.0
+
 # Testing and parity tooling
 hypothesis>=6.0.0
 docker>=7.0.0

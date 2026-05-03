@@ -203,33 +203,49 @@ async def _save_analysis_scores(
 async def _upsert_organization(
     session: AsyncSession,
     org_data: Dict[str, Any],
-) -> None:
-    """Create or update an Organization row from research data."""
+) -> Optional[int]:
+    """Create or update an Organization row from research data.
+
+    Returns the organization's id.  Also resolves the parent_org string to
+    ``parent_org_id`` so the ownership graph has real edges.
+    """
     normalized = org_data.get("normalized_name", "")
     if not normalized:
-        return
+        return None
 
     result = await session.execute(
         select(Organization).where(Organization.normalized_name == normalized)
     )
     existing = result.scalar_one_or_none()
 
+    _updateable_attrs = (
+        "funding_type",
+        "funding_sources",
+        "ein",
+        "annual_revenue",
+        "media_bias_rating",
+        "factual_reporting",
+        "wikipedia_url",
+        "research_sources",
+        "research_confidence",
+        "owned_by",
+        "parent_orgs",
+        "part_of",
+        "headquarters",
+        "inception",
+        "official_website",
+        "cik",
+        "opensecrets_data",
+        "conflict_flags",
+    )
+
     if existing:
-        for attr in (
-            "funding_type",
-            "funding_sources",
-            "ein",
-            "annual_revenue",
-            "media_bias_rating",
-            "factual_reporting",
-            "wikipedia_url",
-            "research_sources",
-            "research_confidence",
-        ):
+        for attr in _updateable_attrs:
             value = org_data.get(attr)
             if value is not None:
                 setattr(existing, attr, value)
         existing.updated_at = get_utc_now()
+        org = existing
     else:
         org = Organization(
             name=org_data.get("name"),
@@ -245,10 +261,37 @@ async def _upsert_organization(
             wikipedia_url=org_data.get("wikipedia_url"),
             research_sources=org_data.get("research_sources"),
             research_confidence=org_data.get("research_confidence"),
+            owned_by=org_data.get("owned_by", []),
+            parent_orgs=org_data.get("parent_orgs", []),
+            part_of=org_data.get("part_of", []),
+            headquarters=org_data.get("headquarters", []),
+            inception=org_data.get("inception"),
+            official_website=org_data.get("official_website"),
+            cik=org_data.get("cik"),
+            opensecrets_data=org_data.get("opensecrets_data", {}),
+            conflict_flags=org_data.get("conflict_flags", []),
         )
         session.add(org)
 
+    await session.flush()
+
+    # Resolve parent_org string to parent_org_id
+    parent_org_name = org_data.get("parent_org")
+    if parent_org_name and isinstance(parent_org_name, str):
+        parent_normalized = parent_org_name.lower().strip()
+        if parent_normalized and parent_normalized != normalized:
+            parent_result = await session.execute(
+                select(Organization).where(
+                    Organization.normalized_name == parent_normalized
+                )
+            )
+            parent_row = parent_result.scalar_one_or_none()
+            if parent_row is not None:
+                org.parent_org_id = parent_row.id
+                org.updated_at = get_utc_now()
+
     await session.commit()
+    return cast(int, org.id)
 
 
 async def _hydrate_org_claims(
@@ -589,14 +632,20 @@ async def periodic_wiki_refresh(
     """Background task that periodically re-indexes stale wiki entries.
 
     Designed to be launched as an asyncio task from main.py.
+    LLM-based scoring is controlled by BACKGROUND_LLM_SCORING_ENABLED env var.
     """
+    from app.core.config import settings
+
     # Initial delay to let the server finish startup
     await asyncio.sleep(300)
 
     while True:
         try:
             logger.info("Running periodic wiki refresh...")
-            source_summary = await index_stale_sources(stale_days=stale_days)
+            source_summary = await index_stale_sources(
+                stale_days=stale_days,
+                enable_llm_scoring=settings.background_llm_scoring_enabled,
+            )
             logger.info("Periodic wiki refresh complete (sources): %s", source_summary)
             reporter_summary = await index_stale_reporters(stale_days=stale_days)
             logger.info(

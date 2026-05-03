@@ -144,9 +144,9 @@ function SourceArticleCard({
       tabIndex={0}
       onClick={() => onArticleClick(article)}
       onKeyDown={handleCardKeyDown}
-      className="group flex h-full min-h-48 w-full flex-col overflow-hidden rounded-md border border-white/10 bg-black/25 text-left shadow-xl transition-all duration-500 ease-out hover:bg-white/[0.03] hover:shadow-2xl sm:min-h-80 sm:rounded-2xl"
+      className="group flex h-full min-h-48 w-full flex-col overflow-hidden rounded-md border border-white/10 bg-black/25 text-left shadow-xl transition-all duration-500 ease-out hover:bg-white/[0.03] hover:shadow-2xl sm:min-h-80 sm:rounded-lg"
     >
-      <div className="relative m-1 aspect-square overflow-hidden rounded bg-white/5 sm:m-2 sm:aspect-video sm:rounded-xl">
+	                            <div className="relative m-1 aspect-square overflow-hidden rounded bg-white/5 sm:m-2 sm:aspect-video sm:rounded-lg">
         {showImage ? (
           <SafeImage
             src={article.image ?? undefined}
@@ -563,7 +563,7 @@ export function GridView({
     if (!container) return
 
     const handleScroll = () => {
-      setShowScrollTop(container.scrollTop > 640)
+      setShowScrollTop(container.scrollTop > 500)
     }
 
     handleScroll()
@@ -883,7 +883,7 @@ export function GridView({
                             role="button"
                             tabIndex={0}
 	                            className={cn(
-	                              "group flex cursor-pointer flex-col overflow-hidden rounded-md border bg-black/25 transition-all duration-500 hover:bg-white/[0.03] scroll-mt-6 sm:rounded-2xl sm:bg-black/20",
+	                              "group flex cursor-pointer flex-col overflow-hidden rounded-md border bg-black/25 transition-all duration-500 hover:bg-white/[0.03] scroll-mt-6 sm:rounded-lg sm:bg-black/20",
 	                              isExpanded ? "border-primary/50 ring-1 ring-primary/40" : "border-white/10 sm:border-white/5",
 	                            )}
                             onClick={() => handleExpandCluster(cluster)}
@@ -894,7 +894,7 @@ export function GridView({
                               void handleExpandCluster(cluster)
                             }}
                           >
-	                            <div className="relative m-1 aspect-square overflow-hidden rounded bg-white/5 sm:m-2 sm:aspect-video sm:rounded-xl">
+      <div className="relative m-1 aspect-square overflow-hidden rounded bg-white/5 sm:m-2 sm:aspect-video sm:rounded-lg">
                               {imageUrl ? (
                                 <SafeImage
                                   src={imageUrl}
@@ -954,7 +954,7 @@ export function GridView({
                           {isExpanded && expandedCluster && (
                             <div
                               data-cluster-expanded-for={cluster.cluster_id}
-                              className="col-span-full overflow-hidden rounded-2xl border border-primary/30 bg-black/20"
+                              className="col-span-full overflow-hidden rounded-lg border border-primary/30 bg-black/20"
                             >
                               <div className="flex flex-col gap-4 border-b border-white/10 bg-black/30 px-6 py-5 lg:flex-row lg:items-center lg:justify-between">
                                 <div className="flex flex-wrap items-center gap-3">

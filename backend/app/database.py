@@ -355,6 +355,9 @@ class Reporter(Base):
     article_count = Column(Integer, default=0)  # Total articles in our system
     last_article_at = Column(DateTime)  # Most recent article timestamp
 
+    # External cross-reference URLs
+    littlesis_url = Column(String, nullable=True)
+
     # Research metadata
     research_sources = Column(JSON)  # Which APIs/sources were consulted
     last_researched_at = Column(DateTime)
@@ -407,6 +410,19 @@ class Organization(Base):
     last_researched_at = Column(DateTime)
     research_confidence = Column(String)
 
+    # Wikidata structured ownership fields (Plan 34)
+    owned_by = Column(JSON, default=list)
+    parent_orgs = Column(JSON, default=list)
+    part_of = Column(JSON, default=list)
+    headquarters = Column(JSON, default=list)
+    inception = Column(String, nullable=True)
+    official_website = Column(String, nullable=True)
+
+    # SEC EDGAR integration (Plan 32)
+    cik = Column(String, nullable=True)
+    opensecrets_data = Column(JSON, default=dict)
+    conflict_flags = Column(JSON, default=list)
+
     created_at = Column(DateTime, default=get_utc_now)
     updated_at = Column(DateTime, default=get_utc_now, onupdate=get_utc_now)
 
@@ -420,6 +436,7 @@ class ArticleAuthor(Base):
     article_id = Column(Integer, nullable=False, index=True)
     reporter_id = Column(Integer, nullable=False, index=True)
     author_role = Column(String, default="author")  # author, contributor, editor
+    author_confidence = Column(Float, nullable=True)  # 0.0-1.0 confidence in reporter-article link
 
     created_at = Column(DateTime, default=get_utc_now)
 
@@ -463,6 +480,9 @@ class GDELTEvent(Base):
     match_method = Column(String)  # 'url', 'embedding', 'keyword'
     similarity_score = Column(Float)  # If embedding match
 
+    # Event cluster membership for cross-verification alignment
+    gdelt_event_cluster_id = Column(Integer, index=True)
+
     # Raw GDELT data for reference
     raw_data = Column(JSON)
 
@@ -471,6 +491,7 @@ class GDELTEvent(Base):
     __table_args__ = (
         Index("ix_gdelt_events_article_published", "article_id", "published_at"),
         Index("ix_gdelt_events_event_code", "event_code"),
+        Index("ix_gdelt_events_cluster", "gdelt_event_cluster_id"),
     )
 
 
@@ -527,6 +548,10 @@ class SourceMetadata(Base):
     # Research metadata
     research_sources = Column(JSON)  # Which APIs/sources were used
     research_confidence = Column(String)  # high, medium, low
+
+    # Plan 35: Credibility engine fields
+    credibility_dimensions = Column(JSON)  # Serialized 6-dimension profile
+    credibility_last_scored_at = Column(DateTime)
 
     created_at = Column(DateTime, default=get_utc_now)
     updated_at = Column(DateTime, default=get_utc_now, onupdate=get_utc_now)
@@ -680,16 +705,23 @@ class SourceAnalysisScore(Base):
     source_name = Column(String, nullable=False, index=True)
     axis_name = Column(
         String, nullable=False
-    )  # funding, source_network, political_bias, credibility, framing_omission
+    )  # funding, source_network, political_bias, credibility, framing_omission,
+       # funding_transparency, source_network_diversity, political_orientation_disclosure,
+       # correction_record, methodology_transparency, cross_verification_alignment
 
-    score = Column(Integer, nullable=False)  # 1-5
+    score = Column(Integer, nullable=False)  # 1-5 (or 0-100 for credibility engine)
     confidence = Column(String)  # high, medium, low
     prose_explanation = Column(Text)  # Reasoning for the score
     citations = Column(JSON)  # [{url, title, accessed_at}]
     empirical_basis = Column(Text)  # Distinguishes measured data from inferred analysis
 
-    scored_by = Column(String, default="llm")  # llm, manual, data
+    scored_by = Column(String, default="llm")  # llm, manual, data, credibility_engine
     last_scored_at = Column(DateTime, default=get_utc_now)
+
+    # Plan 35: credibility engine fields
+    signals_available = Column(Integer, default=0)
+    signals_missing = Column(Integer, default=0)
+    data_confidence = Column(Float, default=0.0)
 
     created_at = Column(DateTime, default=get_utc_now)
     updated_at = Column(DateTime, default=get_utc_now, onupdate=get_utc_now)
@@ -788,6 +820,96 @@ class SourceClaimEvidence(Base):
     raw_hash = Column(String, nullable=False, index=True)
 
     created_at = Column(DateTime, default=get_utc_now)
+
+
+class CountryResource(Base):
+    """Maps countries to natural resources, exports, imports."""
+
+    __tablename__ = "country_resources"
+
+    country_code = Column(String, primary_key=True, index=True)
+    natural_resources = Column(JSON)
+    top_exports = Column(JSON)
+    top_imports = Column(JSON)
+    economic_sectors = Column(JSON)
+    last_updated = Column(DateTime, default=get_utc_now)
+
+
+class TradeFlow(Base):
+    """Bilateral trade data at HS4 product level."""
+
+    __tablename__ = "trade_flows"
+
+    id = Column(Integer, primary_key=True, index=True)
+    exporter_country = Column(String, nullable=False)
+    importer_country = Column(String, nullable=False)
+    product_code = Column(String, nullable=False)
+    product_name = Column(String, nullable=False)
+    trade_value_usd = Column(Float)
+    year = Column(Integer)
+
+    __table_args__ = (
+        Index("ix_trade_flows_exporter_importer", "exporter_country", "importer_country"),
+    )
+
+
+class CommodityPrice(Base):
+    """Commodity price time series from UNCTAD / World Bank."""
+
+    __tablename__ = "commodity_prices"
+
+    id = Column(Integer, primary_key=True, index=True)
+    commodity_name = Column(String, nullable=False)
+    price_usd = Column(Float)
+    date = Column(DateTime)
+    source = Column(String, default="UNCTAD")
+
+    __table_args__ = (
+        Index("ix_commodity_prices_name_date", "commodity_name", "date"),
+    )
+
+
+class MaterialInterestAnalysis(Base):
+    """Persisted material interest analysis results."""
+
+    __tablename__ = "material_interest_analyses"
+
+    id = Column(Integer, primary_key=True, index=True)
+    article_url = Column(String, nullable=False)
+    source_name = Column(String, nullable=False)
+    analysis_json = Column(JSON, nullable=False)
+    created_at = Column(DateTime, default=get_utc_now)
+
+    __table_args__ = (
+        Index("ix_material_interest_analyses_url", "article_url"),
+    )
+
+
+class EventCluster(Base):
+    """Groups GDELT events by event cluster for cross-verification alignment scoring."""
+
+    __tablename__ = "event_clusters"
+
+    id = Column(Integer, primary_key=True, index=True)
+    cluster_label = Column(String, nullable=False, index=True)
+    cluster_hash = Column(String, unique=True, nullable=False, index=True)
+    event_count = Column(Integer, default=0)
+    source_count = Column(Integer, default=0)
+    mean_tone = Column(Float)
+    tone_stddev = Column(Float)
+    mean_goldstein = Column(Float)
+    goldstein_stddev = Column(Float)
+    dominant_cameo_root = Column(String)
+    country_count = Column(Integer, default=0)
+    first_seen_at = Column(DateTime, default=get_utc_now)
+    last_seen_at = Column(DateTime, default=get_utc_now)
+    created_at = Column(DateTime, default=get_utc_now)
+    updated_at = Column(DateTime, default=get_utc_now, onupdate=get_utc_now)
+
+    __table_args__ = (
+        Index("ix_event_clusters_first_seen", "first_seen_at"),
+        Index("ix_event_clusters_last_seen", "last_seen_at"),
+    )
 
 
 # Dependency for FastAPI

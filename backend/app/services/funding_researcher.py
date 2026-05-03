@@ -19,8 +19,10 @@ Uses a layered source strategy:
 import json
 import re
 import inspect
+import asyncio
 from datetime import datetime, timezone
-from typing import Any, Dict, Iterable, List, Optional, cast
+from typing import Any, Dict, Iterable, List, Optional, Set, cast
+from urllib.parse import quote
 
 import httpx
 from openai import OpenAI
@@ -31,6 +33,14 @@ from app.core.logging import get_logger
 from app.services.async_utils import gather_limited
 
 logger = get_logger("funding_researcher")
+
+# EDGAR User-Agent header — required by SEC; accepts email-only identity
+_EDGAR_HEADERS: Dict[str, str] = {
+    "User-Agent": "Scoop Research (contact@example.com)",
+    "Accept-Encoding": "gzip, deflate",
+}
+
+_external_semaphore = asyncio.Semaphore(5)
 
 KNOWN_ORGS: Dict[str, Dict[str, Any]] = {
     "bbc": {
@@ -365,14 +375,18 @@ class FundingResearcher:
 
         normalized_name = self._normalize_name(name)
 
+        domain = self._extract_domain_from_url(website) if website else None
+
         # Gather data from multiple sources in parallel
         results = await gather_limited(
             [
                 self._search_wikipedia(name),
                 self._search_propublica_nonprofit(name),
                 self._get_known_org_data(name),
+                self._search_sec_edgar(name),
+                self._resolve_org_wikidata_sparql(name, domain),
             ],
-            limit=2,
+            limit=3,
             return_exceptions=True,
         )
 
@@ -385,6 +399,12 @@ class FundingResearcher:
         known_data: Dict[str, Any] = (
             results[2] if not isinstance(results[2], BaseException) else {}
         )
+        sec_data: Dict[str, Any] = (
+            results[3] if not isinstance(results[3], BaseException) else {}
+        )
+        wikidata_sparql: Dict[str, Any] = (
+            results[4] if not isinstance(results[4], BaseException) else {}
+        )
 
         if inspect.isawaitable(wikipedia_data):
             wikipedia_data = await wikipedia_data
@@ -392,6 +412,10 @@ class FundingResearcher:
             nonprofit_data = await nonprofit_data
         if inspect.isawaitable(known_data):
             known_data = await known_data
+        if inspect.isawaitable(sec_data):
+            sec_data = await sec_data
+        if inspect.isawaitable(wikidata_sparql):
+            wikidata_sparql = await wikidata_sparql
 
         wikidata_data = await self._fetch_wikidata(
             wikipedia_data.get("page_title") or name
@@ -406,6 +430,8 @@ class FundingResearcher:
             wikidata=wikidata_data,
             nonprofit=nonprofit_data,
             known=known_data,
+            sec=sec_data,
+            wikidata_sparql=wikidata_sparql,
         )
 
         # Use AI to synthesize
@@ -455,7 +481,8 @@ class FundingResearcher:
                 }
             )
 
-            response = await self.http_client.get(url, params=params)
+            async with _external_semaphore:
+                response = await self.http_client.get(url, params=params)
             if response.status_code != 200:
                 return {}
 
@@ -478,7 +505,8 @@ class FundingResearcher:
                 }
             )
 
-            extract_response = await self.http_client.get(url, params=extract_params)
+            async with _external_semaphore:
+                extract_response = await self.http_client.get(url, params=extract_params)
             if extract_response.status_code != 200:
                 return {}
 
@@ -545,7 +573,8 @@ class FundingResearcher:
             search_url = f"{self.propublica_base}/search.json"
             params = httpx.QueryParams({"q": name})
 
-            response = await self.http_client.get(search_url, params=params)
+            async with _external_semaphore:
+                response = await self.http_client.get(search_url, params=params)
             if response.status_code != 200:
                 return {}
 
@@ -585,7 +614,8 @@ class FundingResearcher:
 
             # Get detailed org data including 990 filings
             org_url = f"{self.propublica_base}/organizations/{ein}.json"
-            org_response = await self.http_client.get(org_url)
+            async with _external_semaphore:
+                org_response = await self.http_client.get(org_url)
 
             if org_response.status_code != 200:
                 return {
@@ -631,9 +661,10 @@ class FundingResearcher:
                     "languages": "en",
                 }
             )
-            response = await self.http_client.get(
-                "https://www.wikidata.org/w/api.php", params=params
-            )
+            async with _external_semaphore:
+                response = await self.http_client.get(
+                    "https://www.wikidata.org/w/api.php", params=params
+                )
             if response.status_code != 200:
                 return {}
             data = response.json()
@@ -705,9 +736,10 @@ class FundingResearcher:
                 "formatversion": 2,
             }
         )
-        response = await self.http_client.get(
-            "https://www.wikidata.org/w/api.php", params=params
-        )
+        async with _external_semaphore:
+            response = await self.http_client.get(
+                "https://www.wikidata.org/w/api.php", params=params
+            )
         if response.status_code != 200:
             return {}
         data = response.json()
@@ -746,6 +778,8 @@ class FundingResearcher:
         wikidata: Dict[str, Any],
         nonprofit: Dict[str, Any],
         known: Dict[str, Any],
+        sec: Optional[Dict[str, Any]] = None,
+        wikidata_sparql: Optional[Dict[str, Any]] = None,
     ) -> Dict[str, Any]:
         """Merge data from multiple sources."""
         org: Dict[str, Any] = {
@@ -775,6 +809,9 @@ class FundingResearcher:
             "wikipedia_url": None,
             "littlesis_url": None,
             "opensecrets_url": None,
+            "cik": None,
+            "opensecrets_data": {},
+            "conflict_flags": [],
             "research_sources": [],
             "research_confidence": "low",
         }
@@ -803,6 +840,7 @@ class FundingResearcher:
             if org["research_confidence"] == "low":
                 org["research_confidence"] = "medium"
 
+        # Merge Wikidata from English Wikipedia title lookup
         if wikidata:
             org["wikidata_url"] = wikidata.get("wikidata_url")
             org["wikidata_qid"] = wikidata.get("qid")
@@ -820,6 +858,29 @@ class FundingResearcher:
             if org["research_confidence"] == "low":
                 org["research_confidence"] = "medium"
 
+        # Merge Wikidata SPARQL fallback (orgs without English Wikipedia)
+        if wikidata_sparql:
+            if not org["wikidata_qid"]:
+                org["wikidata_qid"] = wikidata_sparql.get("qid")
+            if not org["wikidata_url"]:
+                org["wikidata_url"] = wikidata_sparql.get("wikidata_url")
+            if wikidata_sparql.get("owned_by"):
+                org["owned_by"] = wikidata_sparql["owned_by"]
+            if wikidata_sparql.get("parent_orgs"):
+                org["parent_orgs"] = wikidata_sparql["parent_orgs"]
+            if wikidata_sparql.get("part_of"):
+                org["part_of"] = wikidata_sparql["part_of"]
+            if wikidata_sparql.get("headquarters"):
+                org["headquarters"] = wikidata_sparql["headquarters"]
+            if wikidata_sparql.get("inception"):
+                org["inception"] = wikidata_sparql["inception"]
+            if wikidata_sparql.get("official_website"):
+                org["official_website"] = wikidata_sparql["official_website"]
+            if "wikidata_sparql" not in org["research_sources"]:
+                org["research_sources"].append("wikidata_sparql")
+            if org["research_confidence"] == "low":
+                org["research_confidence"] = "medium"
+
         # Merge ProPublica nonprofit data (only EIN and revenue, not funding_type
         # which would incorrectly label commercial orgs as non-profit)
         if nonprofit:
@@ -832,31 +893,461 @@ class FundingResearcher:
             if org["research_confidence"] == "low":
                 org["research_confidence"] = "high"
 
+        # Merge SEC EDGAR data
+        if sec:
+            org["cik"] = sec.get("cik")
+            if sec.get("revenue"):
+                org["annual_revenue"] = org["annual_revenue"] or sec["revenue"]
+            if sec.get("total_assets"):
+                org["annual_revenue"] = org["annual_revenue"] or sec["total_assets"]
+            if "sec_edgar" not in org["research_sources"]:
+                org["research_sources"].append("sec_edgar")
+            if org["research_confidence"] == "low":
+                org["research_confidence"] = "medium"
+
         return org
 
+    @staticmethod
+    def _extract_domain_from_url(url: str) -> Optional[str]:
+        """Extract domain name from a URL."""
+        match = re.search(r"https?://([^/:]+)", url)
+        if match:
+            return match.group(1).lower()
+        return None
+
+    async def _resolve_cik(self, name: str) -> Optional[str]:
+        """Resolve a company name to an SEC Central Index Key (CIK).
+
+        Uses the SEC EDGAR company mapping file.
+        """
+        try:
+            url = "https://www.sec.gov/files/company_tickers.json"
+            async with _external_semaphore:
+                response = await self.http_client.get(
+                    url, headers=_EDGAR_HEADERS
+                )
+            if response.status_code != 200:
+                logger.warning("SEC company_tickers returned %d", response.status_code)
+                return None
+
+            data = response.json()
+            normalized_name = self._normalize_name(name)
+
+            # Exact match first
+            for _key, entry in data.items():
+                entry_name = (entry.get("title") or "").lower().strip()
+                if normalized_name == self._normalize_name(entry_name):
+                    cik_str = str(entry.get("cik_str", ""))
+                    return cik_str.zfill(10)
+
+            # Fuzzy name-overlap match
+            best_score = 0.0
+            best_cik: Optional[str] = None
+            for _key, entry in data.items():
+                entry_name = (entry.get("title") or "").lower().strip()
+                norm_entry = self._normalize_name(entry_name)
+                score = self._name_overlap(normalized_name, norm_entry)
+                if score > 0.7 and score > best_score:
+                    best_score = score
+                    cik_str = str(entry.get("cik_str", ""))
+                    best_cik = cik_str.zfill(10)
+
+            return best_cik
+
+        except Exception as e:
+            logger.warning("CIK resolution failed for %s: %s", name, e)
+            return None
+
+    async def _search_sec_edgar(self, name: str) -> Dict[str, Any]:
+        """Search SEC EDGAR for company financial data.
+
+        Uses the EDGAR full-text search and falls back to Company Facts API.
+        """
+        try:
+            cik = await self._resolve_cik(name)
+            if not cik:
+                return {}
+
+            # Try Company Facts API first (deterministic, no search overhead)
+            facts_url = f"https://data.sec.gov/api/xbrl/companyfacts/CIK{cik}.json"
+            async with _external_semaphore:
+                facts_response = await self.http_client.get(
+                    facts_url, headers=_EDGAR_HEADERS
+                )
+            if facts_response.status_code == 200:
+                facts = facts_response.json()
+                facts_data = facts.get("facts", {})
+                us_gaap = facts_data.get("us-gaap", {})
+
+                def _latest_fact_value(tag: str) -> Optional[str]:
+                    tag_data = us_gaap.get(tag, {})
+                    units = tag_data.get("units", {})
+                    usd_entries = units.get("USD", [])
+                    if not usd_entries:
+                        return None
+                    usd_entries.sort(key=lambda x: x.get("end", ""), reverse=True)
+                    val = usd_entries[0].get("val")
+                    if val is not None:
+                        return str(val)
+                    return None
+
+                revenue = _latest_fact_value("Revenues")
+                total_assets = _latest_fact_value("Assets")
+
+                return {
+                    "source": "sec_edgar",
+                    "cik": cik,
+                    "revenue": revenue,
+                    "total_assets": total_assets,
+                    "confidence": "high",
+                }
+
+            # Fallback: search EDGAR full-text for 10-K filings
+            query = quote(name)
+            search_url = (
+                f"https://efts.sec.gov/LATEST/search-index?"
+                f"q={query}&categories=form-type=10-K"
+            )
+            async with _external_semaphore:
+                search_response = await self.http_client.get(
+                    search_url, headers=_EDGAR_HEADERS
+                )
+            if search_response.status_code != 200:
+                return {}
+
+            search_data = search_response.json()
+            hits = search_data.get("hits", {}).get("hits", [])
+            if hits:
+                return {
+                    "source": "sec_edgar",
+                    "cik": cik,
+                    "confidence": "medium",
+                }
+
+            return {}
+
+        except Exception as e:
+            logger.warning("SEC EDGAR search failed for %s: %s", name, e)
+            return {}
+
+    async def _resolve_org_wikidata_sparql(
+        self, name: str, domain: Optional[str] = None
+    ) -> Dict[str, Any]:
+        """Resolve an organization via Wikidata using wbsearchentities and SPARQL.
+
+        Searches for entities with instance types: newspaper (Q11032),
+        magazine (Q192283), TV station (Q5296), website (Q35127), etc.
+        """
+        try:
+            # Step 1: wbsearchentities
+            search_url = "https://www.wikidata.org/w/api.php"
+            search_params = httpx.QueryParams(
+                {
+                    "action": "wbsearchentities",
+                    "search": name,
+                    "language": "en",
+                    "format": "json",
+                    "limit": 3,
+                    "type": "item",
+                }
+            )
+            async with _external_semaphore:
+                search_response = await self.http_client.get(
+                    search_url, params=search_params
+                )
+            if search_response.status_code == 200:
+                search_data = search_response.json()
+                hits = search_data.get("search", [])
+                for hit in hits:
+                    hit_label = (hit.get("label") or "").lower()
+                    if self._name_overlap(
+                        self._normalize_name(name), self._normalize_name(hit_label)
+                    ) >= 0.5:
+                        qid = hit.get("id")
+                        if qid:
+                            return await self._fetch_wikidata_by_qid(qid)
+
+            # Step 2: SPARQL query by name with org instance types
+            org_types = [
+                "wd:Q11032",   # newspaper
+                "wd:Q192283",  # magazine
+                "wd:Q5296",    # TV station
+                "wd:Q35127",   # website
+                "wd:Q5633421", # publisher
+                "wd:Q16735862",# media company
+                "wd:Q43229",   # organization
+            ]
+            types_clause = " ".join(org_types)
+            sparql_query = f"""
+            SELECT ?item ?itemLabel WHERE {{
+              SERVICE wikibase:mwapi {{
+                bd:serviceParam wikibase:api "EntitySearch".
+                bd:serviceParam wikibase:endpoint "www.wikidata.org".
+                bd:serviceParam mwapi:search "{name}".
+                bd:serviceParam mwapi:language "en".
+                ?item wikibase:apiOutputItem mwapi:item.
+              }}
+              ?item wdt:P31 ?org_type.
+              VALUES ?org_type {{ {types_clause} }}
+              SERVICE wikibase:label {{
+                bd:serviceParam wikibase:language "en".
+              }}
+            }}
+            LIMIT 5
+            """
+            sparql_params = httpx.QueryParams(
+                {"format": "json", "query": sparql_query}
+            )
+            async with _external_semaphore:
+                sparql_response = await self.http_client.get(
+                    "https://query.wikidata.org/sparql", params=sparql_params
+                )
+            if sparql_response.status_code == 200:
+                sparql_data = sparql_response.json()
+                bindings = sparql_data.get("results", {}).get("bindings", [])
+                for binding in bindings:
+                    item_url = binding.get("item", {}).get("value", "")
+                    qid = item_url.split("/")[-1] if item_url else None
+                    if qid:
+                        return await self._fetch_wikidata_by_qid(qid)
+
+        except Exception as e:
+            logger.warning("Wikidata SPARQL org resolution failed: %s", e)
+
+        return {}
+
+    async def _fetch_wikidata_by_qid(self, qid: str) -> Dict[str, Any]:
+        """Fetch Wikidata claims and labels for a known QID."""
+        try:
+            params = httpx.QueryParams(
+                {
+                    "action": "wbgetentities",
+                    "ids": qid,
+                    "props": "claims|labels|descriptions|sitelinks",
+                    "format": "json",
+                    "formatversion": 2,
+                    "languages": "en",
+                }
+            )
+            async with _external_semaphore:
+                response = await self.http_client.get(
+                    "https://www.wikidata.org/w/api.php", params=params
+                )
+            if response.status_code != 200:
+                return {}
+            data = response.json()
+            entities = data.get("entities", {})
+            entity = entities.get(qid) if isinstance(entities, dict) else None
+            if not entity or not isinstance(entity, dict):
+                return {}
+            claims = entity.get("claims") or {}
+
+            item_ids: List[str] = []
+            ownership_ids = _extract_wikidata_item_ids(claims, "P127")
+            parent_ids = _extract_wikidata_item_ids(claims, "P749")
+            part_of_ids = _extract_wikidata_item_ids(claims, "P361")
+            headquarters_ids = _extract_wikidata_item_ids(claims, "P159")
+            item_ids.extend(ownership_ids + parent_ids + part_of_ids + headquarters_ids)
+
+            labels = await self._resolve_wikidata_labels(item_ids)
+
+            return {
+                "source": "wikidata",
+                "qid": qid,
+                "wikidata_url": f"https://www.wikidata.org/wiki/{qid}",
+                "owned_by": [
+                    labels.get(iid) for iid in ownership_ids if labels.get(iid)
+                ],
+                "parent_orgs": [
+                    labels.get(iid) for iid in parent_ids if labels.get(iid)
+                ],
+                "part_of": [
+                    labels.get(iid) for iid in part_of_ids if labels.get(iid)
+                ],
+                "headquarters": [
+                    labels.get(iid) for iid in headquarters_ids if labels.get(iid)
+                ],
+                "inception": _extract_wikidata_time(claims, "P571"),
+                "official_website": _extract_wikidata_url(claims, "P856"),
+                "confidence": "medium",
+            }
+        except Exception as exc:
+            logger.warning("Wikidata fetch by QID %s failed: %s", qid, exc)
+            return {}
+
+    async def detect_conflicts(
+        self,
+        source_name: str,
+        parent_org: Optional[str],
+        coverage_topics: List[str],
+    ) -> List[Dict[str, Any]]:
+        """Detect conflicts of interest between ownership and coverage.
+
+        Cross-references parent company business interests (from SEC EDGAR
+        segments + Wikidata industry codes) with the source's top coverage
+        topics to flag potential conflicts.
+
+        Returns a list of conflict flags with severity.
+        """
+        conflicts: List[Dict[str, Any]] = []
+        if not parent_org or not coverage_topics:
+            return conflicts
+
+        # Get parent company business interests
+        parent_data = await self.research_organization(parent_org, use_ai=False)
+        owned_by = parent_data.get("owned_by", []) or []
+        parent_orgs = parent_data.get("parent_orgs", []) or []
+        business_interests: Set[str] = set()
+
+        # Gather all ownership labels as potential business interest strings
+        for item in owned_by + parent_orgs + [parent_org]:
+            if isinstance(item, str):
+                business_interests.add(item.lower())
+
+        # Known conflict keywords mapping
+        conflict_keywords: Dict[str, str] = {
+            "oil": "energy",
+            "gas": "energy",
+            "petroleum": "energy",
+            "defense": "defense",
+            "military": "defense",
+            "pharma": "pharmaceuticals",
+            "pharmaceutical": "pharmaceuticals",
+            "bank": "finance",
+            "finance": "finance",
+            "telecom": "telecommunications",
+            "media": "media",
+            "insurance": "insurance",
+            "healthcare": "healthcare",
+            "tech": "technology",
+            "technology": "technology",
+            "real estate": "real estate",
+            "retail": "retail",
+        }
+
+        for topic in coverage_topics:
+            topic_lower = topic.lower()
+            for interest in business_interests:
+                for kw, sector in conflict_keywords.items():
+                    if kw in interest and kw in topic_lower:
+                        conflicts.append(
+                            {
+                                "topic": topic,
+                                "business_interest": interest,
+                                "severity": "high",
+                                "evidence": (
+                                    f"Source covers '{topic}' and parent "
+                                    f"'{interest}' operates in the same sector."
+                                ),
+                            }
+                        )
+                        break
+
+        return conflicts
+
     async def _ai_enhance_org_data(self, org: Dict[str, Any]) -> Dict[str, Any]:
-        """Use AI to fill gaps in organization data."""
+        """Use AI to fill gaps in organization data with expanded research.
+
+        Cross-checks KNOWN_ORGS data for staleness and requesting richer
+        funding transparency fields.
+        """
         if not self.client:
             return org
 
-        # Only enhance if we have minimal data
-        if org.get("research_confidence") == "high":
+        org_name = org["name"]
+        known_key = self._normalize_name(org_name)
+
+        # Staleness check: cross-reference KNOWN_ORGS against LLM knowledge
+        staleness_flags: List[str] = []
+        if known_key not in KNOWN_ORGS:
+            # Org is NOT in our hardcoded database — AI inference is needed
+            pass
+        else:
+            # Org IS in KNOWN_ORGS — verify with LLM for staleness
+            known_entry = KNOWN_ORGS[known_key]
+            try:
+                verify_prompt = (
+                    f"You are a media ownership fact-checker. "
+                    f"The KNOWN_ORGS database has this entry for '{org_name}': "
+                    f"{json.dumps(known_entry)}. "
+                    f"Is any of this information materially outdated as of 2025? "
+                    f"Answer only YES or NO."
+                )
+                verify_response = self.client.chat.completions.create(
+                    model=(
+                        get_llamacpp_model()
+                        if settings.llm_backend == "llamacpp"
+                        else settings.open_router_model
+                    ),
+                    messages=cast(
+                        Iterable[ChatCompletionMessageParam],
+                        [{"role": "user", "content": verify_prompt}],
+                    ),
+                    max_tokens=10,
+                    temperature=0.0,
+                )
+                verify_content = verify_response.choices[0].message.content or ""
+                if "YES" in verify_content.upper() and "NO" not in verify_content.upper():
+                    staleness_flags.append("KNOWN_ORGS entry flagged as stale by LLM")
+                    logger.info(
+                        "KNOWN_ORGS entry for %s flagged stale by LLM", org_name
+                    )
+            except Exception as e:
+                logger.warning("KNOWN_ORGS staleness check failed: %s", e)
+
+        # Skip if known data is high confidence and not flagged as stale
+        if (
+            org.get("research_confidence") == "high"
+            and "known_data" in org.get("research_sources", [])
+            and not staleness_flags
+        ):
             return org
 
         try:
+            missing_fields = []
+            if not org.get("funding_type"):
+                missing_fields.append("funding_type")
+            if not org.get("parent_org"):
+                missing_fields.append("parent_org")
+            if not org.get("media_bias_rating"):
+                missing_fields.append("media_bias_rating")
+            if not org.get("factual_reporting"):
+                missing_fields.append("factual_reporting")
+            if missing_fields or staleness_flags:
+                pass
+            else:
+                return org
+
+            missing_desc = ", ".join(missing_fields) if missing_fields else "staleness validation"
+            staleness_note = (
+                " ".join(staleness_flags) if staleness_flags else ""
+            )
+
             prompt = f"""You are a media research assistant analyzing a news organization.
 
-Organization: {org["name"]}
+Organization: {org_name}
 Known Data:
 - Funding Type: {org.get("funding_type", "Unknown")}
 - Parent Organization: {org.get("parent_org", "Unknown")}
 - Bias Rating: {org.get("media_bias_rating", "Unknown")}
+- Factual Reporting: {org.get("factual_reporting", "Unknown")}
+- Annual Revenue: {org.get("annual_revenue", "Unknown")}
 
-Based on your knowledge, provide information about this organization:
-1. What type of funding does this organization have? (commercial, public, non-profit, state-funded, independent)
-2. Who owns or controls this organization?
+{staleness_note}
+
+Based on your knowledge, provide detailed information about this organization. Fill in these missing/uncertain fields: {missing_desc}.
+
+Additionally, provide:
+1. What type of funding does this organization have? (commercial, public, non-profit, state-funded, independent, trust-owned)
+2. Who owns or controls this organization? (be specific about ultimate parent)
 3. What is their general media bias? (left, center-left, center, center-right, right)
 4. How factual is their reporting? (very-high, high, mixed, low, very-low)
+5. Estimated annual revenue range (with citation/source hint)
+6. Known major donors or grant funders (list up to 5)
+7. Known major advertisers (list up to 5)
+8. Recent ownership changes (any in last 5 years)
+9. Funding transparency level (transparent, partial, opaque, unknown)
+10. Does the organization have a paywall?
 
 Respond in JSON:
 {{
@@ -864,6 +1355,13 @@ Respond in JSON:
   "parent_org": "Parent Company Name" or null,
   "media_bias_rating": "center",
   "factual_reporting": "high",
+  "estimated_revenue": "e.g. $50M-$100M",
+  "revenue_citation": "e.g. 2023 annual report",
+  "major_donors": ["Donor 1", "Donor 2"],
+  "major_advertisers": ["Advertiser 1", "Advertiser 2"],
+  "recent_ownership_changes": "Description or null",
+  "funding_transparency": "transparent",
+  "has_paywall": false,
   "notes": "Brief explanation"
 }}"""
 
@@ -877,15 +1375,15 @@ Respond in JSON:
                     Iterable[ChatCompletionMessageParam],
                     [{"role": "user", "content": prompt}],
                 ),
-                max_tokens=400,
+                max_tokens=600,
                 temperature=0.3,
             )
 
             content = response.choices[0].message.content
             if not content:
-                logger.warning(f"AI returned empty content for org {org['name']}")
+                logger.warning(f"AI returned empty content for org {org_name}")
                 return org
-            json_match = re.search(r"\{[^{}]*\}", content, re.DOTALL)
+            json_match = re.search(r"\{[\s\S]*?\}", content, re.DOTALL)
 
             if json_match:
                 ai_data = json.loads(json_match.group())
@@ -898,11 +1396,37 @@ Respond in JSON:
                     org["media_bias_rating"] = ai_data.get("media_bias_rating")
                 if not org.get("factual_reporting"):
                     org["factual_reporting"] = ai_data.get("factual_reporting")
+                if not org.get("annual_revenue") and ai_data.get("estimated_revenue"):
+                    org["annual_revenue"] = ai_data["estimated_revenue"]
 
-                org["research_sources"].append("ai_inference")
+                # New fields from expanded prompt
+                donors = ai_data.get("major_donors", [])
+                if donors and not org.get("top_donors"):
+                    org["top_donors"] = donors
+                advertisers = ai_data.get("major_advertisers", [])
+                if advertisers:
+                    existing_ads: List[str] = list(org.get("major_advertisers", []) or [])
+                    for ad in advertisers:
+                        if ad not in existing_ads:
+                            existing_ads.append(ad)
+                    org["major_advertisers"] = existing_ads
 
+                if ai_data.get("funding_transparency"):
+                    org["funding_transparency"] = ai_data["funding_transparency"]
+                if ai_data.get("has_paywall") is not None:
+                    org["has_paywall"] = bool(ai_data["has_paywall"])
+                if ai_data.get("recent_ownership_changes"):
+                    org["recent_ownership_changes"] = ai_data["recent_ownership_changes"]
+
+                if "ai_inference" not in org.get("research_sources", []):
+                    org["research_sources"].append("ai_inference")
+
+        except json.JSONDecodeError as e:
+            logger.error(
+                "Failed to parse AI enhancement JSON for %s: %s", org_name, e
+            )
         except Exception as e:
-            logger.error(f"AI enhancement failed for org {org['name']}: {e}")
+            logger.error("AI enhancement failed for org %s: %s", org_name, e)
 
         return org
 

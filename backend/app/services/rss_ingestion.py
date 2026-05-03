@@ -37,7 +37,65 @@ _process_pool: Any | None = None
 
 DEFAULT_POLL_INTERVAL_SECONDS = 600
 MIN_POLL_INTERVAL_SECONDS = 300
-MAX_POLL_INTERVAL_SECONDS = 3600
+MAX_POLL_INTERVAL_SECONDS = 14400
+
+_IDLE_BACKOFF_THRESHOLDS: list[tuple[int, int]] = [
+    (5, 1800),
+    (10, 3600),
+    (20, 14400),
+]
+
+_FEED_STATE_PATH = __import__("pathlib").Path(__file__).resolve().parents[1] / "data" / "feed_polling_state.json"
+
+
+def _idle_poll_interval(consecutive_idle_checks: int) -> int:
+    """Return poll interval based on number of consecutive idle checks."""
+    interval = DEFAULT_POLL_INTERVAL_SECONDS
+    for threshold, seconds in _IDLE_BACKOFF_THRESHOLDS:
+        if consecutive_idle_checks >= threshold:
+            interval = seconds
+    return interval
+
+
+def save_polling_state(stats: list[dict[str, Any]]) -> None:
+    try:
+        import json
+        import tempfile
+        import os
+
+        _FEED_STATE_PATH.parent.mkdir(parents=True, exist_ok=True)
+        tmp_path = _FEED_STATE_PATH.with_suffix(".json.tmp")
+        with open(tmp_path, "w", encoding="utf-8") as f:
+            json.dump(stats, f, default=str)
+        os.replace(tmp_path, _FEED_STATE_PATH)
+    except Exception:
+        pass
+
+
+def load_polling_state() -> list[dict[str, Any]]:
+    try:
+        import json
+        with open(_FEED_STATE_PATH, "r", encoding="utf-8") as f:
+            result = json.load(f)
+            if isinstance(result, list):
+                return [item for item in result if isinstance(item, dict)]
+            return []
+    except Exception:
+        return []
+
+
+def apply_saved_polling_state() -> None:
+    saved = load_polling_state()
+    if not saved:
+        return
+    with news_cache.lock:
+        for stat in saved:
+            stat_name = stat.get("name")
+            if isinstance(stat_name, str) and stat_name:
+                if stat_name not in news_cache.source_stats_by_name:
+                    news_cache.source_stats_by_name[stat_name] = stat
+        news_cache.source_stats = list(news_cache.source_stats_by_name.values())
+    logger.info("Seeded polling state for %d sources from file", len(saved))
 
 
 def _log_fd_diagnostics(message: str, level: int = logging.INFO) -> None:
@@ -158,22 +216,18 @@ def _next_poll_metadata(
 
     if status == "error":
         consecutive_failures = previous_failures + 1
+        consecutive_idle_checks = previous_idle
         interval_seconds = _clamp_poll_interval(
             base_interval_seconds * (2 ** min(consecutive_failures, 2))
         )
         reason = "error_backoff"
-    elif status == "not_modified":
+    elif status == "not_modified" or article_count <= 0:
+        consecutive_failures = 0
         consecutive_idle_checks = previous_idle + 1
         interval_seconds = _clamp_poll_interval(
-            base_interval_seconds * min(consecutive_idle_checks + 1, 4)
+            _idle_poll_interval(consecutive_idle_checks)
         )
-        reason = "not_modified_backoff"
-    elif article_count <= 0:
-        consecutive_idle_checks = previous_idle + 1
-        interval_seconds = _clamp_poll_interval(
-            base_interval_seconds * min(consecutive_idle_checks + 1, 3)
-        )
-        reason = "empty_feed_backoff"
+        reason = "idle_backoff"
     else:
         if recent_count >= 8 or (
             freshest_age_hours is not None and freshest_age_hours <= 2
@@ -380,6 +434,9 @@ async def _refresh_news_cache_with_rust(
     *,
     is_partial_refresh: bool,
 ) -> None:
+    from app.core.tracing import get_tracer
+
+    tracer = get_tracer("scoop-backend")
     logger.info("Using Rust RSS ingestion pipeline")
 
     sources_payload = [
@@ -393,11 +450,15 @@ async def _refresh_news_cache_with_rust(
         await _broadcast_cache_update(0, 0)
         return
 
-    result = await asyncio.to_thread(
-        parse_feeds_parallel,
-        sources_payload,
-        min(64, max(8, len(sources_payload) * 2)),
-    )
+    with tracer.start_as_current_span("rss_feed_ingestion") as span:
+        span.set_attribute("source_count", len(sources_payload))
+        span.set_attribute("is_partial_refresh", is_partial_refresh)
+
+        result = await asyncio.to_thread(
+            parse_feeds_parallel,
+            sources_payload,
+            min(64, max(8, len(sources_payload) * 2)),
+        )
 
     articles_payload: List[Dict[str, Any]] = result.get("articles", [])
     stats_payload: Dict[str, Dict[str, Any]] = result.get("source_stats", {})
@@ -501,6 +562,8 @@ async def _refresh_news_cache_with_rust(
             total_articles = len(all_articles)
             total_sources = len(source_stats)
         await _broadcast_cache_update(total_articles, total_sources)
+
+    save_polling_state(list(news_cache.get_source_stats()))
 
     logger.info(
         "Rust parser complete: %s articles (fetch=%sms, parse=%sms, total=%sms)",

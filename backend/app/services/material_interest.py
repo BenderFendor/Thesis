@@ -2,20 +2,23 @@
 Material Interest Agent for Phase 5C.
 
 This agent analyzes material interests that may influence news coverage:
-- Trade relationships between countries (OEC data)
-- Corporate interests and advertisers
-- Political donations and lobbying
-- Geographic economic ties
+- Trade relationships between countries (OEC data from trade_flows table)
+- Corporate interests and advertisers (from organizations table)
+- GDELT economic event context between mentioned countries
+- Commodity price dynamics affecting coverage incentives
 
 Helps identify potential conflicts of interest in news coverage.
 """
 
 import json
 import re
-from datetime import datetime, timezone
-from typing import Any, Dict, List, Optional
+import asyncio
+from datetime import datetime, timedelta, timezone
+from typing import Any, Dict, List, Optional, cast
 
 import httpx
+from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
+from sqlalchemy import text
 
 from app.core.llm_client import get_llm_client
 from app.core.logging import get_logger
@@ -27,165 +30,23 @@ MATERIAL_INTEREST_SYSTEM_PROMPT = build_json_system_prompt(
     role="material interest analyst",
     task=(
         "Assess potential material interests, conflicts, blind spots, and reader "
-        "warnings from the supplied source and trade context."
+        "warnings from the supplied source, owner, trade, GDELT, and commodity context."
     ),
 )
 
-KNOWN_TRADE_RELATIONSHIPS: Dict[str, Dict[str, Any]] = {
-    "US-CN": {
-        "relationship": "major_trading_partner",
-        "exports_rank": 1,
-        "imports_rank": 1,
-        "key_sectors": ["electronics", "machinery", "agriculture"],
-        "tension_areas": ["tariffs", "technology", "IP"],
-        "trade_volume": "650B USD",
-    },
-    "US-MX": {
-        "relationship": "major_trading_partner",
-        "exports_rank": 2,
-        "imports_rank": 2,
-        "key_sectors": ["automotive", "agriculture", "manufacturing"],
-        "tension_areas": ["immigration", "USMCA"],
-        "trade_volume": "600B USD",
-    },
-    "US-CA": {
-        "relationship": "major_trading_partner",
-        "exports_rank": 1,
-        "imports_rank": 3,
-        "key_sectors": ["energy", "automotive", "agriculture"],
-        "tension_areas": ["lumber", "dairy"],
-        "trade_volume": "700B USD",
-    },
-    "US-RU": {
-        "relationship": "adversarial",
-        "key_sectors": ["energy", "defense"],
-        "tension_areas": ["sanctions", "Ukraine", "election interference"],
-        "trade_volume": "35B USD",
-    },
-    "GB-EU": {
-        "relationship": "post-brexit",
-        "key_sectors": ["financial services", "manufacturing"],
-        "tension_areas": ["Brexit", "Northern Ireland", "fishing"],
-        "trade_volume": "400B GBP",
-    },
-    "CN-TW": {
-        "relationship": "contested",
-        "key_sectors": ["semiconductors", "electronics"],
-        "tension_areas": ["sovereignty", "One China Policy"],
-        "trade_volume": "200B USD",
-    },
-    "IL-PS": {
-        "relationship": "conflict",
-        "key_sectors": [],
-        "tension_areas": ["occupation", "settlements", "security"],
-        "trade_volume": "minimal",
-    },
-    "SA-IR": {
-        "relationship": "adversarial",
-        "key_sectors": ["energy"],
-        "tension_areas": ["Yemen", "regional influence", "nuclear"],
-        "trade_volume": "minimal",
-    },
-}
+_CAMEO_COOPERATION_LO = 1
+_CAMEO_COOPERATION_HI = 6
+_CAMEO_CONFLICT_LO = 7
+_CAMEO_CONFLICT_HI = 13
+_CAMEO_ECONOMIC_LO = 14
+_CAMEO_ECONOMIC_HI = 20
 
-KNOWN_SOURCE_INTERESTS: Dict[str, Dict[str, Any]] = {
-    "cnn": {
-        "parent_company": "Warner Bros. Discovery",
-        "major_advertisers": ["AT&T", "pharmaceuticals", "financial services"],
-        "owner_interests": ["entertainment media", "streaming"],
-        "political_donations": "Democratic-leaning",
-        "notes": "Formerly owned by AT&T until 2022 spin-off",
-    },
-    "fox news": {
-        "parent_company": "Fox Corporation",
-        "owner": "Murdoch family",
-        "major_advertisers": ["MyPillow", "reverse mortgages", "pharmaceuticals"],
-        "owner_interests": ["media", "entertainment", "real estate (Australia)"],
-        "political_donations": "Republican-leaning",
-        "notes": "Murdoch family owns News Corp and Fox Corporation",
-    },
-    "washington post": {
-        "parent_company": "Nash Holdings",
-        "owner": "Jeff Bezos",
-        "owner_interests": ["Amazon", "e-commerce", "AWS", "space (Blue Origin)"],
-        "potential_conflicts": ["Amazon labor coverage", "AWS government contracts"],
-        "notes": "Purchased by Bezos in 2013 for $250M",
-    },
-    "new york times": {
-        "parent_company": "The New York Times Company",
-        "owner": "Sulzberger family (public company)",
-        "major_advertisers": ["luxury brands", "real estate", "financial services"],
-        "owner_interests": ["media", "podcasting", "games"],
-        "notes": "Publicly traded but family-controlled",
-    },
-    "al jazeera": {
-        "parent_company": "Al Jazeera Media Network",
-        "owner": "State of Qatar",
-        "owner_interests": ["natural gas", "World Cup hosting", "regional influence"],
-        "potential_conflicts": ["Qatar coverage", "Gulf politics", "World Cup labor"],
-        "notes": "Funded by Qatari government",
-    },
-    "rt": {
-        "parent_company": "TV-Novosti",
-        "owner": "Russian government",
-        "owner_interests": ["Russian state interests", "energy exports", "geopolitics"],
-        "potential_conflicts": ["All Russia coverage", "Ukraine", "NATO"],
-        "notes": "Registered as foreign agent in US",
-    },
-    "bbc": {
-        "parent_company": "BBC (public corporation)",
-        "owner": "UK Government (via license fee)",
-        "owner_interests": ["British soft power", "public education"],
-        "potential_conflicts": ["UK government policy", "monarchy coverage"],
-        "notes": "Funded by TV license fee, editorially independent",
-    },
-}
 
-COUNTRY_PROFILES: Dict[str, Dict[str, Any]] = {
-    "US": {
-        "gdp": "25.5T USD",
-        "gdp_rank": 1,
-        "top_exports": ["refined petroleum", "aircraft", "cars", "medical equipment"],
-        "top_imports": [
-            "cars",
-            "computers",
-            "broadcasting equipment",
-            "packaged medicines",
-        ],
-        "major_partners": ["China", "Canada", "Mexico", "Japan", "Germany"],
-    },
-    "CN": {
-        "gdp": "18.3T USD",
-        "gdp_rank": 2,
-        "top_exports": [
-            "computers",
-            "broadcasting equipment",
-            "telephones",
-            "integrated circuits",
-        ],
-        "top_imports": ["crude petroleum", "integrated circuits", "iron ore", "gold"],
-        "major_partners": [
-            "United States",
-            "Japan",
-            "South Korea",
-            "Germany",
-            "Australia",
-        ],
-    },
-    "GB": {
-        "gdp": "3.1T USD",
-        "gdp_rank": 6,
-        "top_exports": ["gold", "cars", "gas turbines", "packaged medicines"],
-        "top_imports": ["gold", "cars", "crude petroleum", "packaged medicines"],
-        "major_partners": [
-            "United States",
-            "Germany",
-            "Netherlands",
-            "France",
-            "China",
-        ],
-    },
-}
+def _extract_json(content: str) -> Optional[Dict[str, Any]]:
+    match = re.search(r"\{[\s\S]*\}", content)
+    if match:
+        return json.loads(match.group())
+    return None
 
 
 class MaterialInterestAgent:
@@ -194,9 +55,450 @@ class MaterialInterestAgent:
     def __init__(self) -> None:
         self.llm_client = get_llm_client()
         self.http_client = httpx.AsyncClient(timeout=30.0)
-
-        # OEC (Observatory of Economic Complexity) API
         self.oec_base = "https://oec.world/olap-proxy/data"
+
+    async def _get_db_session(self) -> AsyncSession:
+        from app.database import AsyncSessionLocal
+
+        if AsyncSessionLocal is None:
+            raise RuntimeError("Database access requested but ENABLE_DATABASE=0")
+        factory = cast(async_sessionmaker[AsyncSession], AsyncSessionLocal)
+        return factory()
+
+    async def _get_gdelt_economic_context(
+        self, countries: List[str], days: int = 30, session: Optional[AsyncSession] = None
+    ) -> Dict[str, Any]:
+        upper = [c.upper() for c in countries]
+        if not upper:
+            return {
+                "cooperation_events": 0,
+                "conflict_events": 0,
+                "economic_events": 0,
+                "avg_tone": None,
+                "avg_goldstein": None,
+                "total_events": 0,
+            }
+
+        cutoff = datetime.now(timezone.utc) - timedelta(days=days)
+
+        async def _run_query(db: AsyncSession) -> Dict[str, Any]:
+            result = await db.execute(
+                text(
+                    """
+                    SELECT
+                        COUNT(*) FILTER (
+                            WHERE CAST(event_root_code AS FLOAT) BETWEEN :coop_lo AND :coop_hi
+                        ) AS cooperation_events,
+                        COUNT(*) FILTER (
+                            WHERE CAST(event_root_code AS FLOAT) BETWEEN :conf_lo AND :conf_hi
+                        ) AS conflict_events,
+                        COUNT(*) FILTER (
+                            WHERE CAST(event_root_code AS FLOAT) BETWEEN :econ_lo AND :econ_hi
+                        ) AS economic_events,
+                        AVG(tone) AS avg_tone,
+                        AVG(goldstein_scale) AS avg_goldstein,
+                        COUNT(*) AS total_events
+                    FROM gdelt_events
+                    WHERE published_at >= :cutoff
+                      AND (
+                          actor1_country = ANY(:countries)
+                          OR actor2_country = ANY(:countries)
+                      )
+                """
+                ),
+                {
+                    "coop_lo": _CAMEO_COOPERATION_LO,
+                    "coop_hi": _CAMEO_COOPERATION_HI,
+                    "conf_lo": _CAMEO_CONFLICT_LO,
+                    "conf_hi": _CAMEO_CONFLICT_HI,
+                    "econ_lo": _CAMEO_ECONOMIC_LO,
+                    "econ_hi": _CAMEO_ECONOMIC_HI,
+                    "countries": upper,
+                    "cutoff": cutoff,
+                },
+            )
+            row = result.one()
+            return {
+                "cooperation_events": int(row.cooperation_events or 0),
+                "conflict_events": int(row.conflict_events or 0),
+                "economic_events": int(row.economic_events or 0),
+                "avg_tone": round(row.avg_tone, 3)
+                if row.avg_tone is not None
+                else None,
+                "avg_goldstein": round(row.avg_goldstein, 3)
+                if row.avg_goldstein is not None
+                else None,
+                "total_events": int(row.total_events or 0),
+            }
+
+        try:
+            if session is not None:
+                return await _run_query(session)
+            async with await self._get_db_session() as new_session:
+                return await _run_query(new_session)
+        except Exception as e:
+            logger.error("GDELT economic context query failed: %s", e)
+            return {
+                "cooperation_events": 0,
+                "conflict_events": 0,
+                "economic_events": 0,
+                "avg_tone": None,
+                "avg_goldstein": None,
+                "total_events": 0,
+                "error": str(e),
+            }
+
+    async def _get_country_resources(
+        self, country_codes: List[str], session: Optional[AsyncSession] = None
+    ) -> Dict[str, Dict[str, Any]]:
+        upper = [c.upper() for c in country_codes]
+        if not upper:
+            return {}
+
+        async def _run(db: AsyncSession) -> Dict[str, Dict[str, Any]]:
+            result = await db.execute(
+                text(
+                    """
+                    SELECT country_code, natural_resources, top_exports, top_imports,
+                           economic_sectors
+                    FROM country_resources
+                    WHERE country_code = ANY(:codes)
+                """
+                ),
+                {"codes": upper},
+            )
+            return {
+                row.country_code: {
+                    "natural_resources": row.natural_resources or [],
+                    "top_exports": row.top_exports or [],
+                    "top_imports": row.top_imports or [],
+                    "economic_sectors": row.economic_sectors or [],
+                }
+                for row in result
+            }
+
+        try:
+            if session is not None:
+                return await _run(session)
+            async with await self._get_db_session() as new_s:
+                return await _run(new_s)
+        except Exception as e:
+            logger.error("Country resources query failed: %s", e)
+            return {}
+
+    async def _get_trade_flows(
+        self, exporter: str, importer: str, session: Optional[AsyncSession] = None
+    ) -> Dict[str, Any]:
+        async def _run(db: AsyncSession) -> Dict[str, Any]:
+            agg_result = await db.execute(
+                text(
+                    """
+                    SELECT
+                        SUM(trade_value_usd) AS total_value,
+                        COUNT(*) AS product_count
+                    FROM trade_flows
+                    WHERE exporter_country = :exporter
+                      AND importer_country = :importer
+                """
+                ),
+                {"exporter": exporter.upper(), "importer": importer.upper()},
+            )
+            agg = agg_result.one()
+
+            products_result = await db.execute(
+                text(
+                    """
+                    SELECT product_code, product_name, trade_value_usd
+                    FROM trade_flows
+                    WHERE exporter_country = :exporter
+                      AND importer_country = :importer
+                    ORDER BY trade_value_usd DESC
+                    LIMIT 5
+                """
+                ),
+                {"exporter": exporter.upper(), "importer": importer.upper()},
+            )
+            top_products = [
+                {
+                    "product_code": row.product_code,
+                    "product_name": row.product_name,
+                    "trade_value_usd": row.trade_value_usd,
+                }
+                for row in products_result
+            ]
+
+            return {
+                "total_trade_value_usd": agg.total_value,
+                "product_count": agg.product_count,
+                "top_products": top_products,
+            }
+
+        try:
+            if session is not None:
+                return await _run(session)
+            async with await self._get_db_session() as new_s:
+                return await _run(new_s)
+        except Exception as e:
+            logger.error(
+                "Trade flows query failed for %s->%s: %s", exporter, importer, e
+            )
+            return {"total_trade_value_usd": None, "product_count": 0, "top_products": []}
+
+    async def _get_commodity_context(
+        self, commodities: List[str], session: Optional[AsyncSession] = None
+    ) -> Dict[str, Dict[str, Any]]:
+        if not commodities:
+            return {}
+
+        six_months_ago = datetime.now(timezone.utc) - timedelta(days=180)
+
+        async def _run(db: AsyncSession) -> Dict[str, Dict[str, Any]]:
+            result = await db.execute(
+                text(
+                    """
+                    SELECT commodity_name, price_usd, date, source
+                    FROM commodity_prices
+                    WHERE commodity_name = ANY(:names)
+                      AND date >= :six_months
+                    ORDER BY commodity_name, date DESC
+                """
+                ),
+                {"names": commodities, "six_months": six_months_ago},
+            )
+            rows = list(result)
+            grouped: Dict[str, List[Dict[str, Any]]] = {}
+            for row in rows:
+                grouped.setdefault(row.commodity_name, []).append(
+                    {
+                        "price_usd": row.price_usd,
+                        "date": row.date.isoformat() if row.date else None,
+                        "source": row.source,
+                    }
+                )
+
+            context: Dict[str, Dict[str, Any]] = {}
+            for name, prices in grouped.items():
+                latest = prices[0]["price_usd"] if prices else None
+                oldest = prices[-1]["price_usd"] if prices else None
+                trend = None
+                if latest is not None and oldest is not None and oldest != 0:
+                    trend = round((latest - oldest) / oldest * 100, 1)
+                context[name] = {
+                    "latest_price_usd": latest,
+                    "trend_pct_6mo": trend,
+                    "data_points": len(prices),
+                }
+            return context
+
+        try:
+            if session is not None:
+                return await _run(session)
+            async with await self._get_db_session() as new_s:
+                return await _run(new_s)
+        except Exception as e:
+            logger.error("Commodity context query failed: %s", e)
+            return {}
+
+    async def _get_source_owner_interests(
+        self, source_name: str, session: Optional[AsyncSession] = None
+    ) -> Dict[str, Any]:
+        async def _run(db: AsyncSession) -> Dict[str, Any]:
+            normalized = source_name.lower().strip()
+            org_result = await db.execute(
+                text(
+                    """
+                    SELECT name, org_type, funding_type, parent_org_id, funding_sources,
+                           major_advertisers, media_bias_rating, factual_reporting
+                    FROM organizations
+                    WHERE LOWER(normalized_name) = :name
+                    LIMIT 1
+                """
+                ),
+                {"name": normalized},
+            )
+            org_row = org_result.first()
+
+            score_result = await db.execute(
+                text(
+                    """
+                    SELECT axis_name, score, prose_explanation
+                    FROM source_analysis_scores
+                    WHERE LOWER(source_name) = :name
+                """
+                ),
+                {"name": normalized},
+            )
+            scores = [
+                {
+                    "axis": row.axis_name,
+                    "score": row.score,
+                    "explanation": row.prose_explanation,
+                }
+                for row in score_result
+            ]
+
+            if org_row:
+                return {
+                    "name": org_row.name,
+                    "org_type": org_row.org_type,
+                    "funding_type": org_row.funding_type,
+                    "funding_sources": org_row.funding_sources or [],
+                    "major_advertisers": org_row.major_advertisers or [],
+                    "media_bias_rating": org_row.media_bias_rating,
+                    "factual_reporting": org_row.factual_reporting,
+                    "analysis_scores": scores,
+                }
+            return {"name": source_name, "analysis_scores": scores}
+
+        try:
+            if session is not None:
+                return await _run(session)
+            async with await self._get_db_session() as new_s:
+                return await _run(new_s)
+        except Exception as e:
+            logger.error("Owner interests query failed for '%s': %s", source_name, e)
+            return {}
+
+    async def _persist_analysis(
+        self, article_url: str, source_name: str, analysis_json: Dict[str, Any], session: Optional[AsyncSession] = None
+    ) -> None:
+        async def _run(db: AsyncSession) -> None:
+            await db.execute(
+                text(
+                    """
+                    INSERT INTO material_interest_analyses
+                        (article_url, source_name, analysis_json, created_at)
+                    VALUES (:url, :source, :analysis, :now)
+                """
+                ),
+                {
+                    "url": article_url,
+                    "source": source_name,
+                    "analysis": json.dumps(analysis_json, default=str),
+                    "now": datetime.now(timezone.utc),
+                },
+            )
+            await db.commit()
+
+        try:
+            if session is not None:
+                return await _run(session)
+            async with await self._get_db_session() as new_s:
+                return await _run(new_s)
+        except Exception as e:
+            logger.error("Failed to persist material interest analysis: %s", e)
+
+    async def _ai_analyze_interests(
+        self,
+        source_name: str,
+        source_country: str,
+        mentioned_countries: List[str],
+        topics: Optional[List[str]],
+        article_text: Optional[str],
+        gdelt_context: Dict[str, Any],
+        country_resources: Dict[str, Dict[str, Any]],
+        trade_data: List[Dict[str, Any]],
+        owner_interests: Dict[str, Any],
+        commodity_context: Dict[str, Dict[str, Any]],
+    ) -> Dict[str, Any]:
+        if not self.llm_client:
+            return {
+                "beneficiary_table": [],
+                "analysis_summary": "LLM client not available.",
+                "reader_warnings": [],
+                "potential_conflicts": [],
+            }
+
+        prompt = f"""Analyze material interests affecting coverage of this news story.
+
+Source: {source_name} (from {source_country})
+Countries mentioned: {", ".join(mentioned_countries)}
+Topics: {", ".join(topics or ["general"])}
+
+Article text (excerpt): {(article_text or "")[:2000]}
+
+GDELT economic context (last 30 days between mentioned countries):
+{json.dumps(gdelt_context, indent=2)}
+
+Country resources (natural resources, exports, imports):
+{json.dumps(country_resources, indent=2)}
+
+Trade flows between mentioned countries:
+{json.dumps(trade_data, indent=2)}
+
+Source owner/funding profile:
+{json.dumps(owner_interests, indent=2)}
+
+Commodity price context:
+{json.dumps(commodity_context, indent=2)}
+
+Answer these questions directly:
+
+1. Who benefits economically from stability in this region? Who benefits from instability?
+2. What commodities or trade flows are at stake in this story?
+3. Does the source's ownership or funding create structural pressure on coverage?
+4. What is the reader not being told about economic interests?
+
+Return ONLY valid JSON:
+
+{{
+  "beneficiary_table": [
+    {{
+      "actor": "string (country, company, or organization)",
+      "interest_type": "stability|instability|economic_gain",
+      "interest_description": "Brief explanation of the economic stake",
+      "evidence": "Supporting data or reasoning",
+      "certainty": "high|medium|low"
+    }}
+  ],
+  "analysis_summary": "Concise analysis of the economic forces shaping this coverage",
+  "reader_warnings": ["Things the reader should be aware of regarding economic interests"],
+  "potential_conflicts": ["Conflicts between coverage and source interests"]
+}}
+
+{COPY_STYLE_GUIDE}"""
+
+        try:
+            response = self.llm_client.chat_completions_create(
+                service_name="material",
+                messages=[
+                    {"role": "system", "content": MATERIAL_INTEREST_SYSTEM_PROMPT},
+                    {"role": "user", "content": prompt},
+                ],
+                max_tokens=1200,
+                temperature=0.3,
+            )
+
+            content = response.choices[0].message.content or ""
+            parsed = _extract_json(content)
+
+            if parsed:
+                return {
+                    "beneficiary_table": parsed.get("beneficiary_table", []),
+                    "analysis_summary": parsed.get("analysis_summary", ""),
+                    "reader_warnings": parsed.get("reader_warnings", []),
+                    "potential_conflicts": parsed.get("potential_conflicts", []),
+                    "confidence": parsed.get("certainty", "medium"),
+                }
+
+            logger.warning(
+                "AI response could not be parsed as JSON: %s", content[:200]
+            )
+            return {
+                "beneficiary_table": [],
+                "analysis_summary": "Analysis unavailable.",
+                "reader_warnings": [],
+                "potential_conflicts": [],
+            }
+
+        except Exception as e:
+            logger.error("AI analysis failed: %s", e)
+            return {
+                "beneficiary_table": [],
+                "analysis_summary": "Analysis failed.",
+                "reader_warnings": [],
+                "potential_conflicts": [],
+            }
 
     async def analyze_material_context(
         self,
@@ -206,169 +508,93 @@ class MaterialInterestAgent:
         topics: Optional[List[str]] = None,
         article_text: Optional[str] = None,
     ) -> Dict[str, Any]:
-        """
-        Analyze material interests that may affect coverage.
-
-        Args:
-            article_source: Name of the news source
-            source_country: Country code of the source
-            mentioned_countries: Countries mentioned in the article
-            topics: Topics covered (e.g., trade, energy, defense)
-            article_text: Optional article text for deeper analysis
-
-        Returns:
-            Material context analysis
-        """
         logger.info(
-            f"Analyzing material context for {article_source} ({source_country})"
+            "Analyzing material context for %s (%s)", article_source, source_country
         )
 
-        # Gather trade data for country relationships
-        trade_analyses = []
-        for country in mentioned_countries[:5]:  # Limit to 5 countries
-            if country != source_country:
-                trade_data = await self._get_trade_relationship(source_country, country)
-                if trade_data:
-                    trade_analyses.append(
-                        {"country_pair": f"{source_country}-{country}", **trade_data}
-                    )
+        all_countries = [c for c in [source_country] + mentioned_countries[:4] if c]
+        if not all_countries:
+            all_countries = mentioned_countries[:5]
 
-        # Get known interests for major sources
-        source_interests = self._get_known_source_interests(article_source)
-
-        # Use AI to synthesize analysis
-        analysis = {
-            "source": article_source,
-            "source_country": source_country,
-            "mentioned_countries": mentioned_countries,
-            "trade_relationships": trade_analyses,
-            "known_interests": source_interests,
-            "potential_conflicts": [],
-            "analysis_summary": None,
-            "analyzed_at": datetime.now(timezone.utc).isoformat(),
-        }
-
-        if self.llm_client and (trade_analyses or source_interests):
-            analysis = await self._ai_analyze_interests(analysis, topics, article_text)
-
-        return analysis
-
-    async def _get_trade_relationship(
-        self, country1: str, country2: str
-    ) -> Optional[Dict[str, Any]]:
-        """Get trade relationship data between two countries."""
+        session = await self._get_db_session()
         try:
-            # OEC API for trade data
-            # Note: OEC requires specific formatting, this is a simplified example
-            # In production, you'd use their actual API params
-
-            key = f"{country1}-{country2}"
-            reverse_key = f"{country2}-{country1}"
-
-            if key in KNOWN_TRADE_RELATIONSHIPS:
-                return KNOWN_TRADE_RELATIONSHIPS[key]
-            if reverse_key in KNOWN_TRADE_RELATIONSHIPS:
-                data = KNOWN_TRADE_RELATIONSHIPS[reverse_key].copy()
-                data["direction"] = "reversed"
-                return data
-
-            return None
-
-        except Exception as e:
-            logger.error(f"Failed to get trade data for {country1}-{country2}: {e}")
-            return None
-
-    def _get_known_source_interests(self, source_name: str) -> Dict[str, Any]:
-        """Return known material interests for major news sources."""
-        normalized = source_name.lower()
-        for key, data in KNOWN_SOURCE_INTERESTS.items():
-            if key in normalized:
-                return data
-
-        return {}
-
-    async def _ai_analyze_interests(
-        self,
-        analysis: Dict[str, Any],
-        topics: Optional[List[str]],
-        article_text: Optional[str],
-    ) -> Dict[str, Any]:
-        """Use AI to synthesize material interest analysis."""
-        if not self.llm_client:
-            return analysis
-
-        try:
-            context = f"""Analyze potential material interests affecting news coverage.
-
-Source: {analysis["source"]} (from {analysis["source_country"]})
-Countries Mentioned: {", ".join(analysis["mentioned_countries"])}
-Topics: {", ".join(topics or ["general"])}
-
-Trade Relationships:
-{json.dumps(analysis["trade_relationships"], indent=2)}
-
-Known Source Interests:
-{json.dumps(analysis["known_interests"], indent=2)}
-
-Based on this information:
-1. Are there potential conflicts of interest in covering this story?
-2. What material interests might influence the coverage?
-3. Should readers be aware of any biases or blind spots?
-
-Respond in JSON:
-{{
-  "potential_conflicts": ["list of potential conflicts"],
-  "analysis_summary": "Brief summary of material context",
-  "reader_warnings": ["things readers should know"],
-  "confidence": "high/medium/low"
-}}
-
-{COPY_STYLE_GUIDE}"""
-
-            response = self.llm_client.chat_completions_create(
-                service_name="material",
-                messages=[
-                    {"role": "system", "content": MATERIAL_INTEREST_SYSTEM_PROMPT},
-                    {"role": "user", "content": context},
-                ],
-                max_tokens=600,
-                temperature=0.3,
+            gdelt_context, resources, owner_interests = await asyncio.gather(
+                self._get_gdelt_economic_context(all_countries, session=session),
+                self._get_country_resources(all_countries, session=session),
+                self._get_source_owner_interests(article_source, session=session),
             )
 
-            content = response.choices[0].message.content or ""
-            json_match = re.search(r"\{[^{}]*\}", content, re.DOTALL)
+            trade_data: List[Dict[str, Any]] = []
+            trade_tasks = []
+            for i, c1 in enumerate(all_countries):
+                for c2 in all_countries[i + 1 :]:
+                    trade_tasks.append(self._get_trade_flows(c1, c2, session=session))
+            trade_results = await asyncio.gather(*trade_tasks)
+            pair_index = 0
+            for i, c1 in enumerate(all_countries):
+                for j, c2 in enumerate(all_countries[i + 1 :]):
+                    if pair_index < len(trade_results):
+                        trade_data.append(
+                            {"exporter": c1, "importer": c2, **trade_results[pair_index]}
+                        )
+                    pair_index += 1
 
-            if json_match:
-                ai_data = json.loads(json_match.group())
-                analysis["potential_conflicts"] = ai_data.get("potential_conflicts", [])
-                analysis["analysis_summary"] = ai_data.get("analysis_summary")
-                analysis["reader_warnings"] = ai_data.get("reader_warnings", [])
-                analysis["confidence"] = ai_data.get("confidence", "low")
+            commodity_names: List[str] = []
+            for cr in resources.values():
+                for res in cr.get("natural_resources", []):
+                    commodity_names.append(str(res))
+            commodity_context = await self._get_commodity_context(commodity_names[:10], session=session)
 
-        except Exception as e:
-            logger.error(f"AI analysis failed: {e}")
+            analysis = await self._ai_analyze_interests(
+                source_name=article_source,
+                source_country=source_country,
+                mentioned_countries=mentioned_countries,
+                topics=topics,
+                article_text=article_text,
+                gdelt_context=gdelt_context,
+                country_resources=resources,
+                trade_data=trade_data,
+                owner_interests=owner_interests,
+                commodity_context=commodity_context,
+            )
 
-        return analysis
+            timestamp_str = datetime.now(timezone.utc).strftime("%Y%m%d%H%M%S")
+            article_url_hint = f"material_{article_source}_{timestamp_str}"
+            await self._persist_analysis(article_url_hint, article_source, analysis, session=session)
 
-    async def get_country_economic_profile(self, country_code: str) -> Dict[str, Any]:
-        """Get economic profile for a country."""
-        # Simplified - in production would call OEC API
-        return COUNTRY_PROFILES.get(
-            country_code,
-            {"note": "Economic data not available"},
-        )
+            result: Dict[str, Any] = {
+                "source": article_source,
+                "source_country": source_country,
+                "mentioned_countries": mentioned_countries,
+                "trade_relationships": trade_data,
+                "known_interests": owner_interests,
+                "potential_conflicts": analysis.get("potential_conflicts", []),
+                "analysis_summary": analysis.get("analysis_summary"),
+                "reader_warnings": analysis.get("reader_warnings", []),
+                "beneficiary_table": analysis.get("beneficiary_table", []),
+                "gdelt_context": gdelt_context,
+                "commodity_context": commodity_context,
+                "confidence": analysis.get("confidence", "medium"),
+                "analyzed_at": datetime.now(timezone.utc).isoformat(),
+            }
+            return result
+        finally:
+            await session.close()
+
+    async def get_country_economic_profile(
+        self, country_code: str
+    ) -> Dict[str, Any]:
+        resources = await self._get_country_resources([country_code])
+        return resources.get(country_code.upper(), {"note": "Economic data not available"})
 
     async def close(self) -> None:
-        """Close HTTP client."""
         await self.http_client.aclose()
 
 
-# Singleton instance
 _agent: Optional[MaterialInterestAgent] = None
 
 
 def get_material_interest_agent() -> MaterialInterestAgent:
-    """Get or create the MaterialInterestAgent singleton."""
     global _agent
     if _agent is None:
         _agent = MaterialInterestAgent()

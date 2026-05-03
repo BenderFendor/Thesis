@@ -8,16 +8,33 @@ from typing import Any, Dict, List, Sequence
 from app.core.config import settings
 from app.core.llm_client import get_llm_client
 from app.core.logging import get_logger
+from app.services.prompting import (
+    JSON_OUTPUT_RULES,
+    PROVIDED_CONTEXT_ONLY_RULES,
+    build_json_system_prompt,
+    compose_prompt_blocks,
+)
 from app.services.source_profile_extractor import FIELD_KEYS, SourceDocument
 
 logger = get_logger("source_profile_synthesizer")
 
-SYSTEM_PROMPT = (
-    "You are a media research analyst. Use only the provided source documents. "
-    "Do not guess, do not invent numbers, and do not rely on outside knowledge. "
-    "If a detail is missing, leave that field empty. "
-    "Provide critical analysis in notes using evidence from the documents. "
-    "Return strict JSON that matches the schema."
+SYSTEM_PROMPT = build_json_system_prompt(
+    role="media research analyst",
+    task=(
+        "Analyze source documents and produce critical, evidence-based entries for "
+        "the listed fields. Only use information from the provided documents. If a "
+        "detail is missing, leave that field empty. Provide critical analysis in "
+        "notes using evidence from the documents. Return strict JSON that matches "
+        "the schema."
+    ),
+    grounding_rules=compose_prompt_blocks(
+        PROVIDED_CONTEXT_ONLY_RULES,
+        "Do not guess, do not invent numbers, and do not rely on outside knowledge.",
+    ),
+    output_rules=compose_prompt_blocks(
+        JSON_OUTPUT_RULES,
+        "Keep notes grounded in document evidence.",
+    ),
 )
 
 

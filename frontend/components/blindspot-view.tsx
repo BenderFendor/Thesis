@@ -193,7 +193,7 @@ function LeadStory({
     <button
       type="button"
       onClick={() => onOpen(card)}
-      className="group relative flex w-full flex-col overflow-hidden rounded-xl border border-white/10 bg-white/[0.025] text-left transition-all duration-500 ease-out hover:bg-white/[0.05] lg:rounded-3xl lg:border-0 lg:bg-black/20 lg:shadow-2xl lg:hover:bg-white/[0.03]"
+      className="group relative flex w-full flex-col overflow-hidden rounded-xl border border-white/10 bg-white/[0.025] text-left transition-all duration-500 ease-out hover:bg-white/[0.05] lg:rounded-2xl lg:border-0 lg:bg-black/20 lg:shadow-2xl lg:hover:bg-white/[0.03]"
     >
       <div className="relative aspect-square w-full overflow-hidden bg-white/5 lg:aspect-video">
         {imageUrl ? (
@@ -279,7 +279,7 @@ function StoryRow({
     <button
       type="button"
       onClick={() => onOpen(card)}
-      className="group flex w-full flex-col gap-2 rounded-xl border border-white/10 bg-white/[0.025] p-2.5 text-left transition-all duration-300 hover:bg-white/[0.05] lg:gap-3 lg:rounded-2xl lg:border-0 lg:bg-white/[0.02] lg:p-4"
+      className="group flex w-full flex-col gap-2 rounded-lg border border-white/10 bg-white/[0.025] p-2.5 text-left transition-all duration-300 hover:bg-white/[0.05] lg:gap-3 lg:rounded-xl lg:border-0 lg:bg-white/[0.02] lg:p-4"
     >
       <div className="flex items-start justify-between gap-2 lg:gap-4">
         <div className="min-w-0 flex-1">
@@ -339,7 +339,7 @@ function MobileBlindspotTile({
     <button
       type="button"
       onClick={() => onOpen(card)}
-      className="group overflow-hidden rounded-xl border border-white/10 bg-white/[0.025] text-left transition duration-300 active:scale-[0.98]"
+      className="group overflow-hidden rounded-lg border border-white/10 bg-white/[0.025] text-left transition duration-300 active:scale-[0.98]"
     >
       <div className="relative aspect-square overflow-hidden bg-white/[0.04]">
         {imageUrl ? (
@@ -501,7 +501,7 @@ export function BlindspotView({ category, sources }: BlindspotViewProps) {
             onClick={() =>
               setExpandedLanes((current) => ({ ...current, [laneId]: true }))
             }
-            className="w-full rounded-2xl border-white/10 bg-white/[0.02] py-6 text-[10px] font-mono uppercase tracking-[0.2em] text-muted-foreground"
+            className="w-full rounded-xl border-white/10 bg-white/[0.02] py-6 text-[10px] font-mono uppercase tracking-[0.2em] text-muted-foreground"
           >
             Show {hiddenCount} more blindspots
           </Button>
@@ -518,10 +518,10 @@ export function BlindspotView({ category, sources }: BlindspotViewProps) {
           {Array.from({ length: 2 }).map((_, index) => (
             <div key={index} className="space-y-6">
               <Skeleton className="h-10 w-48 opacity-20" />
-              <Skeleton className="h-64 w-full rounded-3xl opacity-10" />
+              <Skeleton className="h-64 w-full rounded-2xl opacity-10" />
               <div className="space-y-3">
-                <Skeleton className="h-20 w-full rounded-2xl opacity-5" />
-                <Skeleton className="h-20 w-full rounded-2xl opacity-5" />
+                <Skeleton className="h-20 w-full rounded-xl opacity-5" />
+                <Skeleton className="h-20 w-full rounded-xl opacity-5" />
               </div>
             </div>
           ))}
@@ -585,7 +585,7 @@ export function BlindspotView({ category, sources }: BlindspotViewProps) {
                 className="min-w-0 flex-1 cursor-pointer border-none bg-transparent px-2 py-1 font-mono text-[9px] uppercase tracking-widest text-foreground/80 focus:ring-0"
               >
                 {data.available_lenses.map((lens) => (
-                  <option key={lens.id} value={lens.id} disabled={!lens.available} className="bg-[#0a0a0a]">
+                  <option key={lens.id} value={lens.id} disabled={!lens.available} className="bg-[var(--card)]">
                     {lens.label}
                   </option>
                 ))}
@@ -600,7 +600,7 @@ export function BlindspotView({ category, sources }: BlindspotViewProps) {
                 className="min-w-0 flex-1 cursor-pointer border-none bg-transparent px-2 py-1 font-mono text-[9px] uppercase tracking-widest text-foreground/80 focus:ring-0"
               >
                 {SORT_OPTIONS.map((option) => (
-                  <option key={option.value} value={option.value} className="bg-[#0a0a0a]">
+                  <option key={option.value} value={option.value} className="bg-[var(--card)]">
                     {option.label}
                   </option>
                 ))}
@@ -610,7 +610,7 @@ export function BlindspotView({ category, sources }: BlindspotViewProps) {
         </motion.div>
 
         {!data.selected_lens.available ? (
-          <div className="bg-white/[0.01] py-32 text-center rounded-3xl border border-dashed border-white/5">
+          <div className="bg-white/[0.01] py-32 text-center rounded-2xl border border-dashed border-white/5">
             <h3 className="font-serif text-2xl text-foreground/60">
               {data.selected_lens.label} analyzer is offline
             </h3>

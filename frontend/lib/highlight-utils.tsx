@@ -96,6 +96,7 @@ function renderTextWithHighlights(
   safeHighlights.forEach((highlight) => {
     const start = Math.max(cursor, highlight.character_start)
     const end = highlight.character_end
+    if (end <= cursor) return
     if (start > cursor) {
       nodes.push(text.slice(cursor, start))
     }
@@ -105,7 +106,7 @@ function renderTextWithHighlights(
       <mark
         key={stableId}
         data-highlight-stable-id={stableId}
-        className={`cursor-pointer rounded-sm transition-colors hover:opacity-80 ${getHighlightColorClass(highlight.color)} ${stableId === activeHighlightId ? "ring-2 ring-primary/70" : ""}`}
+        className={`cursor-pointer transition-colors hover:opacity-80 ${getHighlightColorClass(highlight.color)} ${stableId === activeHighlightId ? "ring-2 ring-primary/70" : ""}`}
         onClick={(event) => {
           event.stopPropagation()
           onHighlightClick?.(stableId, event.currentTarget)
@@ -166,6 +167,7 @@ export function getMarkdownWithHighlights(text: string, highlights: Highlight[])
   validHighlights.forEach((highlight) => {
     const start = Math.max(cursor, highlight.character_start)
     const end = highlight.character_end
+    if (end <= cursor) return
     if (start > cursor) {
       result += text.slice(cursor, start)
     }
@@ -227,7 +229,7 @@ export function buildObsidianMarkdown(params: {
   }
 
   lines.push("## Full Article\n")
-  const fullContent = fullArticleText || article.content || article.summary || ""
+  const fullContent = fullArticleText || article.summary || article.content || ""
   lines.push(getMarkdownWithHighlights(fullContent, activeHighlights))
 
   return [...lines, "", "[[News Clippings]]"].join("\n")

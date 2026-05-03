@@ -59,6 +59,11 @@ EXPANDED_WIKIDATA_PROPS = {
     "P1960": "google_scholar_author_id",
     "P214": "viaf_id",
     "P244": "library_of_congress_id",
+    "P102": "political_party",
+    "P1142": "political_ideology",
+    "P737": "influenced_by",
+    "P463": "member_of",
+    "P937": "work_location",
 }
 OFFICIAL_PAGE_CANDIDATES: Sequence[Tuple[str, Sequence[str]]] = (
     ("about", ("/about", "/about-us", "/about/", "/about-us/")),
@@ -488,6 +493,9 @@ def _build_reporter_sections(
     affiliations: Sequence[str],
     education: Sequence[str],
     citizenships: Sequence[str],
+    political_party: Sequence[str],
+    political_ideology: Sequence[str],
+    member_of: Sequence[str],
     official_website: Optional[str],
     wikipedia_url: Optional[str],
     wikidata_url: Optional[str],
@@ -580,6 +588,37 @@ def _build_reporter_sections(
             ],
         },
         {
+            "id": "alignment",
+            "title": "Alignment",
+            "status": "available"
+            if political_party or political_ideology or member_of
+            else "missing",
+            "items": [
+                {
+                    "label": "Political party",
+                    "value": value,
+                    "sources": _unique_strings([wikidata_url]),
+                }
+                for value in political_party
+            ]
+            + [
+                {
+                    "label": "Political ideology",
+                    "value": value,
+                    "sources": _unique_strings([wikidata_url]),
+                }
+                for value in political_ideology
+            ]
+            + [
+                {
+                    "label": "Member of",
+                    "value": value,
+                    "sources": _unique_strings([wikidata_url]),
+                }
+                for value in member_of
+            ],
+        },
+        {
             "id": "links",
             "title": "Links",
             "status": "available"
@@ -663,7 +702,8 @@ async def build_reporter_dossier(
             [
                 item_id
                 for entity in entity_candidates
-                for prop in ("P31", "P106", "P108", "P69", "P27", "P101", "P1416")
+                for prop in ("P31", "P106", "P108", "P69", "P27", "P101", "P1416",
+                             "P102", "P1142", "P463")
                 for item_id in _extract_wikidata_item_ids(
                     entity.get("claims") or {}, prop
                 )
@@ -706,6 +746,22 @@ async def build_reporter_dossier(
                 for item_id in _extract_wikidata_item_ids(claims, "P1416")
                 if item_id in label_map
             ]
+            political_party = [
+                label_map[item_id]
+                for item_id in _extract_wikidata_item_ids(claims, "P102")
+                if item_id in label_map
+            ]
+            political_ideology = [
+                label_map[item_id]
+                for item_id in _extract_wikidata_item_ids(claims, "P1142")
+                if item_id in label_map
+            ]
+            member_of = [
+                label_map[item_id]
+                for item_id in _extract_wikidata_item_ids(claims, "P463")
+                if item_id in label_map
+            ]
+            work_location = _extract_wikidata_string(claims, "P937")
             name_score = _text_similarity(normalized_name, label)
             organization_score = max(
                 _token_overlap(organization, " ".join(employer_labels)),
@@ -752,6 +808,10 @@ async def build_reporter_dossier(
                 "instagram_handle": instagram_handle,
                 "field_of_work": field_of_work,
                 "affiliations": affiliations,
+                "political_party": political_party,
+                "political_ideology": political_ideology,
+                "member_of": member_of,
+                "work_location": work_location,
                 "wiki_title": wiki_title,
                 "scores": {
                     "name": round(name_score, 3),
@@ -832,6 +892,9 @@ async def build_reporter_dossier(
             affiliations=best_meta["affiliations"],
             education=best_meta["education"],
             citizenships=best_meta["citizenships"],
+            political_party=best_meta.get("political_party") or [],
+            political_ideology=best_meta.get("political_ideology") or [],
+            member_of=best_meta.get("member_of") or [],
             official_website=cast(Optional[str], best_meta.get("official_website")),
             wikipedia_url=wikipedia_url,
             wikidata_url=wikidata_url,
@@ -879,6 +942,10 @@ async def build_reporter_dossier(
             "field_of_work": best_meta.get("field_of_work"),
             "affiliations": best_meta.get("affiliations"),
             "citizenships": best_meta["citizenships"],
+            "political_party": best_meta.get("political_party"),
+            "political_ideology": best_meta.get("political_ideology"),
+            "member_of": best_meta.get("member_of"),
+            "work_location": best_meta.get("work_location"),
             "official_website": best_meta.get("official_website"),
             "raw_match_scores": best_meta["scores"],
             "citation_urls": citation_urls,

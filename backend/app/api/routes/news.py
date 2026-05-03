@@ -25,6 +25,7 @@ from app.database import (
 from app.models.news import NewsArticle, NewsResponse, SourceInfo
 from app.services.country_mentions import country_name
 from app.services.cache import news_cache
+from app.services.rss_parser_rust_bindings import rank_articles as rust_rank_articles
 
 router = APIRouter(prefix="/news", tags=["news"])
 
@@ -748,6 +749,86 @@ async def get_recent_news(
         limit=limit,
         next_cursor=next_cursor,
         has_more=has_more,
+    )
+
+
+class RankRequest(BaseModel):
+    """Request model for the ranked feed endpoint."""
+
+    articles: List[Dict[str, Any]]
+    liked_article_ids: List[int] = []
+    bookmarked_article_ids: List[int] = []
+    favorite_source_ids: List[str] = []
+
+
+class RankResponse(BaseModel):
+    """Response model for the ranked feed endpoint."""
+
+    articles: List[Dict[str, Any]]
+    total: int
+
+
+@router.post("/ranked", response_model=RankResponse)
+async def post_ranked_articles(request: RankRequest) -> RankResponse:
+    """Rank articles using the Rust backend ranking engine.
+
+    Accepts article metadata, liked/bookmarked article IDs, and favorite
+    source IDs. Returns articles sorted by personalized ranking including
+    score breakdowns.
+    """
+    try:
+        ranked = rust_rank_articles(
+            articles=request.articles,
+            liked_article_ids=request.liked_article_ids,
+            bookmarked_article_ids=request.bookmarked_article_ids,
+            favorite_source_ids=request.favorite_source_ids,
+        )
+    except Exception:
+        # Fallback: return articles in original order with zero scores
+        ranked = [
+            {
+                "article_id": a.get("id", 0),
+                "total_score": 0,
+                "bucket_rank": 0,
+                "bucket_label": "default",
+                "keyword_score": 0,
+                "category_score": 0,
+                "source_score": 0,
+                "matched_keywords": [],
+                "matched_categories": [],
+                "matched_source": None,
+            }
+            for a in request.articles
+        ]
+
+    # Merge ranking results back into article dicts
+    rank_map = {r["article_id"]: r for r in ranked}
+    sorted_articles = sorted(
+        request.articles,
+        key=lambda a: -(
+            rank_map.get(a.get("id"), {}).get("total_score", 0)
+            if rank_map.get(a.get("id"), {}).get("bucket_rank", 0) == max(
+                (r.get("bucket_rank", 0) for r in ranked), default=0
+            )
+            else 0
+        ),
+    )
+    # Sort by bucket rank first, then total score
+    sorted_articles.sort(
+        key=lambda a: (
+            -rank_map.get(a.get("id", -1), {}).get("bucket_rank", 0),
+            -rank_map.get(a.get("id", -1), {}).get("total_score", 0),
+        ),
+    )
+
+    for article in sorted_articles:
+        aid = article.get("id")
+        if aid and aid in rank_map:
+            article["ranking"] = rank_map[aid]
+
+    return RankResponse(
+        articles=sorted_articles,
+        total=len(sorted_articles),
     )
 
 

@@ -4,7 +4,9 @@ use tokio::runtime::Runtime;
 
 mod algorithms;
 mod cleaner;
+mod feed_rank;
 mod fetcher;
+mod gdelt;
 mod html_extract;
 mod parser;
 mod types;
@@ -12,6 +14,8 @@ mod types;
 use crate::algorithms::{
     deduplicate_article_groups, minhash_duplicate_pairs, sentence_diff, text_similarity,
 };
+use crate::feed_rank::rank_articles;
+use crate::gdelt::{filter_gdelt_by_domain, parse_gdelt_csv};
 use crate::html_extract::{extract_article_from_html, extract_og_image_from_html};
 use crate::parser::parse_sources;
 use crate::types::{ensure_source_requests, parse_result_to_pydict};
@@ -75,6 +79,9 @@ fn rss_parser_rust(py: Python<'_>, module: &Bound<'_, PyModule>) -> PyResult<()>
     module.add_function(wrap_pyfunction!(deduplicate_article_groups, module)?)?;
     module.add_function(wrap_pyfunction!(text_similarity, module)?)?;
     module.add_function(wrap_pyfunction!(sentence_diff, module)?)?;
+    module.add_function(wrap_pyfunction!(parse_gdelt_csv, module)?)?;
+    module.add_function(wrap_pyfunction!(filter_gdelt_by_domain, module)?)?;
+    module.add_function(wrap_pyfunction!(rank_articles, module)?)?;
     module.add("__version__", env!("CARGO_PKG_VERSION"))?;
 
     // Expose helper metadata

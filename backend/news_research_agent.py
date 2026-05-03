@@ -116,12 +116,21 @@ MAX_ITERATIONS = 5
 MAX_TOOL_CALLS_PER_SESSION = 15
 MIN_FINAL_ANSWER_CHARS = 120
 MIN_FINAL_ANSWER_SECTIONS = ("answer",)
+SEARCH_TOOLS_WITH_QUERY = {"web_search", "news_search", "gdelt_context_search", "gdelt_doc_search"}
 EXTERNAL_SEARCH_TOOLS = {"web_search", "news_search"}
 EXTERNAL_SEARCH_TOOLS.update({"gdelt_context_search", "gdelt_doc_search"})
 AUTO_FALLBACK_TOOL_ORDER = {
     "gdelt_context_search": ("gdelt_doc_search", "news_search"),
     "gdelt_doc_search": ("news_search",),
 }
+QUERY_SIMILARITY_THRESHOLD = 0.7
+
+_stop_events = threading.local()
+
+
+def _is_stopped() -> bool:
+    event = getattr(_stop_events, "event", None)
+    return event is not None and event.is_set()
 
 
 class RunnableMessageInvoker(Protocol):
@@ -188,6 +197,32 @@ def _tool_call_key(call: Dict[str, Any]) -> str:
     name = str(call.get("name", ""))
     normalized_args = _normalize_tool_call_args(name, call.get("args", {}))
     return f"{name}:{_serialize_tool_args(normalized_args)}"
+
+
+def _extract_search_query(call: Dict[str, Any]) -> str | None:
+    name = str(call.get("name", ""))
+    if name not in SEARCH_TOOLS_WITH_QUERY:
+        return None
+    args = call.get("args", {})
+    if not isinstance(args, dict):
+        return None
+    query = str(args.get("query") or args.get("keywords") or "").strip().lower()
+    return query if query else None
+
+
+def _search_queries_similar(new_query_raw: str, history: Set[str]) -> bool:
+    new_terms = set(_extract_query_terms(new_query_raw))
+    if not new_terms:
+        return False
+    for prev_query in history:
+        prev_terms = set(_extract_query_terms(prev_query))
+        if not prev_terms:
+            continue
+        overlap = len(new_terms & prev_terms)
+        smaller = min(len(new_terms), len(prev_terms))
+        if smaller > 0 and overlap / smaller > QUERY_SIMILARITY_THRESHOLD:
+            return True
+    return False
 
 
 def _iter_new_tool_calls(
@@ -1053,6 +1088,17 @@ def _is_recoverable_llamacpp_error(exc: Exception) -> bool:
     message = str(exc).lower()
     if "cannot have 2 or more assistant messages at the end of the list" in message:
         return True
+    if any(
+        term in message
+        for term in (
+            "jinja",
+            "chat template",
+            "template error",
+            "system message must be",
+            "conversation roles must alternate",
+        )
+    ):
+        return True
     return (
         "invalid_request_error" in message
         and "model" in message
@@ -1090,7 +1136,15 @@ def _sanitize_messages_for_llamacpp(
 ) -> List[BaseMessage]:
     if settings.llm_backend != "llamacpp":
         return list(messages)
-    return _trim_trailing_assistant_runs(_coalesce_assistant_runs(messages))
+    trimmed = _trim_trailing_assistant_runs(_coalesce_assistant_runs(messages))
+    system_messages: List[SystemMessage] = []
+    non_system: List[BaseMessage] = []
+    for message in trimmed:
+        if isinstance(message, SystemMessage):
+            system_messages.append(message)
+        else:
+            non_system.append(message)
+    return [*system_messages, *non_system]
 
 
 def _replace_system_message(
@@ -1163,10 +1217,7 @@ def _get_llm() -> ToolBindableLLM:
             _llm_instance = cast(
                 ToolBindableLLM,
                 ChatGoogleGenerativeAI(
-                    model=os.getenv(
-                        "NEWS_RESEARCH_GEMINI_MODEL",
-                        "gemini-3-flash-preview",
-                    ),
+                    model=settings.gemini_model,
                     temperature=0.2,
                     max_retries=2,
                 ),
@@ -1265,6 +1316,12 @@ def _dedup_tool_node(state: "AgentState") -> Dict[str, Any]:
             if _is_internal_fetch_call(call):
                 internal_fetch_calls_done += 1
 
+    search_query_keys = {
+        key.removeprefix("search_query:")
+        for key in tool_history
+        if key.startswith("search_query:")
+    }
+
     results: List[ToolMessage] = []
     unique_calls = []
 
@@ -1286,6 +1343,26 @@ def _dedup_tool_node(state: "AgentState") -> Dict[str, Any]:
             )
             logger.debug("dedup_tool_node: duplicate call key=%s", key)
             continue
+
+        if tool_name in SEARCH_TOOLS_WITH_QUERY:
+            raw_query = _extract_search_query(call)
+            if raw_query and _search_queries_similar(raw_query, search_query_keys):
+                results.append(
+                    ToolMessage(
+                        content=(
+                            f"A very similar search query was already run. "
+                            f"Reuse prior search results in context instead of repeating {raw_query}."
+                        ),
+                        tool_call_id=tool_call_id,
+                        name=tool_name,
+                    )
+                )
+                logger.info(
+                    "dedup_tool_node: similar query blocked tool=%s query=%s",
+                    tool_name,
+                    raw_query,
+                )
+                continue
 
         if tool_calls_used >= MAX_TOOL_CALLS_PER_SESSION:
             results.append(
@@ -1344,10 +1421,16 @@ def _dedup_tool_node(state: "AgentState") -> Dict[str, Any]:
         unique_calls.append(call)
         if _is_internal_fetch_call(call):
             internal_fetch_calls_done += 1
+        if (query_text := _extract_search_query(call)):
+            query_key = f"search_query:{query_text}"
+            tool_history.add(query_key)
+            search_query_keys.add(query_text)
 
     if unique_calls:
         executed_results: List[ToolMessage] = []
         for call in unique_calls:
+            if _is_stopped():
+                break
             tool_messages, tool_calls_used = _execute_tool_call_with_fallbacks(
                 state,
                 call,
@@ -1393,6 +1476,14 @@ def call_model(state: AgentState) -> Dict[str, Any]:
     mode = state.get("mode", "research")
     tool_history = set(state.get("tool_history", set()))
     tool_calls_used = int(state.get("tool_calls_used", 0))
+    if _is_stopped():
+        return {
+            "messages": [AIMessage(content="Research cancelled.")],
+            "iteration": state.get("iteration", 0),
+            "mode": "final",
+            "tool_history": tool_history,
+            "tool_calls_used": tool_calls_used,
+        }
     if mode in {"final", "final_pending"}:
         messages = list(state["messages"])
         last_user = ""
@@ -1658,6 +1749,7 @@ def research_news(
     verbose: bool = True,
     chat_history: Optional[List[Dict[str, str]]] = None,
 ) -> Dict[str, Any]:
+    _stop_events.event = None
     set_news_articles(articles)
     initial_state: AgentState = {
         "messages": _build_initial_messages(query, chat_history),
@@ -1752,6 +1844,19 @@ def research_news(
 
 
 def research_stream(
+    query: str,
+    articles: Optional[List[Dict[str, Any]]] = None,
+    chat_history: Optional[List[Dict[str, str]]] = None,
+    stop_event: threading.Event | None = None,
+) -> Generator[str, None, None]:
+    _stop_events.event = stop_event
+    try:
+        yield from _research_stream_impl(query, articles, chat_history, stop_event)
+    finally:
+        _stop_events.event = None
+
+
+def _research_stream_impl(
     query: str,
     articles: Optional[List[Dict[str, Any]]] = None,
     chat_history: Optional[List[Dict[str, str]]] = None,

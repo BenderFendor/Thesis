@@ -1,13 +1,11 @@
 """GDELT Global Database of Events, Language, and Tone integration service.
-
+ 
 Provides functionality to fetch GDELT events and match them to articles
 using URL matching and embedding similarity.
 """
 
 from __future__ import annotations
 
-import csv
-import io
 import logging
 from datetime import datetime, timezone
 from typing import TYPE_CHECKING, Any, Dict, List, Optional, Sequence, Tuple, cast
@@ -21,6 +19,7 @@ from app.database import (
     GDELTEvent,
     Article,
 )
+from app.services.rss_parser_rust_bindings import parse_gdelt_csv as rust_parse_gdelt
 from app.vector_store import VectorStore, get_vector_store
 
 if TYPE_CHECKING:
@@ -105,7 +104,7 @@ class GDELTIntegration:
     async def _fetch_export_csv(
         self, csv_url: str, limit: int = 250
     ) -> List[Dict[str, Any]]:
-        """Fetch and parse a GDELT export CSV file.
+        """Fetch and parse a GDELT export CSV file using Rust parser.
 
         Args:
             csv_url: URL to the CSV file
@@ -119,21 +118,11 @@ class GDELTIntegration:
             response = await client.get(csv_url)
             response.raise_for_status()
 
-            # GDELT CSVs are tab-delimited
+            # Use Rust parser for 10x speedup
             content = response.text
-            reader = csv.DictReader(io.StringIO(content), delimiter="\t")
+            events = rust_parse_gdelt(content, limit)
 
-            events = []
-            for i, row in enumerate(reader):
-                if i >= limit:
-                    break
-
-                # Parse GDELT event
-                event = self._parse_gdelt_row(row)
-                if event:
-                    events.append(event)
-
-            logger.info(f"Parsed {len(events)} events from {csv_url}")
+            logger.info(f"Parsed {len(events)} events via Rust from {csv_url}")
             return events
 
         except Exception as e:

@@ -29,6 +29,7 @@ import { ThemeToggle } from "@/components/theme-toggle"
 const loadGlobeView = () => import("@/components/globe-view").then((mod) => mod.GlobeView)
 const loadFeedView = () => import("@/components/feed-view").then((mod) => mod.FeedView)
 const loadBlindspotView = () => import("@/components/blindspot-view").then((mod) => mod.BlindspotView)
+const loadLiveNewsView = () => import("@/components/live-news-view").then((mod) => mod.LiveNewsView)
 const loadArticleDetailModal = () =>
   import("@/components/article-detail-modal").then((mod) => mod.ArticleDetailModal)
 
@@ -43,6 +44,11 @@ const FeedView = dynamic(loadFeedView, {
 })
 
 const BlindspotView = dynamic(loadBlindspotView, {
+  ssr: false,
+  loading: () => <Skeleton className="h-[400px] w-full" />,
+})
+
+const LiveNewsView = dynamic(loadLiveNewsView, {
   ssr: false,
   loading: () => <Skeleton className="h-[400px] w-full" />,
 })
@@ -63,6 +69,7 @@ import { fetchCacheStatus, fetchCategories, NewsArticle } from "@/lib/api"
 import { ErrorBoundary } from '@/components/ErrorBoundary';
 import { NotificationsPopup, Notification, type NotificationActionType } from '@/components/notification-popup';
 import { SourceSidebar } from "@/components/source-sidebar";
+import { CredibilityBadge } from "@/components/credibility-badge";
 import { cn } from "@/lib/utils";
 import {
   GRID_VIEW_MODE_STORAGE_KEY,
@@ -84,6 +91,7 @@ const VIEW_OPTIONS: Array<{ value: ViewMode; label: string }> = [
   { value: "grid", label: "Grid" },
   { value: "scroll", label: "Scroll" },
   { value: "blindspot", label: "Blindspot" },
+  { value: "live-news", label: "Live" },
 ]
 
 const MOBILE_VIEW_OPTIONS = VIEW_OPTIONS
@@ -268,6 +276,10 @@ function NewsPage() {
     }
     if (view === "blindspot") {
       void loadBlindspotView()
+      return
+    }
+    if (view === "live-news") {
+      void loadLiveNewsView()
     }
   }, [])
 
@@ -720,6 +732,12 @@ function NewsPage() {
                         ? "Source metadata available for this story."
                         : "Lead coverage loading..."}
                     </div>
+                    {leadArticle && (
+                      <CredibilityBadge
+                        domain={leadArticle.sourceId || leadArticle.source}
+                        size="sm"
+                      />
+                    )}
                   </div>
                 </div>
               </div>
@@ -761,6 +779,13 @@ function NewsPage() {
                           key={`${category.id}-blindspot`}
                           category={activeCategory}
                           sources={selectedSourceIds}
+                        />
+                      )}
+                      {currentView === "live-news" && (
+                        <LiveNewsView
+                          key={`${category.id}-live-news`}
+                          articles={browseArticles}
+                          loading={loading}
                         />
                       )}
                     </>

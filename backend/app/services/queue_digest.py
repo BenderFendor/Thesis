@@ -9,7 +9,6 @@ from app.core.config import settings
 from app.core.llm_client import get_llm_client
 from app.core.logging import get_logger
 from app.services.prompting import (
-    COPY_STYLE_GUIDE,
     build_text_system_prompt,
     compose_prompt_blocks,
 )
@@ -146,8 +145,6 @@ Create a professional digest that:
 
 Format using clean Markdown for maximum readability. Focus on synthesizing connections
 between articles rather than summarizing each individually.
-
-{COPY_STYLE_GUIDE}
 
 REFERENCE LINKS:
 {reference_links}

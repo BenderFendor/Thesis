@@ -8,6 +8,7 @@ import {
   Grid3X3,
   Scroll,
   ArrowRightLeft,
+  Radio,
   Search,
   Bell,
   SlidersHorizontal,
@@ -18,7 +19,7 @@ import {
 } from "lucide-react"
 import { SafeImage } from "@/components/safe-image"
 
-export type ViewMode = "globe" | "grid" | "scroll" | "blindspot"
+export type ViewMode = "globe" | "grid" | "scroll" | "blindspot" | "live-news"
 
 interface GlobalNavigationProps {
   currentView?: ViewMode
@@ -103,6 +104,7 @@ export function GlobalNavigation({
               { key: "grid", label: "Grid", Icon: Grid3X3 },
               { key: "scroll", label: "Scroll", Icon: Scroll },
               { key: "blindspot", label: "Blindspot", Icon: ArrowRightLeft },
+              { key: "live-news", label: "Live", Icon: Radio },
             ].map(({ key, label, Icon }) => (
               <button
                 key={key}
