@@ -506,7 +506,9 @@ class FundingResearcher:
             )
 
             async with _external_semaphore:
-                extract_response = await self.http_client.get(url, params=extract_params)
+                extract_response = await self.http_client.get(
+                    url, params=extract_params
+                )
             if extract_response.status_code != 200:
                 return {}
 
@@ -923,9 +925,7 @@ class FundingResearcher:
         try:
             url = "https://www.sec.gov/files/company_tickers.json"
             async with _external_semaphore:
-                response = await self.http_client.get(
-                    url, headers=_EDGAR_HEADERS
-                )
+                response = await self.http_client.get(url, headers=_EDGAR_HEADERS)
             if response.status_code != 200:
                 logger.warning("SEC company_tickers returned %d", response.status_code)
                 return None
@@ -1060,22 +1060,25 @@ class FundingResearcher:
                 hits = search_data.get("search", [])
                 for hit in hits:
                     hit_label = (hit.get("label") or "").lower()
-                    if self._name_overlap(
-                        self._normalize_name(name), self._normalize_name(hit_label)
-                    ) >= 0.5:
+                    if (
+                        self._name_overlap(
+                            self._normalize_name(name), self._normalize_name(hit_label)
+                        )
+                        >= 0.5
+                    ):
                         qid = hit.get("id")
                         if qid:
                             return await self._fetch_wikidata_by_qid(qid)
 
             # Step 2: SPARQL query by name with org instance types
             org_types = [
-                "wd:Q11032",   # newspaper
+                "wd:Q11032",  # newspaper
                 "wd:Q192283",  # magazine
-                "wd:Q5296",    # TV station
-                "wd:Q35127",   # website
-                "wd:Q5633421", # publisher
-                "wd:Q16735862",# media company
-                "wd:Q43229",   # organization
+                "wd:Q5296",  # TV station
+                "wd:Q35127",  # website
+                "wd:Q5633421",  # publisher
+                "wd:Q16735862",  # media company
+                "wd:Q43229",  # organization
             ]
             types_clause = " ".join(org_types)
             sparql_query = f"""
@@ -1095,9 +1098,7 @@ class FundingResearcher:
             }}
             LIMIT 5
             """
-            sparql_params = httpx.QueryParams(
-                {"format": "json", "query": sparql_query}
-            )
+            sparql_params = httpx.QueryParams({"format": "json", "query": sparql_query})
             async with _external_semaphore:
                 sparql_response = await self.http_client.get(
                     "https://query.wikidata.org/sparql", params=sparql_params
@@ -1161,9 +1162,7 @@ class FundingResearcher:
                 "parent_orgs": [
                     labels.get(iid) for iid in parent_ids if labels.get(iid)
                 ],
-                "part_of": [
-                    labels.get(iid) for iid in part_of_ids if labels.get(iid)
-                ],
+                "part_of": [labels.get(iid) for iid in part_of_ids if labels.get(iid)],
                 "headquarters": [
                     labels.get(iid) for iid in headquarters_ids if labels.get(iid)
                 ],
@@ -1287,7 +1286,10 @@ class FundingResearcher:
                     temperature=0.0,
                 )
                 verify_content = verify_response.choices[0].message.content or ""
-                if "YES" in verify_content.upper() and "NO" not in verify_content.upper():
+                if (
+                    "YES" in verify_content.upper()
+                    and "NO" not in verify_content.upper()
+                ):
                     staleness_flags.append("KNOWN_ORGS entry flagged as stale by LLM")
                     logger.info(
                         "KNOWN_ORGS entry for %s flagged stale by LLM", org_name
@@ -1318,10 +1320,10 @@ class FundingResearcher:
             else:
                 return org
 
-            missing_desc = ", ".join(missing_fields) if missing_fields else "staleness validation"
-            staleness_note = (
-                " ".join(staleness_flags) if staleness_flags else ""
+            missing_desc = (
+                ", ".join(missing_fields) if missing_fields else "staleness validation"
             )
+            staleness_note = " ".join(staleness_flags) if staleness_flags else ""
 
             prompt = f"""You are a media research assistant analyzing a news organization.
 
@@ -1405,7 +1407,9 @@ Respond in JSON:
                     org["top_donors"] = donors
                 advertisers = ai_data.get("major_advertisers", [])
                 if advertisers:
-                    existing_ads: List[str] = list(org.get("major_advertisers", []) or [])
+                    existing_ads: List[str] = list(
+                        org.get("major_advertisers", []) or []
+                    )
                     for ad in advertisers:
                         if ad not in existing_ads:
                             existing_ads.append(ad)
@@ -1416,15 +1420,15 @@ Respond in JSON:
                 if ai_data.get("has_paywall") is not None:
                     org["has_paywall"] = bool(ai_data["has_paywall"])
                 if ai_data.get("recent_ownership_changes"):
-                    org["recent_ownership_changes"] = ai_data["recent_ownership_changes"]
+                    org["recent_ownership_changes"] = ai_data[
+                        "recent_ownership_changes"
+                    ]
 
                 if "ai_inference" not in org.get("research_sources", []):
                     org["research_sources"].append("ai_inference")
 
         except json.JSONDecodeError as e:
-            logger.error(
-                "Failed to parse AI enhancement JSON for %s: %s", org_name, e
-            )
+            logger.error("Failed to parse AI enhancement JSON for %s: %s", org_name, e)
         except Exception as e:
             logger.error("AI enhancement failed for org %s: %s", org_name, e)
 

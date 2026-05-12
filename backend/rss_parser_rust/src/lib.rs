@@ -3,12 +3,15 @@ use pyo3::types::PyDict;
 use tokio::runtime::Runtime;
 
 mod algorithms;
+mod blindspot;
 mod cleaner;
+mod country_mentions;
 mod feed_rank;
 mod fetcher;
 mod gdelt;
 mod html_extract;
 mod parser;
+mod topics;
 mod types;
 
 use crate::algorithms::{
@@ -82,9 +85,52 @@ fn rss_parser_rust(py: Python<'_>, module: &Bound<'_, PyModule>) -> PyResult<()>
     module.add_function(wrap_pyfunction!(parse_gdelt_csv, module)?)?;
     module.add_function(wrap_pyfunction!(filter_gdelt_by_domain, module)?)?;
     module.add_function(wrap_pyfunction!(rank_articles, module)?)?;
+
+    // Topic clustering
+    module.add_function(wrap_pyfunction!(topics::rust_lexical_cluster, module)?)?;
+    module.add_function(wrap_pyfunction!(topics::rust_extract_keywords, module)?)?;
+    module.add_function(wrap_pyfunction!(
+        topics::rust_extract_keywords_from_titles,
+        module
+    )?)?;
+    module.add_function(wrap_pyfunction!(
+        topics::rust_generate_cluster_label,
+        module
+    )?)?;
+
+    // Blindspot vector math
+    module.add_function(wrap_pyfunction!(blindspot::rust_mean_vector, module)?)?;
+    module.add_function(wrap_pyfunction!(blindspot::rust_subtract_vectors, module)?)?;
+    module.add_function(wrap_pyfunction!(blindspot::rust_normalize_vector, module)?)?;
+    module.add_function(wrap_pyfunction!(blindspot::rust_dot_product, module)?)?;
+    module.add_function(wrap_pyfunction!(blindspot::rust_cosine_similarity, module)?)?;
+    module.add_function(wrap_pyfunction!(blindspot::rust_quantile, module)?)?;
+    module.add_function(wrap_pyfunction!(blindspot::rust_build_semaxis, module)?)?;
+    module.add_function(wrap_pyfunction!(
+        blindspot::rust_score_against_axis,
+        module
+    )?)?;
+
+    // Country mentions
+    module.add_function(wrap_pyfunction!(
+        country_mentions::rust_extract_mentioned_countries,
+        module
+    )?)?;
+    module.add_function(wrap_pyfunction!(
+        country_mentions::rust_build_article_text,
+        module
+    )?)?;
+    module.add_function(wrap_pyfunction!(
+        country_mentions::rust_extract_article_mentioned_countries,
+        module
+    )?)?;
+    module.add_function(wrap_pyfunction!(
+        country_mentions::rust_reload_country_aliases,
+        module
+    )?)?;
+
     module.add("__version__", env!("CARGO_PKG_VERSION"))?;
 
-    // Expose helper metadata
     let info = PyDict::new_bound(py);
     info.set_item("description", "Rust-powered RSS ingestion helpers")?;
     info.set_item("author", "Bender")?;

@@ -2263,5 +2263,145 @@
         "bias_rating": "Center",
         "ownership_label": "Private media group",
         "factual_reporting": "unknown"
+    },
+    "The Rio Times": {
+        "url": "https://www.riotimesonline.com/feed/",
+        "site_url": "https://www.riotimesonline.com",
+        "category": "general",
+        "country": "BR",
+        "funding_type": "Commercial",
+        "bias_rating": "Center",
+        "ownership_label": "private digital newspaper",
+        "factual_reporting": "high"
+    },
+    "Ecuador Times": {
+        "url": "https://www.ecuadortimes.net/feed/",
+        "site_url": "https://www.ecuadortimes.net",
+        "category": "general",
+        "country": "EC",
+        "funding_type": "Commercial",
+        "ownership_label": "private digital newspaper",
+        "factual_reporting": "mixed"
+    },
+    "MercoPress": {
+        "url": "https://en.mercopress.com/rss/",
+        "site_url": "https://en.mercopress.com",
+        "category": "general",
+        "country": "UY",
+        "funding_type": "Independent",
+        "bias_rating": "Center",
+        "ownership_label": "independent news agency",
+        "factual_reporting": "high"
+    },
+    "MercoPress Uruguay": {
+        "url": "https://en.mercopress.com/rss/uruguay",
+        "site_url": "https://en.mercopress.com",
+        "category": "general",
+        "country": "UY",
+        "funding_type": "Independent",
+        "bias_rating": "Center",
+        "ownership_label": "independent news agency",
+        "factual_reporting": "high"
+    },
+    "Dabanga": {
+        "url": "https://www.dabangasudan.org/en/feed",
+        "site_url": "https://www.dabangasudan.org",
+        "category": "general",
+        "country": "SD",
+        "funding_type": "Non-profit",
+        "ownership_label": "independent broadcaster",
+        "factual_reporting": "high"
+    },
+    "Cocorioko": {
+        "url": "https://cocorioko.net/feed/",
+        "site_url": "https://cocorioko.net",
+        "category": "general",
+        "country": "SL",
+        "funding_type": "Independent",
+        "ownership_label": "private online newspaper",
+        "factual_reporting": "mixed"
+    },
+    "Pajhwok Afghan News": {
+        "url": "https://pajhwok.com/en/feed/",
+        "site_url": "https://pajhwok.com",
+        "category": "general",
+        "country": "AF",
+        "funding_type": "Independent",
+        "bias_rating": "Center",
+        "ownership_label": "independent news agency",
+        "factual_reporting": "high"
+    },
+    "The Kathmandu Post": {
+        "url": "https://kathmandupost.com/rss",
+        "site_url": "https://kathmandupost.com",
+        "category": "general",
+        "country": "NP",
+        "funding_type": "Commercial",
+        "bias_rating": "Center",
+        "ownership_label": "private newspaper",
+        "factual_reporting": "high"
+    },
+    "NepalNews": {
+        "url": "https://www.nepalnews.com/feed/",
+        "site_url": "https://www.nepalnews.com",
+        "category": "general",
+        "country": "NP",
+        "funding_type": "Commercial",
+        "ownership_label": "private online news portal",
+        "factual_reporting": "mixed"
+    },
+    "Palestinian Information Center": {
+        "url": "https://english.palinfo.com/feed/",
+        "site_url": "https://english.palinfo.com",
+        "category": "general",
+        "country": "PS",
+        "funding_type": "Independent",
+        "ownership_label": "independent Palestinian media organization",
+        "factual_reporting": "medium"
+    },
+    "IMEMC News": {
+        "url": "https://imemc.org/rss/",
+        "site_url": "https://imemc.org",
+        "category": "general",
+        "country": "PS",
+        "funding_type": "Non-profit",
+        "ownership_label": "joint Palestinian-International collaboration, based in Beit Sahour",
+        "factual_reporting": "high"
+    },
+    "Palestine News Network": {
+        "url": "https://english.pnn.ps/feed/",
+        "site_url": "https://english.pnn.ps",
+        "category": "general",
+        "country": "PS",
+        "funding_type": "Independent",
+        "ownership_label": "first licensed independent Palestinian news agency, Ramallah",
+        "factual_reporting": "high"
+    },
+    "Gaza Post": {
+        "url": "https://gazaapost.com/en/feed/",
+        "site_url": "https://gazaapost.com",
+        "category": "general",
+        "country": "PS",
+        "funding_type": "Independent",
+        "ownership_label": "independent Gaza-based news site",
+        "factual_reporting": "medium"
+    },
+    "Gaza Herald": {
+        "url": "https://gazaherald.com/feed/",
+        "site_url": "https://gazaherald.com",
+        "category": "general",
+        "country": "PS",
+        "funding_type": "Independent",
+        "ownership_label": "independent digital newsroom based in Gaza",
+        "factual_reporting": "medium"
+    },
+    "Resistant Palestinian Pens": {
+        "url": "https://resistantpens.org/feed/",
+        "site_url": "https://resistantpens.org",
+        "category": "general",
+        "country": "PS",
+        "funding_type": "Independent",
+        "ownership_label": "independent Gaza-based investigative media platform",
+        "factual_reporting": "medium"
     }
 }

@@ -159,9 +159,7 @@ class LLMClient:
                     ChatCompletion,
                     client.chat.completions.create(
                         model=model,
-                        messages=cast(
-                            Iterable[ChatCompletionMessageParam], messages
-                        ),
+                        messages=cast(Iterable[ChatCompletionMessageParam], messages),
                         **kwargs,
                     ),
                 )
@@ -169,9 +167,7 @@ class LLMClient:
                 duration_ms = int((time.monotonic() - start_time) * 1000)
 
                 finish_reason = (
-                    response.choices[0].finish_reason
-                    if response.choices
-                    else "unknown"
+                    response.choices[0].finish_reason if response.choices else "unknown"
                 )
 
                 span.set_attribute("duration_ms", duration_ms)

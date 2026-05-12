@@ -11,7 +11,7 @@ from typing import Any, cast
 
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
-from fastapi import FastAPI, WebSocket, WebSocketDisconnect
+from fastapi import FastAPI, Response, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.middleware.gzip import GZipMiddleware
 
@@ -50,7 +50,7 @@ from app.services.wiki_indexer import periodic_wiki_refresh
 from app.services.source_credibility import run_credibility_scoring_scheduler
 from app.services.startup_metrics import startup_metrics
 from app.services.websocket_manager import manager
-from app.core.tracing import setup_tracing, get_tracer
+from app.core.tracing import setup_tracing
 
 configure_logging()
 logger = get_logger("app.main")
@@ -112,12 +112,10 @@ if settings.otel_enabled:
                     response.headers["X-Trace-Id"] = format_trace_id(
                         span_context.trace_id
                     )
-                    response.headers["X-Span-Id"] = format_span_id(
-                        span_context.span_id
-                    )
+                    response.headers["X-Span-Id"] = format_span_id(span_context.span_id)
             except Exception:
                 pass
-            return response
+            return cast(Response, response)
 
     app.add_middleware(_TraceIdResponseMiddleware)
     logger.info("OpenTelemetry trace-id response middleware enabled")
@@ -537,7 +535,9 @@ async def on_startup() -> None:
             name="credibility_scoring_scheduler",
         )
         _register_background_task(credibility_task)
-        startup_metrics.add_note("credibility_scoring_task", credibility_task.get_name())
+        startup_metrics.add_note(
+            "credibility_scoring_task", credibility_task.get_name()
+        )
 
     logger.info(
         "API startup complete (%.2fs) - cache ready with %d articles",

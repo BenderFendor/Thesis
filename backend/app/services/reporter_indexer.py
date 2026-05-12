@@ -36,7 +36,6 @@ from app.services.entity_wiki_service import build_reporter_dossier, build_resol
 from app.services.reporter_profile_store import upsert_reporter_profile
 from app.services.mbfc_integration import compute_weighted_mbfc_bias
 from app.services.littlesis_integration import get_littlesis_affiliations_for_reporter
-from app.services.reporter_profiler import build_deep_dossier
 
 logger = get_logger("reporter_indexer")
 
@@ -76,7 +75,10 @@ def _enrich_profile_mbfc(profile: Dict[str, Any]) -> None:
 
     if not profile.get("political_leaning"):
         profile["political_leaning"] = mbfc_bias["political_leaning"]
-    if not profile.get("leaning_confidence") or profile.get("leaning_confidence") == "low":
+    if (
+        not profile.get("leaning_confidence")
+        or profile.get("leaning_confidence") == "low"
+    ):
         profile["leaning_confidence"] = mbfc_bias.get("leaning_confidence", "medium")
     sources = profile.get("leaning_sources") or []
     if isinstance(sources, list) and "mbfc" not in sources:
@@ -114,7 +116,8 @@ def _enrich_profile_littlesis(profile: Dict[str, Any]) -> None:
         existing = profile.get("institutional_affiliations") or []
         if isinstance(existing, list):
             existing_source_urls = {
-                a.get("littlesis_url") for a in existing
+                a.get("littlesis_url")
+                for a in existing
                 if isinstance(a, dict) and a.get("littlesis_url")
             }
             for aff in affiliations:

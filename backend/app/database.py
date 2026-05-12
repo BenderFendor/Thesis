@@ -436,7 +436,9 @@ class ArticleAuthor(Base):
     article_id = Column(Integer, nullable=False, index=True)
     reporter_id = Column(Integer, nullable=False, index=True)
     author_role = Column(String, default="author")  # author, contributor, editor
-    author_confidence = Column(Float, nullable=True)  # 0.0-1.0 confidence in reporter-article link
+    author_confidence = Column(
+        Float, nullable=True
+    )  # 0.0-1.0 confidence in reporter-article link
 
     created_at = Column(DateTime, default=get_utc_now)
 
@@ -706,8 +708,8 @@ class SourceAnalysisScore(Base):
     axis_name = Column(
         String, nullable=False
     )  # funding, source_network, political_bias, credibility, framing_omission,
-       # funding_transparency, source_network_diversity, political_orientation_disclosure,
-       # correction_record, methodology_transparency, cross_verification_alignment
+    # funding_transparency, source_network_diversity, political_orientation_disclosure,
+    # correction_record, methodology_transparency, cross_verification_alignment
 
     score = Column(Integer, nullable=False)  # 1-5 (or 0-100 for credibility engine)
     confidence = Column(String)  # high, medium, low
@@ -849,7 +851,9 @@ class TradeFlow(Base):
     year = Column(Integer)
 
     __table_args__ = (
-        Index("ix_trade_flows_exporter_importer", "exporter_country", "importer_country"),
+        Index(
+            "ix_trade_flows_exporter_importer", "exporter_country", "importer_country"
+        ),
     )
 
 
@@ -864,9 +868,7 @@ class CommodityPrice(Base):
     date = Column(DateTime)
     source = Column(String, default="UNCTAD")
 
-    __table_args__ = (
-        Index("ix_commodity_prices_name_date", "commodity_name", "date"),
-    )
+    __table_args__ = (Index("ix_commodity_prices_name_date", "commodity_name", "date"),)
 
 
 class MaterialInterestAnalysis(Base):
@@ -880,9 +882,7 @@ class MaterialInterestAnalysis(Base):
     analysis_json = Column(JSON, nullable=False)
     created_at = Column(DateTime, default=get_utc_now)
 
-    __table_args__ = (
-        Index("ix_material_interest_analyses_url", "article_url"),
-    )
+    __table_args__ = (Index("ix_material_interest_analyses_url", "article_url"),)
 
 
 class EventCluster(Base):

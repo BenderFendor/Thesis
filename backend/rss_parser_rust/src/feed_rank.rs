@@ -5,9 +5,9 @@ use pyo3::types::{PyDict, PyList};
 use serde::Serialize;
 
 const STOP_WORDS: &[&str] = &[
-    "about", "after", "amid", "also", "and", "are", "been", "before", "from", "have",
-    "into", "more", "news", "over", "said", "some", "than", "that", "their", "them",
-    "there", "these", "they", "this", "through", "today", "were", "what", "when", "with", "would",
+    "about", "after", "amid", "also", "and", "are", "been", "before", "from", "have", "into",
+    "more", "news", "over", "said", "some", "than", "that", "their", "them", "there", "these",
+    "they", "this", "through", "today", "were", "what", "when", "with", "would",
 ];
 
 const KEYWORD_SCORE_CAP: f64 = 10.0;
@@ -89,7 +89,10 @@ fn has_real_image(image: &str) -> bool {
     if lower.contains("placeholder") || lower.ends_with(".svg") {
         return false;
     }
-    !lower.contains("logo") && !lower.contains("punch") && !lower.contains("header") && !lower.contains("icon")
+    !lower.contains("logo")
+        && !lower.contains("punch")
+        && !lower.contains("header")
+        && !lower.contains("icon")
 }
 
 fn get_bucket(article: &ArticleMeta, favorite_source_ids: &HashSet<String>) -> (i64, String) {
@@ -133,12 +136,16 @@ fn build_interest_profile(
 
         if bookmarked_ids.contains(&article.id) {
             if !category_key.is_empty() {
-                *profile.category_weights.entry(category_key.clone()).or_insert(0.0) +=
-                    PROFILE_CATEGORY_BOOKMARK_WEIGHT;
+                *profile
+                    .category_weights
+                    .entry(category_key.clone())
+                    .or_insert(0.0) += PROFILE_CATEGORY_BOOKMARK_WEIGHT;
             }
             if !source_key.is_empty() {
-                *profile.source_weights.entry(source_key.clone()).or_insert(0.0) +=
-                    PROFILE_SOURCE_BOOKMARK_WEIGHT;
+                *profile
+                    .source_weights
+                    .entry(source_key.clone())
+                    .or_insert(0.0) += PROFILE_SOURCE_BOOKMARK_WEIGHT;
             }
             for kw in &keywords {
                 *profile.keyword_weights.entry(kw.clone()).or_insert(0.0) +=
@@ -148,12 +155,16 @@ fn build_interest_profile(
 
         if liked_ids.contains(&article.id) {
             if !category_key.is_empty() {
-                *profile.category_weights.entry(category_key.clone()).or_insert(0.0) +=
-                    PROFILE_CATEGORY_LIKE_WEIGHT;
+                *profile
+                    .category_weights
+                    .entry(category_key.clone())
+                    .or_insert(0.0) += PROFILE_CATEGORY_LIKE_WEIGHT;
             }
             if !source_key.is_empty() {
-                *profile.source_weights.entry(source_key.clone()).or_insert(0.0) +=
-                    PROFILE_SOURCE_LIKE_WEIGHT;
+                *profile
+                    .source_weights
+                    .entry(source_key.clone())
+                    .or_insert(0.0) += PROFILE_SOURCE_LIKE_WEIGHT;
             }
             for kw in &keywords {
                 *profile.keyword_weights.entry(kw.clone()).or_insert(0.0) +=
@@ -200,7 +211,12 @@ fn score_article(
         .min(KEYWORD_SCORE_CAP);
 
     let matched_categories: Vec<String> = if !normalized_category.is_empty()
-        && profile.category_weights.get(&normalized_category).copied().unwrap_or(0.0) > 0.0
+        && profile
+            .category_weights
+            .get(&normalized_category)
+            .copied()
+            .unwrap_or(0.0)
+            > 0.0
     {
         vec![normalized_category.clone()]
     } else {
@@ -215,7 +231,12 @@ fn score_article(
         .min(CATEGORY_SCORE_CAP);
 
     let matched_source = if !normalized_source.is_empty()
-        && profile.source_weights.get(&normalized_source).copied().unwrap_or(0.0) > 0.0
+        && profile
+            .source_weights
+            .get(&normalized_source)
+            .copied()
+            .unwrap_or(0.0)
+            > 0.0
     {
         Some(normalized_source.clone())
     } else {
@@ -229,7 +250,8 @@ fn score_article(
         .unwrap_or(0.0)
         .min(SOURCE_SCORE_CAP);
 
-    let personalized_score = (keyword_score + category_score + source_score * 100.0).round() / 100.0;
+    let personalized_score =
+        (keyword_score + category_score + source_score * 100.0).round() / 100.0;
 
     RankedResult {
         article_id: article.id,
@@ -310,7 +332,7 @@ pub fn rank_articles<'py>(
     let mut metas: Vec<ArticleMeta> = Vec::new();
     for item in articles.iter() {
         let dict = item.downcast::<PyDict>()?;
-        if let Some(meta) = extract_article_meta_from_dict(&dict) {
+        if let Some(meta) = extract_article_meta_from_dict(dict) {
             metas.push(meta);
         }
     }
@@ -332,13 +354,11 @@ pub fn rank_articles<'py>(
         .collect();
 
     results.sort_by(|a, b| {
-        b.bucket_rank
-            .cmp(&a.bucket_rank)
-            .then_with(|| {
-                b.total_score
-                    .partial_cmp(&a.total_score)
-                    .unwrap_or(std::cmp::Ordering::Equal)
-            })
+        b.bucket_rank.cmp(&a.bucket_rank).then_with(|| {
+            b.total_score
+                .partial_cmp(&a.total_score)
+                .unwrap_or(std::cmp::Ordering::Equal)
+        })
     });
 
     let list = PyList::empty_bound(py);

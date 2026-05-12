@@ -106,7 +106,9 @@ def build_deep_dossier(
 
     schema = build_deep_dossier_schema()
     corpus = _analyze_article_corpus(name, articles)
-    schema["source_patterns"] = corpus.get("source_patterns") or schema["source_patterns"]
+    schema["source_patterns"] = (
+        corpus.get("source_patterns") or schema["source_patterns"]
+    )
     schema["last_article_at"] = corpus.get("last_article_at")
     schema["article_count"] = len(articles)
 

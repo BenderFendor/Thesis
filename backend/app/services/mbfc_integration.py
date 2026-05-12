@@ -147,7 +147,8 @@ def build_mbfc_lookup(
     """
     warnings.warn(
         "MBFC build_mbfc_lookup is deprecated. Use CredibilitySignalStore instead. "
-        "MBFC data carries provenance 'mbfc_dataset_v1' and reduced weight (%d%%)." % int(MBFC_WEIGHT_MULTIPLIER * 100),
+        "MBFC data carries provenance 'mbfc_dataset_v1' and reduced weight (%d%%)."
+        % int(MBFC_WEIGHT_MULTIPLIER * 100),
         DeprecationWarning,
         stacklevel=2,
     )
@@ -273,7 +274,8 @@ def get_rss_mbfc_crosswalk() -> List[Dict[str, Any]]:
     """
     warnings.warn(
         "MBFC get_rss_mbfc_crosswalk is deprecated. Source credibility now uses the "
-        "6-dimension CredibilitySignalStore. MBFC data is weighted at %d%%." % int(MBFC_WEIGHT_MULTIPLIER * 100),
+        "6-dimension CredibilitySignalStore. MBFC data is weighted at %d%%."
+        % int(MBFC_WEIGHT_MULTIPLIER * 100),
         DeprecationWarning,
         stacklevel=2,
     )
@@ -311,7 +313,9 @@ def get_rss_mbfc_crosswalk() -> List[Dict[str, Any]]:
     return crosswalk
 
 
-def get_mbfc_bias_for_employer(employer_name: Optional[str]) -> Optional[Dict[str, Any]]:
+def get_mbfc_bias_for_employer(
+    employer_name: Optional[str],
+) -> Optional[Dict[str, Any]]:
     """Look up MBFC bias/factuality data for a single employer by name.
 
     Returns dict with {bias, factuality, ownership, credibility_source}
@@ -363,7 +367,7 @@ def compute_weighted_mbfc_bias(
         if not employer_name:
             continue
 
-        weight = 1.0 / (2.0 ** i)
+        weight = 1.0 / (2.0**i)
         mbfc_result = get_mbfc_bias_for_employer(employer_name)
 
         if mbfc_result and mbfc_result.get("bias"):

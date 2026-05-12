@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 from importlib import import_module
 from threading import Lock
@@ -28,7 +29,7 @@ _embedding_model: "SentenceTransformer | None" = None
 
 
 @asynccontextmanager
-async def lifespan(app: FastAPI):
+async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     raise_nofile_soft_limit(logger)
     soft_nofile, hard_nofile = get_nofile_limits()
     logger.info(

@@ -43,10 +43,6 @@ export function StreamCard({
 
   const embedUrl = buildEmbedUrl(source.channelId, muted)
 
-  useEffect(() => {
-    setEmbedError(false)
-  }, [embedUrl])
-
   const handleIframeError = useCallback(() => {
     setEmbedError(true)
   }, [])

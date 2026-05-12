@@ -86,7 +86,11 @@ async def upsert_reporter_profile(
     reporter.topics = topics
 
     existing_institutional = profile.get("institutional_affiliations")
-    if existing_institutional and isinstance(existing_institutional, list) and existing_institutional:
+    if (
+        existing_institutional
+        and isinstance(existing_institutional, list)
+        and existing_institutional
+    ):
         reporter.institutional_affiliations = existing_institutional
     else:
         affiliations = _profile_strings(profile, "affiliations")

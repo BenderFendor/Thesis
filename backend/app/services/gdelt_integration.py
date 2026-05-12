@@ -1,5 +1,5 @@
 """GDELT Global Database of Events, Language, and Tone integration service.
- 
+
 Provides functionality to fetch GDELT events and match them to articles
 using URL matching and embedding similarity.
 """

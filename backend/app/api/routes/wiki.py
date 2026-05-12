@@ -1085,7 +1085,9 @@ async def get_ownership_graph(
     for org in orgs:
         org_name_to_id[_required_str(org.name).lower()] = cast(int, org.id)
         if org.normalized_name:
-            org_name_to_id[_required_str(org.normalized_name).lower()] = cast(int, org.id)
+            org_name_to_id[_required_str(org.normalized_name).lower()] = cast(
+                int, org.id
+            )
 
     # Add source nodes
     for name, config in unique_sources.items():
@@ -1145,7 +1147,7 @@ async def get_ownership_graph(
             )
 
         # Wikidata owned_by edges (P127)
-        for owner_name in (org.owned_by or []):
+        for owner_name in org.owned_by or []:
             if not isinstance(owner_name, str):
                 continue
             owner_id = org_name_to_id.get(owner_name.lower())
@@ -1159,7 +1161,7 @@ async def get_ownership_graph(
                 )
 
         # Wikidata parent_orgs edges (P749)
-        for parent_name in (org.parent_orgs or []):
+        for parent_name in org.parent_orgs or []:
             if not isinstance(parent_name, str):
                 continue
             parent_id = org_name_to_id.get(parent_name.lower())
@@ -1181,7 +1183,7 @@ async def get_ownership_graph(
                     )
 
         # Wikidata part_of edges (P361)
-        for part_name in (org.part_of or []):
+        for part_name in org.part_of or []:
             if not isinstance(part_name, str):
                 continue
             part_id = org_name_to_id.get(part_name.lower())

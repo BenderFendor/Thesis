@@ -19,7 +19,7 @@ QUERY_SYSTEM_PROMPT = build_json_system_prompt(
         "reach, affiliations, and history. Generate 6-8 queries. Each query "
         "should be specific and targeted."
     ),
-    output_rules="Return only valid JSON: {\"queries\": [\"query 1\", \"query 2\", ...]}",
+    output_rules='Return only valid JSON: {"queries": ["query 1", "query 2", ...]}',
 )
 
 

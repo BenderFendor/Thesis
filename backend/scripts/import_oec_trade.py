@@ -64,9 +64,7 @@ async def import_csv(csv_path: str | None = None, chunk_size: int = CHUNK_SIZE) 
     total_rows = len(rows)
     print(f"Parsed {total_rows} rows from {source_used}")
 
-    batches = [
-        rows[i : i + chunk_size] for i in range(0, len(rows), chunk_size)
-    ]
+    batches = [rows[i : i + chunk_size] for i in range(0, len(rows), chunk_size)]
 
     async with await _get_session() as session:
         for batch_idx, batch in enumerate(batches):
@@ -74,11 +72,21 @@ async def import_csv(csv_path: str | None = None, chunk_size: int = CHUNK_SIZE) 
             params: dict[str, object] = {}
             for row_idx, row in enumerate(batch):
                 try:
-                    exporter = row.get("Origin", row.get("exporter", row.get("exporter_country", "")))
-                    importer = row.get("Destination", row.get("importer", row.get("importer_country", "")))
+                    exporter = row.get(
+                        "Origin", row.get("exporter", row.get("exporter_country", ""))
+                    )
+                    importer = row.get(
+                        "Destination",
+                        row.get("importer", row.get("importer_country", "")),
+                    )
                     hs4 = row.get("HS4", row.get("hs4", row.get("product_code", "")))
-                    product = row.get("Product", row.get("product", row.get("product_name", "")))
-                    value = row.get("Export Value", row.get("export_val", row.get("trade_value_usd", "0")))
+                    product = row.get(
+                        "Product", row.get("product", row.get("product_name", ""))
+                    )
+                    value = row.get(
+                        "Export Value",
+                        row.get("export_val", row.get("trade_value_usd", "0")),
+                    )
                     year = row.get("Year", row.get("year", "2020"))
 
                     if not exporter or not importer or not hs4:
@@ -110,7 +118,7 @@ async def import_csv(csv_path: str | None = None, chunk_size: int = CHUNK_SIZE) 
                 INSERT INTO trade_flows
                     (exporter_country, importer_country, product_code,
                      product_name, trade_value_usd, year)
-                VALUES {','.join(values_clauses)}
+                VALUES {",".join(values_clauses)}
             """
             )
 
@@ -118,7 +126,11 @@ async def import_csv(csv_path: str | None = None, chunk_size: int = CHUNK_SIZE) 
                 await session.execute(stmt, params)
                 await session.commit()
                 rows_inserted += len(values_clauses)
-                pct = min(100, round(rows_inserted / total_rows * 100, 1)) if total_rows else 0
+                pct = (
+                    min(100, round(rows_inserted / total_rows * 100, 1))
+                    if total_rows
+                    else 0
+                )
                 print(
                     f"  Batch {batch_idx + 1}/{len(batches)}: "
                     f"{rows_inserted:,} / {total_rows:,} rows ({pct}%)"

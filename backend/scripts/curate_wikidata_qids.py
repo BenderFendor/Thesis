@@ -17,18 +17,21 @@ import argparse
 import json
 import sys
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple
-from urllib.parse import quote
+from typing import Any, Dict, List, Optional
 
 import httpx
 
 WIKIDATA_API_URL = "https://www.wikidata.org/w/api.php"
-WIKIMEDIA_USER_AGENT = "ScoopNewsWikidataCurator/1.0 (https://github.com/anomalyco/Thesis)"
+WIKIMEDIA_USER_AGENT = (
+    "ScoopNewsWikidataCurator/1.0 (https://github.com/anomalyco/Thesis)"
+)
 SEARCH_LIMIT = 5
 
 
 def _load_rss_sources() -> Dict[str, Any]:
-    sources_path = Path(__file__).resolve().parent.parent / "app" / "data" / "rss_sources.json"
+    sources_path = (
+        Path(__file__).resolve().parent.parent / "app" / "data" / "rss_sources.json"
+    )
     with sources_path.open("r", encoding="utf-8") as f:
         return json.load(f)
 
@@ -40,6 +43,7 @@ def resolve_package_root() -> str:
 def _load_numpy() -> Any:
     try:
         import numpy as np
+
         return np
     except ImportError:
         return None
@@ -83,7 +87,9 @@ def _normalize(value: str) -> str:
     return " ".join(value.lower().strip().split())
 
 
-async def search_wikidata(name: str, http_client: httpx.AsyncClient) -> List[Dict[str, Any]]:
+async def search_wikidata(
+    name: str, http_client: httpx.AsyncClient
+) -> List[Dict[str, Any]]:
     response = await http_client.get(
         WIKIDATA_API_URL,
         params={
@@ -130,21 +136,29 @@ async def curate_source(
         return result
 
     for candidate in candidates:
-        label = candidate.get("label") or candidate.get("display", {}).get("label", {}).get("value", "")
+        label = candidate.get("label") or candidate.get("display", {}).get(
+            "label", {}
+        ).get("value", "")
         description = candidate.get("description") or ""
         qid = candidate.get("id") or ""
-        url = candidate.get("concepturi") or f"https://www.wikidata.org/wiki/{qid}" if qid else ""
+        url = (
+            candidate.get("concepturi") or f"https://www.wikidata.org/wiki/{qid}"
+            if qid
+            else ""
+        )
 
         candidate_embed = _get_embedding(f"{label} {description}")
         sim = cosine_similarity(embed_source, candidate_embed)
 
-        result["candidates"].append({
-            "qid": qid,
-            "label": label,
-            "description": description,
-            "url": url,
-            "similarity": round(sim, 4),
-        })
+        result["candidates"].append(
+            {
+                "qid": qid,
+                "label": label,
+                "description": description,
+                "url": url,
+                "similarity": round(sim, 4),
+            }
+        )
 
     if result["candidates"]:
         best = max(result["candidates"], key=lambda c: c["similarity"])
@@ -167,20 +181,24 @@ async def main() -> None:
         description="Curate Wikidata QIDs for RSS sources using embedding disambiguation"
     )
     parser.add_argument(
-        "--source", type=str, default=None,
-        help="Curate a single source by name"
+        "--source", type=str, default=None, help="Curate a single source by name"
     )
     parser.add_argument(
-        "--missing-only", action="store_true",
-        help="Only review sources that have no wikidata_qid"
+        "--missing-only",
+        action="store_true",
+        help="Only review sources that have no wikidata_qid",
     )
     parser.add_argument(
-        "--output", type=str, default=None,
-        help="Write JSON output to file (default: stdout)"
+        "--output",
+        type=str,
+        default=None,
+        help="Write JSON output to file (default: stdout)",
     )
     parser.add_argument(
-        "--top", type=int, default=50,
-        help="Limit to top N sources (default: 50, 0 = all)"
+        "--top",
+        type=int,
+        default=50,
+        help="Limit to top N sources (default: 50, 0 = all)",
     )
     args = parser.parse_args()
 
@@ -205,7 +223,7 @@ async def main() -> None:
 
     items = sorted(unique_sources.items())
     if args.top > 0:
-        items = items[:args.top]
+        items = items[: args.top]
 
     embed_map: Dict[str, Optional[Any]] = {}
     for source_name, entry in items:
@@ -229,19 +247,25 @@ async def main() -> None:
                 )
                 results.append(cur_result)
             except Exception as exc:
-                results.append({
-                    "source_name": source_name,
-                    "existing_qid": existing_qid,
-                    "action": "error",
-                    "error": str(exc),
-                })
+                results.append(
+                    {
+                        "source_name": source_name,
+                        "existing_qid": existing_qid,
+                        "action": "error",
+                        "error": str(exc),
+                    }
+                )
 
     output = {
         "total_sources": len(results),
         "actions_summary": {
-            "already_tagged": sum(1 for r in results if r["action"] == "already_tagged"),
+            "already_tagged": sum(
+                1 for r in results if r["action"] == "already_tagged"
+            ),
             "no_candidates": sum(1 for r in results if r["action"] == "no_candidates"),
-            "auto_candidate": sum(1 for r in results if r["action"] == "auto_candidate"),
+            "auto_candidate": sum(
+                1 for r in results if r["action"] == "auto_candidate"
+            ),
             "review": sum(1 for r in results if r["action"] == "review"),
             "needs_manual": sum(1 for r in results if r["action"] == "needs_manual"),
             "error": sum(1 for r in results if r["action"] == "error"),
@@ -259,4 +283,5 @@ async def main() -> None:
 
 if __name__ == "__main__":
     import asyncio
+
     asyncio.run(main())

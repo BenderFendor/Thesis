@@ -805,12 +805,13 @@ async def post_ranked_articles(request: RankRequest) -> RankResponse:
     rank_map = {r["article_id"]: r for r in ranked}
     sorted_articles = sorted(
         request.articles,
-        key=lambda a: -(
-            rank_map.get(a.get("id"), {}).get("total_score", 0)
-            if rank_map.get(a.get("id"), {}).get("bucket_rank", 0) == max(
-                (r.get("bucket_rank", 0) for r in ranked), default=0
+        key=lambda a: (
+            -(
+                rank_map.get(a.get("id"), {}).get("total_score", 0)
+                if rank_map.get(a.get("id"), {}).get("bucket_rank", 0)
+                == max((r.get("bucket_rank", 0) for r in ranked), default=0)
+                else 0
             )
-            else 0
         ),
     )
     # Sort by bucket rank first, then total score

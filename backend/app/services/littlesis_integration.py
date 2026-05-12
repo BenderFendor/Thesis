@@ -391,12 +391,12 @@ def get_littlesis_affiliations_for_reporter(
     if not entities:
         return result
 
-    reporter_names = [(0, reporter_name, reporter_name.lower().strip())]
+    reporter_names = [(0, reporter_name, reporter_name.lower().strip() or None)]
     matches = cross_reference_entities_with_reporters(entities, reporter_names)
 
     if not matches and employer_name:
         search_name = f"{reporter_name} {employer_name}"
-        reporter_names = [(0, search_name, search_name.lower().strip())]
+        reporter_names = [(0, search_name, search_name.lower().strip() or None)]
         matches = cross_reference_entities_with_reporters(entities, reporter_names)
 
     if not matches:
@@ -412,7 +412,9 @@ def get_littlesis_affiliations_for_reporter(
     rels_file = os.path.join(_ensure_data_dir(), LITTLESIS_RELATIONSHIPS_FILE)
     if os.path.exists(rels_file) and entity_id:
         entity_id_set: Set[int] = {int(entity_id)}
-        relationships = load_littlesis_relationships(rels_file, entity_ids=entity_id_set)
+        relationships = load_littlesis_relationships(
+            rels_file, entity_ids=entity_id_set
+        )
         entities_by_id: Dict[int, Dict[str, Any]] = {}
         for entity in entities:
             eid = entity.get("id")

@@ -104,9 +104,7 @@ async def import_csv(csv_path: str | None = None, chunk_size: int = CHUNK_SIZE) 
 
     column_map = _infer_columns(reader.fieldnames or [])
 
-    batches = [
-        rows[i : i + chunk_size] for i in range(0, len(rows), chunk_size)
-    ]
+    batches = [rows[i : i + chunk_size] for i in range(0, len(rows), chunk_size)]
 
     async with await _get_session() as session:
         for batch_idx, batch in enumerate(batches):
@@ -147,9 +145,7 @@ async def import_csv(csv_path: str | None = None, chunk_size: int = CHUNK_SIZE) 
 
             for params in params_list:
                 try:
-                    await session.execute(
-                        text(_DUPLICATE_FILTER_SQL), params
-                    )
+                    await session.execute(text(_DUPLICATE_FILTER_SQL), params)
                 except Exception:
                     continue
 
@@ -161,7 +157,11 @@ async def import_csv(csv_path: str | None = None, chunk_size: int = CHUNK_SIZE) 
                 continue
 
             rows_inserted += len(params_list)
-            pct = min(100, round(rows_inserted / total_rows * 100, 1)) if total_rows else 0
+            pct = (
+                min(100, round(rows_inserted / total_rows * 100, 1))
+                if total_rows
+                else 0
+            )
             print(
                 f"  Batch {batch_idx + 1}/{len(batches)}: "
                 f"{rows_inserted:,} / {total_rows:,} rows ({pct}%)"

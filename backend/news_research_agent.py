@@ -116,7 +116,12 @@ MAX_ITERATIONS = 5
 MAX_TOOL_CALLS_PER_SESSION = 15
 MIN_FINAL_ANSWER_CHARS = 120
 MIN_FINAL_ANSWER_SECTIONS = ("answer",)
-SEARCH_TOOLS_WITH_QUERY = {"web_search", "news_search", "gdelt_context_search", "gdelt_doc_search"}
+SEARCH_TOOLS_WITH_QUERY = {
+    "web_search",
+    "news_search",
+    "gdelt_context_search",
+    "gdelt_doc_search",
+}
 EXTERNAL_SEARCH_TOOLS = {"web_search", "news_search"}
 EXTERNAL_SEARCH_TOOLS.update({"gdelt_context_search", "gdelt_doc_search"})
 AUTO_FALLBACK_TOOL_ORDER = {
@@ -1421,7 +1426,7 @@ def _dedup_tool_node(state: "AgentState") -> Dict[str, Any]:
         unique_calls.append(call)
         if _is_internal_fetch_call(call):
             internal_fetch_calls_done += 1
-        if (query_text := _extract_search_query(call)):
+        if query_text := _extract_search_query(call):
             query_key = f"search_query:{query_text}"
             tool_history.add(query_key)
             search_query_keys.add(query_text)

@@ -45,7 +45,11 @@ _IDLE_BACKOFF_THRESHOLDS: list[tuple[int, int]] = [
     (20, 14400),
 ]
 
-_FEED_STATE_PATH = __import__("pathlib").Path(__file__).resolve().parents[1] / "data" / "feed_polling_state.json"
+_FEED_STATE_PATH = (
+    __import__("pathlib").Path(__file__).resolve().parents[1]
+    / "data"
+    / "feed_polling_state.json"
+)
 
 
 def _idle_poll_interval(consecutive_idle_checks: int) -> int:
@@ -60,7 +64,6 @@ def _idle_poll_interval(consecutive_idle_checks: int) -> int:
 def save_polling_state(stats: list[dict[str, Any]]) -> None:
     try:
         import json
-        import tempfile
         import os
 
         _FEED_STATE_PATH.parent.mkdir(parents=True, exist_ok=True)
@@ -75,6 +78,7 @@ def save_polling_state(stats: list[dict[str, Any]]) -> None:
 def load_polling_state() -> list[dict[str, Any]]:
     try:
         import json
+
         with open(_FEED_STATE_PATH, "r", encoding="utf-8") as f:
             result = json.load(f)
             if isinstance(result, list):

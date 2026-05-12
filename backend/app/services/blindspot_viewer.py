@@ -13,6 +13,14 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.data.rss_sources import get_rss_sources
 from app.database import Article, get_utc_now
 from app.services.cluster_cache import get_latest_snapshot
+from app.services.rss_parser_rust_bindings import (
+    build_semaxis_rust,
+    dot_product_rust,
+    mean_vector_rust,
+    normalize_vector_rust,
+    quantile_rust,
+    subtract_vectors_rust,
+)
 from app.vector_store import _get_chroma_include, _get_embedding_rows, get_vector_store
 
 logger = logging.getLogger(__name__)
@@ -703,30 +711,19 @@ def _explanation_for_lane(
 
 
 def _mean_vector(vectors: list[list[float]]) -> list[float]:
-    if not vectors:
-        return []
-    dimension = len(vectors[0])
-    totals = [0.0] * dimension
-    for vector in vectors:
-        for index, value in enumerate(vector):
-            totals[index] += float(value)
-    count = float(len(vectors))
-    return [value / count for value in totals]
+    return mean_vector_rust(vectors)
 
 
 def _subtract_vectors(left: list[float], right: list[float]) -> list[float]:
-    return [left[index] - right[index] for index in range(min(len(left), len(right)))]
+    return subtract_vectors_rust(left, right)
 
 
 def _normalize_vector(vector: list[float]) -> list[float]:
-    magnitude = sum(value * value for value in vector) ** 0.5
-    if magnitude <= 0:
-        return []
-    return [value / magnitude for value in vector]
+    return normalize_vector_rust(vector)
 
 
 def _dot_product(left: list[float], right: list[float]) -> float:
-    return sum(left_value * right_value for left_value, right_value in zip(left, right))
+    return float(dot_product_rust(left, right))
 
 
 def _coerce_embedding_rows(raw_rows: object) -> list[list[float]]:
@@ -744,16 +741,7 @@ def _coerce_embedding_rows(raw_rows: object) -> list[list[float]]:
 
 
 def _quantile(values: list[float], percentile: float) -> float:
-    if not values:
-        return 0.0
-    ordered = sorted(values)
-    if len(ordered) == 1:
-        return ordered[0]
-    position = (len(ordered) - 1) * percentile
-    lower = int(position)
-    upper = min(lower + 1, len(ordered) - 1)
-    weight = position - lower
-    return ordered[lower] * (1 - weight) + ordered[upper] * weight
+    return float(quantile_rust(values, percentile))
 
 
 async def _load_embeddings_for_articles(
@@ -865,11 +853,10 @@ async def _build_semaxis_counts_by_cluster(
 
     positive_vectors = _coerce_embedding_rows(positive_encoded)
     negative_vectors = _coerce_embedding_rows(negative_encoded)
-    axis_vector = _normalize_vector(
-        _subtract_vectors(
-            _mean_vector(positive_vectors), _mean_vector(negative_vectors)
-        )
-    )
+
+    rust_axis = build_semaxis_rust(positive_vectors, negative_vectors)
+    axis_vector: list[float] = rust_axis if rust_axis is not None else []
+
     if not axis_vector:
         return {}, "Semantic axis construction failed for the SemAxis lens."
 

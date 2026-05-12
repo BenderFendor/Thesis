@@ -68,7 +68,9 @@ async def add_rss_source(request: AddRssRequest) -> dict[str, Any]:
         raise HTTPException(status_code=400, detail="URL is required")
 
     if not url.startswith(("http://", "https://")):
-        raise HTTPException(status_code=400, detail="URL must start with http:// or https://")
+        raise HTTPException(
+            status_code=400, detail="URL must start with http:// or https://"
+        )
 
     source_name = _derive_source_name(url)
 
@@ -98,7 +100,9 @@ async def add_rss_source(request: AddRssRequest) -> dict[str, Any]:
 
     existing_sources = get_rss_sources()
     if feed_title in existing_sources:
-        raise HTTPException(status_code=409, detail=f"Source '{feed_title}' already exists")
+        raise HTTPException(
+            status_code=409, detail=f"Source '{feed_title}' already exists"
+        )
 
     # Read raw JSON for appending
     raw_sources = json.loads(_DATA_PATH.read_text(encoding="utf-8"))
@@ -112,7 +116,9 @@ async def add_rss_source(request: AddRssRequest) -> dict[str, Any]:
         "factual_reporting": "unknown",
     }
 
-    _DATA_PATH.write_text(json.dumps(raw_sources, indent=4, ensure_ascii=False) + "\n", encoding="utf-8")
+    _DATA_PATH.write_text(
+        json.dumps(raw_sources, indent=4, ensure_ascii=False) + "\n", encoding="utf-8"
+    )
     reload_rss_sources()
     logger.info("Added new RSS source: %s (%s)", feed_title, url)
 
@@ -152,7 +158,11 @@ async def get_source_credibility(
     _credibility_cache[domain] = (profile, now)
 
     keys_to_drop = sorted(
-        [k for k in _credibility_cache if now - _credibility_cache[k][1] >= _CREDIBILITY_CACHE_TTL],
+        [
+            k
+            for k in _credibility_cache
+            if now - _credibility_cache[k][1] >= _CREDIBILITY_CACHE_TTL
+        ],
         key=lambda k: _credibility_cache[k][1],
     )
     for key in keys_to_drop[-100:]:

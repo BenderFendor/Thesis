@@ -44,6 +44,8 @@ If the script fails, inspect `README.md`, `verify.sh`, and stack manifests manua
 - Do not write standalone session logs to `./log/` for normal code changes.
 - Before committing broad cleanup, check staged deletions against live references and keep package manifests aligned with tracked lockfiles.
 - Before ending a merge or push-repair task, run `rg -n '<<<<<<<|=======|>>>>>>>'` on touched text files.
+- Pre-existing lint/type errors discovered during verification must be fixed in the same session. Do not push blame or leave them for later.
+- Rust modules exposed via PyO3 bindings are the authoritative implementation path. Python code must call the Rust bindings directly without try/except fallbacks. If the Rust module is broken, fix the Rust module -- do not add a Python fallback.
 
 ## Documentation Health
 

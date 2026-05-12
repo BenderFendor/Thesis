@@ -63,10 +63,7 @@ pub fn extract_domain(url: &str) -> &str {
         .or_else(|| url.strip_prefix("https://"))
         .unwrap_or(url);
 
-    let host = without_prefix
-        .split('/')
-        .next()
-        .unwrap_or(without_prefix);
+    let host = without_prefix.split('/').next().unwrap_or(without_prefix);
 
     host.strip_prefix("www.").unwrap_or(host)
 }

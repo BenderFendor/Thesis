@@ -23,6 +23,12 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.logging import get_logger
 from app.database import Article, GDELTEvent, get_utc_now
 from app.services.gdelt_aggregates import build_article_gdelt_context
+from app.services.rss_parser_rust_bindings import (
+    extract_keywords_from_titles_rust,
+    extract_keywords_rust,
+    generate_cluster_label_rust,
+    lexical_cluster,
+)
 from app.vector_store import (
     VectorStore,
     _get_chroma_include,
@@ -886,115 +892,34 @@ class ChromaTopicService:
             return []
 
         article_list = list(articles)
-        order_index = {
-            self._article_id(article): idx for idx, article in enumerate(article_list)
-        }
-        keyword_sets: Dict[int, Set[str]] = {
-            self._article_id(article): self._article_keyword_set(article)
-            for article in article_list
-        }
-
-        token_to_article_ids: Dict[str, List[int]] = {}
-        for article_id, token_set in keyword_sets.items():
-            for token in token_set:
-                token_to_article_ids.setdefault(token, []).append(article_id)
-
-        parent: Dict[int, int] = {
-            self._article_id(article): self._article_id(article)
-            for article in article_list
-        }
-
-        def find(article_id: int) -> int:
-            root = article_id
-            while parent[root] != root:
-                root = parent[root]
-            while parent[article_id] != article_id:
-                next_id = parent[article_id]
-                parent[article_id] = root
-                article_id = next_id
-            return root
-
-        def union(a: int, b: int) -> None:
-            root_a = find(a)
-            root_b = find(b)
-            if root_a != root_b:
-                parent[root_b] = root_a
-
-        for article in article_list:
-            article_id = self._article_id(article)
-            base_tokens = keyword_sets.get(article_id, set())
-            if len(base_tokens) < LEXICAL_MIN_TOKEN_OVERLAP:
-                continue
-
-            candidate_overlaps: Dict[int, int] = {}
-            base_index = order_index[article_id]
-            for token in base_tokens:
-                neighbors = token_to_article_ids.get(token, [])
-                if len(neighbors) > LEXICAL_MAX_TOKEN_POSTINGS:
-                    continue
-                for neighbor_id in neighbors:
-                    if order_index[neighbor_id] <= base_index:
-                        continue
-                    candidate_overlaps[neighbor_id] = (
-                        candidate_overlaps.get(neighbor_id, 0) + 1
-                    )
-
-            for neighbor_id, overlap in candidate_overlaps.items():
-                if overlap < LEXICAL_MIN_TOKEN_OVERLAP:
-                    continue
-                neighbor_tokens = keyword_sets.get(neighbor_id, set())
-                if self._passes_lexical_match(base_tokens, neighbor_tokens):
-                    union(article_id, neighbor_id)
-
-        components: Dict[int, Set[int]] = {}
-        for article_id in parent.keys():
-            root = find(article_id)
-            components.setdefault(root, set()).add(article_id)
+        rust_input: list[tuple[int, str, int]] = [
+            (
+                self._article_id(article),
+                article.title or "",
+                idx,
+            )
+            for idx, article in enumerate(article_list)
+        ]
+        rust_result = lexical_cluster(rust_input)
 
         clusters: List[ClusterCandidate] = []
-        for members in components.values():
-            if len(members) < MIN_CLUSTER_SIZE:
-                continue
-
-            ordered_members = sorted(
-                members,
-                key=lambda member_id: order_index.get(member_id, 0),
-            )
-            anchor_id = ordered_members[0]
-            anchor_tokens = keyword_sets.get(anchor_id, set())
-            filtered_members = [anchor_id]
-
-            for member_id in ordered_members[1:]:
-                member_tokens = keyword_sets.get(member_id, set())
-                if self._passes_lexical_match(anchor_tokens, member_tokens):
-                    filtered_members.append(member_id)
-
-            if len(filtered_members) < MIN_CLUSTER_SIZE:
-                continue
-
-            similarities: Dict[int, float] = {}
-            for member_id in filtered_members:
-                if member_id == anchor_id:
-                    similarities[member_id] = 1.0
-                    continue
-                member_tokens = keyword_sets.get(member_id, set())
-                if not anchor_tokens or not member_tokens:
-                    similarities[member_id] = 0.0
-                    continue
-                overlap = len(anchor_tokens & member_tokens)
-                union_size = (len(anchor_tokens) + len(member_tokens) - overlap) or 1
-                similarities[member_id] = round(overlap / union_size, 3)
-
+        for entry in rust_result:
+            member_ids = [int(m) for m in cast(List[int], entry.get("member_ids", []))]
+            similarities = {
+                int(k): float(v)
+                for k, v in cast(
+                    Dict[int, float], entry.get("similarities", {})
+                ).items()
+            }
             clusters.append(
                 ClusterCandidate(
-                    anchor_id=anchor_id,
-                    member_ids=filtered_members,
+                    anchor_id=int(entry["anchor_id"]),
+                    member_ids=member_ids,
                     similarities=similarities,
                 )
             )
-
         logger.info(
-            "Lexical fallback produced %d clusters from %d articles",
+            "Rust lexical clustering produced %d clusters from %d articles",
             len(clusters),
             len(article_list),
         )
@@ -1216,139 +1141,70 @@ class ChromaTopicService:
         return [self._serialize_article(article) for article in ordered[:limit]]
 
     def _generate_cluster_label(self, articles: Dict[int, Article]) -> str:
-        """Select the best article title to represent the cluster.
-
-        Scores titles based on length, credibility, recency, and content quality.
-        Returns the highest-scoring title or falls back to anchor article title.
-        """
         if not articles:
             return "Topic"
 
-        def score_title(article: Article) -> float:
-            if not article.title:
-                return 0.0
+        scored: list[tuple[str, float]] = [
+            (
+                article.title or "",
+                self._score_title_rust(article),
+            )
+            for article in articles.values()
+            if article.title
+        ]
+        return str(generate_cluster_label_rust(scored))
 
-            title = article.title.strip()
-            score = 0.0
+    @staticmethod
+    def _score_title_rust(article: Article) -> float:
+        if not article.title:
+            return 0.0
 
-            # Length score: ideal is 40-100 chars
-            length = len(title)
-            if 40 <= length <= 100:
-                score += 10.0
-            elif 30 <= length < 40:
-                score += 7.0
-            elif 100 < length <= 140:
-                score += 6.0
-            elif length < 30:
+        title = article.title.strip()
+        score = 0.0
+
+        length = len(title)
+        if 40 <= length <= 100:
+            score += 10.0
+        elif 30 <= length < 40:
+            score += 7.0
+        elif 100 < length <= 140:
+            score += 6.0
+        elif length < 30:
+            score += 3.0
+        else:
+            score += 1.0
+
+        if article.credibility == "high":
+            score += 5.0
+        elif article.credibility == "medium":
+            score += 2.0
+
+        if article.published_at:
+            age_hours = (get_utc_now() - article.published_at).total_seconds() / 3600
+            if age_hours < 6:
                 score += 3.0
-            else:
+            elif age_hours < 24:
+                score += 2.0
+            elif age_hours < 72:
                 score += 1.0
 
-            # Credibility bonus
-            if article.credibility == "high":
-                score += 5.0
-            elif article.credibility == "medium":
-                score += 2.0
+        title_lower = title.lower()
+        generic_terms = ["breaking", "update", "news alert", "developing"]
+        for term in generic_terms:
+            if term in title_lower:
+                score -= 5.0
 
-            # Recency bonus (prefer articles from last 24h)
-            if article.published_at:
-                age_hours = (
-                    get_utc_now() - article.published_at
-                ).total_seconds() / 3600
-                if age_hours < 6:
-                    score += 3.0
-                elif age_hours < 24:
-                    score += 2.0
-                elif age_hours < 72:
-                    score += 1.0
+        capitalized = re.findall(r"\b[A-Z][a-zA-Z]+(?:\s+[A-Z][a-zA-Z]+)*\b", title)
+        score += min(len(capitalized) * 1.5, 8.0)
 
-            # Penalize generic/low-value titles
-            title_lower = title.lower()
-            generic_terms = ["breaking", "update", "news alert", "developing"]
-            for term in generic_terms:
-                if term in title_lower:
-                    score -= 5.0
-
-            # Bonus for named entities (capitalized words suggest proper nouns)
-            import re
-
-            capitalized = re.findall(r"\b[A-Z][a-zA-Z]+(?:\s+[A-Z][a-zA-Z]+)*\b", title)
-            score += min(len(capitalized) * 1.5, 8.0)
-
-            return score
-
-        # Score all articles and pick the best
-        scored_articles = [
-            (article, score_title(article)) for article in articles.values()
-        ]
-        scored_articles.sort(key=lambda x: x[1], reverse=True)
-
-        # Return best title if we have one with decent score, else fallback
-        if scored_articles and scored_articles[0][1] > 5.0:
-            return cast(str, scored_articles[0][0].title)
-
-        # Fallback: try to find any valid title
-        for article in articles.values():
-            if article.title and len(article.title.strip()) > 10:
-                return article.title.strip()
-
-        return "Topic"
+        return score
 
     def _extract_keywords(self, article: Article) -> List[str]:
-        text = f"{article.title or ''}".lower()
-        stopwords = {
-            "the",
-            "a",
-            "an",
-            "is",
-            "are",
-            "was",
-            "were",
-            "in",
-            "on",
-            "at",
-            "to",
-            "for",
-            "of",
-            "with",
-            "by",
-            "and",
-            "or",
-            "but",
-            "not",
-            "its",
-            "into",
-            "their",
-            "than",
-            "that",
-            "have",
-            "has",
-            "had",
-            "from",
-        }
-        words = re.findall(r"[a-z0-9][a-z0-9'\-/]+", text)
-        keywords: List[str] = []
-        seen: Set[str] = set()
-        for word in words:
-            normalized = self._normalize_keyword(word)
-            if len(normalized) <= 3:
-                continue
-            if normalized in stopwords or normalized in GENERIC_CLUSTER_TOKENS:
-                continue
-            if normalized.isdigit():
-                continue
-            if normalized not in seen:
-                seen.add(normalized)
-                keywords.append(normalized)
-            if len(keywords) >= 10:
-                break
-        return keywords
+        return extract_keywords_rust(article.title or "")
 
     def _extract_keywords_from_articles(self, articles: List[Article]) -> List[str]:
-        keywords: List[str] = []
-        for article in articles:
-            keywords.extend(self._extract_keywords(article))
-        return list(dict.fromkeys(keywords))[:10]
+        titles = [article.title or "" for article in articles]
+        return extract_keywords_from_titles_rust(titles)
 
     def _recency_bonus(self, published_at: Optional[datetime]) -> float:
         if not published_at:

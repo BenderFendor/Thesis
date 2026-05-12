@@ -702,8 +702,18 @@ async def build_reporter_dossier(
             [
                 item_id
                 for entity in entity_candidates
-                for prop in ("P31", "P106", "P108", "P69", "P27", "P101", "P1416",
-                             "P102", "P1142", "P463")
+                for prop in (
+                    "P31",
+                    "P106",
+                    "P108",
+                    "P69",
+                    "P27",
+                    "P101",
+                    "P1416",
+                    "P102",
+                    "P1142",
+                    "P463",
+                )
                 for item_id in _extract_wikidata_item_ids(
                     entity.get("claims") or {}, prop
                 )

@@ -1436,6 +1436,7 @@ dependencies = [
 name = "rss_parser_rust"
 version = "0.1.0"
 dependencies = [
+ "aho-corasick",
  "anyhow",
  "chrono",
  "csv",

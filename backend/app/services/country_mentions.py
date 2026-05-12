@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import json
-import re
 from pathlib import Path
 from typing import cast
 
@@ -10,12 +9,15 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.logging import get_logger
 from app.database import Article
+from app.services.rss_parser_rust_bindings import (
+    extract_article_mentioned_countries_rust,
+    extract_mentioned_countries_rust,
+)
 
 logger = get_logger(__name__)
 
 _DATA_DIR = Path(__file__).resolve().parents[1] / "data"
 _COUNTRIES_PATH = _DATA_DIR / "countries.json"
-_COUNTRY_ALIASES_PATH = _DATA_DIR / "country_aliases.json"
 
 try:
     with _COUNTRIES_PATH.open("r", encoding="utf-8") as file_obj:
@@ -23,102 +25,6 @@ try:
 except Exception as exc:
     logger.warning("Failed to load countries.json: %s", exc)
     _COUNTRIES_DATA = {}
-
-try:
-    with _COUNTRY_ALIASES_PATH.open("r", encoding="utf-8") as file_obj:
-        _RAW_ALIASES = cast(dict[str, list[str]], json.load(file_obj))
-except Exception as exc:
-    logger.warning("Failed to load country_aliases.json: %s", exc)
-    _RAW_ALIASES = {}
-
-
-def _is_textual_alias(alias: str) -> bool:
-    stripped = alias.strip()
-    if len(stripped) < 4:
-        return stripped in {"U.K.", "UK", "USA", "UAE", "PRC", "DPRK"}
-    if any(char in stripped for char in {",", "/"}):
-        return False
-    if stripped.isupper() and len(stripped) <= 3:
-        return False
-    return any(char.isalpha() for char in stripped)
-
-
-def _requires_exact_token_match(alias: str) -> bool:
-    stripped = alias.strip()
-    if not stripped:
-        return False
-
-    alpha_only = "".join(char for char in stripped if char.isalpha())
-    if not alpha_only or len(alpha_only) > 4:
-        return False
-
-    return stripped.upper() == stripped
-
-
-_COUNTRY_ALIAS_MAP = {
-    code: tuple(
-        sorted(
-            {
-                alias.strip()
-                for alias in aliases
-                if isinstance(alias, str) and alias.strip()
-            },
-            key=len,
-            reverse=True,
-        )
-    )
-    for code, aliases in _RAW_ALIASES.items()
-}
-_TEXTUAL_ALIAS_MAP = {
-    code: tuple(alias for alias in aliases if _is_textual_alias(alias))
-    for code, aliases in _COUNTRY_ALIAS_MAP.items()
-}
-_TOKEN_RE = re.compile(r"[\w']+", re.UNICODE)
-
-
-def _alias_tokens(value: str) -> tuple[str, ...]:
-    return tuple(token.casefold() for token in _TOKEN_RE.findall(value))
-
-
-def _alias_original_tokens(value: str) -> tuple[str, ...]:
-    return tuple(_TOKEN_RE.findall(value))
-
-
-_EXACT_ALIAS_TO_CODES: dict[tuple[str, ...], set[str]] = {}
-for country_code, aliases in _TEXTUAL_ALIAS_MAP.items():
-    for alias in aliases:
-        if not _requires_exact_token_match(alias):
-            continue
-        normalized = _alias_original_tokens(alias)
-        if normalized:
-            _EXACT_ALIAS_TO_CODES.setdefault(normalized, set()).add(country_code)
-
-_ALIAS_TO_CODES: dict[tuple[str, ...], set[str]] = {}
-for country_code, aliases in _TEXTUAL_ALIAS_MAP.items():
-    for alias in aliases:
-        if _requires_exact_token_match(alias):
-            continue
-        normalized = _alias_tokens(alias)
-        if normalized:
-            _ALIAS_TO_CODES.setdefault(normalized, set()).add(country_code)
-
-_UNIQUE_EXACT_ALIAS_TO_CODE = {
-    alias_tokens: next(iter(country_codes))
-    for alias_tokens, country_codes in _EXACT_ALIAS_TO_CODES.items()
-    if len(country_codes) == 1
-}
-_UNIQUE_ALIAS_TO_CODE = {
-    alias_tokens: next(iter(country_codes))
-    for alias_tokens, country_codes in _ALIAS_TO_CODES.items()
-    if len(country_codes) == 1
-}
-_MAX_ALIAS_TOKENS = max(
-    (
-        *(len(tokens) for tokens in _UNIQUE_ALIAS_TO_CODE),
-        *(len(tokens) for tokens in _UNIQUE_EXACT_ALIAS_TO_CODE),
-    ),
-    default=1,
-)
 
 
 def get_country_geo_data() -> dict[str, dict[str, object]]:
@@ -134,42 +40,8 @@ def country_name(code: str) -> str:
     return code.upper()
 
 
-def build_article_text(
-    title: str | None,
-    summary: str | None,
-    content: str | None,
-) -> str:
-    return " ".join(
-        part.strip()
-        for part in (title, summary, content)
-        if isinstance(part, str) and part.strip()
-    )
-
-
 def extract_mentioned_countries(text: str) -> list[str]:
-    if not text.strip():
-        return []
-
-    original_tokens = _TOKEN_RE.findall(text)
-    tokens = [token.casefold() for token in _TOKEN_RE.findall(text)]
-    mentions: set[str] = set()
-    for index in range(len(tokens)):
-        max_width = min(_MAX_ALIAS_TOKENS, len(tokens) - index)
-        for width in range(max_width, 0, -1):
-            exact_country_code = _UNIQUE_EXACT_ALIAS_TO_CODE.get(
-                tuple(original_tokens[index : index + width])
-            )
-            if exact_country_code is not None:
-                mentions.add(exact_country_code)
-                break
-
-            country_code = _UNIQUE_ALIAS_TO_CODE.get(
-                tuple(tokens[index : index + width])
-            )
-            if country_code is not None:
-                mentions.add(country_code)
-                break
-    return sorted(mentions)
+    return extract_mentioned_countries_rust(text)
 
 
 def extract_article_mentioned_countries(
@@ -177,7 +49,7 @@ def extract_article_mentioned_countries(
     summary: str | None,
     content: str | None,
 ) -> list[str]:
-    return extract_mentioned_countries(build_article_text(title, summary, content))
+    return extract_article_mentioned_countries_rust(title, summary, content)
 
 
 async def backfill_article_mentioned_countries(

@@ -77,7 +77,9 @@ def _make_empty_dimension(dimension_name: str) -> Dict[str, Any]:
     }
 
 
-def _make_provenance_entry(source: str, url: str = "", last_updated: Optional[str] = None) -> Dict[str, Any]:
+def _make_provenance_entry(
+    source: str, url: str = "", last_updated: Optional[str] = None
+) -> Dict[str, Any]:
     return {
         "source": source,
         "url": url,
@@ -104,12 +106,16 @@ class CredibilitySignalStore:
             return cached
         return {
             "domain": domain,
-            "dimensions": {dim: _make_empty_dimension(dim) for dim in CREDIBILITY_DIMENSIONS},
+            "dimensions": {
+                dim: _make_empty_dimension(dim) for dim in CREDIBILITY_DIMENSIONS
+            },
             "data_quality": {
                 "dimensions_available": 0,
                 "dimensions_total": 6,
                 "completeness_pct": 0.0,
-                "last_updated": self._cache_timestamp.isoformat() if self._cache_timestamp else None,
+                "last_updated": self._cache_timestamp.isoformat()
+                if self._cache_timestamp
+                else None,
             },
             "status": "insufficient_data",
         }
@@ -119,7 +125,9 @@ class CredibilitySignalStore:
 
         Returns count of sources scored.
         """
-        result = await db.execute(select(SourceMetadata.source_name, SourceMetadata.domain))
+        result = await db.execute(
+            select(SourceMetadata.source_name, SourceMetadata.domain)
+        )
         rows = result.all()
         scored = 0
 
@@ -132,13 +140,20 @@ class CredibilitySignalStore:
                 await self._store_scores(db, source_name, profile)
                 scored += 1
             except Exception as exc:
-                logger.warning("Failed to compute credibility for %s (%s): %s", source_name, domain, exc)
+                logger.warning(
+                    "Failed to compute credibility for %s (%s): %s",
+                    source_name,
+                    domain,
+                    exc,
+                )
 
         self._cache_timestamp = datetime.now(timezone.utc)
         logger.info("Computed credibility profiles for %d sources", scored)
         return scored
 
-    async def compute_single_source(self, db: AsyncSession, domain: str) -> Dict[str, Any]:
+    async def compute_single_source(
+        self, db: AsyncSession, domain: str
+    ) -> Dict[str, Any]:
         """Compute credibility profile for a single domain on demand."""
         domain = self._extract_domain(domain)
 
@@ -150,7 +165,9 @@ class CredibilitySignalStore:
         if not meta:
             return self.get_credibility_profile(domain)
 
-        profile = await self._compute_dimensions(db, meta.source_name, meta.domain)
+        profile = await self._compute_dimensions(
+            db, meta.source_name or domain, meta.domain or domain
+        )
         self._profile_cache[domain] = profile
         return profile
 
@@ -158,12 +175,24 @@ class CredibilitySignalStore:
         self, db: AsyncSession, source_name: str, domain: str
     ) -> Dict[str, Any]:
         dims = {}
-        dims["funding_transparency"] = await self._compute_funding_transparency(db, source_name)
-        dims["source_network_diversity"] = await self._compute_source_network_diversity(db, source_name, domain)
-        dims["political_orientation_disclosure"] = await self._compute_political_orientation(db, source_name)
-        dims["correction_record"] = await self._compute_correction_record(db, source_name)
-        dims["methodology_transparency"] = await self._compute_methodology_transparency(db, source_name)
-        dims["cross_verification_alignment"] = await self._compute_cross_verification(db, source_name, domain)
+        dims["funding_transparency"] = await self._compute_funding_transparency(
+            db, source_name
+        )
+        dims["source_network_diversity"] = await self._compute_source_network_diversity(
+            db, source_name, domain
+        )
+        dims[
+            "political_orientation_disclosure"
+        ] = await self._compute_political_orientation(db, source_name)
+        dims["correction_record"] = await self._compute_correction_record(
+            db, source_name
+        )
+        dims["methodology_transparency"] = await self._compute_methodology_transparency(
+            db, source_name
+        )
+        dims["cross_verification_alignment"] = await self._compute_cross_verification(
+            db, source_name, domain
+        )
 
         available = sum(1 for d in dims.values() if d.get("score") is not None)
         status = "data_available" if available > 0 else "insufficient_data"
@@ -180,7 +209,9 @@ class CredibilitySignalStore:
             "status": status,
         }
 
-    async def _compute_funding_transparency(self, db: AsyncSession, source_name: str) -> Dict[str, Any]:
+    async def _compute_funding_transparency(
+        self, db: AsyncSession, source_name: str
+    ) -> Dict[str, Any]:
         signals_available = 0
         signals_missing = 5
         provenance: List[Dict[str, Any]] = []
@@ -197,19 +228,29 @@ class CredibilitySignalStore:
         if org:
             if org.funding_type:
                 weight = 0.25
-                sub = 75.0 if org.funding_type in ("public", "independent", "non-profit") else 40.0
+                sub = (
+                    75.0
+                    if org.funding_type in ("public", "independent", "non-profit")
+                    else 40.0
+                )
                 score += sub * weight
                 weight_total += weight
                 signals_available += 1
                 provenance.append(_make_provenance_entry("wikidata_organization", ""))
 
-            if org.parent_orgs and isinstance(org.parent_orgs, list) and len(org.parent_orgs) > 0:
+            if (
+                org.parent_orgs
+                and isinstance(org.parent_orgs, list)
+                and len(org.parent_orgs) > 0
+            ):
                 weight = 0.20
                 depth = min(len(org.parent_orgs), 5)
                 score += (depth * 20.0) * weight
                 weight_total += weight
                 signals_available += 1
-                provenance.append(_make_provenance_entry("wikidata_ownership_chain", ""))
+                provenance.append(
+                    _make_provenance_entry("wikidata_ownership_chain", "")
+                )
 
             if org.ein:
                 weight = 0.20
@@ -218,7 +259,11 @@ class CredibilitySignalStore:
                 signals_available += 1
                 provenance.append(_make_provenance_entry("irs_990_data", ""))
 
-            if org.funding_sources and isinstance(org.funding_sources, list) and len(org.funding_sources) > 0:
+            if (
+                org.funding_sources
+                and isinstance(org.funding_sources, list)
+                and len(org.funding_sources) > 0
+            ):
                 weight = 0.20
                 score += 50.0 * weight
                 weight_total += weight
@@ -259,16 +304,16 @@ class CredibilitySignalStore:
         weight_total = 0.0
 
         actor_country_result = await db.execute(
-            select(
-                func.count(GDELTEvent.actor1_country.distinct())
-            ).where(GDELTEvent.source == domain)
+            select(func.count(GDELTEvent.actor1_country.distinct())).where(
+                GDELTEvent.source == domain
+            )
         )
         distinct_actor_countries = actor_country_result.scalar() or 0
 
         actor_result = await db.execute(
-            select(
-                func.count(func.distinct(GDELTEvent.actor1_name))
-            ).where(GDELTEvent.source == domain)
+            select(func.count(func.distinct(GDELTEvent.actor1_name))).where(
+                GDELTEvent.source == domain
+            )
         )
         distinct_actors = actor_result.scalar() or 0
 
@@ -318,7 +363,9 @@ class CredibilitySignalStore:
             "dimension": "source_network_diversity",
         }
 
-    async def _compute_political_orientation(self, db: AsyncSession, source_name: str) -> Dict[str, Any]:
+    async def _compute_political_orientation(
+        self, db: AsyncSession, source_name: str
+    ) -> Dict[str, Any]:
         provenance: List[Dict[str, Any]] = []
         signals_available = 0
         signals_missing = 4
@@ -371,10 +418,14 @@ class CredibilitySignalStore:
             "dimension": "political_orientation_disclosure",
         }
 
-    async def _compute_correction_record(self, db: AsyncSession, source_name: str) -> Dict[str, Any]:
+    async def _compute_correction_record(
+        self, db: AsyncSession, source_name: str
+    ) -> Dict[str, Any]:
         return _make_empty_dimension("correction_record")
 
-    async def _compute_methodology_transparency(self, db: AsyncSession, source_name: str) -> Dict[str, Any]:
+    async def _compute_methodology_transparency(
+        self, db: AsyncSession, source_name: str
+    ) -> Dict[str, Any]:
         return _make_empty_dimension("methodology_transparency")
 
     async def _compute_cross_verification(
@@ -395,9 +446,7 @@ class CredibilitySignalStore:
         if source_avg_tone is None or global_avg_tone is None:
             return _make_empty_dimension("cross_verification_alignment")
 
-        stddev_result = await db.execute(
-            select(func.stddev_pop(GDELTEvent.tone))
-        )
+        stddev_result = await db.execute(select(func.stddev_pop(GDELTEvent.tone)))
         global_stddev = stddev_result.scalar() or 1.0
 
         deviation = (source_avg_tone - global_avg_tone) / max(global_stddev, 0.01)
@@ -406,22 +455,32 @@ class CredibilitySignalStore:
         score = min(100.0, tone_score)
         signals_available += 1
         provenance.append(
-            _make_provenance_entry("gdelt_tone_deviation_vs_global", "",
-                                   datetime.now(timezone.utc).isoformat())
+            _make_provenance_entry(
+                "gdelt_tone_deviation_vs_global",
+                "",
+                datetime.now(timezone.utc).isoformat(),
+            )
         )
 
         goldstein_result = await db.execute(
-            select(func.avg(GDELTEvent.goldstein_scale)).where(GDELTEvent.source == domain)
+            select(func.avg(GDELTEvent.goldstein_scale)).where(
+                GDELTEvent.source == domain
+            )
         )
         source_goldstein = goldstein_result.scalar()
-        global_goldstein_result = await db.execute(select(func.avg(GDELTEvent.goldstein_scale)))
+        global_goldstein_result = await db.execute(
+            select(func.avg(GDELTEvent.goldstein_scale))
+        )
         global_goldstein = global_goldstein_result.scalar()
 
         if source_goldstein is not None and global_goldstein is not None:
             signals_available += 1
             provenance.append(
-                _make_provenance_entry("gdelt_goldstein_deviation", "",
-                                       datetime.now(timezone.utc).isoformat())
+                _make_provenance_entry(
+                    "gdelt_goldstein_deviation",
+                    "",
+                    datetime.now(timezone.utc).isoformat(),
+                )
             )
 
         signals_missing = 2 - signals_available
@@ -455,10 +514,16 @@ class CredibilitySignalStore:
 
             if existing and score_val is not None:
                 existing.score = int(round(score_val / 20.0))
-                existing.confidence = "high" if dim_data.get("confidence", 0) >= 0.7 else "medium"
+                existing.confidence = (
+                    "high" if dim_data.get("confidence", 0) >= 0.7 else "medium"
+                )
                 existing.prose_explanation = dim_data.get("explanation", "")
                 existing.citations = dim_data.get("provenance", [])
-                existing.empirical_basis = "gdelt_and_wikidata" if "gdelt" in str(dim_data.get("provenance", [])).lower() else "structured_data"
+                existing.empirical_basis = (
+                    "gdelt_and_wikidata"
+                    if "gdelt" in str(dim_data.get("provenance", [])).lower()
+                    else "structured_data"
+                )
                 existing.last_scored_at = datetime.now(timezone.utc)
                 existing.scored_by = "credibility_engine"
             elif existing is None and score_val is not None:
@@ -466,10 +531,14 @@ class CredibilitySignalStore:
                     source_name=source_name,
                     axis_name=axis_name,
                     score=int(round(score_val / 20.0)),
-                    confidence="high" if dim_data.get("confidence", 0) >= 0.7 else "medium",
+                    confidence="high"
+                    if dim_data.get("confidence", 0) >= 0.7
+                    else "medium",
                     prose_explanation=dim_data.get("explanation", ""),
                     citations=dim_data.get("provenance", []),
-                    empirical_basis="gdelt_and_wikidata" if "gdelt" in str(dim_data.get("provenance", [])).lower() else "structured_data",
+                    empirical_basis="gdelt_and_wikidata"
+                    if "gdelt" in str(dim_data.get("provenance", [])).lower()
+                    else "structured_data",
                     scored_by="credibility_engine",
                     last_scored_at=datetime.now(timezone.utc),
                 )
@@ -553,7 +622,7 @@ class CredibilityScorer:
         for key, value in os.environ.items():
             if not key.startswith(prefix):
                 continue
-            domain = key[len(prefix):].lower().replace("_", ".")
+            domain = key[len(prefix) :].lower().replace("_", ".")
             try:
                 score = float(value)
                 if 0.0 <= score <= 1.0:

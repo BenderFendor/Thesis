@@ -316,7 +316,9 @@ def compute_author_confidence(
     """
     highest_confidence = 0.0
 
-    json_ld_result = _parse_json_ld_author_data(article_page_html, reporter_name, article_url)
+    json_ld_result = _parse_json_ld_author_data(
+        article_page_html, reporter_name, article_url
+    )
     if json_ld_result.get("author_pages"):
         return 1.0
 
@@ -324,7 +326,9 @@ def compute_author_confidence(
     if meta_author and _name_matches(meta_author, reporter_name):
         highest_confidence = max(highest_confidence, 0.9)
 
-    anchor_links = _parse_anchor_author_links(article_page_html, reporter_name, article_url)
+    anchor_links = _parse_anchor_author_links(
+        article_page_html, reporter_name, article_url
+    )
     if anchor_links:
         highest_confidence = max(highest_confidence, 0.7)
 

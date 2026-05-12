@@ -254,7 +254,9 @@ class SourceAnalysisScorer:
             confidence = "low"
 
         # Compose prose
-        risk_summary = "; ".join(sub_risks) if sub_risks else "minimal funding data available"
+        risk_summary = (
+            "; ".join(sub_risks) if sub_risks else "minimal funding data available"
+        )
         prose = (
             f"{source_name} funding risk analysis: {risk_summary}. "
             f"Score {base_score}/5 reflects transparency of funding structure, "

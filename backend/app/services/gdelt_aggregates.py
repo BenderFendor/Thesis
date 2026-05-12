@@ -169,7 +169,11 @@ async def compute_source_tone_deviation(
     global_stddev = global_stddev_result.scalar() or 1.0
 
     global_sigma = 0.0
-    if source_mean_tone is not None and global_mean_tone is not None and global_stddev > 0:
+    if (
+        source_mean_tone is not None
+        and global_mean_tone is not None
+        and global_stddev > 0
+    ):
         global_sigma = round((source_mean_tone - global_mean_tone) / global_stddev, 3)
 
     language_sigma = global_sigma
@@ -250,7 +254,9 @@ async def get_economic_events_between(
         return {
             "total_events": int(row.total_events or 0),
             "avg_tone": round(row.avg_tone, 3) if row.avg_tone is not None else None,
-            "avg_goldstein": round(row.avg_goldstein, 3) if row.avg_goldstein is not None else None,
+            "avg_goldstein": round(row.avg_goldstein, 3)
+            if row.avg_goldstein is not None
+            else None,
         }
 
 

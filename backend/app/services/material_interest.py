@@ -45,7 +45,7 @@ _CAMEO_ECONOMIC_HI = 20
 def _extract_json(content: str) -> Optional[Dict[str, Any]]:
     match = re.search(r"\{[\s\S]*\}", content)
     if match:
-        return json.loads(match.group())
+        return cast(Dict[str, Any], json.loads(match.group()))
     return None
 
 
@@ -66,7 +66,10 @@ class MaterialInterestAgent:
         return factory()
 
     async def _get_gdelt_economic_context(
-        self, countries: List[str], days: int = 30, session: Optional[AsyncSession] = None
+        self,
+        countries: List[str],
+        days: int = 30,
+        session: Optional[AsyncSession] = None,
     ) -> Dict[str, Any]:
         upper = [c.upper() for c in countries]
         if not upper:
@@ -242,7 +245,11 @@ class MaterialInterestAgent:
             logger.error(
                 "Trade flows query failed for %s->%s: %s", exporter, importer, e
             )
-            return {"total_trade_value_usd": None, "product_count": 0, "top_products": []}
+            return {
+                "total_trade_value_usd": None,
+                "product_count": 0,
+                "top_products": [],
+            }
 
     async def _get_commodity_context(
         self, commodities: List[str], session: Optional[AsyncSession] = None
@@ -360,7 +367,11 @@ class MaterialInterestAgent:
             return {}
 
     async def _persist_analysis(
-        self, article_url: str, source_name: str, analysis_json: Dict[str, Any], session: Optional[AsyncSession] = None
+        self,
+        article_url: str,
+        source_name: str,
+        analysis_json: Dict[str, Any],
+        session: Optional[AsyncSession] = None,
     ) -> None:
         async def _run(db: AsyncSession) -> None:
             await db.execute(
@@ -481,9 +492,7 @@ Return ONLY valid JSON:
                     "confidence": parsed.get("certainty", "medium"),
                 }
 
-            logger.warning(
-                "AI response could not be parsed as JSON: %s", content[:200]
-            )
+            logger.warning("AI response could not be parsed as JSON: %s", content[:200])
             return {
                 "beneficiary_table": [],
                 "analysis_summary": "Analysis unavailable.",
@@ -535,7 +544,11 @@ Return ONLY valid JSON:
                 for j, c2 in enumerate(all_countries[i + 1 :]):
                     if pair_index < len(trade_results):
                         trade_data.append(
-                            {"exporter": c1, "importer": c2, **trade_results[pair_index]}
+                            {
+                                "exporter": c1,
+                                "importer": c2,
+                                **trade_results[pair_index],
+                            }
                         )
                     pair_index += 1
 
@@ -543,7 +556,9 @@ Return ONLY valid JSON:
             for cr in resources.values():
                 for res in cr.get("natural_resources", []):
                     commodity_names.append(str(res))
-            commodity_context = await self._get_commodity_context(commodity_names[:10], session=session)
+            commodity_context = await self._get_commodity_context(
+                commodity_names[:10], session=session
+            )
 
             analysis = await self._ai_analyze_interests(
                 source_name=article_source,
@@ -560,7 +575,9 @@ Return ONLY valid JSON:
 
             timestamp_str = datetime.now(timezone.utc).strftime("%Y%m%d%H%M%S")
             article_url_hint = f"material_{article_source}_{timestamp_str}"
-            await self._persist_analysis(article_url_hint, article_source, analysis, session=session)
+            await self._persist_analysis(
+                article_url_hint, article_source, analysis, session=session
+            )
 
             result: Dict[str, Any] = {
                 "source": article_source,
@@ -581,11 +598,11 @@ Return ONLY valid JSON:
         finally:
             await session.close()
 
-    async def get_country_economic_profile(
-        self, country_code: str
-    ) -> Dict[str, Any]:
+    async def get_country_economic_profile(self, country_code: str) -> Dict[str, Any]:
         resources = await self._get_country_resources([country_code])
-        return resources.get(country_code.upper(), {"note": "Economic data not available"})
+        return resources.get(
+            country_code.upper(), {"note": "Economic data not available"}
+        )
 
     async def close(self) -> None:
         await self.http_client.aclose()
