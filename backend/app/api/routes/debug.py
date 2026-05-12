@@ -12,7 +12,7 @@ from fastapi.concurrency import run_in_threadpool
 from pydantic import BaseModel, Field
 from sqlalchemy import func, select
 
-from app.core.config import settings
+from app.core.config import SCOOP_USER_AGENT, settings
 from app.data.rss_sources import get_rss_sources
 from app.database import (
     Article,
@@ -43,7 +43,7 @@ _ALLOWED_LLM_LOG_FILES = {
 async def _fetch_rss_text(url: str) -> str:
     async with httpx.AsyncClient(
         follow_redirects=True,
-        headers={"User-Agent": "NewsAggregator/1.0"},
+        headers={"User-Agent": SCOOP_USER_AGENT},
         timeout=20.0,
     ) as client:
         response = await client.get(url)

@@ -19,6 +19,12 @@ This map helps Codex agents orient quickly before editing.
 - `backend/app/main.py`: FastAPI entrypoint.
 - `backend/app/api/routes/`: API routes grouped by domain.
 - `backend/app/services/`: business logic and orchestration.
+- `backend/app/services/entity_wiki_service.py`: Wikidata/Wikipedia entity resolution and reporter scoring.
+- `backend/app/services/reporter_indexer.py`: background reporter indexing, local-byline profile builder.
+- `backend/app/services/reporter_web_search.py`: DuckDuckGo Lite web search enrichment.
+- `backend/app/services/reporter_social_search.py`: Mastodon and Bluesky social profile search.
+- `backend/app/services/reporter_wikipedia.py`: Wikipedia bio extraction and category mining.
+- `backend/app/services/reporter_directory.py`: Mastodon journalist directory enumeration.
 - `backend/app/data/rss_sources.json`: curated RSS catalog.
 - `backend/tests/`: backend regression tests.
 - `backend/scripts/validate_rss_sources.py`: RSS health validation.

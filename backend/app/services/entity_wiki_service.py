@@ -11,6 +11,7 @@ from urllib.parse import quote, urlparse
 import httpx
 import numpy as np
 
+from app.core.config import SCOOP_WIKIMEDIA_UA
 from app.core.logging import get_logger
 from app.services.funding_researcher import (
     _extract_wikidata_item_ids,
@@ -24,18 +25,41 @@ logger = get_logger("entity_wiki_service")
 WIKIDATA_API_URL = "https://www.wikidata.org/w/api.php"
 WIKIPEDIA_API_URL = "https://en.wikipedia.org/w/api.php"
 WIKIDATA_SEARCH_LIMIT = 8
-WIKIMEDIA_USER_AGENT = "ScoopNewsWikiService/1.0 (https://github.com/anomalyco/Thesis)"
 INSTANCE_HUMAN = "Q5"
 JOURNALISM_KEYWORDS = (
     "journalist",
     "reporter",
     "correspondent",
     "editor",
-    "author",
     "columnist",
     "writer",
     "news",
+    "anchor",
+    "commentator",
+    "broadcaster",
+    "presenter",
 )
+NON_JOURNALIST_OCCUPATIONS = (
+    "researcher",
+    "scientist",
+    "physician",
+    "doctor",
+    "engineer",
+    "attorney",
+    "lawyer",
+    "musician",
+    "actor",
+    "actress",
+    "athlete",
+    "professor",
+    "teacher",
+    "artist",
+    "politician",
+    "nurse",
+    "chef",
+    "police",
+)
+NON_JOURNALIST_PENALTY = 0.4
 EXPANDED_WIKIDATA_PROPS = {
     "P31": "instance_of",
     "P106": "occupation",
@@ -331,7 +355,7 @@ async def _resolve_labels(
             "format": "json",
             "formatversion": 2,
         },
-        headers={"User-Agent": WIKIMEDIA_USER_AGENT},
+        headers={"User-Agent": SCOOP_WIKIMEDIA_UA},
     )
     if response.status_code != 200:
         return {}
@@ -364,7 +388,7 @@ async def _fetch_entities(
             "format": "json",
             "formatversion": 2,
         },
-        headers={"User-Agent": WIKIMEDIA_USER_AGENT},
+        headers={"User-Agent": SCOOP_WIKIMEDIA_UA},
     )
     if response.status_code != 200:
         return []
@@ -388,7 +412,7 @@ async def _search_wikidata(
             "type": "item",
             "format": "json",
         },
-        headers={"User-Agent": WIKIMEDIA_USER_AGENT},
+        headers={"User-Agent": SCOOP_WIKIMEDIA_UA},
     )
     if response.status_code != 200:
         return []
@@ -411,7 +435,7 @@ async def _fetch_wikipedia_summary(
             "inprop": "url",
             "format": "json",
         },
-        headers={"User-Agent": WIKIMEDIA_USER_AGENT},
+        headers={"User-Agent": SCOOP_WIKIMEDIA_UA},
     )
     if response.status_code != 200:
         return {}
@@ -774,28 +798,34 @@ async def build_reporter_dossier(
             work_location = _extract_wikidata_string(claims, "P937")
             name_score = _text_similarity(normalized_name, label)
             organization_score = max(
-                _token_overlap(organization, " ".join(employer_labels)),
-                _token_overlap(organization, description),
+                max(
+                    _token_overlap(organization, emp_label)
+                    for emp_label in employer_labels
+                ) if employer_labels else 0.0,
+                0.0,
             )
-            occupation_score = (
-                1.0
-                if any(
-                    keyword in " ".join(occupation_labels).lower()
-                    for keyword in JOURNALISM_KEYWORDS
-                )
-                else 0.0
+            occupation_is_journalism = any(
+                keyword in " ".join(occupation_labels).lower()
+                for keyword in JOURNALISM_KEYWORDS
             )
+            occupation_is_non_journalist = any(
+                keyword in " ".join(occupation_labels).lower()
+                for keyword in NON_JOURNALIST_OCCUPATIONS
+            )
+            occupation_score = 1.0 if occupation_is_journalism else 0.0
             human_score = 1.0 if INSTANCE_HUMAN in instance_ids else 0.0
             context_score = _context_similarity(
                 normalized_name, description, article_context
             )
             total_score = (
-                name_score * 0.34
-                + human_score * 0.22
-                + occupation_score * 0.18
+                name_score * 0.30
+                + human_score * 0.18
+                + occupation_score * 0.26
                 + organization_score * 0.14
                 + context_score * 0.12
             )
+            if occupation_is_non_journalist and not occupation_is_journalism:
+                total_score -= NON_JOURNALIST_PENALTY
             metadata = {
                 "qid": entity.get("id"),
                 "label": label,
@@ -851,21 +881,69 @@ async def build_reporter_dossier(
                 "wikidata_url": None,
                 "dossier_sections": [],
                 "citations": [],
-                "search_links": {},
+                "search_links": {
+                    "wikipedia": f"https://en.wikipedia.org/w/index.php?search={quote(normalized_name)}",
+                    "wikidata": f"https://www.wikidata.org/w/index.php?search={quote(normalized_name)}",
+                },
                 "match_explanation": "Candidates were returned, but none exposed usable public facts.",
                 "research_sources": ["wikidata_search", "wikidata_entities"],
                 "research_confidence": "low",
             }
 
         scored.sort(key=lambda item: item[0], reverse=True)
-        best_score, _, best_meta = scored[0]
-        second_score = scored[1][0] if len(scored) > 1 else 0.0
+        has_journalist_candidate = any(
+            m["scores"]["occupation"] > 0 for _, _, m in scored
+        )
+        if has_journalist_candidate:
+            journalist_scored = [s for s in scored if s[2]["scores"]["occupation"] > 0]
+            best_score, _, best_meta = journalist_scored[0]
+            second_score = (
+                journalist_scored[1][0]
+                if len(journalist_scored) > 1
+                else (
+                    scored[0][0]
+                    if scored[0][2].get("qid") != best_meta.get("qid")
+                    else 0.0
+                )
+            )
+        else:
+            return {
+                "name": normalized_name,
+                "normalized_name": normalized_name.lower(),
+                "canonical_name": normalized_name,
+                "resolver_key": resolver_key,
+                "match_status": "none",
+                "overview": None,
+                "bio": None,
+                "career_history": [],
+                "topics": [],
+                "education": [],
+                "wikipedia_url": None,
+                "wikidata_qid": None,
+                "wikidata_url": None,
+                "dossier_sections": [],
+                "citations": [],
+                "search_links": {
+                    "wikipedia": f"https://en.wikipedia.org/w/index.php?search={quote(normalized_name)}",
+                    "wikidata": f"https://www.wikidata.org/w/index.php?search={quote(normalized_name)}",
+                },
+                "match_explanation": "No journalist Wikidata candidates found for this name -- bylines are from a news outlet, not a known public entity.",
+                "research_sources": ["wikidata_search"],
+                "research_confidence": "low",
+            }
+        matched_threshold = 0.65 if len(scored) == 1 else 0.55
         match_status = (
             "matched"
-            if best_score >= 0.55 and (best_score - second_score) >= 0.08
+            if best_score >= matched_threshold and (best_score - second_score) >= 0.08
             else "ambiguous"
         )
-        summary = await _fetch_wikipedia_summary(client, best_meta.get("wiki_title"))
+        summary: Dict[str, Any] = {}
+        try:
+            summary = await _fetch_wikipedia_summary(
+                client, best_meta.get("wiki_title")
+            )
+        except Exception:
+            logger.debug("Wikipedia summary fetch failed for %s", normalized_name)
         wikipedia_url = cast(Optional[str], summary.get("url"))
         wikidata_url = (
             f"https://www.wikidata.org/wiki/{best_meta['qid']}"

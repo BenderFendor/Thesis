@@ -24,6 +24,7 @@ import httpx
 from sqlalchemy import or_, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.config import SCOOP_BROWSER_UA
 from app.core.logging import get_logger
 from app.models.news import NewsArticle
 from app.services.cache import news_cache
@@ -34,7 +35,6 @@ logger = get_logger("og_image")
 httpx_logger = get_logger("httpx")
 httpx_logger.setLevel("WARNING")
 
-USER_AGENT = "Mozilla/5.0 (compatible; ScoopBot/1.0; +https://scoop.news)"
 FETCH_TIMEOUT = 4.0
 MAX_CONCURRENT_PER_DOMAIN = 5
 MAX_TOTAL_CONCURRENT_FETCHES = int(os.getenv("OG_IMAGE_TOTAL_CONCURRENCY", "48"))
@@ -190,7 +190,7 @@ async def fetch_og_image(url: str, client: httpx.AsyncClient) -> Optional[str]:
             url,
             timeout=FETCH_TIMEOUT,
             follow_redirects=True,
-            headers={"User-Agent": USER_AGENT},
+            headers={"User-Agent": SCOOP_BROWSER_UA},
         ) as response:
             if response.status_code != 200:
                 return None

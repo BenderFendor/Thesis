@@ -21,11 +21,51 @@ _META_AUTHOR_PATTERN = re.compile(
     r"<meta[^>]+name=[\"']author[\"'][^>]+content=[\"']([^\"']+)[\"'][^>]*>",
     re.IGNORECASE,
 )
+_ITEMPROP_AUTHOR_PATTERN = re.compile(
+    r"<[^>]+itemprop=[\"']author[\"'][^>]*>(.*?)</[^>]+>",
+    re.IGNORECASE | re.DOTALL,
+)
 _ANCHOR_PATTERN = re.compile(r"<a\b([^>]*)>(.*?)</a>", re.IGNORECASE | re.DOTALL)
 _TAG_ATTR_PATTERN = re.compile(r"([a-zA-Z_:.-]+)\s*=\s*[\"']([^\"']*)[\"']")
 _AUTHOR_PATH_PATTERN = re.compile(
-    r"/(author|authors|profile|profiles|staff|team|bio|bios)/",
+    r"/(author|authors|bio|bios|by|byline|columnist|columnists|contributor|contributors|people|person|profile|profiles|staff|team)/",
     re.IGNORECASE,
+)
+_EMAIL_WRAPPED_NAME_PATTERN = re.compile(r"^[^\s@]+@[^\s@]+\s*\(([^)]+)\)$")
+_NON_PERSON_AUTHOR_LABELS = {
+    "about",
+    "admin",
+    "advertise",
+    "author",
+    "authors",
+    "bluesky",
+    "board of directors",
+    "comments",
+    "contact",
+    "email",
+    "facebook",
+    "instagram",
+    "linkedin",
+    "mastodon",
+    "news desk",
+    "newsletter",
+    "people",
+    "print",
+    "share",
+    "staff",
+    "telegram",
+    "threads",
+    "twitter",
+    "view license",
+    "whatsapp",
+    "x",
+    "youtube",
+}
+_NON_PERSON_AUTHOR_PHRASES = (
+    "board of directors",
+    "cookie policy",
+    "privacy policy",
+    "terms of use",
 )
 
 
@@ -85,6 +125,39 @@ def _strip_html(value: str) -> str:
     text = re.sub(r"(?is)<[^>]+>", " ", text)
     text = re.sub(r"\s+", " ", text)
     return text.strip()
+
+
+def clean_author_name(value: Optional[str]) -> Optional[str]:
+    """Return a reporter-like author name or None for generic navigation labels."""
+    if not isinstance(value, str):
+        return None
+    text = _strip_html(value)
+    if not text:
+        return None
+
+    wrapped = _EMAIL_WRAPPED_NAME_PATTERN.match(text)
+    if wrapped:
+        text = wrapped.group(1).strip()
+
+    if " / " in text:
+        first_part = text.split(" / ", 1)[0].strip()
+        if first_part:
+            text = first_part
+
+    text = re.sub(r"\s+", " ", text).strip(" \t\r\n:|,;")
+    lowered = text.lower()
+    if (
+        not text
+        or lowered in _NON_PERSON_AUTHOR_LABELS
+        or any(phrase in lowered for phrase in _NON_PERSON_AUTHOR_PHRASES)
+    ):
+        return None
+
+    word_tokens = re.findall(r"[^\W\d_]+", text, flags=re.UNICODE)
+    if len(word_tokens) < 2:
+        return None
+
+    return text
 
 
 def _collect_author_objects(payload: Any) -> List[Dict[str, Any]]:
@@ -174,6 +247,74 @@ def _author_name_from_meta(html: str) -> Optional[str]:
     if not match:
         return None
     return match.group(1).strip() or None
+
+
+def extract_article_author_candidates(html: str, page_url: str) -> Dict[str, Any]:
+    """Extract possible author names/pages from an article page without a known name."""
+    names: List[str] = []
+    author_pages: List[str] = []
+    social_links: List[str] = []
+    structured_person_names: List[str] = []
+    microdata_author_names: List[str] = []
+
+    for raw_json in _JSON_LD_PATTERN.findall(html):
+        try:
+            payload = json.loads(raw_json.strip())
+        except json.JSONDecodeError:
+            continue
+        for author in _collect_author_objects(payload):
+            name = clean_author_name(author.get("name"))
+            if name:
+                names.append(name)
+                raw_type = author.get("@type")
+                author_types = raw_type if isinstance(raw_type, list) else [raw_type]
+                if "Person" in author_types:
+                    structured_person_names.append(name)
+            if isinstance(author.get("url"), str):
+                author_pages.append(urljoin(page_url, author["url"]))
+            same_as = author.get("sameAs")
+            if isinstance(same_as, list):
+                social_links.extend(
+                    urljoin(page_url, value)
+                    for value in same_as
+                    if isinstance(value, str)
+                )
+            elif isinstance(same_as, str):
+                social_links.append(urljoin(page_url, same_as))
+
+    meta_author = _author_name_from_meta(html)
+    meta_author = clean_author_name(meta_author)
+    if meta_author:
+        names.append(meta_author)
+    for raw_author in _ITEMPROP_AUTHOR_PATTERN.findall(html):
+        author_text = clean_author_name(raw_author)
+        if author_text:
+            names.append(author_text)
+            microdata_author_names.append(author_text)
+
+    for raw_attrs, raw_text in _ANCHOR_PATTERN.findall(html):
+        attrs = _parse_tag_attrs(raw_attrs)
+        href = attrs.get("href")
+        if not href:
+            continue
+        absolute = urljoin(page_url, href)
+        rel = attrs.get("rel", "")
+        text = clean_author_name(raw_text)
+        if not text:
+            continue
+        if "author" in rel.lower() or _AUTHOR_PATH_PATTERN.search(
+            urlparse(absolute).path
+        ):
+            names.append(text)
+            author_pages.append(absolute)
+
+    return {
+        "names": _ordered_unique(names),
+        "author_pages": _ordered_unique(author_pages),
+        "social_links": _ordered_unique(social_links),
+        "structured_person_names": _ordered_unique(structured_person_names),
+        "microdata_author_names": _ordered_unique(microdata_author_names),
+    }
 
 
 async def _fetch_article_author_signals(

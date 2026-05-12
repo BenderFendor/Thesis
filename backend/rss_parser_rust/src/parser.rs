@@ -144,6 +144,16 @@ fn extract_rss_item_metadata(xml: &str) -> Vec<RssItemMetadata> {
         .collect()
 }
 
+fn trim_to_feed_document(xml: &str) -> &str {
+    let lower = xml.to_lowercase();
+    for closing_tag in ["</rss>", "</feed>"] {
+        if let Some(end) = lower.rfind(closing_tag) {
+            return &xml[..end + closing_tag.len()];
+        }
+    }
+    xml
+}
+
 fn find_rss_item_authors(
     item_metadata: &[RssItemMetadata],
     link: &str,
@@ -247,30 +257,36 @@ fn parse_source_group(
 
     for result in results {
         match result {
-            FetchResult::Success(raw) => match parser::parse(raw.xml.as_bytes()) {
-                Ok(feed) => {
-                    let parsed_articles = extract_articles(feed.entries, &raw.xml, source_name);
-                    let count = parsed_articles.len();
-                    articles.extend(parsed_articles);
-                    sub_stats.push(SubFeedStat {
-                        url: raw.url.clone(),
-                        status: "success".to_string(),
-                        article_count: count,
-                        error_message: None,
-                    });
+            FetchResult::Success(raw) => {
+                match parser::parse(trim_to_feed_document(&raw.xml).as_bytes()) {
+                    Ok(feed) => {
+                        let parsed_articles = extract_articles(
+                            feed.entries,
+                            trim_to_feed_document(&raw.xml),
+                            source_name,
+                        );
+                        let count = parsed_articles.len();
+                        articles.extend(parsed_articles);
+                        sub_stats.push(SubFeedStat {
+                            url: raw.url.clone(),
+                            status: "success".to_string(),
+                            article_count: count,
+                            error_message: None,
+                        });
+                    }
+                    Err(err) => {
+                        top_status = "warning".to_string();
+                        let msg = format!("Parse error: {err}");
+                        errors.push(msg.clone());
+                        sub_stats.push(SubFeedStat {
+                            url: raw.url.clone(),
+                            status: "error".to_string(),
+                            article_count: 0,
+                            error_message: Some(msg),
+                        });
+                    }
                 }
-                Err(err) => {
-                    top_status = "warning".to_string();
-                    let msg = format!("Parse error: {err}");
-                    errors.push(msg.clone());
-                    sub_stats.push(SubFeedStat {
-                        url: raw.url.clone(),
-                        status: "error".to_string(),
-                        article_count: 0,
-                        error_message: Some(msg),
-                    });
-                }
-            },
+            }
             FetchResult::Error(err) => {
                 top_status = "warning".to_string();
                 errors.push(err.message.clone());
@@ -398,7 +414,7 @@ fn matches_media_image(media_type: Option<&str>) -> bool {
 
 #[cfg(test)]
 mod tests {
-    use super::extract_rss_item_metadata;
+    use super::{extract_rss_item_metadata, trim_to_feed_document};
 
     #[test]
     fn extracts_dc_creator_authors_from_rss_items() {
@@ -458,5 +474,15 @@ mod tests {
 
         assert_eq!(items.len(), 1);
         assert!(items[0].authors.is_empty());
+    }
+
+    #[test]
+    fn trims_junk_after_complete_rss_document() {
+        let xml = "<rss><channel><item><title>One</title></item></channel></rss><html>junk</html>";
+
+        assert_eq!(
+            trim_to_feed_document(xml),
+            "<rss><channel><item><title>One</title></item></channel></rss>"
+        );
     }
 }

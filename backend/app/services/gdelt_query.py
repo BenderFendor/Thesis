@@ -13,6 +13,8 @@ from urllib.parse import urlencode
 
 import httpx
 
+from app.core.config import SCOOP_USER_AGENT
+
 logger = logging.getLogger(__name__)
 
 GDELT_DOC_API_URL = "https://api.gdeltproject.org/api/v2/doc/doc"
@@ -76,7 +78,7 @@ class GDELTQueryService:
             self._client = httpx.AsyncClient(
                 timeout=20.0,
                 follow_redirects=True,
-                headers={"User-Agent": "Scoop News Reader/1.0"},
+                headers={"User-Agent": SCOOP_USER_AGENT},
             )
         return self._client
 

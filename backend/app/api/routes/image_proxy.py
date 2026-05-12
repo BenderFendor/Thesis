@@ -16,6 +16,7 @@ import httpx
 from fastapi import APIRouter, HTTPException, Query
 from fastapi.responses import Response
 
+from app.core.config import SCOOP_BROWSER_UA
 from app.core.logging import get_logger
 from app.services.og_image import fetch_og_image
 
@@ -40,8 +41,6 @@ ALLOWED_CONTENT_TYPES = {
     "image/avif",
 }
 
-# User agent for fetching (some sites block default agents)
-USER_AGENT = "Mozilla/5.0 (compatible; ThesisNewsBot/1.0; +https://github.com/BenderFendor/Thesis)"
 
 
 def _get_cache_path(url: str) -> tuple[Path, Path]:
@@ -119,7 +118,7 @@ async def proxy_image(
         async with httpx.AsyncClient(
             timeout=httpx.Timeout(FETCH_TIMEOUT),
             follow_redirects=True,
-            headers={"User-Agent": USER_AGENT},
+            headers={"User-Agent": SCOOP_BROWSER_UA},
         ) as client:
             response = await client.get(url)
             response.raise_for_status()

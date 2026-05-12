@@ -32,6 +32,50 @@ _SSL_CONTEXT = ssl._create_unverified_context()
 HEADERS = {"User-Agent": "NewsAggregator/1.0"}
 
 
+def _trim_to_feed_document(body: bytes) -> bytes:
+    """Keep the first complete RSS/Atom document when a feed appends junk."""
+    lowered = body.lower()
+    for closing_tag in (b"</rss>", b"</feed>"):
+        end = lowered.rfind(closing_tag)
+        if end != -1:
+            return body[: end + len(closing_tag)]
+    return body
+
+
+def _strip_invalid_xml_bytes(body: bytes) -> bytes:
+    return bytes(
+        byte
+        for byte in body
+        if byte in (0x09, 0x0A, 0x0D) or 0x20 <= byte <= 0x7E or byte >= 0x80
+    )
+
+
+def _strip_invalid_xml_chars(body: bytes) -> str:
+    text = body.decode("utf-8", errors="ignore")
+    return "".join(
+        char
+        for char in text
+        if char in ("\t", "\n", "\r")
+        or "\u0020" <= char <= "\ud7ff"
+        or "\ue000" <= char <= "\ufffd"
+    )
+
+
+def _parse_feed_xml(body: bytes) -> ET.Element:
+    try:
+        return ET.fromstring(body)
+    except ET.ParseError as exc:
+        if "junk after document element" in str(exc):
+            return ET.fromstring(_trim_to_feed_document(body))
+        if "invalid token" in str(exc):
+            trimmed = _trim_to_feed_document(body)
+            try:
+                return ET.fromstring(_strip_invalid_xml_bytes(trimmed))
+            except ET.ParseError:
+                return ET.fromstring(_strip_invalid_xml_chars(trimmed))
+        raise
+
+
 def count_items(root: ET.Element) -> int:
     tag = root.tag.lower()
     if "rss" in tag:
@@ -50,7 +94,7 @@ def _first_article_domain(url: str) -> str | None:
     with urllib.request.urlopen(req, timeout=30, context=_SSL_CONTEXT) as response:
         body = response.read()
 
-    root = ET.fromstring(body)
+    root = _parse_feed_xml(body)
     source_url = root.find("./channel/item/source")
     if source_url is not None:
         source_attr = source_url.get("url")
@@ -95,12 +139,14 @@ def validate_url(url: str) -> tuple[bool, str, int | None]:
         content_type = response.headers.get("Content-Type", "")
         body = response.read()
 
-    root = ET.fromstring(body)
+    root = _parse_feed_xml(body)
     items = count_items(root)
     if items <= 0:
         return False, f"parsed XML but found {items} items", status
 
-    if "html" in content_type.lower():
+    root_tag = root.tag.lower()
+    is_feed_root = "rss" in root_tag or "feed" in root_tag or "atom" in root_tag
+    if "html" in content_type.lower() and not is_feed_root:
         return False, f"returned HTML content-type {content_type}", status
 
     return True, f"status={status} items={items} root={root.tag}", status

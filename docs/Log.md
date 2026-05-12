@@ -811,3 +811,37 @@ curl http://localhost:8000/trending/diagnostics
 - Added direct frontend dependencies for imported runtime/config packages (`d3-geo`, `eslint-plugin-react-hooks`, and `postcss-load-config`) so the package manifest matches code and tool configuration.
 - Tightened the saved-article helper record types for bookmark/liked flows and reused the shared `GridViewMode` type in `frontend/components/grid-view.tsx`.
 - Verification: `uvx ruff check backend/`, `uvx vulture backend/app backend/scripts --exclude 'backend/.venv/*' --min-confidence 90`, `python backend/scripts/check_import_cycles.py --source backend/app --package-root backend`, `npx --yes madge --circular --json --no-spinner --extensions ts,tsx --ts-config tsconfig.json app components hooks lib` in `frontend/`, `npx --yes knip` in `frontend/` (remaining findings are exported API/UI surface only), `bash -lc 'cd backend && .venv/bin/pytest tests/test_bookmarks.py tests/test_liked.py tests/test_scroll_personalization_flow.py -q'`, `npm --prefix frontend run lint`, and `npm --prefix frontend exec -- tsc -p frontend/tsconfig.json --noEmit`.
+
+2026-05-12 — Reporter/source intelligence live proof and local byline fallback
+- Added local byline reporter profiles for unresolved Wikimedia reporters so RSS bylines, the local article corpus, official article pages, schema.org JSON-LD, and RSS catalog metadata still produce deterministic reporter evidence instead of dropping unmatched reporters.
+- Added `backend/scripts/verify_reporter_source_intelligence.py` and `backend/scripts/reporter_source_verifier.py` to live-test real RSS catalog sources, real Wikimedia-backed reporters, and per-source reporter/byline coverage with strong/medium/weak quality tiers across RSS and Atom feeds.
+- Added same-domain official author-page probing for bylines that come from feeds whose article pages block or omit author metadata, and count clean official RSS bylines as medium evidence when article pages are blocked.
+- Added Google News RSS wrapper decoding for the live proof harness so aggregator feed entries can be tested against the real publisher article pages.
+- Extended author extraction to recognize schema.org `Person` authors and microdata author fields as medium-quality article-page evidence, filter generic navigation labels out of reporter candidates, and corrected current Duvar English, The Citizen, and Washington Post RSS URLs after validating them live.
+- Hardened RSS validation and the Rust parser against feeds that include trailing content after a complete RSS document, and corrected the Pajhwok Afghan News feed URL.
+- Verification: targeted reporter tests passed, Rust feed-trimming coverage passed, the changed live feed URLs validated, and the 50-source live reporter proof scanned deeper feed windows for up to five unique reporters per source, reaching 40/50 sources with strong or medium reporter evidence and 32/50 sources with five found reporters.
+
+## 2026-05-12: Reporter Resolution False-Positive Fix And Free Enrichment Pipeline
+
+**Problem:** The Wikidata-based reporter resolver matched non-journalists (e.g., cancer researchers) to journalists whose names happened to overlap. The 0.55 scoring threshold was achievable by `name_score + human_score` alone with zero occupation signal. The system also had no enrichment when Wikidata returned ambiguous or no match.
+
+**What Changed:**
+- Fixed `build_reporter_dossier()` scoring in `entity_wiki_service.py`: rebalanced weights (name 0.34->0.30, occupation 0.18->0.26), added `NON_JOURNALIST_OCCUPATIONS` penalty (-0.4) for known non-journalist Wikidata labels, required `occupation_score > 0` for "matched" status, and raised single-candidate threshold to 0.65.
+- When no journalist Wikidata candidates exist, the resolver now returns `match_status: "none"` instead of displaying a non-journalist entity as the best candidate. The indexer falls through to a local-byline profile.
+- Added `_build_local_byline_profile()` in `reporter_indexer.py` to create evidence-backed local profiles from RSS bylines, local article corpus, and official article pages.
+- Created `backend/app/services/reporter_web_search.py`: DuckDuckGo Lite search enrichment for reporter name + outlet queries.
+- Created `backend/app/services/reporter_social_search.py`: Mastodon (journa.host, newsie.social, mastodon.social, mastodon.online) and Bluesky public API search for journalist social profiles.
+- Created `backend/app/services/reporter_wikipedia.py`: Wikipedia API bio extraction by reporter name search, plus Wikipedia category journalist enumeration.
+- Created `backend/app/services/reporter_directory.py`: Full Mastodon directory enumeration for bulk journalist discovery (journa.host: 3,019 vetted journalists; newsie.social: 20,710 journalist accounts).
+- Local-byline profiles now run web search, social search, and Wikipedia bio fetch in a single parallel `asyncio.gather`, with results flowing into profile overview, citations, and search links.
+- Unified 15+ scattered User-Agent strings across 13 files into three constants in `app/core/config.py`: `SCOOP_USER_AGENT` (general web), `SCOOP_WIKIMEDIA_UA` (Wikimedia-format with contact URL per policy), `SCOOP_BROWSER_UA` (Mozilla/5.0 compatible for image extraction on CDN-blocked sites).
+- Fixed `ws_client.aclose()` leak via `finally` block in enrichment gather.
+- Fixed employer score token-boundary bug: replaced fragile `" ".join(employer_labels)` with per-label token overlap.
+- Added `NON_JOURNALIST_OCCUPATIONS` constant (researcher, scientist, physician, engineer, etc.) and removed "author" from `JOURNALISM_KEYWORDS` (too broad).
+
+**Verification:**
+- `uv run pytest backend/tests/test_entity_wiki_service.py backend/tests/test_wiki_reporters.py backend/tests/test_wiki_indexer.py backend/tests/test_reporter_indexer.py -q`: 39 passed.
+- `uvx ruff check` on all changed files: 0 errors.
+- Live test: `score_researcher_likelihood("Jonathan Carter")` correctly classified as researcher (score=90: 320 works, h-index=42, UCSF, 192 PubMed papers).
+- Live test: `find_social_profiles` returns real Mastodon/Bluesky results for known journalists.
+- Live test: `mine_journalist_directories` returns verified journalist profiles from journa.host with press credentials.

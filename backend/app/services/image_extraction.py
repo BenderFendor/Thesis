@@ -15,6 +15,7 @@ from urllib.parse import urljoin
 
 import httpx
 
+from app.core.config import SCOOP_BROWSER_UA
 from app.core.logging import get_logger
 from app.services.rss_parser_rust_bindings import extract_og_image_html
 
@@ -324,7 +325,7 @@ async def fetch_og_image(
         async with httpx.AsyncClient(
             timeout=httpx.Timeout(timeout),
             follow_redirects=True,
-            headers={"User-Agent": "Mozilla/5.0 (compatible; ThesisNewsBot/1.0)"},
+            headers={"User-Agent": SCOOP_BROWSER_UA},
         ) as client:
             response = await client.get(article_url)
             response.raise_for_status()

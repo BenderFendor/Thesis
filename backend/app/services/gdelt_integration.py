@@ -12,6 +12,7 @@ from typing import TYPE_CHECKING, Any, Dict, List, Optional, Sequence, Tuple, ca
 from urllib.parse import urlparse
 
 import httpx
+from app.core.config import SCOOP_USER_AGENT
 from sqlalchemy import select, func
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -46,7 +47,7 @@ class GDELTIntegration:
             self._client = httpx.AsyncClient(
                 timeout=60.0,
                 follow_redirects=True,
-                headers={"User-Agent": "Scoop News Reader/1.0"},
+                headers={"User-Agent": SCOOP_USER_AGENT},
             )
         return self._client
 

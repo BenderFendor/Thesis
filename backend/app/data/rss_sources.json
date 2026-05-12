@@ -143,7 +143,7 @@
         "wikidata_qid": "Q11148"
     },
     "The Washington Post": {
-        "url": "http://feeds.washingtonpost.com/rss/national",
+        "url": "https://feeds.washingtonpost.com/rss/national",
         "site_url": "https://www.washingtonpost.com",
         "category": "general",
         "country": "US",
@@ -1221,7 +1221,7 @@
         "factual_reporting": "unknown"
     },
     "Duvar English": {
-        "url": "https://www.duvarenglish.com/rss",
+        "url": "https://www.duvarenglish.com/export/rss",
         "category": "general",
         "country": "TR",
         "funding_type": "Independent",
@@ -1248,7 +1248,7 @@
         "factual_reporting": "unknown"
     },
     "The Citizen": {
-        "url": "https://www.thecitizen.co.tz/rss",
+        "url": "https://www.thecitizen.co.tz/service/rss/tanzania/2486554/feed.rss",
         "category": "general",
         "country": "TZ",
         "funding_type": "Commercial",
@@ -2322,7 +2322,7 @@
         "factual_reporting": "mixed"
     },
     "Pajhwok Afghan News": {
-        "url": "https://pajhwok.com/en/feed/",
+        "url": "https://pajhwok.com/feed/",
         "site_url": "https://pajhwok.com",
         "category": "general",
         "country": "AF",

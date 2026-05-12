@@ -34,6 +34,8 @@ REPORTER_PROFILE_FIELDS = (
     "research_sources",
     "research_confidence",
     "littlesis_url",
+    "article_count",
+    "last_article_at",
 )
 
 

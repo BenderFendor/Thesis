@@ -23,6 +23,7 @@ import httpx
 from sqlalchemy import or_, select
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
+from app.core.config import SCOOP_WIKIMEDIA_UA
 from app.core.logging import get_logger
 from app.database import (
     Article,
@@ -36,6 +37,10 @@ from app.services.entity_wiki_service import build_reporter_dossier, build_resol
 from app.services.reporter_profile_store import upsert_reporter_profile
 from app.services.mbfc_integration import compute_weighted_mbfc_bias
 from app.services.littlesis_integration import get_littlesis_affiliations_for_reporter
+from app.services.reporter_public_records import build_reporter_activity_summary
+from app.services.reporter_social_search import find_social_profiles
+from app.services.reporter_web_search import search_reporter_web
+from app.services.reporter_wikipedia import fetch_journalist_bio
 
 logger = get_logger("reporter_indexer")
 
@@ -43,7 +48,6 @@ STALE_THRESHOLD_DAYS = 7
 INDEX_DELAY_SECONDS = float(0.3)
 WIKIDATA_SPARQL_URL = "https://query.wikidata.org/sparql"
 SPARQL_BATCH_SIZE = 20
-SPARQL_USER_AGENT = "ScoopNewsReporterIndexer/1.0 (https://github.com/anomalyco/Thesis)"
 
 WIKIDATA_JOURNALIST_SPARQL = """
 SELECT DISTINCT ?journalist ?journalistLabel ?employerLabel ?twitter ?beatLabel WHERE {
@@ -228,6 +232,220 @@ async def _get_unresolved_author_names(
     return unresolved
 
 
+async def _build_local_byline_profile(
+    session: AsyncSession,
+    author_name: str,
+    source_name: Optional[str],
+) -> Dict[str, Any]:
+    """Build an evidence-backed local profile when public entity matching is weak."""
+    normalized_name = _normalize_for_resolver(author_name)
+    resolver_key = build_resolver_key(author_name, source_name)
+    stmt = (
+        select(Article.title, Article.url, Article.published_at, Article.category)
+        .where(Article.author == author_name)
+        .order_by(Article.published_at.desc().nullslast())
+        .limit(10)
+    )
+    if source_name:
+        stmt = stmt.where(Article.source == source_name)
+
+    rows = (await session.execute(stmt)).all()
+    article_items: List[Dict[str, Any]] = []
+    activity_articles: List[Dict[str, Any]] = []
+    article_urls: List[str] = []
+    latest = None
+    categories: List[str] = []
+    for title, url, published_at, category in rows:
+        if published_at and (latest is None or published_at > latest):
+            latest = published_at
+        if isinstance(category, str) and category:
+            categories.append(category)
+        if isinstance(url, str) and url:
+            article_urls.append(url)
+        activity_articles.append(
+            {
+                "title": title,
+                "url": url,
+                "source": source_name,
+                "published_at": published_at.isoformat() if published_at else None,
+                "category": category,
+            }
+        )
+        article_items.append(
+            {
+                "label": "Article",
+                "value": str(title or url or "Untitled article"),
+                "sources": [url] if isinstance(url, str) and url else [],
+            }
+        )
+
+    source_config = get_rss_sources().get(source_name or "", {}) if source_name else {}
+    source_site = source_config.get("site_url") or source_config.get("url")
+    activity_summary = await build_reporter_activity_summary(
+        author_name.strip(), activity_articles
+    )
+    author_pages = [
+        item["url"]
+        for item in activity_summary.get("author_pages", [])
+        if isinstance(item, dict) and isinstance(item.get("url"), str)
+    ]
+    external_profiles = [
+        item["url"]
+        for item in activity_summary.get("external_profiles", [])
+        if isinstance(item, dict) and isinstance(item.get("url"), str)
+    ]
+    web_search_results: List[Dict[str, str]] = []
+    social_profiles: Dict[str, Any] = {"found": False}
+    wiki_bio: Dict[str, Any] = {"found": False}
+    ws_client = httpx.AsyncClient(timeout=15.0)
+    try:
+        ws_task = search_reporter_web(
+            author_name.strip(), source_name, http_client=ws_client
+        )
+        social_task = find_social_profiles(
+            author_name.strip(), source_name, http_client=ws_client
+        )
+        wiki_task = fetch_journalist_bio(
+            author_name.strip(), http_client=ws_client
+        )
+        ws_result: Any
+        social_result: Any
+        wiki_result: Any
+        ws_result, social_result, wiki_result = await asyncio.gather(
+            ws_task, social_task, wiki_task, return_exceptions=True
+        )
+        if isinstance(ws_result, dict) and ws_result.get("found"):
+            web_search_results = ws_result.get("results", [])
+        if isinstance(social_result, dict):
+            social_profiles = social_result
+        if isinstance(wiki_result, dict):
+            wiki_bio = wiki_result
+    except Exception:
+        web_search_results = []
+    finally:
+        await ws_client.aclose()
+
+    source_items = []
+    if source_name:
+        source_items.append(
+            {
+                "label": "Observed outlet",
+                "value": source_name,
+                "sources": [source_site] if isinstance(source_site, str) else [],
+            }
+        )
+
+    return {
+        "name": author_name.strip(),
+        "normalized_name": normalized_name,
+        "canonical_name": author_name.strip(),
+        "resolver_key": resolver_key,
+        "match_status": "local_byline",
+        "overview": (
+            wiki_bio.get("extract")
+            or f"{author_name.strip()} appears as an RSS/local-corpus byline"
+            + (f" for {source_name}." if source_name else ".")
+        ),
+        "bio": None,
+        "career_history": (
+            [
+                {
+                    "organization": source_name,
+                    "role": "byline outlet",
+                    "source": "rss_catalog",
+                }
+            ]
+            if source_name
+            else []
+        ),
+        "topics": sorted(set(categories)),
+        "education": [],
+        "dossier_sections": [
+            {
+                "id": "identity",
+                "title": "Identity",
+                "status": "available",
+                "items": [
+                    {
+                        "label": "Name",
+                        "value": author_name.strip(),
+                        "sources": article_urls[:5],
+                    },
+                    {
+                        "label": "Match",
+                        "value": "No unambiguous Wikidata/Wikipedia match was found; this profile is grounded in RSS bylines and local article records.",
+                        "sources": article_urls[:5],
+                    },
+                ],
+            },
+            {
+                "id": "source_context",
+                "title": "Source Context",
+                "status": "available" if source_items else "missing",
+                "items": source_items,
+            },
+            {
+                "id": "article_evidence",
+                "title": "Article Evidence",
+                "status": "available" if article_items else "missing",
+                "items": article_items,
+            },
+            {
+                "id": "official_author_records",
+                "title": "Official Author Records",
+                "status": "available"
+                if author_pages or external_profiles
+                else "missing",
+                "items": [
+                    {
+                        "label": "Author page",
+                        "value": url,
+                        "sources": [url],
+                    }
+                    for url in author_pages
+                ]
+                + [
+                    {
+                        "label": "External profile",
+                        "value": url,
+                        "sources": [url],
+                    }
+                    for url in external_profiles
+                ],
+            },
+        ],
+        "web_search_results": web_search_results,
+        "social_profiles": social_profiles,
+        "wikipedia_url": wiki_bio.get("url"),
+        "wikidata_qid": None,
+        "citations": [
+            {"label": "Local article evidence", "url": url} for url in article_urls[:5]
+        ]
+        + [{"label": "Official author page", "url": url} for url in author_pages[:5]]
+        + [
+            {"label": "Structured external profile", "url": url}
+            for url in external_profiles[:5]
+        ],
+        "search_links": {
+            "wikipedia": f"https://en.wikipedia.org/w/index.php?search={urllib.parse.quote(author_name.strip())}",
+            "wikidata": f"https://www.wikidata.org/w/index.php?search={urllib.parse.quote(author_name.strip())}",
+            "web_search": f"https://lite.duckduckgo.com/lite/?q={urllib.parse.quote(author_name.strip() + ' ' + (source_name or ''))}",
+        },
+        "match_explanation": "Stored as a local byline profile because public entity matching was absent or ambiguous.",
+        "research_sources": [
+            "rss_byline",
+            "local_article_corpus",
+            "official_article_pages",
+            "schema_org_json_ld",
+            "rss_catalog",
+            "web_search",
+        ],
+        "research_confidence": "medium" if article_items else "low",
+        "article_count": len(rows),
+        "last_article_at": latest,
+    }
+
+
 async def index_unresolved_reporters(
     limit: int = 500,
     delay_seconds: float = INDEX_DELAY_SECONDS,
@@ -279,6 +497,10 @@ async def index_unresolved_reporters(
                         profile.get("canonical_name"),
                     )
                 else:
+                    local_profile = await _build_local_byline_profile(
+                        session, author_name, source_name
+                    )
+                    await upsert_reporter_profile(session, local_profile)
                     await _upsert_index_status(
                         session, "reporter", entity_name, "complete"
                     )
@@ -361,7 +583,7 @@ async def seed_reporters_from_wikidata(
                 sparql_url,
                 headers={
                     "Accept": "application/json",
-                    "User-Agent": SPARQL_USER_AGENT,
+                    "User-Agent": SCOOP_WIKIMEDIA_UA,
                 },
             )
 

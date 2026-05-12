@@ -7,7 +7,7 @@ import pytest
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 
-from app.database import Base, Reporter, WikiIndexStatus, get_utc_now
+from app.database import Article, Base, Reporter, WikiIndexStatus, get_utc_now
 
 
 def _matched_profile() -> dict:
@@ -116,5 +116,92 @@ async def test_stale_reporter_update_uses_one_session(engine_and_session):
     ]
     assert status.status == "complete"
     assert status.last_indexed_at is not None
+
+    await engine.dispose()
+
+
+@pytest.mark.asyncio
+async def test_unmatched_reporter_persists_local_byline_profile(engine_and_session):
+    engine, factory = await engine_and_session()
+    now = get_utc_now()
+
+    async with factory() as session:
+        session.add(
+            Article(
+                title="Local byline evidence",
+                url="https://example-news.test/local-byline",
+                source="Example News",
+                author="Alex Local",
+                published_at=now,
+                category="politics",
+            )
+        )
+        await session.commit()
+
+    unmatched_profile = {
+        "name": "Alex Local",
+        "normalized_name": "alex local",
+        "canonical_name": "Alex Local",
+        "resolver_key": "alex local::example news",
+        "match_status": "none",
+        "research_confidence": "low",
+    }
+
+    with (
+        patch(
+            "app.services.reporter_indexer._get_session", side_effect=lambda: factory()
+        ),
+        patch(
+            "app.services.reporter_indexer.build_reporter_dossier",
+            new=AsyncMock(return_value=unmatched_profile),
+        ),
+        patch(
+            "app.services.reporter_indexer.build_reporter_activity_summary",
+            new=AsyncMock(
+                return_value={
+                    "author_pages": [
+                        {
+                            "url": "https://example-news.test/authors/alex-local",
+                            "domain": "example-news.test",
+                            "source": "article-page",
+                        }
+                    ],
+                    "external_profiles": [],
+                }
+            ),
+        ),
+    ):
+        from app.services.reporter_indexer import index_unresolved_reporters
+
+        result = await index_unresolved_reporters(limit=10, delay_seconds=0)
+
+    assert result["resolved"] == 0
+    assert result["skipped"] == 1
+
+    async with factory() as session:
+        reporter = (
+            await session.execute(
+                select(Reporter).where(
+                    Reporter.resolver_key == "alex local::example news"
+                )
+            )
+        ).scalar_one()
+
+    assert reporter.match_status == "local_byline"
+    assert "rss_byline" in reporter.research_sources
+    assert "local_article_corpus" in reporter.research_sources
+    assert "web_search" in reporter.research_sources
+    assert reporter.article_count == 1
+    assert reporter.research_confidence == "medium"
+    assert reporter.citations == [
+        {
+            "label": "Local article evidence",
+            "url": "https://example-news.test/local-byline",
+        },
+        {
+            "label": "Official author page",
+            "url": "https://example-news.test/authors/alex-local",
+        },
+    ]
 
     await engine.dispose()

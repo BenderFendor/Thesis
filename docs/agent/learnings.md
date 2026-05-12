@@ -1,5 +1,54 @@
 # Learnings
 
+## 2026-05-12 — Non-journalist Wikidata false positives require occupation gate
+
+Context:
+- The reporter entity resolver (`build_reporter_dossier`) scored Wikidata candidates on name + human + occupation + organization + context. With weights 0.34/0.22/0.18/0.14/0.12, a human with a matching name cleared the 0.55 threshold even with zero journalist signal.
+- Jonathan Carter (NewsNation reporter) matched Q64821312 (cancer researcher with 320 papers, h=42) because `name_score + human_score = 0.56 > 0.55`.
+
+What worked:
+- Rebalancing weights to reduce name_score (0.34->0.30) and increase occupation_score (0.18->0.26) so name alone cannot carry a match.
+- Adding a `NON_JOURNALIST_OCCUPATIONS` set with a hard penalty (-0.4) for known non-journalist Wikidata occupation labels.
+- Requiring at least one candidate with `occupation_score > 0` before a match is possible. When no journalist candidates exist, return `match_status: "none"` immediately instead of displaying the top non-journalist as "best candidate."
+- Raising the single-candidate threshold to 0.65 when only one Wikidata result exists, since there is no competitor to calibrate against.
+- Removing "author" from `JOURNALISM_KEYWORDS` (matches fiction authors, academic authors, etc.).
+
+Future Codex agents should:
+- Never let name similarity alone determine entity resolution confidence.
+- Require domain-specific occupation or affiliation signals before marking a match.
+- Treat the outlet/employer context as a strong inverse signal: a byline from a news outlet is a journalist until proven otherwise.
+
+## 2026-05-12 — Unified User-Agent constants prevent site-specific blocking
+
+Context:
+- The codebase had 15+ different User-Agent strings across 13 files, ranging from inline strings to module-level constants. Image extraction used a Mozilla/5.0 browser pattern while Wikimedia services used descriptive bot format.
+- CDN-protected news sites often block non-browser User-Agent strings on image endpoints.
+
+What worked:
+- Centralizing into three constants in `app/core/config.py`: `SCOOP_USER_AGENT` (general web, descriptive bot format), `SCOOP_WIKIMEDIA_UA` (Wikimedia-format with contact URL and wiki user reference per their policy), `SCOOP_BROWSER_UA` (Mozilla/5.0 compatible pattern for image/CDN endpoints).
+- Keeping image extraction, OG image, and image proxy on the browser-format UA since they fetch from domains that filter bot-looking requests.
+
+Future Codex agents should:
+- Use `SCOOP_USER_AGENT` for general API calls, `SCOOP_WIKIMEDIA_UA` for Wikimedia/Wikipedia/Wikidata, and `SCOOP_BROWSER_UA` for bulk page/image fetching.
+- Never add a new inline User-Agent string. Import from config instead.
+
+## 2026-05-12 — Free enrichment pipeline for local-byline reporter profiles
+
+Context:
+- When Wikidata returned no journalist match, the system had no way to enrich the reportor profile beyond RSS byline text and local article records.
+- Muck Rack required payment, LinkedIn required login, and most journalist databases were proprietary.
+
+What worked:
+- Searching Mastodon instances (journa.host with 3,019 vetted journalists, newsie.social with 20,710 accounts) and Bluesky's public API for social profile discovery. Both are free, have public APIs, and require no authentication.
+- Using Wikipedia's opensearch and extract API for bio text extraction by journalist name lookup.
+- Using DuckDuckGo Lite for web search fallback when structured APIs returned nothing.
+- Running all three enrichments in a single `asyncio.gather` with a shared httpx client so the local-byline profile builds with no additional serial latency.
+
+Future Codex agents should:
+- Prefer free, public APIs (Mastodon, Bluesky, Wikipedia, OpenAlex) over scrapers for enrichment.
+- Run independent enrichment tasks in parallel with `asyncio.gather` and `return_exceptions=True` so one failure does not block the others.
+- Always close owned httpx clients in a `finally` block.
+
 ## 2026-04-28 — Documentation health spans README, docs, and GitHub Wiki
 
 Context:
@@ -161,3 +210,19 @@ What worked:
 Future Codex agents should:
 - Prefer OpenAPI-derived types for frontend API contracts before adding manual DTO interfaces.
 - Use schema-specific names (the disambiguated generated keys) when backend model names collide.
+
+## 2026-05-12 — Reporter proof needs source-level quality gates
+
+Context:
+- Reporter coverage looked better before filtering because article-page extraction picked up labels like social links, section names, and organization bylines.
+- Some publishers block article pages but still publish usable bylines in official RSS feeds.
+
+What worked:
+- Filtering generic author labels before scoring.
+- Treating clean official RSS bylines as medium evidence when article pages return 401/403.
+- Scanning a deeper feed window and stopping after five unique reporter names per source.
+
+Future Codex agents should:
+- Keep source-level reporter proof separate from article-level counts.
+- Report blocked or generic feeds explicitly instead of folding them into coverage.
+- Validate feed URL repairs with `backend/scripts/validate_rss_sources.py --only ...`.

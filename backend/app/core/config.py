@@ -9,6 +9,16 @@ from openai import OpenAI
 
 load_dotenv()
 
+SCOOP_USER_AGENT = (
+    "ScoopNewsBot/1.0 (https://github.com/anomalyco/Thesis)"
+)
+SCOOP_WIKIMEDIA_UA = (
+    "ScoopNewsBot/1.0 (https://github.com/anomalyco/Thesis; wikipedia:en; User:BenderFendor)"
+)
+SCOOP_BROWSER_UA = (
+    "Mozilla/5.0 (compatible; ScoopNewsBot/1.0; +https://github.com/anomalyco/Thesis)"
+)
+
 
 def _env_enabled(name: str, default: str = "1") -> bool:
     raw = os.getenv(name, default)
