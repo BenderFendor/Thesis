@@ -70,8 +70,7 @@ def broad_source_sample(limit: int) -> list[str]:
             [
                 name
                 for name, cfg in all_sources.items()
-                if str(cfg.get("category") or "").lower()
-                not in {"general", "news", "world", ""}
+                if str(cfg.get("category") or "").lower() not in {"general", "news", "world", ""}
             ],
         ),
         (

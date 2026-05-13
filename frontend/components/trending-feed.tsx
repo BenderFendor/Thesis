@@ -19,15 +19,16 @@ import {
   MinusCircle,
   Heart,
 } from "lucide-react";
-import {
-  fetchTrending,
-  fetchBreaking,
+import type {
   TrendingCluster,
   BreakingCluster,
   TrendingResponse,
   BreakingResponse,
   TrendingArticle,
-  NewsArticle,
+  NewsArticle} from "@/lib/api";
+import {
+  fetchTrending,
+  fetchBreaking
 } from "@/lib/api";
 import {
   filterTrendingClusters,

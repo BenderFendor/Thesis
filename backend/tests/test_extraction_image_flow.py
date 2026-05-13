@@ -97,14 +97,10 @@ def test_extract_article_detects_access_challenge_page(monkeypatch) -> None:
         },
     )
 
-    result = article_extraction.extract_article_content(
-        "https://www.reuters.com/world/"
-    )
+    result = article_extraction.extract_article_content("https://www.reuters.com/world/")
 
     assert result["success"] is False
-    assert (
-        result["error"] == "Publisher blocked automated access with a verification page"
-    )
+    assert result["error"] == "Publisher blocked automated access with a verification page"
 
 
 def test_extract_article_detects_paywall_from_response_content(monkeypatch) -> None:
@@ -141,20 +137,14 @@ def test_extract_article_detects_paywall_from_response_content(monkeypatch) -> N
         },
     )
 
-    result = article_extraction.extract_article_content(
-        "https://example.com/paywalled-story"
-    )
+    result = article_extraction.extract_article_content("https://example.com/paywalled-story")
 
     assert result["success"] is False
-    assert (
-        result["error"] == "Publisher requires a subscription or sign-in for full text"
-    )
+    assert result["error"] == "Publisher requires a subscription or sign-in for full text"
 
 
 @pytest.mark.asyncio
-async def test_fetch_og_image_uses_persisted_cache_hit(
-    monkeypatch, tmp_path: Path
-) -> None:
+async def test_fetch_og_image_uses_persisted_cache_hit(monkeypatch, tmp_path: Path) -> None:
     from app.services import og_image
 
     monkeypatch.setattr(og_image, "OG_CACHE_DIR", tmp_path)
@@ -293,18 +283,14 @@ def test_normalize_cached_image_value_handles_marker_and_urls(
     from app.services import og_image
 
     assert og_image._normalize_cached_image_value(" none ") is None
-    assert (
-        og_image._normalize_cached_image_value("https://example.com/icon.svg") is None
-    )
+    assert og_image._normalize_cached_image_value("https://example.com/icon.svg") is None
 
     url = f"{'https' if use_https else 'http'}://example.com/{raw_value.strip() or 'image'}.jpg"
     assert og_image._normalize_cached_image_value(url) == url
 
 
 @pytest.mark.asyncio
-async def test_image_proxy_cache_hit_returns_length_header(
-    client, monkeypatch, tmp_path: Path
-):
+async def test_image_proxy_cache_hit_returns_length_header(client, monkeypatch, tmp_path: Path):
     from app.api.routes import image_proxy
 
     monkeypatch.setattr(image_proxy, "CACHE_DIR", tmp_path)

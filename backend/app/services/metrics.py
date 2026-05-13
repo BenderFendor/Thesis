@@ -1,8 +1,7 @@
 """Metrics collection for RSS ingestion pipeline."""
 
 from dataclasses import dataclass, field
-from datetime import datetime, timezone
-from typing import Dict
+from datetime import datetime, UTC
 
 
 @dataclass
@@ -17,15 +16,15 @@ class PipelineMetrics:
     persist_count: int = 0
     persist_errors: int = 0
 
-    start_time: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
+    start_time: datetime = field(default_factory=lambda: datetime.now(UTC))
     end_time: datetime | None = None
 
-    queue_sizes: Dict[str, int] = field(default_factory=dict)
+    queue_sizes: dict[str, int] = field(default_factory=dict)
 
     def duration_seconds(self) -> float:
         """Calculate total pipeline duration."""
         if self.end_time is None:
-            return (datetime.now(timezone.utc) - self.start_time).total_seconds()
+            return (datetime.now(UTC) - self.start_time).total_seconds()
         return (self.end_time - self.start_time).total_seconds()
 
     def to_dict(self) -> dict[str, object]:

@@ -4,7 +4,8 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from types import SimpleNamespace
-from typing import Any, Iterable
+from typing import Any
+from collections.abc import Iterable
 
 import pytest
 

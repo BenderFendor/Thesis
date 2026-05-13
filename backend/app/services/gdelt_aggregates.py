@@ -3,12 +3,15 @@
 from __future__ import annotations
 
 from collections import Counter
-from typing import Any, Iterable, Mapping, Sequence
+from typing import Any
+from collections.abc import Iterable, Mapping, Sequence
 
 from app.services.gdelt_taxonomy import dominant_cameo_roots, goldstein_bucket
+from datetime import UTC
 
 
 def average(values: Iterable[float | None]) -> float | None:
+    """Average."""
     filtered = [value for value in values if value is not None]
     if not filtered:
         return None
@@ -16,6 +19,7 @@ def average(values: Iterable[float | None]) -> float | None:
 
 
 def bounds(values: Iterable[float | None]) -> tuple[float | None, float | None]:
+    """Bounds."""
     filtered = [value for value in values if value is not None]
     if not filtered:
         return (None, None)
@@ -27,6 +31,7 @@ def build_article_gdelt_context(
     *,
     tone_baseline_avg: float | None = None,
 ) -> dict[str, Any] | None:
+    """Build Article Gdelt Context."""
     if not events:
         return None
 
@@ -54,6 +59,7 @@ def build_article_gdelt_context(
 
 
 def actor_country_counts(events: Sequence[Mapping[str, Any]]) -> dict[str, int]:
+    """Actor Country Counts."""
     counts: Counter[str] = Counter()
     for event in events:
         for key in ("actor1_country", "actor2_country"):
@@ -64,6 +70,7 @@ def actor_country_counts(events: Sequence[Mapping[str, Any]]) -> dict[str, int]:
 
 
 def merge_count_maps(*count_maps: Mapping[str, int]) -> dict[str, int]:
+    """Merge Count Maps."""
     merged: Counter[str] = Counter()
     for count_map in count_maps:
         for key, value in count_map.items():
@@ -76,6 +83,7 @@ def compute_cross_border_score(
     source_country_counts: Mapping[str, int],
     actor_country_counts_map: Mapping[str, int],
 ) -> float:
+    """Compute Cross Border Score."""
     if not actor_country_counts_map:
         return 0.0
     actor_total = sum(actor_country_counts_map.values())
@@ -95,6 +103,7 @@ def compute_cross_border_score(
 
 
 def compute_global_spread_score(country_counts: Mapping[str, int]) -> float:
+    """Compute Global Spread Score."""
     if not country_counts:
         return 0.0
     total = sum(country_counts.values())
@@ -128,12 +137,12 @@ async def compute_source_tone_deviation(
 
     Returns dict with global_sigma and language_sigma keys.
     """
-    from datetime import datetime, timezone, timedelta
+    from datetime import datetime, timedelta
 
     from sqlalchemy import select, func
     from app.database import GDELTEvent, SourceMetadata
 
-    cutoff = datetime.now(timezone.utc) - timedelta(days=days)
+    cutoff = datetime.now(UTC) - timedelta(days=days)
     cutoff_naive = cutoff.replace(tzinfo=None)
 
     language = "en"
@@ -169,11 +178,7 @@ async def compute_source_tone_deviation(
     global_stddev = global_stddev_result.scalar() or 1.0
 
     global_sigma = 0.0
-    if (
-        source_mean_tone is not None
-        and global_mean_tone is not None
-        and global_stddev > 0
-    ):
+    if source_mean_tone is not None and global_mean_tone is not None and global_stddev > 0:
         global_sigma = round((source_mean_tone - global_mean_tone) / global_stddev, 3)
 
     language_sigma = global_sigma
@@ -220,7 +225,8 @@ async def get_economic_events_between(
     country2: str,
     days: int = 30,
 ) -> dict[str, Any]:
-    from datetime import datetime, timedelta, timezone
+    """Get Economic Events Between."""
+    from datetime import datetime, timedelta
     from app.database import AsyncSessionLocal
     from sqlalchemy import text
     from sqlalchemy.ext.asyncio import async_sessionmaker, AsyncSession
@@ -230,7 +236,7 @@ async def get_economic_events_between(
         return {"total_events": 0, "error": "database disabled"}
 
     factory = cast(async_sessionmaker[AsyncSession], AsyncSessionLocal)
-    cutoff = datetime.now(timezone.utc) - timedelta(days=days)
+    cutoff = datetime.now(UTC) - timedelta(days=days)
 
     async with factory() as session:
         result = await session.execute(
@@ -254,9 +260,7 @@ async def get_economic_events_between(
         return {
             "total_events": int(row.total_events or 0),
             "avg_tone": round(row.avg_tone, 3) if row.avg_tone is not None else None,
-            "avg_goldstein": round(row.avg_goldstein, 3)
-            if row.avg_goldstein is not None
-            else None,
+            "avg_goldstein": round(row.avg_goldstein, 3) if row.avg_goldstein is not None else None,
         }
 
 
@@ -264,7 +268,8 @@ async def get_country_resource_events(
     country_code: str,
     days: int = 30,
 ) -> dict[str, Any]:
-    from datetime import datetime, timedelta, timezone
+    """Get Country Resource Events."""
+    from datetime import datetime, timedelta
     from app.database import AsyncSessionLocal
     from sqlalchemy import text
     from sqlalchemy.ext.asyncio import async_sessionmaker, AsyncSession
@@ -274,7 +279,7 @@ async def get_country_resource_events(
         return {"total_events": 0, "error": "database disabled"}
 
     factory = cast(async_sessionmaker[AsyncSession], AsyncSessionLocal)
-    cutoff = datetime.now(timezone.utc) - timedelta(days=days)
+    cutoff = datetime.now(UTC) - timedelta(days=days)
 
     async with factory() as session:
         result = await session.execute(

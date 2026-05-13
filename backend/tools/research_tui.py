@@ -1,3 +1,5 @@
+"""Research Tui."""
+
 from __future__ import annotations
 
 import argparse
@@ -7,9 +9,9 @@ import os
 import time
 import uuid
 from dataclasses import dataclass
-from datetime import datetime, timezone
+from datetime import datetime, UTC
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 import httpx
 from rich.text import Text
@@ -27,6 +29,8 @@ MAX_TOOL_LOG_LINES = 200
 
 @dataclass
 class SessionStats:
+    """Session Stats."""
+
     total_requests: int = 0
     last_duration_seconds: float = 0.0
     avg_duration_seconds: float = 0.0
@@ -36,14 +40,17 @@ class SessionStats:
 
 @dataclass
 class ResearchSession:
+    """Research Session."""
+
     session_id: str
     title: str
     created_at: str
     updated_at: str
-    messages: List[Dict[str, Any]]
+    messages: list[dict[str, Any]]
     stats: SessionStats
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
+        """To Dict."""
         return {
             "session_id": self.session_id,
             "title": self.title,
@@ -60,7 +67,8 @@ class ResearchSession:
         }
 
     @classmethod
-    def from_dict(cls, payload: Dict[str, Any]) -> "ResearchSession":
+    def from_dict(cls, payload: dict[str, Any]) -> ResearchSession:
+        """From Dict."""
         stats_payload = payload.get("stats", {})
         return cls(
             session_id=payload.get("session_id", str(uuid.uuid4())),
@@ -70,25 +78,19 @@ class ResearchSession:
             messages=payload.get("messages", []),
             stats=SessionStats(
                 total_requests=int(stats_payload.get("total_requests", 0)),
-                last_duration_seconds=float(
-                    stats_payload.get("last_duration_seconds", 0.0)
-                ),
-                avg_duration_seconds=float(
-                    stats_payload.get("avg_duration_seconds", 0.0)
-                ),
-                time_to_first_event=float(
-                    stats_payload.get("time_to_first_event", 0.0)
-                ),
+                last_duration_seconds=float(stats_payload.get("last_duration_seconds", 0.0)),
+                avg_duration_seconds=float(stats_payload.get("avg_duration_seconds", 0.0)),
+                time_to_first_event=float(stats_payload.get("time_to_first_event", 0.0)),
                 tool_calls=int(stats_payload.get("tool_calls", 0)),
             ),
         )
 
 
 def _utc_now() -> str:
-    return datetime.now(timezone.utc).isoformat()
+    return datetime.now(UTC).isoformat()
 
 
-def _load_sessions() -> List[ResearchSession]:
+def _load_sessions() -> list[ResearchSession]:
     if not SESSION_FILE.exists():
         return []
     try:
@@ -98,13 +100,13 @@ def _load_sessions() -> List[ResearchSession]:
         return []
 
 
-def _save_sessions(sessions: List[ResearchSession]) -> None:
+def _save_sessions(sessions: list[ResearchSession]) -> None:
     payload = {"sessions": [session.to_dict() for session in sessions]}
     SESSION_FILE.write_text(json.dumps(payload, indent=2), encoding="utf-8")
 
 
-def _build_history_payload(messages: List[Dict[str, Any]]) -> List[Dict[str, str]]:
-    payload: List[Dict[str, str]] = []
+def _build_history_payload(messages: list[dict[str, Any]]) -> list[dict[str, str]]:
+    payload: list[dict[str, str]] = []
     for message in messages:
         message_type = message.get("type")
         if message_type in {"user", "assistant"} and not message.get("tool_type"):
@@ -115,7 +117,10 @@ def _build_history_payload(messages: List[Dict[str, Any]]) -> List[Dict[str, str
 
 
 class SessionManager:
+    """Session Manager."""
+
     def __init__(self) -> None:
+        """Initialize."""
         self.sessions = _load_sessions()
         if not self.sessions:
             self.sessions.append(self._new_session("Untitled Session"))
@@ -133,6 +138,7 @@ class SessionManager:
         )
 
     def active_session(self) -> ResearchSession:
+        """Active Session."""
         for session in self.sessions:
             if session.session_id == self.active_session_id:
                 return session
@@ -142,15 +148,18 @@ class SessionManager:
         return session
 
     def set_active(self, session_id: str) -> None:
+        """Set Active."""
         self.active_session_id = session_id
 
     def create_session(self, title: str) -> ResearchSession:
+        """Create Session."""
         session = self._new_session(title)
         self.sessions.insert(0, session)
         self.active_session_id = session.session_id
         return session
 
     def update_session(self, session: ResearchSession) -> None:
+        """Update Session."""
         for idx, existing in enumerate(self.sessions):
             if existing.session_id == session.session_id:
                 self.sessions[idx] = session
@@ -159,17 +168,22 @@ class SessionManager:
 
 
 class SessionListItem(ListItem):
+    """Session List Item."""
+
     def __init__(
         self,
         session_data: ResearchSession,
         *children: Any,
         **kwargs: Any,
     ) -> None:
+        """Initialize."""
         super().__init__(*children, **kwargs)
         self.session = session_data
 
 
 class ResearchTUI(App):
+    """Research TUI."""
+
     CSS = """
     Screen {
         layout: vertical;
@@ -251,28 +265,29 @@ class ResearchTUI(App):
     latency_text = reactive("Latency: --")
 
     def __init__(self) -> None:
+        """Initialize."""
         super().__init__()
         self.session_manager = SessionManager()
-        self.tool_log_lines: List[str] = []
+        self.tool_log_lines: list[str] = []
         self.research_buffer = ""
-        self.referenced_articles: List[Dict[str, Any]] = []
+        self.referenced_articles: list[dict[str, Any]] = []
         self.api_base = os.getenv("NEWS_RESEARCH_API_BASE", DEFAULT_API_BASE)
         self.current_tool_calls = 0
-        self.draft_answer: Optional[str] = None
+        self.draft_answer: str | None = None
 
     def compose(self) -> ComposeResult:
+        """Compose."""
         yield Header()
         with Horizontal():
             with Container(id="sessions-pane"):
                 yield Static("Sessions", classes="pane-title")
                 self.session_list = ListView(id="session-list")
                 yield self.session_list
-            with Container(id="main-pane"):
-                with Vertical():
-                    self.status_widget = Static(self.status_text, id="status-text")
-                    self.answer_widget = Static(self._render_answer(), id="answer-text")
-                    yield self.status_widget
-                    yield self.answer_widget
+            with Container(id="main-pane"), Vertical():
+                self.status_widget = Static(self.status_text, id="status-text")
+                self.answer_widget = Static(self._render_answer(), id="answer-text")
+                yield self.status_widget
+                yield self.answer_widget
             with Container(id="sidebar-pane"):
                 yield Static("Tool Log", classes="pane-title")
                 self.tool_log_widget = Static(self._render_tool_log(), id="tool-log")
@@ -288,11 +303,13 @@ class ResearchTUI(App):
         yield Footer()
 
     def on_mount(self) -> None:
+        """On Mount."""
         self.refresh_session_list()
         self.load_active_session()
         self.input_widget.focus()
 
     def refresh_session_list(self) -> None:
+        """Refresh Session List."""
         self.session_list.clear()
         for session_item in self.session_manager.sessions:
             item = SessionListItem(session_item, Static(session_item.title))
@@ -301,16 +318,13 @@ class ResearchTUI(App):
                 self.session_list.index = len(self.session_list) - 1
 
     def load_active_session(self) -> None:
+        """Load Active Session."""
         session = self.session_manager.active_session()
         self.research_buffer = self._render_session_messages(session)
         self.referenced_articles = (
-            session.messages[-1].get("referenced_articles", [])
-            if session.messages
-            else []
+            session.messages[-1].get("referenced_articles", []) if session.messages else []
         )
-        self.tool_log_lines = (
-            session.messages[-1].get("tool_log", []) if session.messages else []
-        )
+        self.tool_log_lines = session.messages[-1].get("tool_log", []) if session.messages else []
         self.draft_answer = None
         self.update_status("Loaded session")
         if session.stats.total_requests > 0:
@@ -355,26 +369,31 @@ class ResearchTUI(App):
         return Text("\n".join(lines))
 
     def refresh_panels(self) -> None:
+        """Refresh Panels."""
         self.status_widget.update(f"{self.status_text} | {self.latency_text}")
         self.answer_widget.update(self._render_answer())
         self.tool_log_widget.update(self._render_tool_log())
         self.sources_widget.update(self._render_sources())
 
     def update_status(self, status: str) -> None:
+        """Update Status."""
         self.status_text = status
         self.refresh_panels()
 
     def update_latency(self, text: str) -> None:
+        """Update Latency."""
         self.latency_text = text
         self.refresh_panels()
 
     async def on_list_view_selected(self, event: ListView.Selected) -> None:
+        """On List View Selected."""
         item = event.item
         if isinstance(item, SessionListItem):
             self.session_manager.set_active(item.session.session_id)
             self.load_active_session()
 
     async def on_input_submitted(self, event: Input.Submitted) -> None:
+        """On Input Submitted."""
         query = event.value.strip()
         if not query:
             return
@@ -382,6 +401,7 @@ class ResearchTUI(App):
         self.input_widget.value = ""
 
     async def start_research(self, query: str) -> None:
+        """Start Research."""
         session = self.session_manager.active_session()
         user_message = {
             "id": str(uuid.uuid4()),
@@ -403,7 +423,7 @@ class ResearchTUI(App):
 
     async def _stream_research(self, query: str, session: ResearchSession) -> None:
         start_time = time.time()
-        first_event_time: Optional[float] = None
+        first_event_time: float | None = None
         assistant_message = {
             "id": str(uuid.uuid4()),
             "type": "assistant",
@@ -443,9 +463,7 @@ class ResearchTUI(App):
                             continue
                         if first_event_time is None:
                             first_event_time = time.time()
-                            self.update_latency(
-                                f"TTF: {first_event_time - start_time:.2f}s"
-                            )
+                            self.update_latency(f"TTF: {first_event_time - start_time:.2f}s")
                         try:
                             event = json.loads(payload)
                         except json.JSONDecodeError:
@@ -459,9 +477,7 @@ class ResearchTUI(App):
                         if event.get("type") in {"complete", "error"}:
                             break
             except httpx.HTTPStatusError as exc:
-                self.update_status(
-                    f"HTTP {exc.response.status_code} for {exc.request.url}"
-                )
+                self.update_status(f"HTTP {exc.response.status_code} for {exc.request.url}")
             except httpx.HTTPError as exc:
                 self.update_status(f"Stream error: {exc}")
 
@@ -488,9 +504,7 @@ class ResearchTUI(App):
         self.update_status("Complete")
         self.refresh_panels()
 
-    async def _handle_event(
-        self, event: Dict[str, Any], assistant_message: Dict[str, Any]
-    ) -> None:
+    async def _handle_event(self, event: dict[str, Any], assistant_message: dict[str, Any]) -> None:
         event_type = event.get("type")
         if event_type == "status":
             self.update_status(event.get("message", "Working..."))
@@ -559,6 +573,7 @@ class ResearchTUI(App):
             return
 
     def action_new_session(self) -> None:
+        """Action New Session."""
         session = self.session_manager.create_session("New Research")
         self.refresh_session_list()
         self.load_active_session()
@@ -566,6 +581,7 @@ class ResearchTUI(App):
         self.update_status(f"Created session {session.title}")
 
     def action_clear_view(self) -> None:
+        """Action Clear View."""
         self.tool_log_lines = []
         self.referenced_articles = []
         self.research_buffer = ""
@@ -579,15 +595,16 @@ async def run_cli_query(
     output_format: str,
     save_session: bool,
 ) -> int:
+    """Run Cli Query."""
     params = {
         "query": query,
         "include_thinking": "true",
     }
     start_time = time.time()
-    first_event_time: Optional[float] = None
+    first_event_time: float | None = None
     tool_calls = 0
-    tool_log: List[str] = []
-    referenced_articles: List[Dict[str, Any]] = []
+    tool_log: list[str] = []
+    referenced_articles: list[dict[str, Any]] = []
     assistant_content = ""
 
     async with httpx.AsyncClient(timeout=None) as client:
@@ -641,9 +658,7 @@ async def run_cli_query(
                     else:
                         if event_type == "status":
                             print(f"[status] {event.get('message', '')}")
-                        elif event_type == "tool_start":
-                            print(tool_log[-1])
-                        elif event_type == "tool_result":
+                        elif event_type == "tool_start" or event_type == "tool_result":
                             print(tool_log[-1])
                         elif event_type == "complete":
                             print("\n" + (assistant_content or ""))
@@ -719,9 +734,8 @@ async def run_cli_query(
 
 
 def build_arg_parser() -> argparse.ArgumentParser:
-    parser = argparse.ArgumentParser(
-        description="Run research TUI or one-off CLI query."
-    )
+    """Build Arg Parser."""
+    parser = argparse.ArgumentParser(description="Run research TUI or one-off CLI query.")
     parser.add_argument(
         "query",
         nargs="?",
@@ -747,6 +761,7 @@ def build_arg_parser() -> argparse.ArgumentParser:
 
 
 def main() -> None:
+    """Main."""
     parser = build_arg_parser()
     args = parser.parse_args()
     if args.query:

@@ -56,7 +56,7 @@ describe("api mapping property tests", () => {
         const [mapped] = mapBackendArticles([
           { ...article, image: "none", image_url: undefined },
         ]);
-        expect(mapped.image).toBe("/placeholder.svg");
+        expect(mapped!.image).toBe("/placeholder.svg");
       }),
     );
   });
@@ -90,8 +90,8 @@ describe("api mapping property tests", () => {
           },
         ]);
 
-        expect(mapped.id).toEqual(expect.any(Number));
-        expect(mapped.isPersisted).toBe(false);
+        expect(mapped!.id).toEqual(expect.any(Number));
+        expect(mapped!.isPersisted).toBe(false);
       }),
     );
   });

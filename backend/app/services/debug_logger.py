@@ -1,5 +1,4 @@
-"""
-Debug Logger Service for Agentic Debugging
+"""Debug Logger Service for Agentic Debugging.
 
 This module provides comprehensive structured logging optimized for debugging by
 AI coding tools and humans alike. It captures:
@@ -25,10 +24,11 @@ import traceback
 from collections import deque
 from contextlib import AbstractContextManager, contextmanager
 from dataclasses import dataclass, field, asdict
-from datetime import datetime, timezone
-from enum import Enum
+from datetime import datetime, UTC
+from enum import StrEnum
 from pathlib import Path
-from typing import Any, Deque, Dict, Iterator, List, Optional
+from typing import Any
+from collections.abc import Iterator
 
 from app.core.logging import get_logger
 
@@ -51,7 +51,7 @@ THRESHOLDS = {
 }
 
 
-class EventType(str, Enum):
+class EventType(StrEnum):
     """Types of debug events."""
 
     REQUEST_START = "request_start"
@@ -92,31 +92,31 @@ class DebugEvent:
     operation: str  # e.g., "fetch_news", "query_articles"
 
     # Timing
-    duration_ms: Optional[float] = None
-    start_time: Optional[float] = None
+    duration_ms: float | None = None
+    start_time: float | None = None
 
     # Context
-    request_id: Optional[str] = None
-    stream_id: Optional[str] = None
-    source_name: Optional[str] = None
-    category: Optional[str] = None
+    request_id: str | None = None
+    stream_id: str | None = None
+    source_name: str | None = None
+    category: str | None = None
 
     # Data
     message: str = ""
-    details: Dict[str, Any] = field(default_factory=dict)
-    metrics: Dict[str, float] = field(default_factory=dict)
+    details: dict[str, Any] = field(default_factory=dict)
+    metrics: dict[str, float] = field(default_factory=dict)
 
     # Error info
-    error: Optional[str] = None
-    error_type: Optional[str] = None
-    stack_trace: Optional[str] = None
+    error: str | None = None
+    error_type: str | None = None
+    stack_trace: str | None = None
 
     # Performance flags
     is_slow: bool = False
     is_bottleneck: bool = False
-    threshold_exceeded: Optional[str] = None
+    threshold_exceeded: str | None = None
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         """Convert to dictionary for JSON serialization."""
         result = asdict(self)
         result["event_type"] = self.event_type.value
@@ -135,11 +135,11 @@ class RequestTrace:
     path: str
     method: str
     start_time: float
-    events: List[DebugEvent] = field(default_factory=list)
-    stream_id: Optional[str] = None
+    events: list[DebugEvent] = field(default_factory=list)
+    stream_id: str | None = None
     is_complete: bool = False
-    end_time: Optional[float] = None
-    total_duration_ms: Optional[float] = None
+    end_time: float | None = None
+    total_duration_ms: float | None = None
 
     def add_event(self, event: DebugEvent) -> None:
         """Add an event to this trace."""
@@ -158,17 +158,17 @@ class StreamTrace:
     """Traces a single SSE stream lifecycle."""
 
     stream_id: str
-    request_id: Optional[str]
+    request_id: str | None
     start_time: float
-    events: List[DebugEvent] = field(default_factory=list)
-    source_timings: Dict[str, float] = field(default_factory=dict)
+    events: list[DebugEvent] = field(default_factory=list)
+    source_timings: dict[str, float] = field(default_factory=dict)
     articles_emitted: int = 0
     sources_completed: int = 0
     sources_failed: int = 0
     last_event_time: float = 0
     is_complete: bool = False
-    end_time: Optional[float] = None
-    disconnect_reason: Optional[str] = None
+    end_time: float | None = None
+    disconnect_reason: str | None = None
 
     def add_event(self, event: DebugEvent) -> None:
         """Add an event and update timing."""
@@ -184,8 +184,7 @@ class StreamTrace:
 
 
 class DebugLoggerService:
-    """
-    Central debug logging service that captures, stores, and analyzes debug events.
+    """Central debug logging service that captures, stores, and analyzes debug events.
 
     Features:
     - Thread-safe event logging
@@ -197,18 +196,19 @@ class DebugLoggerService:
     """
 
     def __init__(self) -> None:
+        """Initialize."""
         self._lock = threading.Lock()
-        self._events: Deque[DebugEvent] = deque(maxlen=MAX_IN_MEMORY_EVENTS)
-        self._active_requests: Dict[str, RequestTrace] = {}
-        self._active_streams: Dict[str, StreamTrace] = {}
-        self._log_file: Optional[Path] = None
-        self._session_id = datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S")
+        self._events: deque[DebugEvent] = deque(maxlen=MAX_IN_MEMORY_EVENTS)
+        self._active_requests: dict[str, RequestTrace] = {}
+        self._active_streams: dict[str, StreamTrace] = {}
+        self._log_file: Path | None = None
+        self._session_id = datetime.now(UTC).strftime("%Y%m%d_%H%M%S")
         self._event_counter = 0
-        self._frontend_reports: Deque[Dict[str, Any]] = deque(maxlen=20)
+        self._frontend_reports: deque[dict[str, Any]] = deque(maxlen=20)
 
         # Performance tracking
-        self._bottleneck_counts: Dict[str, int] = {}
-        self._slow_operations: Deque[Dict[str, Any]] = deque(maxlen=100)
+        self._bottleneck_counts: dict[str, int] = {}
+        self._slow_operations: deque[dict[str, Any]] = deque(maxlen=100)
 
         # Initialize log file
         self._init_log_file()
@@ -226,11 +226,10 @@ class DebugLoggerService:
         header = {
             "type": "session_start",
             "session_id": self._session_id,
-            "timestamp": datetime.now(timezone.utc).isoformat(),
+            "timestamp": datetime.now(UTC).isoformat(),
             "thresholds": THRESHOLDS,
         }
-        with open(self._log_file, "w") as f:
-            f.write(json.dumps(header) + "\n")
+        self._log_file.open("w").write(json.dumps(header) + "\n")
 
     def _generate_event_id(self) -> str:
         """Generate a unique event ID."""
@@ -242,8 +241,7 @@ class DebugLoggerService:
         """Write event to log file."""
         if self._log_file:
             try:
-                with open(self._log_file, "a") as f:
-                    f.write(event.to_json() + "\n")
+                self._log_file.open("a").write(event.to_json() + "\n")
             except Exception as e:
                 if isinstance(e, OSError) and e.errno == 24:
                     logger.error(
@@ -289,20 +287,20 @@ class DebugLoggerService:
         component: str,
         operation: str,
         message: str = "",
-        request_id: Optional[str] = None,
-        stream_id: Optional[str] = None,
-        source_name: Optional[str] = None,
-        category: Optional[str] = None,
-        duration_ms: Optional[float] = None,
-        details: Optional[Dict[str, Any]] = None,
-        metrics: Optional[Dict[str, float]] = None,
-        error: Optional[Exception] = None,
+        request_id: str | None = None,
+        stream_id: str | None = None,
+        source_name: str | None = None,
+        category: str | None = None,
+        duration_ms: float | None = None,
+        details: dict[str, Any] | None = None,
+        metrics: dict[str, float] | None = None,
+        error: Exception | None = None,
     ) -> DebugEvent:
         """Log a debug event."""
         event = DebugEvent(
             event_id=self._generate_event_id(),
             event_type=event_type,
-            timestamp=datetime.now(timezone.utc).isoformat(),
+            timestamp=datetime.now(UTC).isoformat(),
             component=component,
             operation=operation,
             message=message,
@@ -358,8 +356,8 @@ class DebugLoggerService:
         return trace
 
     def end_request(
-        self, request_id: str, status_code: int, error: Optional[Exception] = None
-    ) -> Optional[RequestTrace]:
+        self, request_id: str, status_code: int, error: Exception | None = None
+    ) -> RequestTrace | None:
         """End tracing a request."""
         with self._lock:
             trace = self._active_requests.pop(request_id, None)
@@ -383,9 +381,7 @@ class DebugLoggerService:
 
     # --- Stream Tracing ---
 
-    def start_stream(
-        self, stream_id: str, request_id: Optional[str] = None
-    ) -> StreamTrace:
+    def start_stream(self, stream_id: str, request_id: str | None = None) -> StreamTrace:
         """Start tracing a stream."""
         trace = StreamTrace(
             stream_id=stream_id,
@@ -410,9 +406,9 @@ class DebugLoggerService:
         self,
         stream_id: str,
         event_name: str,
-        source_name: Optional[str] = None,
+        source_name: str | None = None,
         article_count: int = 0,
-        details: Optional[Dict[str, Any]] = None,
+        details: dict[str, Any] | None = None,
     ) -> None:
         """Log a stream event (source complete, cache data, etc.)."""
         with self._lock:
@@ -463,8 +459,8 @@ class DebugLoggerService:
         self,
         stream_id: str,
         reason: str = "complete",
-        error: Optional[Exception] = None,
-    ) -> Optional[StreamTrace]:
+        error: Exception | None = None,
+    ) -> StreamTrace | None:
         """End tracing a stream."""
         with self._lock:
             trace = self._active_streams.pop(stream_id, None)
@@ -503,8 +499,8 @@ class DebugLoggerService:
         operation: str,
         hit: bool,
         article_count: int = 0,
-        cache_age_seconds: Optional[float] = None,
-        details: Optional[Dict[str, Any]] = None,
+        cache_age_seconds: float | None = None,
+        details: dict[str, Any] | None = None,
     ) -> None:
         """Log a cache operation."""
         event_type = EventType.CACHE_HIT if hit else EventType.CACHE_MISS
@@ -531,7 +527,7 @@ class DebugLoggerService:
 
     @contextmanager
     def trace_db_query(
-        self, query_name: str, details: Optional[Dict[str, Any]] = None
+        self, query_name: str, details: dict[str, Any] | None = None
     ) -> Iterator[None]:
         """Context manager to trace database queries."""
         start = time.time()
@@ -575,16 +571,14 @@ class DebugLoggerService:
         operation: str,
         source_name: str,
         success: bool,
-        duration_ms: Optional[float] = None,
+        duration_ms: float | None = None,
         article_count: int = 0,
-        error: Optional[Exception] = None,
-        details: Optional[Dict[str, Any]] = None,
+        error: Exception | None = None,
+        details: dict[str, Any] | None = None,
     ) -> None:
         """Log an RSS fetch/parse operation."""
         if operation == "fetch":
-            event_type = (
-                EventType.RSS_FETCH_END if success else EventType.RSS_FETCH_ERROR
-            )
+            event_type = EventType.RSS_FETCH_END if success else EventType.RSS_FETCH_ERROR
         else:
             event_type = EventType.RSS_PARSE_ERROR if not success else EventType.CUSTOM
 
@@ -606,8 +600,8 @@ class DebugLoggerService:
     # --- Analysis Methods ---
 
     def get_recent_events(
-        self, limit: int = 100, event_type: Optional[EventType] = None
-    ) -> List[Dict[str, Any]]:
+        self, limit: int = 100, event_type: EventType | None = None
+    ) -> list[dict[str, Any]]:
         """Get recent events, optionally filtered by type."""
         with self._lock:
             events = list(self._events)
@@ -617,7 +611,7 @@ class DebugLoggerService:
 
         return [e.to_dict() for e in events[-limit:]]
 
-    def get_active_streams(self) -> Dict[str, Dict[str, Any]]:
+    def get_active_streams(self) -> dict[str, dict[str, Any]]:
         """Get info about active streams."""
         with self._lock:
             return {
@@ -629,24 +623,23 @@ class DebugLoggerService:
                     "sources_completed": trace.sources_completed,
                     "event_gap_s": trace.get_event_gap(),
                     "event_count": len(trace.events),
-                    "is_potentially_hung": trace.get_event_gap()
-                    > THRESHOLDS["stream_event_gap"],
+                    "is_potentially_hung": trace.get_event_gap() > THRESHOLDS["stream_event_gap"],
                 }
                 for stream_id, trace in self._active_streams.items()
             }
 
-    def get_slow_operations(self) -> List[Dict[str, Any]]:
+    def get_slow_operations(self) -> list[dict[str, Any]]:
         """Get list of slow operations detected."""
         with self._lock:
             return list(self._slow_operations)
 
-    def get_performance_summary(self) -> Dict[str, Any]:
+    def get_performance_summary(self) -> dict[str, Any]:
         """Get a summary of performance metrics."""
         with self._lock:
             events = list(self._events)
 
         # Calculate averages by component
-        component_timings: Dict[str, List[float]] = {}
+        component_timings: dict[str, list[float]] = {}
         for event in events:
             if event.duration_ms is not None:
                 if event.component not in component_timings:
@@ -674,9 +667,8 @@ class DebugLoggerService:
             "log_file": str(self._log_file),
         }
 
-    def get_debug_report(self) -> Dict[str, Any]:
-        """
-        Generate a comprehensive debug report for agentic tools.
+    def get_debug_report(self) -> dict[str, Any]:
+        """Generate a comprehensive debug report for agentic tools.
 
         This includes everything needed to diagnose issues:
         - Recent events
@@ -685,7 +677,7 @@ class DebugLoggerService:
         - Slow operations
         - Potential issues detected
         """
-        generated_at = datetime.now(timezone.utc).isoformat()
+        generated_at = datetime.now(UTC).isoformat()
         return {
             "timestamp": generated_at,
             "generated_at": generated_at,
@@ -694,9 +686,7 @@ class DebugLoggerService:
             "active_streams": self.get_active_streams(),
             "slow_operations": self.get_slow_operations(),
             "recent_events": self.get_recent_events(limit=50),
-            "recent_errors": [e.to_dict() for e in self._events if e.error is not None][
-                -20:
-            ],
+            "recent_errors": [e.to_dict() for e in self._events if e.error is not None][-20:],
             "frontend_reports": list(self._frontend_reports),
             "hang_suspects": [
                 stream_info
@@ -706,7 +696,7 @@ class DebugLoggerService:
             "recommendations": self._generate_recommendations(),
         }
 
-    def log_frontend_report(self, report: Dict[str, Any]) -> DebugEvent:
+    def log_frontend_report(self, report: dict[str, Any]) -> DebugEvent:
         """Store a frontend debug payload and write it into the session log."""
         with self._lock:
             self._frontend_reports.append(report)
@@ -719,11 +709,11 @@ class DebugLoggerService:
             details=report,
         )
 
-    def get_frontend_reports(self) -> List[Dict[str, Any]]:
+    def get_frontend_reports(self) -> list[dict[str, Any]]:
         """Return recent frontend debug payloads."""
         return list(self._frontend_reports)
 
-    def _generate_recommendations(self) -> List[str]:
+    def _generate_recommendations(self) -> list[str]:
         """Generate debugging recommendations based on current state."""
         recommendations = []
 
@@ -738,7 +728,7 @@ class DebugLoggerService:
         # Check for slow operations
         slow_ops = self.get_slow_operations()
         if len(slow_ops) > 5:
-            by_component: Dict[str, int] = {}
+            by_component: dict[str, int] = {}
             for op in slow_ops:
                 comp = op.get("component", "unknown")
                 by_component[comp] = by_component.get(comp, 0) + 1
@@ -759,9 +749,7 @@ class DebugLoggerService:
             )
 
         if not recommendations:
-            recommendations.append(
-                "No critical issues detected. System appears healthy."
-            )
+            recommendations.append("No critical issues detected. System appears healthy.")
 
         return recommendations
 
@@ -789,13 +777,13 @@ def start_request(request_id: str, path: str, method: str) -> RequestTrace:
 def end_request(
     request_id: str,
     status_code: int,
-    error: Optional[Exception] = None,
-) -> Optional[RequestTrace]:
+    error: Exception | None = None,
+) -> RequestTrace | None:
     """End tracing a request."""
     return debug_logger.end_request(request_id, status_code, error)
 
 
-def start_stream(stream_id: str, request_id: Optional[str] = None) -> StreamTrace:
+def start_stream(stream_id: str, request_id: str | None = None) -> StreamTrace:
     """Start tracing a stream."""
     return debug_logger.start_stream(stream_id, request_id)
 
@@ -808,20 +796,20 @@ def log_stream_event(stream_id: str, event_name: str, **kwargs: Any) -> None:
 def end_stream(
     stream_id: str,
     reason: str = "complete",
-    error: Optional[Exception] = None,
-) -> Optional[StreamTrace]:
+    error: Exception | None = None,
+) -> StreamTrace | None:
     """End tracing a stream."""
     return debug_logger.end_stream(stream_id, reason, error)
 
 
 def trace_db_query(
     query_name: str,
-    details: Optional[Dict[str, Any]] = None,
+    details: dict[str, Any] | None = None,
 ) -> AbstractContextManager[None]:
     """Context manager to trace database queries."""
     return debug_logger.trace_db_query(query_name, details)
 
 
-def get_debug_report() -> Dict[str, Any]:
+def get_debug_report() -> dict[str, Any]:
     """Get comprehensive debug report."""
     return debug_logger.get_debug_report()

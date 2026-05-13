@@ -40,17 +40,32 @@ struct InterestProfile {
     source_weights: HashMap<String, f64>,
 }
 
+/// Represents the computed ranking score and metadata for a single article
+/// after evaluation against a user interest profile.
 #[derive(Debug, Clone, Serialize)]
 pub struct RankedResult {
+    /// Unique identifier of the ranked article.
     pub article_id: i64,
+    /// Aggregate personalized score combining keyword, category, and source
+    /// signals.
     pub total_score: f64,
+    /// Priority bucket rank (higher is better), derived from favorite source
+    /// and image presence.
     pub bucket_rank: i64,
+    /// Human-readable label for the priority bucket.
     pub bucket_label: String,
+    /// Contribution from keyword matches against the interest profile.
     pub keyword_score: f64,
+    /// Contribution from category matching against the interest profile.
     pub category_score: f64,
+    /// Contribution from source matching against the interest profile.
     pub source_score: f64,
+    /// Keywords from the article that matched the user's interest profile,
+    /// limited to the top 6.
     pub matched_keywords: Vec<String>,
+    /// Categories from the article that matched the user's interest profile.
     pub matched_categories: Vec<String>,
+    /// Source name that matched the user's interest profile, if any.
     pub matched_source: Option<String>,
 }
 
@@ -317,6 +332,13 @@ fn extract_article_meta_from_dict(dict: &Bound<PyDict>) -> Option<ArticleMeta> {
     })
 }
 
+/// Scores and ranks a list of articles against a personalized interest
+/// profile built from the user's liked and bookmarked articles.
+///
+/// Accepts a list of Python article dicts, lists of liked and bookmarked
+/// article IDs, and a list of favorite source IDs. Returns a list of
+/// ranking result dicts sorted by bucket priority then total score
+/// (descending).
 #[pyfunction]
 pub fn rank_articles<'py>(
     py: Python<'py>,

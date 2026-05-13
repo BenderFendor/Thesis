@@ -25,8 +25,7 @@ class ResourceConfig(TypedDict):
 
 
 def get_system_resources() -> ResourceConfig:
-    """
-    Dynamically tune pipeline settings based on system RAM and CPU.
+    """Dynamically tune pipeline settings based on system RAM and CPU.
 
     Returns optimized configuration for RSS ingestion pipeline based on
     available system resources.
@@ -35,11 +34,7 @@ def get_system_resources() -> ResourceConfig:
     cpu_cores = os.cpu_count() or 2
 
     # Get RAM (fallback to conservative estimate if psutil unavailable)
-    if PSUTIL_AVAILABLE:
-        total_ram_gb = psutil.virtual_memory().total / (1024**3)
-    else:
-        # Conservative fallback: assume 8GB
-        total_ram_gb = 8.0
+    total_ram_gb = psutil.virtual_memory().total / (1024**3) if PSUTIL_AVAILABLE else 8.0
 
     # --- ProcessPoolExecutor Workers (CPU-bound parsing) ---
     # Reserve cores for FastAPI, databases, and OS

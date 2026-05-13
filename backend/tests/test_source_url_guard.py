@@ -36,10 +36,7 @@ def _site_scoped_google_news_urls(draw: st.DrawFn) -> tuple[str, str]:
         )
     )
     site_host = ".".join([*labels, root]) if labels else root
-    feed_url = (
-        "https://news.google.com/rss/search"
-        f"?q=site:{site_host}&hl=en-US&gl=US&ceid=US:en"
-    )
+    feed_url = f"https://news.google.com/rss/search?q=site:{site_host}&hl=en-US&gl=US&ceid=US:en"
     return site_host, feed_url
 
 

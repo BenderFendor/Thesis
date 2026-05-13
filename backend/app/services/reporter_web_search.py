@@ -1,7 +1,9 @@
+"""Reporter Web Search."""
+
 from __future__ import annotations
 
 import re
-from typing import Any, Dict, List, Optional
+from typing import Any
 from urllib.parse import quote
 
 import httpx
@@ -14,9 +16,10 @@ logger = get_logger("reporter_web_search")
 
 async def search_reporter_web(
     name: str,
-    outlet: Optional[str] = None,
-    http_client: Optional[httpx.AsyncClient] = None,
-) -> Dict[str, Any]:
+    outlet: str | None = None,
+    http_client: httpx.AsyncClient | None = None,
+) -> dict[str, Any]:
+    """Search Reporter Web."""
     owned_client = http_client is None
     client = http_client or httpx.AsyncClient(timeout=15.0)
     try:
@@ -56,10 +59,10 @@ async def search_reporter_web(
             await client.aclose()
 
 
-def _parse_lite_html(html: str, max_results: int = 5) -> List[Dict[str, str]]:
-    results: List[Dict[str, str]] = []
+def _parse_lite_html(html: str, max_results: int = 5) -> list[dict[str, str]]:
+    results: list[dict[str, str]] = []
     in_results = False
-    current: Dict[str, str] = {}
+    current: dict[str, str] = {}
 
     for line in html.split("\n"):
         if 'class="result-snippet"' in line or 'class="result__snippet"' in line:
@@ -89,8 +92,8 @@ def _strip_html(text: str) -> str:
     return re.sub(r"<[^>]+>", "", text)
 
 
-def _empty_result(name: str, reason: str, search_url: str = "") -> Dict[str, Any]:
-    result: Dict[str, Any] = {
+def _empty_result(name: str, reason: str, search_url: str = "") -> dict[str, Any]:
+    result: dict[str, Any] = {
         "name": name,
         "found": False,
         "result_count": 0,

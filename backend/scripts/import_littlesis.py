@@ -29,9 +29,7 @@ if str(REPO_BACKEND) not in sys.path:
 
 
 def parse_args() -> argparse.Namespace:
-    parser = argparse.ArgumentParser(
-        description="Import and cross-reference LittleSis data"
-    )
+    parser = argparse.ArgumentParser(description="Import and cross-reference LittleSis data")
     parser.add_argument(
         "--download",
         action="store_true",

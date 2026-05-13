@@ -22,13 +22,14 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { SafeImage } from "@/components/safe-image";
-import {
-  fetchClusterDetail,
+import type {
   AllCluster,
   GdeltContext,
   TrendingCluster,
   BreakingCluster,
-  NewsArticle,
+  NewsArticle} from "@/lib/api";
+import {
+  fetchClusterDetail,
   API_BASE_URL,
 } from "@/lib/api";
 import { useReadingQueue } from "@/hooks/useReadingQueue";
@@ -333,7 +334,7 @@ function ClusterDetailModalContent({
     }
 
     const [sourceOne, sourceTwo] = comparisonArticles;
-    if (sourceOne.source.trim().toLowerCase() === sourceTwo.source.trim().toLowerCase()) {
+    if (sourceOne!.source.trim().toLowerCase() === sourceTwo!.source.trim().toLowerCase()) {
       setComparisonData(null);
       const message = "Compare Sources needs coverage from at least two outlets.";
       setComparisonError(message);
@@ -368,8 +369,8 @@ function ClusterDetailModalContent({
         return next;
       });
 
-      const content1 = contentById.get(sourceOne.id) || "";
-      const content2 = contentById.get(sourceTwo.id) || "";
+      const content1 = contentById.get(sourceOne!.id) || "";
+      const content2 = contentById.get(sourceTwo!.id) || "";
       if (!content1 || !content2) {
         setComparisonData(null);
         const message = "Compare Sources needs full text from two articles.";
@@ -384,8 +385,8 @@ function ClusterDetailModalContent({
         body: JSON.stringify({
           content_1: content1,
           content_2: content2,
-          title_1: sourceOne.title,
-          title_2: sourceTwo.title,
+          title_1: sourceOne!.title,
+          title_2: sourceTwo!.title,
         }),
       });
 

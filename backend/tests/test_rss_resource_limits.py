@@ -11,9 +11,7 @@ def test_exception_mentions_too_many_open_files_detects_nested_causes() -> None:
     outer.__cause__ = inner
 
     assert exception_mentions_too_many_open_files(outer) is True
-    assert (
-        exception_mentions_too_many_open_files(RuntimeError("different error")) is False
-    )
+    assert exception_mentions_too_many_open_files(RuntimeError("different error")) is False
 
 
 @pytest.mark.asyncio

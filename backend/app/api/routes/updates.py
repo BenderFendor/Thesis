@@ -1,5 +1,4 @@
-"""
-Lightweight updates stream for cache invalidation signals.
+"""Lightweight updates stream for cache invalidation signals.
 
 This SSE endpoint only sends "invalidate" events when new content is available,
 rather than streaming all the article data. Clients should use the pagination
@@ -10,8 +9,9 @@ from __future__ import annotations
 
 import asyncio
 import json
-from datetime import datetime, timezone
-from typing import Any, AsyncIterator, Dict
+from datetime import datetime, UTC
+from typing import Any
+from collections.abc import AsyncIterator
 
 from fastapi import APIRouter
 from fastapi.responses import StreamingResponse
@@ -35,9 +35,8 @@ def _remove_subscriber(queue: asyncio.Queue[UpdateEvent]) -> None:
         return
 
 
-async def broadcast_update(event_type: str, data: Dict[str, Any] | None = None) -> None:
-    """
-    Broadcast an update event to all connected subscribers.
+async def broadcast_update(event_type: str, data: dict[str, Any] | None = None) -> None:
+    """Broadcast an update event to all connected subscribers.
 
     Call this from ingestion code when new articles are added to the cache/database.
     """
@@ -47,7 +46,7 @@ async def broadcast_update(event_type: str, data: Dict[str, Any] | None = None) 
     event = {
         "id": _event_counter,
         "type": event_type,
-        "timestamp": datetime.now(timezone.utc).isoformat(),
+        "timestamp": datetime.now(UTC).isoformat(),
         **(data or {}),
     }
 
@@ -63,15 +62,12 @@ async def broadcast_update(event_type: str, data: Dict[str, Any] | None = None) 
     for queue in dead_queues:
         _remove_subscriber(queue)
 
-    logger.debug(
-        "Broadcast %s event to %d subscribers", event_type, len(_update_subscribers)
-    )
+    logger.debug("Broadcast %s event to %d subscribers", event_type, len(_update_subscribers))
 
 
 @router.get("/stream")
 async def updates_stream() -> StreamingResponse:
-    """
-    SSE stream for lightweight cache invalidation events.
+    """SSE stream for lightweight cache invalidation events.
 
     Events:
     - invalidate: New content available, client should refetch
@@ -83,14 +79,13 @@ async def updates_stream() -> StreamingResponse:
     subscriber_queue: asyncio.Queue[UpdateEvent] = asyncio.Queue(maxsize=100)
     _update_subscribers.append(subscriber_queue)
 
-    logger.info(
-        "New updates subscriber connected (total: %d)", len(_update_subscribers)
-    )
+    logger.info("New updates subscriber connected (total: %d)", len(_update_subscribers))
 
     async def event_generator() -> AsyncIterator[str]:
+        """Event Generator."""
         try:
             # Send initial connection event
-            yield f"id: 0\nretry: 5000\ndata: {json.dumps({'type': 'connected', 'timestamp': datetime.now(timezone.utc).isoformat()})}\n\n"
+            yield f"id: 0\nretry: 5000\ndata: {json.dumps({'type': 'connected', 'timestamp': datetime.now(UTC).isoformat()})}\n\n"
 
             while True:
                 try:
@@ -99,7 +94,7 @@ async def updates_stream() -> StreamingResponse:
 
                     yield f"id: {event['id']}\ndata: {json.dumps(event)}\n\n"
 
-                except asyncio.TimeoutError:
+                except TimeoutError:
                     # Send keepalive comment to maintain connection
                     yield ": keepalive\n\n"
 
@@ -109,9 +104,7 @@ async def updates_stream() -> StreamingResponse:
         finally:
             # Remove from subscribers
             _remove_subscriber(subscriber_queue)
-            logger.info(
-                "Updates subscriber cleanup (remaining: %d)", len(_update_subscribers)
-            )
+            logger.info("Updates subscriber cleanup (remaining: %d)", len(_update_subscribers))
 
     return StreamingResponse(
         event_generator(),
@@ -125,7 +118,7 @@ async def updates_stream() -> StreamingResponse:
 
 
 @router.get("/status")
-async def get_updates_status() -> Dict[str, Any]:
+async def get_updates_status() -> dict[str, Any]:
     """Get current updates stream status."""
     return {
         "active_subscribers": len(_update_subscribers),

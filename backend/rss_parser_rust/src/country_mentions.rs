@@ -160,6 +160,12 @@ fn get_alias_data() -> Option<&'static CountryAliasData> {
     COUNTRY_ALIAS_DATA.as_ref()
 }
 
+/// Scans the given text for country name mentions using a pre-loaded
+/// Aho-Corasick automaton and multi-token alias matching against the
+/// `country_aliases.json` dataset.
+///
+/// Returns a sorted list of unique ISO country codes (e.g. `["FR", "GB",
+/// "US"]`).
 #[pyfunction]
 pub fn rust_extract_mentioned_countries(text: &str) -> Vec<String> {
     if text.trim().is_empty() {
@@ -213,6 +219,9 @@ pub fn rust_extract_mentioned_countries(text: &str) -> Vec<String> {
     sorted
 }
 
+/// Joins an article's optional title, summary, and body content into a
+/// single whitespace-separated string suitable for country-mention
+/// extraction.
 #[pyfunction]
 pub fn rust_build_article_text(
     title: Option<String>,
@@ -226,6 +235,8 @@ pub fn rust_build_article_text(
     parts.join(" ")
 }
 
+/// Convenience function that builds a combined article text from title,
+/// summary, and content, then extracts mentioned country codes from it.
 #[pyfunction]
 pub fn rust_extract_article_mentioned_countries(
     title: Option<String>,
@@ -236,6 +247,9 @@ pub fn rust_extract_article_mentioned_countries(
     rust_extract_mentioned_countries(&text)
 }
 
+/// Reloads the `country_aliases.json` data file and returns a Python dict
+/// with `loaded` (bool) and `countries` (int) keys, indicating the number
+/// of country entries loaded.
 #[pyfunction]
 pub fn rust_reload_country_aliases<'py>(py: Python<'py>) -> PyResult<Bound<'py, PyDict>> {
     let data_dir =

@@ -1,3 +1,5 @@
+"""Country Mentions."""
+
 from __future__ import annotations
 
 import json
@@ -28,10 +30,12 @@ except Exception as exc:
 
 
 def get_country_geo_data() -> dict[str, dict[str, object]]:
+    """Get Country Geo Data."""
     return _COUNTRIES_DATA
 
 
 def country_name(code: str) -> str:
+    """Country Name."""
     country = _COUNTRIES_DATA.get(code.upper())
     if isinstance(country, dict):
         name = country.get("name")
@@ -41,6 +45,7 @@ def country_name(code: str) -> str:
 
 
 def extract_mentioned_countries(text: str) -> list[str]:
+    """Extract Mentioned Countries."""
     return extract_mentioned_countries_rust(text)
 
 
@@ -49,6 +54,7 @@ def extract_article_mentioned_countries(
     summary: str | None,
     content: str | None,
 ) -> list[str]:
+    """Extract Article Mentioned Countries."""
     return extract_article_mentioned_countries_rust(title, summary, content)
 
 
@@ -58,6 +64,7 @@ async def backfill_article_mentioned_countries(
     batch_size: int = 500,
     max_batches: int | None = None,
 ) -> dict[str, int]:
+    """Backfill Article Mentioned Countries."""
     processed = 0
     updated = 0
     batches = 0

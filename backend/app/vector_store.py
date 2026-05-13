@@ -1,3 +1,5 @@
+"""Vector Store."""
+
 from __future__ import annotations
 
 import logging
@@ -44,10 +46,14 @@ MetadataScalar = str | int | float | bool
 
 
 class AppSettingsProtocol(Protocol):
+    """App Settings Protocol."""
+
     enable_vector_store: bool
 
 
 class StartupMetricsProtocol(Protocol):
+    """Startup Metrics Protocol."""
+
     def record_event(
         self,
         name: str,
@@ -61,19 +67,23 @@ class StartupMetricsProtocol(Protocol):
 
 
 class ChromaClientProtocol(Protocol):
+    """Chroma Client Protocol."""
+
     def heartbeat(self) -> int: ...
 
-    def get_collection(self, *, name: str) -> "Collection": ...
+    def get_collection(self, *, name: str) -> Collection: ...
 
     def get_or_create_collection(
         self,
         *,
         name: str,
         metadata: Mapping[str, MetadataScalar] | None = None,
-    ) -> "Collection": ...
+    ) -> Collection: ...
 
 
 class EmbeddingModelProtocol(Protocol):
+    """Embedding Model Protocol."""
+
     def encode(
         self,
         sentences: str | list[str],
@@ -82,10 +92,12 @@ class EmbeddingModelProtocol(Protocol):
         show_progress_bar: bool | None = ...,
         convert_to_numpy: bool = ...,
         **kwargs: object,
-    ) -> "NDArray[Any]": ...
+    ) -> NDArray[Any]: ...
 
 
 class ReciprocalRankFusionProtocol(Protocol):
+    """Reciprocal Rank Fusion Protocol."""
+
     def __call__(
         self,
         rankings: list[list[tuple[str, float]]],
@@ -94,6 +106,8 @@ class ReciprocalRankFusionProtocol(Protocol):
 
 
 class CombineScoresProtocol(Protocol):
+    """Combine Scores Protocol."""
+
     def __call__(
         self,
         bm25_scores: dict[str, float],
@@ -104,6 +118,8 @@ class CombineScoresProtocol(Protocol):
 
 
 class BM25SearchProtocol(Protocol):
+    """BM Search Protocol."""
+
     def build_index(
         self,
         documents: Sequence[Mapping[str, object]],
@@ -120,6 +136,8 @@ class BM25SearchProtocol(Protocol):
 
 
 class SimilarArticleResult(TypedDict):
+    """Similar Article Result."""
+
     chroma_id: str
     article_id: int
     distance: float
@@ -129,6 +147,8 @@ class SimilarArticleResult(TypedDict):
 
 
 class HybridSearchResult(TypedDict):
+    """Hybrid Search Result."""
+
     chroma_id: str
     article_id: int
     fused_score: float
@@ -140,6 +160,8 @@ class HybridSearchResult(TypedDict):
 
 
 class BatchArticlePayload(TypedDict):
+    """Batch Article Payload."""
+
     chroma_id: str
     title: str
     summary: str
@@ -148,12 +170,16 @@ class BatchArticlePayload(TypedDict):
 
 
 class ClusterCentroid(TypedDict):
+    """Cluster Centroid."""
+
     id: str | int
     label: str
     centroid: Sequence[float]
 
 
 class ClusterSimilarityResult(TypedDict):
+    """Cluster Similarity Result."""
+
     cluster_id: str | int
     label: str
     similarity: float
@@ -161,20 +187,18 @@ class ClusterSimilarityResult(TypedDict):
 
 def _get_settings() -> AppSettingsProtocol:
     config_module = import_module("app.core.config")
-    return cast(AppSettingsProtocol, getattr(config_module, "settings"))
+    return cast(AppSettingsProtocol, config_module.settings)
 
 
 def _get_startup_metrics() -> StartupMetricsProtocol:
     metrics_module = import_module("app.services.startup_metrics")
-    return cast(StartupMetricsProtocol, getattr(metrics_module, "startup_metrics"))
+    return cast(StartupMetricsProtocol, metrics_module.startup_metrics)
 
 
 def _create_chroma_client() -> ChromaClientProtocol:
     try:
         chroma_module = cast(Any, import_module("chromadb"))
-        chroma_settings_cls = cast(
-            Any, getattr(import_module("chromadb.config"), "Settings")
-        )
+        chroma_settings_cls = cast(Any, import_module("chromadb.config").Settings)
     except ImportError as exc:  # pragma: no cover - optional at import time
         raise RuntimeError(
             "Chroma dependencies are not installed; install chromadb to enable vector store."
@@ -194,18 +218,16 @@ def _create_chroma_client() -> ChromaClientProtocol:
     )
 
 
-def _get_chroma_include(*values: str) -> list["IncludeEnum"]:
-    include_enum = cast(
-        Any, getattr(import_module("chromadb.api.types"), "IncludeEnum")
-    )
+def _get_chroma_include(*values: str) -> list[IncludeEnum]:
+    include_enum = cast(Any, import_module("chromadb.api.types").IncludeEnum)
     return [cast("IncludeEnum", include_enum(value)) for value in values]
 
 
-def _coerce_metadata(metadata: Mapping[str, object]) -> "Metadata":
+def _coerce_metadata(metadata: Mapping[str, object]) -> Metadata:
     return cast("Metadata", metadata)
 
 
-def _coerce_where(where: Mapping[str, object] | None) -> "Where | None":
+def _coerce_where(where: Mapping[str, object] | None) -> Where | None:
     if where is None:
         return None
     return cast("Where", dict(where))
@@ -241,11 +263,11 @@ def _get_embedding_rows(
     return [cast("Embedding | Sequence[float] | Sequence[int]", row) for row in rows]
 
 
-def _embedding_to_list(embedding: "NDArray[Any]") -> list[float]:
+def _embedding_to_list(embedding: NDArray[Any]) -> list[float]:
     return cast(list[float], embedding.tolist())
 
 
-def _embeddings_to_lists(embeddings: "NDArray[Any]") -> list[list[float]]:
+def _embeddings_to_lists(embeddings: NDArray[Any]) -> list[list[float]]:
     return [cast(list[float], row.tolist()) for row in embeddings]
 
 
@@ -257,15 +279,15 @@ def _get_hybrid_search_helpers() -> tuple[
     return (
         cast(
             ReciprocalRankFusionProtocol,
-            getattr(hybrid_module, "reciprocal_rank_fusion"),
+            hybrid_module.reciprocal_rank_fusion,
         ),
-        cast(CombineScoresProtocol, getattr(hybrid_module, "combine_scores")),
+        cast(CombineScoresProtocol, hybrid_module.combine_scores),
     )
 
 
 def _new_bm25_search() -> BM25SearchProtocol:
     bm25_module = import_module("app.services.bm25_search")
-    bm25_search_class = cast(Any, getattr(bm25_module, "BM25Search"))
+    bm25_search_class = cast(Any, bm25_module.BM25Search)
     return cast(BM25SearchProtocol, bm25_search_class())
 
 
@@ -292,8 +314,8 @@ def _record_connection_success() -> None:
 
 
 def is_chroma_reachable(timeout: float = 3.0) -> bool:
-    """
-    Lightweight preflight check to see if ChromaDB is reachable.
+    """Lightweight preflight check to see if ChromaDB is reachable.
+
     Uses a simple socket connection check - much faster than full client init.
 
     Args:
@@ -313,8 +335,8 @@ def is_chroma_reachable(timeout: float = 3.0) -> bool:
 
 
 def check_chroma_health() -> dict[str, object]:
-    """
-    Check ChromaDB health without initializing full VectorStore.
+    """Check ChromaDB health without initializing full VectorStore.
+
     Returns detailed status information for monitoring/debugging.
 
     Returns:
@@ -340,7 +362,10 @@ def check_chroma_health() -> dict[str, object]:
 
 
 class VectorStore:
+    """Vector Store."""
+
     def __init__(self) -> None:
+        """Initialize."""
         init_start = time.time()
         startup_metrics = _get_startup_metrics()
         self._embedding_model: EmbeddingModelProtocol | None = None
@@ -352,17 +377,13 @@ class VectorStore:
 
             # Create or get collection - workaround for 0.5.23 get_or_create_collection bug
             try:
-                self.collection: Collection = self.client.get_collection(
-                    name="news_articles"
-                )
+                self.collection: Collection = self.client.get_collection(name="news_articles")
             except Exception:
                 self.collection = self._get_or_create_cosine_collection()
 
             logger.info(f"Connected to ChromaDB at {CHROMA_HOST}:{CHROMA_PORT}")
             collection_count = self.collection.count()
-            logger.info(
-                f"Collection '{self.collection.name}' has {collection_count} documents"
-            )
+            logger.info(f"Collection '{self.collection.name}' has {collection_count} documents")
             startup_metrics.record_event(
                 "vector_store_init",
                 init_start,
@@ -385,7 +406,7 @@ class VectorStore:
             startup_metrics.add_note("vector_store_error", str(e))
             raise
 
-    def _get_or_create_cosine_collection(self) -> "Collection":
+    def _get_or_create_cosine_collection(self) -> Collection:
         try:
             return self.client.get_or_create_collection(
                 name="news_articles",
@@ -410,9 +431,7 @@ class VectorStore:
                 "Using embedding service at %s for vector embeddings",
                 getattr(settings, "embedding_service_url", "unknown"),
             )
-            self._embedding_model = cast(
-                EmbeddingModelProtocol, create_remote_embedding_model()
-            )
+            self._embedding_model = cast(EmbeddingModelProtocol, create_remote_embedding_model())
         assert self._embedding_model is not None
         return self._embedding_model
 
@@ -424,7 +443,7 @@ class VectorStore:
         content: str,
         metadata: Mapping[str, object],
     ) -> bool:
-        """Add article embedding to ChromaDB"""
+        """Add article embedding to ChromaDB."""
         try:
             # Combine title, summary, and content for richer embeddings
             text = f"{title}\n\n{summary}"
@@ -471,7 +490,7 @@ class VectorStore:
         limit: int = 10,
         filter_metadata: Mapping[str, object] | None = None,
     ) -> list[SimilarArticleResult]:
-        """Semantic search for similar articles"""
+        """Semantic search for similar articles."""
         try:
             # Generate query embedding
             query_embedding = _embedding_to_list(self.embedding_model.encode(query))
@@ -495,6 +514,7 @@ class VectorStore:
                 distances,
                 metadatas,
                 documents,
+                strict=False,
             ):
                 articles.append(
                     {
@@ -507,9 +527,7 @@ class VectorStore:
                     }
                 )
 
-            logger.info(
-                f"Found {len(articles)} similar articles for query: '{query[:50]}...'"
-            )
+            logger.info(f"Found {len(articles)} similar articles for query: '{query[:50]}...'")
             return articles
 
         except Exception as e:
@@ -517,7 +535,7 @@ class VectorStore:
             return []
 
     def batch_add_articles(self, articles: list[BatchArticlePayload]) -> int:
-        """Batch insert articles for better performance"""
+        """Batch insert articles for better performance."""
         global _vector_store
         try:
             ids: list[str] = []
@@ -615,7 +633,7 @@ class VectorStore:
             raise
 
     def delete_article(self, article_id: str) -> bool:
-        """Remove article from vector store"""
+        """Remove article from vector store."""
         try:
             self.collection.delete(ids=[article_id])
             logger.debug(f"Deleted article {article_id} from vector store")
@@ -625,7 +643,7 @@ class VectorStore:
             return False
 
     def get_collection_stats(self) -> dict[str, object]:
-        """Get vector store statistics"""
+        """Get vector store statistics."""
         try:
             count = self.collection.count()
             return {
@@ -682,6 +700,7 @@ class VectorStore:
                 distances,
                 metadatas,
                 documents,
+                strict=False,
             ):
                 if result_id == chroma_id:
                     continue
@@ -698,9 +717,7 @@ class VectorStore:
                 if len(articles) >= limit:
                     break
 
-            logger.debug(
-                f"Found {len(articles)} similar articles for article {article_id}"
-            )
+            logger.debug(f"Found {len(articles)} similar articles for article {article_id}")
             return articles
 
         except Exception as e:
@@ -719,8 +736,7 @@ class VectorStore:
         fusion_method: str = "rrf",
         filter_metadata: Mapping[str, object] | None = None,
     ) -> Sequence[HybridSearchResult | SimilarArticleResult]:
-        """
-        Hybrid search combining BM25 (keyword) + Vector (semantic) with RRF fusion.
+        """Hybrid search combining BM25 (keyword) + Vector (semantic) with RRF fusion.
 
         Benefits:
         - BM25 handles exact keyword matches
@@ -751,24 +767,17 @@ class VectorStore:
                 logger.info("No vector search results for hybrid search")
                 return []
 
-            vector_scores = {
-                r["chroma_id"]: r["similarity_score"] for r in vector_results
-            }
-            vector_ranking = sorted(
-                vector_scores.items(), key=lambda x: x[1], reverse=True
-            )
+            vector_scores = {r["chroma_id"]: r["similarity_score"] for r in vector_results}
+            vector_ranking = sorted(vector_scores.items(), key=lambda x: x[1], reverse=True)
 
             bm25_scores: dict[str, float] = {}
             try:
                 bm25_search = _new_bm25_search()
                 bm25_docs = [
-                    {"chroma_id": r["chroma_id"], "text": r["preview"]}
-                    for r in vector_results
+                    {"chroma_id": r["chroma_id"], "text": r["preview"]} for r in vector_results
                 ]
                 bm25_search.build_index(bm25_docs)
-                bm25_scores = bm25_search.get_scores_for_fusion(
-                    query, list(vector_scores.keys())
-                )
+                bm25_scores = bm25_search.get_scores_for_fusion(query, list(vector_scores.keys()))
             except Exception as e:
                 logger.debug(f"BM25 scoring failed, using vector-only: {e}")
                 bm25_scores = {}
@@ -778,9 +787,7 @@ class VectorStore:
             if fusion_method == "rrf":
                 fused = reciprocal_rank_fusion([bm25_ranking, vector_ranking])
             else:
-                combined = combine_scores(
-                    bm25_scores, vector_scores, bm25_weight=bm25_weight
-                )
+                combined = combine_scores(bm25_scores, vector_scores, bm25_weight=bm25_weight)
                 fused = sorted(combined.items(), key=lambda x: x[1], reverse=True)
 
             chroma_id_to_vector = {r["chroma_id"]: r for r in vector_results}
@@ -810,14 +817,10 @@ class VectorStore:
 
         except ImportError as e:
             logger.warning(f"Hybrid search dependencies not available: {e}")
-            return self.search_similar(
-                query, limit=limit, filter_metadata=filter_metadata
-            )
+            return self.search_similar(query, limit=limit, filter_metadata=filter_metadata)
         except Exception as e:
             logger.error(f"Hybrid search failed: {e}")
-            return self.search_similar(
-                query, limit=limit, filter_metadata=filter_metadata
-            )
+            return self.search_similar(query, limit=limit, filter_metadata=filter_metadata)
 
     def find_nearest_cluster_labels(
         self,
@@ -892,9 +895,7 @@ class VectorStore:
                 emb_arr = np.array(embeddings)
                 source_centroid = np.mean(emb_arr, axis=0)
                 source_std = np.std(emb_arr, axis=0)
-                centroid_distance = float(
-                    np.linalg.norm(source_centroid - global_centroid)
-                )
+                centroid_distance = float(np.linalg.norm(source_centroid - global_centroid))
                 spread = float(np.mean(source_std))
                 diversity_score = spread / (np.mean(global_std) + 1e-8)
 
@@ -916,8 +917,7 @@ class VectorStore:
 
 
 def get_vector_store() -> VectorStore | None:
-    """
-    Return a lazily initialised vector store (or None if disabled/unavailable).
+    """Return a lazily initialised vector store (or None if disabled/unavailable).
 
     Implements connection backoff to prevent log flooding when ChromaDB is down.
     Uses preflight health check before attempting expensive initialization.

@@ -1,5 +1,4 @@
-"""
-Reporter Profiler Agent for Phase 5B.
+"""Reporter Profiler Agent for Phase 5B.
 
 This agent researches journalists/reporters to build profiles with:
 - Basic identity (name, bio, career history)
@@ -15,14 +14,14 @@ Uses a layered source strategy:
 5. SEC filings (for business journalists)
 """
 
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 from app.core.logging import get_logger
 
 logger = get_logger("reporter_profiler")
 
 
-def build_deep_dossier_schema() -> Dict[str, Any]:
+def build_deep_dossier_schema() -> dict[str, Any]:
     """Return the deep dossier schema structure for a new, empty dossier.
 
     Dossier sections:
@@ -81,10 +80,10 @@ def build_deep_dossier_schema() -> Dict[str, Any]:
 
 def build_deep_dossier(
     name: str,
-    articles: Optional[List[Dict[str, Any]]] = None,
-    wikidata_employers: Optional[List[str]] = None,
-    littlesis_affiliations: Optional[List[Dict[str, Any]]] = None,
-) -> Dict[str, Any]:
+    articles: list[dict[str, Any]] | None = None,
+    wikidata_employers: list[str] | None = None,
+    littlesis_affiliations: list[dict[str, Any]] | None = None,
+) -> dict[str, Any]:
     """Build a deep dossier using deterministic sources only (no LLM).
 
     Sources:
@@ -106,9 +105,7 @@ def build_deep_dossier(
 
     schema = build_deep_dossier_schema()
     corpus = _analyze_article_corpus(name, articles)
-    schema["source_patterns"] = (
-        corpus.get("source_patterns") or schema["source_patterns"]
-    )
+    schema["source_patterns"] = corpus.get("source_patterns") or schema["source_patterns"]
     schema["last_article_at"] = corpus.get("last_article_at")
     schema["article_count"] = len(articles)
 
@@ -129,7 +126,7 @@ def build_deep_dossier(
             schema["revolving_door"]["confidence"] = "medium"
 
     if littlesis_affiliations:
-        affiliations: List[Dict[str, Any]] = [
+        affiliations: list[dict[str, Any]] = [
             {
                 "organization": aff.get("organization", ""),
                 "role": aff.get("category", "affiliation"),
@@ -150,9 +147,7 @@ def build_deep_dossier(
     return schema
 
 
-def _analyze_article_corpus(
-    name: str, articles: List[Dict[str, Any]]
-) -> Dict[str, Any]:
+def _analyze_article_corpus(name: str, articles: list[dict[str, Any]]) -> dict[str, Any]:
     """Analyze the reporter's articles in our DB for empirical patterns."""
     if not articles:
         return {

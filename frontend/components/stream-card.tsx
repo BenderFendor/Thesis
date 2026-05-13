@@ -53,7 +53,7 @@ export function StreamCard({
 
     observeRef.current = new IntersectionObserver(
       ([entry]) => {
-        if (entry.isIntersecting) {
+        if (entry!.isIntersecting) {
           onBecameVisible(source.id)
         } else {
           onBecameHidden(source.id)

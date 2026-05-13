@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import logging
-from typing import Dict, List
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy import select
@@ -23,7 +22,7 @@ async def get_related_articles(
     limit: int = Query(5, le=20),
     exclude_same_source: bool = Query(True),
     db: AsyncSession = Depends(get_db),
-) -> Dict[str, object]:
+) -> dict[str, object]:
     """Find articles similar to a given article ID."""
     vector_store = get_vector_store()
     if vector_store is None:
@@ -82,7 +81,7 @@ async def get_search_suggestions(
     query: str = Query(..., min_length=2),
     limit: int = Query(5, le=10),
     db: AsyncSession = Depends(get_db),
-) -> Dict[str, object]:
+) -> dict[str, object]:
     """Get search suggestions based on cluster labels nearest to the query."""
     vector_store = get_vector_store()
     if vector_store is None:
@@ -97,7 +96,7 @@ async def get_search_suggestions(
 async def get_source_coverage(
     source_ids: str = Query(..., description="Comma-separated source IDs"),
     sample_size: int = Query(100, le=500),
-) -> Dict[str, object]:
+) -> dict[str, object]:
     """Compare embedding space coverage between sources."""
     vector_store = get_vector_store()
     if vector_store is None:
@@ -105,9 +104,7 @@ async def get_source_coverage(
 
     ids = [s.strip() for s in source_ids.split(",") if s.strip()]
     if len(ids) < 2:
-        raise HTTPException(
-            status_code=400, detail="Provide at least 2 source IDs to compare"
-        )
+        raise HTTPException(status_code=400, detail="Provide at least 2 source IDs to compare")
 
     coverage = vector_store.compute_source_coverage(ids, sample_size=sample_size)
     return coverage
@@ -116,9 +113,9 @@ async def get_source_coverage(
 @router.post("/novelty-score")
 async def compute_novelty_score(
     article_id: int,
-    reading_history: List[int],
+    reading_history: list[int],
     db: AsyncSession = Depends(get_db),
-) -> Dict[str, object]:
+) -> dict[str, object]:
     """Compute how novel an article is compared to reading history."""
     vector_store = get_vector_store()
     if vector_store is None:
@@ -181,7 +178,7 @@ async def compute_novelty_score(
 async def get_article_topics(
     article_id: int,
     db: AsyncSession = Depends(get_db),
-) -> Dict[str, object]:
+) -> dict[str, object]:
     """Get topic cluster assignments for an article."""
     if get_vector_store() is None:
         return {"article_id": article_id, "topics": []}
@@ -192,9 +189,9 @@ async def get_article_topics(
 
 @router.post("/bulk-article-topics")
 async def get_bulk_article_topics(
-    article_ids: List[int],
+    article_ids: list[int],
     db: AsyncSession = Depends(get_db),
-) -> Dict[str, object]:
+) -> dict[str, object]:
     """Get topic cluster assignments for multiple articles."""
     if not article_ids:
         return {"articles": {}}

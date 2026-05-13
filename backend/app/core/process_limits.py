@@ -1,16 +1,20 @@
+"""Process Limits."""
+
 from __future__ import annotations
 
 import errno
 import logging
 import os
 import resource
-from typing import Iterable
+from collections.abc import Iterable
+from pathlib import Path
 
 
 DEFAULT_SOFT_NOFILE_TARGET = int(os.getenv("TARGET_NOFILE_SOFT_LIMIT", "65535"))
 
 
 def get_nofile_limits() -> tuple[int | None, int | None]:
+    """Get Nofile Limits."""
     try:
         soft_limit, hard_limit = resource.getrlimit(resource.RLIMIT_NOFILE)
     except (AttributeError, OSError, ValueError):
@@ -19,9 +23,10 @@ def get_nofile_limits() -> tuple[int | None, int | None]:
 
 
 def get_open_file_descriptor_count() -> int | None:
+    """Get Open File Descriptor Count."""
     for fd_path in ("/proc/self/fd", "/dev/fd"):
         try:
-            return len(os.listdir(fd_path))
+            return len(list(Path(fd_path).iterdir()))
         except OSError:
             continue
     return None
@@ -31,6 +36,7 @@ def raise_nofile_soft_limit(
     logger: logging.Logger,
     target_soft_limit: int = DEFAULT_SOFT_NOFILE_TARGET,
 ) -> tuple[int | None, int | None]:
+    """Raise Nofile Soft Limit."""
     soft_limit, hard_limit = get_nofile_limits()
     if soft_limit is None or hard_limit is None:
         logger.info("Open-file limits unavailable on this platform")
@@ -66,6 +72,7 @@ def raise_nofile_soft_limit(
 
 
 def exception_mentions_too_many_open_files(exc: BaseException | None) -> bool:
+    """Exception Mentions Too Many Open Files."""
     if exc is None:
         return False
 

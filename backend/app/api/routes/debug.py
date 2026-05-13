@@ -1,10 +1,12 @@
+"""Debug."""
+
 from __future__ import annotations
 
 import json
 import re
-from datetime import datetime, timezone
+from datetime import datetime, UTC
 from pathlib import Path
-from typing import Any, Dict, List, cast
+from typing import Any, cast
 
 import httpx
 from fastapi import APIRouter, HTTPException, Query
@@ -55,25 +57,25 @@ def _extract_image_urls_from_html(html: str) -> list[str]:
     return re.findall(r'<img[^>]+src=["\']([^"\']+)["\']', html, re.IGNORECASE)
 
 
-def _serialize_stream_info(info: Dict[str, object]) -> Dict[str, object]:
+def _serialize_stream_info(info: dict[str, object]) -> dict[str, object]:
     start_time = info.get("start_time")
     if not isinstance(start_time, datetime):
-        start_time = datetime.now(timezone.utc)
+        start_time = datetime.now(UTC)
 
     return {
         "status": info.get("status"),
         "sources_completed": info.get("sources_completed"),
         "total_sources": info.get("total_sources"),
-        "duration_seconds": (datetime.now(timezone.utc) - start_time).total_seconds(),
+        "duration_seconds": (datetime.now(UTC) - start_time).total_seconds(),
         "client_connected": info.get("client_connected"),
     }
 
 
-def _as_object_list(value: object) -> List[object]:
-    return cast(List[object], value) if isinstance(value, list) else []
+def _as_object_list(value: object) -> list[object]:
+    return cast(list[object], value) if isinstance(value, list) else []
 
 
-def _as_str_list(value: object) -> List[str]:
+def _as_str_list(value: object) -> list[str]:
     if not isinstance(value, list):
         return []
     return [item for item in value if isinstance(item, str)]
@@ -85,7 +87,7 @@ def _read_jsonl_tail(
     limit: int,
     offset: int = 0,
     predicate: Any | None = None,
-) -> Dict[str, object]:
+) -> dict[str, object]:
     if not path.exists():
         return {
             "available": False,
@@ -95,7 +97,7 @@ def _read_jsonl_tail(
             "entries": [],
         }
 
-    entries: List[Dict[str, object]] = []
+    entries: list[dict[str, object]] = []
     total = 0
 
     with path.open("r") as handle:
@@ -130,17 +132,14 @@ def _read_jsonl_tail(
 
 
 @router.get("/sources/{source_name}")
-async def get_source_debug_data(source_name: str) -> Dict[str, object]:
+async def get_source_debug_data(source_name: str) -> dict[str, object]:
+    """Get Source Debug Data."""
     rss_sources = get_rss_sources()
     if source_name not in rss_sources:
         raise HTTPException(status_code=404, detail=f"Source '{source_name}' not found")
 
     source_info = rss_sources[source_name]
-    rss_url = (
-        source_info["url"][0]
-        if isinstance(source_info["url"], list)
-        else source_info["url"]
-    )
+    rss_url = source_info["url"][0] if isinstance(source_info["url"], list) else source_info["url"]
 
     rss_text = await _fetch_rss_text(rss_url)
     rust_result = await run_in_threadpool(
@@ -150,26 +149,20 @@ async def get_source_debug_data(source_name: str) -> Dict[str, object]:
     )
     source_articles = [
         article
-        for article in cast(List[Dict[str, object]], rust_result.get("articles", []))
+        for article in cast(list[dict[str, object]], rust_result.get("articles", []))
         if article.get("source") == source_name
     ]
-    source_feed_stat = cast(Dict[str, object], rust_result.get("source_stats", {})).get(
+    source_feed_stat = cast(dict[str, object], rust_result.get("source_stats", {})).get(
         source_name,
         {},
     )
-    source_feed_stat = cast(Dict[str, object], source_feed_stat)
+    source_feed_stat = cast(dict[str, object], source_feed_stat)
 
     cached_articles = [
-        article.dict()
-        for article in news_cache.get_articles()
-        if article.source == source_name
+        article.dict() for article in news_cache.get_articles() if article.source == source_name
     ]
     source_stat = next(
-        (
-            stats
-            for stats in news_cache.get_source_stats()
-            if stats["name"] == source_name
-        ),
+        (stats for stats in news_cache.get_source_stats() if stats["name"] == source_name),
         None,
     )
 
@@ -197,7 +190,7 @@ async def get_source_debug_data(source_name: str) -> Dict[str, object]:
         "parsed_entries": [],
         "cached_articles": cached_articles,
         "source_statistics": source_stat,
-        "debug_timestamp": datetime.now(timezone.utc).isoformat(),
+        "debug_timestamp": datetime.now(UTC).isoformat(),
         "image_analysis": {
             "total_entries": len(source_articles),
             "entries_with_images": 0,
@@ -258,7 +251,8 @@ async def get_source_debug_data(source_name: str) -> Dict[str, object]:
 
 
 @router.get("/streams")
-async def get_stream_status() -> Dict[str, object]:
+async def get_stream_status() -> dict[str, object]:
+    """Get Stream Status."""
     with stream_manager.lock:
         return {
             "active_streams": len(stream_manager.active_streams),
@@ -272,7 +266,7 @@ async def get_stream_status() -> Dict[str, object]:
 
 
 @router.get("/metrics/pipeline")
-async def get_pipeline_metrics() -> Dict[str, object]:
+async def get_pipeline_metrics() -> dict[str, object]:
     """Get current RSS pipeline metrics."""
     metrics = get_metrics()
     return {
@@ -282,7 +276,7 @@ async def get_pipeline_metrics() -> Dict[str, object]:
 
 
 @router.get("/startup")
-async def get_startup_metrics() -> Dict[str, object]:
+async def get_startup_metrics() -> dict[str, object]:
     """Expose recorded startup timings and notes."""
     return startup_metrics.to_dict()
 
@@ -291,7 +285,8 @@ async def get_startup_metrics() -> Dict[str, object]:
 async def list_chromadb_articles(
     limit: int = Query(50, ge=1, le=500),
     offset: int = Query(0, ge=0),
-) -> Dict[str, object]:
+) -> dict[str, object]:
+    """List Chromadb Articles."""
     vector_store = get_vector_store()
     if vector_store is None:
         raise HTTPException(status_code=503, detail="Vector store unavailable")
@@ -302,7 +297,7 @@ async def list_chromadb_articles(
     metadatas = _as_object_list(payload.get("metadatas"))
     documents = _as_object_list(payload.get("documents"))
 
-    articles: List[Dict[str, object]] = []
+    articles: list[dict[str, object]] = []
     for idx, chroma_id in enumerate(ids):
         metadata = metadatas[idx] if idx < len(metadatas) else {}
         document = documents[idx] if idx < len(documents) else ""
@@ -339,12 +334,11 @@ async def list_database_articles(
     ),
     published_before: datetime | None = Query(default=None),
     published_after: datetime | None = Query(default=None),
-) -> Dict[str, object]:
+) -> dict[str, object]:
+    """List Database Articles."""
     sort_normalized = sort_direction.lower()
     if sort_normalized not in {"asc", "desc"}:
-        raise HTTPException(
-            status_code=422, detail="sort_direction must be 'asc' or 'desc'"
-        )
+        raise HTTPException(status_code=422, detail="sort_direction must be 'asc' or 'desc'")
 
     if not settings.enable_database or AsyncSessionLocal is None:
         raise HTTPException(status_code=503, detail="Database unavailable")
@@ -378,7 +372,8 @@ async def list_cached_articles(
     limit: int = Query(50, ge=1, le=500),
     offset: int = Query(0, ge=0),
     source: str | None = Query(default=None, description="Filter by RSS source key"),
-) -> Dict[str, object]:
+) -> dict[str, object]:
+    """List Cached Articles."""
     cached = news_cache.get_articles()
     if source:
         cached = [article for article in cached if article.source == source]
@@ -402,7 +397,8 @@ async def get_cache_db_delta(
     sample_offset: int = Query(0, ge=0),
     source: str | None = Query(default=None, description="Filter by RSS source key"),
     sample_preview_limit: int = Query(50, ge=0, le=200),
-) -> Dict[str, object]:
+) -> dict[str, object]:
+    """Get Cache Db Delta."""
     if not settings.enable_database or AsyncSessionLocal is None:
         raise HTTPException(status_code=503, detail="Database unavailable")
 
@@ -450,7 +446,8 @@ async def get_cache_db_delta(
 @router.get("/storage/drift")
 async def get_storage_drift(
     sample_limit: int = Query(50, ge=5, le=500),
-) -> Dict[str, object]:
+) -> dict[str, object]:
+    """Get Storage Drift."""
     vector_store = get_vector_store()
     if vector_store is None:
         raise HTTPException(status_code=503, detail="Vector store unavailable")
@@ -467,9 +464,7 @@ async def get_storage_drift(
 
     chroma_ids = set(await run_in_threadpool(vector_store.list_all_ids))
 
-    missing_in_chroma = [
-        m for m in mappings if m["chroma_id"] and m["chroma_id"] not in chroma_ids
-    ]
+    missing_in_chroma = [m for m in mappings if m["chroma_id"] and m["chroma_id"] not in chroma_ids]
     dangling_in_chroma = list(chroma_ids - db_chroma_ids)
 
     drift_report = {
@@ -490,9 +485,8 @@ async def get_storage_drift(
 
 
 @router.get("/system/status")
-async def get_system_status() -> Dict[str, object]:
-    """
-    Comprehensive system status for debug page.
+async def get_system_status() -> dict[str, object]:
+    """Comprehensive system status for debug page.
 
     Returns startup metrics, component health, and runtime info.
     """
@@ -505,9 +499,7 @@ async def get_system_status() -> Dict[str, object]:
     cache_last_updated = news_cache.last_updated
     cache_age_seconds = None
     if cache_last_updated:
-        cache_age_seconds = (
-            datetime.now(timezone.utc) - cache_last_updated
-        ).total_seconds()
+        cache_age_seconds = (datetime.now(UTC) - cache_last_updated).total_seconds()
 
     # Component health checks
     components = {
@@ -515,9 +507,7 @@ async def get_system_status() -> Dict[str, object]:
             "healthy": True,
             "article_count": len(news_cache.get_articles()),
             "source_count": len(cache_stats),
-            "last_updated": cache_last_updated.isoformat()
-            if cache_last_updated
-            else None,
+            "last_updated": cache_last_updated.isoformat() if cache_last_updated else None,
             "age_seconds": cache_age_seconds,
             "update_in_progress": news_cache.update_in_progress,
             "update_count": news_cache.update_count,
@@ -546,7 +536,7 @@ async def get_system_status() -> Dict[str, object]:
             "python_version": sys.version,
             "platform": platform.platform(),
             "pid": os.getpid(),
-            "working_dir": os.getcwd(),
+            "working_dir": str(Path.cwd()),
         },
         "config": {
             "debug_mode": settings.debug if hasattr(settings, "debug") else False,
@@ -554,7 +544,7 @@ async def get_system_status() -> Dict[str, object]:
             "chroma_host": getattr(settings, "chroma_host", None),
             "chroma_port": getattr(settings, "chroma_port", None),
         },
-        "timestamp": datetime.now(timezone.utc).isoformat(),
+        "timestamp": datetime.now(UTC).isoformat(),
     }
 
 
@@ -563,7 +553,7 @@ _current_log_level: str = "INFO"
 
 
 @router.get("/loglevel")
-async def get_log_level() -> Dict[str, str]:
+async def get_log_level() -> dict[str, str]:
     """Get current runtime log level."""
     return {"level": _current_log_level}
 
@@ -571,9 +561,8 @@ async def get_log_level() -> Dict[str, str]:
 @router.post("/loglevel")
 async def set_log_level(
     level: str = Query(..., description="Log level: DEBUG, INFO, WARNING, ERROR"),
-) -> Dict[str, str]:
-    """
-    Set runtime log level for all loggers.
+) -> dict[str, str]:
+    """Set runtime log level for all loggers.
 
     Valid levels: DEBUG, INFO, WARNING, ERROR, CRITICAL
     """
@@ -617,9 +606,8 @@ async def set_log_level(
 async def test_rss_parser(
     url: str = Query(..., description="RSS feed URL to test"),
     max_entries: int = Query(5, ge=1, le=20),
-) -> Dict[str, object]:
-    """
-    Test RSS parser on an arbitrary URL.
+) -> dict[str, object]:
+    """Test RSS parser on an arbitrary URL.
 
     Returns parsed feed metadata and sample entries for debugging.
     """
@@ -634,13 +622,11 @@ async def test_rss_parser(
             4,
         )
         parse_time = time.time() - start_time
-        sample_articles = cast(List[Dict[str, object]], rust_result.get("articles", []))
-        source_stats = cast(
-            Dict[str, Dict[str, object]], rust_result.get("source_stats", {})
-        )
+        sample_articles = cast(list[dict[str, object]], rust_result.get("articles", []))
+        source_stats = cast(dict[str, dict[str, object]], rust_result.get("source_stats", {}))
         parser_status = source_stats.get(url, {})
 
-        sample_entries: List[Dict[str, object]] = []
+        sample_entries: list[dict[str, object]] = []
         result = {
             "url": url,
             "parse_time_seconds": round(parse_time, 3),
@@ -698,9 +684,8 @@ async def test_rss_parser(
 @router.post("/parser/test/article")
 async def test_article_parser(
     url: str = Query(..., description="Article page URL to test og:image extraction"),
-) -> Dict[str, object]:
-    """
-    Test article page parser for og:image extraction.
+) -> dict[str, object]:
+    """Test article page parser for og:image extraction.
 
     Fetches the page and attempts to extract og:image, twitter:image, etc.
     """
@@ -722,7 +707,7 @@ async def test_article_parser(
 
 
 @router.get("/jobs")
-async def list_active_jobs() -> Dict[str, object]:
+async def list_active_jobs() -> dict[str, object]:
     """List all active ingestion jobs."""
     from app.api.routes.jobs import _active_jobs
 
@@ -741,7 +726,7 @@ async def list_active_jobs() -> Dict[str, object]:
 
 
 @router.get("/updates/subscribers")
-async def get_updates_subscribers() -> Dict[str, object]:
+async def get_updates_subscribers() -> dict[str, object]:
     """Get updates stream subscriber info."""
     from app.api.routes.updates import _update_subscribers, _event_counter
 
@@ -755,12 +740,14 @@ async def get_updates_subscribers() -> Dict[str, object]:
 
 
 class FrontendDebugReport(BaseModel):
+    """Frontend Debug Report."""
+
     session_id: str = Field(..., description="Frontend performance session ID")
-    summary: Dict[str, Any]
-    recent_events: List[Dict[str, Any]] = []
-    slow_operations: List[Dict[str, Any]] = []
-    errors: List[Dict[str, Any]] = []
-    dom_stats: Dict[str, Any] | None = None
+    summary: dict[str, Any]
+    recent_events: list[dict[str, Any]] = []
+    slow_operations: list[dict[str, Any]] = []
+    errors: list[dict[str, Any]] = []
+    dom_stats: dict[str, Any] | None = None
     location: str | None = None
     user_agent: str | None = None
     generated_at: str | None = None
@@ -769,27 +756,22 @@ class FrontendDebugReport(BaseModel):
 @router.post("/logs/frontend")
 async def ingest_frontend_debug_report(
     report: FrontendDebugReport,
-) -> Dict[str, object]:
-    """
-    Store a frontend debug payload for agentic debugging.
-    """
+) -> dict[str, object]:
+    """Store a frontend debug payload for agentic debugging."""
     debug_logger.log_frontend_report(report.model_dump())
     return {"status": "ok"}
 
 
 @router.get("/logs/frontend")
-async def get_frontend_debug_reports() -> Dict[str, object]:
-    """
-    Return recent frontend debug payloads.
-    """
+async def get_frontend_debug_reports() -> dict[str, object]:
+    """Return recent frontend debug payloads."""
     reports = debug_logger.get_frontend_reports()
     return {"count": len(reports), "reports": reports}
 
 
 @router.get("/logs/report")
-async def get_debug_report() -> Dict[str, object]:
-    """
-    Get comprehensive debug report for agentic debugging tools.
+async def get_debug_report() -> dict[str, object]:
+    """Get comprehensive debug report for agentic debugging tools.
 
     This endpoint returns everything needed to diagnose issues:
     - Performance summary with component stats
@@ -808,9 +790,8 @@ async def get_debug_report() -> Dict[str, object]:
 async def get_debug_events(
     limit: int = Query(100, ge=1, le=1000),
     event_type: str | None = Query(default=None, description="Filter by event type"),
-) -> Dict[str, object]:
-    """
-    Get recent debug events.
+) -> dict[str, object]:
+    """Get recent debug events.
 
     Event types include:
     - request_start, request_end, request_error
@@ -843,9 +824,8 @@ async def get_debug_events(
 
 
 @router.get("/logs/streams")
-async def get_active_debug_streams() -> Dict[str, object]:
-    """
-    Get detailed info about active streams being traced.
+async def get_active_debug_streams() -> dict[str, object]:
+    """Get detailed info about active streams being traced.
 
     Includes timing, event gaps, potential hang detection.
     """
@@ -859,9 +839,8 @@ async def get_active_debug_streams() -> Dict[str, object]:
 
 
 @router.get("/logs/slow")
-async def get_slow_operations() -> Dict[str, object]:
-    """
-    Get list of slow operations detected.
+async def get_slow_operations() -> dict[str, object]:
+    """Get list of slow operations detected.
 
     These are operations that exceeded their performance thresholds.
     """
@@ -879,21 +858,18 @@ async def get_slow_operations() -> Dict[str, object]:
 
 
 @router.get("/logs/performance")
-async def get_performance_summary() -> Dict[str, object]:
-    """
-    Get performance summary with timing statistics by component.
-    """
+async def get_performance_summary() -> dict[str, object]:
+    """Get performance summary with timing statistics by component."""
     return debug_logger.get_performance_summary()
 
 
 @router.get("/logs/files")
-async def list_debug_log_files() -> Dict[str, object]:
-    """
-    List available debug log files.
+async def list_debug_log_files() -> dict[str, object]:
+    """List available debug log files.
 
     Debug logs are stored as JSON Lines (.jsonl) files.
     """
-    log_files: List[Dict[str, object]] = []
+    log_files: list[dict[str, object]] = []
     if DEBUG_LOG_DIR.exists():
         for log_file in sorted(DEBUG_LOG_DIR.glob("debug_*.jsonl"), reverse=True):
             stat = log_file.stat()
@@ -902,12 +878,8 @@ async def list_debug_log_files() -> Dict[str, object]:
                     "filename": log_file.name,
                     "size_bytes": stat.st_size,
                     "size_kb": round(stat.st_size / 1024, 2),
-                    "modified": datetime.fromtimestamp(
-                        stat.st_mtime, tz=timezone.utc
-                    ).isoformat(),
-                    "created": datetime.fromtimestamp(
-                        stat.st_ctime, tz=timezone.utc
-                    ).isoformat(),
+                    "modified": datetime.fromtimestamp(stat.st_mtime, tz=UTC).isoformat(),
+                    "created": datetime.fromtimestamp(stat.st_ctime, tz=UTC).isoformat(),
                 }
             )
 
@@ -924,9 +896,8 @@ async def read_debug_log_file(
     limit: int = Query(100, ge=1, le=1000),
     offset: int = Query(0, ge=0),
     event_type: str | None = Query(default=None),
-) -> Dict[str, object]:
-    """
-    Read events from a specific debug log file.
+) -> dict[str, object]:
+    """Read events from a specific debug log file.
 
     Supports pagination and filtering by event type.
     """
@@ -937,11 +908,11 @@ async def read_debug_log_file(
     if not log_file.name.startswith("debug_") or not log_file.suffix == ".jsonl":
         raise HTTPException(status_code=400, detail="Invalid log file name")
 
-    events: List[Dict[str, object]] = []
+    events: list[dict[str, object]] = []
     total_lines = 0
 
     try:
-        with open(log_file, "r") as f:
+        with log_file.open() as f:
             for i, line in enumerate(f):
                 if not line.strip():
                     continue
@@ -981,16 +952,15 @@ async def read_llm_calls(
     offset: int = Query(0, ge=0),
     service: str | None = Query(default=None, description="Filter by service name"),
     success: bool | None = Query(default=None, description="Filter by success status"),
-) -> Dict[str, object]:
+) -> dict[str, object]:
+    """Read Llm Calls."""
     session_dir = get_session_dir()
     path = session_dir / _ALLOWED_LLM_LOG_FILES["llm"]
 
-    def _predicate(entry: Dict[str, object]) -> bool:
+    def _predicate(entry: dict[str, object]) -> bool:
         if service and entry.get("service") != service:
             return False
-        if success is not None and bool(entry.get("success")) != success:
-            return False
-        return True
+        return not (success is not None and bool(entry.get("success")) != success)
 
     payload = _read_jsonl_tail(path, limit=limit, offset=offset, predicate=_predicate)
     payload.update(
@@ -1010,12 +980,13 @@ async def read_error_logs(
         True,
         description="When true, append recent request/stream errors from the in-memory debug logger.",
     ),
-) -> Dict[str, object]:
+) -> dict[str, object]:
+    """Read Error Logs."""
     session_dir = get_session_dir()
     path = session_dir / _ALLOWED_LLM_LOG_FILES["errors"]
     file_payload = _read_jsonl_tail(path, limit=limit, offset=offset)
 
-    recent_errors: List[Dict[str, object]] = []
+    recent_errors: list[dict[str, object]] = []
     if include_request_stream_events:
         request_stream_errors = [
             event
@@ -1034,20 +1005,16 @@ async def read_error_logs(
 
 @router.delete("/logs/files")
 async def clear_old_log_files(
-    keep_recent: int = Query(
-        5, ge=1, le=20, description="Number of recent files to keep"
-    ),
-) -> Dict[str, object]:
-    """
-    Delete old debug log files, keeping the most recent ones.
-    """
+    keep_recent: int = Query(5, ge=1, le=20, description="Number of recent files to keep"),
+) -> dict[str, object]:
+    """Delete old debug log files, keeping the most recent ones."""
     if not DEBUG_LOG_DIR.exists():
         return {"message": "No log directory exists", "deleted": 0}
 
     log_files = sorted(DEBUG_LOG_DIR.glob("debug_*.jsonl"), reverse=True)
     files_to_delete = log_files[keep_recent:]
 
-    deleted: List[Dict[str, object]] = []
+    deleted: list[dict[str, object]] = []
     for log_file in files_to_delete:
         try:
             size = log_file.stat().st_size
@@ -1067,9 +1034,8 @@ async def clear_old_log_files(
 async def backfill_article_images(
     batch_size: int = Query(100, ge=10, le=500, description="Articles per batch"),
     max_batches: int | None = Query(None, ge=1, description="Max batches (None = all)"),
-) -> Dict[str, object]:
-    """
-    Backfill OG images for existing articles missing images.
+) -> dict[str, object]:
+    """Backfill OG images for existing articles missing images.
 
     Fetches og:image from article URLs and updates the database.
     Uses per-domain concurrency limiting to be polite to servers.
@@ -1096,7 +1062,8 @@ async def backfill_article_images(
 async def backfill_article_mentions(
     batch_size: int = Query(500, ge=10, le=2000, description="Articles per batch"),
     max_batches: int | None = Query(None, ge=1, description="Max batches (None = all)"),
-) -> Dict[str, object]:
+) -> dict[str, object]:
+    """Backfill Article Mentions."""
     if not settings.enable_database or AsyncSessionLocal is None:
         raise HTTPException(status_code=503, detail="Database unavailable")
 

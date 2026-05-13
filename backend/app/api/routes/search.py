@@ -1,6 +1,7 @@
+"""Search."""
+
 from __future__ import annotations
 
-from typing import Dict, List, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy import select
@@ -16,9 +17,10 @@ router = APIRouter(prefix="/api/search", tags=["search"])
 async def semantic_search(
     query: str = Query(..., min_length=3),
     limit: int = Query(10, le=50),
-    category: Optional[str] = None,
+    category: str | None = None,
     db: AsyncSession = Depends(get_db),
-) -> Dict[str, object]:
+) -> dict[str, object]:
+    """Semantic Search."""
     vector_store = get_vector_store()
     if vector_store is None:
         raise HTTPException(status_code=503, detail="Vector store is not available")
@@ -40,9 +42,7 @@ async def semantic_search(
         return {"query": query, "results": [], "total": 0}
 
     article_ids = [
-        result.get("article_id")
-        for result in chroma_results
-        if result.get("article_id")
+        result.get("article_id") for result in chroma_results if result.get("article_id")
     ]
     if not article_ids:
         return {"query": query, "results": [], "total": 0}
@@ -52,7 +52,7 @@ async def semantic_search(
     articles = articles_result.scalars().all()
     article_map = {article.id: article for article in articles}
 
-    results: List[Dict[str, object]] = []
+    results: list[dict[str, object]] = []
     for chroma_result in chroma_results:
         article_id = chroma_result.get("article_id")
         article = article_map.get(article_id)
@@ -66,9 +66,7 @@ async def semantic_search(
                 "source": article.source,
                 "summary": article.summary,
                 "image": article.image_url,
-                "published": article.published_at.isoformat()
-                if article.published_at
-                else None,
+                "published": article.published_at.isoformat() if article.published_at else None,
                 "category": article.category,
                 "url": article.url,
                 "similarity_score": chroma_result.get("similarity_score"),
@@ -76,9 +74,7 @@ async def semantic_search(
             }
         )
 
-    search_record = SearchHistory(
-        query=query, search_type="semantic", results_count=len(results)
-    )
+    search_record = SearchHistory(query=query, search_type="semantic", results_count=len(results))
     db.add(search_record)
 
     return {"query": query, "results": results, "total": len(results)}

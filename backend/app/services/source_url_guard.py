@@ -1,7 +1,9 @@
+"""Source Url Guard."""
+
 from __future__ import annotations
 
 import re
-from typing import Any, Optional
+from typing import Any
 from urllib.parse import parse_qs, urlparse
 
 AGGREGATOR_HOSTS = {
@@ -17,24 +19,25 @@ _HOST_FAMILIES = {
 
 
 def normalize_host(host: str) -> str:
+    """Normalize Host."""
     return host.strip().lower().replace("www.", "")
 
 
 def extract_host(url: str) -> str:
+    """Extract Host."""
     return normalize_host(urlparse(url).netloc)
 
 
 def iter_urls(url_value: Any) -> list[str]:
+    """Iter Urls."""
     if isinstance(url_value, str) and url_value.strip():
         return [url_value.strip()]
     if isinstance(url_value, list):
-        return [
-            item.strip() for item in url_value if isinstance(item, str) and item.strip()
-        ]
+        return [item.strip() for item in url_value if isinstance(item, str) and item.strip()]
     return []
 
 
-def _site_host_from_google_news(url: str) -> Optional[str]:
+def _site_host_from_google_news(url: str) -> str | None:
     parsed = urlparse(url)
     if normalize_host(parsed.netloc) != "news.google.com":
         return None
@@ -47,13 +50,12 @@ def _site_host_from_google_news(url: str) -> Optional[str]:
     return normalize_host(site_match.group(1))
 
 
-def extract_domain(url_value: Any) -> Optional[str]:
+def extract_domain(url_value: Any) -> str | None:
+    """Extract Domain."""
     urls = iter_urls(url_value)
     if not urls:
         if isinstance(url_value, str):
-            host = extract_host(
-                url_value if "://" in url_value else f"https://{url_value}"
-            )
+            host = extract_host(url_value if "://" in url_value else f"https://{url_value}")
             return host or None
         return None
 
@@ -74,7 +76,8 @@ def extract_domain(url_value: Any) -> Optional[str]:
     return host
 
 
-def normalize_site_url(url_value: Any) -> Optional[str]:
+def normalize_site_url(url_value: Any) -> str | None:
+    """Normalize Site Url."""
     for candidate in iter_urls(url_value):
         parsed = urlparse(candidate)
         if parsed.scheme not in {"http", "https"}:
@@ -97,27 +100,23 @@ def normalize_site_url(url_value: Any) -> Optional[str]:
     return None
 
 
-def _host_family(host: str) -> Optional[str]:
+def _host_family(host: str) -> str | None:
     normalized = normalize_host(host)
     for family, members in _HOST_FAMILIES.items():
-        if any(
-            normalized == member or normalized.endswith(f".{member}")
-            for member in members
-        ):
+        if any(normalized == member or normalized.endswith(f".{member}") for member in members):
             return family
     return None
 
 
 def hosts_match(expected: str, actual: str) -> bool:
+    """Hosts Match."""
     expected_norm = normalize_host(expected)
     actual_norm = normalize_host(actual)
     if not expected_norm or not actual_norm:
         return False
     if expected_norm == actual_norm:
         return True
-    if expected_norm.endswith(f".{actual_norm}") or actual_norm.endswith(
-        f".{expected_norm}"
-    ):
+    if expected_norm.endswith(f".{actual_norm}") or actual_norm.endswith(f".{expected_norm}"):
         return True
     expected_family = _host_family(expected_norm)
     return expected_family is not None and expected_family == _host_family(actual_norm)
@@ -125,8 +124,9 @@ def hosts_match(expected: str, actual: str) -> bool:
 
 def build_source_url_guard(
     url_value: Any,
-    website_url: Optional[str],
+    website_url: str | None,
 ) -> dict[str, Any]:
+    """Build Source Url Guard."""
     feed_urls = iter_urls(url_value)
     raw_feed_host = extract_host(feed_urls[0]) if feed_urls else None
     configured_host = extract_domain(url_value)

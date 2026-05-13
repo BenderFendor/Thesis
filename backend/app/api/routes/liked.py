@@ -1,6 +1,7 @@
+"""Liked."""
+
 from __future__ import annotations
 
-from typing import Dict
 
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -25,15 +26,14 @@ router = APIRouter(prefix="/api/liked", tags=["liked"])
 
 
 @router.get("")
-async def list_liked_articles(db: AsyncSession = Depends(get_db)) -> Dict[str, object]:
+async def list_liked_articles(db: AsyncSession = Depends(get_db)) -> dict[str, object]:
+    """List Liked Articles."""
     liked_stmt = build_saved_article_list_stmt(LikedArticleRecord, "liked_id")
 
     result = await db.execute(liked_stmt)
     rows = result.all()
 
-    liked_articles = [
-        serialize_saved_article_row(row, id_field="liked_id") for row in rows
-    ]
+    liked_articles = [serialize_saved_article_row(row, id_field="liked_id") for row in rows]
 
     return {"liked": liked_articles, "total": len(liked_articles)}
 
@@ -41,7 +41,8 @@ async def list_liked_articles(db: AsyncSession = Depends(get_db)) -> Dict[str, o
 @router.get("/{article_id}")
 async def get_liked_article(
     article_id: int, db: AsyncSession = Depends(get_db)
-) -> Dict[str, object]:
+) -> dict[str, object]:
+    """Get Liked Article."""
     liked_stmt = build_saved_article_detail_stmt(LikedArticleRecord, article_id)
 
     result = await db.execute(liked_stmt)
@@ -60,7 +61,8 @@ async def get_liked_article(
 @router.post("", status_code=201)
 async def create_liked_article(
     payload: BookmarkCreateRequest, db: AsyncSession = Depends(get_db)
-) -> Dict[str, object]:
+) -> dict[str, object]:
+    """Create Liked Article."""
     article = await get_article_or_404(db, payload.article_id)
     existing = await get_saved_article_item(db, LikedArticleRecord, payload.article_id)
 
@@ -86,7 +88,8 @@ async def create_liked_article(
 @router.delete("/{article_id}")
 async def delete_liked_article(
     article_id: int, db: AsyncSession = Depends(get_db)
-) -> Dict[str, object]:
+) -> dict[str, object]:
+    """Delete Liked Article."""
     liked = await get_saved_article_item_or_404(
         db,
         LikedArticleRecord,

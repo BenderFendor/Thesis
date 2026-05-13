@@ -49,12 +49,8 @@ def _print_reporter_results(reporter_results: list[dict[str, Any]]) -> None:
         )
 
 
-def _print_byline_results(
-    byline_results: list[dict[str, Any]], reporters_per_source: int
-) -> None:
-    print(
-        "BYLINE_SOURCE\tOK\tQUALITY\tFOUND\tSTRONG\tMEDIUM\tWEAK\tNONE\tAUTHORS\tARTICLE_URL"
-    )
+def _print_byline_results(byline_results: list[dict[str, Any]], reporters_per_source: int) -> None:
+    print("BYLINE_SOURCE\tOK\tQUALITY\tFOUND\tSTRONG\tMEDIUM\tWEAK\tNONE\tAUTHORS\tARTICLE_URL")
     for result in byline_results:
         print(
             f"{result['source']}\t{result['ok']}\t{result.get('quality', 'none')}\t"
@@ -85,9 +81,7 @@ def _print_summary(
         for tier in article_quality_counts:
             article_quality_counts[tier] += int(item.get(tier, 0))
     good_sources = [item for item in byline_results if source_has_good_byline(item)]
-    full_sources = [
-        item for item in byline_results if source_has_full_requested_coverage(item)
-    ]
+    full_sources = [item for item in byline_results if source_has_full_requested_coverage(item)]
     print(
         f"SUMMARY\tsources={len(source_results)}\treporters={len(reporter_results)}\tbylines={len(byline_results)}"
     )
@@ -119,9 +113,7 @@ def _print_summary(
 
 async def main_async(args: argparse.Namespace) -> int:
     source_names = args.source or (
-        broad_source_sample(args.sample_sources)
-        if args.sample_sources
-        else DEFAULT_SOURCES
+        broad_source_sample(args.sample_sources) if args.sample_sources else DEFAULT_SOURCES
     )
     reporter_specs = args.reporter or DEFAULT_REPORTERS
     byline_sources = args.byline_source or (
@@ -130,17 +122,12 @@ async def main_async(args: argparse.Namespace) -> int:
 
     selected_sources = select_sources(source_names)
     source_results_raw = await gather_limited(
-        [
-            validate_source_async(name, config)
-            for name, config in selected_sources.items()
-        ],
+        [validate_source_async(name, config) for name, config in selected_sources.items()],
         limit=args.source_concurrency,
         return_exceptions=True,
     )
     source_results = [
-        item
-        if isinstance(item, dict)
-        else {"source": "unknown", "ok": False, "error": str(item)}
+        item if isinstance(item, dict) else {"source": "unknown", "ok": False, "error": str(item)}
         for item in source_results_raw
     ]
     selected_byline_sources = select_sources(byline_sources)
@@ -153,16 +140,12 @@ async def main_async(args: argparse.Namespace) -> int:
         return_exceptions=True,
     )
     byline_results = [
-        item
-        if isinstance(item, dict)
-        else {"source": "unknown", "ok": False, "error": str(item)}
+        item if isinstance(item, dict) else {"source": "unknown", "ok": False, "error": str(item)}
         for item in byline_results_raw
     ]
 
     async with httpx.AsyncClient(timeout=30.0) as client:
-        reporter_results = [
-            await validate_reporter(spec, client) for spec in reporter_specs
-        ]
+        reporter_results = [await validate_reporter(spec, client) for spec in reporter_specs]
 
     _print_source_results(source_results)
     _print_reporter_results(reporter_results)

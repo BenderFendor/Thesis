@@ -1,5 +1,4 @@
-"""
-HDBSCAN Clustering Module
+"""HDBSCAN Clustering Module.
 
 Density-based clustering with automatic outlier detection.
 Pure algorithm - no model weights, optimized C++ backend.
@@ -21,8 +20,7 @@ LabelArray = npt.NDArray[np.signedinteger[Any]]
 
 
 class HDBSCANClusterer:
-    """
-    HDBSCAN clustering for news article topic grouping.
+    """HDBSCAN clustering for news article topic grouping.
 
     Advantages over centroid-based clustering:
     - Automatic outlier detection (noise points)
@@ -44,9 +42,7 @@ class HDBSCANClusterer:
         metric: str = "euclidean",
         cluster_selection_method: str = "eom",
     ) -> None:
-        """
-        Initialize HDBSCAN clusterer.
-        """
+        """Initialize HDBSCAN clusterer."""
         self.min_cluster_size = min_cluster_size
         self.min_samples = min_samples
         self.cluster_selection_epsilon = cluster_selection_epsilon
@@ -60,8 +56,7 @@ class HDBSCANClusterer:
         self.n_noise: int = 0
 
     def fit_predict(self, embeddings: list[list[float]]) -> LabelArray:
-        """
-        Fit HDBSCAN and return cluster labels.
+        """Fit HDBSCAN and return cluster labels.
 
         Args:
             embeddings: List of article embedding vectors
@@ -78,9 +73,7 @@ class HDBSCANClusterer:
                     f"Too few samples ({embeddings_array.shape[0]}) "
                     f"for min_cluster_size ({self.min_cluster_size})"
                 )
-                self.cluster_labels = np.zeros(
-                    embeddings_array.shape[0], dtype=np.int32
-                )
+                self.cluster_labels = np.zeros(embeddings_array.shape[0], dtype=np.int32)
                 return self.cluster_labels
 
             clusterer = hdbscan.HDBSCAN(
@@ -112,14 +105,12 @@ class HDBSCANClusterer:
             return self.cluster_labels
 
         except ImportError:
-            logger.warning(
-                "HDBSCAN not installed, falling back to numpy-based implementation"
-            )
+            logger.warning("HDBSCAN not installed, falling back to numpy-based implementation")
             return self._fallback_cluster(embeddings)
 
     def _fallback_cluster(self, embeddings: list[list[float]]) -> LabelArray:
-        """
-        Simple fallback clustering when HDBSCAN not available.
+        """Simple fallback clustering when HDBSCAN not available.
+
         Uses sklearn's DBSCAN instead.
         """
         try:
@@ -139,8 +130,7 @@ class HDBSCANClusterer:
             self.n_noise = int(np.sum(labels == -1))
 
             logger.info(
-                f"DBSCAN fallback found {self.n_clusters} clusters, "
-                f"{self.n_noise} noise points"
+                f"DBSCAN fallback found {self.n_clusters} clusters, {self.n_noise} noise points"
             )
 
             return labels
@@ -154,8 +144,7 @@ class HDBSCANClusterer:
         embeddings: list[list[float]],
         article_ids: list[str],
     ) -> list[dict[str, Any]]:
-        """
-        Get detailed cluster information.
+        """Get detailed cluster information.
 
         Args:
             embeddings: Article embeddings
@@ -174,7 +163,9 @@ class HDBSCANClusterer:
         embeddings_array = np.array(embeddings, dtype=np.float32)
         cluster_info: dict[int, dict[str, Any]] = {}
 
-        for idx, (label, embedding) in enumerate(zip(cluster_labels, embeddings_array)):
+        for idx, (label, embedding) in enumerate(
+            zip(cluster_labels, embeddings_array, strict=False)
+        ):
             cluster_id = int(label)
             if cluster_id == -1:
                 continue  # Skip noise
@@ -194,12 +185,10 @@ class HDBSCANClusterer:
             cluster_info[cluster_id]["size"] += 1
 
             if self.outlier_scores is not None:
-                cluster_info[cluster_id]["outlier_score_sum"] += float(
-                    self.outlier_scores[idx]
-                )
+                cluster_info[cluster_id]["outlier_score_sum"] += float(self.outlier_scores[idx])
 
         # Calculate centroids
-        for label, info in cluster_info.items():
+        for _label, info in cluster_info.items():
             if info["member_embeddings"]:
                 info["centroid"] = np.mean(info["member_embeddings"], axis=0).tolist()
             del info["member_embeddings"]  # Don't return embeddings
@@ -219,8 +208,7 @@ class HDBSCANClusterer:
         article_ids: list[str],
         threshold: float = 0.7,
     ) -> list[dict[str, Any]]:
-        """
-        Get articles flagged as noise/outliers.
+        """Get articles flagged as noise/outliers.
 
         Args:
             article_ids: Chroma IDs for articles
@@ -237,7 +225,7 @@ class HDBSCANClusterer:
         noise_articles: list[dict[str, Any]] = []
 
         for idx, (label, outlier_score) in enumerate(
-            zip(cluster_labels, outlier_scores)
+            zip(cluster_labels, outlier_scores, strict=False)
         ):
             label_value = int(label)
             outlier_score_value = float(outlier_score)
@@ -271,8 +259,7 @@ def cluster_articles_hdbscan(
     min_cluster_size: int = 5,
     min_samples: int = 3,
 ) -> tuple[LabelArray, list[dict[str, Any]]]:
-    """
-    Convenience function to cluster articles.
+    """Convenience function to cluster articles.
 
     Args:
         embeddings: Article embedding vectors

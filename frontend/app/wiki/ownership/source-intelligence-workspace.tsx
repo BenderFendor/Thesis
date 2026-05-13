@@ -235,9 +235,9 @@ export function SourceIntelligenceWorkspace() {
     selectedNodeId ??
     defaultSelectedNodeId ??
     (search.trim() && matchingNodes.length > 0
-      ? matchingNodes[0].id
+      ? matchingNodes[0]!.id
       : focusNeighborhood && topHubs.length > 0
-        ? topHubs[0].id
+        ? topHubs[0]!.id
         : null);
 
   const selectedNode = effectiveSelectedNodeId ? nodesById.get(effectiveSelectedNodeId) ?? null : null;

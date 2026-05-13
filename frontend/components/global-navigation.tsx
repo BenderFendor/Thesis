@@ -1,6 +1,7 @@
 "use client"
 
-import { useState, KeyboardEvent } from "react"
+import type { KeyboardEvent } from "react";
+import { useState } from "react"
 import Link from "next/link"
 import { usePathname, useRouter } from "next/navigation"
 import {

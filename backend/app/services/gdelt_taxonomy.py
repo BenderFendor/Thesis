@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from collections import Counter
-from typing import Iterable, Optional
+from collections.abc import Iterable
 
 
 _CAMEO_ROOT_LABELS: dict[str, str] = {
@@ -30,7 +30,8 @@ _CAMEO_ROOT_LABELS: dict[str, str] = {
 }
 
 
-def normalize_cameo_root_code(code: Optional[str]) -> Optional[str]:
+def normalize_cameo_root_code(code: str | None) -> str | None:
+    """Normalize Cameo Root Code."""
     if code is None:
         return None
     normalized = "".join(ch for ch in code if ch.isdigit())
@@ -41,7 +42,8 @@ def normalize_cameo_root_code(code: Optional[str]) -> Optional[str]:
     return normalized[:2]
 
 
-def cameo_root_label(code: Optional[str]) -> Optional[str]:
+def cameo_root_label(code: str | None) -> str | None:
+    """Cameo Root Label."""
     normalized = normalize_cameo_root_code(code)
     if normalized is None:
         return None
@@ -49,6 +51,7 @@ def cameo_root_label(code: Optional[str]) -> Optional[str]:
 
 
 def goldstein_bucket(value: float | None) -> str | None:
+    """Goldstein Bucket."""
     if value is None:
         return None
     if value >= 4.0:
@@ -58,9 +61,8 @@ def goldstein_bucket(value: float | None) -> str | None:
     return "mixed"
 
 
-def dominant_cameo_roots(
-    codes: Iterable[str | None], limit: int = 3
-) -> list[dict[str, object]]:
+def dominant_cameo_roots(codes: Iterable[str | None], limit: int = 3) -> list[dict[str, object]]:
+    """Dominant Cameo Roots."""
     counts: Counter[str] = Counter()
     for code in codes:
         normalized = normalize_cameo_root_code(code)

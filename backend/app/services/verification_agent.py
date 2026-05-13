@@ -1,5 +1,4 @@
-"""
-Verification agent for cross-referencing research claims.
+"""Verification agent for cross-referencing research claims.
 
 Extracts claims from research output, searches for supporting/conflicting sources,
 calculates confidence scores, and generates verification reports.
@@ -17,9 +16,9 @@ import asyncio
 import hashlib
 import re
 import time
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timedelta, UTC
 from types import TracebackType
-from typing import Any, Dict, List, Optional, cast
+from typing import Any, cast
 
 from ddgs import DDGS
 from sqlalchemy import delete, select
@@ -65,8 +64,7 @@ def _hash_claim(claim_text: str) -> str:
 
 
 class VerificationAgent:
-    """
-    Cross-references research claims against multiple sources.
+    """Cross-references research claims against multiple sources.
 
     Usage:
         async with VerificationAgent(db) as agent:
@@ -75,18 +73,20 @@ class VerificationAgent:
 
     def __init__(
         self,
-        db: Optional[AsyncSession] = None,
-        session_id: Optional[str] = None,
+        db: AsyncSession | None = None,
+        session_id: str | None = None,
     ) -> None:
+        """Initialize."""
         self.db = db
         self.session_id = session_id
-        self.sandbox: Optional[VerificationSandbox] = None
-        self.scorer: Optional[CredibilityScorer] = None
-        self._start_time: Optional[float] = None
-        self._sources: Dict[str, SourceInfo] = {}
+        self.sandbox: VerificationSandbox | None = None
+        self.scorer: CredibilityScorer | None = None
+        self._start_time: float | None = None
+        self._sources: dict[str, SourceInfo] = {}
         self._footnote_counter = 0
 
-    async def __aenter__(self) -> "VerificationAgent":
+    async def __aenter__(self) -> VerificationAgent:
+        """Context manager enter."""
         self.sandbox = VerificationSandbox(self.session_id)
         if self.db:
             self.scorer = await get_scorer_with_db(self.db)
@@ -102,6 +102,7 @@ class VerificationAgent:
         exc_val: BaseException | None,
         _exc_tb: TracebackType | None,
     ) -> None:
+        """Context manager exit."""
         if self.sandbox:
             self.sandbox.cleanup()
 
@@ -121,8 +122,7 @@ class VerificationAgent:
         self,
         request: VerificationRequest,
     ) -> VerificationResult:
-        """
-        Verify claims from research output.
+        """Verify claims from research output.
 
         Steps:
         1. Extract claims from main_answer
@@ -151,7 +151,7 @@ class VerificationAgent:
 
             claims_text = claims_text[: settings.verification_max_claims]
 
-            verified_claims: List[VerifiedClaim] = []
+            verified_claims: list[VerifiedClaim] = []
             for claim_text in claims_text:
                 if self._should_abort():
                     logger.info("Verification timeout, stopping early")
@@ -197,9 +197,8 @@ class VerificationAgent:
                 error=str(exc),
             )
 
-    def _extract_claims(self, text: str) -> List[str]:
-        """
-        Extract verifiable factual claims from text.
+    def _extract_claims(self, text: str) -> list[str]:
+        """Extract verifiable factual claims from text.
 
         Looks for:
         - Statements with numbers/statistics
@@ -264,7 +263,7 @@ class VerificationAgent:
     async def _verify_single_claim(
         self,
         claim_text: str,
-    ) -> Optional[VerifiedClaim]:
+    ) -> VerifiedClaim | None:
         """Verify a single claim by searching for sources."""
         claim_hash = _hash_claim(claim_text)
 
@@ -291,9 +290,7 @@ class VerificationAgent:
             supporting = [s.id for s in sources if s.supports_claim]
             conflicting = [s.id for s in sources if not s.supports_claim]
 
-            confidence = (
-                self.scorer.calculate_claim_confidence(sources) if self.scorer else 0.5
-            )
+            confidence = self.scorer.calculate_claim_confidence(sources) if self.scorer else 0.5
 
             footnotes = []
             for source in sources:
@@ -319,7 +316,7 @@ class VerificationAgent:
 
         return verified
 
-    async def _check_cache(self, claim_hash: str) -> Optional[VerifiedClaim]:
+    async def _check_cache(self, claim_hash: str) -> VerifiedClaim | None:
         """Check if claim is in cache and still valid."""
         if not self.db:
             return None
@@ -328,7 +325,7 @@ class VerificationAgent:
             result = await self.db.execute(
                 select(VerificationCache).where(
                     VerificationCache.claim_hash == claim_hash,
-                    VerificationCache.expires_at > datetime.now(timezone.utc),
+                    VerificationCache.expires_at > datetime.now(UTC),
                 )
             )
             cached = result.scalar_one_or_none()
@@ -346,10 +343,8 @@ class VerificationAgent:
                 id=claim_hash,
                 claim_text=cast(str, cached.claim_text),
                 confidence=cast(float, cached.confidence),
-                confidence_level=ConfidenceLevel(cached.confidence_level),
-                supporting_sources=[
-                    s["id"] for s in sources_data if s.get("supports_claim", True)
-                ],
+                confidence_level=ConfidenceLevel(cached.confidence_level or "medium"),
+                supporting_sources=[s["id"] for s in sources_data if s.get("supports_claim", True)],
                 conflicting_sources=[
                     s["id"] for s in sources_data if not s.get("supports_claim", True)
                 ],
@@ -372,9 +367,7 @@ class VerificationAgent:
                 if sid in self._sources
             ]
 
-            expires_at = datetime.now(timezone.utc) + timedelta(
-                hours=settings.verification_cache_ttl_hours
-            )
+            expires_at = datetime.now(UTC) + timedelta(hours=settings.verification_cache_ttl_hours)
 
             cache_entry = VerificationCache(
                 claim_hash=claim.id,
@@ -393,15 +386,14 @@ class VerificationAgent:
     async def _search_sources(
         self,
         claim_text: str,
-    ) -> List[SourceInfo]:
-        """
-        Search for sources that support or contradict the claim.
+    ) -> list[SourceInfo]:
+        """Search for sources that support or contradict the claim.
 
         Strategy:
         1. Search internal sources first (ChromaDB + PostgreSQL)
         2. Supplement with DuckDuckGo for external verification
         """
-        sources: List[SourceInfo] = []
+        sources: list[SourceInfo] = []
         max_sources = settings.verification_max_sources_per_claim
         seen_urls: set[str] = set()
 
@@ -415,9 +407,7 @@ class VerificationAgent:
 
         if len(sources) < max_sources:
             remaining = max_sources - len(sources)
-            external_sources = await self._search_external_sources(
-                claim_text, remaining
-            )
+            external_sources = await self._search_external_sources(claim_text, remaining)
             for source in external_sources:
                 if len(sources) >= max_sources:
                     break
@@ -430,15 +420,14 @@ class VerificationAgent:
     async def _search_internal_sources(
         self,
         claim_text: str,
-    ) -> List[SourceInfo]:
-        """
-        Search ChromaDB and PostgreSQL for relevant articles.
+    ) -> list[SourceInfo]:
+        """Search ChromaDB and PostgreSQL for relevant articles.
 
         Returns SourceInfo objects for matching internal articles.
         """
         from app.vector_store import get_vector_store
 
-        sources: List[SourceInfo] = []
+        sources: list[SourceInfo] = []
         seen_article_ids: set[int] = set()
 
         if self.db:
@@ -452,9 +441,7 @@ class VerificationAgent:
                     if article.id is None or not article.url:
                         continue
                     seen_article_ids.add(article.id)
-                    sources.append(
-                        self._article_to_source_info(article, similarity_score=0.7)
-                    )
+                    sources.append(self._article_to_source_info(article, similarity_score=0.7))
             except Exception as exc:
                 logger.warning("Internal keyword search failed: %s", exc)
 
@@ -467,18 +454,12 @@ class VerificationAgent:
                     limit=5,
                 )
 
-                article_ids = [
-                    r.get("article_id") for r in vector_results if r.get("article_id")
-                ]
+                article_ids = [r.get("article_id") for r in vector_results if r.get("article_id")]
 
                 if article_ids and self.db:
                     fetched_articles = await fetch_article_records_by_ids(
                         self.db,
-                        [
-                            article_id
-                            for article_id in article_ids
-                            if isinstance(article_id, int)
-                        ],
+                        [article_id for article_id in article_ids if isinstance(article_id, int)],
                     )
                     article_map: dict[int, Any] = {}
                     for fetched_article in fetched_articles:
@@ -536,9 +517,7 @@ class VerificationAgent:
         domain = urlparse(url).netloc if url else "internal"
 
         credibility, source_type = (
-            self.scorer.get_credibility(domain)
-            if self.scorer
-            else (0.7, SourceType.UNKNOWN)
+            self.scorer.get_credibility(domain) if self.scorer else (0.7, SourceType.UNKNOWN)
         )
 
         credibility = max(credibility, 0.6 + (similarity_score * 0.2))
@@ -563,13 +542,12 @@ class VerificationAgent:
         self,
         claim_text: str,
         max_results: int = 5,
-    ) -> List[SourceInfo]:
-        """
-        Search DuckDuckGo for external sources.
+    ) -> list[SourceInfo]:
+        """Search DuckDuckGo for external sources.
 
         Filters to allowed domains only.
         """
-        sources: List[SourceInfo] = []
+        sources: list[SourceInfo] = []
         query = self._build_search_query(claim_text)
 
         try:
@@ -620,7 +598,7 @@ class VerificationAgent:
             tokens = tokens[:12]
         return " ".join(tokens)
 
-    def _ddg_search(self, query: str, max_results: int = 10) -> List[Dict[str, Any]]:
+    def _ddg_search(self, query: str, max_results: int = 10) -> list[dict[str, Any]]:
         """Perform DuckDuckGo search (blocking, run in thread)."""
         try:
             ddgs = cast(Any, DDGS())
@@ -632,19 +610,16 @@ class VerificationAgent:
 
     def _calculate_overall_confidence(
         self,
-        claims: List[VerifiedClaim],
+        claims: list[VerifiedClaim],
     ) -> float:
         """Calculate overall confidence across all claims."""
         if not claims:
             return 0.0
 
         weighted_sum = sum(
-            c.confidence * len(c.supporting_sources + c.conflicting_sources)
-            for c in claims
+            c.confidence * len(c.supporting_sources + c.conflicting_sources) for c in claims
         )
-        total_sources = sum(
-            len(c.supporting_sources + c.conflicting_sources) for c in claims
-        )
+        total_sources = sum(len(c.supporting_sources + c.conflicting_sources) for c in claims)
 
         if total_sources == 0:
             return sum(c.confidence for c in claims) / len(claims)
@@ -656,9 +631,7 @@ async def cleanup_expired_cache(db: AsyncSession) -> int:
     """Remove expired cache entries."""
     try:
         result = await db.execute(
-            delete(VerificationCache).where(
-                VerificationCache.expires_at < datetime.now(timezone.utc)
-            )
+            delete(VerificationCache).where(VerificationCache.expires_at < datetime.now(UTC))
         )
         await db.commit()
         deleted = cast(CursorResult[Any], result).rowcount or 0
@@ -672,11 +645,10 @@ async def cleanup_expired_cache(db: AsyncSession) -> int:
 
 async def verify_research(
     request: VerificationRequest,
-    db: Optional[AsyncSession] = None,
-    session_id: Optional[str] = None,
+    db: AsyncSession | None = None,
+    session_id: str | None = None,
 ) -> VerificationResult:
-    """
-    Convenience function to verify research claims.
+    """Convenience function to verify research claims.
 
     Usage:
         result = await verify_research(request, db)

@@ -1,4 +1,4 @@
-import { ArticleTopic, NewsArticle } from "@/lib/api"
+import type { ArticleTopic, NewsArticle } from "@/lib/api"
 
 export const SCROLL_PAGE_SIZE = 500
 export const SCROLL_INITIAL_RENDER_COUNT = 60

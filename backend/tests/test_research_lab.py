@@ -7,9 +7,7 @@ from tools import research_lab
 
 def test_load_queries_file_supports_json_and_newline_formats(tmp_path) -> None:
     json_path = tmp_path / "queries.json"
-    json_path.write_text(
-        json.dumps({"queries": [" one ", "two", ""]}), encoding="utf-8"
-    )
+    json_path.write_text(json.dumps({"queries": [" one ", "two", ""]}), encoding="utf-8")
 
     text_path = tmp_path / "queries.txt"
     text_path.write_text("alpha\n\n beta \n", encoding="utf-8")
@@ -57,8 +55,7 @@ def test_build_summary_reports_tool_coverage_and_history_failures() -> None:
             "history_messages_sent": 2,
             "source_providers": [],
             "answer": (
-                "I do not have access to the specific sources or internal URLs "
-                "I used previously."
+                "I do not have access to the specific sources or internal URLs I used previously."
             ),
         },
     ]

@@ -8,7 +8,7 @@ from __future__ import annotations
 
 import logging
 from dataclasses import dataclass
-from typing import Any, Optional
+from typing import Any
 from urllib.parse import urlencode
 
 import httpx
@@ -33,6 +33,8 @@ class GDELTRateLimitedError(GDELTQueryError):
 
 @dataclass(frozen=True)
 class GDELTArticleResult:
+    """GDELT Article Result."""
+
     url: str
     title: str
     source: str
@@ -48,6 +50,7 @@ class GDELTArticleResult:
     result_type: str = "doc"
 
     def to_dict(self) -> dict[str, Any]:
+        """To Dict."""
         payload: dict[str, Any] = {
             "url": self.url,
             "link": self.url,
@@ -70,8 +73,11 @@ class GDELTArticleResult:
 
 
 class GDELTQueryService:
+    """GDELT Query Service."""
+
     def __init__(self) -> None:
-        self._client: Optional[httpx.AsyncClient] = None
+        """Initialize."""
+        self._client: httpx.AsyncClient | None = None
 
     async def _get_client(self) -> httpx.AsyncClient:
         if self._client is None:
@@ -89,6 +95,7 @@ class GDELTQueryService:
         max_records: int = DEFAULT_MAX_RECORDS,
         timespan: str = DEFAULT_TIMESPAN,
     ) -> list[dict[str, Any]]:
+        """Search Doc."""
         payload = await self._request_json(
             GDELT_DOC_API_URL,
             {
@@ -120,6 +127,7 @@ class GDELTQueryService:
         max_records: int = DEFAULT_MAX_RECORDS,
         timespan: str = DEFAULT_TIMESPAN,
     ) -> list[dict[str, Any]]:
+        """Search Context."""
         payload = await self._request_json(
             GDELT_CONTEXT_API_URL,
             {
@@ -214,18 +222,21 @@ class GDELTQueryService:
         )
 
     async def close(self) -> None:
+        """Close."""
         if self._client is not None:
             await self._client.aclose()
             self._client = None
 
     def build_debug_url(self, api_url: str, params: dict[str, Any]) -> str:
+        """Build Debug Url."""
         return f"{api_url}?{urlencode(params)}"
 
 
-_gdelt_query_service: Optional[GDELTQueryService] = None
+_gdelt_query_service: GDELTQueryService | None = None
 
 
 def get_gdelt_query_service() -> GDELTQueryService:
+    """Get Gdelt Query Service."""
     global _gdelt_query_service
     if _gdelt_query_service is None:
         _gdelt_query_service = GDELTQueryService()

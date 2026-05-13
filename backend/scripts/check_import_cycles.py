@@ -25,9 +25,7 @@ def parse_args() -> argparse.Namespace:
 
 
 def iter_python_files(source_dir: Path) -> Iterable[Path]:
-    return sorted(
-        path for path in source_dir.rglob("*.py") if "__pycache__" not in path.parts
-    )
+    return sorted(path for path in source_dir.rglob("*.py") if "__pycache__" not in path.parts)
 
 
 def module_name(path: Path, package_root: Path) -> str:
@@ -47,9 +45,7 @@ def closest_known_module(name: str, known_modules: set[str]) -> str | None:
 
 
 def build_graph(source_dir: Path, package_root: Path) -> dict[str, set[str]]:
-    modules = {
-        module_name(path, package_root): path for path in iter_python_files(source_dir)
-    }
+    modules = {module_name(path, package_root): path for path in iter_python_files(source_dir)}
     known_modules = set(modules)
     graph: dict[str, set[str]] = {module: set() for module in modules}
 

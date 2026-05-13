@@ -1,5 +1,6 @@
+"""Highlights."""
+
 from datetime import datetime
-from typing import List, Optional
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -36,9 +37,7 @@ async def create_highlight(
     return HighlightSchema.from_attributes(highlight)
 
 
-async def delete_highlight(
-    session: AsyncSession, highlight_id: int, user_id: int = 1
-) -> bool:
+async def delete_highlight(session: AsyncSession, highlight_id: int, user_id: int = 1) -> bool:
     """Delete a highlight by ID."""
     result = await session.execute(
         select(Highlight).where(
@@ -61,7 +60,7 @@ async def delete_highlight(
 
 async def get_highlights_for_article(
     session: AsyncSession, article_url: str, user_id: int = 1
-) -> List[HighlightSchema]:
+) -> list[HighlightSchema]:
     """Get all highlights for a specific article."""
     result = await session.execute(
         select(Highlight).where(
@@ -73,14 +72,10 @@ async def get_highlights_for_article(
     return [HighlightSchema.from_attributes(h) for h in highlights]
 
 
-async def get_all_highlights(
-    session: AsyncSession, user_id: int = 1
-) -> List[HighlightSchema]:
+async def get_all_highlights(session: AsyncSession, user_id: int = 1) -> list[HighlightSchema]:
     """Get all highlights for a user."""
     result = await session.execute(
-        select(Highlight)
-        .where(Highlight.user_id == user_id)
-        .order_by(Highlight.created_at.desc())
+        select(Highlight).where(Highlight.user_id == user_id).order_by(Highlight.created_at.desc())
     )
     highlights = result.scalars().all()
     return [HighlightSchema.from_attributes(h) for h in highlights]
@@ -91,7 +86,7 @@ async def update_highlight(
     highlight_id: int,
     request: UpdateHighlightRequest,
     user_id: int = 1,
-) -> Optional[HighlightSchema]:
+) -> HighlightSchema | None:
     """Update a highlight."""
     result = await session.execute(
         select(Highlight).where(

@@ -1,9 +1,10 @@
+"""Cache."""
+
 from __future__ import annotations
 
 import threading
 from collections import defaultdict
-from datetime import datetime, timezone
-from typing import Dict, List
+from datetime import datetime, UTC
 
 from app.core.config import settings
 from app.core.logging import get_logger
@@ -13,12 +14,15 @@ logger = get_logger("news_cache")
 
 
 class NewsCache:
+    """News Cache."""
+
     def __init__(self) -> None:
-        self.articles: List[NewsArticle] = []
-        self.articles_by_source: Dict[str, List[NewsArticle]] = {}
-        self.source_stats: List[Dict[str, object]] = []
-        self.source_stats_by_name: Dict[str, Dict[str, object]] = {}
-        self.last_updated: datetime = datetime.now(timezone.utc)
+        """Initialize."""
+        self.articles: list[NewsArticle] = []
+        self.articles_by_source: dict[str, list[NewsArticle]] = {}
+        self.source_stats: list[dict[str, object]] = []
+        self.source_stats_by_name: dict[str, dict[str, object]] = {}
+        self.last_updated: datetime = datetime.now(UTC)
         self.lock = threading.Lock()
         self.update_in_progress: bool = False
         self.update_count: int = 0
@@ -27,30 +31,24 @@ class NewsCache:
         assert self.update_count >= 0, "update_count must be non-negative"
         assert isinstance(self.articles, list), "articles must remain a list"
         assert isinstance(self.source_stats, list), "source_stats must remain a list"
-        assert isinstance(self.articles_by_source, dict), (
-            "articles_by_source must remain a dict"
-        )
+        assert isinstance(self.articles_by_source, dict), "articles_by_source must remain a dict"
 
     def _published_key(self, article: NewsArticle) -> str:
         return article.published or ""
 
-    def _shape_articles(self, articles: List[NewsArticle]) -> List[NewsArticle]:
+    def _shape_articles(self, articles: list[NewsArticle]) -> list[NewsArticle]:
         max_articles = settings.news_cache_max_articles
         max_per_source = settings.news_cache_max_per_source
 
         if not articles:
             return []
 
-        grouped: Dict[str, List[NewsArticle]] = defaultdict(list)
+        grouped: dict[str, list[NewsArticle]] = defaultdict(list)
         for article in sorted(articles, key=self._published_key, reverse=True):
             grouped[article.source].append(article)
 
         trimmed_groups = {
-            source: (
-                source_articles[:max_per_source]
-                if max_per_source > 0
-                else source_articles
-            )
+            source: (source_articles[:max_per_source] if max_per_source > 0 else source_articles)
             for source, source_articles in grouped.items()
             if source_articles
         }
@@ -61,7 +59,7 @@ class NewsCache:
             reverse=True,
         )
 
-        shaped: List[NewsArticle] = []
+        shaped: list[NewsArticle] = []
         round_index = 0
         while max_articles <= 0 or len(shaped) < max_articles:
             appended = False
@@ -84,7 +82,8 @@ class NewsCache:
         for article in self.articles:
             self.articles_by_source.setdefault(article.source, []).append(article)
 
-    def get_articles(self) -> List[NewsArticle]:
+    def get_articles(self) -> list[NewsArticle]:
+        """Get Articles."""
         with self.lock:
             self._assert_invariants()
             logger.debug("Cache accessed: %s articles available", len(self.articles))
@@ -92,30 +91,32 @@ class NewsCache:
             assert snapshot is not self.articles, "get_articles must return a copy"
             return snapshot
 
-    def get_source_stats(self) -> List[Dict[str, object]]:
+    def get_source_stats(self) -> list[dict[str, object]]:
+        """Get Source Stats."""
         with self.lock:
             self._assert_invariants()
             logger.debug("Source stats accessed: %s sources", len(self.source_stats))
             snapshot = self.source_stats.copy()
-            assert snapshot is not self.source_stats, (
-                "get_source_stats must return a copy"
-            )
+            assert snapshot is not self.source_stats, "get_source_stats must return a copy"
             return snapshot
 
-    def get_source_stat(self, source_name: str) -> Dict[str, object] | None:
+    def get_source_stat(self, source_name: str) -> dict[str, object] | None:
+        """Get Source Stat."""
         with self.lock:
             stat = self.source_stats_by_name.get(source_name)
             if stat is None:
                 return None
             return dict(stat)
 
-    def get_articles_for_source(self, source_name: str) -> List[NewsArticle]:
+    def get_articles_for_source(self, source_name: str) -> list[NewsArticle]:
+        """Get Articles For Source."""
         with self.lock:
             return list(self.articles_by_source.get(source_name, []))
 
     def update_cache(
-        self, articles: List[NewsArticle], source_stats: List[Dict[str, object]]
+        self, articles: list[NewsArticle], source_stats: list[dict[str, object]]
     ) -> None:
+        """Update Cache."""
         assert isinstance(articles, list), "update_cache requires list articles"
         assert isinstance(source_stats, list), "update_cache requires list source_stats"
         with self.lock:
@@ -128,7 +129,7 @@ class NewsCache:
                 stat_name = stat.get("name")
                 if isinstance(stat_name, str) and stat_name:
                     self.source_stats_by_name[stat_name] = stat
-            self.last_updated = datetime.now(timezone.utc)
+            self.last_updated = datetime.now(UTC)
             self.update_in_progress = False
             self.update_count += 1
 
@@ -155,13 +156,12 @@ class NewsCache:
 
     def update_source_cache(
         self,
-        articles: List[NewsArticle],
-        source_stat: Dict[str, object],
+        articles: list[NewsArticle],
+        source_stat: dict[str, object],
         replace_articles: bool = True,
     ) -> None:
-        source_name = source_stat.get("name") or (
-            articles[0].source if articles else None
-        )
+        """Update Source Cache."""
+        source_name = source_stat.get("name") or (articles[0].source if articles else None)
         if not source_name:
             return
 
@@ -175,13 +175,11 @@ class NewsCache:
                     key=self._published_key,
                     reverse=True,
                 )
-                merged: List[NewsArticle] = []
+                merged: list[NewsArticle] = []
                 i = 0
                 j = 0
                 while i < len(retained) and j < len(new_articles):
-                    if self._published_key(retained[i]) >= self._published_key(
-                        new_articles[j]
-                    ):
+                    if self._published_key(retained[i]) >= self._published_key(new_articles[j]):
                         merged.append(retained[i])
                         i += 1
                     else:
@@ -199,7 +197,7 @@ class NewsCache:
                 self.source_stats_by_name[source_name] = source_stat
                 self.source_stats = list(self.source_stats_by_name.values())
 
-            self.last_updated = datetime.now(timezone.utc)
+            self.last_updated = datetime.now(UTC)
             self.update_count += 1
             self._assert_invariants()
 

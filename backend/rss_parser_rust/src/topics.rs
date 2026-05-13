@@ -12,17 +12,26 @@ const LEXICAL_MIN_JACCARD: f64 = 0.18;
 const LEXICAL_MAX_TOKEN_POSTINGS: usize = 250;
 const MAX_KEYWORDS_PER_ARTICLE: usize = 10;
 
+/// Describes a cluster of articles grouped by shared title keywords, with
+/// one article designated as the anchor.
 #[derive(Debug, Clone, Serialize)]
 pub struct ClusterCandidate {
+    /// Article ID of the anchor (first article in sort order) of the cluster.
     pub anchor_id: i64,
+    /// Article IDs of all members in the cluster, including the anchor.
     pub member_ids: Vec<i64>,
+    /// Jaccard similarity of each member to the anchor, keyed by article ID.
     pub similarities: HashMap<i64, f64>,
 }
 
+/// Minimal article representation used as input for lexical clustering.
 #[derive(Debug, Clone, Serialize)]
 pub struct ArticleInput {
+    /// Unique identifier for the article.
     pub article_id: i64,
+    /// Article headline used for keyword extraction and matching.
     pub title: String,
+    /// Position in the original feed ordering, used for tie-breaking.
     pub order_index: u32,
 }
 
@@ -128,6 +137,9 @@ fn normalize_keyword(value: &str) -> String {
     normalized.to_string()
 }
 
+/// Extracts up to 10 normalized, deduplicated keywords from an article
+/// title, filtering out stopwords, generic news tokens, purely numeric
+/// tokens, and tokens shorter than 4 characters.
 pub fn extract_keywords(title: &str) -> Vec<String> {
     let text = title.to_lowercase();
     let stopwords = stopwords();
@@ -187,6 +199,12 @@ fn passes_lexical_match(base_tokens: &HashSet<String>, candidate_tokens: &HashSe
     jaccard >= LEXICAL_MIN_JACCARD || overlap > LEXICAL_MIN_TOKEN_OVERLAP
 }
 
+/// Groups articles into clusters based on shared title keywords using a
+/// union-find algorithm over token overlap.
+///
+/// Articles are compared lexically via keyword token sets; clusters require
+/// a minimum of two members and a minimum Jaccard or token-overlap
+/// threshold.
 pub fn cluster_articles_lexical(articles: Vec<ArticleInput>) -> Vec<ClusterCandidate> {
     if articles.is_empty() {
         return vec![];
@@ -360,6 +378,11 @@ pub fn cluster_articles_lexical(articles: Vec<ArticleInput>) -> Vec<ClusterCandi
     clusters
 }
 
+/// Chooses the best human-readable label for a topic cluster from a scored
+/// list of candidate titles.
+///
+/// The title with the highest score above 5.0 is selected; otherwise the
+/// first title longer than 10 characters is used. Falls back to "Topic".
 pub fn generate_cluster_label(title_scores: Vec<(String, f64)>) -> String {
     if title_scores.is_empty() {
         return "Topic".to_string();
@@ -381,6 +404,8 @@ pub fn generate_cluster_label(title_scores: Vec<(String, f64)>) -> String {
     "Topic".to_string()
 }
 
+/// Extracts and deduplicates keywords across multiple titles, stopping at a
+/// configurable maximum.
 pub fn extract_keywords_from_titles(titles: Vec<String>) -> Vec<String> {
     let mut seen: Vec<String> = Vec::new();
     let mut seen_set: HashSet<String> = HashSet::new();
@@ -398,6 +423,11 @@ pub fn extract_keywords_from_titles(titles: Vec<String>) -> Vec<String> {
     seen
 }
 
+/// Python-facing wrapper for [`cluster_articles_lexical`].
+///
+/// Accepts a list of `(article_id, title, order_index)` tuples and returns a
+/// list of cluster dicts, each with `anchor_id`, `member_ids`, and
+/// `similarities` keys.
 #[pyfunction]
 pub fn rust_lexical_cluster<'py>(
     py: Python<'py>,
@@ -437,16 +467,27 @@ pub fn rust_lexical_cluster<'py>(
     Ok(result)
 }
 
+/// Python-facing wrapper for [`extract_keywords`].
+///
+/// Returns up to 10 normalized keywords from a single article title.
 #[pyfunction]
 pub fn rust_extract_keywords(title: String) -> Vec<String> {
     extract_keywords(&title)
 }
 
+/// Python-facing wrapper for [`extract_keywords_from_titles`].
+///
+/// Accepts a list of title strings and returns deduplicated keywords across
+/// all of them.
 #[pyfunction]
 pub fn rust_extract_keywords_from_titles(titles: Vec<String>) -> Vec<String> {
     extract_keywords_from_titles(titles)
 }
 
+/// Python-facing wrapper for [`generate_cluster_label`].
+///
+/// Accepts a list of `(title, score)` tuples and returns the best label for
+/// the cluster.
 #[pyfunction]
 pub fn rust_generate_cluster_label(title_scores: Vec<(String, f64)>) -> String {
     generate_cluster_label(title_scores)

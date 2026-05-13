@@ -30,6 +30,7 @@ const mockReactGlobe = React.forwardRef<unknown, Record<string, unknown>>((_prop
         ;(ref as { current: unknown }).current = null
       }
     }
+    return
   }, [ref])
 
   return <div data-testid="mock-globe" />
@@ -38,6 +39,7 @@ const mockReactGlobe = React.forwardRef<unknown, Record<string, unknown>>((_prop
 mockReactGlobe.displayName = "MockGlobe"
 
 jest.mock("next/dynamic", () => {
+  // eslint-disable-next-line @typescript-eslint/consistent-type-imports
   const React = jest.requireActual<typeof import("react")>("react")
 
   return (

@@ -1,5 +1,4 @@
-"""
-Reporter Indexer - Background indexing service for the reporter wiki.
+"""Reporter Indexer - Background indexing service for the reporter wiki.
 
 Handles:
 - Proactively resolving reporter profiles from unresolved article authors
@@ -16,8 +15,8 @@ from __future__ import annotations
 
 import asyncio
 import urllib.parse
-from datetime import datetime, timedelta, timezone
-from typing import Any, Dict, List, Optional, Tuple, cast
+from datetime import datetime, timedelta, UTC
+from typing import Any, cast
 
 import httpx
 from sqlalchemy import or_, select
@@ -45,7 +44,7 @@ from app.services.reporter_wikipedia import fetch_journalist_bio
 logger = get_logger("reporter_indexer")
 
 STALE_THRESHOLD_DAYS = 7
-INDEX_DELAY_SECONDS = float(0.3)
+INDEX_DELAY_SECONDS = 0.3
 WIKIDATA_SPARQL_URL = "https://query.wikidata.org/sparql"
 SPARQL_BATCH_SIZE = 20
 
@@ -63,7 +62,7 @@ SELECT DISTINCT ?journalist ?journalistLabel ?employerLabel ?twitter ?beatLabel 
 """
 
 
-def _enrich_profile_mbfc(profile: Dict[str, Any]) -> None:
+def _enrich_profile_mbfc(profile: dict[str, Any]) -> None:
     """Attach MBFC outlet-level bias data to a resolved reporter profile.
 
     Uses weighted average by recency: most recent employer gets highest weight.
@@ -79,10 +78,7 @@ def _enrich_profile_mbfc(profile: Dict[str, Any]) -> None:
 
     if not profile.get("political_leaning"):
         profile["political_leaning"] = mbfc_bias["political_leaning"]
-    if (
-        not profile.get("leaning_confidence")
-        or profile.get("leaning_confidence") == "low"
-    ):
+    if not profile.get("leaning_confidence") or profile.get("leaning_confidence") == "low":
         profile["leaning_confidence"] = mbfc_bias.get("leaning_confidence", "medium")
     sources = profile.get("leaning_sources") or []
     if isinstance(sources, list) and "mbfc" not in sources:
@@ -90,7 +86,7 @@ def _enrich_profile_mbfc(profile: Dict[str, Any]) -> None:
         profile["leaning_sources"] = sources
 
 
-def _enrich_profile_littlesis(profile: Dict[str, Any]) -> None:
+def _enrich_profile_littlesis(profile: dict[str, Any]) -> None:
     """Cross-reference a reporter against LittleSis and attach affiliations.
 
     Uses Wikidata QID as primary bridge, falls back to name + employer fuzzy match.
@@ -156,8 +152,8 @@ async def _upsert_index_status(
     entity_type: str,
     entity_name: str,
     status: str,
-    error_message: Optional[str] = None,
-    duration_ms: Optional[int] = None,
+    error_message: str | None = None,
+    duration_ms: int | None = None,
 ) -> None:
     result = await session.execute(
         select(WikiIndexStatus).where(
@@ -200,7 +196,7 @@ async def _upsert_index_status(
 
 async def _get_unresolved_author_names(
     session: AsyncSession, limit: int = 500
-) -> List[Tuple[str, Optional[str]]]:
+) -> list[tuple[str, str | None]]:
     """Find authors in articles that do not yet have a resolved Reporter record."""
     result = await session.execute(
         select(Article.author, Article.source)
@@ -209,11 +205,11 @@ async def _get_unresolved_author_names(
         .distinct()
         .limit(limit * 3)
     )
-    all_authors: List[Tuple[str, Optional[str]]] = []
+    all_authors: list[tuple[str, str | None]] = []
     seen = set()
     for row in result.all():
         author_name = cast(str, row[0]).strip()
-        source_name = cast(Optional[str], row[1])
+        source_name = cast(str | None, row[1])
         normalized = _normalize_for_resolver(author_name)
         if normalized and normalized not in seen:
             seen.add(normalized)
@@ -235,8 +231,8 @@ async def _get_unresolved_author_names(
 async def _build_local_byline_profile(
     session: AsyncSession,
     author_name: str,
-    source_name: Optional[str],
-) -> Dict[str, Any]:
+    source_name: str | None,
+) -> dict[str, Any]:
     """Build an evidence-backed local profile when public entity matching is weak."""
     normalized_name = _normalize_for_resolver(author_name)
     resolver_key = build_resolver_key(author_name, source_name)
@@ -250,11 +246,11 @@ async def _build_local_byline_profile(
         stmt = stmt.where(Article.source == source_name)
 
     rows = (await session.execute(stmt)).all()
-    article_items: List[Dict[str, Any]] = []
-    activity_articles: List[Dict[str, Any]] = []
-    article_urls: List[str] = []
+    article_items: list[dict[str, Any]] = []
+    activity_articles: list[dict[str, Any]] = []
+    article_urls: list[str] = []
     latest = None
-    categories: List[str] = []
+    categories: list[str] = []
     for title, url, published_at, category in rows:
         if published_at and (latest is None or published_at > latest):
             latest = published_at
@@ -281,9 +277,7 @@ async def _build_local_byline_profile(
 
     source_config = get_rss_sources().get(source_name or "", {}) if source_name else {}
     source_site = source_config.get("site_url") or source_config.get("url")
-    activity_summary = await build_reporter_activity_summary(
-        author_name.strip(), activity_articles
-    )
+    activity_summary = await build_reporter_activity_summary(author_name.strip(), activity_articles)
     author_pages = [
         item["url"]
         for item in activity_summary.get("author_pages", [])
@@ -294,20 +288,14 @@ async def _build_local_byline_profile(
         for item in activity_summary.get("external_profiles", [])
         if isinstance(item, dict) and isinstance(item.get("url"), str)
     ]
-    web_search_results: List[Dict[str, str]] = []
-    social_profiles: Dict[str, Any] = {"found": False}
-    wiki_bio: Dict[str, Any] = {"found": False}
+    web_search_results: list[dict[str, str]] = []
+    social_profiles: dict[str, Any] = {"found": False}
+    wiki_bio: dict[str, Any] = {"found": False}
     ws_client = httpx.AsyncClient(timeout=15.0)
     try:
-        ws_task = search_reporter_web(
-            author_name.strip(), source_name, http_client=ws_client
-        )
-        social_task = find_social_profiles(
-            author_name.strip(), source_name, http_client=ws_client
-        )
-        wiki_task = fetch_journalist_bio(
-            author_name.strip(), http_client=ws_client
-        )
+        ws_task = search_reporter_web(author_name.strip(), source_name, http_client=ws_client)
+        social_task = find_social_profiles(author_name.strip(), source_name, http_client=ws_client)
+        wiki_task = fetch_journalist_bio(author_name.strip(), http_client=ws_client)
         ws_result: Any
         social_result: Any
         wiki_result: Any
@@ -393,9 +381,7 @@ async def _build_local_byline_profile(
             {
                 "id": "official_author_records",
                 "title": "Official Author Records",
-                "status": "available"
-                if author_pages or external_profiles
-                else "missing",
+                "status": "available" if author_pages or external_profiles else "missing",
                 "items": [
                     {
                         "label": "Author page",
@@ -418,14 +404,9 @@ async def _build_local_byline_profile(
         "social_profiles": social_profiles,
         "wikipedia_url": wiki_bio.get("url"),
         "wikidata_qid": None,
-        "citations": [
-            {"label": "Local article evidence", "url": url} for url in article_urls[:5]
-        ]
+        "citations": [{"label": "Local article evidence", "url": url} for url in article_urls[:5]]
         + [{"label": "Official author page", "url": url} for url in author_pages[:5]]
-        + [
-            {"label": "Structured external profile", "url": url}
-            for url in external_profiles[:5]
-        ],
+        + [{"label": "Structured external profile", "url": url} for url in external_profiles[:5]],
         "search_links": {
             "wikipedia": f"https://en.wikipedia.org/w/index.php?search={urllib.parse.quote(author_name.strip())}",
             "wikidata": f"https://www.wikidata.org/w/index.php?search={urllib.parse.quote(author_name.strip())}",
@@ -449,8 +430,8 @@ async def _build_local_byline_profile(
 async def index_unresolved_reporters(
     limit: int = 500,
     delay_seconds: float = INDEX_DELAY_SECONDS,
-    http_client: Optional[httpx.AsyncClient] = None,
-) -> Dict[str, Any]:
+    http_client: httpx.AsyncClient | None = None,
+) -> dict[str, Any]:
     """Index reporters for all unresolved article authors."""
     session = await _get_session()
     owned_client = http_client is None
@@ -485,9 +466,7 @@ async def index_unresolved_reporters(
                     _enrich_profile_mbfc(profile)
                     _enrich_profile_littlesis(profile)
                     await upsert_reporter_profile(session, profile)
-                    await _upsert_index_status(
-                        session, "reporter", entity_name, "complete"
-                    )
+                    await _upsert_index_status(session, "reporter", entity_name, "complete")
                     resolved += 1
                     logger.debug(
                         "[%d/%d] Resolved: %s -> %s",
@@ -501,9 +480,7 @@ async def index_unresolved_reporters(
                         session, author_name, source_name
                     )
                     await upsert_reporter_profile(session, local_profile)
-                    await _upsert_index_status(
-                        session, "reporter", entity_name, "complete"
-                    )
+                    await _upsert_index_status(session, "reporter", entity_name, "complete")
                     skipped += 1
                     logger.debug(
                         "[%d/%d] Unresolvable: %s (status=%s)",
@@ -533,7 +510,7 @@ async def index_unresolved_reporters(
             "resolved": resolved,
             "failed": failed,
             "skipped": skipped,
-            "completed_at": datetime.now(timezone.utc).isoformat(),
+            "completed_at": datetime.now(UTC).isoformat(),
         }
     finally:
         await session.close()
@@ -542,26 +519,26 @@ async def index_unresolved_reporters(
 
 
 async def seed_reporters_from_wikidata(
-    http_client: Optional[httpx.AsyncClient] = None,
-) -> Dict[str, Any]:
+    http_client: httpx.AsyncClient | None = None,
+) -> dict[str, Any]:
     """Bulk-seed reporters from Wikidata using SPARQL.
 
     Queries Wikidata for journalists whose employer labels match outlets
     in the RSS catalog, then resolves full dossiers for each.
     """
     sources = get_rss_sources()
-    unique_sources: Dict[str, Any] = {}
+    unique_sources: dict[str, Any] = {}
     for name, config in sources.items():
         base_name = name.split(" - ")[0].strip()
         if base_name not in unique_sources:
             unique_sources[base_name] = config
 
-    employer_names = sorted({name for name in unique_sources.keys() if len(name) > 2})
+    employer_names = sorted({name for name in unique_sources if len(name) > 2})
 
     owned_client = http_client is None
     client = http_client or httpx.AsyncClient(timeout=30.0)
     try:
-        all_journalist_names: List[Tuple[str, str]] = []
+        all_journalist_names: list[tuple[str, str]] = []
 
         for batch_start in range(0, len(employer_names), SPARQL_BATCH_SIZE):
             batch = employer_names[batch_start : batch_start + SPARQL_BATCH_SIZE]
@@ -601,9 +578,7 @@ async def seed_reporters_from_wikidata(
 
             for binding in batch_bindings:
                 name = str(binding.get("journalistLabel", {}).get("value", "")).strip()
-                employer = str(
-                    binding.get("employerLabel", {}).get("value", "")
-                ).strip()
+                employer = str(binding.get("employerLabel", {}).get("value", "")).strip()
                 if name and employer:
                     all_journalist_names.append((name, employer))
 
@@ -643,9 +618,7 @@ async def seed_reporters_from_wikidata(
                         _enrich_profile_mbfc(profile)
                         _enrich_profile_littlesis(profile)
                         await upsert_reporter_profile(session, profile)
-                        await _upsert_index_status(
-                            session, "reporter", entity_name, "complete"
-                        )
+                        await _upsert_index_status(session, "reporter", entity_name, "complete")
                         resolved += 1
 
                         if resolved % 20 == 0:
@@ -674,7 +647,7 @@ async def seed_reporters_from_wikidata(
             "total": total,
             "resolved": resolved,
             "failed": failed,
-            "completed_at": datetime.now(timezone.utc).isoformat(),
+            "completed_at": datetime.now(UTC).isoformat(),
         }
 
     finally:
@@ -685,7 +658,7 @@ async def seed_reporters_from_wikidata(
 async def index_stale_reporters(
     stale_days: int = STALE_THRESHOLD_DAYS,
     delay_seconds: float = INDEX_DELAY_SECONDS,
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     """Re-index reporters whose wiki data is older than stale_days."""
     session = await _get_session()
     try:
@@ -732,9 +705,7 @@ async def index_stale_reporters(
                         _enrich_profile_littlesis(profile)
                         await upsert_reporter_profile(session, profile)
 
-                    await _upsert_index_status(
-                        session, "reporter", entity_name, "complete"
-                    )
+                    await _upsert_index_status(session, "reporter", entity_name, "complete")
                     resolved += 1
 
                 except Exception as exc:
@@ -764,7 +735,7 @@ async def index_stale_reporters(
 
 async def index_all_reporters(
     delay_seconds: float = INDEX_DELAY_SECONDS,
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     """Full reporter indexing pipeline: SPARQL seed + unresolved author indexing."""
     logger.info("Starting full reporter indexing pipeline")
 
@@ -777,5 +748,5 @@ async def index_all_reporters(
     return {
         "sparql_seed": sparql_result,
         "author_index": author_result,
-        "completed_at": datetime.now(timezone.utc).isoformat(),
+        "completed_at": datetime.now(UTC).isoformat(),
     }

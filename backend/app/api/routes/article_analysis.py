@@ -1,3 +1,5 @@
+"""Article Analysis."""
+
 from __future__ import annotations
 
 from fastapi import APIRouter
@@ -10,6 +12,7 @@ router = APIRouter(tags=["article-analysis"])
 
 @router.get("/article/extract")
 async def extract_article_text(url: str) -> dict[str, object]:
+    """Extract Article Text."""
     data = await extract_article_content(url)
     if not data.get("success"):
         return {
@@ -30,6 +33,7 @@ async def extract_article_text(url: str) -> dict[str, object]:
 
 @router.post("/api/article/analyze", response_model=ArticleAnalysisResponse)
 async def analyze_article(request: ArticleAnalysisRequest) -> ArticleAnalysisResponse:
+    """Analyze Article."""
     article_data = await extract_article_content(request.url)
     if not article_data.get("success"):
         return ArticleAnalysisResponse(

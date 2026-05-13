@@ -18,9 +18,9 @@ describe("country mapping", () => {
       },
     ])
 
-    expect(mapped.country).toBe("GB")
-    expect(mapped.source_country).toBe("GB")
-    expect(mapped.mentioned_countries).toEqual(["CN", "US"])
+    expect(mapped!.country).toBe("GB")
+    expect(mapped!.source_country).toBe("GB")
+    expect(mapped!.mentioned_countries).toEqual(["CN", "US"])
   })
 
   it("maps known globe fallback countries away from -99 ISO codes", async () => {

@@ -4,7 +4,8 @@ import { useQuery } from "@tanstack/react-query";
 import { ExternalLink, Loader2 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { SafeImage } from "@/components/safe-image";
-import { fetchRelatedArticles, RelatedArticle } from "@/lib/api";
+import type { RelatedArticle } from "@/lib/api";
+import { fetchRelatedArticles } from "@/lib/api";
 
 interface RelatedArticlesProps {
   articleId: number;

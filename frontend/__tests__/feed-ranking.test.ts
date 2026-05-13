@@ -5,7 +5,7 @@ import {
   rankFeedArticles,
   type PersonalizationSeed,
 } from "@/lib/feed-ranking"
-import { ArticleTopic, NewsArticle } from "@/lib/api"
+import type { ArticleTopic, NewsArticle } from "@/lib/api"
 
 function makeArticle(overrides: Partial<NewsArticle> = {}): NewsArticle {
   return {
@@ -46,7 +46,7 @@ describe("feed ranking", () => {
       (sourceId) => sourceId === "fav-source",
     )
 
-    expect(ranked.articles[0].id).toBe(1)
+    expect(ranked.articles[0]!.id).toBe(1)
   })
 
   it("gives bookmark signals at least as much weight as likes for the same topic", () => {

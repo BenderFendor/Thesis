@@ -13,18 +13,16 @@ from __future__ import annotations
 import json
 import os
 import subprocess
-from datetime import datetime, timezone
-from typing import Any, Dict
+from datetime import datetime, UTC
+from typing import Any
 
 from app.core.config import settings
 from app.database import get_engine
 
-OUTPUT_FILE = (
-    "/home/bender/classwork/Thesis/backend/tests/benchmarks/config_snapshot.json"
-)
+OUTPUT_FILE = "/home/bender/classwork/Thesis/backend/tests/benchmarks/config_snapshot.json"
 
 
-def get_python_packages() -> Dict[str, str]:
+def get_python_packages() -> dict[str, str]:
     """Get installed Python package versions."""
     result = subprocess.run(
         ["pip", "freeze"],
@@ -39,7 +37,7 @@ def get_python_packages() -> Dict[str, str]:
     return packages
 
 
-def get_system_info() -> Dict[str, Any]:
+def get_system_info() -> dict[str, Any]:
     """Get system information."""
     return {
         "platform": os.uname().sysname,
@@ -49,10 +47,10 @@ def get_system_info() -> Dict[str, Any]:
     }
 
 
-def capture_config() -> Dict[str, Any]:
+def capture_config() -> dict[str, Any]:
     """Capture complete configuration snapshot."""
     config = {
-        "timestamp": datetime.now(timezone.utc).isoformat(),
+        "timestamp": datetime.now(UTC).isoformat(),
         "app": {
             "title": settings.app_title,
             "version": settings.app_version,
@@ -79,9 +77,7 @@ def capture_config() -> Dict[str, Any]:
     if engine:
         config["database"]["pool_status"] = {
             "size": engine.pool.size() if hasattr(engine.pool, "size") else "N/A",
-            "checkedout": engine.pool.checkedout()
-            if hasattr(engine.pool, "checkedout")
-            else "N/A",
+            "checkedout": engine.pool.checkedout() if hasattr(engine.pool, "checkedout") else "N/A",
         }
 
     return config
@@ -91,17 +87,14 @@ def main():
     print("Capturing configuration...")
     config = capture_config()
 
-    with open(OUTPUT_FILE, "w") as f:
-        json.dump(config, f, indent=2)
+    OUTPUT_FILE.write_text(json.dumps(config, indent=2))
 
     print(f"Configuration saved to: {OUTPUT_FILE}")
     print("\nSummary:")
     print(f"  App: {config['app']['title']} v{config['app']['version']}")
     print(f"  Database pool: {config['database'].get('pool_status', {})}")
     print(f"  Python packages: {len(config['packages'])}")
-    print(
-        f"  System: {config['system']['platform']} ({config['system']['cpu_count']} CPUs)"
-    )
+    print(f"  System: {config['system']['platform']} ({config['system']['cpu_count']} CPUs)")
 
 
 if __name__ == "__main__":

@@ -1,9 +1,10 @@
+"""Source Search Planner."""
+
 from __future__ import annotations
 
 import asyncio
 import json
 import re
-from typing import List, Optional
 
 from app.core.config import settings
 from app.core.llm_client import get_llm_client
@@ -23,12 +24,15 @@ SYSTEM_PROMPT = build_json_system_prompt(
 
 
 class SourceSearchPlanner:
+    """Source Search Planner."""
+
     async def plan_queries(
         self,
         source_name: str,
-        website: Optional[str],
+        website: str | None,
         max_queries: int = 6,
-    ) -> List[str]:
+    ) -> list[str]:
+        """Plan Queries."""
         llm_client = get_llm_client()
         if not llm_client:
             return []
@@ -78,16 +82,14 @@ class SourceSearchPlanner:
             logger.warning("Search planner failed for %s: %s", source_name, exc)
             return []
 
-        content = (
-            response.choices[0].message.content if response.choices else ""
-        ) or ""
+        content = (response.choices[0].message.content if response.choices else "") or ""
         queries = _parse_query_list(content)
         if len(queries) > max_queries:
             return queries[:max_queries]
         return queries
 
 
-def _parse_query_list(text: str) -> List[str]:
+def _parse_query_list(text: str) -> list[str]:
     if not text:
         return []
     match = re.search(r"\[.*\]", text, re.DOTALL)
@@ -99,7 +101,7 @@ def _parse_query_list(text: str) -> List[str]:
         return []
     if not isinstance(payload, list):
         return []
-    cleaned: List[str] = []
+    cleaned: list[str] = []
     for item in payload:
         if not isinstance(item, str):
             continue

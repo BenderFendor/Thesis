@@ -6,7 +6,7 @@ queried at request time — only the background computation worker touches it.
 
 from __future__ import annotations
 
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 from sqlalchemy import delete, select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -22,9 +22,7 @@ SNAPSHOT_KEEP_COUNT = 5
 VALID_WINDOWS = ("1d", "1w", "1m")
 
 
-async def get_latest_snapshot(
-    session: AsyncSession, window: str
-) -> Optional[TopicClusterSnapshot]:
+async def get_latest_snapshot(session: AsyncSession, window: str) -> TopicClusterSnapshot | None:
     """Return the most recently computed snapshot for the given window, or None."""
     result = await session.execute(
         select(TopicClusterSnapshot)
@@ -38,7 +36,7 @@ async def get_latest_snapshot(
 async def save_snapshot(
     session: AsyncSession,
     window: str,
-    clusters: List[Dict[str, Any]],
+    clusters: list[dict[str, Any]],
 ) -> TopicClusterSnapshot:
     """Persist a new cluster snapshot and prune old ones for this window.
 

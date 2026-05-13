@@ -1,22 +1,22 @@
+"""Logging."""
+
 import logging
 import os
 from datetime import datetime
 from logging.handlers import RotatingFileHandler
 from pathlib import Path
-from typing import Optional
 
-_LOG_FORMAT = (
-    "%(asctime)s - %(name)s - %(levelname)s - [%(funcName)s:%(lineno)d] - %(message)s"
-)
+_LOG_FORMAT = "%(asctime)s - %(name)s - %(levelname)s - [%(funcName)s:%(lineno)d] - %(message)s"
 
 LOG_DIR = Path(os.environ.get("LOG_DIR", Path(__file__).parent.parent.parent / "logs"))
 MAX_LOG_SIZE = 10 * 1024 * 1024  # 10 MB
 BACKUP_COUNT = 3
 
-_session_dir: Optional[Path] = None
+_session_dir: Path | None = None
 
 
 def get_session_dir() -> Path:
+    """Get Session Dir."""
     global _session_dir
     if _session_dir is None:
         session_name = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
@@ -57,7 +57,7 @@ def configure_logging(level: int = logging.INFO) -> logging.Logger:
     return logging.getLogger("app")
 
 
-def get_logger(name: Optional[str] = None) -> logging.Logger:
+def get_logger(name: str | None = None) -> logging.Logger:
     """Get a named logger, ensuring logging is configured."""
     if not logging.getLogger().handlers:
         configure_logging()

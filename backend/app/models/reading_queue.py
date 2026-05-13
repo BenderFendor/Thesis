@@ -1,28 +1,34 @@
-from typing import Any, Optional
+"""Reading Queue."""
+
+from typing import Any
 from datetime import datetime
 from app.models.base import StrictBaseModel
 
 
 class ReadingQueueItem(StrictBaseModel):
-    id: Optional[int] = None
-    user_id: Optional[int] = None
+    """Reading Queue Item."""
+
+    id: int | None = None
+    user_id: int | None = None
     article_id: int
     article_title: str
     article_url: str
     article_source: str
-    article_image: Optional[str] = None
+    article_image: str | None = None
     queue_type: str = "daily"  # 'daily' or 'permanent'
     position: int = 0
     read_status: str = "unread"  # 'unread', 'reading', 'completed'
     added_at: datetime
-    archived_at: Optional[datetime] = None
-    created_at: Optional[datetime] = None
-    updated_at: Optional[datetime] = None
-    word_count: Optional[int] = None
-    estimated_read_time_minutes: Optional[int] = None
-    full_text: Optional[str] = None
+    archived_at: datetime | None = None
+    created_at: datetime | None = None
+    updated_at: datetime | None = None
+    word_count: int | None = None
+    estimated_read_time_minutes: int | None = None
+    full_text: str | None = None
 
     class Config:
+        """Config."""
+
         from_attributes = True
 
     @classmethod
@@ -32,22 +38,28 @@ class ReadingQueueItem(StrictBaseModel):
 
 
 class AddToQueueRequest(StrictBaseModel):
+    """Add To Queue Request."""
+
     article_id: int
     article_title: str
     article_url: str
     article_source: str
-    article_image: Optional[str] = None
+    article_image: str | None = None
     queue_type: str = "daily"
 
 
 class UpdateQueueItemRequest(StrictBaseModel):
-    read_status: Optional[str] = None
-    queue_type: Optional[str] = None
-    position: Optional[int] = None
-    archived_at: Optional[datetime] = None
+    """Update Queue Item Request."""
+
+    read_status: str | None = None
+    queue_type: str | None = None
+    position: int | None = None
+    archived_at: datetime | None = None
 
 
 class QueueResponse(StrictBaseModel):
+    """Queue Response."""
+
     items: list[ReadingQueueItem]
     daily_count: int
     permanent_count: int
@@ -55,6 +67,8 @@ class QueueResponse(StrictBaseModel):
 
 
 class QueueOverviewResponse(StrictBaseModel):
+    """Queue Overview Response."""
+
     total_items: int
     daily_items: int
     permanent_items: int
@@ -65,34 +79,43 @@ class QueueOverviewResponse(StrictBaseModel):
 
 
 class Highlight(StrictBaseModel):
-    id: Optional[int] = None
-    user_id: Optional[int] = None
+    """Highlight."""
+
+    id: int | None = None
+    user_id: int | None = None
     article_url: str
     highlighted_text: str
     color: str = "yellow"  # 'yellow', 'blue', 'red'
-    note: Optional[str] = None
+    note: str | None = None
     character_start: int
     character_end: int
-    created_at: Optional[datetime] = None
-    updated_at: Optional[datetime] = None
+    created_at: datetime | None = None
+    updated_at: datetime | None = None
 
     class Config:
+        """Config."""
+
         from_attributes = True
 
     @classmethod
     def from_attributes(cls, obj: Any) -> "Highlight":
+        """From Attributes."""
         return cls.model_validate(obj, from_attributes=True)
 
 
 class CreateHighlightRequest(StrictBaseModel):
+    """Create Highlight Request."""
+
     article_url: str
     highlighted_text: str
     color: str = "yellow"
-    note: Optional[str] = None
+    note: str | None = None
     character_start: int
     character_end: int
 
 
 class UpdateHighlightRequest(StrictBaseModel):
-    color: Optional[str] = None
-    note: Optional[str] = None
+    """Update Highlight Request."""
+
+    color: str | None = None
+    note: str | None = None

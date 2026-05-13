@@ -7,20 +7,13 @@ import json
 import os
 import re
 import threading
-from datetime import datetime, timezone
+from datetime import datetime, UTC
 from typing import (
     Annotated,
     Any,
-    Callable,
-    Dict,
-    Generator,
-    Iterator,
-    List,
-    Optional,
     Protocol,
-    Sequence,
-    Set,
 )
+from collections.abc import Callable, Generator, Iterator, Sequence
 
 from typing import cast
 from langchain_core.messages import (
@@ -139,10 +132,14 @@ def _is_stopped() -> bool:
 
 
 class RunnableMessageInvoker(Protocol):
+    """Runnable Message Invoker."""
+
     def invoke(self, payload: Sequence[BaseMessage]) -> BaseMessage: ...
 
 
 class ToolBindableLLM(RunnableMessageInvoker, Protocol):
+    """Tool Bindable LLM."""
+
     def bind_tools(
         self,
         tools: Sequence[Any],
@@ -151,18 +148,20 @@ class ToolBindableLLM(RunnableMessageInvoker, Protocol):
 
 
 class CompiledAgentGraph(Protocol):
+    """Compiled Agent Graph."""
+
     def stream(
         self,
-        initial_state: "AgentState",
+        initial_state: AgentState,
         stream_mode: str = "updates",
-    ) -> Iterator[Dict[str, Any]]: ...
+    ) -> Iterator[dict[str, Any]]: ...
 
 
-_news_articles_cache: List[Dict[str, Any]] = []
-_referenced_articles_tracker: List[Dict[str, Any]] = []
-_articles_by_id: Dict[str, Dict[str, Any]] = {}
-_fetched_urls_cache: Dict[str, str] = {}
-_research_source_providers: Set[str] = set()
+_news_articles_cache: list[dict[str, Any]] = []
+_referenced_articles_tracker: list[dict[str, Any]] = []
+_articles_by_id: dict[str, dict[str, Any]] = {}
+_fetched_urls_cache: dict[str, str] = {}
+_research_source_providers: set[str] = set()
 
 DENIAL_PHRASES = (
     "provided context does not contain",
@@ -175,7 +174,7 @@ DENIAL_PHRASES = (
 )
 
 
-def _normalize_url(url: Optional[str]) -> Optional[str]:
+def _normalize_url(url: str | None) -> str | None:
     if not url or not isinstance(url, str):
         return None
     return url.rstrip("/")
@@ -198,13 +197,13 @@ def _serialize_tool_args(args: Any) -> str:
         return repr(args)
 
 
-def _tool_call_key(call: Dict[str, Any]) -> str:
+def _tool_call_key(call: dict[str, Any]) -> str:
     name = str(call.get("name", ""))
     normalized_args = _normalize_tool_call_args(name, call.get("args", {}))
     return f"{name}:{_serialize_tool_args(normalized_args)}"
 
 
-def _extract_search_query(call: Dict[str, Any]) -> str | None:
+def _extract_search_query(call: dict[str, Any]) -> str | None:
     name = str(call.get("name", ""))
     if name not in SEARCH_TOOLS_WITH_QUERY:
         return None
@@ -215,7 +214,7 @@ def _extract_search_query(call: Dict[str, Any]) -> str | None:
     return query if query else None
 
 
-def _search_queries_similar(new_query_raw: str, history: Set[str]) -> bool:
+def _search_queries_similar(new_query_raw: str, history: set[str]) -> bool:
     new_terms = set(_extract_query_terms(new_query_raw))
     if not new_terms:
         return False
@@ -231,10 +230,10 @@ def _search_queries_similar(new_query_raw: str, history: Set[str]) -> bool:
 
 
 def _iter_new_tool_calls(
-    tool_calls: Sequence[Dict[str, Any]],
-    seen: Set[str],
-) -> List[Dict[str, Any]]:
-    unique_calls: List[Dict[str, Any]] = []
+    tool_calls: Sequence[dict[str, Any]],
+    seen: set[str],
+) -> list[dict[str, Any]]:
+    unique_calls: list[dict[str, Any]] = []
     for call in tool_calls:
         key = _tool_call_key(call)
         if key in seen:
@@ -244,7 +243,7 @@ def _iter_new_tool_calls(
     return unique_calls
 
 
-def _register_article_lookup(article: Dict[str, Any]) -> None:
+def _register_article_lookup(article: dict[str, Any]) -> None:
     article_id = article.get("id") or article.get("article_id")
     url_key = _normalize_url(article.get("url") or article.get("link"))
 
@@ -254,13 +253,14 @@ def _register_article_lookup(article: Dict[str, Any]) -> None:
         _articles_by_id[url_key] = article
 
 
-def _record_research_source_provider(provider: Optional[str]) -> None:
+def _record_research_source_provider(provider: str | None) -> None:
     normalized = str(provider or "").strip().lower()
     if normalized:
         _research_source_providers.add(normalized)
 
 
-def set_news_articles(articles: Optional[List[Dict[str, Any]]]) -> None:
+def set_news_articles(articles: list[dict[str, Any]] | None) -> None:
+    """Set News Articles."""
     global _news_articles_cache
     global _referenced_articles_tracker
     global _articles_by_id
@@ -275,7 +275,7 @@ def set_news_articles(articles: Optional[List[Dict[str, Any]]]) -> None:
         _register_article_lookup(article)
 
 
-def _extract_query_terms(query: str) -> List[str]:
+def _extract_query_terms(query: str) -> list[str]:
     tokens = re.findall(r"[\w-]+", query.lower())
     return [token for token in tokens if len(token) > 2]
 
@@ -289,8 +289,8 @@ def _run_async_blocking(coro: Any) -> Any:
             return asyncio.run_coroutine_threadsafe(coro, target_loop).result()
         return asyncio.run(coro)
 
-    result: Dict[str, Any] = {}
-    error: Dict[str, BaseException] = {}
+    result: dict[str, Any] = {}
+    error: dict[str, BaseException] = {}
 
     def _runner() -> None:
         try:
@@ -310,7 +310,7 @@ def _run_async_blocking(coro: Any) -> Any:
 async def _search_internal_news_from_db(
     query: str,
     top_k: int,
-) -> List[Dict[str, Any]]:
+) -> list[dict[str, Any]]:
     if not settings.enable_database or AsyncSessionLocal is None:
         return []
 
@@ -318,7 +318,7 @@ async def _search_internal_news_from_db(
         return await search_articles_by_keyword(session, query=query, limit=top_k)
 
 
-def _track_reference(article: Dict[str, Any]) -> None:
+def _track_reference(article: dict[str, Any]) -> None:
     if not article:
         return
     article_id = article.get("id") or article.get("article_id")
@@ -350,8 +350,8 @@ def _build_external_reference(
     context_snippet: str | None = None,
     sentence: str | None = None,
     result_type: str | None = None,
-) -> Dict[str, Any]:
-    payload: Dict[str, Any] = {
+) -> dict[str, Any]:
+    payload: dict[str, Any] = {
         "id": _normalize_url(url) or url,
         "url": url,
         "link": url,
@@ -370,7 +370,7 @@ def _build_external_reference(
     return {key: value for key, value in payload.items() if value not in (None, "")}
 
 
-def _track_reference_by_url(url: str, fallback: Dict[str, Any] | None = None) -> None:
+def _track_reference_by_url(url: str, fallback: dict[str, Any] | None = None) -> None:
     normalized = _normalize_url(url)
     if normalized:
         article = _articles_by_id.get(normalized)
@@ -413,16 +413,10 @@ def _track_search_result_references(tool_name: str, content: str) -> None:
             continue
         title = str(item.get("title") or item.get("headline") or "Untitled")
         source = str(item.get("source") or item.get("provider") or "External source")
-        summary = str(
-            item.get("summary") or item.get("body") or item.get("snippet") or ""
-        )
-        published = str(
-            item.get("published") or item.get("date") or item.get("published_at") or ""
-        )
+        summary = str(item.get("summary") or item.get("body") or item.get("snippet") or "")
+        published = str(item.get("published") or item.get("date") or item.get("published_at") or "")
         image = item.get("image")
-        provider = (
-            str(item.get("provider") or provider_hint or "").strip().lower() or None
-        )
+        provider = str(item.get("provider") or provider_hint or "").strip().lower() or None
         context_snippet = str(item.get("context_snippet") or "").strip() or None
         sentence = str(item.get("sentence") or "").strip() or None
         result_type = str(item.get("result_type") or "").strip() or None
@@ -442,7 +436,7 @@ def _track_search_result_references(tool_name: str, content: str) -> None:
         _track_reference_by_url(url, fallback)
 
 
-def _is_internal_article(article: Dict[str, Any]) -> bool:
+def _is_internal_article(article: dict[str, Any]) -> bool:
     retrieval_method = str(article.get("retrieval_method") or "")
     if retrieval_method in {
         "keyword_postgres",
@@ -456,15 +450,11 @@ def _is_internal_article(article: Dict[str, Any]) -> bool:
         return True
 
     normalized = _normalize_url(article.get("url") or article.get("link"))
-    if normalized and normalized in _articles_by_id:
-        return True
-    return False
+    return bool(normalized and normalized in _articles_by_id)
 
 
 def _count_internal_references() -> int:
-    return sum(
-        1 for article in _referenced_articles_tracker if _is_internal_article(article)
-    )
+    return sum(1 for article in _referenced_articles_tracker if _is_internal_article(article))
 
 
 def _normalize_query(query: str) -> str:
@@ -472,11 +462,11 @@ def _normalize_query(query: str) -> str:
 
 
 def _normalize_ddg_result(
-    item: Dict[str, Any],
+    item: dict[str, Any],
     *,
     provider: str,
     result_type: str,
-) -> Dict[str, Any] | None:
+) -> dict[str, Any] | None:
     url = str(item.get("url") or item.get("link") or "").strip()
     if not url:
         return None
@@ -489,14 +479,12 @@ def _normalize_ddg_result(
     ).strip()
     context_snippet = str(item.get("context_snippet") or "").strip() or None
     sentence = str(item.get("sentence") or "").strip() or None
-    result: Dict[str, Any] = {
+    result: dict[str, Any] = {
         "id": _normalize_url(url) or url,
         "url": url,
         "link": url,
         "title": str(item.get("title") or item.get("headline") or "Untitled").strip(),
-        "source": str(
-            item.get("source") or item.get("publisher") or "External source"
-        ).strip(),
+        "source": str(item.get("source") or item.get("publisher") or "External source").strip(),
         "summary": summary,
         "description": summary,
         "published": str(
@@ -513,10 +501,10 @@ def _normalize_ddg_result(
 
 
 def _dedupe_search_results(
-    *result_groups: List[Dict[str, Any]],
-) -> List[Dict[str, Any]]:
-    deduped: List[Dict[str, Any]] = []
-    seen: Set[str] = set()
+    *result_groups: list[dict[str, Any]],
+) -> list[dict[str, Any]]:
+    deduped: list[dict[str, Any]] = []
+    seen: set[str] = set()
     for group in result_groups:
         for item in group:
             if not isinstance(item, dict):
@@ -537,7 +525,7 @@ def _search_gdelt_context(
     *,
     max_results: int = 10,
     timespan: str = GDELT_DEFAULT_TIMESPAN,
-) -> List[Dict[str, Any]]:
+) -> list[dict[str, Any]]:
     service = get_gdelt_query_service()
     results = _run_async_blocking(
         service.search_context(
@@ -554,7 +542,7 @@ def _search_gdelt_doc(
     *,
     max_results: int = 10,
     timespan: str = GDELT_DEFAULT_TIMESPAN,
-) -> List[Dict[str, Any]]:
+) -> list[dict[str, Any]]:
     service = get_gdelt_query_service()
     results = _run_async_blocking(
         service.search_doc(
@@ -571,13 +559,13 @@ def _search_gdelt_current_news(
     *,
     max_results: int = 10,
     timespan: str = GDELT_DEFAULT_TIMESPAN,
-) -> List[Dict[str, Any]]:
+) -> list[dict[str, Any]]:
     context_results = _search_gdelt_context(
         query,
         max_results=max_results,
         timespan=timespan,
     )
-    doc_results: List[Dict[str, Any]] = []
+    doc_results: list[dict[str, Any]] = []
     if len(context_results) < max_results:
         doc_results = _search_gdelt_doc(
             query,
@@ -606,7 +594,7 @@ def _internal_search_found_results(content: str) -> bool:
     return isinstance(payload, list) and len(payload) > 0
 
 
-def _is_internal_fetch_call(call: Dict[str, Any]) -> bool:
+def _is_internal_fetch_call(call: dict[str, Any]) -> bool:
     if str(call.get("name", "")) != "fetch_article_content":
         return False
     args = call.get("args", {})
@@ -631,9 +619,7 @@ def _required_internal_fetches_for_state(
 ) -> int:
     if not internal_search_succeeded:
         return 0
-    internal_reference_count = max(
-        _count_internal_references(), current_message_internal_hits
-    )
+    internal_reference_count = max(_count_internal_references(), current_message_internal_hits)
     if internal_reference_count <= 0:
         return 0
     return min(2, internal_reference_count)
@@ -649,9 +635,7 @@ def _should_auto_fallback_tool_result(tool_name: str, content: Any) -> bool:
         )
     if tool_name == "gdelt_doc_search":
         return (
-            not text
-            or text == "No results found."
-            or text.startswith("GDELT doc search failed:")
+            not text or text == "No results found." or text.startswith("GDELT doc search failed:")
         )
     return False
 
@@ -665,11 +649,11 @@ def _coerce_positive_int(value: Any, default: int) -> int:
 
 
 def _build_fallback_tool_call(
-    call: Dict[str, Any],
+    call: dict[str, Any],
     fallback_tool_name: str,
     *,
     attempt: int,
-) -> Dict[str, Any] | None:
+) -> dict[str, Any] | None:
     args = call.get("args", {})
     if not isinstance(args, dict):
         return None
@@ -678,7 +662,7 @@ def _build_fallback_tool_call(
         query = _normalize_query(str(args.get("query") or args.get("keywords") or ""))
         if not query:
             return None
-        fallback_args: Dict[str, Any] = {
+        fallback_args: dict[str, Any] = {
             "query": query,
             "max_results": _coerce_positive_int(args.get("max_results"), 10),
         }
@@ -686,9 +670,7 @@ def _build_fallback_tool_call(
         if timespan:
             fallback_args["timespan"] = timespan
     elif fallback_tool_name == "news_search":
-        keywords = _normalize_query(
-            str(args.get("keywords") or args.get("query") or "")
-        )
+        keywords = _normalize_query(str(args.get("keywords") or args.get("query") or ""))
         if not keywords:
             return None
         fallback_args = {
@@ -708,9 +690,9 @@ def _build_fallback_tool_call(
 
 
 def _invoke_tool_calls(
-    state: "AgentState",
-    tool_calls: Sequence[Dict[str, Any]],
-) -> List[ToolMessage]:
+    state: AgentState,
+    tool_calls: Sequence[dict[str, Any]],
+) -> list[ToolMessage]:
     if not tool_calls:
         return []
     trimmed = AIMessage(content="", tool_calls=list(tool_calls))
@@ -720,11 +702,11 @@ def _invoke_tool_calls(
 
 
 def _execute_tool_call_with_fallbacks(
-    state: "AgentState",
-    call: Dict[str, Any],
-    tool_history: Set[str],
+    state: AgentState,
+    call: dict[str, Any],
+    tool_history: set[str],
     tool_calls_used: int,
-) -> tuple[List[ToolMessage], int]:
+) -> tuple[list[ToolMessage], int]:
     current_call = call
 
     while True:
@@ -734,12 +716,10 @@ def _execute_tool_call_with_fallbacks(
 
         current_tool_name = str(current_call.get("name", "unknown_tool"))
         current_message = tool_messages[0]
-        if not _should_auto_fallback_tool_result(
-            current_tool_name, current_message.content
-        ):
+        if not _should_auto_fallback_tool_result(current_tool_name, current_message.content):
             return tool_messages, tool_calls_used
 
-        fallback_call: Dict[str, Any] | None = None
+        fallback_call: dict[str, Any] | None = None
         for attempt, fallback_tool_name in enumerate(
             AUTO_FALLBACK_TOOL_ORDER.get(current_tool_name, ()),
             start=1,
@@ -809,7 +789,7 @@ def search_internal_news(query: str, top_k: int = 5) -> str:
     if not _news_articles_cache:
         return "No relevant articles found in internal archive."
 
-    scored: List[tuple[int, Dict[str, Any]]] = []
+    scored: list[tuple[int, dict[str, Any]]] = []
     for article in _news_articles_cache:
         haystack = " ".join(
             [
@@ -905,11 +885,11 @@ def web_search(query: str, num_results: int = 10) -> str:
         return "No results found."
     try:
         ddgs_client = cast(Any, DDGS)()
-        text_search_fn = getattr(ddgs_client, "text")
-        results: List[Dict[str, Any]] = []
+        text_search_fn = ddgs_client.text
+        results: list[dict[str, Any]] = []
         for item in text_search_fn(query, max_results=num_results):
             normalized = _normalize_ddg_result(
-                cast(Dict[str, Any], item),
+                cast(dict[str, Any], item),
                 provider="duckduckgo",
                 result_type="web",
             )
@@ -917,11 +897,7 @@ def web_search(query: str, num_results: int = 10) -> str:
                 results.append(normalized)
         if results:
             _record_research_source_provider("duckduckgo")
-        return (
-            json.dumps(results[:num_results], indent=2)
-            if results
-            else "No results found."
-        )
+        return json.dumps(results[:num_results], indent=2) if results else "No results found."
     except Exception as exc:  # pragma: no cover - network errors
         logger.warning("Web search failed: %s", exc)
         return f"Web search failed: {exc}"
@@ -949,11 +925,11 @@ def news_search(keywords: str, max_results: int = 10, region: str = "wt-wt") -> 
             logger.warning("News search skipped: ddgs dependency is unavailable")
             return "No results found."
         ddgs_client = cast(Any, DDGS)()
-        news_search_fn = getattr(ddgs_client, "news")
-        results: List[Dict[str, Any]] = []
+        news_search_fn = ddgs_client.news
+        results: list[dict[str, Any]] = []
         for item in news_search_fn(keywords, max_results=max_results, region=region):
             normalized = _normalize_ddg_result(
-                cast(Dict[str, Any], item),
+                cast(dict[str, Any], item),
                 provider="duckduckgo",
                 result_type="news",
             )
@@ -961,11 +937,7 @@ def news_search(keywords: str, max_results: int = 10, region: str = "wt-wt") -> 
                 results.append(normalized)
         if results:
             _record_research_source_provider("duckduckgo")
-        return (
-            json.dumps(results[:max_results], indent=2)
-            if results
-            else "No results found."
-        )
+        return json.dumps(results[:max_results], indent=2) if results else "No results found."
     except Exception as exc:  # pragma: no cover - network errors
         logger.warning("News search failed: %s", exc)
         return f"News search failed: {exc}"
@@ -989,9 +961,7 @@ def fetch_article_content(url: str) -> str:
     fallback = _build_external_reference(
         url=url,
         title=str(result.get("title") or "Untitled"),
-        source=str(
-            result.get("source") or result.get("publisher") or "External source"
-        ),
+        source=str(result.get("source") or result.get("publisher") or "External source"),
         summary=preview[:1200],
         published=str(result.get("publish_date") or ""),
         image=str(result.get("top_image") or "") or None,
@@ -1005,7 +975,7 @@ def fetch_article_content(url: str) -> str:
 
 
 @tool
-def rag_index_documents(documents: List[Dict[str, Any]]) -> str:
+def rag_index_documents(documents: list[dict[str, Any]]) -> str:
     """Persist fresh documents into the vector store for future internal search."""
     if isinstance(documents, str):
         try:
@@ -1025,10 +995,7 @@ def rag_index_documents(documents: List[Dict[str, Any]]) -> str:
         metadata = document.get("metadata", {})
         title = metadata.get("title") or document.get("title") or "External Article"
         summary = content[:500]
-        unique_key = (
-            metadata.get("url")
-            or f"rag_{int(datetime.now(timezone.utc).timestamp())}_{added}"
-        )
+        unique_key = metadata.get("url") or f"rag_{int(datetime.now(UTC).timestamp())}_{added}"
         success = store.add_article(
             article_id=str(unique_key),
             title=title,
@@ -1038,11 +1005,7 @@ def rag_index_documents(documents: List[Dict[str, Any]]) -> str:
         )
         if success:
             added += 1
-    return (
-        f"Successfully indexed {added} documents."
-        if added
-        else "No documents were indexed."
-    )
+    return f"Successfully indexed {added} documents." if added else "No documents were indexed."
 
 
 tools = [
@@ -1104,28 +1067,20 @@ def _is_recoverable_llamacpp_error(exc: Exception) -> bool:
         )
     ):
         return True
-    return (
-        "invalid_request_error" in message
-        and "model" in message
-        and "not found" in message
-    )
+    return "invalid_request_error" in message and "model" in message and "not found" in message
 
 
-def _coalesce_assistant_runs(messages: Sequence[BaseMessage]) -> List[BaseMessage]:
-    collapsed: List[BaseMessage] = []
+def _coalesce_assistant_runs(messages: Sequence[BaseMessage]) -> list[BaseMessage]:
+    collapsed: list[BaseMessage] = []
     for message in messages:
-        if (
-            collapsed
-            and isinstance(message, AIMessage)
-            and isinstance(collapsed[-1], AIMessage)
-        ):
+        if collapsed and isinstance(message, AIMessage) and isinstance(collapsed[-1], AIMessage):
             collapsed[-1] = message
         else:
             collapsed.append(message)
     return collapsed
 
 
-def _trim_trailing_assistant_runs(messages: Sequence[BaseMessage]) -> List[BaseMessage]:
+def _trim_trailing_assistant_runs(messages: Sequence[BaseMessage]) -> list[BaseMessage]:
     sanitized = list(messages)
     while (
         len(sanitized) >= 2
@@ -1138,12 +1093,12 @@ def _trim_trailing_assistant_runs(messages: Sequence[BaseMessage]) -> List[BaseM
 
 def _sanitize_messages_for_llamacpp(
     messages: Sequence[BaseMessage],
-) -> List[BaseMessage]:
+) -> list[BaseMessage]:
     if settings.llm_backend != "llamacpp":
         return list(messages)
     trimmed = _trim_trailing_assistant_runs(_coalesce_assistant_runs(messages))
-    system_messages: List[SystemMessage] = []
-    non_system: List[BaseMessage] = []
+    system_messages: list[SystemMessage] = []
+    non_system: list[BaseMessage] = []
     for message in trimmed:
         if isinstance(message, SystemMessage):
             system_messages.append(message)
@@ -1155,7 +1110,7 @@ def _sanitize_messages_for_llamacpp(
 def _replace_system_message(
     messages: Sequence[BaseMessage],
     system_content: str,
-) -> List[BaseMessage]:
+) -> list[BaseMessage]:
     return [
         SystemMessage(content=system_content),
         *[message for message in messages if not isinstance(message, SystemMessage)],
@@ -1271,7 +1226,7 @@ def _get_tool_router() -> RunnableMessageInvoker:
 _tools_by_name = {t.name: t for t in tools}
 
 
-def _dedup_tool_node(state: "AgentState") -> Dict[str, Any]:
+def _dedup_tool_node(state: AgentState) -> dict[str, Any]:
     """Intercept the last AIMessage and deduplicate tool calls before execution.
 
     Keeps the first occurrence of each (tool_name, args) pair across the
@@ -1285,9 +1240,7 @@ def _dedup_tool_node(state: "AgentState") -> Dict[str, Any]:
     tool_calls = getattr(last_msg, "tool_calls", None) or []
     tool_history = set(state.get("tool_history", set()))
     tool_calls_used = int(state.get("tool_calls_used", 0))
-    internal_search_done = any(
-        key.startswith("search_internal_news:") for key in tool_history
-    )
+    internal_search_done = any(key.startswith("search_internal_news:") for key in tool_history)
     internal_search_succeeded = False
     internal_fetch_calls_done = 0
     current_message_internal_hits = 0
@@ -1297,18 +1250,14 @@ def _dedup_tool_node(state: "AgentState") -> Dict[str, Any]:
             continue
         tool_name = str(getattr(message, "name", "") or "")
         content = _content_to_text(message.content)
-        if tool_name == "search_internal_news" and _internal_search_found_results(
-            content
-        ):
+        if tool_name == "search_internal_news" and _internal_search_found_results(content):
             internal_search_succeeded = True
             try:
                 payload = json.loads(content)
             except json.JSONDecodeError:
                 payload = None
             if isinstance(payload, list):
-                current_message_internal_hits = max(
-                    current_message_internal_hits, len(payload)
-                )
+                current_message_internal_hits = max(current_message_internal_hits, len(payload))
 
     for key in tool_history:
         if key.startswith("fetch_article_content:"):
@@ -1322,12 +1271,10 @@ def _dedup_tool_node(state: "AgentState") -> Dict[str, Any]:
                 internal_fetch_calls_done += 1
 
     search_query_keys = {
-        key.removeprefix("search_query:")
-        for key in tool_history
-        if key.startswith("search_query:")
+        key.removeprefix("search_query:") for key in tool_history if key.startswith("search_query:")
     }
 
-    results: List[ToolMessage] = []
+    results: list[ToolMessage] = []
     unique_calls = []
 
     for call in tool_calls:
@@ -1432,7 +1379,7 @@ def _dedup_tool_node(state: "AgentState") -> Dict[str, Any]:
             search_query_keys.add(query_text)
 
     if unique_calls:
-        executed_results: List[ToolMessage] = []
+        executed_results: list[ToolMessage] = []
         for call in unique_calls:
             if _is_stopped():
                 break
@@ -1470,14 +1417,17 @@ def _get_graph() -> CompiledAgentGraph:
 
 
 class AgentState(TypedDict):
+    """Agent State."""
+
     messages: Annotated[Sequence[BaseMessage], add_messages]
     iteration: int
     mode: str
-    tool_history: Set[str]
+    tool_history: set[str]
     tool_calls_used: int
 
 
-def call_model(state: AgentState) -> Dict[str, Any]:
+def call_model(state: AgentState) -> dict[str, Any]:
+    """Call Model."""
     mode = state.get("mode", "research")
     tool_history = set(state.get("tool_history", set()))
     tool_calls_used = int(state.get("tool_calls_used", 0))
@@ -1541,9 +1491,7 @@ def call_model(state: AgentState) -> Dict[str, Any]:
             "tool router invoke",
         )
         next_mode = "research"
-        if isinstance(response, AIMessage) and not getattr(
-            response, "tool_calls", None
-        ):
+        if isinstance(response, AIMessage) and not getattr(response, "tool_calls", None):
             next_mode = "final_pending"
         return {
             "messages": [response],
@@ -1584,6 +1532,7 @@ def _extract_text_from_message(message: BaseMessage) -> str:
 
 
 def should_continue(state: AgentState) -> str:
+    """Should Continue."""
     if state.get("mode") == "tool_router":
         return "agent"
     if state.get("mode") == "final":
@@ -1591,18 +1540,16 @@ def should_continue(state: AgentState) -> str:
     if state.get("mode") == "final_pending":
         return "agent"
     last_message = state["messages"][-1]
-    if isinstance(last_message, AIMessage) and getattr(
-        last_message, "tool_calls", None
-    ):
+    if isinstance(last_message, AIMessage) and getattr(last_message, "tool_calls", None):
         return "tools"
     return END
 
 
 def _build_initial_messages(
-    query: str, chat_history: Optional[List[Dict[str, str]]] = None
-) -> List[BaseMessage]:
+    query: str, chat_history: list[dict[str, str]] | None = None
+) -> list[BaseMessage]:
     system_message = SystemMessage(content=_system_prompt())
-    history_messages: List[BaseMessage] = []
+    history_messages: list[BaseMessage] = []
     if chat_history:
         for entry in chat_history:
             role = entry.get("type")
@@ -1633,10 +1580,10 @@ def _content_to_text(content: Any) -> str:
     return str(content)
 
 
-def _match_articles_in_text(answer_text: str) -> List[Dict[str, Any]]:
+def _match_articles_in_text(answer_text: str) -> list[dict[str, Any]]:
     pattern = r"https?://[^\s)]+"
     matches = re.findall(pattern, answer_text)
-    resolved: List[Dict[str, Any]] = []
+    resolved: list[dict[str, Any]] = []
     for match in matches:
         normalized = _normalize_url(match)
         if not normalized:
@@ -1669,8 +1616,8 @@ def _answer_denies_available_context(answer_text: str) -> bool:
     return any(phrase in lower_content for phrase in DENIAL_PHRASES)
 
 
-def _build_context_snippet(referenced_articles: List[Dict[str, Any]]) -> str:
-    lines: List[str] = []
+def _build_context_snippet(referenced_articles: list[dict[str, Any]]) -> str:
+    lines: list[str] = []
     for article in referenced_articles[:8]:
         title = article.get("title") or "Untitled"
         source = article.get("source") or "Unknown"
@@ -1685,16 +1632,14 @@ def _build_context_snippet(referenced_articles: List[Dict[str, Any]]) -> str:
         published = article.get("published") or ""
         provider = article.get("provider") or ""
         provider_suffix = f" [{provider}]" if provider else ""
-        lines.append(
-            f"- {title} ({source}){provider_suffix} {published}\n  {url}\n  {summary}"
-        )
+        lines.append(f"- {title} ({source}){provider_suffix} {published}\n  {url}\n  {summary}")
     return "\n".join(lines)
 
 
-def _build_tool_evidence_snippet(tool_snippets: List[str]) -> str:
+def _build_tool_evidence_snippet(tool_snippets: list[str]) -> str:
     if not tool_snippets:
         return ""
-    evidence_lines: List[str] = []
+    evidence_lines: list[str] = []
     for index, snippet in enumerate(tool_snippets[:6], start=1):
         compact = snippet.strip()
         if not compact:
@@ -1705,8 +1650,8 @@ def _build_tool_evidence_snippet(tool_snippets: List[str]) -> str:
 
 def _finalize_answer(
     query: str,
-    referenced_articles: List[Dict[str, Any]],
-    tool_snippets: List[str],
+    referenced_articles: list[dict[str, Any]],
+    tool_snippets: list[str],
 ) -> str:
     context = _build_context_snippet(referenced_articles)
     tool_context = _build_tool_evidence_snippet(tool_snippets)
@@ -1724,7 +1669,7 @@ def _finalize_answer(
     if tool_context:
         prompt_parts.extend(["Extracted evidence:", tool_context])
     prompt_parts.append("Return the final response.")
-    finalizer_messages: List[BaseMessage] = [
+    finalizer_messages: list[BaseMessage] = [
         SystemMessage(content=_finalizer_system_prompt()),
         HumanMessage(content="\n\n".join(prompt_parts)),
     ]
@@ -1750,10 +1695,11 @@ def _sanitize_final_answer(answer_text: str) -> str:
 
 def research_news(
     query: str,
-    articles: Optional[List[Dict[str, Any]]] = None,
+    articles: list[dict[str, Any]] | None = None,
     verbose: bool = True,
-    chat_history: Optional[List[Dict[str, str]]] = None,
-) -> Dict[str, Any]:
+    chat_history: list[dict[str, str]] | None = None,
+) -> dict[str, Any]:
+    """Research News."""
     _stop_events.event = None
     set_news_articles(articles)
     initial_state: AgentState = {
@@ -1764,10 +1710,10 @@ def research_news(
         "tool_calls_used": 0,
     }
 
-    thinking_steps: List[Dict[str, Any]] = []
+    thinking_steps: list[dict[str, Any]] = []
     final_answer = ""
-    tool_snippets: List[str] = []
-    logged_tool_calls: Set[str] = set()
+    tool_snippets: list[str] = []
+    logged_tool_calls: set[str] = set()
 
     for update in _get_graph().stream(initial_state, stream_mode="updates"):
         if "agent" in update:
@@ -1777,7 +1723,7 @@ def research_news(
                 {
                     "type": "thought",
                     "content": final_answer,
-                    "timestamp": datetime.now(timezone.utc).isoformat(),
+                    "timestamp": datetime.now(UTC).isoformat(),
                 }
             )
             for tool_call in _iter_new_tool_calls(
@@ -1788,7 +1734,7 @@ def research_news(
                     {
                         "type": "action",
                         "content": f"Tool request: {tool_call['name']} {tool_call.get('args', {})}",
-                        "timestamp": datetime.now(timezone.utc).isoformat(),
+                        "timestamp": datetime.now(UTC).isoformat(),
                     }
                 )
         if "tools" in update:
@@ -1799,7 +1745,7 @@ def research_news(
                     {
                         "type": "observation",
                         "content": snippet,
-                        "timestamp": datetime.now(timezone.utc).isoformat(),
+                        "timestamp": datetime.now(UTC).isoformat(),
                     }
                 )
                 if snippet:
@@ -1832,7 +1778,7 @@ def research_news(
         }
         structured_block = f"\n```json:articles\n{json.dumps(payload, indent=2)}\n```\n"
 
-    result: Dict[str, Any] = {
+    result: dict[str, Any] = {
         "success": bool(final_answer),
         "query": query,
         "answer": final_answer,
@@ -1850,10 +1796,11 @@ def research_news(
 
 def research_stream(
     query: str,
-    articles: Optional[List[Dict[str, Any]]] = None,
-    chat_history: Optional[List[Dict[str, str]]] = None,
+    articles: list[dict[str, Any]] | None = None,
+    chat_history: list[dict[str, str]] | None = None,
     stop_event: threading.Event | None = None,
 ) -> Generator[str, None, None]:
+    """Research Stream."""
     _stop_events.event = stop_event
     try:
         yield from _research_stream_impl(query, articles, chat_history, stop_event)
@@ -1863,8 +1810,8 @@ def research_stream(
 
 def _research_stream_impl(
     query: str,
-    articles: Optional[List[Dict[str, Any]]] = None,
-    chat_history: Optional[List[Dict[str, str]]] = None,
+    articles: list[dict[str, Any]] | None = None,
+    chat_history: list[dict[str, str]] | None = None,
     stop_event: threading.Event | None = None,
 ) -> Generator[str, None, None]:
     set_news_articles(articles)
@@ -1877,8 +1824,8 @@ def _research_stream_impl(
     }
 
     final_answer = ""
-    tool_snippets: List[str] = []
-    logged_tool_calls: Set[str] = set()
+    tool_snippets: list[str] = []
+    logged_tool_calls: set[str] = set()
 
     for update in _get_graph().stream(initial_state, stream_mode="updates"):
         if stop_event is not None and stop_event.is_set():
@@ -1891,9 +1838,7 @@ def _research_stream_impl(
                     return
                 final_answer = content_text
                 yield (
-                    "data: "
-                    + json.dumps({"type": "thinking", "content": content_text})
-                    + "\n\n"
+                    "data: " + json.dumps({"type": "thinking", "content": content_text}) + "\n\n"
                 )
 
             for tool_call in _iter_new_tool_calls(
@@ -1971,11 +1916,7 @@ def _research_stream_impl(
             "source_providers": source_providers,
         }
         json_payload = json.dumps(payload)
-        yield (
-            "data: "
-            + json.dumps({"type": "articles_json", "data": json_payload})
-            + "\n\n"
-        )
+        yield ("data: " + json.dumps({"type": "articles_json", "data": json_payload}) + "\n\n")
         structured_block = f"\n```json:articles\n{json.dumps(payload, indent=2)}\n```\n"
 
     result = {

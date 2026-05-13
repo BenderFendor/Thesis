@@ -44,7 +44,7 @@ import {
 import { motion, AnimatePresence } from "framer-motion"
 import { TrendingFeed } from "./trending-feed"
 import type { NewsArticle, AllCluster, TrendingCluster } from "@/lib/api"
-import { get_logger, cn } from "@/lib/utils"
+import { getLogger, cn } from "@/lib/utils"
 import { useReadingQueue } from "@/hooks/useReadingQueue"
 import { useLikedArticles } from "@/hooks/useLikedArticles"
 import { useFavorites } from "@/hooks/useFavorites"
@@ -88,7 +88,7 @@ const ClusterDetailModal = dynamic(
   },
 )
 
-const logger = get_logger("GridView")
+const logger = getLogger("GridView")
 const SOURCE_GROUP_BATCH_SIZE = 10
 const COLLAPSED_SOURCE_ARTICLE_COUNT = 20
 
@@ -296,7 +296,7 @@ export function GridView({
   }, [])
 
   const stripTitleSuffix = useCallback((value: string) => {
-    return value.split(/\s[-|\u2013\u2014]\s/)[0].trim()
+    return value.split(/\s[-|\u2013\u2014]\s/)[0]!.trim()
   }, [])
 
   const getClusterDisplayLabel = useCallback(

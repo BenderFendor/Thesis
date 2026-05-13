@@ -46,10 +46,10 @@ function getFeatureCenter(geometry?: { coordinates?: unknown } | null) {
 
   if (coords.length === 0) return null
 
-  let minLng = coords[0][0]
-  let maxLng = coords[0][0]
-  let minLat = coords[0][1]
-  let maxLat = coords[0][1]
+  let minLng = coords[0]![0]!
+  let maxLng = coords[0]![0]!
+  let minLat = coords[0]![1]!
+  let maxLat = coords[0]![1]!
 
   coords.forEach(([lng, lat]) => {
     minLng = Math.min(minLng, lng)
@@ -450,30 +450,30 @@ function applyGlobeTextures(
     cloudTexture: THREE.Texture
   },
 ) {
-  material.uniforms.uDayTexture.value = textures.dayTexture
-  material.uniforms.uNightTexture.value = textures.nightTexture
-  material.uniforms.uBumpTexture.value = textures.bumpTexture
-  material.uniforms.uSurfaceMask.value = textures.surfaceMaskTexture
-  material.uniforms.uCloudTexture.value = textures.cloudTexture
+  material.uniforms.uDayTexture!.value = textures.dayTexture
+  material.uniforms.uNightTexture!.value = textures.nightTexture
+  material.uniforms.uBumpTexture!.value = textures.bumpTexture
+  material.uniforms.uSurfaceMask!.value = textures.surfaceMaskTexture
+  material.uniforms.uCloudTexture!.value = textures.cloudTexture
   material.needsUpdate = true
 }
 
 function restorePlaceholderGlobeTextures(material: THREE.ShaderMaterial, placeholderTextures: THREE.Texture[]) {
-  material.uniforms.uDayTexture.value = placeholderTextures[0]
-  material.uniforms.uNightTexture.value = placeholderTextures[1]
-  material.uniforms.uBumpTexture.value = placeholderTextures[2]
-  material.uniforms.uSurfaceMask.value = placeholderTextures[3]
-  material.uniforms.uCloudTexture.value = placeholderTextures[4]
+  material.uniforms.uDayTexture!.value = placeholderTextures[0]!
+  material.uniforms.uNightTexture!.value = placeholderTextures[1]!
+  material.uniforms.uBumpTexture!.value = placeholderTextures[2]!
+  material.uniforms.uSurfaceMask!.value = placeholderTextures[3]!
+  material.uniforms.uCloudTexture!.value = placeholderTextures[4]!
   material.needsUpdate = true
 }
 
 function setLightingModeUniform(material: THREE.ShaderMaterial, lightingMode: EarthLightingMode) {
-  material.uniforms.uLightingMode.value = lightingMode === "day-night" ? 1 : 0
+  material.uniforms.uLightingMode!.value = lightingMode === "day-night" ? 1 : 0
 }
 
 function updateAnimationUniforms(material: THREE.ShaderMaterial, elapsed: number) {
-  material.uniforms.uTime.value = elapsed
-  material.uniforms.uCloudOffset.value = (elapsed * 0.0032) % 1
+  material.uniforms.uTime!.value = elapsed
+  material.uniforms.uCloudOffset!.value = (elapsed * 0.0032) % 1
 }
 
 function findGlobeAnchor(scene: THREE.Scene) {
@@ -743,7 +743,7 @@ export function InteractiveGlobe({
     renderer.toneMapping = THREE.ACESFilmicToneMapping
     renderer.toneMappingExposure = 1.05
 
-    const sunDirection = globeMaterial.uniforms.uSunDirection.value as THREE.Vector3
+    const sunDirection = globeMaterial.uniforms.uSunDirection!.value as THREE.Vector3
     const globeAnchor = findGlobeAnchor(scene)
     const ambientLight = new THREE.AmbientLight(0x152131, 0.16)
     const hemisphereLight = new THREE.HemisphereLight(0x325d87, 0x04070d, 0.14)
@@ -822,9 +822,9 @@ export function InteractiveGlobe({
         const cloudsMaterial = new THREE.ShaderMaterial({
           uniforms: {
             uCloudTexture: { value: cloudTexture },
-            uSunDirection: globeMaterial.uniforms.uSunDirection,
-            uCloudOffset: globeMaterial.uniforms.uCloudOffset,
-            uLightingMode: globeMaterial.uniforms.uLightingMode,
+            uSunDirection: globeMaterial.uniforms.uSunDirection!,
+            uCloudOffset: globeMaterial.uniforms.uCloudOffset!,
+            uLightingMode: globeMaterial.uniforms.uLightingMode!,
           },
           vertexShader: EARTH_VERTEX_SHADER,
           fragmentShader: CLOUD_FRAGMENT_SHADER,
@@ -835,8 +835,8 @@ export function InteractiveGlobe({
 
         const atmosphereMaterial = new THREE.ShaderMaterial({
           uniforms: {
-            uSunDirection: globeMaterial.uniforms.uSunDirection,
-            uLightingMode: globeMaterial.uniforms.uLightingMode,
+            uSunDirection: globeMaterial.uniforms.uSunDirection!,
+            uLightingMode: globeMaterial.uniforms.uLightingMode!,
           },
           vertexShader: EARTH_VERTEX_SHADER,
           fragmentShader: ATMOSPHERE_FRAGMENT_SHADER,

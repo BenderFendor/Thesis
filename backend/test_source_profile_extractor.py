@@ -143,14 +143,10 @@ def _fetch_live_documents(urls):
     with httpx.Client(timeout=20.0, follow_redirects=True, headers=headers) as client:
         for url in urls:
             response = client.get(url)
-            assert response.status_code == 200, (
-                f"Fetch failed for {url}: {response.status_code}"
-            )
+            assert response.status_code == 200, f"Fetch failed for {url}: {response.status_code}"
             text, title = _extract_text_and_title(response.text)
             assert text, f"No text extracted from {url}"
-            documents.append(
-                SourceDocument(url=str(response.url), title=title or url, text=text)
-            )
+            documents.append(SourceDocument(url=str(response.url), title=title or url, text=text))
     return documents
 
 

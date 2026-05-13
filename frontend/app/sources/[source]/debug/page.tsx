@@ -2,7 +2,8 @@
 
 import { useState, use } from "react"
 import { useQuery } from "@tanstack/react-query"
-import { fetchSourceDebugData, SourceDebugData } from "@/lib/api"
+import type { SourceDebugData } from "@/lib/api";
+import { fetchSourceDebugData } from "@/lib/api"
 import { setDebugMode } from "@/lib/logger"
 import { useDebugMode } from "@/hooks/useDebugMode"
 import { ArrowLeft, RefreshCw, Code, ExternalLink, AlertTriangle, ImageIcon, FileText, Globe, Search, Settings } from "lucide-react"

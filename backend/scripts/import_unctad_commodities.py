@@ -13,7 +13,6 @@ import argparse
 import asyncio
 import csv
 import io
-import os
 import sys
 import re
 from datetime import datetime
@@ -27,8 +26,7 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 UNCTAD_COMMODITY_URL = (
-    "https://raw.githubusercontent.com/datasets/commodity-prices/main/data/"
-    "commodity-prices.csv"
+    "https://raw.githubusercontent.com/datasets/commodity-prices/main/data/commodity-prices.csv"
 )
 
 CHUNK_SIZE = 5000
@@ -85,9 +83,8 @@ async def import_csv(csv_path: str | None = None, chunk_size: int = CHUNK_SIZE) 
     rows_inserted = 0
     source_used = "csv"
 
-    if csv_path and os.path.exists(csv_path):
-        with open(csv_path, "r", encoding="utf-8") as f:
-            content = f.read()
+    if csv_path and Path(csv_path).exists():
+        content = Path(csv_path).read_text(encoding="utf-8")
         source_used = csv_path
     else:
         print(f"Downloading UNCTAD commodity prices from {UNCTAD_COMMODITY_URL} ...")
@@ -157,11 +154,7 @@ async def import_csv(csv_path: str | None = None, chunk_size: int = CHUNK_SIZE) 
                 continue
 
             rows_inserted += len(params_list)
-            pct = (
-                min(100, round(rows_inserted / total_rows * 100, 1))
-                if total_rows
-                else 0
-            )
+            pct = min(100, round(rows_inserted / total_rows * 100, 1)) if total_rows else 0
             print(
                 f"  Batch {batch_idx + 1}/{len(batches)}: "
                 f"{rows_inserted:,} / {total_rows:,} rows ({pct}%)"

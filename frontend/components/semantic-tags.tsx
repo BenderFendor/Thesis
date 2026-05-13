@@ -3,7 +3,8 @@
 import { useQuery } from "@tanstack/react-query";
 import { Tag, Loader2 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
-import { fetchArticleTopics, ArticleTopic } from "@/lib/api";
+import type { ArticleTopic } from "@/lib/api";
+import { fetchArticleTopics } from "@/lib/api";
 
 interface SemanticTagsProps {
   articleId: number;

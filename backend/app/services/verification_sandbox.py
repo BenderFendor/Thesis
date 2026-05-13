@@ -1,5 +1,4 @@
-"""
-Read-only sandbox workspace for verification agent.
+"""Read-only sandbox workspace for verification agent.
 
 Safety constraints:
 - Temp workspace in /tmp/thesis_verification/{session_id}/
@@ -16,10 +15,10 @@ import hashlib
 import os
 import re
 import shutil
-from datetime import datetime, timezone
+from datetime import datetime, UTC
 from pathlib import Path
 from types import TracebackType
-from typing import Any, Dict, List, Optional, Set
+from typing import Any
 from urllib.parse import urlparse
 
 from app.core.config import settings
@@ -51,8 +50,7 @@ class SandboxSecurityError(Exception):
 
 
 class VerificationSandbox:
-    """
-    Read-only workspace for verification research artifacts.
+    """Read-only workspace for verification research artifacts.
 
     Provides:
     - Isolated temp directory per session
@@ -62,13 +60,14 @@ class VerificationSandbox:
     - Automatic cleanup
     """
 
-    def __init__(self, session_id: Optional[str] = None):
+    def __init__(self, session_id: str | None = None):
+        """Initialize."""
         self.session_id = session_id or self._generate_session_id()
         self.workspace_dir = Path(settings.verification_workspace_dir) / self.session_id
         self.workspace_dir.mkdir(parents=True, exist_ok=True)
-        self.created_at = datetime.now(timezone.utc)
-        self.artifacts: List[str] = []
-        self._allowed_domains: Set[str] = set(settings.verification_allowed_domains)
+        self.created_at = datetime.now(UTC)
+        self.artifacts: list[str] = []
+        self._allowed_domains: set[str] = set(settings.verification_allowed_domains)
         logger.info(
             "Verification sandbox created: session=%s workspace=%s",
             self.session_id,
@@ -76,16 +75,13 @@ class VerificationSandbox:
         )
 
     def _generate_session_id(self) -> str:
-        timestamp = datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S")
+        timestamp = datetime.now(UTC).strftime("%Y%m%d_%H%M%S")
         random_suffix = hashlib.sha256(os.urandom(16)).hexdigest()[:8]
         return f"verify_{timestamp}_{random_suffix}"
 
     def _is_path_blocked(self, path: Path) -> bool:
         path_str = str(path)
-        for pattern in BLOCKED_PATTERNS:
-            if re.search(pattern, path_str):
-                return True
-        return False
+        return any(re.search(pattern, path_str) for pattern in BLOCKED_PATTERNS)
 
     def _is_read_allowed(self, path: Path) -> bool:
         resolved = path.resolve()
@@ -93,12 +89,10 @@ class VerificationSandbox:
             return False
         if resolved.is_relative_to(self.workspace_dir):
             return True
-        for allowed_path in ALLOWED_READ_PATHS:
-            if resolved.is_relative_to(allowed_path):
-                return True
-        return False
+        return any(resolved.is_relative_to(allowed_path) for allowed_path in ALLOWED_READ_PATHS)
 
     def is_domain_allowed(self, url: str) -> bool:
+        """Is Domain Allowed."""
         try:
             parsed = urlparse(url)
             domain = parsed.netloc.lower()
@@ -111,16 +105,13 @@ class VerificationSandbox:
             return False
 
     def read_file(self, path: str | Path) -> str:
-        """
-        Read a file if path is within allowed boundaries.
+        """Read a file if path is within allowed boundaries.
 
         Raises SandboxSecurityError if path is blocked.
         """
         resolved = Path(path).resolve()
         if not self._is_read_allowed(resolved):
-            raise SandboxSecurityError(
-                f"Read access denied: {path} is outside sandbox boundaries"
-            )
+            raise SandboxSecurityError(f"Read access denied: {path} is outside sandbox boundaries")
         if not resolved.exists():
             raise FileNotFoundError(f"File not found: {path}")
         if not resolved.is_file():
@@ -131,10 +122,9 @@ class VerificationSandbox:
         self,
         filename: str,
         content: str,
-        metadata: Optional[Dict[str, Any]] = None,
+        metadata: dict[str, Any] | None = None,
     ) -> Path:
-        """
-        Write a research artifact to the sandbox workspace.
+        """Write a research artifact to the sandbox workspace.
 
         Only writes to the isolated workspace directory.
         """
@@ -165,9 +155,8 @@ class VerificationSandbox:
         pattern: str,
         filename: str,
         ignore_case: bool = True,
-    ) -> List[Dict[str, Any]]:
-        """
-        Search for pattern in an artifact.
+    ) -> list[dict[str, Any]]:
+        """Search for pattern in an artifact.
 
         Returns list of matches with line numbers and context.
         """
@@ -186,7 +175,7 @@ class VerificationSandbox:
                 )
         return matches
 
-    def list_artifacts(self) -> List[Dict[str, Any]]:
+    def list_artifacts(self) -> list[dict[str, Any]]:
         """List all artifacts in the workspace."""
         artifacts = []
         for path in self.workspace_dir.iterdir():
@@ -196,9 +185,7 @@ class VerificationSandbox:
                     {
                         "filename": path.name,
                         "size_bytes": stat.st_size,
-                        "created_at": datetime.fromtimestamp(
-                            stat.st_ctime, tz=timezone.utc
-                        ).isoformat(),
+                        "created_at": datetime.fromtimestamp(stat.st_ctime, tz=UTC).isoformat(),
                     }
                 )
         return artifacts
@@ -209,7 +196,7 @@ class VerificationSandbox:
             shutil.rmtree(self.workspace_dir, ignore_errors=True)
             logger.info("Sandbox cleaned up: session=%s", self.session_id)
 
-    def get_stats(self) -> Dict[str, Any]:
+    def get_stats(self) -> dict[str, Any]:
         """Get sandbox statistics."""
         total_size = (
             sum(f.stat().st_size for f in self.workspace_dir.iterdir() if f.is_file())
@@ -225,7 +212,8 @@ class VerificationSandbox:
             "allowed_domains_count": len(self._allowed_domains),
         }
 
-    def __enter__(self) -> "VerificationSandbox":
+    def __enter__(self) -> VerificationSandbox:
+        """Context manager enter."""
         return self
 
     def __exit__(
@@ -234,6 +222,7 @@ class VerificationSandbox:
         exc_val: BaseException | None,
         _exc_tb: TracebackType | None,
     ) -> None:
+        """Context manager exit."""
         self.cleanup()
 
 
@@ -243,7 +232,7 @@ def cleanup_stale_workspaces(max_age_hours: int = 24) -> int:
     if not base_dir.exists():
         return 0
 
-    cutoff = datetime.now(timezone.utc).timestamp() - (max_age_hours * 3600)
+    cutoff = datetime.now(UTC).timestamp() - (max_age_hours * 3600)
     removed = 0
 
     for workspace in base_dir.iterdir():

@@ -75,7 +75,7 @@ function resolveActiveVersion<T extends BranchableChatMessage>(
 ): T {
   return (
     versions.find((message) => message.id === activeVersionId) ??
-    versions[versions.length - 1]
+    versions[versions.length - 1]!
   );
 }
 

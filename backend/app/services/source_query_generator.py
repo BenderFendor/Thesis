@@ -1,9 +1,10 @@
+"""Source Query Generator."""
+
 from __future__ import annotations
 
 import asyncio
 import json
 import re
-from typing import List, Optional
 
 from app.core.config import get_openai_client, settings
 from app.core.logging import get_logger
@@ -25,8 +26,8 @@ QUERY_SYSTEM_PROMPT = build_json_system_prompt(
 
 async def generate_search_queries(
     source_name: str,
-    website: Optional[str] = None,
-) -> List[str]:
+    website: str | None = None,
+) -> list[str]:
     """Generate optimal search queries for a source."""
     client = get_openai_client()
     if not client:
@@ -65,7 +66,7 @@ async def generate_search_queries(
         return _fallback_queries(source_name, website)
 
 
-def _parse_queries(content: str) -> List[str]:
+def _parse_queries(content: str) -> list[str]:
     """Parse queries from LLM response."""
     if not content:
         return []
@@ -90,7 +91,7 @@ def _parse_queries(content: str) -> List[str]:
     return []
 
 
-def _fallback_queries(source_name: str, website: Optional[str]) -> List[str]:
+def _fallback_queries(source_name: str, website: str | None) -> list[str]:
     """Generate fallback queries without LLM."""
     site_filter = ""
     if website:

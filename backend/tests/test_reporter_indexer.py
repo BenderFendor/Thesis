@@ -47,9 +47,7 @@ def engine_and_session():
         engine = create_async_engine("sqlite+aiosqlite:///:memory:", echo=False)
         async with engine.begin() as conn:
             await conn.run_sync(Base.metadata.create_all)
-        factory = async_sessionmaker(
-            engine, class_=AsyncSession, expire_on_commit=False
-        )
+        factory = async_sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
         return engine, factory
 
     return _setup
@@ -81,9 +79,7 @@ async def test_stale_reporter_update_uses_one_session(engine_and_session):
         await session.commit()
 
     with (
-        patch(
-            "app.services.reporter_indexer._get_session", side_effect=lambda: factory()
-        ),
+        patch("app.services.reporter_indexer._get_session", side_effect=lambda: factory()),
         patch(
             "app.services.reporter_indexer.build_reporter_dossier",
             new=AsyncMock(return_value=_matched_profile()),
@@ -103,9 +99,7 @@ async def test_stale_reporter_update_uses_one_session(engine_and_session):
         ).scalar_one()
         status = (
             await session.execute(
-                select(WikiIndexStatus).where(
-                    WikiIndexStatus.entity_name == "jane doe::test news"
-                )
+                select(WikiIndexStatus).where(WikiIndexStatus.entity_name == "jane doe::test news")
             )
         ).scalar_one()
 
@@ -148,9 +142,7 @@ async def test_unmatched_reporter_persists_local_byline_profile(engine_and_sessi
     }
 
     with (
-        patch(
-            "app.services.reporter_indexer._get_session", side_effect=lambda: factory()
-        ),
+        patch("app.services.reporter_indexer._get_session", side_effect=lambda: factory()),
         patch(
             "app.services.reporter_indexer.build_reporter_dossier",
             new=AsyncMock(return_value=unmatched_profile),
@@ -181,9 +173,7 @@ async def test_unmatched_reporter_persists_local_byline_profile(engine_and_sessi
     async with factory() as session:
         reporter = (
             await session.execute(
-                select(Reporter).where(
-                    Reporter.resolver_key == "alex local::example news"
-                )
+                select(Reporter).where(Reporter.resolver_key == "alex local::example news")
             )
         ).scalar_one()
 

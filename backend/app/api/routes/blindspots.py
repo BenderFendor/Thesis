@@ -2,8 +2,8 @@
 
 from __future__ import annotations
 
-from typing import Any, Dict, List, Literal, Optional
-from datetime import datetime, timezone
+from typing import Any, Literal
+from datetime import datetime, UTC
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel
@@ -27,8 +27,8 @@ class SourceBlindSpotsResponse(BaseModel):
     topics_covered: int
     total_active_topics: int
     coverage_ratio: float
-    blind_spots: List[Dict[str, Any]]
-    coverage_gaps: List[Dict[str, Any]]
+    blind_spots: list[dict[str, Any]]
+    coverage_gaps: list[dict[str, Any]]
 
 
 class TopicBlindSpotResponse(BaseModel):
@@ -36,11 +36,11 @@ class TopicBlindSpotResponse(BaseModel):
 
     cluster_id: int
     cluster_label: str
-    keywords: List[str]
+    keywords: list[str]
     article_count: int
-    covering_sources: List[str]
+    covering_sources: list[str]
     covering_count: int
-    blind_spot_sources: List[str]
+    blind_spot_sources: list[str]
     blind_spot_count: int
     severity: str
     date_identified: str
@@ -54,20 +54,24 @@ class CoverageReportResponse(BaseModel):
     total_sources: int
     average_coverage_ratio: float
     average_articles_per_source: float
-    source_rankings: List[Dict[str, Any]]
-    systemic_blind_spots: List[Dict[str, Any]]
-    underperforming_sources: List[Dict[str, Any]]
+    source_rankings: list[dict[str, Any]]
+    systemic_blind_spots: list[dict[str, Any]]
+    underperforming_sources: list[dict[str, Any]]
 
 
 class BlindspotLensResponse(BaseModel):
+    """Blindspot Lens Response."""
+
     id: Literal["bias", "credibility", "geography", "institutional_populist"]
     label: str
     description: str
     available: bool
-    unavailable_reason: Optional[str] = None
+    unavailable_reason: str | None = None
 
 
 class BlindspotLaneResponse(BaseModel):
+    """Blindspot Lane Response."""
+
     id: Literal["pole_a", "shared", "pole_b"]
     label: str
     description: str
@@ -75,75 +79,89 @@ class BlindspotLaneResponse(BaseModel):
 
 
 class BlindspotCoverageCountsResponse(BaseModel):
+    """Blindspot Coverage Counts Response."""
+
     pole_a: int
     shared: int
     pole_b: int
 
 
 class BlindspotCoverageSharesResponse(BaseModel):
+    """Blindspot Coverage Shares Response."""
+
     pole_a: float
     shared: float
     pole_b: float
 
 
 class BlindspotGeographySignalResponse(BaseModel):
+    """Blindspot Geography Signal Response."""
+
     id: str
     label: str
     count: int
 
 
 class BlindspotPreviewArticleResponse(BaseModel):
+    """Blindspot Preview Article Response."""
+
     id: int
     title: str
     source: str
-    source_id: Optional[str] = None
+    source_id: str | None = None
     url: str
-    image_url: Optional[str] = None
-    published_at: Optional[str] = None
-    summary: Optional[str] = None
+    image_url: str | None = None
+    published_at: str | None = None
+    summary: str | None = None
     similarity: float
-    country: Optional[str] = None
-    source_country: Optional[str] = None
-    category: Optional[str] = None
-    bias: Optional[str] = None
-    credibility: Optional[str] = None
-    author: Optional[str] = None
-    authors: List[str] = []
+    country: str | None = None
+    source_country: str | None = None
+    category: str | None = None
+    bias: str | None = None
+    credibility: str | None = None
+    author: str | None = None
+    authors: list[str] = []
 
 
 class BlindspotCardResponse(BaseModel):
+    """Blindspot Card Response."""
+
     cluster_id: int
     cluster_label: str
-    keywords: List[str]
+    keywords: list[str]
     article_count: int
     source_count: int
     lane: Literal["pole_a", "shared", "pole_b"]
     blindspot_score: float
     balance_score: float
-    published_at: Optional[str] = None
+    published_at: str | None = None
     explanation: str
     coverage_counts: BlindspotCoverageCountsResponse
     coverage_shares: BlindspotCoverageSharesResponse
-    representative_article: Optional[BlindspotPreviewArticleResponse] = None
-    articles: List[BlindspotPreviewArticleResponse]
-    geography_signals: List[BlindspotGeographySignalResponse] = []
+    representative_article: BlindspotPreviewArticleResponse | None = None
+    articles: list[BlindspotPreviewArticleResponse]
+    geography_signals: list[BlindspotGeographySignalResponse] = []
 
 
 class BlindspotViewerSummaryResponse(BaseModel):
+    """Blindspot Viewer Summary Response."""
+
     window: str
     total_clusters: int
     eligible_clusters: int
     generated_at: str
-    category: Optional[str] = None
-    source_filters: List[str]
+    category: str | None = None
+    source_filters: list[str]
 
 
 class BlindspotViewerResponse(BaseModel):
-    available_lenses: List[BlindspotLensResponse]
+    """Blindspot Viewer Response."""
+
+    available_lenses: list[BlindspotLensResponse]
     selected_lens: BlindspotLensResponse
     summary: BlindspotViewerSummaryResponse
-    lanes: List[BlindspotLaneResponse]
-    cards: List[BlindspotCardResponse]
+    lanes: list[BlindspotLaneResponse]
+    cards: list[BlindspotCardResponse]
     status: str
 
 
@@ -160,6 +178,7 @@ async def get_source_blind_spots(
     Args:
         source_name: Name of the news source
         days: Analysis period in days (1-90)
+        session: Database session
 
     Returns:
         Blind spots analysis with coverage gaps
@@ -169,16 +188,14 @@ async def get_source_blind_spots(
         result = await analyzer.analyze_source_coverage(session, source_name, days)
         return SourceBlindSpotsResponse(**result)
     except Exception as e:
-        raise HTTPException(
-            status_code=500, detail=f"Failed to analyze source coverage: {str(e)}"
-        )
+        raise HTTPException(status_code=500, detail=f"Failed to analyze source coverage: {str(e)}")
 
 
-@router.get("/topics", response_model=List[TopicBlindSpotResponse])
+@router.get("/topics", response_model=list[TopicBlindSpotResponse])
 async def get_topic_blind_spots(
     min_sources: int = Query(4, ge=2, le=20),
     session: AsyncSession = Depends(get_db),
-) -> List[TopicBlindSpotResponse]:
+) -> list[TopicBlindSpotResponse]:
     """Get topics where major sources have blind spots.
 
     Identifies stories that many sources are covering, but some major sources
@@ -186,6 +203,7 @@ async def get_topic_blind_spots(
 
     Args:
         min_sources: Minimum number of sources covering topic to analyze
+        session: Database session
 
     Returns:
         List of topics with blind spots and severity ratings
@@ -214,6 +232,7 @@ async def get_coverage_report(
 
     Args:
         days: Analysis period in days (7-90)
+        session: Database session
 
     Returns:
         Comprehensive coverage report
@@ -222,15 +241,13 @@ async def get_coverage_report(
         result = await analyze_all_sources(session, days)
         return CoverageReportResponse(**result)
     except Exception as e:
-        raise HTTPException(
-            status_code=500, detail=f"Failed to generate coverage report: {str(e)}"
-        )
+        raise HTTPException(status_code=500, detail=f"Failed to generate coverage report: {str(e)}")
 
 
 @router.post("/update-stats")
 async def update_coverage_stats(
     session: AsyncSession = Depends(get_db),
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     """Trigger update of daily coverage statistics.
 
     Updates SourceCoverageStats table with today's data.
@@ -245,18 +262,16 @@ async def update_coverage_stats(
         return {
             "success": True,
             "sources_updated": updated,
-            "timestamp": datetime.now(timezone.utc).isoformat(),
+            "timestamp": datetime.now(UTC).isoformat(),
         }
     except Exception as e:
-        raise HTTPException(
-            status_code=500, detail=f"Failed to update coverage stats: {str(e)}"
-        )
+        raise HTTPException(status_code=500, detail=f"Failed to update coverage stats: {str(e)}")
 
 
 @router.get("/dashboard")
 async def get_blind_spots_dashboard(
     session: AsyncSession = Depends(get_db),
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     """Get dashboard data for blind spots visualization.
 
     Combines multiple analyses into a single dashboard view.
@@ -269,9 +284,7 @@ async def get_blind_spots_dashboard(
 
         # Get quick summary stats
         report = await analyzer.generate_source_coverage_report(session, days=7)
-        topic_blind_spots = await analyzer.identify_topic_blind_spots(
-            session, min_sources=4
-        )
+        topic_blind_spots = await analyzer.identify_topic_blind_spots(session, min_sources=4)
 
         # Calculate dashboard metrics
         high_severity = [b for b in topic_blind_spots if b["severity"] == "high"]
@@ -279,26 +292,10 @@ async def get_blind_spots_dashboard(
 
         # Source coverage distribution
         coverage_ranges = {
-            "excellent": len(
-                [s for s in report["source_rankings"] if s["coverage_ratio"] >= 0.8]
-            ),
-            "good": len(
-                [
-                    s
-                    for s in report["source_rankings"]
-                    if 0.6 <= s["coverage_ratio"] < 0.8
-                ]
-            ),
-            "fair": len(
-                [
-                    s
-                    for s in report["source_rankings"]
-                    if 0.4 <= s["coverage_ratio"] < 0.6
-                ]
-            ),
-            "poor": len(
-                [s for s in report["source_rankings"] if s["coverage_ratio"] < 0.4]
-            ),
+            "excellent": len([s for s in report["source_rankings"] if s["coverage_ratio"] >= 0.8]),
+            "good": len([s for s in report["source_rankings"] if 0.6 <= s["coverage_ratio"] < 0.8]),
+            "fair": len([s for s in report["source_rankings"] if 0.4 <= s["coverage_ratio"] < 0.6]),
+            "poor": len([s for s in report["source_rankings"] if s["coverage_ratio"] < 0.4]),
         }
 
         return {
@@ -312,12 +309,10 @@ async def get_blind_spots_dashboard(
             "coverage_distribution": coverage_ranges,
             "top_blind_spots": topic_blind_spots[:5],
             "underperforming_sources": report["underperforming_sources"][:5],
-            "last_updated": datetime.now(timezone.utc).isoformat(),
+            "last_updated": datetime.now(UTC).isoformat(),
         }
     except Exception as e:
-        raise HTTPException(
-            status_code=500, detail=f"Failed to generate dashboard: {str(e)}"
-        )
+        raise HTTPException(status_code=500, detail=f"Failed to generate dashboard: {str(e)}")
 
 
 @router.get("/viewer", response_model=BlindspotViewerResponse)
@@ -326,8 +321,8 @@ async def get_blindspot_viewer(
         default="bias"
     ),
     window: str = Query(default="1w", pattern="^(1d|1w|1m)$"),
-    category: Optional[str] = Query(default=None),
-    sources: Optional[str] = Query(default=None),
+    category: str | None = Query(default=None),
+    sources: str | None = Query(default=None),
     per_lane: int = Query(default=10, ge=1, le=20),
     session: AsyncSession = Depends(get_db),
 ) -> BlindspotViewerResponse:

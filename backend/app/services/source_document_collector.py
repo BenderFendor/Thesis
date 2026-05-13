@@ -1,9 +1,11 @@
+"""Source Document Collector."""
+
 from __future__ import annotations
 
 import asyncio
 import re
 from dataclasses import dataclass
-from typing import Iterable, List, Optional, Sequence
+from collections.abc import Iterable, Sequence
 from urllib.parse import urlparse
 
 import httpx
@@ -49,18 +51,23 @@ REFERENCE_DOMAINS = [
 
 @dataclass(frozen=True)
 class SearchResult:
+    """Search Result."""
+
     title: str
     url: str
     snippet: str
 
 
 class DuckDuckGoSearcher:
+    """Duck Duck Go Searcher."""
+
     async def search(
         self, query: str, max_results: int = MAX_RESULTS_PER_QUERY
-    ) -> List[SearchResult]:
+    ) -> list[SearchResult]:
+        """Search."""
         return await asyncio.to_thread(self._search_sync, query, max_results)
 
-    def _search_sync(self, query: str, max_results: int) -> List[SearchResult]:
+    def _search_sync(self, query: str, max_results: int) -> list[SearchResult]:
         try:
             ddgs = DDGS()
             results = list(ddgs.text(query, max_results=max_results))
@@ -68,7 +75,7 @@ class DuckDuckGoSearcher:
             logger.warning("Web search failed for '%s': %s", query, exc)
             return []
 
-        payload: List[SearchResult] = []
+        payload: list[SearchResult] = []
         for item in results:
             url = item.get("href") or item.get("url")
             if not url:
@@ -85,21 +92,22 @@ class DuckDuckGoSearcher:
 
 async def collect_source_documents(
     source_name: str,
-    website: Optional[str] = None,
+    website: str | None = None,
     max_docs: int = MAX_DOCS,
-    max_total_docs: Optional[int] = None,
-    existing_documents: Optional[Sequence[SourceDocument]] = None,
-    extra_queries: Optional[Sequence[str]] = None,
-    searcher: Optional[DuckDuckGoSearcher] = None,
-    planner: Optional[SourceSearchPlanner] = None,
+    max_total_docs: int | None = None,
+    existing_documents: Sequence[SourceDocument] | None = None,
+    extra_queries: Sequence[str] | None = None,
+    searcher: DuckDuckGoSearcher | None = None,
+    planner: SourceSearchPlanner | None = None,
     use_llm_planner: bool = False,
-) -> List[SourceDocument]:
+) -> list[SourceDocument]:
+    """Collect Source Documents."""
     searcher = searcher or DuckDuckGoSearcher()
     planner = planner or SourceSearchPlanner()
     normalized_name = _normalize_source_name(source_name)
     official_domain = _extract_domain(website)
 
-    documents: List[SourceDocument] = list(existing_documents or [])
+    documents: list[SourceDocument] = list(existing_documents or [])
     existing_urls = {doc.url for doc in documents}
 
     candidate_urls = _candidate_urls_from_known_paths(website)
@@ -138,7 +146,7 @@ async def collect_source_documents(
     return documents
 
 
-def _candidate_urls_from_known_paths(website: Optional[str]) -> set[str]:
+def _candidate_urls_from_known_paths(website: str | None) -> set[str]:
     from urllib.parse import urljoin
 
     urls: set[str] = set()
@@ -149,7 +157,7 @@ def _candidate_urls_from_known_paths(website: Optional[str]) -> set[str]:
     return urls
 
 
-def _build_search_queries(source_name: str, website: Optional[str]) -> List[str]:
+def _build_search_queries(source_name: str, website: str | None) -> list[str]:
     site_filter = ""
     if website:
         domain = _extract_domain(website)
@@ -178,7 +186,7 @@ def _normalize_source_name(name: str) -> str:
     return re.sub(r"[^a-z0-9]", "", name.lower())
 
 
-def _extract_domain(website: Optional[str]) -> Optional[str]:
+def _extract_domain(website: str | None) -> str | None:
     if not website:
         return None
     parsed = urlparse(website)
@@ -187,7 +195,7 @@ def _extract_domain(website: Optional[str]) -> Optional[str]:
     return website.lower()
 
 
-def _normalize_url(url: str) -> Optional[str]:
+def _normalize_url(url: str) -> str | None:
     if not url:
         return None
     cleaned = url.strip()
@@ -196,9 +204,7 @@ def _normalize_url(url: str) -> Optional[str]:
     return None
 
 
-def _is_candidate_url(
-    url: str, official_domain: Optional[str], normalized_name: str
-) -> bool:
+def _is_candidate_url(url: str, official_domain: str | None, normalized_name: str) -> bool:
     parsed = urlparse(url)
     host = parsed.netloc.lower()
 
@@ -211,14 +217,12 @@ def _is_candidate_url(
     if any(host.endswith(domain) for domain in REFERENCE_DOMAINS):
         return True
 
-    if normalized_name and normalized_name in host.replace(".", ""):
-        return True
-
-    return False
+    return bool(normalized_name and normalized_name in host.replace(".", ""))
 
 
-def _prioritize_urls(urls: Iterable[str], official_domain: Optional[str]) -> List[str]:
+def _prioritize_urls(urls: Iterable[str], official_domain: str | None) -> list[str]:
     def score(url: str) -> int:
+        """Score."""
         parsed = urlparse(url)
         host = parsed.netloc.lower()
         if host.endswith("wikipedia.org"):
@@ -236,9 +240,9 @@ def _prioritize_urls(urls: Iterable[str], official_domain: Optional[str]) -> Lis
     return sorted(set(urls), key=score)
 
 
-def _dedupe_queries(queries: Sequence[str]) -> List[str]:
+def _dedupe_queries(queries: Sequence[str]) -> list[str]:
     seen: set[str] = set()
-    deduped: List[str] = []
+    deduped: list[str] = []
     for query in queries:
         cleaned = " ".join(query.split())
         if not cleaned:
@@ -254,7 +258,7 @@ def _dedupe_queries(queries: Sequence[str]) -> List[str]:
 async def _fetch_document(
     client: httpx.AsyncClient,
     url: str,
-) -> Optional[SourceDocument]:
+) -> SourceDocument | None:
     try:
         response = await client.get(url)
     except Exception as exc:

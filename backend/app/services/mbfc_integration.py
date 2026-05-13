@@ -1,5 +1,4 @@
-"""
-MBFC Integration - Media Bias/Fact Check outlet-level bias and factuality data.
+"""MBFC Integration - Media Bias/Fact Check outlet-level bias and factuality data.
 
 Uses the free HuggingFace dataset `zainmujahid/mbfc-media-outlets` (CC BY 4.0):
 - 4,192 outlets with factuality labels (low, mixed, high)
@@ -21,7 +20,8 @@ from __future__ import annotations
 import os
 import re
 import warnings
-from typing import Any, Dict, List, Optional
+from pathlib import Path
+from typing import Any
 
 import httpx
 
@@ -32,19 +32,17 @@ logger = get_logger("mbfc")
 
 MBFC_WEIGHT_MULTIPLIER = 0.15
 
-MBFC_DATASET_URL = (
-    "https://huggingface.co/datasets/zainmujahid/mbfc-media-outlets/resolve/main"
-)
+MBFC_DATASET_URL = "https://huggingface.co/datasets/zainmujahid/mbfc-media-outlets/resolve/main"
 MBFC_FACTUALITY_FILE = "factuality.csv"
 MBFC_BIAS_FILE = "bias.csv"
 MBFC_OWNERSHIP_FILE = "ownership.csv"
 
 MBFC_DATA_DIR = os.environ.get(
     "MBFC_DATA_DIR",
-    os.path.join(os.path.dirname(__file__), "..", "..", "data", "mbfc"),
+    str(Path(__file__).resolve().parent.parent.parent / "data" / "mbfc"),
 )
 
-BIAS_TO_STANDARD: Dict[str, str] = {
+BIAS_TO_STANDARD: dict[str, str] = {
     "left": "left",
     "leftcenter": "left-center",
     "left-center": "left-center",
@@ -59,7 +57,7 @@ BIAS_TO_STANDARD: Dict[str, str] = {
     "questionable sources": "conspiracy-pseudoscience",
 }
 
-FACTUALITY_TO_STANDARD: Dict[str, str] = {
+FACTUALITY_TO_STANDARD: dict[str, str] = {
     "very low": "very-low",
     "low": "low",
     "mixed": "mixed",
@@ -70,7 +68,7 @@ FACTUALITY_TO_STANDARD: Dict[str, str] = {
 
 
 def _ensure_data_dir() -> str:
-    os.makedirs(MBFC_DATA_DIR, exist_ok=True)
+    Path(MBFC_DATA_DIR).mkdir(parents=True, exist_ok=True)
     return MBFC_DATA_DIR
 
 
@@ -80,20 +78,20 @@ def _normalize_name(name: str) -> str:
     return cleaned
 
 
-def _load_local_csv(filename: str) -> List[Dict[str, str]]:
-    filepath = os.path.join(_ensure_data_dir(), filename)
-    if not os.path.exists(filepath):
+def _load_local_csv(filename: str) -> list[dict[str, str]]:
+    filepath = Path(_ensure_data_dir()) / filename
+    if not filepath.exists():
         return []
     import csv
 
-    with open(filepath, "r", encoding="utf-8") as f:
+    with filepath.open(encoding="utf-8") as f:
         reader = csv.DictReader(f)
         return list(reader)
 
 
 async def download_mbfc_dataset(
-    client: Optional[httpx.AsyncClient] = None,
-) -> Dict[str, str]:
+    client: httpx.AsyncClient | None = None,
+) -> dict[str, str]:
     """Download MBFC dataset from HuggingFace.
 
     Returns dict of filename -> local filepath.
@@ -103,12 +101,12 @@ async def download_mbfc_dataset(
     http_client = client or httpx.AsyncClient(timeout=60.0, follow_redirects=True)
 
     try:
-        results: Dict[str, str] = {}
+        results: dict[str, str] = {}
         for filename in [MBFC_FACTUALITY_FILE, MBFC_BIAS_FILE, MBFC_OWNERSHIP_FILE]:
-            local_path = os.path.join(data_dir, filename)
+            local_path = str(Path(data_dir) / filename)
             url = f"{MBFC_DATASET_URL}/{filename}"
 
-            if os.path.exists(local_path):
+            if Path(local_path).exists():
                 logger.info("MBFC file already cached: %s", local_path)
                 results[filename] = local_path
                 continue
@@ -116,13 +114,10 @@ async def download_mbfc_dataset(
             logger.info("Downloading %s ...", url)
             response = await http_client.get(url)
             if response.status_code != 200:
-                logger.warning(
-                    "Failed to download %s: HTTP %d", url, response.status_code
-                )
+                logger.warning("Failed to download %s: HTTP %d", url, response.status_code)
                 continue
 
-            with open(local_path, "wb") as f:
-                f.write(response.content)
+            Path(local_path).write_bytes(response.content)
             logger.info("Downloaded %s -> %s", filename, local_path)
             results[filename] = local_path
 
@@ -133,10 +128,10 @@ async def download_mbfc_dataset(
 
 
 def build_mbfc_lookup(
-    factuality_file: Optional[str] = None,
-    bias_file: Optional[str] = None,
-    ownership_file: Optional[str] = None,
-) -> Dict[str, Dict[str, str]]:
+    factuality_file: str | None = None,
+    bias_file: str | None = None,
+    ownership_file: str | None = None,
+) -> dict[str, dict[str, str]]:
     """Build a lookup map from normalized outlet name to MBFC data.
 
     Returns: {normalized_outlet_name: {bias, factuality, ownership, credibility}}
@@ -147,30 +142,23 @@ def build_mbfc_lookup(
     """
     warnings.warn(
         "MBFC build_mbfc_lookup is deprecated. Use CredibilitySignalStore instead. "
-        "MBFC data carries provenance 'mbfc_dataset_v1' and reduced weight (%d%%)."
-        % int(MBFC_WEIGHT_MULTIPLIER * 100),
+        f"MBFC data carries provenance 'mbfc_dataset_v1' and reduced weight ({int(MBFC_WEIGHT_MULTIPLIER * 100)}%).",
         DeprecationWarning,
         stacklevel=2,
     )
     factuality_rows = _load_local_csv(
-        factuality_file or os.path.join(_ensure_data_dir(), MBFC_FACTUALITY_FILE)
+        factuality_file or str(Path(_ensure_data_dir()) / MBFC_FACTUALITY_FILE)
     )
-    bias_rows = _load_local_csv(
-        bias_file or os.path.join(_ensure_data_dir(), MBFC_BIAS_FILE)
-    )
+    bias_rows = _load_local_csv(bias_file or str(Path(_ensure_data_dir()) / MBFC_BIAS_FILE))
     ownership_rows = _load_local_csv(
-        ownership_file or os.path.join(_ensure_data_dir(), MBFC_OWNERSHIP_FILE)
+        ownership_file or str(Path(_ensure_data_dir()) / MBFC_OWNERSHIP_FILE)
     )
 
-    lookup: Dict[str, Dict[str, str]] = {}
+    lookup: dict[str, dict[str, str]] = {}
 
     for row in factuality_rows:
-        name = _normalize_name(
-            row.get("name", row.get("outlet", row.get("source", "")))
-        )
-        factuality = (
-            row.get("factuality", row.get("factual_reporting", "")).strip().lower()
-        )
+        name = _normalize_name(row.get("name", row.get("outlet", row.get("source", ""))))
+        factuality = row.get("factuality", row.get("factual_reporting", "")).strip().lower()
         if name and factuality:
             standard_fact = FACTUALITY_TO_STANDARD.get(factuality, factuality)
             lookup.setdefault(name, {})["factuality"] = standard_fact
@@ -178,9 +166,7 @@ def build_mbfc_lookup(
             lookup[name]["provenance"] = "mbfc_dataset_v1"
 
     for row in bias_rows:
-        name = _normalize_name(
-            row.get("name", row.get("outlet", row.get("source", "")))
-        )
+        name = _normalize_name(row.get("name", row.get("outlet", row.get("source", ""))))
         bias = row.get("bias", row.get("bias_rating", "")).strip().lower()
         if name and bias:
             standard_bias = BIAS_TO_STANDARD.get(bias, bias)
@@ -189,9 +175,7 @@ def build_mbfc_lookup(
             lookup[name]["provenance"] = "mbfc_dataset_v1"
 
     for row in ownership_rows:
-        name = _normalize_name(
-            row.get("name", row.get("outlet", row.get("source", "")))
-        )
+        name = _normalize_name(row.get("name", row.get("outlet", row.get("source", ""))))
         ownership = row.get("ownership", "").strip()
         country = row.get("country", "").strip()
         if name and (ownership or country):
@@ -212,9 +196,9 @@ def build_mbfc_lookup(
 
 
 def attach_mbfc_to_reporters(
-    reporters: List[Dict[str, Any]],
-    employer_map: Dict[int, List[str]],
-) -> List[Dict[str, Any]]:
+    reporters: list[dict[str, Any]],
+    employer_map: dict[int, list[str]],
+) -> list[dict[str, Any]]:
     """Attach MBFC outlet-level data to reporter records by employer.
 
     Args:
@@ -225,10 +209,10 @@ def attach_mbfc_to_reporters(
     """
     mbfc_lookup = build_mbfc_lookup()
 
-    enriched: List[Dict[str, Any]] = []
+    enriched: list[dict[str, Any]] = []
     for reporter in reporters:
         reporter_id = reporter.get("id")
-        enrichment: Dict[str, Any] = {}
+        enrichment: dict[str, Any] = {}
 
         raw_id = reporter_id
         employers: list[str] = (
@@ -264,7 +248,7 @@ def attach_mbfc_to_reporters(
     return enriched
 
 
-def get_rss_mbfc_crosswalk() -> List[Dict[str, Any]]:
+def get_rss_mbfc_crosswalk() -> list[dict[str, Any]]:
     """Cross-reference RSS catalog sources against MBFC labels.
 
     Returns list of {source_name, rss_bias, rss_funding, mbfc_bias, mbfc_factuality}
@@ -274,21 +258,20 @@ def get_rss_mbfc_crosswalk() -> List[Dict[str, Any]]:
     """
     warnings.warn(
         "MBFC get_rss_mbfc_crosswalk is deprecated. Source credibility now uses the "
-        "6-dimension CredibilitySignalStore. MBFC data is weighted at %d%%."
-        % int(MBFC_WEIGHT_MULTIPLIER * 100),
+        f"6-dimension CredibilitySignalStore. MBFC data is weighted at {int(MBFC_WEIGHT_MULTIPLIER * 100)}%.",
         DeprecationWarning,
         stacklevel=2,
     )
     mbfc_lookup = build_mbfc_lookup()
     sources = get_rss_sources()
 
-    unique_sources: Dict[str, Dict[str, Any]] = {}
+    unique_sources: dict[str, dict[str, Any]] = {}
     for name, config in sources.items():
         base_name = name.split(" - ")[0].strip()
         if base_name not in unique_sources:
             unique_sources[base_name] = config
 
-    crosswalk: List[Dict[str, Any]] = []
+    crosswalk: list[dict[str, Any]] = []
     for source_name, config in unique_sources.items():
         normalized = _normalize_name(source_name)
         mbfc_entry = mbfc_lookup.get(normalized)
@@ -300,9 +283,7 @@ def get_rss_mbfc_crosswalk() -> List[Dict[str, Any]]:
                 "rss_funding": config.get("funding_type", ""),
                 "rss_factuality": config.get("factual_reporting", ""),
                 "mbfc_bias": mbfc_entry.get("bias", "") if mbfc_entry else "",
-                "mbfc_factuality": mbfc_entry.get("factuality", "")
-                if mbfc_entry
-                else "",
+                "mbfc_factuality": mbfc_entry.get("factuality", "") if mbfc_entry else "",
                 "mbfc_ownership": mbfc_entry.get("ownership", "") if mbfc_entry else "",
                 "matched": bool(mbfc_entry),
             }
@@ -314,8 +295,8 @@ def get_rss_mbfc_crosswalk() -> List[Dict[str, Any]]:
 
 
 def get_mbfc_bias_for_employer(
-    employer_name: Optional[str],
-) -> Optional[Dict[str, Any]]:
+    employer_name: str | None,
+) -> dict[str, Any] | None:
     """Look up MBFC bias/factuality data for a single employer by name.
 
     Returns dict with {bias, factuality, ownership, credibility_source}
@@ -339,8 +320,8 @@ def get_mbfc_bias_for_employer(
 
 
 def compute_weighted_mbfc_bias(
-    employer_history: List[Dict[str, Any]],
-) -> Optional[Dict[str, Any]]:
+    employer_history: list[dict[str, Any]],
+) -> dict[str, Any] | None:
     """Compute a weighted-average bias for a reporter across all employers.
 
     Most recent employer gets highest weight. Uses a simple decay:
@@ -358,9 +339,9 @@ def compute_weighted_mbfc_bias(
     if not employer_history:
         return None
 
-    bias_votes: Dict[str, float] = {}
+    bias_votes: dict[str, float] = {}
     total_weight = 0.0
-    sources_used: List[str] = []
+    sources_used: list[str] = []
 
     for i, entry in enumerate(employer_history):
         employer_name = entry.get("organization")

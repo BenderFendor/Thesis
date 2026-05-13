@@ -1,7 +1,8 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Highlight, getAllHighlights, deleteHighlight } from "@/lib/api";
+import type { Highlight} from "@/lib/api";
+import { getAllHighlights, deleteHighlight } from "@/lib/api";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Highlighter, X } from "lucide-react";

@@ -142,7 +142,7 @@ describe("BlindspotView", () => {
     expect(await screen.findByText("Campaign rally")).toBeInTheDocument()
 
     const [lensSelect] = await screen.findAllByRole("combobox")
-    await user.selectOptions(lensSelect, "credibility")
+    await user.selectOptions(lensSelect!, "credibility")
 
     await waitFor(() => {
       expect(mockFetchBlindspotViewer).toHaveBeenLastCalledWith(

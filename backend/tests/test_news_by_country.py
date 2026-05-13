@@ -6,9 +6,7 @@ from httpx import AsyncClient
 
 @pytest.mark.asyncio
 class TestNewsByCountry:
-    async def test_country_heatmap_uses_recent_coverage_mentions(
-        self, client: AsyncClient
-    ):
+    async def test_country_heatmap_uses_recent_coverage_mentions(self, client: AsyncClient):
         resp = await client.get("/news/by-country?hours=720")
         assert resp.status_code == 200
         data = resp.json()
@@ -31,9 +29,7 @@ class TestNewsByCountry:
         data = resp.json()
 
         assert data["matching_strategy"] == "country_mentions"
-        assert any(
-            "US" in article["mentioned_countries"] for article in data["articles"]
-        )
+        assert any("US" in article["mentioned_countries"] for article in data["articles"])
 
     async def test_internal_view_prefers_local_self_coverage(self, client: AsyncClient):
         resp = await client.get("/news/country/US?view=internal&limit=10&hours=720")
@@ -50,8 +46,7 @@ class TestNewsByCountry:
         assert {article["id"] for article in data["articles"]} == {1, 2}
         assert all(article["source_country"] == "US" for article in data["articles"])
         assert all(
-            article["geo_signal"]["id"] == "country_mentions"
-            for article in data["articles"]
+            article["geo_signal"]["id"] == "country_mentions" for article in data["articles"]
         )
 
     async def test_external_view_filters_to_foreign_coverage(self, client: AsyncClient):
@@ -68,13 +63,9 @@ class TestNewsByCountry:
         assert data["total"] == 3
         assert {article["id"] for article in data["articles"]} == {2, 3, 4}
         assert all(article["source_country"] != "CN" for article in data["articles"])
-        assert all(
-            "CN" in article["mentioned_countries"] for article in data["articles"]
-        )
+        assert all("CN" in article["mentioned_countries"] for article in data["articles"])
 
-    async def test_external_view_uses_stored_mentions_not_rescanned_text(
-        self, client: AsyncClient
-    ):
+    async def test_external_view_uses_stored_mentions_not_rescanned_text(self, client: AsyncClient):
         resp = await client.get("/news/country/CN?view=external&limit=10&hours=720")
         assert resp.status_code == 200
         data = resp.json()

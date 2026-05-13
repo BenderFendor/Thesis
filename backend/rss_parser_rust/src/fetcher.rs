@@ -18,6 +18,10 @@ fn build_client() -> Client {
         .expect("failed to build reqwest client")
 }
 
+/// Fetches all feed URLs across all sources concurrently, obeying the
+/// `max_concurrent` limit via a shared semaphore.
+///
+/// Returns a flat list of [`FetchResult`] values, one per URL attempt.
 pub async fn fetch_all(sources: Vec<SourceRequest>, max_concurrent: usize) -> Vec<FetchResult> {
     let semaphore = Arc::new(Semaphore::new(max_concurrent.max(1)));
     let client = Arc::new(build_client());

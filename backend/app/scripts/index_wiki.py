@@ -1,5 +1,4 @@
-"""
-CLI entry point for wiki indexing.
+"""CLI entry point for wiki indexing.
 
 Usage:
     python -m app.scripts.index_wiki --all          # Index all sources
@@ -26,18 +25,15 @@ from app.services.wiki_indexer import (
 
 
 async def main() -> None:
+    """Main."""
     configure_logging()
 
     parser = argparse.ArgumentParser(description="Media Accountability Wiki Indexer")
     group = parser.add_mutually_exclusive_group(required=True)
     group.add_argument("--all", action="store_true", help="Index all sources")
     group.add_argument("--source", type=str, help="Index a specific source by name")
-    group.add_argument(
-        "--stale", action="store_true", help="Re-index stale entries (>7 days)"
-    )
-    group.add_argument(
-        "--status", action="store_true", help="Show indexing status summary"
-    )
+    group.add_argument("--stale", action="store_true", help="Re-index stale entries (>7 days)")
+    group.add_argument("--status", action="store_true", help="Show indexing status summary")
 
     parser.add_argument(
         "--delay",
@@ -80,9 +76,7 @@ async def main() -> None:
         # Find matching source
         source_config = None
         for name, config in sources.items():
-            if name.lower() == args.source.lower() or name.lower().startswith(
-                args.source.lower()
-            ):
+            if name.lower() == args.source.lower() or name.lower().startswith(args.source.lower()):
                 source_config = config
                 break
 

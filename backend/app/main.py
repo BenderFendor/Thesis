@@ -1,11 +1,19 @@
+"""FastAPI application entry point.
+
+Orchestrates startup/shutdown lifecycle, including leader election via
+file-based lock, cache preloading, background RSS ingestion scheduling,
+article persistence workers, vector store sync, and credibility scoring.
+"""
+
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import json
-import os
 import signal
 import time
-from datetime import datetime, timezone
+from datetime import datetime, UTC
+from pathlib import Path
 from types import FrameType
 from typing import Any, cast
 
@@ -97,6 +105,7 @@ if settings.otel_enabled:
             request: _StarletteRequest,
             call_next: Any,
         ) -> _StarletteResponse:
+            """Inject OpenTelemetry trace identifiers into every HTTP response."""
             response = await call_next(request)
             try:
                 from opentelemetry.trace import (
@@ -109,9 +118,7 @@ if settings.otel_enabled:
 
                 span_context = _otel_get_span().get_span_context()
                 if span_context.trace_id:
-                    response.headers["X-Trace-Id"] = format_trace_id(
-                        span_context.trace_id
-                    )
+                    response.headers["X-Trace-Id"] = format_trace_id(span_context.trace_id)
                     response.headers["X-Span-Id"] = format_span_id(span_context.span_id)
             except Exception:
                 pass
@@ -128,10 +135,8 @@ def _register_background_task(task: asyncio.Task[Any]) -> None:
     _background_tasks.append(task)
 
     def _cleanup(future: asyncio.Future[Any]) -> None:
-        try:
+        with contextlib.suppress(ValueError):
             _background_tasks.remove(task)
-        except ValueError:
-            pass
 
         if future.cancelled():
             return
@@ -191,9 +196,7 @@ async def _load_cache_from_db_fast() -> None:
                     normalized_articles.append(payload)
 
                 # Convert dictionaries back to NewsArticle Pydantic models
-                articles = [
-                    NewsArticle(**article_dict) for article_dict in normalized_articles
-                ]
+                articles = [NewsArticle(**article_dict) for article_dict in normalized_articles]
                 # Create minimal stats - will be updated by background RSS refresh
                 stats = [
                     {
@@ -204,9 +207,7 @@ async def _load_cache_from_db_fast() -> None:
                     }
                 ]
                 news_cache.update_cache(articles, stats)
-                logger.info(
-                    "Loaded %d articles from database into cache.", len(articles)
-                )
+                logger.info("Loaded %d articles from database into cache.", len(articles))
                 return
             else:
                 logger.info("No articles in DB; async refresh will populate cache.")
@@ -248,10 +249,10 @@ def _parse_published_at(article: NewsArticle) -> datetime:
         published = article.published.replace("Z", "+00:00")
         parsed = datetime.fromisoformat(published)
         if parsed.tzinfo is None:
-            return parsed.replace(tzinfo=timezone.utc)
+            return parsed.replace(tzinfo=UTC)
         return parsed
     except Exception:
-        return datetime.now(timezone.utc)
+        return datetime.now(UTC)
 
 
 async def _start_initial_rss_refresh() -> None:
@@ -283,7 +284,7 @@ async def _maybe_migrate_cached_articles() -> None:
     try:
         oldest = min(articles, key=_parse_published_at)
         oldest_dt = _parse_published_at(oldest)
-        age_hours = (datetime.now(timezone.utc) - oldest_dt).total_seconds() / 3600
+        age_hours = (datetime.now(UTC) - oldest_dt).total_seconds() / 3600
         if age_hours > 6:
             logger.info(
                 "Cache has stale articles (%.1fh old), starting migration...",
@@ -355,6 +356,15 @@ async def _initial_reporter_index() -> None:
 
 @app.on_event("startup")
 async def on_startup() -> None:
+    """Elect a single worker as leader, then start background services.
+
+    Uses a file-based lock at /tmp/thesis_startup_lock to ensure only one
+    worker across all gunicorn processes runs the leader path: cache
+    preloading, RSS refresh scheduling, article persistence, vector store
+    sync, cluster computation, and credibility scoring.
+
+    Non-leader workers skip all startup tasks and serve API traffic only.
+    """
     startup_start = time.time()
     startup_metrics.mark_app_started()
     startup_metrics.add_note(
@@ -401,20 +411,20 @@ async def on_startup() -> None:
         startup_metrics.add_note("database_disabled", True)
     # Use file-based lock to ensure startup tasks run only once across all workers
     import os
+    from pathlib import Path
 
     startup_lock_dir = "/tmp/thesis_startup_lock"
     is_leader = False
     try:
-        os.makedirs(startup_lock_dir, exist_ok=True)
-        lock_file = os.path.join(startup_lock_dir, "leader.lock")
+        Path(startup_lock_dir).mkdir(parents=True, exist_ok=True)
+        lock_file = str(Path(startup_lock_dir) / "leader.lock")
 
         # Remove a stale lock file left by a previous process that was killed
         # without running on_shutdown (e.g. SIGKILL).
-        if os.path.exists(lock_file):
+        if Path(lock_file).exists():
             old_pid_str = "?"
             try:
-                with open(lock_file) as f:
-                    old_pid_str = f.read().strip()
+                old_pid_str = Path(lock_file).read_text().strip()
                 old_pid = int(old_pid_str)
                 # Check if that PID is still alive (signal 0 = existence check).
                 os.kill(old_pid, 0)
@@ -426,10 +436,8 @@ async def on_startup() -> None:
                     old_pid_str,
                     stale_err,
                 )
-                try:
-                    os.unlink(lock_file)
-                except FileNotFoundError:
-                    pass  # Another worker removed it first; that's fine.
+                with contextlib.suppress(FileNotFoundError):
+                    Path(lock_file).unlink()
 
         # O_CREAT|O_EXCL is atomic and raises FileExistsError if file exists.
         # os.rename silently overwrites on Linux so it cannot be used here.
@@ -458,9 +466,7 @@ async def on_startup() -> None:
 
     # Only leader runs initial cache load and RSS refresh
     if is_leader:
-        cache_preload_task = asyncio.create_task(
-            _initial_cache_load(), name="initial_cache_load"
-        )
+        cache_preload_task = asyncio.create_task(_initial_cache_load(), name="initial_cache_load")
         _register_background_task(cache_preload_task)
         startup_metrics.add_note("cache_preload_task", cache_preload_task.get_name())
 
@@ -473,30 +479,25 @@ async def on_startup() -> None:
         _register_background_task(scheduler_task)
         startup_metrics.add_note("rss_scheduler_task", scheduler_task.get_name())
 
-        refresh_task = asyncio.create_task(
-            _start_initial_rss_refresh(), name="initial_rss_refresh"
-        )
+        refresh_task = asyncio.create_task(_start_initial_rss_refresh(), name="initial_rss_refresh")
         _register_background_task(refresh_task)
 
-    if settings.enable_database:
-        if is_leader:
-            persistence_task = asyncio.create_task(
-                article_persistence_worker(), name="article_persistence_worker"
+    if settings.enable_database and is_leader:
+        persistence_task = asyncio.create_task(
+            article_persistence_worker(), name="article_persistence_worker"
+        )
+        _register_background_task(persistence_task)
+        if settings.enable_vector_store:
+            embedding_task = asyncio.create_task(
+                embedding_generation_worker(), name="embedding_generation_worker"
             )
-            _register_background_task(persistence_task)
-            if settings.enable_vector_store:
-                embedding_task = asyncio.create_task(
-                    embedding_generation_worker(), name="embedding_generation_worker"
-                )
-                _register_background_task(embedding_task)
-                cluster_task = asyncio.create_task(
-                    cluster_computation_worker(), name="cluster_computation_worker"
-                )
-                _register_background_task(cluster_task)
-                chroma_sync_task = asyncio.create_task(
-                    chroma_sync_worker(), name="chroma_sync_worker"
-                )
-                _register_background_task(chroma_sync_task)
+            _register_background_task(embedding_task)
+            cluster_task = asyncio.create_task(
+                cluster_computation_worker(), name="cluster_computation_worker"
+            )
+            _register_background_task(cluster_task)
+            chroma_sync_task = asyncio.create_task(chroma_sync_worker(), name="chroma_sync_worker")
+            _register_background_task(chroma_sync_task)
 
     # Only migrate if cache has stale articles (> 6 hours old) - leader only
     if settings.enable_database and is_leader:
@@ -535,9 +536,7 @@ async def on_startup() -> None:
             name="credibility_scoring_scheduler",
         )
         _register_background_task(credibility_task)
-        startup_metrics.add_note(
-            "credibility_scoring_task", credibility_task.get_name()
-        )
+        startup_metrics.add_note("credibility_scoring_task", credibility_task.get_name())
 
     logger.info(
         "API startup complete (%.2fs) - cache ready with %d articles",
@@ -549,6 +548,12 @@ async def on_startup() -> None:
 
 @app.on_event("shutdown")
 async def on_shutdown() -> None:
+    """Cancel background tasks, release the leader lock, and shut down cleanly.
+
+    Cancels all tracked background tasks with graceful timeout, then
+    removes the leader lock file so the next restart can elect a new
+    leader without delay.
+    """
     logger.info("Shutting down Global News Aggregation API...")
 
     tasks_snapshot = list(_background_tasks)
@@ -560,16 +565,15 @@ async def on_shutdown() -> None:
 
     # Release the leader lock so the next restart can elect a new leader.
     if _leader_lock_file:
-        try:
-            os.unlink(_leader_lock_file)
-        except OSError:
-            pass
+        with contextlib.suppress(OSError):
+            Path(_leader_lock_file).unlink()
 
     logger.info("Shutdown complete")
 
 
 @app.websocket("/ws")
 async def websocket_endpoint(websocket: WebSocket) -> None:
+    """Accept WebSocket connections for real-time news push to the frontend."""
     await manager.connect(websocket)
     try:
         while True:

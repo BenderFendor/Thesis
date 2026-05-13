@@ -5,7 +5,8 @@ from __future__ import annotations
 import logging
 from dataclasses import dataclass
 from functools import lru_cache
-from typing import Any, Callable, Literal, Mapping, Optional, TypedDict, cast
+from typing import Any, Literal, TypedDict, cast
+from collections.abc import Callable, Mapping
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -93,45 +94,53 @@ POPULIST_POLE_WORDS = [
 
 
 class SnapshotArticlePayload(TypedDict, total=False):
+    """Snapshot Article Payload."""
+
     id: int
     title: str
     source: str
-    source_id: Optional[str]
+    source_id: str | None
     url: str
-    image_url: Optional[str]
-    published_at: Optional[str]
-    summary: Optional[str]
+    image_url: str | None
+    published_at: str | None
+    summary: str | None
     similarity: float
-    country: Optional[str]
-    source_country: Optional[str]
-    category: Optional[str]
-    bias: Optional[str]
-    credibility: Optional[str]
-    author: Optional[str]
+    country: str | None
+    source_country: str | None
+    category: str | None
+    bias: str | None
+    credibility: str | None
+    author: str | None
     authors: list[str]
     geo: dict[str, Any]
     baseline: dict[str, Any]
 
 
 class SnapshotClusterPayload(TypedDict, total=False):
+    """Snapshot Cluster Payload."""
+
     cluster_id: int
-    label: Optional[str]
+    label: str | None
     keywords: list[str]
     article_count: int
     source_diversity: int
-    representative_article: Optional[SnapshotArticlePayload]
+    representative_article: SnapshotArticlePayload | None
     articles: list[SnapshotArticlePayload]
 
 
 class BlindspotLensPayload(TypedDict):
+    """Blindspot Lens Payload."""
+
     id: LensId
     label: str
     description: str
     available: bool
-    unavailable_reason: Optional[str]
+    unavailable_reason: str | None
 
 
 class BlindspotLanePayload(TypedDict):
+    """Blindspot Lane Payload."""
+
     id: LaneId
     label: str
     description: str
@@ -139,24 +148,32 @@ class BlindspotLanePayload(TypedDict):
 
 
 class BlindspotCoveragePayload(TypedDict):
+    """Blindspot Coverage Payload."""
+
     pole_a: int
     shared: int
     pole_b: int
 
 
 class BlindspotSharePayload(TypedDict):
+    """Blindspot Share Payload."""
+
     pole_a: float
     shared: float
     pole_b: float
 
 
 class BlindspotGeoSignalPayload(TypedDict):
+    """Blindspot Geo Signal Payload."""
+
     id: str
     label: str
     count: int
 
 
 class BlindspotCardPayload(TypedDict):
+    """Blindspot Card Payload."""
+
     cluster_id: int
     cluster_label: str
     keywords: list[str]
@@ -165,25 +182,29 @@ class BlindspotCardPayload(TypedDict):
     lane: LaneId
     blindspot_score: float
     balance_score: float
-    published_at: Optional[str]
+    published_at: str | None
     explanation: str
     coverage_counts: BlindspotCoveragePayload
     coverage_shares: BlindspotSharePayload
-    representative_article: Optional[SnapshotArticlePayload]
+    representative_article: SnapshotArticlePayload | None
     articles: list[SnapshotArticlePayload]
     geography_signals: list[BlindspotGeoSignalPayload]
 
 
 class BlindspotSummaryPayload(TypedDict):
+    """Blindspot Summary Payload."""
+
     window: str
     total_clusters: int
     eligible_clusters: int
     generated_at: str
-    category: Optional[str]
+    category: str | None
     source_filters: list[str]
 
 
 class BlindspotViewerPayload(TypedDict):
+    """Blindspot Viewer Payload."""
+
     available_lenses: list[BlindspotLensPayload]
     selected_lens: BlindspotLensPayload
     summary: BlindspotSummaryPayload
@@ -194,6 +215,8 @@ class BlindspotViewerPayload(TypedDict):
 
 @dataclass(frozen=True)
 class LensDefinition:
+    """Lens Definition."""
+
     id: LensId
     label: str
     description: str
@@ -209,11 +232,15 @@ class LensDefinition:
 
 @dataclass(frozen=True)
 class ClusterCardCandidate:
+    """Cluster Card Candidate."""
+
     payload: BlindspotCardPayload
     lane_sort_score: float
 
 
 class SourceCatalogEntry(TypedDict, total=False):
+    """Source Catalog Entry."""
+
     country: str
     bias_rating: str
     factual_reporting: str
@@ -240,14 +267,10 @@ def _article_source_name(article: Any) -> str:
     return "unknown-source"
 
 
-def _normalize_source_filter_values(values: Optional[str]) -> set[str]:
+def _normalize_source_filter_values(values: str | None) -> set[str]:
     if values is None or values.strip() == "":
         return set()
-    return {
-        candidate.strip().lower()
-        for candidate in values.split(",")
-        if candidate.strip()
-    }
+    return {candidate.strip().lower() for candidate in values.split(",") if candidate.strip()}
 
 
 def _source_aliases(article: Any) -> set[str]:
@@ -265,14 +288,11 @@ def _matches_selected_sources(article: Any, selected_sources: set[str]) -> bool:
     return bool(_source_aliases(article) & selected_sources)
 
 
-def _matches_category(article: Any, category: Optional[str]) -> bool:
+def _matches_category(article: Any, category: str | None) -> bool:
     if category is None or category == "" or category == "all":
         return True
     article_category = _article_value(article, "category")
-    return (
-        isinstance(article_category, str)
-        and article_category.lower() == category.lower()
-    )
+    return isinstance(article_category, str) and article_category.lower() == category.lower()
 
 
 @lru_cache(maxsize=1)
@@ -289,7 +309,7 @@ def _source_catalog_lookup() -> dict[str, SourceCatalogEntry]:
     return lookup
 
 
-def _source_catalog_entry(article: Any) -> Optional[SourceCatalogEntry]:
+def _source_catalog_entry(article: Any) -> SourceCatalogEntry | None:
     lookup = _source_catalog_lookup()
     source_name = _article_source_name(article)
     candidate_keys = [source_name.lower(), _slugify_source_name(source_name)]
@@ -303,7 +323,7 @@ def _source_catalog_entry(article: Any) -> Optional[SourceCatalogEntry]:
     return None
 
 
-def _article_bias_value(article: Any) -> Optional[str]:
+def _article_bias_value(article: Any) -> str | None:
     bias = _article_value(article, "bias")
     if _has_text(bias):
         return cast(str, bias)
@@ -313,7 +333,7 @@ def _article_bias_value(article: Any) -> Optional[str]:
     return source_entry.get("bias_rating")
 
 
-def _article_factual_reporting_value(article: Any) -> Optional[str]:
+def _article_factual_reporting_value(article: Any) -> str | None:
     credibility = _article_value(article, "credibility")
     if _has_text(credibility):
         return cast(str, credibility)
@@ -323,7 +343,7 @@ def _article_factual_reporting_value(article: Any) -> Optional[str]:
     return source_entry.get("factual_reporting")
 
 
-def _article_country_code(article: Any) -> Optional[str]:
+def _article_country_code(article: Any) -> str | None:
     source_country = _article_value(article, "source_country")
     if _has_text(source_country):
         return cast(str, source_country)
@@ -352,7 +372,7 @@ def _article_country_code(article: Any) -> Optional[str]:
     return source_entry.get("country")
 
 
-def _geography_signal(article: Any) -> Optional[BlindspotGeoSignalPayload]:
+def _geography_signal(article: Any) -> BlindspotGeoSignalPayload | None:
     source_country = _article_value(article, "source_country")
     if _has_text(source_country):
         return {
@@ -397,7 +417,7 @@ def _geography_signal(article: Any) -> Optional[BlindspotGeoSignalPayload]:
     return None
 
 
-def _bias_bucket(article: Article) -> Optional[BucketId]:
+def _bias_bucket(article: Article) -> BucketId | None:
     normalized = (_article_bias_value(article) or "").strip().lower()
     if normalized in {"left", "left-center", "center-left"}:
         return "pole_a"
@@ -408,7 +428,7 @@ def _bias_bucket(article: Article) -> Optional[BucketId]:
     return None
 
 
-def _credibility_bucket(article: Article) -> Optional[BucketId]:
+def _credibility_bucket(article: Article) -> BucketId | None:
     normalized = (_article_factual_reporting_value(article) or "").strip().lower()
     if normalized in {"very-high", "high"}:
         return "pole_a"
@@ -426,7 +446,7 @@ def _credibility_bucket(article: Article) -> Optional[BucketId]:
     return None
 
 
-def _geography_bucket(article: Article) -> Optional[BucketId]:
+def _geography_bucket(article: Article) -> BucketId | None:
     normalized = (_article_country_code(article) or "").strip().upper()
     if not normalized:
         return None
@@ -451,6 +471,7 @@ def _shares_from_counts(counts: BlindspotCoveragePayload) -> BlindspotSharePaylo
 
 
 def classify_lane(counts: BlindspotCoveragePayload) -> LaneId:
+    """Classify Lane."""
     total = counts["pole_a"] + counts["shared"] + counts["pole_b"]
     if total <= 0:
         return "shared"
@@ -459,17 +480,9 @@ def classify_lane(counts: BlindspotCoveragePayload) -> LaneId:
     pole_a_gap = shares["pole_b"] - shares["pole_a"]
     pole_b_gap = shares["pole_a"] - shares["pole_b"]
 
-    if (
-        counts["pole_b"] >= 2
-        and counts["pole_a"] <= 1
-        and pole_a_gap >= BLINDSPOT_SHARE_GAP
-    ):
+    if counts["pole_b"] >= 2 and counts["pole_a"] <= 1 and pole_a_gap >= BLINDSPOT_SHARE_GAP:
         return "pole_a"
-    if (
-        counts["pole_a"] >= 2
-        and counts["pole_b"] <= 1
-        and pole_b_gap >= BLINDSPOT_SHARE_GAP
-    ):
+    if counts["pole_a"] >= 2 and counts["pole_b"] <= 1 and pole_b_gap >= BLINDSPOT_SHARE_GAP:
         return "pole_b"
     return "shared"
 
@@ -512,7 +525,7 @@ def _article_preview(article: SnapshotArticlePayload) -> SnapshotArticlePayload:
 
 def _choose_representative_article(
     articles: list[SnapshotArticlePayload],
-) -> Optional[SnapshotArticlePayload]:
+) -> SnapshotArticlePayload | None:
     if not articles:
         return None
     with_image = [article for article in articles if article.get("image_url")]
@@ -529,9 +542,7 @@ def _select_preview_articles(
     selected: list[SnapshotArticlePayload] = []
     seen_sources: set[str] = set()
     for article in articles:
-        source_key = str(
-            article.get("source_id", "")
-        ).strip().lower() or _slugify_source_name(
+        source_key = str(article.get("source_id", "")).strip().lower() or _slugify_source_name(
             str(article.get("source", "unknown-source"))
         )
         if source_key in seen_sources:
@@ -661,7 +672,7 @@ def _lane_payloads(
 
 def _build_metadata_counts(
     articles: list[Any],
-    bucket_resolver: Callable[[Any], Optional[BucketId]],
+    bucket_resolver: Callable[[Any], BucketId | None],
 ) -> BlindspotCoveragePayload:
     counts = _empty_counts()
     seen_sources: set[str] = set()
@@ -746,7 +757,7 @@ def _quantile(values: list[float], percentile: float) -> float:
 
 async def _load_embeddings_for_articles(
     articles_by_id: Mapping[int, Any],
-) -> Optional[dict[int, list[float]]]:
+) -> dict[int, list[float]] | None:
     vector_store = get_vector_store()
     if vector_store is None:
         return None
@@ -762,7 +773,7 @@ async def _load_embeddings_for_articles(
         embedded_ids = cast(list[str], payload.get("ids") or [])
         embedded_rows = _coerce_embedding_rows(_get_embedding_rows(payload))
 
-        for chroma_id, vector in zip(embedded_ids, embedded_rows):
+        for chroma_id, vector in zip(embedded_ids, embedded_rows, strict=False):
             if not chroma_id.startswith("article_"):
                 continue
             article_id = int(chroma_id.replace("article_", ""))
@@ -774,16 +785,12 @@ async def _load_embeddings_for_articles(
         )
 
     missing_articles = [
-        article
-        for article_id, article in articles_by_id.items()
-        if article_id not in embeddings
+        article for article_id, article in articles_by_id.items() if article_id not in embeddings
     ]
     if not missing_articles:
         return embeddings
 
-    articles_to_encode = [
-        article for article in missing_articles if _embedding_text(article) != ""
-    ]
+    articles_to_encode = [article for article in missing_articles if _embedding_text(article) != ""]
     if not articles_to_encode:
         return embeddings
 
@@ -802,7 +809,7 @@ async def _load_embeddings_for_articles(
         )
         return embeddings or None
 
-    for article, vector in zip(articles_to_encode, encoded_rows):
+    for article, vector in zip(articles_to_encode, encoded_rows, strict=False):
         encoded_article_id: Any = getattr(article, "id", None)
         if encoded_article_id is None:
             continue
@@ -813,9 +820,9 @@ async def _load_embeddings_for_articles(
 
 async def _build_semaxis_counts_by_cluster(
     filtered_cluster_articles: Mapping[int, list[Any]],
-) -> tuple[dict[int, BlindspotCoveragePayload], Optional[str]]:
+) -> tuple[dict[int, BlindspotCoveragePayload], str | None]:
     all_articles = {
-        int(getattr(article, "id")): article
+        int(article.id): article
         for articles in filtered_cluster_articles.values()
         for article in articles
         if getattr(article, "id", None) is not None
@@ -961,10 +968,11 @@ class BlindspotViewerService:
         *,
         lens: LensId,
         window: str,
-        category: Optional[str] = None,
-        sources: Optional[str] = None,
+        category: str | None = None,
+        sources: str | None = None,
         per_lane: int = DEFAULT_PER_LANE,
     ) -> BlindspotViewerPayload:
+        """Build Viewer."""
         definitions = _lens_definitions()
         selected_definition = definitions[lens]
         selected_sources = _normalize_source_filter_values(sources)
@@ -993,9 +1001,7 @@ class BlindspotViewerService:
                 "status": "initializing",
             }
 
-        cluster_payloads = cast(
-            list[SnapshotClusterPayload], snapshot.clusters_json or []
-        )
+        cluster_payloads = cast(list[SnapshotClusterPayload], snapshot.clusters_json or [])
         snapshot_articles_by_id: dict[int, SnapshotArticlePayload] = {}
         for cluster in cluster_payloads:
             for article in cluster.get("articles", []):
@@ -1008,18 +1014,15 @@ class BlindspotViewerService:
             if lens == "institutional_populist":
                 article_ids_needing_db.add(article_id)
                 continue
-            if lens == "bias" and _article_bias_value(article) is None:
-                article_ids_needing_db.add(article_id)
-            elif (
-                lens == "credibility"
-                and _article_factual_reporting_value(article) is None
+            if (
+                lens == "bias"
+                and _article_bias_value(article) is None
+                or (lens == "credibility" and _article_factual_reporting_value(article) is None)
+                or lens == "geography"
+                and _article_country_code(article) is None
             ):
                 article_ids_needing_db.add(article_id)
-            elif lens == "geography" and _article_country_code(article) is None:
-                article_ids_needing_db.add(article_id)
-            if category is not None and not _has_text(
-                _article_value(article, "category")
-            ):
+            if category is not None and not _has_text(_article_value(article, "category")):
                 article_ids_needing_db.add(article_id)
 
         articles_by_id: dict[int, Article] = {}
@@ -1059,9 +1062,7 @@ class BlindspotViewerService:
                     continue
                 if not _matches_category(materialized_article, category):
                     continue
-                if not _matches_selected_sources(
-                    materialized_article, selected_sources
-                ):
+                if not _matches_selected_sources(materialized_article, selected_sources):
                     continue
                 matching_articles.append(materialized_article)
                 preview_articles.append(_article_preview(article))
@@ -1082,7 +1083,7 @@ class BlindspotViewerService:
 
         available_lenses = _available_lens_payloads()
         semaxis_counts: dict[int, BlindspotCoveragePayload] = {}
-        semaxis_unavailable_reason: Optional[str] = None
+        semaxis_unavailable_reason: str | None = None
         if lens == "institutional_populist":
             (
                 semaxis_counts,
@@ -1129,9 +1130,7 @@ class BlindspotViewerService:
                 "lane": lane,
                 "blindspot_score": _lane_score(lane, counts),
                 "balance_score": _balance_score(counts),
-                "published_at": max(published_candidates)
-                if published_candidates
-                else None,
+                "published_at": max(published_candidates) if published_candidates else None,
                 "explanation": _explanation_for_lane(selected_definition, lane, counts),
                 "coverage_counts": counts,
                 "coverage_shares": shares,
@@ -1169,17 +1168,14 @@ class BlindspotViewerService:
                 ),
                 reverse=True,
             )
-            selected_cards.extend(
-                candidate.payload for candidate in ranked[: max(1, per_lane)]
-            )
+            selected_cards.extend(candidate.payload for candidate in ranked[: max(1, per_lane)])
 
         selected_lens_payload: BlindspotLensPayload = {
             "id": selected_definition.id,
             "label": selected_definition.label,
             "description": selected_definition.description,
             "available": not (
-                lens == "institutional_populist"
-                and semaxis_unavailable_reason is not None
+                lens == "institutional_populist" and semaxis_unavailable_reason is not None
             ),
             "unavailable_reason": semaxis_unavailable_reason,
         }
@@ -1211,10 +1207,11 @@ class BlindspotViewerService:
         }
 
 
-_blindspot_viewer_service: Optional[BlindspotViewerService] = None
+_blindspot_viewer_service: BlindspotViewerService | None = None
 
 
 def get_blindspot_viewer_service() -> BlindspotViewerService:
+    """Get Blindspot Viewer Service."""
     global _blindspot_viewer_service
     if _blindspot_viewer_service is None:
         _blindspot_viewer_service = BlindspotViewerService()

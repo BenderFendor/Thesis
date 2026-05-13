@@ -6,8 +6,9 @@ a FastAPI TestClient wired to that database, and mock
 RSS source data so tests run without external dependencies.
 """
 
-from datetime import datetime, timezone, timedelta
-from typing import AsyncGenerator, Dict, Any
+from datetime import datetime, timedelta, UTC
+from typing import Any
+from collections.abc import AsyncGenerator
 from unittest.mock import patch
 
 import pytest_asyncio
@@ -34,7 +35,7 @@ from app.database import (
 # Test RSS sources (mocked, no filesystem dependency)
 # ---------------------------------------------------------------------------
 
-MOCK_RSS_SOURCES: Dict[str, Dict[str, Any]] = {
+MOCK_RSS_SOURCES: dict[str, dict[str, Any]] = {
     "Test News": {
         "url": "https://testnews.example.com/rss",
         "category": "general",
@@ -78,7 +79,7 @@ MOCK_RSS_SOURCES: Dict[str, Dict[str, Any]] = {
 }
 
 
-def _mock_get_rss_sources() -> Dict[str, Dict[str, Any]]:
+def _mock_get_rss_sources() -> dict[str, dict[str, Any]]:
     return MOCK_RSS_SOURCES
 
 
@@ -98,9 +99,7 @@ async def db_engine():
 
 @pytest_asyncio.fixture
 async def db_session(db_engine) -> AsyncGenerator[AsyncSession, None]:
-    session_factory = async_sessionmaker(
-        db_engine, class_=AsyncSession, expire_on_commit=False
-    )
+    session_factory = async_sessionmaker(db_engine, class_=AsyncSession, expire_on_commit=False)
     async with session_factory() as session:
         yield session
 
@@ -111,7 +110,7 @@ async def db_session(db_engine) -> AsyncGenerator[AsyncSession, None]:
 
 
 def _utc(days_ago: int = 0) -> datetime:
-    return datetime.now(timezone.utc).replace(tzinfo=None) - timedelta(days=days_ago)
+    return datetime.now(UTC).replace(tzinfo=None) - timedelta(days=days_ago)
 
 
 @pytest_asyncio.fixture
@@ -351,9 +350,7 @@ async def client(db_engine, seeded_db) -> AsyncGenerator[AsyncClient, None]:
     - get_db overridden to use the in-memory SQLite session
     - get_rss_sources mocked to return MOCK_RSS_SOURCES
     """
-    session_factory = async_sessionmaker(
-        db_engine, class_=AsyncSession, expire_on_commit=False
-    )
+    session_factory = async_sessionmaker(db_engine, class_=AsyncSession, expire_on_commit=False)
 
     async def _override_get_db():
         async with session_factory() as session:

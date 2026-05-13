@@ -1,9 +1,12 @@
+"""Source Field Extractor."""
+
 from __future__ import annotations
 
 import asyncio
 import json
 import re
-from typing import Any, Dict, List, Sequence
+from typing import Any
+from collections.abc import Sequence
 
 from app.core.config import get_openai_client, settings
 from app.core.logging import get_logger
@@ -33,7 +36,7 @@ EXTRACTION_PROMPT = build_json_system_prompt(
 async def extract_fields_from_documents(
     source_name: str,
     documents: Sequence[SourceDocument],
-) -> List[Dict[str, Any]]:
+) -> list[dict[str, Any]]:
     """Extract structured fields from documents using LLM."""
     client = get_openai_client()
     if not client:
@@ -67,9 +70,7 @@ async def extract_fields_from_documents(
         extracted = _parse_extracted_fields(content or "")
 
         if extracted:
-            logger.info(
-                f"Extracted {len(extracted)} field entries from {len(documents)} docs"
-            )
+            logger.info(f"Extracted {len(extracted)} field entries from {len(documents)} docs")
             return extracted
         else:
             logger.warning(f"Failed to parse extracted fields for {source_name}")
@@ -80,7 +81,7 @@ async def extract_fields_from_documents(
         return []
 
 
-def _truncate_documents(documents: Sequence[SourceDocument]) -> List[Dict[str, str]]:
+def _truncate_documents(documents: Sequence[SourceDocument]) -> list[dict[str, str]]:
     """Truncate documents to stay within token budget."""
     truncated = []
     for doc in documents:
@@ -120,7 +121,7 @@ def _smart_truncate(text: str, max_chars: int) -> str:
     return text[:max_chars] + "..."
 
 
-def _build_docs_context(documents: List[Dict[str, str]]) -> str:
+def _build_docs_context(documents: list[dict[str, str]]) -> str:
     """Build context string from documents."""
     parts = []
     for i, doc in enumerate(documents):
@@ -133,7 +134,7 @@ def _build_docs_context(documents: List[Dict[str, str]]) -> str:
     return "\n".join(parts)
 
 
-def _parse_extracted_fields(content: str) -> List[Dict[str, Any]]:
+def _parse_extracted_fields(content: str) -> list[dict[str, Any]]:
     """Parse extracted fields from LLM response."""
     if not content:
         return []
@@ -160,7 +161,7 @@ def _parse_extracted_fields(content: str) -> List[Dict[str, Any]]:
     return []
 
 
-def _normalize_extracted_entries(entries: List[Any]) -> List[Dict[str, Any]]:
+def _normalize_extracted_entries(entries: list[Any]) -> list[dict[str, Any]]:
     """Normalize extracted entries."""
     normalized = []
     for entry in entries:

@@ -1,3 +1,5 @@
+"""Reading Queue."""
+
 from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException
@@ -38,9 +40,7 @@ async def add_to_queue(
 
 
 @router.delete("/{queue_id}", status_code=204)
-async def remove_from_queue(
-    queue_id: int, session: AsyncSession = Depends(get_db)
-) -> None:
+async def remove_from_queue(queue_id: int, session: AsyncSession = Depends(get_db)) -> None:
     """Remove an item from the reading queue."""
     try:
         success = await queue_service.remove_from_queue(session, queue_id)
@@ -174,9 +174,7 @@ async def update_highlight(
 ) -> Highlight:
     """Update a highlight."""
     try:
-        highlight = await highlights_service.update_highlight(
-            session, highlight_id, request
-        )
+        highlight = await highlights_service.update_highlight(session, highlight_id, request)
         if not highlight:
             raise HTTPException(status_code=404, detail="Highlight not found")
         return highlight
@@ -188,9 +186,7 @@ async def update_highlight(
 
 
 @router.delete("/highlights/{highlight_id}", status_code=204)
-async def delete_highlight(
-    highlight_id: int, session: AsyncSession = Depends(get_db)
-) -> None:
+async def delete_highlight(highlight_id: int, session: AsyncSession = Depends(get_db)) -> None:
     """Delete a highlight."""
     try:
         success = await highlights_service.delete_highlight(session, highlight_id)

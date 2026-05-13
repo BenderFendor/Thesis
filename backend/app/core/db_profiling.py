@@ -1,5 +1,4 @@
-"""
-Database Query Profiling Utilities
+"""Database Query Profiling Utilities.
 
 Tools for profiling SQLAlchemy queries:
 - Query timing collection
@@ -13,9 +12,9 @@ from __future__ import annotations
 import asyncio
 import time
 from dataclasses import dataclass
-from datetime import datetime, timezone
+from datetime import datetime, UTC
 from types import TracebackType
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any
 from sqlalchemy import event
 from sqlalchemy.ext.asyncio import AsyncEngine
 from sqlalchemy.pool import AsyncAdaptedQueuePool
@@ -27,17 +26,21 @@ logger = get_logger("db_profiling")
 
 @dataclass
 class QueryInfo:
+    """Query Info."""
+
     statement: str
-    parameters: Tuple[Any, ...]
+    parameters: tuple[Any, ...]
     start_time: float
     duration_ms: float
-    cursor_description: Optional[Tuple[Any, ...]] = None
-    row_count: Optional[int] = None
-    error: Optional[str] = None
+    cursor_description: tuple[Any, ...] | None = None
+    row_count: int | None = None
+    error: str | None = None
 
 
 @dataclass
 class SlowQueryThreshold:
+    """Slow Query Threshold."""
+
     warning_ms: float = 100.0
     critical_ms: float = 1000.0
     log_all: bool = False
@@ -46,17 +49,19 @@ class SlowQueryThreshold:
 class QueryProfiler:
     """Profiler for database query performance."""
 
-    def __init__(self, threshold: Optional[SlowQueryThreshold] = None) -> None:
+    def __init__(self, threshold: SlowQueryThreshold | None = None) -> None:
+        """Initialize."""
         self.threshold = threshold or SlowQueryThreshold()
-        self._queries: List[QueryInfo] = []
+        self._queries: list[QueryInfo] = []
         self._lock = asyncio.Lock()
         self._query_count = 0
         self._total_time_ms = 0.0
-        self._slow_queries: List[QueryInfo] = []
+        self._slow_queries: list[QueryInfo] = []
         self._enabled = True
 
     @property
     def avg_query_time_ms(self) -> float:
+        """Avg Query Time Ms."""
         return self._total_time_ms / self._query_count if self._query_count > 0 else 0.0
 
     async def record_query(self, query: QueryInfo) -> None:
@@ -85,7 +90,7 @@ class QueryProfiler:
                         query.statement[:200],
                     )
 
-    def get_stats(self) -> Dict[str, Any]:
+    def get_stats(self) -> dict[str, Any]:
         """Get profiling statistics."""
         return {
             "total_queries": self._query_count,
@@ -96,13 +101,9 @@ class QueryProfiler:
                 {
                     "duration_ms": q.duration_ms,
                     "statement": q.statement[:200],
-                    "timestamp": datetime.fromtimestamp(
-                        q.start_time, tz=timezone.utc
-                    ).isoformat(),
+                    "timestamp": datetime.fromtimestamp(q.start_time, tz=UTC).isoformat(),
                 }
-                for q in sorted(
-                    self._slow_queries, key=lambda q: q.duration_ms, reverse=True
-                )[:20]
+                for q in sorted(self._slow_queries, key=lambda q: q.duration_ms, reverse=True)[:20]
             ],
         }
 
@@ -114,9 +115,11 @@ class QueryProfiler:
         self._total_time_ms = 0.0
 
     def enable(self) -> None:
+        """Enable."""
         self._enabled = True
 
     def disable(self) -> None:
+        """Disable."""
         self._enabled = False
 
 
@@ -124,35 +127,33 @@ class N1QueryDetector:
     """Detector for N+1 query patterns."""
 
     def __init__(self) -> None:
-        self._parent_queries: Dict[str, List[QueryInfo]] = {}
-        self._child_queries: Dict[str, List[QueryInfo]] = {}
+        """Initialize."""
+        self._parent_queries: dict[str, list[QueryInfo]] = {}
+        self._child_queries: dict[str, list[QueryInfo]] = {}
         self._lock = asyncio.Lock()
 
-    async def detect_patterns(self) -> List[Dict[str, Any]]:
+    async def detect_patterns(self) -> list[dict[str, Any]]:
         """Detect N+1 patterns in recorded queries."""
         patterns = []
 
         async with self._lock:
             for parent_stmt, parent_queries in self._parent_queries.items():
                 for child_stmt, child_queries in self._child_queries.items():
-                    if self._is_related(parent_stmt, child_stmt):
-                        if len(parent_queries) > 1 and len(child_queries) > len(
-                            parent_queries
-                        ):
-                            patterns.append(
-                                {
-                                    "parent": parent_stmt[:100],
-                                    "child": child_stmt[:100],
-                                    "parent_calls": len(parent_queries),
-                                    "child_calls": len(child_queries),
-                                    "ratio": round(
-                                        len(child_queries) / len(parent_queries), 2
-                                    ),
-                                    "severity": "high"
-                                    if len(child_queries) / len(parent_queries) > 10
-                                    else "medium",
-                                }
-                            )
+                    if self._is_related(parent_stmt, child_stmt) and (
+                        len(parent_queries) > 1 and len(child_queries) > len(parent_queries)
+                    ):
+                        patterns.append(
+                            {
+                                "parent": parent_stmt[:100],
+                                "child": child_stmt[:100],
+                                "parent_calls": len(parent_queries),
+                                "child_calls": len(child_queries),
+                                "ratio": round(len(child_queries) / len(parent_queries), 2),
+                                "severity": "high"
+                                if len(child_queries) / len(parent_queries) > 10
+                                else "medium",
+                            }
+                        )
 
         return patterns
 
@@ -181,9 +182,10 @@ class ConnectionPoolMonitor:
     """Monitor for database connection pool statistics."""
 
     def __init__(self, pool: AsyncAdaptedQueuePool) -> None:
+        """Initialize."""
         self._pool = pool
 
-    def get_stats(self) -> Dict[str, Any]:
+    def get_stats(self) -> dict[str, Any]:
         """Get connection pool statistics."""
         return {
             "pool_size": self._pool.size(),
@@ -214,7 +216,7 @@ class ConnectionPoolMonitor:
         return checkedout / size >= threshold if size > 0 else False
 
 
-_global_query_profiler: Optional[QueryProfiler] = None
+_global_query_profiler: QueryProfiler | None = None
 
 
 def get_query_profiler() -> QueryProfiler:
@@ -238,6 +240,7 @@ def instrument_engine(engine: AsyncEngine) -> None:
         context: Any,
         _executemany: bool,
     ) -> tuple[str, Any]:
+        """Before Cursor Execute."""
         conn.info["query_start_time"] = time.perf_counter()
         return statement, parameters
 
@@ -250,6 +253,7 @@ def instrument_engine(engine: AsyncEngine) -> None:
         context: Any,
         _executemany: bool,
     ) -> None:
+        """After Cursor Execute."""
         duration_ms = (time.perf_counter() - conn.info["query_start_time"]) * 1000
 
         query = QueryInfo(
@@ -269,15 +273,17 @@ def instrument_engine(engine: AsyncEngine) -> None:
 class ProfileQueryContext:
     """Async context manager for profiling a single query."""
 
-    def __init__(self, statement: str, params: Tuple[Any, ...] = ()) -> None:
+    def __init__(self, statement: str, params: tuple[Any, ...] = ()) -> None:
+        """Initialize."""
         self.statement = statement
         self.params = params
         self.profiler = get_query_profiler()
         self.start_time: float = 0.0
         self.duration_ms: float = 0.0
-        self.error: Optional[str] = None
+        self.error: str | None = None
 
-    async def __aenter__(self) -> "ProfileQueryContext":
+    async def __aenter__(self) -> ProfileQueryContext:
+        """Context manager enter."""
         self.start_time = time.perf_counter()
         return self
 
@@ -287,6 +293,7 @@ class ProfileQueryContext:
         exc_val: BaseException | None,
         _exc_tb: TracebackType | None,
     ) -> None:
+        """Context manager exit."""
         self.duration_ms = (time.perf_counter() - self.start_time) * 1000
         if exc_type:
             self.error = str(exc_val)
@@ -300,6 +307,6 @@ class ProfileQueryContext:
         await self.profiler.record_query(query)
 
 
-def profile_query(statement: str, params: Tuple[Any, ...] = ()) -> ProfileQueryContext:
+def profile_query(statement: str, params: tuple[Any, ...] = ()) -> ProfileQueryContext:
     """Context manager to profile a single query."""
     return ProfileQueryContext(statement, params)

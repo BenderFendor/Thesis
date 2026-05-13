@@ -1,3 +1,29 @@
+#![deny(missing_docs)]
+#![warn(clippy::unwrap_used)]
+#![allow(clippy::wildcard_imports)]
+
+//! High-performance RSS feed parsing, article deduplication, topic clustering,
+//! and GDELT event processing, exposed as a Python extension module via PyO3.
+//!
+//! The crate provides:
+//!
+//! - **Feed ingestion**: Concurrent RSS/Atom fetching and parsing with
+//!   configurable concurrency limits.
+//! - **Article extraction**: HTML-based extraction of article bodies, Open
+//!   Graph images, and metadata from raw web pages.
+//! - **Deduplication**: MinHash-based duplicate detection and deduplication of
+//!   article groups using character n-gram shingling.
+//! - **Topic clustering**: Lexical clustering of articles by title keyword
+//!   overlap, with cluster labeling and keyword extraction.
+//! - **GDELT processing**: Parsing of GDELT tab-separated event files and
+//!   filtering by source domain.
+//! - **Feed ranking**: Personalized article ranking based on user interest
+//!   profiles derived from bookmarks, likes, and favorite sources.
+//! - **Blindspot analysis**: Semantic axis construction and article scoring
+//!   for identifying coverage gaps across news sources.
+//! - **Country mentions**: High-performance country name extraction from
+//!   article text using Aho-Corasick automata and multi-token alias matching.
+
 use pyo3::prelude::*;
 use pyo3::types::PyDict;
 use tokio::runtime::Runtime;
@@ -23,6 +49,12 @@ use crate::html_extract::{extract_article_from_html, extract_og_image_from_html}
 use crate::parser::parse_sources;
 use crate::types::{ensure_source_requests, parse_result_to_pydict};
 
+/// Fetches and parses multiple RSS/Atom feeds concurrently and returns all
+/// extracted articles, per-source statistics, and timing metrics.
+///
+/// Accepts a list of named source groups (each with one or more feed URLs) and
+/// an optional maximum concurrency limit. Returns a Python dictionary with
+/// keys `articles`, `source_stats`, and `metrics`.
 #[pyfunction]
 fn parse_feeds_parallel<'py>(
     py: Python<'py>,
@@ -41,6 +73,11 @@ fn parse_feeds_parallel<'py>(
     parse_result_to_pydict(py, &result)
 }
 
+/// Extracts article body text, title, authors, publish date, top image, all
+/// images, and meta description from a raw HTML string.
+///
+/// Returns a Python dictionary with keys `text`, `title`, `authors`,
+/// `publish_date`, `top_image`, `images`, and `meta_description`.
 #[pyfunction]
 fn extract_article_html<'py>(py: Python<'py>, html: String) -> PyResult<Bound<'py, PyDict>> {
     let result = extract_article_from_html(&html);
@@ -55,6 +92,11 @@ fn extract_article_html<'py>(py: Python<'py>, html: String) -> PyResult<Bound<'p
     Ok(dict)
 }
 
+/// Extracts Open Graph and Twitter image URLs from an HTML document along with
+/// a ranked list of image candidates from multiple sources.
+///
+/// Returns a Python dictionary with keys `image_url` and `candidates`.
+/// Each candidate includes `url`, `source`, and `priority` fields.
 #[pyfunction]
 fn extract_og_image_html<'py>(py: Python<'py>, html: String) -> PyResult<Bound<'py, PyDict>> {
     let result = extract_og_image_from_html(&html);
@@ -73,6 +115,8 @@ fn extract_og_image_html<'py>(py: Python<'py>, html: String) -> PyResult<Bound<'
     Ok(dict)
 }
 
+/// Registers all functions, constants, and metadata on the `rss_parser_rust`
+/// Python module during import.
 #[pymodule]
 fn rss_parser_rust(py: Python<'_>, module: &Bound<'_, PyModule>) -> PyResult<()> {
     module.add_function(wrap_pyfunction!(parse_feeds_parallel, module)?)?;

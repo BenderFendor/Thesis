@@ -135,8 +135,8 @@ export function runSimulation(
 
     for (let i = 0; i < nodes.length; i += 1) {
       for (let j = i + 1; j < nodes.length; j += 1) {
-        const a = nodes[i];
-        const b = nodes[j];
+        const a = nodes[i]!;
+        const b = nodes[j]!;
         const dx = b.x - a.x;
         const dy = b.y - a.y;
         const distSq = Math.max(dx * dx + dy * dy, 1);

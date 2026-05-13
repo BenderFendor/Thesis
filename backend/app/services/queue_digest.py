@@ -28,8 +28,7 @@ DIGEST_SYSTEM_PROMPT = build_text_system_prompt(
 async def generate_queue_digest(
     articles: list[dict[str, Any]], grouped: dict[str, list[dict[str, Any]]]
 ) -> str:
-    """
-    Generate an AI-powered reading digest from queued articles.
+    """Generate an AI-powered reading digest from queued articles.
 
     Args:
         articles: List of article summaries with metadata
@@ -158,7 +157,6 @@ def _build_structured_articles_block(articles: list[dict[str, Any]] | None) -> s
     parses the JSON payload inside. Provide a minimal, stable schema so the
     reader UI can create inline cards.
     """
-
     normalized: list[dict[str, Any]] = []
 
     for a in articles or []:

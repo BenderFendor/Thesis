@@ -1,6 +1,7 @@
+"""Bookmarks."""
+
 from __future__ import annotations
 
-from typing import Dict
 
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -23,22 +24,20 @@ router = APIRouter(prefix="/api/bookmarks", tags=["bookmarks"])
 
 
 @router.get("")
-async def list_bookmarks(db: AsyncSession = Depends(get_db)) -> Dict[str, object]:
+async def list_bookmarks(db: AsyncSession = Depends(get_db)) -> dict[str, object]:
+    """List Bookmarks."""
     bookmarks_stmt = build_saved_article_list_stmt(BookmarkRecord, "bookmark_id")
     result = await db.execute(bookmarks_stmt)
     rows = result.all()
 
-    bookmarks = [
-        serialize_saved_article_row(row, id_field="bookmark_id") for row in rows
-    ]
+    bookmarks = [serialize_saved_article_row(row, id_field="bookmark_id") for row in rows]
 
     return {"bookmarks": bookmarks, "total": len(bookmarks)}
 
 
 @router.get("/{article_id}")
-async def get_bookmark(
-    article_id: int, db: AsyncSession = Depends(get_db)
-) -> Dict[str, object]:
+async def get_bookmark(article_id: int, db: AsyncSession = Depends(get_db)) -> dict[str, object]:
+    """Get Bookmark."""
     bookmark_stmt = build_saved_article_detail_stmt(BookmarkRecord, article_id)
 
     result = await db.execute(bookmark_stmt)
@@ -57,7 +56,8 @@ async def get_bookmark(
 @router.post("", status_code=201)
 async def create_bookmark(
     payload: BookmarkCreateRequest, db: AsyncSession = Depends(get_db)
-) -> Dict[str, object]:
+) -> dict[str, object]:
+    """Create Bookmark."""
     article = await get_article_or_404(db, payload.article_id)
     existing = await get_saved_article_item(db, BookmarkRecord, payload.article_id)
 
@@ -81,9 +81,8 @@ async def create_bookmark(
 
 
 @router.put("/{article_id}")
-async def update_bookmark(
-    article_id: int, db: AsyncSession = Depends(get_db)
-) -> Dict[str, object]:
+async def update_bookmark(article_id: int, db: AsyncSession = Depends(get_db)) -> dict[str, object]:
+    """Update Bookmark."""
     bookmark = await get_saved_article_item_or_404(
         db,
         BookmarkRecord,
@@ -96,9 +95,8 @@ async def update_bookmark(
 
 
 @router.delete("/{article_id}")
-async def delete_bookmark(
-    article_id: int, db: AsyncSession = Depends(get_db)
-) -> Dict[str, object]:
+async def delete_bookmark(article_id: int, db: AsyncSession = Depends(get_db)) -> dict[str, object]:
+    """Delete Bookmark."""
     bookmark = await get_saved_article_item_or_404(
         db,
         BookmarkRecord,

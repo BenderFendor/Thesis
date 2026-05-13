@@ -7,8 +7,9 @@ using URL matching and embedding similarity.
 from __future__ import annotations
 
 import logging
-from datetime import datetime, timezone
-from typing import TYPE_CHECKING, Any, Dict, List, Optional, Sequence, Tuple, cast
+from datetime import datetime, UTC
+from typing import TYPE_CHECKING, Any, cast
+from collections.abc import Sequence
 from urllib.parse import urlparse
 
 import httpx
@@ -38,8 +39,9 @@ class GDELTIntegration:
     """Handles fetching and matching GDELT events to articles."""
 
     def __init__(self) -> None:
+        """Initialize."""
         self.vector_store: VectorStore | None = None
-        self._client: Optional[httpx.AsyncClient] = None
+        self._client: httpx.AsyncClient | None = None
 
     async def _get_client(self) -> httpx.AsyncClient:
         """Get or create HTTP client."""
@@ -53,7 +55,7 @@ class GDELTIntegration:
 
     async def fetch_recent_events(
         self, minutes: int = 15, limit: int = 250
-    ) -> List[Dict[str, Any]]:
+    ) -> list[dict[str, Any]]:
         """Fetch recent GDELT events from the last N minutes.
 
         Args:
@@ -83,9 +85,7 @@ class GDELTIntegration:
             for line in lines[:3]:  # Check last 3 updates
                 parts = line.split()
                 if len(parts) >= 3:
-                    export_url = (
-                        parts[2] if parts[2].endswith(".export.CSV.zip") else None
-                    )
+                    export_url = parts[2] if parts[2].endswith(".export.CSV.zip") else None
                     if export_url and export_url.startswith("http"):
                         export_urls.append(export_url)
 
@@ -102,9 +102,7 @@ class GDELTIntegration:
             logger.error(f"Failed to fetch GDELT events: {e}")
             return []
 
-    async def _fetch_export_csv(
-        self, csv_url: str, limit: int = 250
-    ) -> List[Dict[str, Any]]:
+    async def _fetch_export_csv(self, csv_url: str, limit: int = 250) -> list[dict[str, Any]]:
         """Fetch and parse a GDELT export CSV file using Rust parser.
 
         Args:
@@ -130,7 +128,7 @@ class GDELTIntegration:
             logger.error(f"Failed to fetch/parse GDELT CSV {csv_url}: {e}")
             return []
 
-    def _parse_gdelt_row(self, row: Dict[str, str]) -> Optional[Dict[str, Any]]:
+    def _parse_gdelt_row(self, row: dict[str, str]) -> dict[str, Any] | None:
         """Parse a GDELT CSV row into a structured event dictionary.
 
         Args:
@@ -153,7 +151,7 @@ class GDELTIntegration:
                 day = int(date_str[6:8])
                 published_at = datetime(year, month, day, 0, 0, 0)
             else:
-                published_at = datetime.now(timezone.utc)
+                published_at = datetime.now(UTC)
 
             # Parse URLs from Mention URLs
             url = row.get("SOURCEURL", "").strip()
@@ -182,9 +180,7 @@ class GDELTIntegration:
             return {
                 "gdelt_id": gdelt_id,
                 "url": url,
-                "title": row.get(
-                    "DocumentIdentifier", ""
-                ),  # Use document identifier as title
+                "title": row.get("DocumentIdentifier", ""),  # Use document identifier as title
                 "source": source,
                 "published_at": published_at,
                 "event_code": row.get("EventCode", ""),
@@ -215,8 +211,8 @@ class GDELTIntegration:
             return ""
 
     async def match_events_to_articles(
-        self, session: AsyncSession, events: List[Dict[str, Any]]
-    ) -> Tuple[int, int]:
+        self, session: AsyncSession, events: list[dict[str, Any]]
+    ) -> tuple[int, int]:
         """Match GDELT events to existing articles.
 
         Uses two methods:
@@ -261,9 +257,7 @@ class GDELTIntegration:
                     )
 
             except Exception as e:
-                logger.warning(
-                    f"Failed to match GDELT event {event.get('gdelt_id')}: {e}"
-                )
+                logger.warning(f"Failed to match GDELT event {event.get('gdelt_id')}: {e}")
                 continue
 
         await session.commit()
@@ -271,7 +265,7 @@ class GDELTIntegration:
 
         return matched_count, len(events)
 
-    async def _match_by_url(self, session: AsyncSession, url: str) -> Optional[int]:
+    async def _match_by_url(self, session: AsyncSession, url: str) -> int | None:
         """Match GDELT event to article by URL.
 
         Args:
@@ -282,9 +276,7 @@ class GDELTIntegration:
             Article ID if matched, None otherwise
         """
         # Find article with this URL
-        article_result = await session.execute(
-            select(Article).where(Article.url == url)
-        )
+        article_result = await session.execute(select(Article).where(Article.url == url))
         article = article_result.scalar_one_or_none()
 
         if not article:
@@ -295,9 +287,7 @@ class GDELTIntegration:
             return None
         return article_id
 
-    async def _match_by_embedding(
-        self, session: AsyncSession, event: Dict[str, Any]
-    ) -> Optional[int]:
+    async def _match_by_embedding(self, session: AsyncSession, event: dict[str, Any]) -> int | None:
         """Match GDELT event to article by embedding similarity.
 
         Generates an embedding from the event title and compares to
@@ -329,7 +319,7 @@ class GDELTIntegration:
             distances_payload = result.get("distances") if result else None
             distances = distances_payload[0] if distances_payload else []
 
-            for chroma_id, distance in zip(ids, distances):
+            for chroma_id, distance in zip(ids, distances, strict=False):
                 if not chroma_id or not chroma_id.startswith("article_"):
                     continue
                 similarity = 1 - distance if distance is not None else 0.0
@@ -348,7 +338,7 @@ class GDELTIntegration:
 
         return None
 
-    def _cosine_similarity(self, vec1: List[float], vec2: List[float]) -> float:
+    def _cosine_similarity(self, vec1: list[float], vec2: list[float]) -> float:
         """Calculate cosine similarity between two vectors."""
         import numpy as np
 
@@ -367,8 +357,8 @@ class GDELTIntegration:
     async def _store_gdelt_event(
         self,
         session: AsyncSession,
-        event: Dict[str, Any],
-        article_id: Optional[int],
+        event: dict[str, Any],
+        article_id: int | None,
         match_method: str,
     ) -> None:
         """Store GDELT event to database.
@@ -406,7 +396,7 @@ class GDELTIntegration:
             tone=event.get("tone"),
             goldstein_scale=event.get("goldstein_scale"),
             article_id=article_id,
-            matched_at=datetime.now(timezone.utc) if article_id else None,
+            matched_at=datetime.now(UTC) if article_id else None,
             match_method=match_method if article_id else None,
             similarity_score=cast(Any, similarity_score),
             raw_data=event.get("raw_data"),
@@ -414,9 +404,7 @@ class GDELTIntegration:
 
         session.add(gdelt_event)
 
-    async def update_article_external_count(
-        self, session: AsyncSession, article_id: int
-    ) -> int:
+    async def update_article_external_count(self, session: AsyncSession, article_id: int) -> int:
         """Count GDELT events matched to a specific article."""
         count_result = await session.execute(
             select(func.count(GDELTEvent.id)).where(GDELTEvent.article_id == article_id)
@@ -431,7 +419,7 @@ class GDELTIntegration:
 
 
 # Global instance
-_gdelt_integration: Optional[GDELTIntegration] = None
+_gdelt_integration: GDELTIntegration | None = None
 
 
 def get_gdelt_integration() -> GDELTIntegration:
@@ -444,7 +432,7 @@ def get_gdelt_integration() -> GDELTIntegration:
 
 async def sync_gdelt_to_articles(
     session: AsyncSession, minutes: int = 15, limit: int = 250
-) -> Tuple[int, int]:
+) -> tuple[int, int]:
     """Convenience function to sync recent GDELT events to articles.
 
     Args:

@@ -10,7 +10,7 @@ class _FakeResponse:
     def __init__(self, body: str) -> None:
         self._body = body.encode("utf-8")
 
-    def __enter__(self) -> "_FakeResponse":
+    def __enter__(self) -> _FakeResponse:
         return self
 
     def __exit__(self, *_args: Any) -> None:

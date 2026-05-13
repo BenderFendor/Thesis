@@ -17,27 +17,23 @@ import argparse
 import json
 import sys
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 import httpx
 
 WIKIDATA_API_URL = "https://www.wikidata.org/w/api.php"
-WIKIMEDIA_USER_AGENT = (
-    "ScoopNewsWikidataCurator/1.0 (https://github.com/anomalyco/Thesis)"
-)
+WIKIMEDIA_USER_AGENT = "ScoopNewsWikidataCurator/1.0 (https://github.com/anomalyco/Thesis)"
 SEARCH_LIMIT = 5
 
 
-def _load_rss_sources() -> Dict[str, Any]:
-    sources_path = (
-        Path(__file__).resolve().parent.parent / "app" / "data" / "rss_sources.json"
-    )
+def _load_rss_sources() -> dict[str, Any]:
+    sources_path = Path(__file__).resolve().parent.parent / "app" / "data" / "rss_sources.json"
     with sources_path.open("r", encoding="utf-8") as f:
         return json.load(f)
 
 
 def resolve_package_root() -> str:
-    return str((Path(__file__).resolve().parent.parent))
+    return str(Path(__file__).resolve().parent.parent)
 
 
 def _load_numpy() -> Any:
@@ -49,7 +45,7 @@ def _load_numpy() -> Any:
         return None
 
 
-def _get_embedding(text: str) -> Optional[Any]:
+def _get_embedding(text: str) -> Any | None:
     """Get embedding via the project's vector store if available."""
     np = _load_numpy()
     if np is None:
@@ -87,9 +83,7 @@ def _normalize(value: str) -> str:
     return " ".join(value.lower().strip().split())
 
 
-async def search_wikidata(
-    name: str, http_client: httpx.AsyncClient
-) -> List[Dict[str, Any]]:
+async def search_wikidata(name: str, http_client: httpx.AsyncClient) -> list[dict[str, Any]]:
     response = await http_client.get(
         WIKIDATA_API_URL,
         params={
@@ -109,12 +103,12 @@ async def search_wikidata(
 
 async def curate_source(
     source_name: str,
-    config: Dict[str, Any],
+    config: dict[str, Any],
     http_client: httpx.AsyncClient,
-    existing_qid: Optional[str],
-    embed_source: Optional[Any],
-) -> Dict[str, Any]:
-    result: Dict[str, Any] = {
+    existing_qid: str | None,
+    embed_source: Any | None,
+) -> dict[str, Any]:
+    result: dict[str, Any] = {
         "source_name": source_name,
         "existing_qid": existing_qid,
         "country": config.get("country", ""),
@@ -136,16 +130,12 @@ async def curate_source(
         return result
 
     for candidate in candidates:
-        label = candidate.get("label") or candidate.get("display", {}).get(
-            "label", {}
-        ).get("value", "")
+        label = candidate.get("label") or candidate.get("display", {}).get("label", {}).get(
+            "value", ""
+        )
         description = candidate.get("description") or ""
         qid = candidate.get("id") or ""
-        url = (
-            candidate.get("concepturi") or f"https://www.wikidata.org/wiki/{qid}"
-            if qid
-            else ""
-        )
+        url = candidate.get("concepturi") or f"https://www.wikidata.org/wiki/{qid}" if qid else ""
 
         candidate_embed = _get_embedding(f"{label} {description}")
         sim = cosine_similarity(embed_source, candidate_embed)
@@ -180,9 +170,7 @@ async def main() -> None:
     parser = argparse.ArgumentParser(
         description="Curate Wikidata QIDs for RSS sources using embedding disambiguation"
     )
-    parser.add_argument(
-        "--source", type=str, default=None, help="Curate a single source by name"
-    )
+    parser.add_argument("--source", type=str, default=None, help="Curate a single source by name")
     parser.add_argument(
         "--missing-only",
         action="store_true",
@@ -209,7 +197,7 @@ async def main() -> None:
             return
         sources = {args.source: sources[args.source]}
 
-    unique_sources: Dict[str, Dict[str, Any]] = {}
+    unique_sources: dict[str, dict[str, Any]] = {}
     for name, config in sources.items():
         base_name = name.split(" - ")[0].strip()
         existing_qid = config.get("wikidata_qid")
@@ -225,13 +213,15 @@ async def main() -> None:
     if args.top > 0:
         items = items[: args.top]
 
-    embed_map: Dict[str, Optional[Any]] = {}
+    embed_map: dict[str, Any | None] = {}
     for source_name, entry in items:
         config = entry["config"]
-        description = f"{source_name} {config.get('country', '')} {config.get('ownership_label', '')}"
+        description = (
+            f"{source_name} {config.get('country', '')} {config.get('ownership_label', '')}"
+        )
         embed_map[source_name] = _get_embedding(description)
 
-    results: List[Dict[str, Any]] = []
+    results: list[dict[str, Any]] = []
     async with httpx.AsyncClient(timeout=20.0) as client:
         for source_name, entry in items:
             config = entry["config"]
@@ -259,13 +249,9 @@ async def main() -> None:
     output = {
         "total_sources": len(results),
         "actions_summary": {
-            "already_tagged": sum(
-                1 for r in results if r["action"] == "already_tagged"
-            ),
+            "already_tagged": sum(1 for r in results if r["action"] == "already_tagged"),
             "no_candidates": sum(1 for r in results if r["action"] == "no_candidates"),
-            "auto_candidate": sum(
-                1 for r in results if r["action"] == "auto_candidate"
-            ),
+            "auto_candidate": sum(1 for r in results if r["action"] == "auto_candidate"),
             "review": sum(1 for r in results if r["action"] == "review"),
             "needs_manual": sum(1 for r in results if r["action"] == "needs_manual"),
             "error": sum(1 for r in results if r["action"] == "error"),
@@ -274,8 +260,7 @@ async def main() -> None:
     }
 
     if args.output:
-        with open(args.output, "w", encoding="utf-8") as f:
-            json.dump(output, f, indent=2)
+        Path(args.output).write_text(json.dumps(output, indent=2), encoding="utf-8")
         print(f"Results written to {args.output}")
     else:
         print(json.dumps(output, indent=2))

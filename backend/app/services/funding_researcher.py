@@ -1,5 +1,4 @@
-"""
-Funding Researcher Agent for Phase 5B.
+"""Funding Researcher Agent for Phase 5B.
 
 This agent researches news organizations to understand:
 - Ownership structure (parent companies, subsidiaries)
@@ -20,8 +19,9 @@ import json
 import re
 import inspect
 import asyncio
-from datetime import datetime, timezone
-from typing import Any, Dict, Iterable, List, Optional, Set, cast
+from datetime import datetime, UTC
+from typing import Any, cast
+from collections.abc import Iterable
 from urllib.parse import quote
 
 import httpx
@@ -35,14 +35,14 @@ from app.services.async_utils import gather_limited
 logger = get_logger("funding_researcher")
 
 # EDGAR User-Agent header — required by SEC; accepts email-only identity
-_EDGAR_HEADERS: Dict[str, str] = {
+_EDGAR_HEADERS: dict[str, str] = {
     "User-Agent": "Scoop Research (contact@example.com)",
     "Accept-Encoding": "gzip, deflate",
 }
 
 _external_semaphore = asyncio.Semaphore(5)
 
-KNOWN_ORGS: Dict[str, Dict[str, Any]] = {
+KNOWN_ORGS: dict[str, dict[str, Any]] = {
     "bbc": {
         "name": "BBC",
         "funding_type": "public",
@@ -347,6 +347,7 @@ class FundingResearcher:
     """Agent that researches news organization funding and ownership."""
 
     def __init__(self) -> None:
+        """Initialize."""
         self.client: OpenAI | None = get_openai_client()
         self.http_client = httpx.AsyncClient(
             timeout=30.0,
@@ -359,14 +360,14 @@ class FundingResearcher:
         self.propublica_base = "https://projects.propublica.org/nonprofits/api/v2"
 
     async def research_organization(
-        self, name: str, website: Optional[str] = None, use_ai: bool = True
-    ) -> Dict[str, Any]:
-        """
-        Research an organization's funding and ownership.
+        self, name: str, website: str | None = None, use_ai: bool = True
+    ) -> dict[str, Any]:
+        """Research an organization's funding and ownership.
 
         Args:
             name: Organization name
             website: Optional website URL
+            use_ai: Whether to use AI for research
 
         Returns:
             Organization data dict with ownership, funding, etc.
@@ -390,19 +391,15 @@ class FundingResearcher:
             return_exceptions=True,
         )
 
-        wikipedia_data: Dict[str, Any] = (
+        wikipedia_data: dict[str, Any] = (
             results[0] if not isinstance(results[0], BaseException) else {}
         )
-        nonprofit_data: Dict[str, Any] = (
+        nonprofit_data: dict[str, Any] = (
             results[1] if not isinstance(results[1], BaseException) else {}
         )
-        known_data: Dict[str, Any] = (
-            results[2] if not isinstance(results[2], BaseException) else {}
-        )
-        sec_data: Dict[str, Any] = (
-            results[3] if not isinstance(results[3], BaseException) else {}
-        )
-        wikidata_sparql: Dict[str, Any] = (
+        known_data: dict[str, Any] = results[2] if not isinstance(results[2], BaseException) else {}
+        sec_data: dict[str, Any] = results[3] if not isinstance(results[3], BaseException) else {}
+        wikidata_sparql: dict[str, Any] = (
             results[4] if not isinstance(results[4], BaseException) else {}
         )
 
@@ -417,9 +414,7 @@ class FundingResearcher:
         if inspect.isawaitable(wikidata_sparql):
             wikidata_sparql = await wikidata_sparql
 
-        wikidata_data = await self._fetch_wikidata(
-            wikipedia_data.get("page_title") or name
-        )
+        wikidata_data = await self._fetch_wikidata(wikipedia_data.get("page_title") or name)
 
         # Merge with priority
         org_data = self._merge_org_data(
@@ -438,7 +433,7 @@ class FundingResearcher:
         if self.client and use_ai:
             org_data = await self._ai_enhance_org_data(org_data)
 
-        org_data["last_researched_at"] = datetime.now(timezone.utc).isoformat()
+        org_data["last_researched_at"] = datetime.now(UTC).isoformat()
 
         return org_data
 
@@ -466,7 +461,7 @@ class FundingResearcher:
             return 0.0
         return overlap / union_size
 
-    async def _search_wikipedia(self, name: str) -> Dict[str, Any]:
+    async def _search_wikipedia(self, name: str) -> dict[str, Any]:
         """Search Wikipedia for organization information."""
         try:
             search_query = f"{name} news organization"
@@ -506,9 +501,7 @@ class FundingResearcher:
             )
 
             async with _external_semaphore:
-                extract_response = await self.http_client.get(
-                    url, params=extract_params
-                )
+                extract_response = await self.http_client.get(url, params=extract_params)
             if extract_response.status_code != 200:
                 return {}
 
@@ -540,7 +533,7 @@ class FundingResearcher:
             logger.error(f"Wikipedia search failed for {name}: {e}")
             return {}
 
-    def _extract_ownership_from_text(self, text: str) -> Optional[Dict[str, Any]]:
+    def _extract_ownership_from_text(self, text: str) -> dict[str, Any] | None:
         """Extract ownership information from Wikipedia text."""
         ownership = {}
         lower_text = text.lower()
@@ -569,7 +562,7 @@ class FundingResearcher:
 
         return ownership if ownership else None
 
-    async def _search_propublica_nonprofit(self, name: str) -> Dict[str, Any]:
+    async def _search_propublica_nonprofit(self, name: str) -> dict[str, Any]:
         """Search ProPublica Nonprofit Explorer for 990 data."""
         try:
             search_url = f"{self.propublica_base}/search.json"
@@ -649,7 +642,7 @@ class FundingResearcher:
             logger.error(f"ProPublica search failed for {name}: {e}")
             return {}
 
-    async def _fetch_wikidata(self, page_title: str) -> Dict[str, Any]:
+    async def _fetch_wikidata(self, page_title: str) -> dict[str, Any]:
         """Fetch structured ownership and metadata from Wikidata."""
         try:
             params = httpx.QueryParams(
@@ -683,7 +676,7 @@ class FundingResearcher:
             qid = entity.get("id")
             claims = entity.get("claims") or {}
 
-            item_ids: List[str] = []
+            item_ids: list[str] = []
             ownership_ids = _extract_wikidata_item_ids(claims, "P127")
             parent_ids = _extract_wikidata_item_ids(claims, "P749")
             part_of_ids = _extract_wikidata_item_ids(claims, "P361")
@@ -697,22 +690,14 @@ class FundingResearcher:
                 "qid": qid,
                 "wikidata_url": f"https://www.wikidata.org/wiki/{qid}" if qid else None,
                 "owned_by": [
-                    labels.get(item_id)
-                    for item_id in ownership_ids
-                    if labels.get(item_id)
+                    labels.get(item_id) for item_id in ownership_ids if labels.get(item_id)
                 ],
                 "parent_orgs": [
                     labels.get(item_id) for item_id in parent_ids if labels.get(item_id)
                 ],
-                "part_of": [
-                    labels.get(item_id)
-                    for item_id in part_of_ids
-                    if labels.get(item_id)
-                ],
+                "part_of": [labels.get(item_id) for item_id in part_of_ids if labels.get(item_id)],
                 "headquarters": [
-                    labels.get(item_id)
-                    for item_id in headquarters_ids
-                    if labels.get(item_id)
+                    labels.get(item_id) for item_id in headquarters_ids if labels.get(item_id)
                 ],
                 "inception": _extract_wikidata_time(claims, "P571"),
                 "official_website": _extract_wikidata_url(claims, "P856"),
@@ -722,7 +707,7 @@ class FundingResearcher:
             logger.warning("Wikidata fetch failed for %s: %s", page_title, exc)
             return {}
 
-    async def _resolve_wikidata_labels(self, item_ids: List[str]) -> Dict[str, str]:
+    async def _resolve_wikidata_labels(self, item_ids: list[str]) -> dict[str, str]:
         if not item_ids:
             return {}
         unique_ids = sorted({item_id for item_id in item_ids if item_id})
@@ -745,7 +730,7 @@ class FundingResearcher:
         if response.status_code != 200:
             return {}
         data = response.json()
-        labels: Dict[str, str] = {}
+        labels: dict[str, str] = {}
         entities = data.get("entities")
         if not entities:
             return labels
@@ -760,7 +745,7 @@ class FundingResearcher:
                 labels[entity_id] = label
         return labels
 
-    async def _get_known_org_data(self, name: str) -> Dict[str, Any]:
+    async def _get_known_org_data(self, name: str) -> dict[str, Any]:
         """Return known data for major news organizations."""
         normalized = self._normalize_name(name)
 
@@ -775,16 +760,16 @@ class FundingResearcher:
         self,
         name: str,
         normalized_name: str,
-        website: Optional[str],
-        wikipedia: Dict[str, Any],
-        wikidata: Dict[str, Any],
-        nonprofit: Dict[str, Any],
-        known: Dict[str, Any],
-        sec: Optional[Dict[str, Any]] = None,
-        wikidata_sparql: Optional[Dict[str, Any]] = None,
-    ) -> Dict[str, Any]:
+        website: str | None,
+        wikipedia: dict[str, Any],
+        wikidata: dict[str, Any],
+        nonprofit: dict[str, Any],
+        known: dict[str, Any],
+        sec: dict[str, Any] | None = None,
+        wikidata_sparql: dict[str, Any] | None = None,
+    ) -> dict[str, Any]:
         """Merge data from multiple sources."""
-        org: Dict[str, Any] = {
+        org: dict[str, Any] = {
             "name": name,
             "normalized_name": normalized_name,
             "description": None,
@@ -910,14 +895,14 @@ class FundingResearcher:
         return org
 
     @staticmethod
-    def _extract_domain_from_url(url: str) -> Optional[str]:
+    def _extract_domain_from_url(url: str) -> str | None:
         """Extract domain name from a URL."""
         match = re.search(r"https?://([^/:]+)", url)
         if match:
             return match.group(1).lower()
         return None
 
-    async def _resolve_cik(self, name: str) -> Optional[str]:
+    async def _resolve_cik(self, name: str) -> str | None:
         """Resolve a company name to an SEC Central Index Key (CIK).
 
         Uses the SEC EDGAR company mapping file.
@@ -942,7 +927,7 @@ class FundingResearcher:
 
             # Fuzzy name-overlap match
             best_score = 0.0
-            best_cik: Optional[str] = None
+            best_cik: str | None = None
             for _key, entry in data.items():
                 entry_name = (entry.get("title") or "").lower().strip()
                 norm_entry = self._normalize_name(entry_name)
@@ -958,7 +943,7 @@ class FundingResearcher:
             logger.warning("CIK resolution failed for %s: %s", name, e)
             return None
 
-    async def _search_sec_edgar(self, name: str) -> Dict[str, Any]:
+    async def _search_sec_edgar(self, name: str) -> dict[str, Any]:
         """Search SEC EDGAR for company financial data.
 
         Uses the EDGAR full-text search and falls back to Company Facts API.
@@ -971,15 +956,13 @@ class FundingResearcher:
             # Try Company Facts API first (deterministic, no search overhead)
             facts_url = f"https://data.sec.gov/api/xbrl/companyfacts/CIK{cik}.json"
             async with _external_semaphore:
-                facts_response = await self.http_client.get(
-                    facts_url, headers=_EDGAR_HEADERS
-                )
+                facts_response = await self.http_client.get(facts_url, headers=_EDGAR_HEADERS)
             if facts_response.status_code == 200:
                 facts = facts_response.json()
                 facts_data = facts.get("facts", {})
                 us_gaap = facts_data.get("us-gaap", {})
 
-                def _latest_fact_value(tag: str) -> Optional[str]:
+                def _latest_fact_value(tag: str) -> str | None:
                     tag_data = us_gaap.get(tag, {})
                     units = tag_data.get("units", {})
                     usd_entries = units.get("USD", [])
@@ -1005,13 +988,10 @@ class FundingResearcher:
             # Fallback: search EDGAR full-text for 10-K filings
             query = quote(name)
             search_url = (
-                f"https://efts.sec.gov/LATEST/search-index?"
-                f"q={query}&categories=form-type=10-K"
+                f"https://efts.sec.gov/LATEST/search-index?q={query}&categories=form-type=10-K"
             )
             async with _external_semaphore:
-                search_response = await self.http_client.get(
-                    search_url, headers=_EDGAR_HEADERS
-                )
+                search_response = await self.http_client.get(search_url, headers=_EDGAR_HEADERS)
             if search_response.status_code != 200:
                 return {}
 
@@ -1031,8 +1011,8 @@ class FundingResearcher:
             return {}
 
     async def _resolve_org_wikidata_sparql(
-        self, name: str, domain: Optional[str] = None
-    ) -> Dict[str, Any]:
+        self, name: str, domain: str | None = None
+    ) -> dict[str, Any]:
         """Resolve an organization via Wikidata using wbsearchentities and SPARQL.
 
         Searches for entities with instance types: newspaper (Q11032),
@@ -1052,9 +1032,7 @@ class FundingResearcher:
                 }
             )
             async with _external_semaphore:
-                search_response = await self.http_client.get(
-                    search_url, params=search_params
-                )
+                search_response = await self.http_client.get(search_url, params=search_params)
             if search_response.status_code == 200:
                 search_data = search_response.json()
                 hits = search_data.get("search", [])
@@ -1117,7 +1095,7 @@ class FundingResearcher:
 
         return {}
 
-    async def _fetch_wikidata_by_qid(self, qid: str) -> Dict[str, Any]:
+    async def _fetch_wikidata_by_qid(self, qid: str) -> dict[str, Any]:
         """Fetch Wikidata claims and labels for a known QID."""
         try:
             params = httpx.QueryParams(
@@ -1143,7 +1121,7 @@ class FundingResearcher:
                 return {}
             claims = entity.get("claims") or {}
 
-            item_ids: List[str] = []
+            item_ids: list[str] = []
             ownership_ids = _extract_wikidata_item_ids(claims, "P127")
             parent_ids = _extract_wikidata_item_ids(claims, "P749")
             part_of_ids = _extract_wikidata_item_ids(claims, "P361")
@@ -1156,16 +1134,10 @@ class FundingResearcher:
                 "source": "wikidata",
                 "qid": qid,
                 "wikidata_url": f"https://www.wikidata.org/wiki/{qid}",
-                "owned_by": [
-                    labels.get(iid) for iid in ownership_ids if labels.get(iid)
-                ],
-                "parent_orgs": [
-                    labels.get(iid) for iid in parent_ids if labels.get(iid)
-                ],
+                "owned_by": [labels.get(iid) for iid in ownership_ids if labels.get(iid)],
+                "parent_orgs": [labels.get(iid) for iid in parent_ids if labels.get(iid)],
                 "part_of": [labels.get(iid) for iid in part_of_ids if labels.get(iid)],
-                "headquarters": [
-                    labels.get(iid) for iid in headquarters_ids if labels.get(iid)
-                ],
+                "headquarters": [labels.get(iid) for iid in headquarters_ids if labels.get(iid)],
                 "inception": _extract_wikidata_time(claims, "P571"),
                 "official_website": _extract_wikidata_url(claims, "P856"),
                 "confidence": "medium",
@@ -1177,9 +1149,9 @@ class FundingResearcher:
     async def detect_conflicts(
         self,
         source_name: str,
-        parent_org: Optional[str],
-        coverage_topics: List[str],
-    ) -> List[Dict[str, Any]]:
+        parent_org: str | None,
+        coverage_topics: list[str],
+    ) -> list[dict[str, Any]]:
         """Detect conflicts of interest between ownership and coverage.
 
         Cross-references parent company business interests (from SEC EDGAR
@@ -1188,7 +1160,7 @@ class FundingResearcher:
 
         Returns a list of conflict flags with severity.
         """
-        conflicts: List[Dict[str, Any]] = []
+        conflicts: list[dict[str, Any]] = []
         if not parent_org or not coverage_topics:
             return conflicts
 
@@ -1196,7 +1168,7 @@ class FundingResearcher:
         parent_data = await self.research_organization(parent_org, use_ai=False)
         owned_by = parent_data.get("owned_by", []) or []
         parent_orgs = parent_data.get("parent_orgs", []) or []
-        business_interests: Set[str] = set()
+        business_interests: set[str] = set()
 
         # Gather all ownership labels as potential business interest strings
         for item in owned_by + parent_orgs + [parent_org]:
@@ -1204,7 +1176,7 @@ class FundingResearcher:
                 business_interests.add(item.lower())
 
         # Known conflict keywords mapping
-        conflict_keywords: Dict[str, str] = {
+        conflict_keywords: dict[str, str] = {
             "oil": "energy",
             "gas": "energy",
             "petroleum": "energy",
@@ -1227,7 +1199,7 @@ class FundingResearcher:
         for topic in coverage_topics:
             topic_lower = topic.lower()
             for interest in business_interests:
-                for kw, sector in conflict_keywords.items():
+                for kw, _sector in conflict_keywords.items():
                     if kw in interest and kw in topic_lower:
                         conflicts.append(
                             {
@@ -1244,7 +1216,7 @@ class FundingResearcher:
 
         return conflicts
 
-    async def _ai_enhance_org_data(self, org: Dict[str, Any]) -> Dict[str, Any]:
+    async def _ai_enhance_org_data(self, org: dict[str, Any]) -> dict[str, Any]:
         """Use AI to fill gaps in organization data with expanded research.
 
         Cross-checks KNOWN_ORGS data for staleness and requesting richer
@@ -1257,7 +1229,7 @@ class FundingResearcher:
         known_key = self._normalize_name(org_name)
 
         # Staleness check: cross-reference KNOWN_ORGS against LLM knowledge
-        staleness_flags: List[str] = []
+        staleness_flags: list[str] = []
         if known_key not in KNOWN_ORGS:
             # Org is NOT in our hardcoded database — AI inference is needed
             pass
@@ -1286,14 +1258,9 @@ class FundingResearcher:
                     temperature=0.0,
                 )
                 verify_content = verify_response.choices[0].message.content or ""
-                if (
-                    "YES" in verify_content.upper()
-                    and "NO" not in verify_content.upper()
-                ):
+                if "YES" in verify_content.upper() and "NO" not in verify_content.upper():
                     staleness_flags.append("KNOWN_ORGS entry flagged as stale by LLM")
-                    logger.info(
-                        "KNOWN_ORGS entry for %s flagged stale by LLM", org_name
-                    )
+                    logger.info("KNOWN_ORGS entry for %s flagged stale by LLM", org_name)
             except Exception as e:
                 logger.warning("KNOWN_ORGS staleness check failed: %s", e)
 
@@ -1320,9 +1287,7 @@ class FundingResearcher:
             else:
                 return org
 
-            missing_desc = (
-                ", ".join(missing_fields) if missing_fields else "staleness validation"
-            )
+            missing_desc = ", ".join(missing_fields) if missing_fields else "staleness validation"
             staleness_note = " ".join(staleness_flags) if staleness_flags else ""
 
             prompt = f"""You are a media research assistant analyzing a news organization.
@@ -1407,9 +1372,7 @@ Respond in JSON:
                     org["top_donors"] = donors
                 advertisers = ai_data.get("major_advertisers", [])
                 if advertisers:
-                    existing_ads: List[str] = list(
-                        org.get("major_advertisers", []) or []
-                    )
+                    existing_ads: list[str] = list(org.get("major_advertisers", []) or [])
                     for ad in advertisers:
                         if ad not in existing_ads:
                             existing_ads.append(ad)
@@ -1420,9 +1383,7 @@ Respond in JSON:
                 if ai_data.get("has_paywall") is not None:
                     org["has_paywall"] = bool(ai_data["has_paywall"])
                 if ai_data.get("recent_ownership_changes"):
-                    org["recent_ownership_changes"] = ai_data[
-                        "recent_ownership_changes"
-                    ]
+                    org["recent_ownership_changes"] = ai_data["recent_ownership_changes"]
 
                 if "ai_inference" not in org.get("research_sources", []):
                     org["research_sources"].append("ai_inference")
@@ -1434,11 +1395,9 @@ Respond in JSON:
 
         return org
 
-    async def get_ownership_chain(
-        self, org_name: str, max_depth: int = 5
-    ) -> List[Dict[str, Any]]:
-        """
-        Build an ownership chain for an organization.
+    async def get_ownership_chain(self, org_name: str, max_depth: int = 5) -> list[dict[str, Any]]:
+        """Build an ownership chain for an organization.
+
         Returns a list of organizations from child to ultimate parent.
         """
         chain = []
@@ -1467,7 +1426,7 @@ Respond in JSON:
 
 
 # Singleton instance
-_researcher: Optional[FundingResearcher] = None
+_researcher: FundingResearcher | None = None
 
 
 def get_funding_researcher() -> FundingResearcher:
@@ -1478,8 +1437,8 @@ def get_funding_researcher() -> FundingResearcher:
     return _researcher
 
 
-def _extract_wikidata_item_ids(claims: Dict[str, Any], prop: str) -> List[str]:
-    items: List[str] = []
+def _extract_wikidata_item_ids(claims: dict[str, Any], prop: str) -> list[str]:
+    items: list[str] = []
     for claim in claims.get(prop, []):
         mainsnak = claim.get("mainsnak") or {}
         datavalue = mainsnak.get("datavalue") or {}
@@ -1491,7 +1450,7 @@ def _extract_wikidata_item_ids(claims: Dict[str, Any], prop: str) -> List[str]:
     return items
 
 
-def _extract_wikidata_time(claims: Dict[str, Any], prop: str) -> Optional[str]:
+def _extract_wikidata_time(claims: dict[str, Any], prop: str) -> str | None:
     for claim in claims.get(prop, []):
         mainsnak = claim.get("mainsnak") or {}
         datavalue = mainsnak.get("datavalue") or {}
@@ -1503,7 +1462,7 @@ def _extract_wikidata_time(claims: Dict[str, Any], prop: str) -> Optional[str]:
     return None
 
 
-def _extract_wikidata_url(claims: Dict[str, Any], prop: str) -> Optional[str]:
+def _extract_wikidata_url(claims: dict[str, Any], prop: str) -> str | None:
     for claim in claims.get(prop, []):
         mainsnak = claim.get("mainsnak") or {}
         datavalue = mainsnak.get("datavalue") or {}

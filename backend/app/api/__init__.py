@@ -1,3 +1,5 @@
+"""Api package."""
+
 from __future__ import annotations
 
 from . import routes

@@ -1,7 +1,9 @@
+"""Article Analysis."""
+
 from __future__ import annotations
 
 import json
-from typing import Any, Dict, Optional, cast
+from typing import Any, cast
 
 from openai.types.chat import ChatCompletion
 from tenacity import retry, retry_if_exception, stop_after_attempt, wait_exponential
@@ -25,11 +27,7 @@ SYSTEM_MESSAGE = build_json_system_prompt(
 
 def _is_retryable_error(exception: BaseException) -> bool:
     msg = str(exception)
-    return (
-        "429" in msg
-        or "rate limit" in msg.lower()
-        or "too many requests" in msg.lower()
-    )
+    return "429" in msg or "rate limit" in msg.lower() or "too many requests" in msg.lower()
 
 
 @retry(
@@ -51,14 +49,15 @@ def _generate_content_safe(
     )
 
 
-async def extract_article_content(url: str) -> Dict[str, Any]:
+async def extract_article_content(url: str) -> dict[str, Any]:
     """Async facade over the shared extraction helper."""
     return await extract_article_full_text(url)
 
 
 async def analyze_with_gemini(
-    article_data: Dict[str, Any], source_name: Optional[str] = None
-) -> Dict[str, Any]:
+    article_data: dict[str, Any], source_name: str | None = None
+) -> dict[str, Any]:
+    """Analyze With Gemini."""
     llm_client = get_llm_client()
     if not llm_client:
         return {"error": "OpenRouter API key not configured"}
@@ -89,14 +88,10 @@ async def analyze_with_gemini(
         return {"error": str(e)}
 
 
-def _build_analysis_prompt(
-    article_data: Dict[str, Any], source_name: Optional[str]
-) -> str:
+def _build_analysis_prompt(article_data: dict[str, Any], source_name: str | None) -> str:
     title = article_data.get("title", "Unknown")
     authors = (
-        ", ".join(article_data.get("authors", []))
-        if article_data.get("authors")
-        else "Unknown"
+        ", ".join(article_data.get("authors", [])) if article_data.get("authors") else "Unknown"
     )
     publish_date = article_data.get("publish_date", "Unknown")
     text = (article_data.get("text") or "")[:4000]
@@ -180,7 +175,7 @@ def _extract_response_text(response: Any) -> str:
     return message.strip()
 
 
-def _parse_response_json(response_text: str) -> Optional[Dict[str, Any]]:
+def _parse_response_json(response_text: str) -> dict[str, Any] | None:
     if not response_text:
         return None
     cleaned = _strip_code_fence(response_text)
@@ -190,7 +185,7 @@ def _parse_response_json(response_text: str) -> Optional[Dict[str, Any]]:
         return None
     if not isinstance(parsed, dict):
         return None
-    return cast(Dict[str, Any], parsed)
+    return cast(dict[str, Any], parsed)
 
 
 def _strip_code_fence(response_text: str) -> str:

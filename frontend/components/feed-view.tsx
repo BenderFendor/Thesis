@@ -20,8 +20,9 @@ import { useFavorites } from "@/hooks/useFavorites"
 import { useLikedArticles } from "@/hooks/useLikedArticles"
 import { useBookmarks } from "@/hooks/useBookmarks"
 import { useScrollPersonalization } from "@/hooks/useScrollPersonalization"
+import type {
+  FeedScoreBreakdown} from "@/lib/feed-ranking";
 import {
-  FeedScoreBreakdown,
   hasRealFeedImage,
   RANKING_WEIGHTS,
   SCROLL_INITIAL_RENDER_COUNT,
@@ -452,7 +453,7 @@ export function FeedView({
     )
   }
 
-  const currentBreakdown = breakdowns[effectiveVisibleArticles[effectiveActiveIndex]?.id] || null
+  const currentBreakdown = breakdowns[effectiveVisibleArticles[effectiveActiveIndex]!.id] || null
 
   return (
     <div className="relative flex-1 h-full min-h-0 w-full overflow-hidden bg-background">
@@ -486,8 +487,8 @@ export function FeedView({
                 className="w-full h-full object-cover opacity-60 transition-transform duration-700 group-hover:scale-105"
                 onError={(event) => {
                   const target = event.target as HTMLImageElement
-                  if (target.src !== ogImages[article.id] && ogImages[article.id]) {
-                    target.src = ogImages[article.id]
+                  if (target.src !== ogImages[article.id]! && ogImages[article.id]) {
+                    target.src = ogImages[article.id]!
                   } else if (target.src !== "/placeholder.svg") {
                     target.src = "/placeholder.svg"
                   }

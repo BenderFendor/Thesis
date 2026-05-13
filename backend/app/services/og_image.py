@@ -1,5 +1,4 @@
-"""
-Lightweight Open Graph image extraction.
+"""Lightweight Open Graph image extraction.
 
 Fetches og:image from article URLs for articles missing images.
 Designed to be fast, timeout-protected, and non-blocking.
@@ -17,7 +16,6 @@ import os
 import time
 from collections import defaultdict
 from pathlib import Path
-from typing import Dict, List, Optional, Tuple
 from urllib.parse import urljoin, urlparse
 
 import httpx
@@ -60,7 +58,7 @@ def _get_domain(url: str) -> str:
         return "unknown"
 
 
-def _update_cache_images(updated_images: Dict[int, str]) -> None:
+def _update_cache_images(updated_images: dict[int, str]) -> None:
     """Update in-memory cache with newly fetched image values."""
     if not updated_images:
         return
@@ -81,7 +79,7 @@ def _og_cache_path(url: str) -> Path:
     return OG_CACHE_DIR / f"{url_hash}.json"
 
 
-def _load_cached_og_metadata(url: str) -> Optional[Dict[str, str]]:
+def _load_cached_og_metadata(url: str) -> dict[str, str] | None:
     cache_path = _og_cache_path(url)
     if not cache_path.exists():
         return None
@@ -94,9 +92,7 @@ def _load_cached_og_metadata(url: str) -> Optional[Dict[str, str]]:
 
     fetched_at = payload.get("fetched_at")
     try:
-        fetched_ts = (
-            float(fetched_at) if fetched_at is not None else cache_path.stat().st_mtime
-        )
+        fetched_ts = float(fetched_at) if fetched_at is not None else cache_path.stat().st_mtime
     except Exception:
         fetched_ts = cache_path.stat().st_mtime
 
@@ -129,7 +125,7 @@ def _store_cached_og_metadata(
         logger.debug("Failed to write OG cache for %s: %s", url, exc)
 
 
-def _normalize_cached_image_value(value: object) -> Optional[str]:
+def _normalize_cached_image_value(value: object) -> str | None:
     if not isinstance(value, str):
         return None
     cleaned = value.strip()
@@ -143,14 +139,14 @@ def _is_valid_image_url(url: str) -> bool:
     return not (lowered.endswith(".svg") or "placeholder" in lowered)
 
 
-def _extract_og_image_from_html(html: str) -> Optional[str]:
+def _extract_og_image_from_html(html: str) -> str | None:
     image_url, _ = _extract_og_image_candidate_from_html(html, "")
     return image_url
 
 
 def _extract_og_image_candidate_from_html(
     html: str, article_url: str
-) -> tuple[Optional[str], Optional[str]]:
+) -> tuple[str | None, str | None]:
     payload = extract_og_image_html(html)
     for candidate in payload.get("candidates", []) or []:
         url = _normalize_candidate_url(candidate.get("url"), article_url)
@@ -161,7 +157,7 @@ def _extract_og_image_candidate_from_html(
     return None, None
 
 
-def _normalize_candidate_url(candidate: object, article_url: str) -> Optional[str]:
+def _normalize_candidate_url(candidate: object, article_url: str) -> str | None:
     if not isinstance(candidate, str):
         return None
     cleaned = candidate.strip()
@@ -174,7 +170,8 @@ def _normalize_candidate_url(candidate: object, article_url: str) -> Optional[st
     return cleaned if _is_valid_image_url(cleaned) else None
 
 
-async def fetch_og_image(url: str, client: httpx.AsyncClient) -> Optional[str]:
+async def fetch_og_image(url: str, client: httpx.AsyncClient) -> str | None:
+    """Fetch Og Image."""
     if not url or not url.startswith(("http://", "https://")):
         return None
 
@@ -213,9 +210,7 @@ async def fetch_og_image(url: str, client: httpx.AsyncClient) -> Optional[str]:
             if head_end > 0:
                 html = html[: head_end + 7]
 
-            image_url, selected_source = _extract_og_image_candidate_from_html(
-                html, url
-            )
+            image_url, selected_source = _extract_og_image_candidate_from_html(html, url)
             if image_url:
                 _store_cached_og_metadata(
                     url,
@@ -258,12 +253,11 @@ async def fetch_og_image(url: str, client: httpx.AsyncClient) -> Optional[str]:
 
 
 async def enrich_articles_with_og_images(
-    articles: List[NewsArticle],
+    articles: list[NewsArticle],
     max_per_domain: int = MAX_CONCURRENT_PER_DOMAIN,
     max_total_concurrency: int = MAX_TOTAL_CONCURRENT_FETCHES,
-) -> Tuple[int, int]:
-    """
-    Enrich articles that need images by fetching og:image from their URLs.
+) -> tuple[int, int]:
+    """Enrich articles that need images by fetching og:image from their URLs.
 
     Uses per-domain semaphores to limit concurrent requests to each domain
     while allowing unlimited parallelism across different domains.
@@ -275,7 +269,7 @@ async def enrich_articles_with_og_images(
     if not needing_images:
         return 0, 0
 
-    domain_semaphores: Dict[str, asyncio.Semaphore] = defaultdict(
+    domain_semaphores: dict[str, asyncio.Semaphore] = defaultdict(
         lambda: asyncio.Semaphore(max_per_domain)
     )
     total_semaphore = asyncio.Semaphore(max(1, max_total_concurrency))
@@ -284,14 +278,14 @@ async def enrich_articles_with_og_images(
     async with httpx.AsyncClient() as client:
 
         async def fetch_one(idx: int, article: NewsArticle) -> None:
+            """Fetch One."""
             nonlocal found_count
             domain = _get_domain(article.link)
-            async with total_semaphore:
-                async with domain_semaphores[domain]:
-                    image_url = await fetch_og_image(article.link, client)
-                    articles[idx].image = image_url or "none"
-                    if image_url:
-                        found_count += 1
+            async with total_semaphore, domain_semaphores[domain]:
+                image_url = await fetch_og_image(article.link, client)
+                articles[idx].image = image_url or "none"
+                if image_url:
+                    found_count += 1
 
         await asyncio.gather(
             *[fetch_one(idx, article) for idx, article in needing_images],
@@ -299,9 +293,7 @@ async def enrich_articles_with_og_images(
         )
 
     if found_count > 0:
-        logger.info(
-            "OG image enrichment: found %d/%d images", found_count, len(needing_images)
-        )
+        logger.info("OG image enrichment: found %d/%d images", found_count, len(needing_images))
 
     return len(needing_images), found_count
 
@@ -309,10 +301,9 @@ async def enrich_articles_with_og_images(
 async def backfill_missing_images(
     session: AsyncSession,
     batch_size: int = 100,
-    max_batches: Optional[int] = None,
-) -> Dict[str, int]:
-    """
-    Backfill OG images for existing articles in the database that are missing images.
+    max_batches: int | None = None,
+) -> dict[str, int]:
+    """Backfill OG images for existing articles in the database that are missing images.
 
     Prioritizes sources with the fewest articles first to maximize coverage.
     Processes in batches to avoid memory issues with large datasets.
@@ -392,49 +383,65 @@ async def backfill_missing_images(
             stats["total_processed"] += len(rows)
             source_processed += len(rows)
 
-            domain_semaphores: Dict[str, asyncio.Semaphore] = defaultdict(
+            domain_semaphores: dict[str, asyncio.Semaphore] = defaultdict(
                 lambda: asyncio.Semaphore(MAX_CONCURRENT_PER_DOMAIN)
             )
             total_semaphore = asyncio.Semaphore(max(1, MAX_TOTAL_CONCURRENT_FETCHES))
-            found_images: Dict[int, str] = {}
-            updated_images: Dict[int, str] = {}
-            failed_ids: List[int] = []
+            found_images: dict[int, str] = {}
+            updated_images: dict[int, str] = {}
+            failed_ids: list[int] = []
 
             async with httpx.AsyncClient() as client:
 
-                async def fetch_one(article_id: int, url: str) -> None:
+                async def _do_fetch(
+                    article_id: int,
+                    url: str,
+                    total_sem: asyncio.Semaphore,
+                    domain_sems: dict[str, asyncio.Semaphore],
+                    found: dict[int, str],
+                    updated: dict[int, str],
+                    failed: list[int],
+                    http_client: httpx.AsyncClient,
+                ) -> None:
                     domain = _get_domain(url)
                     try:
-                        async with total_semaphore:
-                            async with domain_semaphores[domain]:
-                                image_url = await fetch_og_image(url, client)
-                                if image_url:
-                                    found_images[article_id] = image_url
-                                    updated_images[article_id] = image_url
-                                else:
-                                    failed_ids.append(article_id)
-                                    updated_images[article_id] = "none"
+                        async with total_sem, domain_sems[domain]:
+                            image_url = await fetch_og_image(url, http_client)
+                            if image_url:
+                                found[article_id] = image_url
+                                updated[article_id] = image_url
+                            else:
+                                failed.append(article_id)
+                                updated[article_id] = "none"
                     except Exception:
-                        failed_ids.append(article_id)
-                        updated_images[article_id] = "none"
+                        failed.append(article_id)
+                        updated[article_id] = "none"
 
                 await asyncio.gather(
-                    *[fetch_one(row.id, row.url) for row in rows],
+                    *[
+                        _do_fetch(
+                            row.id,
+                            row.url,
+                            total_semaphore,
+                            domain_semaphores,
+                            found_images,
+                            updated_images,
+                            failed_ids,
+                            client,
+                        )
+                        for row in rows
+                    ],
                     return_exceptions=True,
                 )
 
             for article_id, image_url in found_images.items():
                 await session.execute(
-                    update(Article)
-                    .where(Article.id == article_id)
-                    .values(image_url=image_url)
+                    update(Article).where(Article.id == article_id).values(image_url=image_url)
                 )
 
             for article_id in failed_ids:
                 await session.execute(
-                    update(Article)
-                    .where(Article.id == article_id)
-                    .values(image_url="none")
+                    update(Article).where(Article.id == article_id).values(image_url="none")
                 )
 
             await session.commit()

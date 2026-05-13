@@ -1,5 +1,4 @@
-"""
-Verification API routes.
+"""Verification API routes.
 
 Provides endpoints for:
 - POST /api/verification/verify - Verify research claims
@@ -12,7 +11,7 @@ from __future__ import annotations
 import asyncio
 from collections.abc import AsyncIterator, Awaitable
 from importlib import import_module
-from typing import Any, Dict, Protocol, cast
+from typing import Any, Protocol, cast
 
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException
 from fastapi.responses import StreamingResponse
@@ -65,7 +64,7 @@ async def _verify_research(
 ) -> VerificationResult:
     verify = cast(
         _VerifyResearchFn,
-        getattr(import_module("app.services.verification_agent"), "verify_research"),
+        import_module("app.services.verification_agent").verify_research,
     )
     return await verify(request, db)
 
@@ -73,10 +72,7 @@ async def _verify_research(
 async def _cleanup_expired_cache(db: AsyncSession) -> int:
     cleanup = cast(
         _CleanupExpiredCacheFn,
-        getattr(
-            import_module("app.services.verification_agent"),
-            "cleanup_expired_cache",
-        ),
+        import_module("app.services.verification_agent").cleanup_expired_cache,
     )
     return await cleanup(db)
 
@@ -88,10 +84,7 @@ def _format_json_response(
 ) -> dict[str, Any]:
     formatter = cast(
         _FormatJsonResponseFn,
-        getattr(
-            import_module("app.services.verification_output"),
-            "format_json_response",
-        ),
+        import_module("app.services.verification_output").format_json_response,
     )
     return formatter(claims, sources, overall_confidence)
 
@@ -99,16 +92,13 @@ def _format_json_response(
 def _cleanup_stale_workspaces(max_age_hours: int = 24) -> int:
     cleanup = cast(
         _CleanupStaleWorkspacesFn,
-        getattr(
-            import_module("app.services.verification_sandbox"),
-            "cleanup_stale_workspaces",
-        ),
+        import_module("app.services.verification_sandbox").cleanup_stale_workspaces,
     )
     return cleanup(max_age_hours)
 
 
 @router.get("/status")
-async def get_verification_status() -> Dict[str, Any]:
+async def get_verification_status() -> dict[str, Any]:
     """Check verification agent status and configuration."""
     return {
         "enabled": settings.enable_verification,
@@ -126,8 +116,7 @@ async def verify_claims(
     request: VerificationRequest,
     db: AsyncSession = Depends(get_db),
 ) -> VerificationResult:
-    """
-    Verify claims from research output.
+    """Verify claims from research output.
 
     Request body:
     - query: The original research query
@@ -163,7 +152,7 @@ async def verify_claims(
 
         return result
 
-    except asyncio.TimeoutError:
+    except TimeoutError:
         logger.warning("Verification timed out for query: %s", request.query[:50])
         raise HTTPException(
             status_code=504,
@@ -182,8 +171,7 @@ async def verify_claims_stream(
     request: VerificationRequest,
     db: AsyncSession = Depends(get_db),
 ) -> StreamingResponse:
-    """
-    Stream verification progress as Server-Sent Events.
+    """Stream verification progress as Server-Sent Events.
 
     Events:
     - type: "started" - Verification begun
@@ -199,6 +187,7 @@ async def verify_claims_stream(
         )
 
     async def generate() -> AsyncIterator[str]:
+        """Generate."""
         import json
 
         yield f"data: {json.dumps({'type': 'started', 'query': request.query})}\n\n"
@@ -245,9 +234,8 @@ async def verify_claims_stream(
 async def verify_claims_json(
     request: VerificationRequest,
     db: AsyncSession = Depends(get_db),
-) -> Dict[str, Any]:
-    """
-    Verify claims and return structured JSON response.
+) -> dict[str, Any]:
+    """Verify claims and return structured JSON response.
 
     Returns a summary-focused format for frontend widgets.
     """
@@ -270,9 +258,8 @@ async def verify_claims_json(
 async def clear_cache(
     background_tasks: BackgroundTasks,
     db: AsyncSession = Depends(get_db),
-) -> Dict[str, Any]:
-    """
-    Clear expired verification cache entries.
+) -> dict[str, Any]:
+    """Clear expired verification cache entries.
 
     Also cleans up stale sandbox workspaces.
     """
@@ -287,7 +274,7 @@ async def clear_cache(
 
 
 @router.get("/domains")
-async def list_allowed_domains() -> Dict[str, Any]:
+async def list_allowed_domains() -> dict[str, Any]:
     """List domains allowed for verification source searches."""
     return {
         "count": len(settings.verification_allowed_domains),

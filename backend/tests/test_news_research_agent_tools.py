@@ -23,9 +23,7 @@ def test_research_toolset_smoke(monkeypatch) -> None:
     async def fake_search_internal_news_from_db(_query: str, _top_k: int):
         return []
 
-    def fake_search_gdelt_context(
-        _query: str, *, max_results: int = 10, timespan: str = "24h"
-    ):
+    def fake_search_gdelt_context(_query: str, *, max_results: int = 10, timespan: str = "24h"):
         assert max_results >= 1
         assert timespan
         return [
@@ -40,9 +38,7 @@ def test_research_toolset_smoke(monkeypatch) -> None:
             }
         ]
 
-    def fake_search_gdelt_doc(
-        _query: str, *, max_results: int = 10, timespan: str = "24h"
-    ):
+    def fake_search_gdelt_doc(_query: str, *, max_results: int = 10, timespan: str = "24h"):
         assert max_results >= 1
         assert timespan
         return [
@@ -246,9 +242,7 @@ def test_dedup_tool_node_auto_falls_back_from_gdelt_errors(monkeypatch) -> None:
                     ],
                 ),
             ],
-            "tool_history": {
-                'search_internal_news:{"query": "iran latest", "top_k": 5}'
-            },
+            "tool_history": {'search_internal_news:{"query": "iran latest", "top_k": 5}'},
             "tool_calls_used": 1,
         },
     )

@@ -1,9 +1,12 @@
+"""Source Profile Synthesizer."""
+
 from __future__ import annotations
 
 import asyncio
 import json
 import re
-from typing import Any, Dict, List, Sequence
+from typing import Any
+from collections.abc import Sequence
 
 from app.core.config import settings
 from app.core.llm_client import get_llm_client
@@ -41,8 +44,9 @@ SYSTEM_PROMPT = build_json_system_prompt(
 async def synthesize_source_fields(
     source_name: str,
     documents: Sequence[SourceDocument],
-    existing_fields: Dict[str, List[Dict[str, Any]]],
-) -> Dict[str, List[Dict[str, Any]]]:
+    existing_fields: dict[str, list[dict[str, Any]]],
+) -> dict[str, list[dict[str, Any]]]:
+    """Synthesize Source Fields."""
     llm_client = get_llm_client()
     if not llm_client:
         logger.info(
@@ -58,9 +62,7 @@ async def synthesize_source_fields(
         "source_name": source_name,
         "field_keys": FIELD_KEYS,
         "existing_fields": existing_fields,
-        "documents": [
-            {"url": doc.url, "title": doc.title, "text": doc.text} for doc in documents
-        ],
+        "documents": [{"url": doc.url, "title": doc.title, "text": doc.text} for doc in documents],
     }
 
     prompt = (
@@ -118,7 +120,7 @@ async def synthesize_source_fields(
     return _normalize_fields(fields_payload)
 
 
-def _parse_json_payload(text: str) -> Dict[str, Any]:
+def _parse_json_payload(text: str) -> dict[str, Any]:
     if not text:
         return {}
     match = re.search(r"\{.*\}", text, re.DOTALL)
@@ -132,14 +134,14 @@ def _parse_json_payload(text: str) -> Dict[str, Any]:
 
 
 def _normalize_fields(
-    fields_payload: Dict[str, Any],
-) -> Dict[str, List[Dict[str, Any]]]:
-    normalized: Dict[str, List[Dict[str, Any]]] = {}
+    fields_payload: dict[str, Any],
+) -> dict[str, list[dict[str, Any]]]:
+    normalized: dict[str, list[dict[str, Any]]] = {}
     for key in FIELD_KEYS:
         entries = fields_payload.get(key, [])
         if not isinstance(entries, list):
             continue
-        cleaned_entries: List[Dict[str, Any]] = []
+        cleaned_entries: list[dict[str, Any]] = []
         for entry in entries:
             if not isinstance(entry, dict):
                 continue
@@ -160,7 +162,7 @@ def _normalize_fields(
     return normalized
 
 
-def _normalize_sources(raw_sources: Any) -> List[str]:
+def _normalize_sources(raw_sources: Any) -> list[str]:
     if not raw_sources:
         return []
     if isinstance(raw_sources, str):

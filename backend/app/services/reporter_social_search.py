@@ -1,6 +1,8 @@
+"""Reporter Social Search."""
+
 from __future__ import annotations
 
-from typing import Any, Dict, Optional
+from typing import Any
 
 import httpx
 
@@ -20,9 +22,10 @@ BLUESKY_API = "https://public.api.bsky.app"
 
 async def find_social_profiles(
     name: str,
-    outlet: Optional[str] = None,
-    http_client: Optional[httpx.AsyncClient] = None,
-) -> Dict[str, Any]:
+    outlet: str | None = None,
+    http_client: httpx.AsyncClient | None = None,
+) -> dict[str, Any]:
+    """Find Social Profiles."""
     owned_client = http_client is None
     client = http_client or httpx.AsyncClient(timeout=15.0)
     try:
@@ -40,8 +43,8 @@ async def find_social_profiles(
 
 
 async def _search_all(
-    client: httpx.AsyncClient, name: str, outlet: Optional[str] = None
-) -> tuple[Dict[str, Any], Dict[str, Any]]:
+    client: httpx.AsyncClient, name: str, outlet: str | None = None
+) -> tuple[dict[str, Any], dict[str, Any]]:
     import asyncio
 
     results = await asyncio.gather(
@@ -55,8 +58,8 @@ async def _search_all(
 
 
 async def _search_mastodon(
-    client: httpx.AsyncClient, name: str, outlet: Optional[str] = None
-) -> Dict[str, Any]:
+    client: httpx.AsyncClient, name: str, outlet: str | None = None
+) -> dict[str, Any]:
     query = f"{name} {outlet or ''}".strip()
     for instance in MASTODON_INSTANCES:
         try:
@@ -91,8 +94,8 @@ async def _search_mastodon(
 
 
 async def _search_bluesky(
-    client: httpx.AsyncClient, name: str, outlet: Optional[str] = None
-) -> Dict[str, Any]:
+    client: httpx.AsyncClient, name: str, outlet: str | None = None
+) -> dict[str, Any]:
     query = f"{name} {outlet or ''}".strip()
     try:
         r = await client.get(

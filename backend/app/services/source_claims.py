@@ -1,10 +1,13 @@
+"""Source Claims."""
+
 from __future__ import annotations
 
 import hashlib
 import json
 from dataclasses import dataclass, field
 from datetime import timedelta
-from typing import Any, Dict, List, Optional, Sequence, cast
+from typing import Any, cast
+from collections.abc import Sequence
 
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -20,28 +23,32 @@ CLAIMS_PARSER_VERSION = "source-claims/v1"
 
 @dataclass
 class ClaimEvidenceInput:
+    """Claim Evidence Input."""
+
     source_type: str
     source_url: str
-    source_name: Optional[str] = None
-    raw_excerpt: Optional[str] = None
-    retrieved_at: Optional[Any] = None
+    source_name: str | None = None
+    raw_excerpt: str | None = None
+    retrieved_at: Any | None = None
 
 
 @dataclass
 class SourceClaimInput:
+    """Source Claim Input."""
+
     claim_type: str
-    claim_value: Dict[str, Any]
+    claim_value: dict[str, Any]
     claim_kind: str
     confidence: float
     parser_version: str = CLAIMS_PARSER_VERSION
-    evidence: List[ClaimEvidenceInput] = field(default_factory=list)
+    evidence: list[ClaimEvidenceInput] = field(default_factory=list)
 
 
 def _canonical_json(value: Any) -> str:
     return json.dumps(value, sort_keys=True, separators=(",", ":"), ensure_ascii=True)
 
 
-def _hash_evidence(evidence: ClaimEvidenceInput, claim_value: Dict[str, Any]) -> str:
+def _hash_evidence(evidence: ClaimEvidenceInput, claim_value: dict[str, Any]) -> str:
     payload = {
         "source_type": evidence.source_type,
         "source_url": evidence.source_url,
@@ -52,23 +59,17 @@ def _hash_evidence(evidence: ClaimEvidenceInput, claim_value: Dict[str, Any]) ->
     return hashlib.sha256(_canonical_json(payload).encode("utf-8")).hexdigest()
 
 
-def _normalized_funding_type(
-    org_data: Dict[str, Any], source_config: Dict[str, Any]
-) -> str:
+def _normalized_funding_type(org_data: dict[str, Any], source_config: dict[str, Any]) -> str:
     value = (
-        str(org_data.get("funding_type") or source_config.get("funding_type") or "")
-        .strip()
-        .lower()
+        str(org_data.get("funding_type") or source_config.get("funding_type") or "").strip().lower()
     )
     if value == "non-profit":
         return "nonprofit"
     return value
 
 
-def _base_evidence(
-    source_name: str, source_config: Dict[str, Any]
-) -> List[ClaimEvidenceInput]:
-    evidence: List[ClaimEvidenceInput] = []
+def _base_evidence(source_name: str, source_config: dict[str, Any]) -> list[ClaimEvidenceInput]:
+    evidence: list[ClaimEvidenceInput] = []
     feed_url = source_config.get("url")
     if isinstance(feed_url, str) and feed_url.strip():
         evidence.append(
@@ -107,18 +108,17 @@ def _base_evidence(
 
 def build_source_claim_inputs(
     source_name: str,
-    source_config: Dict[str, Any],
-    org_data: Dict[str, Any],
+    source_config: dict[str, Any],
+    org_data: dict[str, Any],
     article_count_30d: int,
     top_topics_30d: Sequence[str],
-) -> List[SourceClaimInput]:
-    claims: List[SourceClaimInput] = []
+) -> list[SourceClaimInput]:
+    """Build Source Claim Inputs."""
+    claims: list[SourceClaimInput] = []
     base_evidence = _base_evidence(source_name, source_config)
 
     domain = extract_domain(
-        source_config.get("site_url")
-        or source_config.get("url")
-        or org_data.get("website")
+        source_config.get("site_url") or source_config.get("url") or org_data.get("website")
     )
     if domain:
         claims.append(
@@ -172,7 +172,7 @@ def build_source_claim_inputs(
         claims.append(
             SourceClaimInput(
                 claim_type="nonprofit_status",
-                claim_value={"nonprofit": funding_type in {"nonprofit", "nonprofit"}},
+                claim_value={"nonprofit": funding_type in {"nonprofit"}},
                 claim_kind="factual",
                 confidence=0.9,
                 evidence=base_evidence,
@@ -293,7 +293,8 @@ async def collect_article_behavior_stats(
     session: AsyncSession,
     source_name: str,
     days: int = 30,
-) -> tuple[int, List[str]]:
+) -> tuple[int, list[str]]:
+    """Collect Article Behavior Stats."""
     cutoff = get_utc_now() - timedelta(days=days)
     count_stmt = (
         select(func.count())
@@ -319,6 +320,7 @@ async def sync_source_claims(
     source_name: str,
     claims: Sequence[SourceClaimInput],
 ) -> None:
+    """Sync Source Claims."""
     now = get_utc_now()
     for incoming in claims:
         result = await session.execute(
@@ -368,13 +370,9 @@ async def sync_source_claims(
             await session.flush()
 
         evidence_result = await session.execute(
-            select(SourceClaimEvidence).where(
-                SourceClaimEvidence.claim_id == claim_row.id
-            )
+            select(SourceClaimEvidence).where(SourceClaimEvidence.claim_id == claim_row.id)
         )
-        existing_hashes = {
-            e.raw_hash for e in evidence_result.scalars().all() if e.raw_hash
-        }
+        existing_hashes = {e.raw_hash for e in evidence_result.scalars().all() if e.raw_hash}
         for evidence in incoming.evidence:
             raw_hash = _hash_evidence(evidence, incoming.claim_value)
             if raw_hash in existing_hashes:

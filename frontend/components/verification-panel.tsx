@@ -18,10 +18,11 @@ import {
 } from "@/components/ui/collapsible";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { ConfidenceBadge, ConfidenceBar } from "./confidence-badge";
-import {
+import type {
   VerificationResult,
   VerifiedClaim,
-  SourceInfo,
+  SourceInfo} from "@/lib/verification";
+import {
   verifyResearch,
   getConfidenceColor,
   formatConfidence,
@@ -217,7 +218,7 @@ function ClaimCard({ claim, sources, isExpanded, onToggle }: ClaimCardProps) {
   const colorClass = getConfidenceColor(claim.confidence_level);
   const allSourceIds = [...claim.supporting_sources, ...claim.conflicting_sources];
   const claimSources = allSourceIds
-    .map((id) => sources[id])
+    .map((id) => sources[id]!)
     .filter(Boolean);
 
   return (

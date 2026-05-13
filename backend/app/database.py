@@ -1,3 +1,5 @@
+"""Database."""
+
 from sqlalchemy import (
     and_,
     cast as sa_cast,
@@ -33,11 +35,12 @@ from sqlalchemy.exc import OperationalError
 from sqlalchemy.types import TypeDecorator, JSON as JsonType, TypeEngine
 import asyncio
 import time
-from datetime import datetime, timezone
+from datetime import datetime, UTC
 import os
 import logging
 import threading
-from typing import Any, AsyncGenerator, Dict, Iterator, List, Optional, Protocol, cast
+from typing import Any, Protocol, cast
+from collections.abc import AsyncGenerator, Iterator
 
 
 class _DatabaseSettings(Protocol):
@@ -46,7 +49,7 @@ class _DatabaseSettings(Protocol):
 
 settings = cast(
     _DatabaseSettings,
-    getattr(import_module("app.core.config"), "settings"),
+    import_module("app.core.config").settings,
 )
 
 logger = logging.getLogger(__name__)
@@ -89,6 +92,7 @@ def _initialize_database_resources() -> None:
 
 
 def get_engine() -> AsyncEngine | None:
+    """Get Engine."""
     if not settings.enable_database:
         return None
     _initialize_database_resources()
@@ -96,6 +100,7 @@ def get_engine() -> AsyncEngine | None:
 
 
 def get_session_factory() -> async_sessionmaker[AsyncSession] | None:
+    """Get Session Factory."""
     if not settings.enable_database:
         return None
     _initialize_database_resources()
@@ -104,6 +109,7 @@ def get_session_factory() -> async_sessionmaker[AsyncSession] | None:
 
 class _LazySessionFactory:
     def __call__(self, *args: Any, **kwargs: Any) -> Any:
+        """Call self as a function."""
         session_factory = get_session_factory()
         if session_factory is None:
             raise RuntimeError("Database access requested but ENABLE_DATABASE=0")
@@ -119,7 +125,8 @@ if not settings.enable_database:
 
 
 def get_utc_now() -> datetime:
-    return datetime.now(timezone.utc).replace(tzinfo=None)
+    """Get Utc Now."""
+    return datetime.now(UTC).replace(tzinfo=None)
 
 
 Base = declarative_base()
@@ -128,22 +135,24 @@ Base = declarative_base()
 # Custom Types
 
 
-class TagListType(TypeDecorator[List[str]]):
+class TagListType(TypeDecorator[list[str]]):
     """Stores tag arrays as native ARRAY on Postgres and JSON elsewhere."""
 
     impl = JSON
     cache_ok = True
 
     def load_dialect_impl(self, dialect: Dialect) -> TypeEngine[Any]:
+        """Load Dialect Impl."""
         if dialect.name == "postgresql":
             return dialect.type_descriptor(postgresql.ARRAY(String))
         return dialect.type_descriptor(JsonType())
 
     def process_bind_param(
         self,
-        value: List[str] | None,
+        value: list[str] | None,
         dialect: Dialect,
     ) -> Any:
+        """Process Bind Param."""
         if value is None:
             return []
         if isinstance(value, list):
@@ -154,26 +163,29 @@ class TagListType(TypeDecorator[List[str]]):
         self,
         value: Any | None,
         dialect: Dialect,
-    ) -> List[str]:
+    ) -> list[str]:
+        """Process Result Value."""
         return value or []
 
 
-class MentionedCountriesType(TypeDecorator[List[str]]):
+class MentionedCountriesType(TypeDecorator[list[str]]):
     """Stores mentioned-country arrays as TEXT[] on Postgres and JSON elsewhere."""
 
     impl = JSON
     cache_ok = True
 
     def load_dialect_impl(self, dialect: Dialect) -> TypeEngine[Any]:
+        """Load Dialect Impl."""
         if dialect.name == "postgresql":
             return dialect.type_descriptor(postgresql.ARRAY(Text))
         return dialect.type_descriptor(JsonType())
 
     def process_bind_param(
         self,
-        value: List[str] | None,
+        value: list[str] | None,
         dialect: Dialect,
     ) -> Any:
+        """Process Bind Param."""
         if value is None:
             return []
         if isinstance(value, list):
@@ -184,12 +196,15 @@ class MentionedCountriesType(TypeDecorator[List[str]]):
         self,
         value: Any | None,
         dialect: Dialect,
-    ) -> List[str]:
+    ) -> list[str]:
+        """Process Result Value."""
         return value or []
 
 
 # Database Models
 class Article(Base):
+    """Article."""
+
     __tablename__ = "articles"
 
     id = Column(Integer, primary_key=True, index=True)
@@ -233,6 +248,8 @@ class Article(Base):
 
 
 class Bookmark(Base):
+    """Bookmark."""
+
     __tablename__ = "bookmarks"
 
     id = Column(Integer, primary_key=True, index=True)
@@ -241,6 +258,8 @@ class Bookmark(Base):
 
 
 class LikedArticle(Base):
+    """Liked Article."""
+
     __tablename__ = "liked_articles"
 
     id = Column(Integer, primary_key=True, index=True)
@@ -249,6 +268,8 @@ class LikedArticle(Base):
 
 
 class Preference(Base):
+    """Preference."""
+
     __tablename__ = "preferences"
 
     id = Column(Integer, primary_key=True, index=True)
@@ -258,6 +279,8 @@ class Preference(Base):
 
 
 class SearchHistory(Base):
+    """Search History."""
+
     __tablename__ = "search_history"
 
     id = Column(Integer, primary_key=True, index=True)
@@ -268,6 +291,8 @@ class SearchHistory(Base):
 
 
 class ReadingQueueItem(Base):
+    """Reading Queue Item."""
+
     __tablename__ = "reading_queue"
 
     id = Column(Integer, primary_key=True, index=True)
@@ -279,9 +304,7 @@ class ReadingQueueItem(Base):
     article_image = Column(String)
     queue_type = Column(String, default="daily", index=True)  # 'daily' or 'permanent'
     position = Column(Integer, default=0, index=True)  # Sort order, lower = top
-    read_status = Column(
-        String, default="unread", index=True
-    )  # 'unread', 'reading', 'completed'
+    read_status = Column(String, default="unread", index=True)  # 'unread', 'reading', 'completed'
     added_at = Column(DateTime, default=get_utc_now, index=True)
     archived_at = Column(DateTime, nullable=True)
     created_at = Column(DateTime, default=get_utc_now)
@@ -292,6 +315,8 @@ class ReadingQueueItem(Base):
 
 
 class Highlight(Base):
+    """Highlight."""
+
     __tablename__ = "highlights"
 
     id = Column(Integer, primary_key=True, index=True)
@@ -384,9 +409,7 @@ class Organization(Base):
     ownership_percentage = Column(String)  # If known
 
     # Funding information
-    funding_type = Column(
-        String
-    )  # public, commercial, non-profit, state-funded, independent
+    funding_type = Column(String)  # public, commercial, non-profit, state-funded, independent
     funding_sources = Column(JSON)  # List of known funding sources
     major_advertisers = Column(JSON)  # Major advertising revenue sources
 
@@ -436,9 +459,7 @@ class ArticleAuthor(Base):
     article_id = Column(Integer, nullable=False, index=True)
     reporter_id = Column(Integer, nullable=False, index=True)
     author_role = Column(String, default="author")  # author, contributor, editor
-    author_confidence = Column(
-        Float, nullable=True
-    )  # 0.0-1.0 confidence in reporter-article link
+    author_confidence = Column(Float, nullable=True)  # 0.0-1.0 confidence in reporter-article link
 
     created_at = Column(DateTime, default=get_utc_now)
 
@@ -531,18 +552,12 @@ class SourceMetadata(Base):
     funding_type = Column(String)  # commercial, non-profit, state-funded, independent
 
     # Coverage analysis
-    coverage_breadth = Column(
-        String
-    )  # local, regional, national, international, global
+    coverage_breadth = Column(String)  # local, regional, national, international, global
     geographic_focus = Column(TagListType(), default=list)  # Countries/regions of focus
-    topic_focus = Column(
-        TagListType(), default=list
-    )  # Topics this source specializes in
+    topic_focus = Column(TagListType(), default=list)  # Topics this source specializes in
 
     # Blind spots tracking (calculated fields, updated by analysis job)
-    topics_covered = Column(
-        Integer, default=0
-    )  # Number of distinct topic clusters covered
+    topics_covered = Column(Integer, default=0)  # Number of distinct topic clusters covered
     topics_blind_spots = Column(JSON)  # Array of topics this source rarely/never covers
     coverage_timeline = Column(JSON)  # Daily coverage counts for the last 30 days
     last_analyzed_at = Column(DateTime)
@@ -593,9 +608,7 @@ class SourceCoverageStats(Base):
     created_at = Column(DateTime, default=get_utc_now)
 
     __table_args__ = (
-        Index(
-            "ix_source_coverage_stats_source_date", "source_name", "date", unique=True
-        ),
+        Index("ix_source_coverage_stats_source_date", "source_name", "date", unique=True),
         Index("ix_source_coverage_stats_date", "date"),
     )
 
@@ -744,14 +757,10 @@ class WikiIndexStatus(Base):
     __tablename__ = "wiki_index_status"
 
     id = Column(Integer, primary_key=True, index=True)
-    entity_type = Column(
-        String, nullable=False, index=True
-    )  # source, reporter, organization
+    entity_type = Column(String, nullable=False, index=True)  # source, reporter, organization
     entity_name = Column(String, nullable=False, index=True)
 
-    status = Column(
-        String, default="pending"
-    )  # pending, indexing, complete, failed, stale
+    status = Column(String, default="pending")  # pending, indexing, complete, failed, stale
     error_message = Column(Text)
     index_duration_ms = Column(Integer)  # Performance tracking
 
@@ -781,9 +790,7 @@ class SourceClaim(Base):
     source_name = Column(String, nullable=False, index=True)
     claim_type = Column(String, nullable=False, index=True)
     claim_value = Column(JSON, nullable=False)
-    claim_kind = Column(
-        String, nullable=False
-    )  # factual, third_party_opinion, computed
+    claim_kind = Column(String, nullable=False)  # factual, third_party_opinion, computed
     confidence = Column(Float, default=0.5)
     parser_version = Column(String, nullable=False, default="source-claims/v1")
 
@@ -812,9 +819,7 @@ class SourceClaimEvidence(Base):
         nullable=False,
         index=True,
     )
-    source_type = Column(
-        String, nullable=False
-    )  # wikidata, wikipedia, rss_config, etc.
+    source_type = Column(String, nullable=False)  # wikidata, wikipedia, rss_config, etc.
     source_name = Column(String)
     source_url = Column(String, nullable=False)
     retrieved_at = Column(DateTime, default=get_utc_now, nullable=False)
@@ -851,9 +856,7 @@ class TradeFlow(Base):
     year = Column(Integer)
 
     __table_args__ = (
-        Index(
-            "ix_trade_flows_exporter_importer", "exporter_country", "importer_country"
-        ),
+        Index("ix_trade_flows_exporter_importer", "exporter_country", "importer_country"),
     )
 
 
@@ -914,7 +917,7 @@ class EventCluster(Base):
 
 # Dependency for FastAPI
 async def get_db() -> AsyncGenerator[AsyncSession, None]:
-    """Database session dependency for FastAPI endpoints"""
+    """Database session dependency for FastAPI endpoints."""
     if not settings.enable_database or AsyncSessionLocal is None:
         raise RuntimeError("Database access requested but ENABLE_DATABASE=0")
 
@@ -931,7 +934,7 @@ async def get_db() -> AsyncGenerator[AsyncSession, None]:
 
 # Initialize database tables
 async def init_db() -> None:
-    """Create all tables if they don't exist"""
+    """Create all tables if they don't exist."""
     db_engine = get_engine()
     if db_engine is None:
         logger.info("Skipping database initialization; ENABLE_DATABASE=0")
@@ -945,11 +948,7 @@ async def init_db() -> None:
                 return set(inspector.get_table_names(schema="public"))
 
             existing = await conn.run_sync(_get_tables)
-            missing = [
-                table
-                for table in Base.metadata.sorted_tables
-                if table.name not in existing
-            ]
+            missing = [table for table in Base.metadata.sorted_tables if table.name not in existing]
             for table in missing:
                 await conn.run_sync(table.create, checkfirst=True)
 
@@ -1058,9 +1057,7 @@ async def init_db() -> None:
         conn: AsyncConnection | None = None,
     ) -> None:
         async def _do(c: AsyncConnection) -> None:
-            await c.execute(
-                sqlalchemy_text("DROP TABLE IF EXISTS propaganda_filter_scores")
-            )
+            await c.execute(sqlalchemy_text("DROP TABLE IF EXISTS propaganda_filter_scores"))
 
         if conn is not None:
             await _do(conn)
@@ -1111,9 +1108,11 @@ async def init_db() -> None:
         if "already exists" in message:
             return True
         for err in _iter_exception_chain(exc):
-            if err.__class__.__module__.startswith("asyncpg"):
-                if err.__class__.__name__ == "DuplicateTableError":
-                    return True
+            if (
+                err.__class__.__module__.startswith("asyncpg")
+                and err.__class__.__name__ == "DuplicateTableError"
+            ):
+                return True
             if "already exists" in str(err).lower():
                 return True
         return False
@@ -1161,7 +1160,7 @@ async def init_db() -> None:
             delay_seconds = min(delay_seconds * 1.5, 5.0)
 
 
-def article_record_to_dict(record: Article) -> Dict[str, Any]:
+def article_record_to_dict(record: Article) -> dict[str, Any]:
     """Convert an Article ORM instance to a serializable dictionary."""
     if record is None:
         return {}
@@ -1196,12 +1195,8 @@ def article_record_to_dict(record: Article) -> Dict[str, Any]:
         "translated": record.translated,
         "chroma_id": record.chroma_id,
         "embedding_generated": record.embedding_generated,
-        "created_at": record.created_at.isoformat()
-        if record.created_at is not None
-        else None,
-        "updated_at": record.updated_at.isoformat()
-        if record.updated_at is not None
-        else None,
+        "created_at": record.created_at.isoformat() if record.created_at is not None else None,
+        "updated_at": record.updated_at.isoformat() if record.updated_at is not None else None,
         # Phase 5 Fields
         "source_country": source_country,
         "mentioned_countries": mentioned_countries or [],
@@ -1213,6 +1208,7 @@ def _normalize_search_query(query: str) -> str:
 
 
 def get_session_dialect_name(session: AsyncSession) -> str:
+    """Get Session Dialect Name."""
     bind = session.get_bind()
     if bind is None:
         return ""
@@ -1275,6 +1271,7 @@ def build_article_keyword_search(
     query: str,
     dialect_name: str,
 ) -> tuple[Any, Any | None, tuple[Any, ...]]:
+    """Build Article Keyword Search."""
     if dialect_name == "postgresql":
         search_vector = _article_search_vector()
         ts_query = func.websearch_to_tsquery("english", query)
@@ -1297,8 +1294,9 @@ async def search_article_records_by_keyword(
     query: str,
     limit: int = 50,
     offset: int = 0,
-    filters: Optional[List[Any]] = None,
-) -> List[Article]:
+    filters: list[Any] | None = None,
+) -> list[Article]:
+    """Search Article Records By Keyword."""
     normalized_query = _normalize_search_query(query)
     if not normalized_query:
         return []
@@ -1312,19 +1310,11 @@ async def search_article_records_by_keyword(
     clauses.append(match_filter)
 
     if rank is not None:
-        stmt = (
-            select(Article, rank)
-            .where(*clauses)
-            .order_by(*order_by)
-            .limit(limit)
-            .offset(offset)
-        )
+        stmt = select(Article, rank).where(*clauses).order_by(*order_by).limit(limit).offset(offset)
         result = await session.execute(stmt)
         return [row[0] for row in result.all()]
 
-    stmt = (
-        select(Article).where(*clauses).order_by(*order_by).limit(limit).offset(offset)
-    )
+    stmt = select(Article).where(*clauses).order_by(*order_by).limit(limit).offset(offset)
     result = await session.execute(stmt)
     return list(result.scalars().all())
 
@@ -1332,8 +1322,9 @@ async def search_article_records_by_keyword(
 async def count_articles_by_keyword(
     session: AsyncSession,
     query: str,
-    filters: Optional[List[Any]] = None,
+    filters: list[Any] | None = None,
 ) -> int:
+    """Count Articles By Keyword."""
     normalized_query = _normalize_search_query(query)
     if not normalized_query:
         return 0
@@ -1348,6 +1339,7 @@ async def count_articles_by_keyword(
 
 
 async def get_total_article_count(session: AsyncSession) -> int:
+    """Get Total Article Count."""
     dialect_name = get_session_dialect_name(session)
     if dialect_name != "postgresql":
         count_stmt = select(func.count()).select_from(Article)
@@ -1366,35 +1358,29 @@ async def get_total_article_count(session: AsyncSession) -> int:
 
 async def fetch_article_records_by_ids(
     session: AsyncSession,
-    article_ids: List[int],
-) -> List[Article]:
+    article_ids: list[int],
+) -> list[Article]:
     """Fetch article ORM rows by ID, preserving the requested order."""
     if not article_ids:
         return []
 
     stmt = select(Article).where(Article.id.in_(article_ids))
     result = await session.execute(stmt)
-    articles: Dict[int, Article] = {}
+    articles: dict[int, Article] = {}
     for record in result.scalars().all():
         raw_record_id = cast(Any, record.id)
         if raw_record_id is None:
             continue
         articles[int(raw_record_id)] = record
-    return [
-        articles[article_id] for article_id in article_ids if article_id in articles
-    ]
+    return [articles[article_id] for article_id in article_ids if article_id in articles]
 
 
 async def fetch_all_articles(
     session: AsyncSession,
     limit: int = 2000,
-) -> List[Dict[str, Any]]:
+) -> list[dict[str, Any]]:
     """Fetch all articles from database (used for cache initialization on startup)."""
-    stmt = (
-        select(Article)
-        .order_by(Article.published_at.desc(), Article.id.desc())
-        .limit(limit)
-    )
+    stmt = select(Article).order_by(Article.published_at.desc(), Article.id.desc()).limit(limit)
 
     result = await session.execute(stmt)
     return [article_record_to_dict(record) for record in result.scalars().all()]
@@ -1403,14 +1389,10 @@ async def fetch_all_articles(
 async def fetch_recent_articles(
     session: AsyncSession,
     limit: int = 50,
-    min_published: Optional[datetime] = None,
-) -> List[Dict[str, Any]]:
+    min_published: datetime | None = None,
+) -> list[dict[str, Any]]:
     """Fetch the most recent articles, optionally after a minimum published timestamp."""
-    stmt = (
-        select(Article)
-        .order_by(Article.published_at.desc(), Article.id.desc())
-        .limit(limit)
-    )
+    stmt = select(Article).order_by(Article.published_at.desc(), Article.id.desc()).limit(limit)
 
     if min_published:
         stmt = stmt.where(Article.published_at >= min_published)
@@ -1424,8 +1406,8 @@ async def search_articles_by_keyword(
     query: str,
     limit: int = 50,
     offset: int = 0,
-    filters: Optional[List[Any]] = None,
-) -> List[Dict[str, Any]]:
+    filters: list[Any] | None = None,
+) -> list[dict[str, Any]]:
     """Perform keyword search against article metadata and body text."""
     records = await search_article_records_by_keyword(
         session,
@@ -1439,42 +1421,37 @@ async def search_articles_by_keyword(
 
 async def fetch_articles_by_ids(
     session: AsyncSession,
-    article_ids: List[int],
-) -> List[Dict[str, Any]]:
+    article_ids: list[int],
+) -> list[dict[str, Any]]:
     """Fetch specific articles by their integer IDs, preserving the order provided."""
     if not article_ids:
         return []
 
     stmt = select(Article).where(Article.id.in_(article_ids))
     result = await session.execute(stmt)
-    articles: Dict[int, Dict[str, Any]] = {}
+    articles: dict[int, dict[str, Any]] = {}
     for record in result.scalars().all():
         raw_record_id = cast(Any, record.id)
         if raw_record_id is None:
             continue
         articles[int(raw_record_id)] = article_record_to_dict(record)
 
-    return [
-        articles[article_id] for article_id in article_ids if article_id in articles
-    ]
+    return [articles[article_id] for article_id in article_ids if article_id in articles]
 
 
 async def fetch_articles_page(
     session: AsyncSession,
     limit: int = 50,
     offset: int = 0,
-    source: Optional[str] = None,
+    source: str | None = None,
     missing_embeddings_only: bool = False,
     sort_direction: str = "desc",
-    published_before: Optional[datetime] = None,
-    published_after: Optional[datetime] = None,
-) -> Dict[str, Any]:
+    published_before: datetime | None = None,
+    published_after: datetime | None = None,
+) -> dict[str, Any]:
     """Paginate through article rows for debugging and inspection."""
-
     sort_column = Article.published_at
-    order_clause = (
-        sort_column.asc() if sort_direction.lower() == "asc" else sort_column.desc()
-    )
+    order_clause = sort_column.asc() if sort_direction.lower() == "asc" else sort_column.desc()
 
     filters = []
     if source:
@@ -1491,12 +1468,7 @@ async def fetch_articles_page(
     if published_after:
         filters.append(Article.published_at >= published_after)
 
-    stmt = (
-        select(Article)
-        .order_by(order_clause, Article.id.desc())
-        .limit(limit)
-        .offset(offset)
-    )
+    stmt = select(Article).order_by(order_clause, Article.id.desc()).limit(limit).offset(offset)
     if filters:
         stmt = stmt.where(*filters)
 
@@ -1523,9 +1495,8 @@ async def fetch_articles_page(
     }
 
 
-async def fetch_article_chroma_mappings(session: AsyncSession) -> List[Dict[str, Any]]:
+async def fetch_article_chroma_mappings(session: AsyncSession) -> list[dict[str, Any]]:
     """Return article→chroma mappings for drift analysis."""
-
     stmt = select(Article.id, Article.chroma_id, Article.embedding_generated)
     result = await session.execute(stmt)
 

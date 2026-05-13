@@ -1,6 +1,8 @@
+"""Inline Definition."""
+
 from __future__ import annotations
 
-from typing import Any, Dict, Optional
+from typing import Any
 
 from app.core.config import settings
 from app.core.llm_client import get_llm_client
@@ -10,9 +12,7 @@ from app.services.prompting import build_text_system_prompt
 logger = get_logger("inline_definition")
 
 
-async def define_term_with_gemini(
-    term: str, context: Optional[str] = None
-) -> Dict[str, Any]:
+async def define_term_with_gemini(term: str, context: str | None = None) -> dict[str, Any]:
     """Return a short, one-paragraph definition/explanation for a highlighted term.
 
     Uses the configured OpenRouter client. If OpenRouter is not configured, returns an

@@ -1,5 +1,4 @@
-"""
-Performance Profiling Middleware and Utilities
+"""Performance Profiling Middleware and Utilities.
 
 Comprehensive instrumentation for measuring FastAPI backend performance:
 - Per-endpoint latency tracking (min, max, avg, p50, p95, p99)
@@ -20,10 +19,10 @@ import statistics
 from collections import deque
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass, field
-from datetime import datetime, timezone
+from datetime import datetime, UTC
 from functools import wraps
 from types import TracebackType
-from typing import Any, Deque, Dict, List, Optional, Tuple, cast
+from typing import Any, cast
 
 import psutil
 from starlette.middleware.base import BaseHTTPMiddleware, RequestResponseEndpoint
@@ -37,6 +36,8 @@ logger = get_logger("profiling")
 
 @dataclass
 class EndpointMetrics:
+    """Endpoint Metrics."""
+
     name: str
     method: str
     path: str
@@ -44,11 +45,12 @@ class EndpointMetrics:
     total_time_ms: float = 0.0
     min_time_ms: float = float("inf")
     max_time_ms: float = 0.0
-    times_ms: Deque[float] = field(default_factory=lambda: deque(maxlen=10000))
+    times_ms: deque[float] = field(default_factory=lambda: deque(maxlen=10000))
     errors: int = 0
-    last_called: Optional[float] = None
+    last_called: float | None = None
 
     def record(self, duration_ms: float, success: bool = True) -> None:
+        """Record."""
         self.call_count += 1
         self.total_time_ms += duration_ms
         self.times_ms.append(duration_ms)
@@ -62,9 +64,11 @@ class EndpointMetrics:
 
     @property
     def avg_time_ms(self) -> float:
+        """Avg Time Ms."""
         return self.total_time_ms / self.call_count if self.call_count > 0 else 0.0
 
     def percentile(self, p: float) -> float:
+        """Percentile."""
         if not self.times_ms:
             return 0.0
         sorted_times = sorted(self.times_ms)
@@ -74,6 +78,8 @@ class EndpointMetrics:
 
 @dataclass
 class QueryMetrics:
+    """Query Metrics."""
+
     query_type: str
     statement: str
     call_count: int = 0
@@ -83,6 +89,7 @@ class QueryMetrics:
     errors: int = 0
 
     def record(self, duration_ms: float, success: bool = True) -> None:
+        """Record."""
         self.call_count += 1
         self.total_time_ms += duration_ms
         if duration_ms < self.min_time_ms:
@@ -94,11 +101,14 @@ class QueryMetrics:
 
     @property
     def avg_time_ms(self) -> float:
+        """Avg Time Ms."""
         return self.total_time_ms / self.call_count if self.call_count > 0 else 0.0
 
 
 @dataclass
 class ExternalCallMetrics:
+    """External Call Metrics."""
+
     service: str
     operation: str
     call_count: int = 0
@@ -108,9 +118,8 @@ class ExternalCallMetrics:
     timeouts: int = 0
     errors: int = 0
 
-    def record(
-        self, duration_ms: float, success: bool = True, timeout: bool = False
-    ) -> None:
+    def record(self, duration_ms: float, success: bool = True, timeout: bool = False) -> None:
+        """Record."""
         self.call_count += 1
         self.total_time_ms += duration_ms
         if duration_ms < self.min_time_ms:
@@ -124,6 +133,7 @@ class ExternalCallMetrics:
 
     @property
     def avg_time_ms(self) -> float:
+        """Avg Time Ms."""
         return self.total_time_ms / self.call_count if self.call_count > 0 else 0.0
 
 
@@ -131,31 +141,35 @@ class ProfilingSession:
     """Central profiling session managing all metrics collection."""
 
     def __init__(self, name: str = "default") -> None:
+        """Initialize."""
         self.name = name
-        self._start_time: Optional[float] = None
-        self._end_time: Optional[float] = None
+        self._start_time: float | None = None
+        self._end_time: float | None = None
         self._lock = threading.Lock()
 
-        self.endpoints: Dict[str, EndpointMetrics] = {}
-        self.queries: Dict[str, QueryMetrics] = {}
-        self.external_calls: Dict[Tuple[str, str], ExternalCallMetrics] = {}
+        self.endpoints: dict[str, EndpointMetrics] = {}
+        self.queries: dict[str, QueryMetrics] = {}
+        self.external_calls: dict[tuple[str, str], ExternalCallMetrics] = {}
 
-        self.memory_samples: List[Dict[str, Any]] = []
-        self.cpu_samples: List[Dict[str, Any]] = []
+        self.memory_samples: list[dict[str, Any]] = []
+        self.cpu_samples: list[dict[str, Any]] = []
 
         self._memory_monitor_running = False
-        self._memory_monitor_thread: Optional[threading.Thread] = None
+        self._memory_monitor_thread: threading.Thread | None = None
 
     def start(self) -> None:
+        """Start."""
         self._start_time = time.time()
         gc.collect()
 
     def stop(self) -> None:
+        """Stop."""
         self._end_time = time.time()
         self._stop_memory_monitor()
 
     @property
     def duration_seconds(self) -> float:
+        """Duration Seconds."""
         if self._start_time and self._end_time:
             return self._end_time - self._start_time
         return 0.0
@@ -166,12 +180,11 @@ class ProfilingSession:
     def record_endpoint(
         self, method: str, path: str, duration_ms: float, success: bool = True
     ) -> None:
+        """Record Endpoint."""
         key = self._get_endpoint_key(method, path)
         with self._lock:
             if key not in self.endpoints:
-                self.endpoints[key] = EndpointMetrics(
-                    name=path, method=method, path=path
-                )
+                self.endpoints[key] = EndpointMetrics(name=path, method=method, path=path)
             self.endpoints[key].record(duration_ms, success)
 
     def record_query(
@@ -181,12 +194,11 @@ class ProfilingSession:
         duration_ms: float,
         success: bool = True,
     ) -> None:
+        """Record Query."""
         key = f"{query_type}:{statement[:100]}"
         with self._lock:
             if key not in self.queries:
-                self.queries[key] = QueryMetrics(
-                    query_type=query_type, statement=statement[:100]
-                )
+                self.queries[key] = QueryMetrics(query_type=query_type, statement=statement[:100])
             self.queries[key].record(duration_ms, success)
 
     def record_external_call(
@@ -197,12 +209,11 @@ class ProfilingSession:
         success: bool = True,
         timeout: bool = False,
     ) -> None:
+        """Record External Call."""
         key = (service, operation)
         with self._lock:
             if key not in self.external_calls:
-                self.external_calls[key] = ExternalCallMetrics(
-                    service=service, operation=operation
-                )
+                self.external_calls[key] = ExternalCallMetrics(service=service, operation=operation)
             self.external_calls[key].record(duration_ms, success, timeout)
 
     def _start_memory_monitor(self, interval: float = 0.5) -> None:
@@ -237,9 +248,11 @@ class ProfilingSession:
             time.sleep(interval)
 
     def start_memory_monitoring(self, interval: float = 0.5) -> None:
+        """Start Memory Monitoring."""
         self._start_memory_monitor(interval)
 
-    def snapshot_memory(self) -> Dict[str, Any]:
+    def snapshot_memory(self) -> dict[str, Any]:
+        """Snapshot Memory."""
         process = psutil.Process(os.getpid())
         mem_info = process.memory_info()
         gc_stats = gc.get_stats()
@@ -251,8 +264,9 @@ class ProfilingSession:
             "thread_count": threading.active_count(),
         }
 
-    def get_summary(self) -> Dict[str, Any]:
-        endpoint_stats: List[Dict[str, Any]] = []
+    def get_summary(self) -> dict[str, Any]:
+        """Get Summary."""
+        endpoint_stats: list[dict[str, Any]] = []
         for key, endpoint_metrics in self.endpoints.items():
             endpoint_stats.append(
                 {
@@ -277,7 +291,7 @@ class ProfilingSession:
                 }
             )
 
-        query_stats: List[Dict[str, Any]] = []
+        query_stats: list[dict[str, Any]] = []
         for key, query_metrics in self.queries.items():
             query_stats.append(
                 {
@@ -293,7 +307,7 @@ class ProfilingSession:
                 }
             )
 
-        external_stats: List[Dict[str, Any]] = []
+        external_stats: list[dict[str, Any]] = []
         for (service, operation), external_metrics in self.external_calls.items():
             external_stats.append(
                 {
@@ -324,22 +338,16 @@ class ProfilingSession:
         return {
             "session_name": self.name,
             "duration_seconds": round(self.duration_seconds, 2),
-            "endpoints": sorted(
-                endpoint_stats, key=lambda x: x["avg_time_ms"], reverse=True
-            ),
-            "queries": sorted(
-                query_stats, key=lambda x: x["avg_time_ms"], reverse=True
-            ),
-            "external_calls": sorted(
-                external_stats, key=lambda x: x["avg_time_ms"], reverse=True
-            ),
+            "endpoints": sorted(endpoint_stats, key=lambda x: x["avg_time_ms"], reverse=True),
+            "queries": sorted(query_stats, key=lambda x: x["avg_time_ms"], reverse=True),
+            "external_calls": sorted(external_stats, key=lambda x: x["avg_time_ms"], reverse=True),
             "memory": memory_stats,
             "total_requests": sum(e["call_count"] for e in endpoint_stats),
             "total_errors": sum(e["errors"] for e in endpoint_stats),
         }
 
 
-_profiling_session: Optional[ProfilingSession] = None
+_profiling_session: ProfilingSession | None = None
 
 
 def get_profiling_session() -> ProfilingSession:
@@ -351,6 +359,7 @@ def get_profiling_session() -> ProfilingSession:
 
 
 def set_profiling_session(session: ProfilingSession) -> None:
+    """Set Profiling Session."""
     global _profiling_session
     _profiling_session = session
 
@@ -365,6 +374,7 @@ class ProfilingMiddleware(BaseHTTPMiddleware):
         request: Request,
         call_next: RequestResponseEndpoint,
     ) -> Response:
+        """Dispatch."""
         path = request.url.path
         method = request.method
 
@@ -391,13 +401,15 @@ class ProfileSection:
     """Async context manager for profiling a section of code."""
 
     def __init__(self, service: str, operation: str) -> None:
+        """Initialize."""
         self.service = service
         self.operation = operation
         self.session = get_profiling_session()
         self.start_time: float = 0.0
         self.duration_ms: float = 0.0
 
-    async def __aenter__(self) -> "ProfileSection":
+    async def __aenter__(self) -> ProfileSection:
+        """Context manager enter."""
         self.start_time = time.perf_counter()
         return self
 
@@ -407,6 +419,7 @@ class ProfileSection:
         exc_val: BaseException | None,
         _exc_tb: TracebackType | None,
     ) -> None:
+        """Context manager exit."""
         self.duration_ms = (time.perf_counter() - self.start_time) * 1000
         self.session.record_external_call(
             self.service, self.operation, self.duration_ms, success=exc_type is None
@@ -422,7 +435,8 @@ class QueryProfiler:
     """Profiler for database queries."""
 
     def __init__(self) -> None:
-        self._original_execute: Optional[Callable[..., Any]] = None
+        """Initialize."""
+        self._original_execute: Callable[..., Any] | None = None
         self._patched = False
 
     def patch_sessionmaker(self, sessionmaker: Any) -> None:
@@ -438,30 +452,29 @@ class QueryProfiler:
 
             @wraps(original_execute)
             async def patched_execute(self: Any, *args: Any, **kwargs: Any) -> Any:
+                """Patched Execute."""
                 start = time.perf_counter()
                 try:
                     result = await execute_callable(self, *args, **kwargs)
                     return result
                 finally:
                     duration_ms = (time.perf_counter() - start) * 1000
-                    statement = (
-                        str(args[0]) if args else kwargs.get("statement", "unknown")
-                    )
+                    statement = str(args[0]) if args else kwargs.get("statement", "unknown")
                     session.record_query("execute", statement, duration_ms)
 
             sessionmaker.execute = patched_execute
             self._patched = True
 
 
-def get_top_slow_endpoints(limit: int = 5) -> List[Dict[str, Any]]:
+def get_top_slow_endpoints(limit: int = 5) -> list[dict[str, Any]]:
     """Get the slowest endpoints by average response time."""
     session = get_profiling_session()
     stats = session.get_summary()
-    endpoints = cast(List[Dict[str, Any]], stats["endpoints"])
+    endpoints = cast(list[dict[str, Any]], stats["endpoints"])
     return endpoints[:limit]
 
 
-def get_bottleneck_summary() -> Dict[str, Any]:
+def get_bottleneck_summary() -> dict[str, Any]:
     """Generate a summary of performance bottlenecks."""
     session = get_profiling_session()
     stats = session.get_summary()
@@ -505,7 +518,7 @@ def get_bottleneck_summary() -> Dict[str, Any]:
             )
 
     return {
-        "timestamp": datetime.now(timezone.utc).isoformat(),
+        "timestamp": datetime.now(UTC).isoformat(),
         "bottleneck_count": len(bottlenecks),
         "bottlenecks": sorted(
             bottlenecks,

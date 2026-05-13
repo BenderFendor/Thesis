@@ -1,28 +1,33 @@
+"""Startup Metrics."""
+
 from __future__ import annotations
 
 import time
 from dataclasses import asdict, dataclass, field
-from datetime import datetime, timezone
+from datetime import datetime, UTC
 from threading import Lock
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 
-def _ts(timestamp: float | None) -> Optional[str]:
+def _ts(timestamp: float | None) -> str | None:
     if timestamp is None:
         return None
-    return datetime.fromtimestamp(timestamp, tz=timezone.utc).isoformat()
+    return datetime.fromtimestamp(timestamp, tz=UTC).isoformat()
 
 
 @dataclass
 class StartupEvent:
+    """Startup Event."""
+
     name: str
     started_at: float
     completed_at: float
     duration_seconds: float
-    detail: Optional[str] = None
-    metadata: Dict[str, Any] = field(default_factory=dict)
+    detail: str | None = None
+    metadata: dict[str, Any] = field(default_factory=dict)
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
+        """To Dict."""
         payload = asdict(self)
         payload["started_at"] = _ts(self.started_at)
         payload["completed_at"] = _ts(self.completed_at)
@@ -30,14 +35,18 @@ class StartupEvent:
 
 
 class StartupMetrics:
+    """Startup Metrics."""
+
     def __init__(self) -> None:
+        """Initialize."""
         self._lock = Lock()
         self._started_at: float | None = None
         self._completed_at: float | None = None
-        self._events: List[StartupEvent] = []
-        self._notes: Dict[str, Any] = {}
+        self._events: list[StartupEvent] = []
+        self._notes: dict[str, Any] = {}
 
     def mark_app_started(self) -> None:
+        """Mark App Started."""
         with self._lock:
             self._started_at = time.time()
             self._completed_at = None
@@ -45,6 +54,7 @@ class StartupMetrics:
             self._notes = {}
 
     def mark_app_completed(self) -> None:
+        """Mark App Completed."""
         with self._lock:
             self._completed_at = time.time()
 
@@ -53,9 +63,10 @@ class StartupMetrics:
         name: str,
         started_at: float,
         *,
-        detail: Optional[str] = None,
-        metadata: Optional[Dict[str, Any]] = None,
+        detail: str | None = None,
+        metadata: dict[str, Any] | None = None,
     ) -> StartupEvent:
+        """Record Event."""
         completed_at = time.time()
         event = StartupEvent(
             name=name,
@@ -70,10 +81,12 @@ class StartupMetrics:
         return event
 
     def add_note(self, key: str, value: Any) -> None:
+        """Add Note."""
         with self._lock:
             self._notes[key] = value
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
+        """To Dict."""
         with self._lock:
             return {
                 "started_at": _ts(self._started_at),

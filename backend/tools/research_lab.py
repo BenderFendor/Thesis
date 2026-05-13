@@ -1,3 +1,5 @@
+"""Research Lab."""
+
 from __future__ import annotations
 
 import argparse
@@ -5,9 +7,9 @@ import asyncio
 import json
 import time
 from collections import Counter
-from datetime import datetime, timezone
+from datetime import datetime, UTC
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 import httpx
 
@@ -30,11 +32,11 @@ REGISTERED_RESEARCH_TOOLS = (
 
 
 def _utc_now() -> str:
-    return datetime.now(timezone.utc).isoformat()
+    return datetime.now(UTC).isoformat()
 
 
-def _normalize_history_payload(raw_history: Any) -> List[Dict[str, str]]:
-    payload: List[Dict[str, str]] = []
+def _normalize_history_payload(raw_history: Any) -> list[dict[str, str]]:
+    payload: list[dict[str, str]] = []
     if not isinstance(raw_history, list):
         return payload
     for item in raw_history:
@@ -47,7 +49,7 @@ def _normalize_history_payload(raw_history: Any) -> List[Dict[str, str]]:
     return payload
 
 
-def _load_history_file(path: str | None) -> List[Dict[str, str]]:
+def _load_history_file(path: str | None) -> list[dict[str, str]]:
     if not path:
         return []
     history_path = Path(path)
@@ -60,7 +62,7 @@ def _load_history_file(path: str | None) -> List[Dict[str, str]]:
     return _normalize_history_payload(raw_history)
 
 
-def _load_queries_file(path: str | None) -> List[str]:
+def _load_queries_file(path: str | None) -> list[str]:
     if not path:
         return []
     query_path = Path(path)
@@ -86,10 +88,10 @@ def _load_queries_file(path: str | None) -> List[str]:
 
 
 def _append_history_turn(
-    history: List[Dict[str, str]],
+    history: list[dict[str, str]],
     query: str,
     answer: str,
-) -> List[Dict[str, str]]:
+) -> list[dict[str, str]]:
     next_history = list(history)
     user_query = query.strip()
     if user_query:
@@ -100,7 +102,7 @@ def _append_history_turn(
     return next_history
 
 
-def _round_average(values: List[float]) -> float:
+def _round_average(values: list[float]) -> float:
     if not values:
         return 0.0
     return round(sum(values) / len(values), 2)
@@ -121,8 +123,8 @@ def _history_recall_failed(answer: str) -> bool:
 
 
 def _resolve_final_answer(
-    final_result: Dict[str, Any],
-    thinking_steps: List[Dict[str, Any]],
+    final_result: dict[str, Any],
+    thinking_steps: list[dict[str, Any]],
 ) -> str:
     final_answer = str(final_result.get("answer") or "")
     if final_answer:
@@ -139,12 +141,12 @@ def _resolve_final_answer(
     return ""
 
 
-def _build_summary(results: List[Dict[str, Any]]) -> Dict[str, Any]:
+def _build_summary(results: list[dict[str, Any]]) -> dict[str, Any]:
     requested_tool_counter: Counter[str] = Counter()
     executed_tool_counter: Counter[str] = Counter()
     source_provider_counter: Counter[str] = Counter()
-    queries_without_tool_calls: List[str] = []
-    history_recall_failures: List[str] = []
+    queries_without_tool_calls: list[str] = []
+    history_recall_failures: list[str] = []
 
     for result in results:
         if int(result.get("tool_calls", 0)) <= 0:
@@ -174,13 +176,9 @@ def _build_summary(results: List[Dict[str, Any]]) -> Dict[str, Any]:
 
     return {
         "completed": sum(1 for result in results if bool(result.get("completed"))),
-        "failures": sum(
-            1 for result in results if not bool(result.get("has_sections"))
-        ),
+        "failures": sum(1 for result in results if not bool(result.get("has_sections"))),
         "errors": sum(1 for result in results if bool(result.get("error"))),
-        "stopped_early": sum(
-            1 for result in results if bool(result.get("stopped_early"))
-        ),
+        "stopped_early": sum(1 for result in results if bool(result.get("stopped_early"))),
         "avg_elapsed_seconds": _round_average(
             [float(result.get("elapsed_seconds", 0.0)) for result in results]
         ),
@@ -247,7 +245,7 @@ def _is_error_message(message_type: str) -> bool:
     return message_type == "error"
 
 
-def _new_state(query: str) -> Dict[str, Any]:
+def _new_state(query: str) -> dict[str, Any]:
     return {
         "query": query,
         "streaming_status": "Starting research...",
@@ -264,14 +262,14 @@ def _new_state(query: str) -> Dict[str, Any]:
     }
 
 
-def _record_event(state: Dict[str, Any], event: Dict[str, Any]) -> None:
+def _record_event(state: dict[str, Any], event: dict[str, Any]) -> None:
     event_type = str(event.get("type", "unknown"))
     counts = state["event_counts"]
     counts[event_type] = int(counts.get(event_type, 0)) + 1
     state["raw_events"].append(event)
 
 
-def _process_event_like_frontend(state: Dict[str, Any], event: Dict[str, Any]) -> None:
+def _process_event_like_frontend(state: dict[str, Any], event: dict[str, Any]) -> None:
     _record_event(state, event)
     message_type = str(event.get("type", "unknown"))
 
@@ -330,8 +328,9 @@ async def run_once(
     query: str,
     api_base: str,
     max_seconds: float,
-    history: Optional[List[Dict[str, str]]] = None,
-) -> Dict[str, Any]:
+    history: list[dict[str, str]] | None = None,
+) -> dict[str, Any]:
+    """Run Once."""
     params = {
         "query": query,
         "include_thinking": "true",
@@ -340,7 +339,7 @@ async def run_once(
     if history_payload:
         params["history"] = json.dumps(history_payload)
     start_time = time.time()
-    first_event_time: Optional[float] = None
+    first_event_time: float | None = None
     state = _new_state(query)
     stopped_early = False
 
@@ -379,18 +378,14 @@ async def run_once(
 
     elapsed = time.time() - start_time
     ttf = (first_event_time - start_time) if first_event_time else 0.0
-    final_result = (
-        state["final_result"] if isinstance(state["final_result"], dict) else {}
-    )
+    final_result = state["final_result"] if isinstance(state["final_result"], dict) else {}
     final_answer = _resolve_final_answer(final_result, state["thinking_steps"])
 
     repeated_checking = sum(
         1 for status in state["status_history"] if status == "Checking more sources."
     )
     tool_events = [
-        event
-        for event in state["raw_events"]
-        if str(event.get("type", "")) == "tool_start"
+        event for event in state["raw_events"] if str(event.get("type", "")) == "tool_start"
     ]
 
     return {
@@ -425,6 +420,7 @@ async def run_once(
 
 
 def build_arg_parser() -> argparse.ArgumentParser:
+    """Build Arg Parser."""
     parser = argparse.ArgumentParser(description="Research agent lab harness.")
     parser.add_argument(
         "--api-base",
@@ -470,6 +466,7 @@ def build_arg_parser() -> argparse.ArgumentParser:
 
 
 def main() -> None:
+    """Main."""
     args = build_arg_parser().parse_args()
     file_queries = _load_queries_file(args.query_file)
     queries = args.query or file_queries or DEFAULT_QUERIES
@@ -477,7 +474,7 @@ def main() -> None:
     output_path.parent.mkdir(parents=True, exist_ok=True)
     seed_history = _load_history_file(args.history_file)
 
-    results: List[Dict[str, Any]] = []
+    results: list[dict[str, Any]] = []
     for run_index in range(args.runs):
         history = list(seed_history)
         for turn_index, query in enumerate(queries, start=1):

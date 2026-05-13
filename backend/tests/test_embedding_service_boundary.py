@@ -95,9 +95,7 @@ def test_embedding_service_embed_loads_single_model_instance(monkeypatch) -> Non
         load_count += 1
         return fake_model
 
-    monkeypatch.setattr(
-        "app.embedding_service._get_embedding_model", _fake_get_embedding_model
-    )
+    monkeypatch.setattr("app.embedding_service._get_embedding_model", _fake_get_embedding_model)
 
     client = TestClient(app)
     response = client.post(

@@ -99,6 +99,6 @@ def test_discover_author_pages_confirms_same_domain_page(monkeypatch) -> None:
 
     monkeypatch.setattr(reporter_source_verifier, "fetch_feed", fake_fetch)
 
-    assert discover_author_pages(
-        "Example Reporter", "https://example.com/news/story"
-    ) == ["https://example.com/by/example-reporter"]
+    assert discover_author_pages("Example Reporter", "https://example.com/news/story") == [
+        "https://example.com/by/example-reporter"
+    ]

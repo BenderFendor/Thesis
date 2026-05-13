@@ -1,4 +1,6 @@
 #!/usr/bin/env python3
+"""Run Chromadb."""
+
 import os
 
 os.environ["CHROMA_DB_IMPL"] = "duckdb+parquet"

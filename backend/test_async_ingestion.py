@@ -1,7 +1,6 @@
 #!/usr/bin/env python3
-"""
-Test script for Rust-backed RSS ingestion pipeline.
-Run with: python backend/test_async_ingestion.py
+"""Test script for Rust-backed RSS ingestion pipeline.
+Run with: python backend/test_async_ingestion.py.
 """
 
 import asyncio

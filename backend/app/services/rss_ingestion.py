@@ -1,3 +1,5 @@
+"""RSS feed polling, parsing, deduplication, and cache update pipeline."""
+
 from __future__ import annotations
 
 import asyncio
@@ -5,8 +7,8 @@ import logging
 import threading
 import time
 from collections.abc import Callable, Collection, Iterable
-from datetime import datetime, timedelta, timezone
-from typing import Any, Dict, List
+from datetime import datetime, timedelta, UTC
+from typing import Any
 from urllib.parse import urljoin
 
 from app.core.config import settings
@@ -46,9 +48,7 @@ _IDLE_BACKOFF_THRESHOLDS: list[tuple[int, int]] = [
 ]
 
 _FEED_STATE_PATH = (
-    __import__("pathlib").Path(__file__).resolve().parents[1]
-    / "data"
-    / "feed_polling_state.json"
+    __import__("pathlib").Path(__file__).resolve().parents[1] / "data" / "feed_polling_state.json"
 )
 
 
@@ -62,42 +62,45 @@ def _idle_poll_interval(consecutive_idle_checks: int) -> int:
 
 
 def save_polling_state(stats: list[dict[str, Any]]) -> None:
+    """Save Polling State."""
     try:
         import json
-        import os
 
         _FEED_STATE_PATH.parent.mkdir(parents=True, exist_ok=True)
         tmp_path = _FEED_STATE_PATH.with_suffix(".json.tmp")
-        with open(tmp_path, "w", encoding="utf-8") as f:
-            json.dump(stats, f, default=str)
-        os.replace(tmp_path, _FEED_STATE_PATH)
+        tmp_path.write_text(json.dumps(stats, default=str), encoding="utf-8")
+        tmp_path.replace(_FEED_STATE_PATH)
     except Exception:
         pass
 
 
 def load_polling_state() -> list[dict[str, Any]]:
+    """Load Polling State."""
     try:
         import json
 
-        with open(_FEED_STATE_PATH, "r", encoding="utf-8") as f:
-            result = json.load(f)
-            if isinstance(result, list):
-                return [item for item in result if isinstance(item, dict)]
-            return []
+        result = json.loads(_FEED_STATE_PATH.read_text(encoding="utf-8"))
+        if isinstance(result, list):
+            return [item for item in result if isinstance(item, dict)]
+        return []
     except Exception:
         return []
 
 
 def apply_saved_polling_state() -> None:
+    """Apply Saved Polling State."""
     saved = load_polling_state()
     if not saved:
         return
     with news_cache.lock:
         for stat in saved:
             stat_name = stat.get("name")
-            if isinstance(stat_name, str) and stat_name:
-                if stat_name not in news_cache.source_stats_by_name:
-                    news_cache.source_stats_by_name[stat_name] = stat
+            if (
+                isinstance(stat_name, str)
+                and stat_name
+                and stat_name not in news_cache.source_stats_by_name
+            ):
+                news_cache.source_stats_by_name[stat_name] = stat
         news_cache.source_stats = list(news_cache.source_stats_by_name.values())
     logger.info("Seeded polling state for %d sources from file", len(saved))
 
@@ -124,7 +127,7 @@ def _iter_source_urls(url_field: Any) -> Iterable[str]:
 
 
 def _utc_now() -> datetime:
-    return datetime.now(timezone.utc)
+    return datetime.now(UTC)
 
 
 def _parse_article_datetime(value: str | None) -> datetime | None:
@@ -138,8 +141,8 @@ def _parse_article_datetime(value: str | None) -> datetime | None:
     except ValueError:
         return None
     if parsed.tzinfo is None:
-        return parsed.replace(tzinfo=timezone.utc)
-    return parsed.astimezone(timezone.utc)
+        return parsed.replace(tzinfo=UTC)
+    return parsed.astimezone(UTC)
 
 
 def _coerce_int(value: object) -> int:
@@ -168,9 +171,7 @@ def _get_source_activity_snapshot(
     source_name: str,
     articles: Collection[NewsArticle],
 ) -> tuple[int, float | None, str | None]:
-    relevant_articles = list(articles) or news_cache.get_articles_for_source(
-        source_name
-    )
+    relevant_articles = list(articles) or news_cache.get_articles_for_source(source_name)
     if not relevant_articles:
         return 0, None, None
 
@@ -187,9 +188,7 @@ def _get_source_activity_snapshot(
         return 0, None, None
 
     freshest = max(published_times)
-    recent_count = sum(
-        1 for published_at in published_times if published_at >= recent_cutoff
-    )
+    recent_count = sum(1 for published_at in published_times if published_at >= recent_cutoff)
     freshest_age_hours = max(0.0, (now - freshest).total_seconds() / 3600)
     return recent_count, freshest_age_hours, freshest.isoformat()
 
@@ -206,11 +205,9 @@ def _next_poll_metadata(
     previous_idle = _coerce_int(previous_stat.get("consecutive_idle_checks"))
     status = str(stat.get("status") or "pending")
     article_count = _coerce_int(stat.get("article_count"))
-    recent_count, freshest_age_hours, freshest_published_at = (
-        _get_source_activity_snapshot(
-            source_name,
-            articles,
-        )
+    recent_count, freshest_age_hours, freshest_published_at = _get_source_activity_snapshot(
+        source_name,
+        articles,
     )
 
     consecutive_failures = 0
@@ -228,19 +225,13 @@ def _next_poll_metadata(
     elif status == "not_modified" or article_count <= 0:
         consecutive_failures = 0
         consecutive_idle_checks = previous_idle + 1
-        interval_seconds = _clamp_poll_interval(
-            _idle_poll_interval(consecutive_idle_checks)
-        )
+        interval_seconds = _clamp_poll_interval(_idle_poll_interval(consecutive_idle_checks))
         reason = "idle_backoff"
     else:
-        if recent_count >= 8 or (
-            freshest_age_hours is not None and freshest_age_hours <= 2
-        ):
+        if recent_count >= 8 or (freshest_age_hours is not None and freshest_age_hours <= 2):
             interval_seconds = MIN_POLL_INTERVAL_SECONDS
             reason = "high_activity"
-        elif recent_count >= 3 or (
-            freshest_age_hours is not None and freshest_age_hours <= 6
-        ):
+        elif recent_count >= 3 or (freshest_age_hours is not None and freshest_age_hours <= 6):
             interval_seconds = _clamp_poll_interval(base_interval_seconds)
             reason = "steady_activity"
         else:
@@ -260,8 +251,8 @@ def _next_poll_metadata(
 
 
 def _merge_partial_cache_update(
-    updated_articles: List[NewsArticle],
-    updated_source_stats: List[Dict[str, Any]],
+    updated_articles: list[NewsArticle],
+    updated_source_stats: list[dict[str, Any]],
 ) -> None:
     updated_names = {
         str(stat_name)
@@ -269,14 +260,12 @@ def _merge_partial_cache_update(
         if isinstance(stat_name, str) and stat_name
     }
     existing_articles = [
-        article
-        for article in news_cache.get_articles()
-        if article.source not in updated_names
+        article for article in news_cache.get_articles() if article.source not in updated_names
     ]
     merged_articles = existing_articles + updated_articles
     merged_articles.sort(key=lambda article: article.published, reverse=True)
 
-    stats_by_name: Dict[str, Dict[str, object]] = {}
+    stats_by_name: dict[str, dict[str, object]] = {}
     for existing_stat in news_cache.get_source_stats():
         existing_name = existing_stat.get("name")
         if isinstance(existing_name, str) and existing_name:
@@ -290,9 +279,9 @@ def _merge_partial_cache_update(
 
 
 def _select_rss_sources(
-    rss_sources: Dict[str, Dict[str, Any]],
+    rss_sources: dict[str, dict[str, Any]],
     source_names: Collection[str] | None,
-) -> Dict[str, Dict[str, Any]]:
+) -> dict[str, dict[str, Any]]:
     if source_names is None:
         return rss_sources
     selected = set(source_names)
@@ -317,9 +306,9 @@ def _normalize_article_image(image_url: str | None, article_url: str) -> str | N
 
 
 def _build_article_from_rust_payload(
-    item: Dict[str, Any],
+    item: dict[str, Any],
     source_name: str,
-    source_info: Dict[str, Any],
+    source_info: dict[str, Any],
 ) -> NewsArticle:
     link_value = str(item.get("link", ""))
     image_url = _normalize_article_image(item.get("image"), link_value)
@@ -341,7 +330,7 @@ def _build_article_from_rust_payload(
         title=title,
         link=link_value,
         description=description,
-        published=item.get("published", datetime.now(timezone.utc).isoformat()),
+        published=item.get("published", datetime.now(UTC).isoformat()),
         source=source_name,
         author=primary_author,
         authors=authors,
@@ -357,7 +346,7 @@ def _build_article_from_rust_payload(
 
 
 def _process_source_with_debug(
-    source_name: str, source_info: Dict[str, Any], stream_id: str
+    source_name: str, source_info: dict[str, Any], stream_id: str
 ) -> tuple[list[NewsArticle], dict[str, Any]]:
     stream_start = time.time()
     result = parse_feeds_parallel(
@@ -383,7 +372,7 @@ def _process_source_with_debug(
         "article_count": rust_stat.get("article_count", len(articles)),
         "status": rust_stat.get("status", "success"),
         "error_message": rust_stat.get("error_message"),
-        "last_checked": datetime.now(timezone.utc).isoformat(),
+        "last_checked": datetime.now(UTC).isoformat(),
         "is_consolidated": source_info.get("consolidate", False),
         "sub_feeds": rust_stat.get("sub_feeds"),
         "stream_id": stream_id,
@@ -397,6 +386,12 @@ async def refresh_news_cache_async(
     source_progress_callback: SourceProgressCallback | None = None,
     source_names: Collection[str] | None = None,
 ) -> None:
+    """Poll RSS sources in parallel, parse feeds, deduplicate, and update the global cache.
+
+    Uses the Rust parser backend for HTML extraction and feed parsing. Respects
+    per-source minimum refresh intervals and applies canonical URL deduplication.
+    Optionally reports per-source progress via a callback for real-time monitoring.
+    """
     if news_cache.update_in_progress:
         logger.info("Cache update already in progress, skipping...")
         return
@@ -433,7 +428,7 @@ async def refresh_news_cache_async(
 
 
 async def _refresh_news_cache_with_rust(
-    rss_sources: Dict[str, Dict[str, Any]],
+    rss_sources: dict[str, dict[str, Any]],
     source_progress_callback: SourceProgressCallback | None,
     *,
     is_partial_refresh: bool,
@@ -444,8 +439,7 @@ async def _refresh_news_cache_with_rust(
     logger.info("Using Rust RSS ingestion pipeline")
 
     sources_payload = [
-        (name, list(_iter_source_urls(info.get("url"))))
-        for name, info in rss_sources.items()
+        (name, list(_iter_source_urls(info.get("url")))) for name, info in rss_sources.items()
     ]
 
     if not sources_payload:
@@ -464,11 +458,11 @@ async def _refresh_news_cache_with_rust(
             min(64, max(8, len(sources_payload) * 2)),
         )
 
-    articles_payload: List[Dict[str, Any]] = result.get("articles", [])
-    stats_payload: Dict[str, Dict[str, Any]] = result.get("source_stats", {})
-    metrics_payload: Dict[str, Any] = result.get("metrics", {})
+    articles_payload: list[dict[str, Any]] = result.get("articles", [])
+    stats_payload: dict[str, dict[str, Any]] = result.get("source_stats", {})
+    metrics_payload: dict[str, Any] = result.get("metrics", {})
 
-    articles_by_source: Dict[str, List[NewsArticle]] = {}
+    articles_by_source: dict[str, list[NewsArticle]] = {}
     for item in articles_payload:
         source_name = item.get("source") or "Unknown"
         source_info = rss_sources.get(source_name, {})
@@ -476,9 +470,7 @@ async def _refresh_news_cache_with_rust(
         articles_by_source.setdefault(source_name, []).append(article)
 
     all_articles = [
-        article
-        for source_articles in articles_by_source.values()
-        for article in source_articles
+        article for source_articles in articles_by_source.values() for article in source_articles
     ]
 
     if all_articles:
@@ -496,7 +488,7 @@ async def _refresh_news_cache_with_rust(
     for articles in articles_by_source.values():
         articles.sort(key=lambda article: article.published, reverse=True)
 
-    source_stats: List[Dict[str, Any]] = []
+    source_stats: list[dict[str, Any]] = []
     for name, source_info in rss_sources.items():
         rust_stat = stats_payload.get(name, {})
         stat = {
@@ -507,12 +499,10 @@ async def _refresh_news_cache_with_rust(
             "funding_type": source_info.get("funding_type"),
             "bias_rating": source_info.get("bias_rating"),
             "ownership_label": source_info.get("ownership_label"),
-            "article_count": rust_stat.get(
-                "article_count", len(articles_by_source.get(name, []))
-            ),
+            "article_count": rust_stat.get("article_count", len(articles_by_source.get(name, []))),
             "status": rust_stat.get("status", "success"),
             "error_message": rust_stat.get("error_message"),
-            "last_checked": datetime.now(timezone.utc).isoformat(),
+            "last_checked": datetime.now(UTC).isoformat(),
             "is_consolidated": source_info.get("consolidate", False),
             "sub_feeds": rust_stat.get("sub_feeds"),
         }
@@ -584,7 +574,7 @@ async def _broadcast_cache_update(total_articles: int, source_count: int) -> Non
             {
                 "type": "cache_updated",
                 "message": "News cache has been updated",
-                "timestamp": datetime.now(timezone.utc).isoformat(),
+                "timestamp": datetime.now(UTC).isoformat(),
                 "stats": {
                     "total_articles": total_articles,
                     "sources_processed": source_count,
@@ -614,13 +604,19 @@ async def _broadcast_cache_update(total_articles: int, source_count: int) -> Non
 def refresh_news_cache(
     source_progress_callback: SourceProgressCallback | None = None,
 ) -> None:
-    asyncio.run(
-        refresh_news_cache_async(source_progress_callback=source_progress_callback)
-    )
+    """Synchronous wrapper that runs the async refresh loop to completion."""
+    asyncio.run(refresh_news_cache_async(source_progress_callback=source_progress_callback))
 
 
 def start_cache_refresh_scheduler(interval_seconds: int = 600) -> None:
+    """Launch a background thread that periodically triggers a full cache refresh.
+
+    The scheduler sleeps for the initial interval before the first refresh
+    to avoid thundering-herd on startup, then loops indefinitely.
+    """
+
     def cache_scheduler() -> None:
+        """Sleep for the initial interval, then poll sources forever."""
         time.sleep(interval_seconds)
         while True:
             try:

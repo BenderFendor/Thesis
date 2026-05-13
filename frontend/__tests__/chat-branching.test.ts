@@ -5,13 +5,13 @@ import {
   getVisibleConversationMessages,
 } from "@/lib/chat-branching";
 
-type TestMessage = {
+interface TestMessage {
   id: string;
   type: "user" | "assistant";
   toolType?: string;
   retryOfMessageId?: string;
   parentMessageId?: string;
-};
+}
 
 const baseMessages: TestMessage[] = [
   { id: "user-1", type: "user" },

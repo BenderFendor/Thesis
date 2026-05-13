@@ -1,3 +1,5 @@
+"""Cache."""
+
 from __future__ import annotations
 
 import asyncio
@@ -6,8 +8,8 @@ import queue
 import threading
 from collections import defaultdict
 from collections.abc import AsyncIterator
-from datetime import datetime, timezone
-from typing import Any, Dict
+from datetime import datetime, UTC
+from typing import Any
 
 from fastapi import APIRouter
 from fastapi.responses import StreamingResponse
@@ -20,7 +22,7 @@ router = APIRouter(prefix="/cache", tags=["cache"])
 
 
 @router.post("/refresh")
-async def manual_cache_refresh() -> Dict[str, str]:
+async def manual_cache_refresh() -> dict[str, str]:
     """Start cache refresh and return immediately (non-blocking)."""
     if news_cache.update_in_progress:
         return {"message": "Cache refresh already in progress", "status": "in_progress"}
@@ -38,17 +40,16 @@ async def stream_cache_refresh() -> StreamingResponse:
     if news_cache.update_in_progress:
 
         async def already_running() -> AsyncIterator[str]:
+            """Already Running."""
             yield f"data: {json.dumps({'status': 'error', 'message': 'Cache refresh already in progress'})}\n\n"
 
         return StreamingResponse(already_running(), media_type="text/event-stream")
 
     # Create a queue for communication between the refresh thread and the stream
-    progress_queue: queue.Queue[Dict[str, Any]] = queue.Queue()
+    progress_queue: queue.Queue[dict[str, Any]] = queue.Queue()
     refresh_complete = threading.Event()
 
-    def progress_callback(
-        articles: list[NewsArticle], source_stat: Dict[str, Any]
-    ) -> None:
+    def progress_callback(articles: list[NewsArticle], source_stat: dict[str, Any]) -> None:
         """Callback called for each source processed."""
         progress_queue.put(
             {
@@ -56,7 +57,7 @@ async def stream_cache_refresh() -> StreamingResponse:
                 "source": source_stat.get("name"),
                 "article_count": len(articles),
                 "source_stat": source_stat,
-                "timestamp": datetime.now(timezone.utc).isoformat(),
+                "timestamp": datetime.now(UTC).isoformat(),
             }
         )
 
@@ -68,7 +69,7 @@ async def stream_cache_refresh() -> StreamingResponse:
             progress_queue.put(
                 {
                     "type": "complete",
-                    "timestamp": datetime.now(timezone.utc).isoformat(),
+                    "timestamp": datetime.now(UTC).isoformat(),
                 }
             )
             refresh_complete.set()
@@ -121,21 +122,13 @@ async def stream_cache_refresh() -> StreamingResponse:
                             "total_articles": len(articles),
                             "total_sources_processed": len(source_stats),
                             "successful_sources": len(
-                                [
-                                    s
-                                    for s in source_stats
-                                    if s.get("status") == "success"
-                                ]
+                                [s for s in source_stats if s.get("status") == "success"]
                             ),
                             "failed_sources": len(
                                 [s for s in source_stats if s.get("status") == "error"]
                             ),
                             "warning_sources": len(
-                                [
-                                    s
-                                    for s in source_stats
-                                    if s.get("status") == "warning"
-                                ]
+                                [s for s in source_stats if s.get("status") == "warning"]
                             ),
                             "timestamp": event["timestamp"],
                         }
@@ -152,7 +145,7 @@ async def stream_cache_refresh() -> StreamingResponse:
             error_event = {
                 "status": "error",
                 "message": f"Error during cache refresh: {str(e)}",
-                "timestamp": datetime.now(timezone.utc).isoformat(),
+                "timestamp": datetime.now(UTC).isoformat(),
             }
             yield f"data: {json.dumps(error_event)}\n\n"
 
@@ -160,7 +153,8 @@ async def stream_cache_refresh() -> StreamingResponse:
 
 
 @router.get("/status")
-async def get_cache_status() -> Dict[str, object]:
+async def get_cache_status() -> dict[str, object]:
+    """Get Cache Status."""
     articles = news_cache.get_articles()
     source_stats = news_cache.get_source_stats()
 
@@ -168,19 +162,16 @@ async def get_cache_status() -> Dict[str, object]:
     sources_with_articles = sum(
         1
         for stat in source_stats
-        if isinstance(article_count := stat.get("article_count"), int)
-        and article_count > 0
+        if isinstance(article_count := stat.get("article_count"), int) and article_count > 0
     )
     sources_with_errors = len([s for s in source_stats if s.get("status") == "error"])
-    sources_with_warnings = len(
-        [s for s in source_stats if s.get("status") == "warning"]
-    )
+    sources_with_warnings = len([s for s in source_stats if s.get("status") == "warning"])
 
     category_counts: defaultdict[str, int] = defaultdict(int)
     for article in articles:
         category_counts[article.category] += 1
 
-    cache_age = (datetime.now(timezone.utc) - news_cache.last_updated).total_seconds()
+    cache_age = (datetime.now(UTC) - news_cache.last_updated).total_seconds()
 
     return {
         "last_updated": news_cache.last_updated.isoformat(),

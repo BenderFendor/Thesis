@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import math
 from dataclasses import dataclass
-from typing import Optional
 
 from hypothesis import assume, given, strategies as st
 import numpy as np
@@ -93,10 +92,10 @@ class _FakeArticle:
 @dataclass
 class _FakeMetadataArticle:
     source: str
-    source_id: Optional[str] = None
-    bias: Optional[str] = None
-    credibility: Optional[str] = None
-    country: Optional[str] = None
+    source_id: str | None = None
+    bias: str | None = None
+    credibility: str | None = None
+    country: str | None = None
 
 
 class _FailingCollection:

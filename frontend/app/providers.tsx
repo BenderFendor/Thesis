@@ -4,7 +4,8 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
 import dynamic from "next/dynamic"
 import { ThemeProvider } from "@/components/theme-provider"
 import { Toaster } from "sonner"
-import { ReactNode, useState } from "react"
+import type { ReactNode} from "react";
+import { useState } from "react"
 
 const ReadingQueueSidebar = dynamic(
   () => import("@/components/reading-queue-sidebar").then((mod) => mod.ReadingQueueSidebar),

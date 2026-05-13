@@ -25,9 +25,7 @@ async def test_reporter_dossier_uses_best_candidate_public_record_metadata(
 ) -> None:
     from app.services import entity_wiki_service
 
-    async def _fake_search_wikidata(
-        *_args: Any, **_kwargs: Any
-    ) -> list[dict[str, Any]]:
+    async def _fake_search_wikidata(*_args: Any, **_kwargs: Any) -> list[dict[str, Any]]:
         return [
             {"id": "Q100", "concepturi": "https://www.wikidata.org/entity/Q100"},
             {"id": "Q200", "concepturi": "https://www.wikidata.org/entity/Q200"},
@@ -84,9 +82,7 @@ async def test_reporter_dossier_uses_best_candidate_public_record_metadata(
     monkeypatch.setattr(entity_wiki_service, "_search_wikidata", _fake_search_wikidata)
     monkeypatch.setattr(entity_wiki_service, "_fetch_entities", _fake_fetch_entities)
     monkeypatch.setattr(entity_wiki_service, "_resolve_labels", _fake_resolve_labels)
-    monkeypatch.setattr(
-        entity_wiki_service, "_fetch_wikipedia_summary", _fake_wikipedia_summary
-    )
+    monkeypatch.setattr(entity_wiki_service, "_fetch_wikipedia_summary", _fake_wikipedia_summary)
 
     profile = await entity_wiki_service.build_reporter_dossier(
         name="Jane Doe",
@@ -98,9 +94,7 @@ async def test_reporter_dossier_uses_best_candidate_public_record_metadata(
     assert "sports" not in profile["topics"]
 
     public_record = next(
-        section
-        for section in profile["dossier_sections"]
-        if section["id"] == "occupations"
+        section for section in profile["dossier_sections"] if section["id"] == "occupations"
     )
     values = {item["value"] for item in public_record["items"]}
     assert "investigative reporting" in values

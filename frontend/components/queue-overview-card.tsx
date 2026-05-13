@@ -1,7 +1,8 @@
 "use client";
 
 import { useQuery } from "@tanstack/react-query";
-import { QueueOverview, getQueueOverview } from "@/lib/api";
+import type { QueueOverview} from "@/lib/api";
+import { getQueueOverview } from "@/lib/api";
 import { Clock, FileText } from "lucide-react";
 import { Card } from "@/components/ui/card";
 

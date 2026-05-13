@@ -6,7 +6,7 @@ triggering mass re-embedding of already-embedded articles on every startup.
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import datetime, UTC
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -19,7 +19,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 
 def _utc_now() -> datetime:
-    return datetime.now(timezone.utc).replace(tzinfo=None)
+    return datetime.now(UTC).replace(tzinfo=None)
 
 
 def _make_article_row(
@@ -108,9 +108,7 @@ async def test_already_embedded_article_does_not_queue_embedding():
 
     with (
         patch("app.services.persistence.AsyncSessionLocal", mock_session_factory),
-        patch(
-            "app.services.persistence.get_vector_store", return_value=mock_vector_store
-        ),
+        patch("app.services.persistence.get_vector_store", return_value=mock_vector_store),
         patch("app.services.persistence.settings") as mock_settings,
         patch("app.services.persistence.embedding_generation_queue") as mock_queue,
     ):
@@ -167,9 +165,7 @@ async def test_new_article_without_embedding_queues_embedding():
 
     with (
         patch("app.services.persistence.AsyncSessionLocal", mock_session_factory),
-        patch(
-            "app.services.persistence.get_vector_store", return_value=mock_vector_store
-        ),
+        patch("app.services.persistence.get_vector_store", return_value=mock_vector_store),
         patch("app.services.persistence.settings") as mock_settings,
         patch("app.services.persistence.embedding_generation_queue") as mock_queue,
     ):
@@ -235,9 +231,7 @@ async def test_chroma_id_format_change_queues_embedding_but_does_not_reset_db_fl
 
     with (
         patch("app.services.persistence.AsyncSessionLocal", mock_session_factory),
-        patch(
-            "app.services.persistence.get_vector_store", return_value=mock_vector_store
-        ),
+        patch("app.services.persistence.get_vector_store", return_value=mock_vector_store),
         patch("app.services.persistence.settings") as mock_settings,
         patch("app.services.persistence.embedding_generation_queue") as mock_queue,
     ):
@@ -251,16 +245,12 @@ async def test_chroma_id_format_change_queues_embedding_but_does_not_reset_db_fl
         )
 
     # The article should be queued for re-embedding (chroma_id changed)
-    assert len(queued) == 1, (
-        "Article with changed chroma_id should be re-queued for embedding"
-    )
+    assert len(queued) == 1, "Article with changed chroma_id should be re-queued for embedding"
 
     # The DB UPDATE for chroma_id must NOT include embedding_generated=False.
     # Filter to UPDATE statements only (not the INSERT upsert, which legitimately
     # contains embedding_generated in its column list).
-    update_only_stmts = [
-        s for s, _ in executed_stmts if s.strip().upper().startswith("UPDATE")
-    ]
+    update_only_stmts = [s for s, _ in executed_stmts if s.strip().upper().startswith("UPDATE")]
     for stmt_str in update_only_stmts:
         assert "embedding_generated" not in stmt_str, (
             "DB UPDATE for chroma_id must not reset embedding_generated=False. "
@@ -315,6 +305,4 @@ async def test_no_vector_store_skips_embedding_logic():
             {"source_id": "test", "category": "general", "country": "US"},
         )
 
-    assert queued == [], (
-        "No embedding should be queued when vector store is unavailable"
-    )
+    assert queued == [], "No embedding should be queued when vector store is unavailable"

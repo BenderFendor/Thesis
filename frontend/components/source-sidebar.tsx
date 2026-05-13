@@ -9,7 +9,8 @@ import { Badge } from "@/components/ui/badge";
 import { X, Star, Search, ChevronDown, AlertTriangle, BookOpen, GitBranch, Users } from "lucide-react";
 import { useFavorites } from "@/hooks/useFavorites";
 import { useSourceFilter } from "@/hooks/useSourceFilter";
-import { fetchSources, NewsSource } from "@/lib/api";
+import type { NewsSource } from "@/lib/api";
+import { fetchSources } from "@/lib/api";
 import { SourceCoverageComparison } from "@/components/source-coverage-comparison";
 import { AddRssDialog } from "@/components/add-rss-dialog";
 

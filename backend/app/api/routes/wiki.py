@@ -1,5 +1,4 @@
-"""
-API routes for the Media Accountability Wiki.
+"""API routes for the Media Accountability Wiki.
 
 Provides endpoints for:
 - Source directory with filtering (country, bias, funding type)
@@ -11,7 +10,7 @@ Provides endpoints for:
 
 from __future__ import annotations
 
-from typing import Any, Dict, List, Literal, Optional, Tuple, cast
+from typing import Any, Literal, cast
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel
@@ -39,29 +38,29 @@ router = APIRouter(prefix="/api/wiki", tags=["wiki"])
 logger = get_logger("wiki_routes")
 
 
-def _required_str(value: Optional[str]) -> str:
+def _required_str(value: str | None) -> str:
     return cast(str, value)
 
 
-def _required_int(value: Optional[int]) -> int:
+def _required_int(value: int | None) -> int:
     return cast(int, value)
 
 
-def _optional_float(value: Any) -> Optional[float]:
-    return cast(Optional[float], value)
+def _optional_float(value: Any) -> float | None:
+    return cast(float | None, value)
 
 
-def _string_list(value: Any) -> List[str]:
-    return cast(List[str], value or [])
+def _string_list(value: Any) -> list[str]:
+    return cast(list[str], value or [])
 
 
 def _source_overview_fallback(
     source_name: str,
-    source_config: Dict[str, Any],
-    meta: Optional[SourceMetadata],
-    org_data: Optional[Dict[str, Any]],
-) -> Optional[str]:
-    parts: List[str] = []
+    source_config: dict[str, Any],
+    meta: SourceMetadata | None,
+    org_data: dict[str, Any] | None,
+) -> str | None:
+    parts: list[str] = []
     funding = str(source_config.get("funding_type") or "").strip()
     bias = str(source_config.get("bias_rating") or "").strip()
     country = str(source_config.get("country") or "").strip()
@@ -89,13 +88,13 @@ def _source_overview_fallback(
     return f"{source_name} source profile. {' '.join(parts)}"
 
 
-def _build_employer_rss_context(reporter: Reporter) -> Optional[Dict[str, Any]]:
+def _build_employer_rss_context(reporter: Reporter) -> dict[str, Any] | None:
     """Cross-reference a reporter's employers against the RSS catalog.
 
     Returns employer context with funding, bias, country from RSS config.
     """
     career_history = reporter.career_history or []
-    employer_names: List[str] = []
+    employer_names: list[str] = []
     for entry in career_history:
         if isinstance(entry, dict):
             org = entry.get("organization", "")
@@ -106,7 +105,7 @@ def _build_employer_rss_context(reporter: Reporter) -> Optional[Dict[str, Any]]:
         return None
 
     sources = get_rss_sources()
-    rss_by_name: Dict[str, Dict[str, Any]] = {}
+    rss_by_name: dict[str, dict[str, Any]] = {}
     for name, cfg in sources.items():
         base_name = name.split(" - ")[0].strip()
         rss_by_name[base_name.lower()] = {
@@ -118,7 +117,7 @@ def _build_employer_rss_context(reporter: Reporter) -> Optional[Dict[str, Any]]:
             "factual_reporting": cfg.get("factual_reporting", ""),
         }
 
-    matches: List[Dict[str, Any]] = []
+    matches: list[dict[str, Any]] = []
     for employer in employer_names:
         employer_lower = employer.lower()
         if employer_lower in rss_by_name:
@@ -149,74 +148,76 @@ def _build_employer_rss_context(reporter: Reporter) -> Optional[Dict[str, Any]]:
 
 
 class AnalysisAxisResponse(BaseModel):
+    """Analysis Axis Response."""
+
     axis_name: str
     score: int
-    confidence: Optional[str] = None
-    prose_explanation: Optional[str] = None
-    citations: Optional[List[Dict[str, str]]] = None
-    empirical_basis: Optional[str] = None
-    scored_by: Optional[str] = None
-    last_scored_at: Optional[str] = None
+    confidence: str | None = None
+    prose_explanation: str | None = None
+    citations: list[dict[str, str]] | None = None
+    empirical_basis: str | None = None
+    scored_by: str | None = None
+    last_scored_at: str | None = None
 
 
 class SourceCardResponse(BaseModel):
     """Compact source card for the wiki index grid."""
 
     name: str
-    country: Optional[str] = None
-    funding_type: Optional[str] = None
-    bias_rating: Optional[str] = None
-    category: Optional[str] = None
-    parent_company: Optional[str] = None
-    credibility_score: Optional[float] = None
-    analysis_scores: Optional[Dict[str, int]] = None  # {axis_name: score}
-    index_status: Optional[str] = None
-    last_indexed_at: Optional[str] = None
+    country: str | None = None
+    funding_type: str | None = None
+    bias_rating: str | None = None
+    category: str | None = None
+    parent_company: str | None = None
+    credibility_score: float | None = None
+    analysis_scores: dict[str, int] | None = None  # {axis_name: score}
+    index_status: str | None = None
+    last_indexed_at: str | None = None
 
 
 class SourceWikiResponse(BaseModel):
     """Full wiki page data for a single source."""
 
     name: str
-    website: Optional[str] = None
-    country: Optional[str] = None
-    funding_type: Optional[str] = None
-    bias_rating: Optional[str] = None
-    category: Optional[str] = None
-    parent_company: Optional[str] = None
-    credibility_score: Optional[float] = None
-    is_state_media: Optional[bool] = None
-    source_type: Optional[str] = None
-    overview: Optional[str] = None
-    match_status: Optional[str] = None
-    wikipedia_url: Optional[str] = None
-    wikidata_qid: Optional[str] = None
-    wikidata_url: Optional[str] = None
-    dossier_sections: List[Dict[str, Any]] = []
-    citations: List[Dict[str, str]] = []
-    search_links: Optional[Dict[str, str]] = None
-    match_explanation: Optional[str] = None
-    official_pages: List[Dict[str, str]] = []
-    claims: List[Dict[str, Any]] = []
+    website: str | None = None
+    country: str | None = None
+    funding_type: str | None = None
+    bias_rating: str | None = None
+    category: str | None = None
+    parent_company: str | None = None
+    credibility_score: float | None = None
+    is_state_media: bool | None = None
+    source_type: str | None = None
+    overview: str | None = None
+    match_status: str | None = None
+    wikipedia_url: str | None = None
+    wikidata_qid: str | None = None
+    wikidata_url: str | None = None
+    dossier_sections: list[dict[str, Any]] = []
+    citations: list[dict[str, str]] = []
+    search_links: dict[str, str] | None = None
+    match_explanation: str | None = None
+    official_pages: list[dict[str, str]] = []
+    claims: list[dict[str, Any]] = []
 
     # Source analysis scores
-    analysis_axes: List[AnalysisAxisResponse] = []
+    analysis_axes: list[AnalysisAxisResponse] = []
 
     # Reporters associated with this source
-    reporters: List[Dict[str, Any]] = []
+    reporters: list[dict[str, Any]] = []
 
     # Organization/ownership data
-    organization: Optional[Dict[str, Any]] = None
-    ownership_chain: List[Dict[str, Any]] = []
+    organization: dict[str, Any] | None = None
+    ownership_chain: list[dict[str, Any]] = []
 
     # Coverage analysis
     article_count: int = 0
-    geographic_focus: List[str] = []
-    topic_focus: List[str] = []
+    geographic_focus: list[str] = []
+    topic_focus: list[str] = []
 
     # Index metadata
-    index_status: Optional[str] = None
-    last_indexed_at: Optional[str] = None
+    index_status: str | None = None
+    last_indexed_at: str | None = None
 
 
 class ReporterCardResponse(BaseModel):
@@ -224,17 +225,17 @@ class ReporterCardResponse(BaseModel):
 
     id: int
     name: str
-    normalized_name: Optional[str] = None
-    bio: Optional[str] = None
-    topics: Optional[List[str]] = None
-    political_leaning: Optional[str] = None
-    leaning_confidence: Optional[str] = None
+    normalized_name: str | None = None
+    bio: str | None = None
+    topics: list[str] | None = None
+    political_leaning: str | None = None
+    leaning_confidence: str | None = None
     article_count: int = 0
-    current_outlet: Optional[str] = None
-    wikipedia_url: Optional[str] = None
-    canonical_name: Optional[str] = None
-    match_status: Optional[str] = None
-    research_confidence: Optional[str] = None
+    current_outlet: str | None = None
+    wikipedia_url: str | None = None
+    canonical_name: str | None = None
+    match_status: str | None = None
+    research_confidence: str | None = None
 
 
 class ReporterDossierResponse(BaseModel):
@@ -242,84 +243,86 @@ class ReporterDossierResponse(BaseModel):
 
     id: int
     name: str
-    normalized_name: Optional[str] = None
-    bio: Optional[str] = None
-    career_history: Optional[List[Dict[str, Any]]] = None
-    topics: Optional[List[str]] = None
-    education: Optional[List[Dict[str, Any]]] = None
+    normalized_name: str | None = None
+    bio: str | None = None
+    career_history: list[dict[str, Any]] | None = None
+    topics: list[str] | None = None
+    education: list[dict[str, Any]] | None = None
 
-    political_leaning: Optional[str] = None
-    leaning_confidence: Optional[str] = None
-    leaning_sources: Optional[List[str]] = None
+    political_leaning: str | None = None
+    leaning_confidence: str | None = None
+    leaning_sources: list[str] | None = None
 
-    twitter_handle: Optional[str] = None
-    linkedin_url: Optional[str] = None
-    wikipedia_url: Optional[str] = None
-    wikidata_qid: Optional[str] = None
-    wikidata_url: Optional[str] = None
-    canonical_name: Optional[str] = None
-    match_status: Optional[str] = None
-    overview: Optional[str] = None
-    dossier_sections: List[Dict[str, Any]] = []
-    citations: List[Dict[str, str]] = []
-    search_links: Optional[Dict[str, str]] = None
-    match_explanation: Optional[str] = None
+    twitter_handle: str | None = None
+    linkedin_url: str | None = None
+    wikipedia_url: str | None = None
+    wikidata_qid: str | None = None
+    wikidata_url: str | None = None
+    canonical_name: str | None = None
+    match_status: str | None = None
+    overview: str | None = None
+    dossier_sections: list[dict[str, Any]] = []
+    citations: list[dict[str, str]] = []
+    search_links: dict[str, str] | None = None
+    match_explanation: str | None = None
 
     # Deep dossier fields
-    source_patterns: Optional[Dict[str, Any]] = None
-    topics_avoided: Optional[Dict[str, Any]] = None
-    advertiser_alignment: Optional[Dict[str, Any]] = None
-    revolving_door: Optional[Dict[str, Any]] = None
-    controversies: Optional[List[Dict[str, Any]]] = None
-    institutional_affiliations: Optional[List[Dict[str, Any]]] = None
-    coverage_comparison: Optional[Dict[str, Any]] = None
+    source_patterns: dict[str, Any] | None = None
+    topics_avoided: dict[str, Any] | None = None
+    advertiser_alignment: dict[str, Any] | None = None
+    revolving_door: dict[str, Any] | None = None
+    controversies: list[dict[str, Any]] | None = None
+    institutional_affiliations: list[dict[str, Any]] | None = None
+    coverage_comparison: dict[str, Any] | None = None
 
     article_count: int = 0
-    last_article_at: Optional[str] = None
+    last_article_at: str | None = None
 
     # Articles in our system
-    recent_articles: List[Dict[str, Any]] = []
-    activity_summary: Optional[Dict[str, Any]] = None
+    recent_articles: list[dict[str, Any]] = []
+    activity_summary: dict[str, Any] | None = None
 
     # Employer context from RSS catalog
-    employer_context: Optional[Dict[str, Any]] = None
+    employer_context: dict[str, Any] | None = None
 
-    research_sources: Optional[List[str]] = None
-    research_confidence: Optional[str] = None
+    research_sources: list[str] | None = None
+    research_confidence: str | None = None
 
 
 class OwnershipGraphResponse(BaseModel):
     """Graph data for force-directed ownership visualization."""
 
-    nodes: List[Dict[str, Any]] = []
-    edges: List[Dict[str, Any]] = []
+    nodes: list[dict[str, Any]] = []
+    edges: list[dict[str, Any]] = []
 
 
 class WikiIndexStatusResponse(BaseModel):
+    """Wiki Index Status Response."""
+
     total_entries: int = 0
-    by_status: Dict[str, int] = {}
-    by_type: Dict[str, int] = {}
+    by_status: dict[str, int] = {}
+    by_type: dict[str, int] = {}
 
 
 # ── Source Endpoints ─────────────────────────────────────────────────
 
 
-@router.get("/sources", response_model=List[SourceCardResponse])
+@router.get("/sources", response_model=list[SourceCardResponse])
 async def list_wiki_sources(
     db: AsyncSession = Depends(get_db),
-    country: Optional[str] = Query(None, description="Filter by ISO country code"),
-    bias: Optional[str] = Query(None, description="Filter by bias rating"),
-    funding: Optional[str] = Query(None, description="Filter by funding type"),
-    search: Optional[str] = Query(None, description="Search by source name"),
+    country: str | None = Query(None, description="Filter by ISO country code"),
+    bias: str | None = Query(None, description="Filter by bias rating"),
+    funding: str | None = Query(None, description="Filter by funding type"),
+    search: str | None = Query(None, description="Search by source name"),
     sort: str = Query("name", description="Sort by: name, country, bias"),
     limit: int = Query(200, ge=1, le=500),
     offset: int = Query(0, ge=0),
-) -> List[SourceCardResponse]:
+) -> list[SourceCardResponse]:
     """List all sources for the wiki index page with optional filtering."""
     sources = get_rss_sources()
 
     # Deduplicate by base name
-    unique_sources: Dict[str, Dict[str, Any]] = {}
+    unique_sources: dict[str, dict[str, Any]] = {}
     for name, config in sources.items():
         base_name = name.split(" - ")[0].strip()
         if base_name not in unique_sources:
@@ -328,33 +331,31 @@ async def list_wiki_sources(
     # Load analysis scores from DB
     score_result = await db.execute(select(SourceAnalysisScore))
     all_scores = score_result.scalars().all()
-    scores_by_source: Dict[str, Dict[str, int]] = {}
+    scores_by_source: dict[str, dict[str, int]] = {}
     for score in all_scores:
         score_source_name = _required_str(score.source_name)
         score_axis_name = _required_str(score.axis_name)
         if score_source_name not in scores_by_source:
             scores_by_source[score_source_name] = {}
-        scores_by_source[score_source_name][score_axis_name] = _required_int(
-            score.score
-        )
+        scores_by_source[score_source_name][score_axis_name] = _required_int(score.score)
 
     # Load index status from DB
     status_result = await db.execute(
         select(WikiIndexStatus).where(WikiIndexStatus.entity_type == "source")
     )
-    status_entries: Dict[str, WikiIndexStatus] = {
+    status_entries: dict[str, WikiIndexStatus] = {
         _required_str(status_entry.entity_name): status_entry
         for status_entry in status_result.scalars().all()
     }
 
     # Load source metadata from DB for credibility/parent company
     meta_result = await db.execute(select(SourceMetadata))
-    metadata_by_name: Dict[str, SourceMetadata] = {}
+    metadata_by_name: dict[str, SourceMetadata] = {}
     for metadata_entry in meta_result.scalars().all():
         metadata_by_name[_required_str(metadata_entry.source_name)] = metadata_entry
 
     # Build response cards
-    cards: List[SourceCardResponse] = []
+    cards: list[SourceCardResponse] = []
     for name, config in unique_sources.items():
         source_country = config.get("country", "")
         source_bias = config.get("bias_rating", "")
@@ -370,7 +371,7 @@ async def list_wiki_sources(
         if search and search.lower() not in name.lower():
             continue
 
-        meta: Optional[SourceMetadata] = metadata_by_name.get(name)
+        meta: SourceMetadata | None = metadata_by_name.get(name)
         status = status_entries.get(name)
 
         cards.append(
@@ -381,9 +382,7 @@ async def list_wiki_sources(
                 bias_rating=source_bias or None,
                 category=config.get("category", "general"),
                 parent_company=meta.parent_company if meta else None,
-                credibility_score=_optional_float(meta.credibility_score)
-                if meta
-                else None,
+                credibility_score=_optional_float(meta.credibility_score) if meta else None,
                 analysis_scores=scores_by_source.get(name),
                 index_status=status.status if status else "unindexed",
                 last_indexed_at=(
@@ -422,14 +421,11 @@ async def get_source_wiki(
     sources = get_rss_sources()
 
     # Find the source config
-    source_config: Optional[Dict[str, Any]] = None
-    matched_source_names: List[str] = []
+    source_config: dict[str, Any] | None = None
+    matched_source_names: list[str] = []
     for name, config in sources.items():
         base_name = name.split(" - ")[0].strip()
-        if (
-            base_name.lower() == source_name.lower()
-            or name.lower() == source_name.lower()
-        ):
+        if base_name.lower() == source_name.lower() or name.lower() == source_name.lower():
             matched_source_names.append(name)
             if source_config is None:
                 source_config = config
@@ -441,11 +437,9 @@ async def get_source_wiki(
 
     # Load source analysis scores
     score_result = await db.execute(
-        select(SourceAnalysisScore).where(
-            SourceAnalysisScore.source_name.in_(matched_source_names)
-        )
+        select(SourceAnalysisScore).where(SourceAnalysisScore.source_name.in_(matched_source_names))
     )
-    score_map: Dict[str, SourceAnalysisScore] = {}
+    score_map: dict[str, SourceAnalysisScore] = {}
     for score_entry in score_result.scalars().all():
         axis_name = _required_str(score_entry.axis_name)
         existing_score = score_map.get(axis_name)
@@ -463,7 +457,7 @@ async def get_source_wiki(
             score=_required_int(s.score),
             confidence=s.confidence,
             prose_explanation=s.prose_explanation,
-            citations=cast(Optional[List[Dict[str, str]]], s.citations),
+            citations=cast(list[dict[str, str]] | None, s.citations),
             empirical_basis=s.empirical_basis,
             scored_by=s.scored_by,
             last_scored_at=s.last_scored_at.isoformat() if s.last_scored_at else None,
@@ -473,9 +467,7 @@ async def get_source_wiki(
 
     # Load source metadata
     meta_result = await db.execute(
-        select(SourceMetadata).where(
-            SourceMetadata.source_name.in_(matched_source_names)
-        )
+        select(SourceMetadata).where(SourceMetadata.source_name.in_(matched_source_names))
     )
     metadata_entries = meta_result.scalars().all()
     meta = next(
@@ -489,9 +481,7 @@ async def get_source_wiki(
 
     # Count articles from this source
     article_count_result = await db.execute(
-        select(func.count())
-        .select_from(Article)
-        .where(Article.source.in_(matched_source_names))
+        select(func.count()).select_from(Article).where(Article.source.in_(matched_source_names))
     )
     article_count = article_count_result.scalar_one() or 0
 
@@ -510,7 +500,7 @@ async def get_source_wiki(
         .distinct()
         .limit(50)
     )
-    reporters: List[Dict[str, Any]] = [
+    reporters: list[dict[str, Any]] = [
         {
             "id": r.id,
             "name": r.name,
@@ -523,12 +513,10 @@ async def get_source_wiki(
 
     # Load organization data
     org_result = await db.execute(
-        select(Organization).where(
-            Organization.normalized_name == source_name.lower().strip()
-        )
+        select(Organization).where(Organization.normalized_name == source_name.lower().strip())
     )
     org = org_result.scalar_one_or_none()
-    org_data: Optional[Dict[str, Any]] = None
+    org_data: dict[str, Any] | None = None
     if org:
         org_data = {
             "id": org.id,
@@ -580,13 +568,11 @@ async def get_source_wiki(
             status_entries,
             key=lambda entry: (
                 status_order.get(_required_str(entry.status), 99),
-                -entry.last_indexed_at.timestamp()
-                if entry.last_indexed_at
-                else float("inf"),
+                -entry.last_indexed_at.timestamp() if entry.last_indexed_at else float("inf"),
             ),
         )
 
-    resolved_overview = cast(Optional[str], (source_profile or {}).get("overview"))
+    resolved_overview = cast(str | None, (source_profile or {}).get("overview"))
     if not resolved_overview:
         resolved_overview = _source_overview_fallback(
             source_name=source_name,
@@ -595,7 +581,7 @@ async def get_source_wiki(
             org_data=org_data,
         )
 
-    claim_payloads: List[Dict[str, Any]] = []
+    claim_payloads: list[dict[str, Any]] = []
     try:
         claim_result = await db.execute(
             select(SourceClaim).where(
@@ -607,9 +593,7 @@ async def get_source_wiki(
 
         for claim_row in claim_rows:
             evidence_result = await db.execute(
-                select(SourceClaimEvidence).where(
-                    SourceClaimEvidence.claim_id == claim_row.id
-                )
+                select(SourceClaimEvidence).where(SourceClaimEvidence.claim_id == claim_row.id)
             )
             evidence_rows = evidence_result.scalars().all()
             claim_payloads.append(
@@ -621,22 +605,16 @@ async def get_source_wiki(
                     "confidence": claim_row.confidence,
                     "parser_version": claim_row.parser_version,
                     "valid_from": (
-                        claim_row.valid_from.isoformat()
-                        if claim_row.valid_from
-                        else None
+                        claim_row.valid_from.isoformat() if claim_row.valid_from else None
                     ),
-                    "valid_to": claim_row.valid_to.isoformat()
-                    if claim_row.valid_to
-                    else None,
+                    "valid_to": claim_row.valid_to.isoformat() if claim_row.valid_to else None,
                     "evidence": [
                         {
                             "source_type": row.source_type,
                             "source_name": row.source_name,
                             "source_url": row.source_url,
                             "retrieved_at": (
-                                row.retrieved_at.isoformat()
-                                if row.retrieved_at
-                                else None
+                                row.retrieved_at.isoformat() if row.retrieved_at else None
                             ),
                             "raw_excerpt": row.raw_excerpt,
                         }
@@ -651,7 +629,7 @@ async def get_source_wiki(
 
     return SourceWikiResponse(
         name=source_name,
-        website=cast(Optional[str], (source_profile or {}).get("website")),
+        website=cast(str | None, (source_profile or {}).get("website")),
         country=source_config.get("country") or None,
         funding_type=source_config.get("funding_type") or None,
         bias_rating=source_config.get("bias_rating") or None,
@@ -661,24 +639,18 @@ async def get_source_wiki(
         is_state_media=meta.is_state_media if meta else None,
         source_type=meta.source_type if meta else None,
         overview=resolved_overview,
-        match_status=cast(Optional[str], (source_profile or {}).get("match_status")),
-        wikipedia_url=cast(Optional[str], (source_profile or {}).get("wikipedia_url")),
-        wikidata_qid=cast(Optional[str], (source_profile or {}).get("wikidata_qid")),
-        wikidata_url=cast(Optional[str], (source_profile or {}).get("wikidata_url")),
+        match_status=cast(str | None, (source_profile or {}).get("match_status")),
+        wikipedia_url=cast(str | None, (source_profile or {}).get("wikipedia_url")),
+        wikidata_qid=cast(str | None, (source_profile or {}).get("wikidata_qid")),
+        wikidata_url=cast(str | None, (source_profile or {}).get("wikidata_url")),
         dossier_sections=cast(
-            List[Dict[str, Any]], (source_profile or {}).get("dossier_sections") or []
+            list[dict[str, Any]], (source_profile or {}).get("dossier_sections") or []
         ),
-        citations=cast(
-            List[Dict[str, str]], (source_profile or {}).get("citations") or []
-        ),
-        search_links=cast(
-            Optional[Dict[str, str]], (source_profile or {}).get("search_links")
-        ),
-        match_explanation=cast(
-            Optional[str], (source_profile or {}).get("match_explanation")
-        ),
+        citations=cast(list[dict[str, str]], (source_profile or {}).get("citations") or []),
+        search_links=cast(dict[str, str] | None, (source_profile or {}).get("search_links")),
+        match_explanation=cast(str | None, (source_profile or {}).get("match_explanation")),
         official_pages=cast(
-            List[Dict[str, str]], (source_profile or {}).get("official_pages") or []
+            list[dict[str, str]], (source_profile or {}).get("official_pages") or []
         ),
         claims=claim_payloads,
         analysis_axes=scores,
@@ -689,9 +661,7 @@ async def get_source_wiki(
         topic_focus=_string_list(meta.topic_focus) if meta else [],
         index_status=status.status if status else "unindexed",
         last_indexed_at=(
-            status.last_indexed_at.isoformat()
-            if status and status.last_indexed_at
-            else None
+            status.last_indexed_at.isoformat() if status and status.last_indexed_at else None
         ),
     )
 
@@ -701,7 +671,7 @@ async def get_source_reporters(
     source_name: str,
     db: AsyncSession = Depends(get_db),
     limit: int = Query(50, ge=1, le=200),
-) -> List[ReporterCardResponse]:
+) -> list[ReporterCardResponse]:
     """Get reporters associated with a source."""
     result = await db.execute(
         select(Reporter)
@@ -735,15 +705,15 @@ async def get_source_reporters(
 # ── Reporter Endpoints ───────────────────────────────────────────────
 
 
-@router.get("/reporters", response_model=List[ReporterCardResponse])
+@router.get("/reporters", response_model=list[ReporterCardResponse])
 async def list_wiki_reporters(
     db: AsyncSession = Depends(get_db),
-    search: Optional[str] = Query(None, description="Search by reporter name"),
-    source: Optional[str] = Query(None, description="Filter by source/outlet"),
-    leaning: Optional[str] = Query(None, description="Filter by political leaning"),
+    search: str | None = Query(None, description="Search by reporter name"),
+    source: str | None = Query(None, description="Filter by source/outlet"),
+    leaning: str | None = Query(None, description="Filter by political leaning"),
     limit: int = Query(100, ge=1, le=500),
     offset: int = Query(0, ge=0),
-) -> List[ReporterCardResponse]:
+) -> list[ReporterCardResponse]:
     """List all reporters in the wiki directory."""
     stmt = select(Reporter)
 
@@ -777,8 +747,10 @@ async def list_wiki_reporters(
 
 
 class ReporterGraphResponse(BaseModel):
-    nodes: List[Dict[str, Any]] = []
-    edges: List[Dict[str, Any]] = []
+    """Reporter Graph Response."""
+
+    nodes: list[dict[str, Any]] = []
+    edges: list[dict[str, Any]] = []
 
 
 REPORTER_GRAPH_DEFAULT_EDGE_LIMIT = 3000
@@ -813,11 +785,9 @@ async def get_reporter_graph(
     reporter_rows = reporter_result.all()
 
     reporter_ids = [r[0] for r in reporter_rows]
-    nodes: List[Dict[str, Any]] = []
-    reporter_index: Dict[int, int] = {}
-    for i, (rid, rname, leaning, art_count, match_status, confidence) in enumerate(
-        reporter_rows
-    ):
+    nodes: list[dict[str, Any]] = []
+    reporter_index: dict[int, int] = {}
+    for i, (rid, rname, leaning, art_count, match_status, confidence) in enumerate(reporter_rows):
         nodes.append(
             {
                 "id": f"reporter:{rid}",
@@ -841,14 +811,14 @@ async def get_reporter_graph(
     )
     author_rows = author_result.all()
 
-    article_reporters: Dict[int, List[int]] = {}
-    source_reporters: Dict[str, set[int]] = {}
+    article_reporters: dict[int, list[int]] = {}
+    source_reporters: dict[str, set[int]] = {}
     for article_id, reporter_id, source_name in author_rows:
         article_reporters.setdefault(article_id, []).append(reporter_id)
         if source_name:
             source_reporters.setdefault(str(source_name), set()).add(reporter_id)
 
-    coauthor_weights: Counter[Tuple[int, int]] = Counter()
+    coauthor_weights: Counter[tuple[int, int]] = Counter()
     for reporter_list in article_reporters.values():
         if len(coauthor_weights) >= edge_limit:
             break
@@ -861,7 +831,7 @@ async def get_reporter_graph(
                 if len(coauthor_weights) >= edge_limit:
                     break
 
-    shared_outlet_weights: Counter[Tuple[int, int]] = Counter()
+    shared_outlet_weights: Counter[tuple[int, int]] = Counter()
     for reporter_set in source_reporters.values():
         if len(coauthor_weights) + len(shared_outlet_weights) >= edge_limit:
             break
@@ -877,7 +847,7 @@ async def get_reporter_graph(
                 if len(coauthor_weights) + len(shared_outlet_weights) >= edge_limit:
                     break
 
-    edges: List[Dict[str, Any]] = []
+    edges: list[dict[str, Any]] = []
     for (r1, r2), weight in coauthor_weights.items():
         if len(edges) >= edge_limit:
             break
@@ -929,7 +899,7 @@ async def get_reporter_dossier(
         .order_by(Article.published_at.desc())
         .limit(20)
     )
-    articles: List[Dict[str, Any]] = [
+    articles: list[dict[str, Any]] = [
         {
             "id": a.id,
             "title": a.title,
@@ -940,9 +910,7 @@ async def get_reporter_dossier(
         }
         for a in article_result.scalars().all()
     ]
-    activity_summary = await build_reporter_activity_summary(
-        _required_str(reporter.name), articles
-    )
+    activity_summary = await build_reporter_activity_summary(_required_str(reporter.name), articles)
 
     employer_context = _build_employer_rss_context(reporter)
 
@@ -965,9 +933,9 @@ async def get_reporter_dossier(
         canonical_name=reporter.canonical_name,
         match_status=reporter.match_status,
         overview=reporter.overview,
-        dossier_sections=cast(List[Dict[str, Any]], reporter.dossier_sections or []),
-        citations=cast(List[Dict[str, str]], reporter.citations or []),
-        search_links=cast(Optional[Dict[str, str]], reporter.search_links),
+        dossier_sections=cast(list[dict[str, Any]], reporter.dossier_sections or []),
+        citations=cast(list[dict[str, str]], reporter.citations or []),
+        search_links=cast(dict[str, str] | None, reporter.search_links),
         match_explanation=reporter.match_explanation,
         source_patterns=reporter.source_patterns,
         topics_avoided=reporter.topics_avoided,
@@ -994,7 +962,7 @@ async def get_reporter_articles(
     db: AsyncSession = Depends(get_db),
     limit: int = Query(50, ge=1, le=200),
     offset: int = Query(0, ge=0),
-) -> List[Dict[str, Any]]:
+) -> list[dict[str, Any]]:
     """Get articles by a specific reporter."""
     result = await db.execute(
         select(Article)
@@ -1022,12 +990,12 @@ async def get_reporter_articles(
 # ── Organization / Ownership Graph Endpoints ─────────────────────────
 
 
-@router.get("/organizations", response_model=List[Dict[str, Any]])
+@router.get("/organizations", response_model=list[dict[str, Any]])
 async def list_wiki_organizations(
     db: AsyncSession = Depends(get_db),
     limit: int = Query(100, ge=1, le=500),
     offset: int = Query(0, ge=0),
-) -> List[Dict[str, Any]]:
+) -> list[dict[str, Any]]:
     """List all organizations for the wiki."""
     result = await db.execute(
         select(Organization).order_by(Organization.name).limit(limit).offset(offset)
@@ -1063,31 +1031,27 @@ async def get_ownership_graph(
     orgs = org_result.scalars().all()
 
     # Load all reporters for employed_by edges
-    reporter_result = await db.execute(
-        select(Reporter).where(Reporter.article_count > 0)
-    )
+    reporter_result = await db.execute(select(Reporter).where(Reporter.article_count > 0))
     reporters = reporter_result.scalars().all()
 
     # Load source configs for additional data
     sources = get_rss_sources()
-    unique_sources: Dict[str, Dict[str, Any]] = {}
+    unique_sources: dict[str, dict[str, Any]] = {}
     for name, config in sources.items():
         base_name = name.split(" - ")[0].strip()
         if base_name not in unique_sources:
             unique_sources[base_name] = config
 
-    nodes: List[Dict[str, Any]] = []
-    edges: List[Dict[str, Any]] = []
+    nodes: list[dict[str, Any]] = []
+    edges: list[dict[str, Any]] = []
     seen_nodes: set[str] = set()
 
     # Build org name -> org id lookup for Wikidata array edges
-    org_name_to_id: Dict[str, int] = {}
+    org_name_to_id: dict[str, int] = {}
     for org in orgs:
         org_name_to_id[_required_str(org.name).lower()] = cast(int, org.id)
         if org.normalized_name:
-            org_name_to_id[_required_str(org.normalized_name).lower()] = cast(
-                int, org.id
-            )
+            org_name_to_id[_required_str(org.normalized_name).lower()] = cast(int, org.id)
 
     # Add source nodes
     for name, config in unique_sources.items():
@@ -1199,10 +1163,7 @@ async def get_ownership_graph(
         # Try to link source nodes to their organization
         org_name_lower = _required_str(org.name).lower()
         for source_name in unique_sources:
-            if (
-                source_name.lower() in org_name_lower
-                or org_name_lower in source_name.lower()
-            ):
+            if source_name.lower() in org_name_lower or org_name_lower in source_name.lower():
                 source_node_id = f"source:{source_name}"
                 if source_node_id in seen_nodes:
                     edges.append(
@@ -1249,8 +1210,8 @@ async def get_wiki_index_status(
     result = await db.execute(select(WikiIndexStatus))
     entries = result.scalars().all()
 
-    by_status: Dict[str, int] = {}
-    by_type: Dict[str, int] = {}
+    by_status: dict[str, int] = {}
+    by_type: dict[str, int] = {}
     for entry in entries:
         entry_status = _required_str(entry.status)
         entry_type = _required_str(entry.entity_type)
@@ -1265,12 +1226,12 @@ async def get_wiki_index_status(
 
 
 @router.post("/index/{source_name}")
-async def trigger_source_index(source_name: str) -> Dict[str, str]:
+async def trigger_source_index(source_name: str) -> dict[str, str]:
     """Trigger indexing for a specific source (admin endpoint)."""
     from app.services.wiki_indexer import index_source
 
     sources = get_rss_sources()
-    source_config: Optional[Dict[str, Any]] = None
+    source_config: dict[str, Any] | None = None
     for name, config in sources.items():
         base_name = name.split(" - ")[0].strip()
         if base_name.lower() == source_name.lower():
@@ -1292,7 +1253,7 @@ async def trigger_reporter_index(
     mode: Literal["all", "unresolved", "sparql"] = Query(
         "all", description="all, unresolved, or sparql"
     ),
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     """Trigger reporter indexing (admin endpoint).
 
     mode=all: Run both SPARQL seed and unresolved author indexing.
@@ -1313,9 +1274,7 @@ async def trigger_reporter_index(
             sparql_result = {"total": 0, "resolved": 0, "failed": 0}
 
         if mode in ("all", "unresolved"):
-            author_result = await index_unresolved_reporters(
-                limit=limit, http_client=client
-            )
+            author_result = await index_unresolved_reporters(limit=limit, http_client=client)
         else:
             author_result = {"total": 0, "resolved": 0, "failed": 0, "skipped": 0}
 

@@ -5,8 +5,8 @@ Provides endpoints for syncing GDELT events and retrieving GDELT-related data.
 
 from __future__ import annotations
 
-from datetime import datetime, timedelta, timezone
-from typing import Any, Dict, List
+from datetime import datetime, timedelta, UTC
+from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy import select, func
@@ -23,27 +23,26 @@ async def trigger_gdelt_sync(
     minutes: int = Query(15, description="Minutes back to fetch", ge=1, le=60),
     limit: int = Query(250, description="Maximum events to process", ge=1, le=1000),
     session: AsyncSession = Depends(get_db),
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     """Trigger a manual sync of GDELT events to clusters.
 
     Args:
         minutes: How far back to fetch events
         limit: Maximum number of events to process
+        session: Database session
 
     Returns:
         Sync results with matched/total counts
     """
     try:
-        matched, total = await sync_gdelt_to_articles(
-            session, minutes=minutes, limit=limit
-        )
+        matched, total = await sync_gdelt_to_articles(session, minutes=minutes, limit=limit)
 
         return {
             "success": True,
             "matched": matched,
             "total": total,
             "window_minutes": minutes,
-            "timestamp": datetime.now(timezone.utc).isoformat(),
+            "timestamp": datetime.now(UTC).isoformat(),
         }
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"GDELT sync failed: {str(e)}")
@@ -54,12 +53,13 @@ async def get_article_gdelt_events(
     article_id: int,
     limit: int = Query(50, ge=1, le=200),
     session: AsyncSession = Depends(get_db),
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     """Get GDELT events matched to a specific article.
 
     Args:
-        cluster_id: Cluster ID to query
+        article_id: Article ID to query
         limit: Maximum events to return
+        session: Database session
 
     Returns:
         Cluster info with matched GDELT events
@@ -89,9 +89,7 @@ async def get_article_gdelt_events(
                 "url": e.url,
                 "title": e.title,
                 "source": e.source,
-                "published_at": e.published_at.isoformat()
-                if e.published_at is not None
-                else None,
+                "published_at": e.published_at.isoformat() if e.published_at is not None else None,
                 "event_code": e.event_code,
                 "event_root_code": e.event_root_code,
                 "actor1_name": e.actor1_name,
@@ -100,9 +98,7 @@ async def get_article_gdelt_events(
                 "goldstein_scale": e.goldstein_scale,
                 "match_method": e.match_method,
                 "similarity_score": e.similarity_score,
-                "matched_at": e.matched_at.isoformat()
-                if e.matched_at is not None
-                else None,
+                "matched_at": e.matched_at.isoformat() if e.matched_at is not None else None,
             }
             for e in events
         ],
@@ -113,16 +109,17 @@ async def get_article_gdelt_events(
 async def get_gdelt_stats(
     hours: int = Query(24, ge=1, le=168),
     session: AsyncSession = Depends(get_db),
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     """Get GDELT coverage statistics.
 
     Args:
         hours: Time window in hours
+        session: Database session
 
     Returns:
         Statistics about GDELT coverage
     """
-    since = datetime.now(timezone.utc) - timedelta(hours=hours)
+    since = datetime.now(UTC) - timedelta(hours=hours)
 
     # Total events in window
     total_result = await session.execute(
@@ -174,9 +171,7 @@ async def get_gdelt_stats(
         "window_hours": hours,
         "total_events": total_events,
         "matched_events": matched_events,
-        "match_rate": round(matched_events / total_events * 100, 2)
-        if total_events > 0
-        else 0,
+        "match_rate": round(matched_events / total_events * 100, 2) if total_events > 0 else 0,
         "match_breakdown": {
             "url_match": url_matched,
             "embedding_match": embedding_matched,
@@ -188,16 +183,15 @@ async def get_gdelt_stats(
 @router.get("/recent")
 async def get_recent_gdelt_events(
     limit: int = Query(50, ge=1, le=200),
-    include_unmatched: bool = Query(
-        False, description="Include events not matched to clusters"
-    ),
+    include_unmatched: bool = Query(False, description="Include events not matched to clusters"),
     session: AsyncSession = Depends(get_db),
-) -> List[Dict[str, Any]]:
+) -> list[dict[str, Any]]:
     """Get recently fetched GDELT events.
 
     Args:
         limit: Maximum events to return
         include_unmatched: Whether to include events without cluster matches
+        session: Database session
 
     Returns:
         List of GDELT events
@@ -217,16 +211,12 @@ async def get_recent_gdelt_events(
             "url": e.url,
             "title": e.title,
             "source": e.source,
-            "published_at": e.published_at.isoformat()
-            if e.published_at is not None
-            else None,
+            "published_at": e.published_at.isoformat() if e.published_at is not None else None,
             "event_code": e.event_code,
             "tone": e.tone,
             "article_id": e.article_id,
             "match_method": e.match_method,
-            "created_at": e.created_at.isoformat()
-            if e.created_at is not None
-            else None,
+            "created_at": e.created_at.isoformat() if e.created_at is not None else None,
         }
         for e in events
     ]

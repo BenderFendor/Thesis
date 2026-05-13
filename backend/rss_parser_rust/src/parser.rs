@@ -173,6 +173,11 @@ fn find_rss_item_authors(
         .unwrap_or_default()
 }
 
+/// Fetches all requested sources concurrently, then parses the returned
+/// RSS/Atom XML into [`ParsedArticle`] entries with per-source statistics
+/// and timing metrics.
+///
+/// Concurrency is bounded by `max_concurrent` using a semaphore.
 pub async fn parse_sources(sources: Vec<SourceRequest>, max_concurrent: usize) -> ParseResult {
     let start = Instant::now();
 

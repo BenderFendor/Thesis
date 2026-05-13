@@ -1,3 +1,5 @@
+"""Tracing."""
+
 from __future__ import annotations
 
 import logging
@@ -25,6 +27,7 @@ def _tracer_provider_configured() -> bool:
 
 
 def setup_tracing(app: FastAPI) -> None:
+    """Setup Tracing."""
     if not settings.otel_enabled:
         _logger.info("OpenTelemetry tracing is disabled (OTEL_ENABLED=0)")
         return
@@ -39,9 +42,7 @@ def setup_tracing(app: FastAPI) -> None:
         )
         from opentelemetry.sdk.trace.sampling import TraceIdRatioBased
     except ImportError as exc:
-        _logger.warning(
-            "OpenTelemetry dependencies not installed: %s; tracing disabled", exc
-        )
+        _logger.warning("OpenTelemetry dependencies not installed: %s; tracing disabled", exc)
         return
 
     sample_rate = max(0.0, min(1.0, settings.otel_sample_rate))
@@ -68,9 +69,7 @@ def setup_tracing(app: FastAPI) -> None:
             )
             otlp_processor = BatchSpanProcessor(otlp_exporter)
             provider.add_span_processor(otlp_processor)
-            _logger.info(
-                "OTLP exporter configured at %s", settings.otel_exporter_endpoint
-            )
+            _logger.info("OTLP exporter configured at %s", settings.otel_exporter_endpoint)
         except ImportError:
             _logger.warning("OTLP exporter not installed; only console export active")
         except Exception as exc:
@@ -90,6 +89,7 @@ def setup_tracing(app: FastAPI) -> None:
 
 
 def get_tracer(name: str = TRACER_NAME) -> Any:
+    """Get Tracer."""
     if not settings.otel_enabled:
         return _NoOpTracer()
 
@@ -103,32 +103,41 @@ def get_tracer(name: str = TRACER_NAME) -> Any:
 
 class _NoOpTracer:
     def start_as_current_span(self, name: str, *args: Any, **kwargs: Any) -> Any:
+        """Start As Current Span."""
         return _NoOpSpan()
 
     def start_span(self, name: str, *args: Any, **kwargs: Any) -> Any:
+        """Start Span."""
         return _NoOpSpan()
 
 
 class _NoOpSpan:
     def __enter__(self) -> _NoOpSpan:
+        """Context manager enter."""
         return self
 
     def __exit__(self, *args: Any) -> None:
+        """Context manager exit."""
         pass
 
     def set_attribute(self, key: str, value: Any) -> None:
+        """Set Attribute."""
         pass
 
     def set_status(self, status: Any, description: str | None = None) -> None:
+        """Set Status."""
         pass
 
     def record_exception(self, exception: Exception) -> None:
+        """Record Exception."""
         pass
 
     def add_event(self, name: str, attributes: Any = None) -> None:
+        """Add Event."""
         pass
 
     def get_span_context(self) -> Any:
+        """Get Span Context."""
         return _NoOpSpanContext()
 
 

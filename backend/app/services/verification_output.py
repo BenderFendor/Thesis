@@ -1,5 +1,4 @@
-"""
-Verification output formatters.
+"""Verification output formatters.
 
 Generates markdown reports with inline footnotes and structured JSON
 for frontend consumption.
@@ -7,7 +6,6 @@ for frontend consumption.
 
 from __future__ import annotations
 
-from typing import Dict, List
 
 from app.models.verification import (
     ConfidenceLevel,
@@ -37,12 +35,11 @@ def _confidence_color(level: ConfidenceLevel) -> str:
 
 
 def format_markdown_report(
-    claims: List[VerifiedClaim],
-    sources: Dict[str, SourceInfo],
+    claims: list[VerifiedClaim],
+    sources: dict[str, SourceInfo],
     overall_confidence: float,
 ) -> str:
-    """
-    Format verification results as markdown with inline footnotes.
+    """Format verification results as markdown with inline footnotes.
 
     Output structure:
     - Overall confidence summary
@@ -65,7 +62,7 @@ def format_markdown_report(
     lines.append("## Verified Claims")
     lines.append("")
 
-    footnote_map: Dict[str, int] = {}
+    footnote_map: dict[str, int] = {}
     footnote_counter = 0
 
     for claim in claims:
@@ -110,10 +107,9 @@ def format_markdown_report(
 
 def format_claims_with_annotations(
     original_text: str,
-    claims: List[VerifiedClaim],
+    claims: list[VerifiedClaim],
 ) -> str:
-    """
-    Return original text with claim annotations inserted.
+    """Return original text with claim annotations inserted.
 
     Wraps verified claims in <span> tags with data attributes
     for frontend highlighting.
@@ -143,12 +139,11 @@ def format_claims_with_annotations(
 
 
 def format_json_response(
-    claims: List[VerifiedClaim],
-    sources: Dict[str, SourceInfo],
+    claims: list[VerifiedClaim],
+    sources: dict[str, SourceInfo],
     overall_confidence: float,
-) -> Dict[str, object]:
-    """
-    Format verification results as structured JSON for frontend.
+) -> dict[str, object]:
+    """Format verification results as structured JSON for frontend.
 
     Includes:
     - Summary statistics
@@ -156,13 +151,9 @@ def format_json_response(
     - Source details keyed by ID
     """
     high_count = sum(1 for c in claims if c.confidence_level == ConfidenceLevel.HIGH)
-    medium_count = sum(
-        1 for c in claims if c.confidence_level == ConfidenceLevel.MEDIUM
-    )
+    medium_count = sum(1 for c in claims if c.confidence_level == ConfidenceLevel.MEDIUM)
     low_count = sum(
-        1
-        for c in claims
-        if c.confidence_level in (ConfidenceLevel.LOW, ConfidenceLevel.VERY_LOW)
+        1 for c in claims if c.confidence_level in (ConfidenceLevel.LOW, ConfidenceLevel.VERY_LOW)
     )
 
     return {

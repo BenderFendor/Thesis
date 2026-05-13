@@ -9,7 +9,8 @@ from __future__ import annotations
 import logging
 from collections import defaultdict
 from datetime import timedelta
-from typing import Any, DefaultDict, Dict, List, Optional, Sequence, cast
+from typing import Any, cast
+from collections.abc import Sequence
 
 from sqlalchemy import select, func, and_, desc
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -29,10 +30,9 @@ class BlindSpotsAnalyzer:
     """Analyzes source coverage and identifies blind spots."""
 
     def __init__(self) -> None:
+        """Initialize."""
         self.min_articles_for_blind_spot = 5  # Minimum articles in topic to consider
-        self.coverage_threshold = (
-            0.3  # Source must cover < 30% of days to be blind spot
-        )
+        self.coverage_threshold = 0.3  # Source must cover < 30% of days to be blind spot
         self.severity_thresholds = {
             "high": {
                 "min_sources": 8,
@@ -47,7 +47,7 @@ class BlindSpotsAnalyzer:
 
     async def analyze_source_coverage(
         self, session: AsyncSession, source_name: str, days: int = 30
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         """Analyze coverage for a specific source.
 
         Args:
@@ -110,9 +110,7 @@ class BlindSpotsAnalyzer:
                             "cluster_label": cluster_detail.get("label") or "Topic",
                             "topic_keywords": cluster_detail.get("keywords", []),
                             "total_articles": total_articles,
-                            "severity": self._calculate_blind_spot_severity(
-                                total_articles
-                            ),
+                            "severity": self._calculate_blind_spot_severity(total_articles),
                         }
                     )
 
@@ -131,7 +129,7 @@ class BlindSpotsAnalyzer:
 
     async def identify_topic_blind_spots(
         self, session: AsyncSession, min_sources: int = 4
-    ) -> List[Dict[str, Any]]:
+    ) -> list[dict[str, Any]]:
         """Identify topics where major sources are not reporting.
 
         Args:
@@ -156,18 +154,14 @@ class BlindSpotsAnalyzer:
 
         # Get all active sources
         sources_result = await session.execute(
-            select(SourceMetadata.source_name).where(
-                SourceMetadata.last_analyzed_at.isnot(None)
-            )
+            select(SourceMetadata.source_name).where(SourceMetadata.last_analyzed_at.isnot(None))
         )
         all_sources = {row[0] for row in sources_result.all()}
 
         if not all_sources:
             # Fallback: get sources from articles
             sources_result = await session.execute(
-                select(func.distinct(Article.source)).where(
-                    Article.published_at >= since
-                )
+                select(func.distinct(Article.source)).where(Article.published_at >= since)
             )
             all_sources = {row[0] for row in sources_result.all() if row[0]}
 
@@ -220,7 +214,7 @@ class BlindSpotsAnalyzer:
 
     async def generate_source_coverage_report(
         self, session: AsyncSession, days: int = 30
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         """Generate comprehensive coverage report for all sources.
 
         Args:
@@ -246,12 +240,8 @@ class BlindSpotsAnalyzer:
 
         # Calculate statistics
         if source_analyses:
-            avg_coverage = sum(a["coverage_ratio"] for a in source_analyses) / len(
-                source_analyses
-            )
-            avg_articles = sum(a["article_count"] for a in source_analyses) / len(
-                source_analyses
-            )
+            avg_coverage = sum(a["coverage_ratio"] for a in source_analyses) / len(source_analyses)
+            avg_articles = sum(a["article_count"] for a in source_analyses) / len(source_analyses)
         else:
             avg_coverage = 0
             avg_articles = 0
@@ -326,7 +316,7 @@ class BlindSpotsAnalyzer:
             cluster_ids = article_ids if service.vector_store else []
 
             # Count by category
-            category_counts: DefaultDict[str, int] = defaultdict(int)
+            category_counts: defaultdict[str, int] = defaultdict(int)
             for article in source_arts:
                 category_counts[article.category or "general"] += 1
 
@@ -352,11 +342,9 @@ class BlindSpotsAnalyzer:
             }
             if stats:
                 await session.execute(
-                    (
-                        SourceCoverageStats.__table__.update()
-                        .where(SourceCoverageStats.id == stats.id)
-                        .values(**stats_payload)
-                    )
+                    SourceCoverageStats.__table__.update()
+                    .where(SourceCoverageStats.id == stats.id)
+                    .values(**stats_payload)
                 )
             else:
                 stats = SourceCoverageStats(
@@ -374,17 +362,13 @@ class BlindSpotsAnalyzer:
         await session.commit()
         return updated_count
 
-    def _identify_coverage_gaps(
-        self, articles: Sequence[Article]
-    ) -> List[Dict[str, Any]]:
+    def _identify_coverage_gaps(self, articles: Sequence[Article]) -> list[dict[str, Any]]:
         """Identify temporal or category gaps in coverage."""
         if not articles:
             return []
 
         # Sort by date
-        sorted_articles = sorted(
-            articles, key=lambda a: a.published_at or get_utc_now()
-        )
+        sorted_articles = sorted(articles, key=lambda a: a.published_at or get_utc_now())
 
         gaps = []
         for i in range(1, len(sorted_articles)):
@@ -429,7 +413,7 @@ class BlindSpotsAnalyzer:
 
 
 # Global instance
-_blind_spots_analyzer: Optional[BlindSpotsAnalyzer] = None
+_blind_spots_analyzer: BlindSpotsAnalyzer | None = None
 
 
 def get_blind_spots_analyzer() -> BlindSpotsAnalyzer:
@@ -440,7 +424,7 @@ def get_blind_spots_analyzer() -> BlindSpotsAnalyzer:
     return _blind_spots_analyzer
 
 
-async def analyze_all_sources(session: AsyncSession, days: int = 30) -> Dict[str, Any]:
+async def analyze_all_sources(session: AsyncSession, days: int = 30) -> dict[str, Any]:
     """Convenience function to analyze all sources."""
     analyzer = get_blind_spots_analyzer()
     return await analyzer.generate_source_coverage_report(session, days)

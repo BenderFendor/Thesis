@@ -1,5 +1,4 @@
-"""
-BM25 Keyword Search Component
+"""BM25 Keyword Search Component.
 
 Lightweight pure algorithm for keyword-based article retrieval.
 Uses Okapi BM25 ranking function with configurable parameters.
@@ -8,7 +7,8 @@ Uses Okapi BM25 ranking function with configurable parameters.
 from __future__ import annotations
 
 import logging
-from typing import Mapping, Optional, Sequence, TypedDict
+from typing import TypedDict
+from collections.abc import Mapping, Sequence
 
 from rank_bm25 import BM25Okapi
 
@@ -16,11 +16,15 @@ logger = logging.getLogger(__name__)
 
 
 class BM25Document(TypedDict, total=False):
+    """BM Document."""
+
     chroma_id: str
     text: str
 
 
 class BM25SearchResult(TypedDict):
+    """BM Search Result."""
+
     chroma_id: str
     bm25_score: float
     document: str
@@ -28,8 +32,7 @@ class BM25SearchResult(TypedDict):
 
 
 class BM25Search:
-    """
-    BM25-based keyword search for articles.
+    """BM25-based keyword search for articles.
 
     BM25 is a probabilistic relevance ranking function that outperforms
     simple TF-IDF for most use cases. It's pure algorithm - no model weights.
@@ -41,8 +44,7 @@ class BM25Search:
         b: float = 0.7,
         epsilon: float = 0.25,
     ):
-        """
-        Initialize BM25 search engine.
+        """Initialize BM25 search engine.
 
         Args:
             k1: Term frequency saturation parameter (1.2-2.0 typical)
@@ -54,7 +56,7 @@ class BM25Search:
         self.k1 = k1
         self.b = b
         self.epsilon = epsilon
-        self.bm25: Optional[BM25Okapi] = None
+        self.bm25: BM25Okapi | None = None
         self.corpus_ids: list[str] = []
         self.documents: list[str] = []
         self.tokenized_corpus: list[list[str]] = []
@@ -67,8 +69,7 @@ class BM25Search:
         id_field: str = "chroma_id",
         text_field: str = "text",
     ) -> int:
-        """
-        Build BM25 index from document collection.
+        """Build BM25 index from document collection.
 
         Args:
             documents: List of dicts with id and text fields
@@ -90,9 +91,7 @@ class BM25Search:
         for doc in documents:
             doc_id_value = doc.get(id_field, "")
             text_value = doc.get(text_field, "") or ""
-            doc_id = (
-                doc_id_value if isinstance(doc_id_value, str) else str(doc_id_value)
-            )
+            doc_id = doc_id_value if isinstance(doc_id_value, str) else str(doc_id_value)
             text = text_value if isinstance(text_value, str) else str(text_value)
 
             if not doc_id:
@@ -133,8 +132,7 @@ class BM25Search:
         top_k: int = 10,
         score_threshold: float = 0.0,
     ) -> list[BM25SearchResult]:
-        """
-        Search index with keyword query.
+        """Search index with keyword query.
 
         Args:
             query: Search query string
@@ -188,8 +186,7 @@ class BM25Search:
         candidate_ids: Sequence[str],
         top_k: int = 50,
     ) -> dict[str, float]:
-        """
-        Get BM25 scores for specific candidate IDs (for hybrid fusion).
+        """Get BM25 scores for specific candidate IDs (for hybrid fusion).
 
         Args:
             query: Search query
@@ -216,9 +213,7 @@ class BM25Search:
                 id_to_score[chroma_id] = float(all_scores[idx])
 
         # Sort and return top k
-        sorted_scores = sorted(id_to_score.items(), key=lambda x: x[1], reverse=True)[
-            :top_k
-        ]
+        sorted_scores = sorted(id_to_score.items(), key=lambda x: x[1], reverse=True)[:top_k]
 
         return dict(sorted_scores)
 

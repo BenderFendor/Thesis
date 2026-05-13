@@ -27,9 +27,7 @@ def test_generate_diff_highlights_preserves_unique_sentence_markers() -> None:
         "Alpha wins the vote. Beta calls for a recount.",
         "Alpha wins the vote. Gamma calls for reform.",
     )
-    assert any(
-        item["source_1_text"] == "Alpha wins the vote." for item in diff["similar"]
-    )
+    assert any(item["source_1_text"] == "Alpha wins the vote." for item in diff["similar"])
     assert any(item["type"] == "unique_to_source_1" for item in diff["removed"])
     assert any(item["type"] == "unique_to_source_2" for item in diff["added"])
 

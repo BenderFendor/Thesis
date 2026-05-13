@@ -4,27 +4,46 @@ use scraper::{Html, Selector};
 
 use crate::cleaner::clean_html;
 
+/// Result of extracting structured content from an HTML article page.
 #[derive(Debug, Default)]
 pub struct ArticleExtraction {
+    /// Full article body text, with paragraphs separated by double newlines.
     pub text: String,
+    /// Article title from `<title>`, `og:title`, or `twitter:title`.
     pub title: Option<String>,
+    /// Author names from `<meta>` author tags.
     pub authors: Vec<String>,
+    /// Publication date from `article:published_time` or similar `<meta>`
+    /// tags.
     pub publish_date: Option<String>,
+    /// URL of the lead image from `og:image` or `twitter:image`.
     pub top_image: Option<String>,
+    /// All `<img>` source URLs found in the document.
     pub images: Vec<String>,
+    /// Meta description from `description`, `og:description`, or
+    /// `twitter:description`.
     pub meta_description: Option<String>,
 }
 
+/// Result of extracting social-media image URLs from an HTML document.
 #[derive(Debug, Default)]
 pub struct OgImageExtraction {
+    /// URL of the highest-priority image candidate.
     pub image_url: Option<String>,
+    /// All image candidates found, ordered by source priority.
     pub candidates: Vec<ImageCandidate>,
 }
 
+/// One candidate image URL with its discovery source and priority rank.
 #[derive(Debug, Clone)]
 pub struct ImageCandidate {
+    /// Absolute or relative URL of the image.
     pub url: String,
+    /// Source tag from which the image was extracted (e.g. `og:image`,
+    /// `twitter:image`, `link:image_src`).
     pub source: String,
+    /// Priority rank (lower is better, 1 = og:image, 2 = twitter:image, 3 =
+    /// link:image_src).
     pub priority: usize,
 }
 
@@ -171,6 +190,11 @@ fn extract_text_from_selectors(document: &Html, selectors: &[&str]) -> String {
     String::new()
 }
 
+/// Parses an HTML document and extracts article body text, title, authors,
+/// publish date, lead image, all images, and meta description.
+///
+/// Body text extraction tries a prioritized list of article-specific CSS
+/// selectors before falling back to generic paragraph selectors.
 pub fn extract_article_from_html(html: &str) -> ArticleExtraction {
     let document = Html::parse_document(html);
 
@@ -208,6 +232,8 @@ pub fn extract_article_from_html(html: &str) -> ArticleExtraction {
     }
 }
 
+/// Extracts Open Graph and Twitter image URLs from an HTML document, along
+/// with link-rel image references, ranked by source priority.
 pub fn extract_og_image_from_html(html: &str) -> OgImageExtraction {
     let document = Html::parse_document(html);
     let mut candidates = Vec::new();

@@ -179,7 +179,7 @@ export function ReadingQueueSidebar() {
     }
 
     if (newIndex !== currentIndex) {
-      setSelectedArticleUrl(queuedArticles[newIndex].url);
+      setSelectedArticleUrl(queuedArticles[newIndex]!.url);
     }
   }, [queuedArticles, selectedArticleUrl]);
 

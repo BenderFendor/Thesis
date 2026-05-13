@@ -30,6 +30,7 @@ from app.vector_store import (
     get_vector_store,
     is_chroma_reachable,
 )
+from datetime import UTC
 
 logger = get_logger("chroma_sync")
 
@@ -173,9 +174,7 @@ async def chroma_sync_worker(
 
             if not articles:
                 if not sync_caught_up.is_set():
-                    logger.info(
-                        "Chroma sync caught up; signalling cluster computation worker."
-                    )
+                    logger.info("Chroma sync caught up; signalling cluster computation worker.")
                     sync_caught_up.set()
                 await asyncio.sleep(interval_seconds * 6)
                 continue
@@ -200,9 +199,9 @@ async def _run_recovery_scan(
 
     Checks Chroma membership directly — no mass DB flag reset required.
     """
-    from datetime import datetime, timedelta, timezone
+    from datetime import datetime, timedelta
 
-    cutoff = datetime.now(timezone.utc) - timedelta(days=7)
+    cutoff = datetime.now(UTC) - timedelta(days=7)
     # Strip timezone for naive DB column comparison.
     cutoff_naive = cutoff.replace(tzinfo=None)
     logger.info(
@@ -248,14 +247,10 @@ async def _run_recovery_scan(
         # Check which IDs are already in Chroma.
         chroma_ids = [f"article_{a.id}" for a in articles]
         try:
-            existing = await asyncio.to_thread(
-                vs.collection.get, chroma_ids, include=[]
-            )
+            existing = await asyncio.to_thread(vs.collection.get, chroma_ids, include=[])
             existing_set = set(existing["ids"])
         except Exception as exc:
-            logger.warning(
-                "Recovery scan: Chroma get failed (%s); skipping batch.", exc
-            )
+            logger.warning("Recovery scan: Chroma get failed (%s); skipping batch.", exc)
             offset += batch_size
             await asyncio.sleep(interval_seconds)
             continue
@@ -286,9 +281,7 @@ async def _run_recovery_scan(
                     )
                     if not sync_caught_up.is_set():
                         sync_caught_up.set()
-                        logger.info(
-                            "First recovery batch done; cluster worker unblocked."
-                        )
+                        logger.info("First recovery batch done; cluster worker unblocked.")
                     # Mark embedded articles so normal mode doesn't re-process them.
                     article_ids = [a.id for a in missing]
                     try:
@@ -307,9 +300,7 @@ async def _run_recovery_scan(
                             mark_exc,
                         )
             except Exception as exc:
-                logger.warning(
-                    "Recovery scan: Chroma batch add failed (%s); skipping batch.", exc
-                )
+                logger.warning("Recovery scan: Chroma batch add failed (%s); skipping batch.", exc)
 
         offset += batch_size
         # Brief pause between batches to avoid overwhelming DB or Chroma.
@@ -330,16 +321,12 @@ async def _embed_and_mark(
         article_ids = [a.id for a in articles]
         async with _get_session_factory()() as session:
             await session.execute(
-                update(Article)
-                .where(Article.id.in_(article_ids))
-                .values(embedding_generated=True)
+                update(Article).where(Article.id.in_(article_ids)).values(embedding_generated=True)
             )
             await session.commit()
         logger.info("Synced %d articles into Chroma vector store.", added)
         if not sync_caught_up.is_set():
-            logger.info(
-                "First Chroma batch complete; signalling cluster computation worker."
-            )
+            logger.info("First Chroma batch complete; signalling cluster computation worker.")
             sync_caught_up.set()
         # Loop quickly while catching up.
         await asyncio.sleep(1)

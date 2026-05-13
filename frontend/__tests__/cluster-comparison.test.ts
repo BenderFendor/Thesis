@@ -20,7 +20,7 @@ describe("cluster comparison helpers", () => {
         (ids, sources) => {
           const articles = ids.map((id, index) => ({
             id,
-            source: sources[index % sources.length],
+            source: sources[index % sources.length]!,
           }));
 
           const selectedIds = getDefaultComparisonArticleIds(articles);
@@ -30,8 +30,8 @@ describe("cluster comparison helpers", () => {
           );
 
           expect(selectedArticles).toHaveLength(2);
-          expect(selectedArticles[0].source.toLowerCase()).not.toBe(
-            selectedArticles[1].source.toLowerCase(),
+          expect(selectedArticles[0]!.source.toLowerCase()).not.toBe(
+            selectedArticles[1]!.source.toLowerCase(),
           );
         },
       ),

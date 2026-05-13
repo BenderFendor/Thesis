@@ -162,15 +162,11 @@ def test_news_search_prefers_gdelt_context_results(monkeypatch) -> None:
 
         async def search_doc(self, query: str, max_records: int, timespan: str):
             call_order.append("doc")
-            raise AssertionError(
-                "DOC search should not run when Context has enough results"
-            )
+            raise AssertionError("DOC search should not run when Context has enough results")
 
     class FakeDDGS:
         def news(self, *_args, **_kwargs):
-            raise AssertionError(
-                "DDG fallback should not run when GDELT returns results"
-            )
+            raise AssertionError("DDG fallback should not run when GDELT returns results")
 
     monkeypatch.setattr(agent, "get_gdelt_query_service", lambda: FakeGDELTService())
     monkeypatch.setattr(agent, "DDGS", lambda: FakeDDGS())

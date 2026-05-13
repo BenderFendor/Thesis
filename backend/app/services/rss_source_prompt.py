@@ -1,3 +1,5 @@
+"""Rss Source Prompt."""
+
 from __future__ import annotations
 
 import json
@@ -10,10 +12,12 @@ _DATA_PATH = Path(__file__).resolve().parents[1] / "data" / "rss_sources.json"
 
 
 def load_rss_sources_context() -> str:
+    """Load Rss Sources Context."""
     return _DATA_PATH.read_text(encoding="utf-8")
 
 
 def build_rss_source_research_prompt() -> str:
+    """Build Rss Source Research Prompt."""
     task = """You are researching additions to a country-based RSS news catalog.
 
 Your task:
@@ -110,7 +114,5 @@ Important:
 - Country values should use ISO-style two-letter codes.
 - The current catalog JSON follows below and should be treated as the baseline coverage map."""
 
-    rss_context = json.dumps(
-        json.loads(load_rss_sources_context()), indent=2, ensure_ascii=True
-    )
+    rss_context = json.dumps(json.loads(load_rss_sources_context()), indent=2, ensure_ascii=True)
     return compose_prompt_blocks(task, background, rss_context)

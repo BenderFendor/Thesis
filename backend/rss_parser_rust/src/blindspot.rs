@@ -1,6 +1,9 @@
 use pyo3::prelude::*;
 use pyo3::types::PyList;
 
+/// Computes the element-wise arithmetic mean of a slice of vectors.
+///
+/// Returns an empty vector if the input is empty.
 pub fn mean_vector(vectors: &[Vec<f64>]) -> Vec<f64> {
     if vectors.is_empty() {
         return vec![];
@@ -17,6 +20,8 @@ pub fn mean_vector(vectors: &[Vec<f64>]) -> Vec<f64> {
     totals
 }
 
+/// Computes the element-wise difference `left - right`, truncating to the
+/// length of the shorter vector.
 pub fn subtract_vectors(left: &[f64], right: &[f64]) -> Vec<f64> {
     let len = left.len().min(right.len());
     let mut result = vec![0.0; len];
@@ -26,6 +31,8 @@ pub fn subtract_vectors(left: &[f64], right: &[f64]) -> Vec<f64> {
     result
 }
 
+/// Computes the element-wise sum `left + right`, truncating to the length
+/// of the shorter vector.
 #[allow(dead_code)]
 pub fn add_vectors(left: &[f64], right: &[f64]) -> Vec<f64> {
     let len = left.len().min(right.len());
@@ -36,6 +43,9 @@ pub fn add_vectors(left: &[f64], right: &[f64]) -> Vec<f64> {
     result
 }
 
+/// Scales a vector to unit length (L2 normalization).
+///
+/// Returns an empty vector if the input has zero magnitude.
 pub fn normalize_vector(vector: &[f64]) -> Vec<f64> {
     let magnitude: f64 = vector.iter().map(|v| v * v).sum::<f64>().sqrt();
     if magnitude <= 0.0 {
@@ -44,6 +54,8 @@ pub fn normalize_vector(vector: &[f64]) -> Vec<f64> {
     vector.iter().map(|v| v / magnitude).collect()
 }
 
+/// Computes the dot (inner) product of two vectors, truncating to the
+/// length of the shorter vector.
 pub fn dot_product(left: &[f64], right: &[f64]) -> f64 {
     let len = left.len().min(right.len());
     let mut sum = 0.0;
@@ -53,6 +65,9 @@ pub fn dot_product(left: &[f64], right: &[f64]) -> f64 {
     sum
 }
 
+/// Computes the cosine similarity between two vectors.
+///
+/// Returns 0.0 if either vector has zero magnitude.
 pub fn cosine_similarity(left: &[f64], right: &[f64]) -> f64 {
     let len = left.len().min(right.len());
     let mut dot = 0.0;
@@ -70,6 +85,9 @@ pub fn cosine_similarity(left: &[f64], right: &[f64]) -> f64 {
     dot / denom
 }
 
+/// Computes a quantile of a slice of values using linear interpolation.
+///
+/// Returns 0.0 if the input is empty.
 pub fn quantile(values: &[f64], percentile: f64) -> f64 {
     if values.is_empty() {
         return 0.0;
@@ -86,6 +104,12 @@ pub fn quantile(values: &[f64], percentile: f64) -> f64 {
     ordered[lower] * (1.0 - weight) + ordered[upper] * weight
 }
 
+/// Constructs a semantic axis from positive and negative example vectors.
+///
+/// Computes the mean of positive and negative vectors, subtracts the
+/// negative mean from the positive mean, and normalizes the result. Returns
+/// `None` if either input set is empty or the resulting axis has zero
+/// length.
 pub fn build_semaxis(
     positive_vectors: Vec<Vec<f64>>,
     negative_vectors: Vec<Vec<f64>>,
@@ -103,6 +127,11 @@ pub fn build_semaxis(
     Some(axis)
 }
 
+/// Scores a list of article vectors against a semantic axis by computing
+/// the dot product of each normalized article vector with the normalized
+/// axis.
+///
+/// Returns a list of `(article_id, score)` tuples.
 pub fn score_articles_against_axis(
     article_vectors: &[(i64, Vec<f64>)],
     axis: &[f64],
@@ -124,6 +153,10 @@ pub fn score_articles_against_axis(
         .collect()
 }
 
+/// Python-facing wrapper for [`mean_vector`].
+///
+/// Accepts a list of float lists and returns the element-wise mean as a
+/// Python list.
 #[pyfunction]
 pub fn rust_mean_vector<'py>(
     py: Python<'py>,
@@ -137,6 +170,9 @@ pub fn rust_mean_vector<'py>(
     Ok(list)
 }
 
+/// Python-facing wrapper for [`subtract_vectors`].
+///
+/// Returns `left - right` as a Python list.
 #[pyfunction]
 pub fn rust_subtract_vectors<'py>(
     py: Python<'py>,
@@ -151,6 +187,10 @@ pub fn rust_subtract_vectors<'py>(
     Ok(list)
 }
 
+/// Python-facing wrapper for [`normalize_vector`].
+///
+/// Returns the L2-normalized vector as a Python list, or an empty list for
+/// a zero-magnitude input.
 #[pyfunction]
 pub fn rust_normalize_vector<'py>(
     py: Python<'py>,
@@ -164,21 +204,35 @@ pub fn rust_normalize_vector<'py>(
     Ok(list)
 }
 
+/// Python-facing wrapper for [`dot_product`].
+///
+/// Returns the dot product of two float lists as a Python float.
 #[pyfunction]
 pub fn rust_dot_product(left: Vec<f64>, right: Vec<f64>) -> f64 {
     dot_product(&left, &right)
 }
 
+/// Python-facing wrapper for [`cosine_similarity`].
+///
+/// Returns the cosine similarity of two float lists as a Python float.
 #[pyfunction]
 pub fn rust_cosine_similarity(left: Vec<f64>, right: Vec<f64>) -> f64 {
     cosine_similarity(&left, &right)
 }
 
+/// Python-facing wrapper for [`quantile`].
+///
+/// Returns the specified quantile of a list of floats as a Python float.
 #[pyfunction]
 pub fn rust_quantile(values: Vec<f64>, percentile: f64) -> f64 {
     quantile(&values, percentile)
 }
 
+/// Python-facing wrapper for [`build_semaxis`].
+///
+/// Accepts lists of positive and negative example vectors and returns the
+/// semantic axis as a Python list of floats, or `None` if construction
+/// fails.
 #[pyfunction]
 pub fn rust_build_semaxis(
     positive_vectors: Vec<Vec<f64>>,
@@ -187,6 +241,10 @@ pub fn rust_build_semaxis(
     build_semaxis(positive_vectors, negative_vectors)
 }
 
+/// Python-facing wrapper for [`score_articles_against_axis`].
+///
+/// Accepts a list of `(article_id, vector)` tuples and a semantic axis,
+/// returning a list of `(article_id, score)` tuples.
 #[pyfunction]
 pub fn rust_score_against_axis(
     article_vectors: Vec<(i64, Vec<f64>)>,
@@ -281,7 +339,7 @@ mod tests {
         let negative = vec![vec![0.0, 1.0, 0.0]];
         let axis = build_semaxis(positive, negative);
         assert!(axis.is_some());
-        let axis = axis.unwrap();
+        let axis = axis.expect("valid semaxis");
         assert_eq!(axis.len(), 3);
     }
 
@@ -301,7 +359,21 @@ mod tests {
         let axis = vec![1.0, 0.0, 0.0];
         let scores = score_articles_against_axis(&articles, &axis);
         assert_eq!(scores.len(), 3);
-        assert!(scores.iter().find(|(id, _)| *id == 1).unwrap().1 > 0.9);
-        assert!(scores.iter().find(|(id, _)| *id == 3).unwrap().1 < -0.9);
+        assert!(
+            scores
+                .iter()
+                .find(|(id, _)| *id == 1)
+                .expect("article 1 scored")
+                .1
+                > 0.9
+        );
+        assert!(
+            scores
+                .iter()
+                .find(|(id, _)| *id == 3)
+                .expect("article 3 scored")
+                .1
+                < -0.9
+        );
     }
 }

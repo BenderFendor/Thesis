@@ -1,9 +1,11 @@
+"""News Research."""
+
 from __future__ import annotations
 
-import os
 import sys
 import threading
-from typing import Any, Dict, List, Optional
+from pathlib import Path
+from typing import Any
 
 from app.core.config import settings
 from app.core.logging import get_logger
@@ -24,12 +26,13 @@ async def load_articles_for_research(
     keyword_limit: int = 50,
     recent_limit: int = 40,
     max_total: int = 150,
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
+    """Load Articles For Research."""
     session_factory = AsyncSessionLocal
     db_enabled = settings.enable_database and session_factory is not None
 
     vector_store = get_vector_store()
-    semantic_results: List[SimilarArticleResult] = []
+    semantic_results: list[SimilarArticleResult] = []
     if vector_store and query:
         try:
             semantic_results = vector_store.search_similar(query, limit=semantic_limit)
@@ -37,9 +40,9 @@ async def load_articles_for_research(
             logger.error("Semantic vector search failed: %s", semantic_error)
             semantic_results = []
 
-    keyword_articles_raw: List[Dict[str, Any]] = []
-    recent_articles_raw: List[Dict[str, Any]] = []
-    fetched_lookup: Dict[int, Dict[str, Any]] = {}
+    keyword_articles_raw: list[dict[str, Any]] = []
+    recent_articles_raw: list[dict[str, Any]] = []
+    fetched_lookup: dict[int, dict[str, Any]] = {}
     keyword_floor = max(10, keyword_limit // 2)
 
     if db_enabled and session_factory is not None:
@@ -52,24 +55,19 @@ async def load_articles_for_research(
             article_ids = [result["article_id"] for result in semantic_results]
             if article_ids:
                 fetched_articles = await fetch_articles_by_ids(session, article_ids)
-                fetched_lookup = {
-                    article["id"]: article for article in fetched_articles
-                }
+                fetched_lookup = {article["id"]: article for article in fetched_articles}
 
             need_recent = len(keyword_articles_raw) < keyword_floor
             if need_recent:
-                recent_articles_raw = await fetch_recent_articles(
-                    session, limit=recent_limit
-                )
+                recent_articles_raw = await fetch_recent_articles(session, limit=recent_limit)
     else:
         logger.info("Skipping database-backed search; ENABLE_DATABASE=0")
 
     keyword_articles = [
-        {**article, "retrieval_method": "keyword_postgres"}
-        for article in keyword_articles_raw
+        {**article, "retrieval_method": "keyword_postgres"} for article in keyword_articles_raw
     ]
 
-    semantic_articles: List[Dict[str, Any]] = []
+    semantic_articles: list[dict[str, Any]] = []
     if semantic_results:
         for result in semantic_results:
             article_id = result["article_id"]
@@ -79,9 +77,7 @@ async def load_articles_for_research(
                 metadata = result["metadata"]
                 article_data = {
                     "id": article_id,
-                    "title": metadata.get("title")
-                    or metadata.get("url")
-                    or "Semantic match",
+                    "title": metadata.get("title") or metadata.get("url") or "Semantic match",
                     "source": metadata.get("source", "Unknown"),
                     "category": metadata.get("category", "general"),
                     "description": metadata.get("summary"),
@@ -98,9 +94,7 @@ async def load_articles_for_research(
             article_data["retrieval_method"] = "semantic_vector_store"
             article_data["semantic_score"] = result["similarity_score"]
             article_data["semantic_distance"] = result["distance"]
-            article_data["chroma_id"] = result["chroma_id"] or article_data.get(
-                "chroma_id"
-            )
+            article_data["chroma_id"] = result["chroma_id"] or article_data.get("chroma_id")
             article_data["preview"] = result["preview"]
             semantic_articles.append(article_data)
 
@@ -108,24 +102,21 @@ async def load_articles_for_research(
 
     need_recent = len(keyword_articles) < keyword_floor
     recent_articles = (
-        [
-            {**article, "retrieval_method": "recent_postgres"}
-            for article in recent_articles_raw
-        ]
+        [{**article, "retrieval_method": "recent_postgres"} for article in recent_articles_raw]
         if need_recent and recent_articles_raw
         else []
     )
 
-    combined: List[Dict[str, Any]] = []
+    combined: list[dict[str, Any]] = []
     seen_ids: set[str] = set()
     seen_urls: set[str] = set()
 
-    def _normalize_url(url: Optional[str]) -> Optional[str]:
+    def _normalize_url(url: str | None) -> str | None:
         if not url or not isinstance(url, str):
             return None
         return url.rstrip("/")
 
-    def _add_articles(bucket: List[Dict[str, Any]]) -> None:
+    def _add_articles(bucket: list[dict[str, Any]]) -> None:
         for article in bucket:
             if not article:
                 continue
@@ -171,28 +162,28 @@ async def load_articles_for_research(
 
 def run_research_agent(
     query: str,
-    articles: List[Dict[str, Any]],
+    articles: list[dict[str, Any]],
     verbose: bool = True,
-    chat_history: Optional[List[Dict[str, Any]]] = None,
-) -> Dict[str, Any]:
-    backend_path = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    chat_history: list[dict[str, Any]] | None = None,
+) -> dict[str, Any]:
+    """Run Research Agent."""
+    backend_path = str(Path(__file__).resolve().parent.parent)
     if backend_path not in sys.path:
         sys.path.insert(0, backend_path)
 
     from news_research_agent import research_news
 
-    return research_news(
-        query=query, articles=articles, verbose=verbose, chat_history=chat_history
-    )
+    return research_news(query=query, articles=articles, verbose=verbose, chat_history=chat_history)
 
 
 def stream_research_agent(
     query: str,
-    articles: List[Dict[str, Any]],
-    chat_history: Optional[List[Dict[str, Any]]] = None,
-    stop_event: Optional[threading.Event] = None,
+    articles: list[dict[str, Any]],
+    chat_history: list[dict[str, Any]] | None = None,
+    stop_event: threading.Event | None = None,
 ) -> Any:
-    backend_path = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    """Stream Research Agent."""
+    backend_path = str(Path(__file__).resolve().parent.parent)
     if backend_path not in sys.path:
         sys.path.insert(0, backend_path)
 

@@ -24,9 +24,7 @@ def test_extract_article_mentioned_countries_dedupes_and_sorts_alias_matches(
     assert {"CN", "US"}.issubset(mentions)
 
 
-def test_extract_article_mentioned_countries_returns_expected_aliases_without_extra_text() -> (
-    None
-):
+def test_extract_article_mentioned_countries_returns_expected_aliases_without_extra_text() -> None:
     mentions = extract_article_mentioned_countries(
         "United States",
         "USA and Beijing appear in the same briefing.",
@@ -36,9 +34,7 @@ def test_extract_article_mentioned_countries_returns_expected_aliases_without_ex
     assert mentions == ["CN", "US"]
 
 
-def test_extract_article_mentioned_countries_requires_exact_case_for_short_acronyms() -> (
-    None
-):
+def test_extract_article_mentioned_countries_requires_exact_case_for_short_acronyms() -> None:
     mentions = extract_article_mentioned_countries(
         "United States Uk",
         "Usa is mixed case here on purpose.",

@@ -2,12 +2,13 @@
 
 import { useInfiniteQuery, useQueryClient } from "@tanstack/react-query"
 import { useCallback, useMemo } from "react"
-import {
-  fetchNewsPaginated,
-  fetchCachedNewsPaginated,
+import type {
   NewsArticle,
   PaginatedResponse,
-  PaginationParams,
+  PaginationParams} from "@/lib/api";
+import {
+  fetchNewsPaginated,
+  fetchCachedNewsPaginated
 } from "@/lib/api"
 
 interface UsePaginatedNewsOptions {

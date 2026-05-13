@@ -1,6 +1,8 @@
+"""Rss Sources."""
+
 import json
 from pathlib import Path
-from typing import Any, Dict
+from typing import Any
 
 from app.core.logging import get_logger
 from app.services.source_url_guard import normalize_site_url
@@ -10,12 +12,11 @@ logger = get_logger(__name__)
 _DATA_PATH = Path(__file__).with_name("rss_sources.json")
 
 with _DATA_PATH.open("r", encoding="utf-8") as _source_file:
-    _RAW_SOURCES: Dict[str, Any] = json.load(_source_file)
+    _RAW_SOURCES: dict[str, Any] = json.load(_source_file)
 
 
-def get_rss_sources() -> Dict[str, Dict[str, Any]]:
-    """
-    Load RSS sources from JSON.
+def get_rss_sources() -> dict[str, dict[str, Any]]:
+    """Load RSS sources from JSON.
 
     If consolidate=true, keeps multi-URL sources as single entries with list of URLs.
     Otherwise, flattens nested URL arrays into separate numbered sources (e.g., "AP - 1", "AP - 2").
@@ -23,13 +24,12 @@ def get_rss_sources() -> Dict[str, Dict[str, Any]]:
     flattened = {}
 
     def build_source_config(
-        url_value: str | list[str], source_value: Dict[str, Any]
-    ) -> Dict[str, Any]:
+        url_value: str | list[str], source_value: dict[str, Any]
+    ) -> dict[str, Any]:
+        """Build Source Config."""
         config = {
             "url": url_value,
-            "site_url": source_value.get("site_url")
-            or normalize_site_url(url_value)
-            or "",
+            "site_url": source_value.get("site_url") or normalize_site_url(url_value) or "",
             "category": source_value.get("category", "general"),
             "country": source_value.get("country", ""),
             "funding_type": source_value.get("funding_type", ""),
@@ -55,9 +55,7 @@ def get_rss_sources() -> Dict[str, Dict[str, Any]]:
         if isinstance(urls, list) and urls:
             if consolidate:
                 # Keep as single consolidated source with all URLs
-                valid_urls = [
-                    url.strip() for url in urls if isinstance(url, str) and url.strip()
-                ]
+                valid_urls = [url.strip() for url in urls if isinstance(url, str) and url.strip()]
                 if valid_urls:
                     flattened[key] = build_source_config(valid_urls, value)
             else:
@@ -65,22 +63,19 @@ def get_rss_sources() -> Dict[str, Dict[str, Any]]:
                 for idx, url in enumerate(urls, 1):
                     if isinstance(url, str) and url.strip():
                         composite_key = f"{key} - {idx}"
-                        flattened[composite_key] = build_source_config(
-                            url.strip(), value
-                        )
+                        flattened[composite_key] = build_source_config(url.strip(), value)
         elif isinstance(urls, str) and urls.strip():
             # Single URL source
             flattened[key] = build_source_config(urls.strip(), value)
         else:
-            logger.debug(
-                f"Skipping {key}: url field is neither string nor list or is empty"
-            )
+            logger.debug(f"Skipping {key}: url field is neither string nor list or is empty")
 
     logger.info(f"Loaded {len(flattened)} RSS sources")
     return flattened
 
 
 def reload_rss_sources() -> None:
+    """Reload Rss Sources."""
     global _RAW_SOURCES
     _RAW_SOURCES = json.loads(_DATA_PATH.read_text(encoding="utf-8"))
     logger.info("RSS sources reloaded from disk")

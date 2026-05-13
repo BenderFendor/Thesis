@@ -1,3 +1,5 @@
+"""Async Utils."""
+
 from __future__ import annotations
 
 import asyncio
@@ -13,6 +15,7 @@ async def gather_limited(
     limit: int,
     return_exceptions: bool = False,
 ) -> list[T | BaseException]:
+    """Gather Limited."""
     capped_limit = max(1, limit)
     semaphore = asyncio.Semaphore(capped_limit)
 

@@ -8,8 +8,9 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
+import type {
+  ConfidenceLevel} from "@/lib/verification";
 import {
-  ConfidenceLevel,
   formatConfidence,
   getConfidenceBgColor,
   getConfidenceColor,

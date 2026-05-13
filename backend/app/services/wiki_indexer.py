@@ -1,5 +1,4 @@
-"""
-Wiki Indexer - Background indexing service for the Media Accountability Wiki.
+"""Wiki Indexer - Background indexing service for the Media Accountability Wiki.
 
 Handles:
 - Seeding wiki data for all sources from rss_sources.json
@@ -17,9 +16,9 @@ from __future__ import annotations
 import asyncio
 import time
 from collections.abc import Callable
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timedelta, UTC
 from importlib import import_module
-from typing import Any, Dict, Optional, Protocol, TypedDict, cast
+from typing import Any, Protocol, TypedDict, cast
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
@@ -49,7 +48,7 @@ logger = get_logger("wiki_indexer")
 STALE_THRESHOLD_DAYS = 7
 
 # Delay between indexing individual sources to avoid rate limits
-INDEX_DELAY_SECONDS = float(2.0)
+INDEX_DELAY_SECONDS = 2.0
 
 
 class _AnalysisScorePayload(TypedDict):
@@ -79,6 +78,7 @@ class _DisabledScoringResult:
     org_updates: dict[str, Any] | None
 
     def __init__(self) -> None:
+        """Initialize."""
         self.scores = []
         self.org_updates = {}
 
@@ -87,17 +87,18 @@ class _SourceAnalysisScorerLike(Protocol):
     async def score_source(
         self,
         source_name: str,
-        org_data: Dict[str, Any] | None = None,
-        source_metadata: Dict[str, Any] | None = None,
-        article_corpus_stats: Dict[str, Any] | None = None,
+        org_data: dict[str, Any] | None = None,
+        source_metadata: dict[str, Any] | None = None,
+        article_corpus_stats: dict[str, Any] | None = None,
     ) -> _ScoringResultLike: ...
 
 
 def get_source_analysis_scorer() -> _SourceAnalysisScorerLike:
+    """Get Source Analysis Scorer."""
     scorer_module = import_module("app.services.source_analysis_scorer")
     get_scorer = cast(
         Callable[[], _SourceAnalysisScorerLike],
-        getattr(scorer_module, "get_source_analysis_scorer"),
+        scorer_module.get_source_analysis_scorer,
     )
     return get_scorer()
 
@@ -114,8 +115,8 @@ async def _upsert_index_status(
     entity_type: str,
     entity_name: str,
     status: str,
-    error_message: Optional[str] = None,
-    duration_ms: Optional[int] = None,
+    error_message: str | None = None,
+    duration_ms: int | None = None,
 ) -> None:
     """Create or update the wiki_index_status row for an entity."""
     result = await session.execute(
@@ -202,8 +203,8 @@ async def _save_analysis_scores(
 
 async def _upsert_organization(
     session: AsyncSession,
-    org_data: Dict[str, Any],
-) -> Optional[int]:
+    org_data: dict[str, Any],
+) -> int | None:
     """Create or update an Organization row from research data.
 
     Returns the organization's id.  Also resolves the parent_org string to
@@ -281,9 +282,7 @@ async def _upsert_organization(
         parent_normalized = parent_org_name.lower().strip()
         if parent_normalized and parent_normalized != normalized:
             parent_result = await session.execute(
-                select(Organization).where(
-                    Organization.normalized_name == parent_normalized
-                )
+                select(Organization).where(Organization.normalized_name == parent_normalized)
             )
             parent_row = parent_result.scalar_one_or_none()
             if parent_row is not None:
@@ -296,9 +295,9 @@ async def _upsert_organization(
 
 async def _hydrate_org_claims(
     session: AsyncSession,
-    org_data: Dict[str, Any],
+    org_data: dict[str, Any],
     source_name: str,
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     claim_result = await session.execute(
         select(SourceClaim).where(
             SourceClaim.source_name == source_name,
@@ -307,12 +306,10 @@ async def _hydrate_org_claims(
     )
     claim_rows = claim_result.scalars().all()
 
-    hydrated_claims: list[Dict[str, Any]] = []
+    hydrated_claims: list[dict[str, Any]] = []
     for claim_row in claim_rows:
         evidence_result = await session.execute(
-            select(SourceClaimEvidence).where(
-                SourceClaimEvidence.claim_id == claim_row.id
-            )
+            select(SourceClaimEvidence).where(SourceClaimEvidence.claim_id == claim_row.id)
         )
         evidence_rows = evidence_result.scalars().all()
         hydrated_claims.append(
@@ -341,7 +338,7 @@ async def _hydrate_org_claims(
 
 async def index_source(
     source_name: str,
-    source_config: Dict[str, Any],
+    source_config: dict[str, Any],
     enable_llm_scoring: bool = True,
 ) -> bool:
     """Index a single source: research org data and score source-analysis axes.
@@ -458,9 +455,7 @@ async def index_source(
 
     except Exception as exc:
         logger.error("Failed to index source %s: %s", source_name, exc)
-        await _upsert_index_status(
-            session, "source", source_name, "failed", error_message=str(exc)
-        )
+        await _upsert_index_status(session, "source", source_name, "failed", error_message=str(exc))
         return False
     finally:
         await session.close()
@@ -469,7 +464,7 @@ async def index_source(
 async def index_all_sources(
     delay_seconds: float = INDEX_DELAY_SECONDS,
     enable_llm_scoring: bool = True,
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     """Index all sources from rss_sources.json.
 
     Args:
@@ -481,7 +476,7 @@ async def index_all_sources(
     sources = get_rss_sources()
 
     # Deduplicate sources by base name (e.g., "BBC" covers "BBC News - Home", etc.)
-    unique_sources: Dict[str, Dict[str, Any]] = {}
+    unique_sources: dict[str, dict[str, Any]] = {}
     for name, config in sources.items():
         # Use the base name (before " - ") for dedup
         base_name = name.split(" - ")[0].strip()
@@ -510,7 +505,7 @@ async def index_all_sources(
         "total": total,
         "success": success,
         "failed": failed,
-        "completed_at": datetime.now(timezone.utc).isoformat(),
+        "completed_at": datetime.now(UTC).isoformat(),
     }
     logger.info("Wiki indexing complete: %s", summary)
     return summary
@@ -520,7 +515,7 @@ async def index_stale_sources(
     stale_days: int = STALE_THRESHOLD_DAYS,
     delay_seconds: float = INDEX_DELAY_SECONDS,
     enable_llm_scoring: bool = False,
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     """Re-index sources whose wiki data is older than stale_days."""
     session = await _get_session()
     try:
@@ -539,30 +534,24 @@ async def index_stale_sources(
         # Find sources that have never been indexed
         all_sources = get_rss_sources()
         result2 = await session.execute(
-            select(WikiIndexStatus.entity_name).where(
-                WikiIndexStatus.entity_type == "source"
-            )
+            select(WikiIndexStatus.entity_name).where(WikiIndexStatus.entity_type == "source")
         )
         indexed_names = {row[0] for row in result2.all()}
 
         # Get unique source base names
-        unique_sources: Dict[str, Dict[str, Any]] = {}
+        unique_sources: dict[str, dict[str, Any]] = {}
         for name, config in all_sources.items():
             base_name = name.split(" - ")[0].strip()
             if base_name not in unique_sources:
                 unique_sources[base_name] = config
 
         unindexed = {
-            name: config
-            for name, config in unique_sources.items()
-            if name not in indexed_names
+            name: config for name, config in unique_sources.items() if name not in indexed_names
         }
 
         stale_names = {entry.entity_name for entry in stale_entries}
         to_reindex = {
-            name: unique_sources.get(name, {})
-            for name in stale_names
-            if name in unique_sources
+            name: unique_sources.get(name, {}) for name in stale_names if name in unique_sources
         }
 
         all_to_index = {**to_reindex, **unindexed}
@@ -584,9 +573,7 @@ async def index_stale_sources(
 
         for i, (name, config) in enumerate(all_to_index.items(), 1):
             logger.info("[%d/%d] Re-indexing: %s", i, total, name)
-            result_ok = await index_source(
-                name, config, enable_llm_scoring=enable_llm_scoring
-            )
+            result_ok = await index_source(name, config, enable_llm_scoring=enable_llm_scoring)
             if result_ok:
                 success += 1
             else:
@@ -601,15 +588,15 @@ async def index_stale_sources(
         await session.close()
 
 
-async def get_index_status_summary() -> Dict[str, Any]:
+async def get_index_status_summary() -> dict[str, Any]:
     """Get a summary of wiki indexing status."""
     session = await _get_session()
     try:
         result = await session.execute(select(WikiIndexStatus))
         entries = result.scalars().all()
 
-        by_status: Dict[str, int] = {}
-        by_type: Dict[str, int] = {}
+        by_status: dict[str, int] = {}
+        by_type: dict[str, int] = {}
         for entry in entries:
             status_key = cast(str, entry.status)
             entity_type_key = cast(str, entry.entity_type)
@@ -648,9 +635,7 @@ async def periodic_wiki_refresh(
             )
             logger.info("Periodic wiki refresh complete (sources): %s", source_summary)
             reporter_summary = await index_stale_reporters(stale_days=stale_days)
-            logger.info(
-                "Periodic wiki refresh complete (reporters): %s", reporter_summary
-            )
+            logger.info("Periodic wiki refresh complete (reporters): %s", reporter_summary)
         except asyncio.CancelledError:
             logger.info("Wiki refresh task cancelled")
             return

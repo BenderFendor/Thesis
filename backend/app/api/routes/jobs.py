@@ -1,5 +1,4 @@
-"""
-Job-based refresh management.
+"""Job-based refresh management.
 
 Provides endpoints for starting background refresh jobs and streaming their progress.
 This separates the "status/progress" stream from the "data" endpoints.
@@ -10,8 +9,9 @@ from __future__ import annotations
 import asyncio
 import json
 import uuid
-from datetime import datetime, timezone
-from typing import Any, AsyncIterator, Dict, Optional
+from datetime import datetime, UTC
+from typing import Any
+from collections.abc import AsyncIterator
 
 from fastapi import APIRouter, HTTPException
 from fastapi.responses import StreamingResponse
@@ -26,8 +26,8 @@ router = APIRouter(prefix="/jobs", tags=["jobs"])
 logger = get_logger("jobs")
 
 # In-memory job store
-_active_jobs: Dict[str, Dict[str, Any]] = {}
-_job_queues: Dict[str, asyncio.Queue[Dict[str, Any]]] = {}
+_active_jobs: dict[str, dict[str, Any]] = {}
+_job_queues: dict[str, asyncio.Queue[dict[str, Any]]] = {}
 
 
 class JobStartResponse(BaseModel):
@@ -44,14 +44,13 @@ class JobStatus(BaseModel):
     job_id: str
     status: str
     started_at: str
-    progress: Dict[str, Any]
-    error: Optional[str] = None
+    progress: dict[str, Any]
+    error: str | None = None
 
 
 @router.post("/refresh", response_model=JobStartResponse)
 async def start_refresh_job() -> JobStartResponse:
-    """
-    Start a background refresh job.
+    """Start a background refresh job.
 
     Returns a job ID that can be used to stream progress via GET /jobs/{job_id}/stream.
     This separates job initiation from progress streaming for better SSE handling.
@@ -69,11 +68,11 @@ async def start_refresh_job() -> JobStartResponse:
 
     # Create new job
     job_id = str(uuid.uuid4())[:8]  # Short ID for readability
-    job_queue: asyncio.Queue[Dict[str, Any]] = asyncio.Queue()
+    job_queue: asyncio.Queue[dict[str, Any]] = asyncio.Queue()
 
     _active_jobs[job_id] = {
         "status": "starting",
-        "started_at": datetime.now(timezone.utc).isoformat(),
+        "started_at": datetime.now(UTC).isoformat(),
         "progress": {
             "sources_completed": 0,
             "total_sources": 0,
@@ -84,16 +83,14 @@ async def start_refresh_job() -> JobStartResponse:
     _job_queues[job_id] = job_queue
 
     # Define progress callback that puts events into the queue
-    def progress_callback(
-        articles: list[NewsArticle], source_stat: Dict[str, Any]
-    ) -> None:
+    def progress_callback(articles: list[NewsArticle], source_stat: dict[str, Any]) -> None:
         """Send progress events to the job queue."""
         event = {
             "type": "source_complete",
             "source": source_stat.get("name"),
             "article_count": len(articles),
             "source_stat": source_stat,
-            "timestamp": datetime.now(timezone.utc).isoformat(),
+            "timestamp": datetime.now(UTC).isoformat(),
         }
         try:
             job_queue.put_nowait(event)
@@ -108,6 +105,7 @@ async def start_refresh_job() -> JobStartResponse:
 
     # Start refresh in background task
     async def run_refresh() -> None:
+        """Run Refresh."""
         try:
             _active_jobs[job_id]["status"] = "running"
 
@@ -123,7 +121,7 @@ async def start_refresh_job() -> JobStartResponse:
                 "type": "complete",
                 "total_articles": len(news_cache.get_articles()),
                 "source_stats": news_cache.get_source_stats(),
-                "timestamp": datetime.now(timezone.utc).isoformat(),
+                "timestamp": datetime.now(UTC).isoformat(),
             }
             await job_queue.put(complete_event)
             _active_jobs[job_id]["status"] = "complete"
@@ -133,7 +131,7 @@ async def start_refresh_job() -> JobStartResponse:
             error_event = {
                 "type": "error",
                 "message": str(e),
-                "timestamp": datetime.now(timezone.utc).isoformat(),
+                "timestamp": datetime.now(UTC).isoformat(),
             }
             await job_queue.put(error_event)
             _active_jobs[job_id]["status"] = "error"
@@ -150,8 +148,7 @@ async def start_refresh_job() -> JobStartResponse:
 
 @router.get("/{job_id}/stream")
 async def stream_job_progress(job_id: str) -> StreamingResponse:
-    """
-    Stream progress events for a specific job via SSE.
+    """Stream progress events for a specific job via SSE.
 
     Events follow SSE spec with proper id, retry, and data fields.
     Client can resume with Last-Event-ID header.
@@ -166,6 +163,7 @@ async def stream_job_progress(job_id: str) -> StreamingResponse:
     event_id = 0
 
     async def event_generator() -> AsyncIterator[str]:
+        """Event Generator."""
         nonlocal event_id
 
         # Send initial status
@@ -192,7 +190,7 @@ async def stream_job_progress(job_id: str) -> StreamingResponse:
                     if event.get("type") in ("complete", "error"):
                         break
 
-                except asyncio.TimeoutError:
+                except TimeoutError:
                     # Send keepalive ping
                     yield ": keepalive\n\n"
 

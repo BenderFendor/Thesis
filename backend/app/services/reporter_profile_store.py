@@ -2,7 +2,8 @@
 
 from __future__ import annotations
 
-from typing import Any, Dict, Iterable, List, Optional, cast
+from typing import Any, cast
+from collections.abc import Iterable
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -39,9 +40,9 @@ REPORTER_PROFILE_FIELDS = (
 )
 
 
-def _unique_strings(values: Iterable[Any]) -> List[str]:
+def _unique_strings(values: Iterable[Any]) -> list[str]:
     seen: set[str] = set()
-    unique: List[str] = []
+    unique: list[str] = []
     for value in values:
         if not isinstance(value, str):
             continue
@@ -53,7 +54,7 @@ def _unique_strings(values: Iterable[Any]) -> List[str]:
     return unique
 
 
-def _profile_strings(profile: Dict[str, Any], key: str) -> List[str]:
+def _profile_strings(profile: dict[str, Any], key: str) -> list[str]:
     raw = profile.get(key)
     if isinstance(raw, list):
         return _unique_strings(raw)
@@ -64,10 +65,10 @@ def _profile_strings(profile: Dict[str, Any], key: str) -> List[str]:
 
 async def upsert_reporter_profile(
     session: AsyncSession,
-    profile: Dict[str, Any],
+    profile: dict[str, Any],
 ) -> Reporter:
     """Create or update a reporter from a resolved deterministic profile."""
-    resolver_key = cast(Optional[str], profile.get("resolver_key"))
+    resolver_key = cast(str | None, profile.get("resolver_key"))
     stmt = select(Reporter)
     if resolver_key:
         stmt = stmt.where(Reporter.resolver_key == resolver_key)

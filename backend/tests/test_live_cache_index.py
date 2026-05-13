@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timedelta, UTC
 from types import SimpleNamespace
 
 import pytest
@@ -12,12 +12,8 @@ from app.models.news import NewsArticle
 from app.services.cache import NewsCache, news_cache
 
 
-def _build_article(
-    article_id: int | None, source: str, minutes_ago: int
-) -> NewsArticle:
-    published = datetime(2026, 4, 9, tzinfo=timezone.utc) - timedelta(
-        minutes=minutes_ago
-    )
+def _build_article(article_id: int | None, source: str, minutes_ago: int) -> NewsArticle:
+    published = datetime(2026, 4, 9, tzinfo=UTC) - timedelta(minutes=minutes_ago)
     return NewsArticle(
         id=article_id,
         title=f"{source} story {article_id}",
@@ -60,9 +56,7 @@ def test_shape_articles_keeps_all_articles_when_limits_disabled(
         cache_module.settings = original_settings
 
     assert len(shaped) == len(articles)
-    assert {article.link for article in shaped} == {
-        article.link for article in articles
-    }
+    assert {article.link for article in shaped} == {article.link for article in articles}
 
 
 @given(

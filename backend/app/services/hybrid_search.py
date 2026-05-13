@@ -1,5 +1,4 @@
-"""
-Hybrid Search Module
+"""Hybrid Search Module.
 
 Combines BM25 (keyword) + Vector (semantic) search with Reciprocal Rank Fusion.
 Lightweight - uses existing all-MiniLM embeddings plus pure BM25 algorithm.
@@ -20,6 +19,8 @@ RRF_K = 60  # RRF constant - standard value from research
 
 
 class SimilarSearchResult(TypedDict):
+    """Similar Search Result."""
+
     chroma_id: str
     article_id: int
     distance: float
@@ -29,6 +30,8 @@ class SimilarSearchResult(TypedDict):
 
 
 class VectorStoreProtocol(Protocol):
+    """Vector Store Protocol."""
+
     def search_similar(
         self,
         query: str,
@@ -41,8 +44,7 @@ def reciprocal_rank_fusion(
     rankings: list[list[tuple[str, float]]],
     k: int = RRF_K,
 ) -> list[tuple[str, float]]:
-    """
-    Combine multiple rankings using Reciprocal Rank Fusion.
+    """Combine multiple rankings using Reciprocal Rank Fusion.
 
     RRF score = Σ(1 / (k + rank))
 
@@ -61,7 +63,7 @@ def reciprocal_rank_fusion(
     fused_scores: dict[str, float] = defaultdict(float)
 
     for ranking in rankings:
-        for rank, (doc_id, score) in enumerate(ranking, 1):
+        for rank, (doc_id, _score) in enumerate(ranking, 1):
             # RRF formula
             rrf_score = 1.0 / (k + rank)
             fused_scores[doc_id] += rrf_score
@@ -78,8 +80,7 @@ def combine_scores(
     bm25_weight: float = 0.5,
     normalize: bool = True,
 ) -> dict[str, float]:
-    """
-    Combine BM25 and vector similarity scores.
+    """Combine BM25 and vector similarity scores.
 
     Args:
         bm25_scores: Dict of chroma_id -> BM25 score
@@ -108,9 +109,7 @@ def combine_scores(
         vector_min = min(vector_scores.values())
         vector_max = max(vector_scores.values())
         vector_range = vector_max - vector_min or 1
-        vector_norm = {
-            k: (v - vector_min) / vector_range for k, v in vector_scores.items()
-        }
+        vector_norm = {k: (v - vector_min) / vector_range for k, v in vector_scores.items()}
 
     # Combine with weights
     vector_weight = 1.0 - bm25_weight
@@ -124,8 +123,7 @@ def combine_scores(
 
 
 class HybridSearch:
-    """
-    Hybrid search combining BM25 (keyword) and vector (semantic) retrieval.
+    """Hybrid search combining BM25 (keyword) and vector (semantic) retrieval.
 
     Benefits:
     - BM25 handles exact keyword matches well
@@ -140,8 +138,7 @@ class HybridSearch:
         bm25_b: float = 0.7,
         bm25_weight: float = 0.5,
     ) -> None:
-        """
-        Initialize hybrid search.
+        """Initialize hybrid search.
 
         Args:
             embedding_model: SentenceTransformer model (uses existing if None)
@@ -157,8 +154,7 @@ class HybridSearch:
         self.corpus_ids: list[str] = []
 
     def build_index(self, documents: list[Mapping[str, object]]) -> int:
-        """
-        Build both BM25 and prepare for vector search.
+        """Build both BM25 and prepare for vector search.
 
         Args:
             documents: List of dicts with 'chroma_id' and text fields
@@ -191,8 +187,7 @@ class HybridSearch:
         vector_limit: int = 50,
         fusion_method: str = "rrf",
     ) -> list[dict[str, object]]:
-        """
-        Execute hybrid search.
+        """Execute hybrid search.
 
         Args:
             query: Search query
@@ -247,9 +242,7 @@ class HybridSearch:
                         2,
                     ),
                     "vector_score": round(
-                        vector_result["similarity_score"]
-                        if vector_result is not None
-                        else 0.0,
+                        vector_result["similarity_score"] if vector_result is not None else 0.0,
                         4,
                     ),
                     "preview": (
@@ -259,15 +252,11 @@ class HybridSearch:
                         if bm25_result is not None
                         else ""
                     ),
-                    "metadata": (
-                        vector_result["metadata"] if vector_result is not None else {}
-                    ),
+                    "metadata": (vector_result["metadata"] if vector_result is not None else {}),
                 }
             )
 
-        logger.info(
-            f"Hybrid search returned {len(results)} results for query: '{query[:50]}...'"
-        )
+        logger.info(f"Hybrid search returned {len(results)} results for query: '{query[:50]}...'")
         return results
 
     def _vector_only_search(
@@ -278,9 +267,7 @@ class HybridSearch:
     ) -> list[dict[str, object]]:
         """Fallback to vector-only search."""
         logger.info("Falling back to vector-only search")
-        results = [
-            dict(result) for result in vector_store.search_similar(query, limit=limit)
-        ]
+        results = [dict(result) for result in vector_store.search_similar(query, limit=limit)]
 
         for r in results:
             r["fused_score"] = r.get("similarity_score", 0)
@@ -296,8 +283,7 @@ class HybridSearch:
         metadata_filter: Mapping[str, object] | None = None,
         limit: int = 10,
     ) -> list[dict[str, object]]:
-        """
-        Hybrid search with metadata filtering.
+        """Hybrid search with metadata filtering.
 
         Args:
             query: Search query
@@ -329,9 +315,7 @@ class HybridSearch:
         )
 
         # Sort and limit
-        sorted_results = sorted(combined.items(), key=lambda x: x[1], reverse=True)[
-            :limit
-        ]
+        sorted_results = sorted(combined.items(), key=lambda x: x[1], reverse=True)[:limit]
 
         # Build response
         chroma_id_to_vector = {r["chroma_id"]: r for r in vector_results}
@@ -371,8 +355,7 @@ def benchmark_hybrid_search(
     documents: list[Mapping[str, object]],
     limit: int = 10,
 ) -> dict[str, object]:
-    """
-    Benchmark hybrid vs pure search approaches.
+    """Benchmark hybrid vs pure search approaches.
 
     Useful for tuning weights and evaluating improvement.
 
@@ -409,9 +392,7 @@ def benchmark_hybrid_search(
     vector_ids = {r["chroma_id"] for r in vector_results}
     bm25_ids = {r["chroma_id"] for r in bm25_results}
     hybrid_ids = {
-        chroma_id
-        for r in hybrid_results
-        if isinstance(chroma_id := r.get("chroma_id"), str)
+        chroma_id for r in hybrid_results if isinstance(chroma_id := r.get("chroma_id"), str)
     }
 
     return {

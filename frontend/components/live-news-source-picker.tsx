@@ -1,5 +1,6 @@
 "use client"
 
+import Image from "next/image"
 import { X } from "lucide-react"
 import type { LiveNewsSource } from "@/lib/live-news-sources"
 
@@ -56,9 +57,11 @@ export function LiveNewsSourcePicker({
                   onChange={() => onToggleSource(source.id)}
                   className="h-4 w-4 rounded border-white/20 bg-white/5 text-primary focus:ring-0 focus:ring-offset-0 cursor-pointer"
                 />
-                <img
+                <Image
                   src={source.thumbnailUrl}
                   alt={source.label}
+                  width={28}
+                  height={28}
                   className="w-7 h-7 rounded-full object-cover shrink-0"
                 />
                 <div className="flex-1 min-w-0">

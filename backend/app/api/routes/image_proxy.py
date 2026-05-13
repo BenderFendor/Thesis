@@ -1,5 +1,4 @@
-"""
-Image proxy endpoint to solve mixed content blocking.
+"""Image proxy endpoint to solve mixed content blocking.
 
 Fetches external images and serves them from the local origin,
 solving HTTP/HTTPS mixed content issues and adding proper caching.
@@ -42,7 +41,6 @@ ALLOWED_CONTENT_TYPES = {
 }
 
 
-
 def _get_cache_path(url: str) -> tuple[Path, Path]:
     """Get cache file paths for URL."""
     url_hash = hashlib.md5(url.encode()).hexdigest()
@@ -73,8 +71,7 @@ def _read_cached_response(content_path: Path, meta_path: Path) -> tuple[bytes, s
 async def proxy_image(
     url: str = Query(..., description="URL of the image to proxy"),
 ) -> Response:
-    """
-    Proxy external images to avoid mixed content blocking.
+    """Proxy external images to avoid mixed content blocking.
 
     Features:
     - Fetches HTTP images and serves over current protocol
@@ -123,15 +120,11 @@ async def proxy_image(
             response = await client.get(url)
             response.raise_for_status()
 
-            content_type = (
-                response.headers.get("content-type", "").split(";")[0].strip()
-            )
+            content_type = response.headers.get("content-type", "").split(";")[0].strip()
 
             # Validate content type
             if content_type not in ALLOWED_CONTENT_TYPES:
-                logger.warning(
-                    "Unsupported content type %s for %s", content_type, url[:50]
-                )
+                logger.warning("Unsupported content type %s for %s", content_type, url[:50])
                 raise HTTPException(
                     status_code=400,
                     detail=f"IMAGE_UNSUPPORTED_TYPE: {content_type}",
@@ -168,9 +161,7 @@ async def proxy_image(
         raise HTTPException(status_code=504, detail="IMAGE_FETCH_TIMEOUT")
 
     except httpx.HTTPStatusError as e:
-        logger.error(
-            "HTTP error %s fetching image: %s", e.response.status_code, url[:50]
-        )
+        logger.error("HTTP error %s fetching image: %s", e.response.status_code, url[:50])
         raise HTTPException(
             status_code=502,
             detail=f"IMAGE_FETCH_FAILED: HTTP {e.response.status_code}",
@@ -186,7 +177,7 @@ async def get_cache_stats() -> dict[str, object]:
     """Get image cache statistics."""
     try:
         files = list(CACHE_DIR.glob("*"))
-        content_files = [f for f in files if not f.suffix == ".meta"]
+        content_files = [f for f in files if f.suffix != ".meta"]
         total_size = sum(f.stat().st_size for f in content_files if f.exists())
 
         return {
@@ -219,12 +210,9 @@ async def clear_cache() -> dict[str, object]:
 
 @router.get("/og")
 async def get_og_image(
-    url: str = Query(
-        ..., description="URL of the article to fetch OpenGraph image from"
-    ),
+    url: str = Query(..., description="URL of the article to fetch OpenGraph image from"),
 ) -> dict[str, str]:
-    """
-    Fetch the OpenGraph image for a given article URL.
+    """Fetch the OpenGraph image for a given article URL.
 
     This endpoint fetches the og:image meta tag from the article URL
     and returns the image URL if found.

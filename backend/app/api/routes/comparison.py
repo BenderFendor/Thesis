@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import Any, Dict
+from typing import Any
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 
@@ -23,11 +23,11 @@ class ComparisonRequest(BaseModel):
 class ComparisonResponse(BaseModel):
     """Response with comparison analysis."""
 
-    similarity: Dict[str, Any]
-    entities: Dict[str, Any]
-    keywords: Dict[str, Any]
-    diff: Dict[str, Any]
-    summary: Dict[str, Any]
+    similarity: dict[str, Any]
+    entities: dict[str, Any]
+    keywords: dict[str, Any]
+    diff: dict[str, Any]
+    summary: dict[str, Any]
 
 
 @router.post("/articles", response_model=ComparisonResponse)

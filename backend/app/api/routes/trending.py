@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import Any, Dict, List, Optional, cast
+from typing import Any, cast
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Response
 from pydantic import BaseModel, Field
@@ -19,109 +19,127 @@ router = APIRouter(prefix="/trending", tags=["trending"])
 
 
 class GDELTTopCameo(BaseModel):
-    code: Optional[str] = None
-    label: Optional[str] = None
+    """GDELT Top Cameo."""
+
+    code: str | None = None
+    label: str | None = None
     count: int
 
 
 class GDELTContext(BaseModel):
+    """GDELT Context."""
+
     total_events: int
-    top_cameo: List[GDELTTopCameo] = Field(default_factory=list)
-    goldstein_avg: Optional[float] = None
-    goldstein_min: Optional[float] = None
-    goldstein_max: Optional[float] = None
-    goldstein_bucket: Optional[str] = None
-    tone_avg: Optional[float] = None
-    tone_baseline_avg: Optional[float] = None
-    tone_delta_vs_cluster: Optional[float] = None
+    top_cameo: list[GDELTTopCameo] = Field(default_factory=list)
+    goldstein_avg: float | None = None
+    goldstein_min: float | None = None
+    goldstein_max: float | None = None
+    goldstein_bucket: str | None = None
+    tone_avg: float | None = None
+    tone_baseline_avg: float | None = None
+    tone_delta_vs_cluster: float | None = None
 
 
 class ClusterArticle(BaseModel):
+    """Cluster Article."""
+
     id: int
     title: str
     source: str
-    source_id: Optional[str] = None
+    source_id: str | None = None
     url: str
-    image_url: Optional[str] = None
-    published_at: Optional[str] = None
-    summary: Optional[str] = None
-    similarity: Optional[float] = None
-    author: Optional[str] = None
-    authors: List[str] = Field(default_factory=list)
-    gdelt_context: Optional[GDELTContext] = None
+    image_url: str | None = None
+    published_at: str | None = None
+    summary: str | None = None
+    similarity: float | None = None
+    author: str | None = None
+    authors: list[str] = Field(default_factory=list)
+    gdelt_context: GDELTContext | None = None
 
 
 class TrendingCluster(BaseModel):
+    """Trending Cluster."""
+
     cluster_id: int
-    label: Optional[str]
-    keywords: List[str]
+    label: str | None
+    keywords: list[str]
     article_count: int
     window_count: int
     source_diversity: int
     trending_score: float
     velocity: float
-    representative_article: Optional[ClusterArticle] = None
-    articles: List[ClusterArticle] = Field(default_factory=list)
-    gdelt_context: Optional[GDELTContext] = None
+    representative_article: ClusterArticle | None = None
+    articles: list[ClusterArticle] = Field(default_factory=list)
+    gdelt_context: GDELTContext | None = None
 
 
 class BreakingCluster(BaseModel):
+    """Breaking Cluster."""
+
     cluster_id: int
-    label: Optional[str]
-    keywords: List[str]
+    label: str | None
+    keywords: list[str]
     article_count_3h: int
     source_count_3h: int
     spike_magnitude: float
     is_new_story: bool
-    representative_article: Optional[ClusterArticle] = None
-    articles: List[ClusterArticle] = Field(default_factory=list)
-    gdelt_context: Optional[GDELTContext] = None
+    representative_article: ClusterArticle | None = None
+    articles: list[ClusterArticle] = Field(default_factory=list)
+    gdelt_context: GDELTContext | None = None
 
 
 class TrendingResponse(BaseModel):
+    """Trending Response."""
+
     window: str
-    clusters: List[TrendingCluster]
+    clusters: list[TrendingCluster]
     total: int
 
 
 class BreakingResponse(BaseModel):
+    """Breaking Response."""
+
     window_hours: int
-    clusters: List[BreakingCluster]
+    clusters: list[BreakingCluster]
     total: int
 
 
 class ClusterDetailResponse(BaseModel):
+    """Cluster Detail Response."""
+
     id: int
-    label: Optional[str]
-    keywords: List[str]
+    label: str | None
+    keywords: list[str]
     article_count: int
-    first_seen: Optional[str]
-    last_seen: Optional[str]
+    first_seen: str | None
+    last_seen: str | None
     is_active: bool
-    articles: List[ClusterArticle] = Field(default_factory=list)
-    gdelt_context: Optional[GDELTContext] = None
+    articles: list[ClusterArticle] = Field(default_factory=list)
+    gdelt_context: GDELTContext | None = None
 
 
 class AllCluster(BaseModel):
     """Cluster for topic-based view (without trending metrics)."""
 
     cluster_id: int
-    label: Optional[str]
-    keywords: List[str]
+    label: str | None
+    keywords: list[str]
     article_count: int
     window_count: int
     source_diversity: int
-    representative_article: Optional[ClusterArticle] = None
-    articles: List[ClusterArticle] = Field(default_factory=list)
-    gdelt_context: Optional[GDELTContext] = None
+    representative_article: ClusterArticle | None = None
+    articles: list[ClusterArticle] = Field(default_factory=list)
+    gdelt_context: GDELTContext | None = None
 
 
 class AllClustersResponse(BaseModel):
+    """All Clusters Response."""
+
     window: str
-    clusters: List[AllCluster]
+    clusters: list[AllCluster]
     total: int
-    computed_at: Optional[str] = None
-    status: Optional[str] = None
+    computed_at: str | None = None
+    status: str | None = None
 
 
 @router.get("", response_model=TrendingResponse)
@@ -188,9 +206,7 @@ async def get_all_clusters(
     snapshot = await get_latest_snapshot(db, window)
 
     if snapshot is None:
-        logger.info(
-            "No cluster snapshot found for window=%s; returning initializing", window
-        )
+        logger.info("No cluster snapshot found for window=%s; returning initializing", window)
         return AllClustersResponse(
             window=window,
             clusters=[],
@@ -199,7 +215,7 @@ async def get_all_clusters(
             status="initializing",
         )
 
-    clusters_data = cast(List[Dict[str, Any]], snapshot.clusters_json or [])
+    clusters_data = cast(list[dict[str, Any]], snapshot.clusters_json or [])
     clusters = [AllCluster(**c) for c in clusters_data]
 
     return AllClustersResponse(
@@ -229,7 +245,7 @@ async def get_cluster_detail(
 @router.get("/stats")
 async def get_trending_stats(
     db: AsyncSession = Depends(get_db),
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     """Get overall trending system statistics for debugging and monitoring."""
     if not is_chroma_reachable():
         return {

@@ -2,7 +2,7 @@
 
 import asyncio
 import os
-from datetime import datetime, timezone
+from datetime import datetime, UTC
 
 from app.core.logging import get_logger
 from app.core.process_limits import (
@@ -26,8 +26,8 @@ def _parse_next_check_at(value: object) -> datetime | None:
     except ValueError:
         return None
     if parsed.tzinfo is None:
-        return parsed.replace(tzinfo=timezone.utc)
-    return parsed.astimezone(timezone.utc)
+        return parsed.replace(tzinfo=UTC)
+    return parsed.astimezone(UTC)
 
 
 def _get_due_rss_sources() -> tuple[list[str], float | None]:
@@ -39,15 +39,13 @@ def _get_due_rss_sources() -> tuple[list[str], float | None]:
         if isinstance(stat_name, str) and stat_name
     }
 
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     due_sources: list[str] = []
     next_wait_seconds: float | None = None
 
     for source_name in configured_sources:
         stat = stats_map.get(source_name)
-        next_check_at = _parse_next_check_at(
-            stat.get("next_check_at") if stat else None
-        )
+        next_check_at = _parse_next_check_at(stat.get("next_check_at") if stat else None)
         if next_check_at is None:
             due_sources.append(source_name)
             continue
@@ -73,17 +71,14 @@ def _get_refresh_error_sleep_seconds(
 
 
 async def periodic_rss_refresh(interval_seconds: int = 600) -> None:
-    """
-    Periodic task that refreshes RSS cache every N seconds.
+    """Periodic task that refreshes RSS cache every N seconds.
 
     This runs as a background asyncio.Task in the main event loop.
     """
     from app.services.rss_ingestion import refresh_news_cache_async
 
     min_sleep_seconds = 30
-    logger.info(
-        "Starting periodic RSS refresh scheduler (base interval: %ds)", interval_seconds
-    )
+    logger.info("Starting periodic RSS refresh scheduler (base interval: %ds)", interval_seconds)
 
     await asyncio.sleep(interval_seconds)
 
@@ -103,7 +98,7 @@ async def periodic_rss_refresh(interval_seconds: int = 600) -> None:
             logger.info(
                 "Starting scheduled RSS refresh for %d sources at %s",
                 len(due_sources),
-                datetime.now(timezone.utc),
+                datetime.now(UTC),
             )
             await refresh_news_cache_async(source_names=due_sources)
         except asyncio.CancelledError:
@@ -127,8 +122,7 @@ async def periodic_rss_refresh(interval_seconds: int = 600) -> None:
 
 
 async def periodic_blind_spots_update(interval_seconds: int = 86400) -> None:
-    """
-    Periodic task that updates source coverage stats for blind spots analysis.
+    """Periodic task that updates source coverage stats for blind spots analysis.
 
     Runs every 24 hours by default to:
     1. Update daily coverage statistics per source
@@ -138,9 +132,7 @@ async def periodic_blind_spots_update(interval_seconds: int = 86400) -> None:
     from app.services.blind_spots import get_blind_spots_analyzer
     from app.core.config import settings
 
-    logger.info(
-        "Starting periodic blind spots update (interval: %ds)", interval_seconds
-    )
+    logger.info("Starting periodic blind spots update (interval: %ds)", interval_seconds)
 
     await asyncio.sleep(300)  # Start after 5 minutes
 
@@ -151,9 +143,7 @@ async def periodic_blind_spots_update(interval_seconds: int = 86400) -> None:
             if not settings.enable_database or AsyncSessionLocal is None:
                 continue
 
-            logger.info(
-                "Starting blind spots analysis at %s", datetime.now(timezone.utc)
-            )
+            logger.info("Starting blind spots analysis at %s", datetime.now(UTC))
 
             async with AsyncSessionLocal() as session:
                 analyzer = get_blind_spots_analyzer()

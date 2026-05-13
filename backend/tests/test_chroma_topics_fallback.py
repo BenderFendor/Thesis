@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timedelta, UTC
 
 import pytest
 
@@ -10,7 +10,7 @@ from app.services.cluster_cache import save_snapshot
 
 
 def _utc(hours_ago: int) -> datetime:
-    return datetime.now(timezone.utc).replace(tzinfo=None) - timedelta(hours=hours_ago)
+    return datetime.now(UTC).replace(tzinfo=None) - timedelta(hours=hours_ago)
 
 
 def _article(

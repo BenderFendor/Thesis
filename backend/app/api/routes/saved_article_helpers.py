@@ -1,3 +1,5 @@
+"""Saved Article Helpers."""
+
 from __future__ import annotations
 
 from datetime import datetime
@@ -16,12 +18,12 @@ SavedArticleRecordModel = type[BookmarkRecord] | type[LikedArticleRecord]
 
 
 def isoformat_or_none(value: datetime | None) -> str | None:
+    """Isoformat Or None."""
     return value.isoformat() if value is not None else None
 
 
-def build_saved_article_list_stmt(
-    record_model: SavedArticleRecordModel, id_label: str
-) -> Any:
+def build_saved_article_list_stmt(record_model: SavedArticleRecordModel, id_label: str) -> Any:
+    """Build Saved Article List Stmt."""
     return (
         select(
             record_model.id.label(id_label),
@@ -40,9 +42,8 @@ def build_saved_article_list_stmt(
     )
 
 
-def build_saved_article_detail_stmt(
-    record_model: SavedArticleRecordModel, article_id: int
-) -> Any:
+def build_saved_article_detail_stmt(record_model: SavedArticleRecordModel, article_id: int) -> Any:
+    """Build Saved Article Detail Stmt."""
     return (
         select(record_model, ArticleRecord)
         .join(ArticleRecord, ArticleRecord.id == record_model.article_id)
@@ -51,6 +52,7 @@ def build_saved_article_detail_stmt(
 
 
 def serialize_saved_article_row(row: Any, *, id_field: str) -> dict[str, object]:
+    """Serialize Saved Article Row."""
     return {
         id_field: getattr(row, id_field),
         "article_id": row.article_id,
@@ -71,6 +73,7 @@ def serialize_saved_article_detail(
     item: SavedArticleRecord,
     article: ArticleRecord,
 ) -> dict[str, object]:
+    """Serialize Saved Article Detail."""
     return {
         id_field: item.id,
         "article_id": article.id,
@@ -91,14 +94,14 @@ def serialize_saved_article_create(
     item: SavedArticleRecord,
     created: bool,
 ) -> dict[str, object]:
+    """Serialize Saved Article Create."""
     payload = serialize_saved_article_item(id_field=id_field, item=item)
     payload["created"] = created
     return payload
 
 
-def serialize_saved_article_item(
-    *, id_field: str, item: SavedArticleRecord
-) -> dict[str, object]:
+def serialize_saved_article_item(*, id_field: str, item: SavedArticleRecord) -> dict[str, object]:
+    """Serialize Saved Article Item."""
     return {
         id_field: item.id,
         "article_id": item.article_id,
@@ -107,6 +110,7 @@ def serialize_saved_article_item(
 
 
 async def get_article_or_404(db: AsyncSession, article_id: int) -> ArticleRecord:
+    """Get Article Or 404."""
     article_stmt = select(ArticleRecord).where(ArticleRecord.id == article_id)
     article_result = await db.execute(article_stmt)
     article = article_result.scalar_one_or_none()
@@ -118,6 +122,7 @@ async def get_article_or_404(db: AsyncSession, article_id: int) -> ArticleRecord
 async def get_saved_article_item(
     db: AsyncSession, record_model: SavedArticleRecordModel, article_id: int
 ) -> SavedArticleRecord | None:
+    """Get Saved Article Item."""
     item_stmt = select(record_model).where(record_model.article_id == article_id)
     result = await db.execute(item_stmt)
     return cast(SavedArticleRecord | None, result.scalar_one_or_none())
@@ -130,6 +135,7 @@ async def get_saved_article_item_or_404(
     *,
     not_found_detail: str,
 ) -> SavedArticleRecord:
+    """Get Saved Article Item Or 404."""
     item = await get_saved_article_item(db, record_model, article_id)
     if item is None:
         raise HTTPException(status_code=404, detail=not_found_detail)

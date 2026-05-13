@@ -160,7 +160,7 @@ const pruneOgImageCache = () => {
   const keys = Array.from(ogImageCache.keys());
   const overflow = ogImageCache.size - OG_IMAGE_MAX_CACHE_ENTRIES;
   for (let i = 0; i < overflow; i += 1) {
-    ogImageCache.delete(keys[i]);
+    ogImageCache.delete(keys[i]!);
   }
 };
 
@@ -989,7 +989,7 @@ export async function fetchBookmark(
       bookmarkId: data.bookmark_id,
       articleId: data.article_id,
       createdAt: data.created_at,
-      article,
+      article: article!,
     };
   } catch (error) {
     console.error("Failed to fetch bookmark:", error);
@@ -1964,7 +1964,7 @@ export function streamNews(options: StreamOptions = {}): {
 
           // Process complete SSE messages from buffer
           const lines = buffer.split("\n");
-          buffer = lines[lines.length - 1]; // Keep incomplete line in buffer
+          buffer = lines[lines.length - 1]!; // Keep incomplete line in buffer
 
           for (let i = 0; i < lines.length - 1; i++) {
             const line = lines[i];

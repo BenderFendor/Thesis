@@ -789,7 +789,7 @@ function ArticleDetailModalContent({ article, isOpen, onClose, onBookmarkChange,
     }
 
     if (!selectedClaim && factCheckResults.length > 0) {
-      setSelectedClaim(factCheckResults[0])
+      setSelectedClaim(factCheckResults[0]!)
     }
   }
 
@@ -802,13 +802,13 @@ function ArticleDetailModalContent({ article, isOpen, onClose, onBookmarkChange,
     }
 
     if (!selectedClaim) {
-      setSelectedClaim(factCheckResults[0])
+      setSelectedClaim(factCheckResults[0]!)
       return
     }
 
     const stillPresent = factCheckResults.some((claim) => claim.claim === selectedClaim.claim)
     if (!stillPresent) {
-      setSelectedClaim(factCheckResults[0])
+      setSelectedClaim(factCheckResults[0]!)
     }
   }, [claimsOpen, factCheckResults, selectedClaim])
   const visibleHighlights = useMemo(
@@ -1839,7 +1839,7 @@ function ArticleDetailModalContent({ article, isOpen, onClose, onBookmarkChange,
                               type="button"
                               onClick={() => {
                                 if (!selectedClaim && factCheckResults.length) {
-                                  setSelectedClaim(factCheckResults[0])
+                                  setSelectedClaim(factCheckResults[0]!)
                                 }
                               }}
                               className="group relative w-full overflow-hidden rounded-2xl border border-border/60 bg-card/70 p-6 text-left transition-all duration-300 hover:-translate-y-1 hover:border-primary/40 hover:bg-card/90 hover:shadow-xl hover:shadow-black/20 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
@@ -2041,7 +2041,7 @@ function ArticleDetailModalContent({ article, isOpen, onClose, onBookmarkChange,
                                         </div>
                                         {agenticHistory.length > 0 && (
                                           <div className="rounded-lg border border-border/60 bg-background/40 px-3 py-1 text-xs uppercase tracking-wide text-foreground/80">
-                                            Last run {new Date(agenticHistory[0].timestamp).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
+                                            Last run {new Date(agenticHistory[0]!.timestamp).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
                                           </div>
                                         )}
                                       </div>

@@ -436,6 +436,9 @@ const noFragileMapKeysRule = {
 };
 
 const config = [
+  {
+    ignores: [".next/**", "node_modules/**", "coverage/**"],
+  },
   ...nextCoreWebVitals,
   ...nextTypescript,
   {
@@ -457,6 +460,16 @@ const config = [
     },
     rules: {
       "@typescript-eslint/no-explicit-any": "error",
+      "@typescript-eslint/consistent-type-imports": "error",
+      "@typescript-eslint/consistent-type-definitions": ["error", "interface"],
+      "@typescript-eslint/no-unused-vars": [
+        "error",
+        {
+          "argsIgnorePattern": "^_",
+          "varsIgnorePattern": "^_",
+          "caughtErrorsIgnorePattern": "^_",
+        },
+      ],
       "react-hooks/set-state-in-effect": "error",
       "react-hooks/set-state-in-render": "error",
       "thesis/no-fragile-map-keys": "warn",

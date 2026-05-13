@@ -1,7 +1,9 @@
+"""Reporter Directory."""
+
 from __future__ import annotations
 
 import asyncio
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 import httpx
 
@@ -12,8 +14,16 @@ logger = get_logger("reporter_directory")
 
 
 JOURNALISM_INSTANCES = [
-    {"name": "journa.host", "url": "https://journa.host", "vetting": "invitation-only, press credentials verified"},
-    {"name": "newsie.social", "url": "https://newsie.social", "vetting": "journalist-focused, closed registration"},
+    {
+        "name": "journa.host",
+        "url": "https://journa.host",
+        "vetting": "invitation-only, press credentials verified",
+    },
+    {
+        "name": "newsie.social",
+        "url": "https://newsie.social",
+        "vetting": "journalist-focused, closed registration",
+    },
 ]
 
 
@@ -21,8 +31,9 @@ async def enumerate_instance_directory(
     instance_url: str,
     http_client: httpx.AsyncClient,
     limit: int = 0,
-) -> List[Dict[str, Any]]:
-    accounts: List[Dict[str, Any]] = []
+) -> list[dict[str, Any]]:
+    """Enumerate Instance Directory."""
+    accounts: list[dict[str, Any]] = []
     offset = 0
     page_size = 80
     while True:
@@ -34,7 +45,9 @@ async def enumerate_instance_directory(
                 timeout=15.0,
             )
             if r.status_code != 200:
-                logger.warning("Directory enumeration failed on %s: HTTP %s", instance_url, r.status_code)
+                logger.warning(
+                    "Directory enumeration failed on %s: HTTP %s", instance_url, r.status_code
+                )
                 break
             page = r.json()
             raw = list(page) if isinstance(page, list) else []
@@ -78,13 +91,14 @@ def _strip_html(text: str) -> str:
 
 async def mine_journalist_directories(
     limit_per_instance: int = 0,
-    http_client: Optional[httpx.AsyncClient] = None,
-) -> Dict[str, Any]:
+    http_client: httpx.AsyncClient | None = None,
+) -> dict[str, Any]:
+    """Mine Journalist Directories."""
     owned_client = http_client is None
     client = http_client or httpx.AsyncClient(timeout=30.0)
     try:
-        instances_result: Dict[str, Any] = {}
-        all_accounts: List[Dict[str, Any]] = []
+        instances_result: dict[str, Any] = {}
+        all_accounts: list[dict[str, Any]] = []
         for inst in JOURNALISM_INSTANCES:
             instance_url = inst["url"]
             logger.info("Enumerating journalist directory: %s", instance_url)
@@ -110,11 +124,12 @@ async def mine_journalist_directories(
 
 async def search_directory_by_name(
     name: str,
-    http_client: Optional[httpx.AsyncClient] = None,
-) -> List[Dict[str, Any]]:
+    http_client: httpx.AsyncClient | None = None,
+) -> list[dict[str, Any]]:
+    """Search Directory By Name."""
     owned_client = http_client is None
     client = http_client or httpx.AsyncClient(timeout=15.0)
-    results: List[Dict[str, Any]] = []
+    results: list[dict[str, Any]] = []
     try:
         for inst in JOURNALISM_INSTANCES:
             try:

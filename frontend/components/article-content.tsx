@@ -1,6 +1,6 @@
 
 import React, { forwardRef } from "react";
-import { Highlight } from "@/lib/api";
+import type { Highlight } from "@/lib/api";
 import { renderHighlightedContent } from "@/lib/highlight-utils";
 
 interface ArticleContentProps {

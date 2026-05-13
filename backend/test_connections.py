@@ -1,21 +1,21 @@
 #!/usr/bin/env python3
-"""
-Test database connections before full integration
-Run with: python backend/test_connections.py
+"""Test database connections before full integration
+Run with: python backend/test_connections.py.
 """
 
 import asyncio
-import os
 import sys
+from pathlib import Path
 
 from app.core.config import settings
+from datetime import UTC
 
 # Add parent directory to path
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 
 async def test_postgresql():
-    """Test PostgreSQL connection"""
+    """Test PostgreSQL connection."""
     if not settings.enable_database:
         print("INFO: PostgreSQL test skipped (ENABLE_DATABASE=0)\n")
         return True
@@ -50,7 +50,7 @@ async def test_postgresql():
 
 
 def test_chromadb():
-    """Test ChromaDB connection"""
+    """Test ChromaDB connection."""
     from app.vector_store import get_vector_store
 
     if not settings.enable_vector_store:
@@ -86,14 +86,14 @@ def test_chromadb():
 
 
 async def test_dual_write():
-    """Test writing to both databases"""
+    """Test writing to both databases."""
     if not settings.enable_database:
         print("INFO: Dual-write test skipped (ENABLE_DATABASE=0)\n")
         return True
     try:
         from app.database import AsyncSessionLocal, Article
         from app.vector_store import get_vector_store
-        from datetime import datetime, timezone
+        from datetime import datetime
 
         vector_store = get_vector_store()
         if vector_store is None:
@@ -106,8 +106,8 @@ async def test_dual_write():
             "title": "Test Article for Database Integration",
             "source": "Test Source",
             "summary": "This is a test article to verify dual-write functionality between PostgreSQL and ChromaDB.",
-            "url": f"https://test.example.com/article-{datetime.now(timezone.utc).timestamp()}",
-            "published_at": datetime.now(timezone.utc).replace(tzinfo=None),
+            "url": f"https://test.example.com/article-{datetime.now(UTC).timestamp()}",
+            "published_at": datetime.now(UTC).replace(tzinfo=None),
             "category": "test",
             "tags": ["test", "integration"],
         }
@@ -150,9 +150,7 @@ async def test_dual_write():
             print("Article updated with chroma_id reference")
 
         # 4. Test semantic search
-        results = vector_store.search_similar(
-            query="test article database integration", limit=5
-        )
+        results = vector_store.search_similar(query="test article database integration", limit=5)
 
         found = any(r["chroma_id"] == chroma_id for r in results)
         if found:
@@ -172,7 +170,7 @@ async def test_dual_write():
 
 
 async def main():
-    """Run all tests"""
+    """Run all tests."""
     print("=" * 60)
     print("DATABASE CONNECTION TESTS")
     print("=" * 60)

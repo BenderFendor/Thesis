@@ -26,9 +26,7 @@ def test_vector_store_initializes_cosine_collection(monkeypatch) -> None:
     mock_client.get_or_create_collection.return_value = mock_collection
 
     monkeypatch.setattr("app.vector_store._create_chroma_client", lambda: mock_client)
-    monkeypatch.setattr(
-        "app.vector_store._get_startup_metrics", lambda: _DummyStartupMetrics()
-    )
+    monkeypatch.setattr("app.vector_store._get_startup_metrics", lambda: _DummyStartupMetrics())
 
     store = VectorStore()
 
@@ -48,9 +46,7 @@ def test_vector_store_raises_when_cosine_collection_cannot_be_created(
     mock_client.get_or_create_collection.side_effect = RuntimeError("bad metric")
 
     monkeypatch.setattr("app.vector_store._create_chroma_client", lambda: mock_client)
-    monkeypatch.setattr(
-        "app.vector_store._get_startup_metrics", lambda: _DummyStartupMetrics()
-    )
+    monkeypatch.setattr("app.vector_store._get_startup_metrics", lambda: _DummyStartupMetrics())
 
     with pytest.raises(RuntimeError, match="cosine distance"):
         VectorStore()

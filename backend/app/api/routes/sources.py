@@ -1,7 +1,9 @@
+"""Sources."""
+
 from __future__ import annotations
 
 import json
-from datetime import datetime, timezone
+from datetime import datetime, UTC
 from typing import Any
 from urllib.parse import urlparse
 
@@ -19,6 +21,8 @@ logger = get_logger(__name__)
 
 
 class AddRssRequest(BaseModel):
+    """Add Rss Request."""
+
     url: str
 
 
@@ -63,14 +67,13 @@ async def get_sources() -> list[dict[str, Any]]:
 
 @router.post("/add-rss")
 async def add_rss_source(request: AddRssRequest) -> dict[str, Any]:
+    """Add Rss Source."""
     url = request.url.strip()
     if not url:
         raise HTTPException(status_code=400, detail="URL is required")
 
     if not url.startswith(("http://", "https://")):
-        raise HTTPException(
-            status_code=400, detail="URL must start with http:// or https://"
-        )
+        raise HTTPException(status_code=400, detail="URL must start with http:// or https://")
 
     source_name = _derive_source_name(url)
 
@@ -100,9 +103,7 @@ async def add_rss_source(request: AddRssRequest) -> dict[str, Any]:
 
     existing_sources = get_rss_sources()
     if feed_title in existing_sources:
-        raise HTTPException(
-            status_code=409, detail=f"Source '{feed_title}' already exists"
-        )
+        raise HTTPException(status_code=409, detail=f"Source '{feed_title}' already exists")
 
     # Read raw JSON for appending
     raw_sources = json.loads(_DATA_PATH.read_text(encoding="utf-8"))
@@ -145,7 +146,7 @@ async def get_source_credibility(
     Endpoint: GET /api/source/{domain}/credibility
     Cache: 24 hours in-memory
     """
-    now = datetime.now(timezone.utc).timestamp()
+    now = datetime.now(UTC).timestamp()
     cached = _credibility_cache.get(domain)
     if cached:
         cached_data, cached_at = cached
@@ -158,11 +159,7 @@ async def get_source_credibility(
     _credibility_cache[domain] = (profile, now)
 
     keys_to_drop = sorted(
-        [
-            k
-            for k in _credibility_cache
-            if now - _credibility_cache[k][1] >= _CREDIBILITY_CACHE_TTL
-        ],
+        [k for k in _credibility_cache if now - _credibility_cache[k][1] >= _CREDIBILITY_CACHE_TTL],
         key=lambda k: _credibility_cache[k][1],
     )
     for key in keys_to_drop[-100:]:

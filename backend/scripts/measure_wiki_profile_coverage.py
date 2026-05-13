@@ -6,7 +6,7 @@ import asyncio
 import statistics
 import sys
 from pathlib import Path
-from typing import Any, Dict, List
+from typing import Any
 
 REPO_BACKEND = Path(__file__).resolve().parents[1]
 if str(REPO_BACKEND) not in sys.path:
@@ -50,9 +50,9 @@ def _normalize_source_key(value: str) -> str:
     return "".join(ch for ch in value.lower() if ch.isalnum())
 
 
-def _base_sources() -> Dict[str, Dict[str, Any]]:
+def _base_sources() -> dict[str, dict[str, Any]]:
     get_rss_sources, _, _ = _load_dependencies()
-    deduped: Dict[str, Dict[str, Any]] = {}
+    deduped: dict[str, dict[str, Any]] = {}
     for name, cfg in get_rss_sources().items():
         base_name = name.split(" - ")[0].strip()
         if base_name not in deduped:
@@ -60,10 +60,10 @@ def _base_sources() -> Dict[str, Dict[str, Any]]:
     return deduped
 
 
-def _select_sources(limit: int) -> List[str]:
+def _select_sources(limit: int) -> list[str]:
     all_sources = _base_sources()
     by_key = {_normalize_source_key(name): name for name in all_sources.keys()}
-    selected: List[str] = []
+    selected: list[str] = []
     for source_name in PRIORITY_SOURCES:
         exact = all_sources.get(source_name)
         if exact is not None and source_name not in selected:
@@ -103,7 +103,7 @@ def _select_sources(limit: int) -> List[str]:
     return selected[:limit]
 
 
-def _coverage(profile: Dict[str, Any]) -> float:
+def _coverage(profile: dict[str, Any]) -> float:
     fields = profile.get("fields") or {}
 
     points = 0.0
@@ -140,7 +140,7 @@ def _coverage(profile: Dict[str, Any]) -> float:
     return (points / possible) * 100.0
 
 
-async def _measure_source(source_name: str, force_refresh: bool) -> Dict[str, Any]:
+async def _measure_source(source_name: str, force_refresh: bool) -> dict[str, Any]:
     _, get_source_profile, build_source_url_guard = _load_dependencies()
     profile = await get_source_profile(
         source_name=source_name,
@@ -199,9 +199,7 @@ async def _measure_source(source_name: str, force_refresh: bool) -> Dict[str, An
     return {
         "source": source_name,
         "coverage_percent": round(_coverage(profile), 2),
-        "official_pages": len(official_pages)
-        if isinstance(official_pages, list)
-        else 0,
+        "official_pages": len(official_pages) if isinstance(official_pages, list) else 0,
         "citations": len(citations) if isinstance(citations, list) else 0,
         "field_hits": field_hits,
         "match_status": str(profile.get("match_status") or "none"),
@@ -216,7 +214,7 @@ async def main_async(limit: int, force_refresh: bool) -> int:
         print("sources_measured=0")
         return 0
 
-    results: List[Dict[str, Any]] = []
+    results: list[dict[str, Any]] = []
     for source_name in sources:
         try:
             result = await _measure_source(source_name, force_refresh)

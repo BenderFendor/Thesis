@@ -1318,7 +1318,7 @@ export function GlobeView({ articles, loading }: GlobeViewProps) {
                               <div className="h-1.5 overflow-hidden rounded-full bg-white/10">
                                 <div
                                   className="h-full rounded-full bg-primary"
-                                  style={{ width: `${Math.max(12, (entry.count / coverageBreakdown[0].count) * 100)}%` }}
+                                  style={{ width: `${Math.max(12, (entry.count / coverageBreakdown[0]!.count) * 100)}%` }}
                                 />
                               </div>
                             </div>
@@ -1490,7 +1490,7 @@ export function GlobeView({ articles, loading }: GlobeViewProps) {
                       <span>{entry.count}</span>
                     </div>
                     <div className="h-1.5 overflow-hidden rounded-full bg-white/10">
-                      <div className="h-full rounded-full bg-primary" style={{ width: `${Math.max(12, (entry.count / coverageBreakdown[0].count) * 100)}%` }} />
+                      <div className="h-full rounded-full bg-primary" style={{ width: `${Math.max(12, (entry.count / coverageBreakdown[0]!.count) * 100)}%` }} />
                     </div>
                   </div>
                 )) : (

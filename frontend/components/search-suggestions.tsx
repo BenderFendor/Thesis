@@ -3,7 +3,8 @@
 import { useQuery } from "@tanstack/react-query";
 import { Search, TrendingUp, Loader2 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
-import { fetchSearchSuggestions, SearchSuggestion } from "@/lib/api";
+import type { SearchSuggestion } from "@/lib/api";
+import { fetchSearchSuggestions } from "@/lib/api";
 import { useDebounce } from "@/hooks/useDebounce";
 
 interface SearchSuggestionsProps {

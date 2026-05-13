@@ -1,8 +1,11 @@
+"""Rss Parser Rust Bindings."""
+
 from __future__ import annotations
 
 import os
 from pathlib import Path
-from typing import Any, Dict, List, Mapping, Protocol, Sequence, cast
+from typing import Any, Protocol, cast
+from collections.abc import Mapping, Sequence
 
 os.environ.setdefault(
     "RSS_PARSER_DATA_DIR",
@@ -13,6 +16,8 @@ import rss_parser_rust
 
 
 class RssParserRustProtocol(Protocol):
+    """Rss Parser Rust Protocol."""
+
     def parse_feeds_parallel(
         self,
         sources: list[tuple[str, list[str]]],
@@ -32,7 +37,7 @@ class RssParserRustProtocol(Protocol):
         articles: list[tuple[str, str]],
         threshold: float | None = None,
         num_hashes: int | None = None,
-    ) -> Mapping[str, List[str]]: ...
+    ) -> Mapping[str, list[str]]: ...
 
     def parse_gdelt_csv(self, content: str, limit: int) -> list[dict[str, Any]]: ...
 
@@ -57,24 +62,18 @@ class RssParserRustProtocol(Protocol):
 
     def rust_extract_keywords_from_titles(self, titles: list[str]) -> list[str]: ...
 
-    def rust_generate_cluster_label(
-        self, title_scores: list[tuple[str, float]]
-    ) -> str: ...
+    def rust_generate_cluster_label(self, title_scores: list[tuple[str, float]]) -> str: ...
 
     # Blindspot vector math
     def rust_mean_vector(self, vectors: list[list[float]]) -> list[float]: ...
 
-    def rust_subtract_vectors(
-        self, left: list[float], right: list[float]
-    ) -> list[float]: ...
+    def rust_subtract_vectors(self, left: list[float], right: list[float]) -> list[float]: ...
 
     def rust_normalize_vector(self, vector: list[float]) -> list[float]: ...
 
     def rust_dot_product(self, left: list[float], right: list[float]) -> float: ...
 
-    def rust_cosine_similarity(
-        self, left: list[float], right: list[float]
-    ) -> float: ...
+    def rust_cosine_similarity(self, left: list[float], right: list[float]) -> float: ...
 
     def rust_quantile(self, values: list[float], percentile: float) -> float: ...
 
@@ -118,23 +117,28 @@ RUST = cast(RssParserRustProtocol, rss_parser_rust)
 def parse_feeds_parallel(
     sources: list[tuple[str, list[str]]],
     max_concurrent: int | None = None,
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
+    """Parse Feeds Parallel."""
     return dict(RUST.parse_feeds_parallel(sources, max_concurrent))
 
 
-def extract_article_html(html: str) -> Dict[str, Any]:
+def extract_article_html(html: str) -> dict[str, Any]:
+    """Extract Article Html."""
     return dict(RUST.extract_article_html(html))
 
 
-def extract_og_image_html(html: str) -> Dict[str, Any]:
+def extract_og_image_html(html: str) -> dict[str, Any]:
+    """Extract Og Image Html."""
     return dict(RUST.extract_og_image_html(html))
 
 
 def text_similarity(text1: str, text2: str) -> float:
+    """Text Similarity."""
     return float(RUST.text_similarity(text1, text2))
 
 
-def sentence_diff(text1: str, text2: str) -> Dict[str, Any]:
+def sentence_diff(text1: str, text2: str) -> dict[str, Any]:
+    """Sentence Diff."""
     return dict(RUST.sentence_diff(text1, text2))
 
 
@@ -143,6 +147,7 @@ def deduplicate_article_groups(
     threshold: float | None = None,
     num_hashes: int | None = None,
 ) -> dict[str, set[str]]:
+    """Deduplicate Article Groups."""
     payload = RUST.deduplicate_article_groups(articles, threshold, num_hashes)
     return {
         str(representative): {str(member) for member in members}
@@ -151,12 +156,12 @@ def deduplicate_article_groups(
 
 
 def parse_gdelt_csv(content: str, limit: int) -> list[dict[str, Any]]:
+    """Parse Gdelt Csv."""
     return list(RUST.parse_gdelt_csv(content, limit))
 
 
-def filter_gdelt_by_domain(
-    events: list[dict[str, str]], domain: str
-) -> list[dict[str, Any]]:
+def filter_gdelt_by_domain(events: list[dict[str, str]], domain: str) -> list[dict[str, Any]]:
+    """Filter Gdelt By Domain."""
     return list(RUST.filter_gdelt_by_domain(events, domain))
 
 
@@ -166,6 +171,7 @@ def rank_articles(
     bookmarked_article_ids: list[int] | None = None,
     favorite_source_ids: list[str] | None = None,
 ) -> list[dict[str, Any]]:
+    """Rank Articles."""
     return list(
         RUST.rank_articles(
             articles,
@@ -182,20 +188,24 @@ def rank_articles(
 def lexical_cluster(
     articles: list[tuple[int, str, int]],
 ) -> list[dict[str, Any]]:
+    """Lexical Cluster."""
     return list(RUST.rust_lexical_cluster(articles))
 
 
 def extract_keywords_rust(title: str) -> list[str]:
+    """Extract Keywords Rust."""
     return list(RUST.rust_extract_keywords(title))
 
 
 def extract_keywords_from_titles_rust(titles: list[str]) -> list[str]:
+    """Extract Keywords From Titles Rust."""
     return list(RUST.rust_extract_keywords_from_titles(titles))
 
 
 def generate_cluster_label_rust(
     title_scores: list[tuple[str, float]],
 ) -> str:
+    """Generate Cluster Label Rust."""
     return str(RUST.rust_generate_cluster_label(title_scores))
 
 
@@ -203,29 +213,35 @@ def generate_cluster_label_rust(
 
 
 def mean_vector_rust(vectors: list[list[float]]) -> list[float]:
+    """Mean Vector Rust."""
     result = RUST.rust_mean_vector(vectors)
     return list(cast(Sequence[float], result))
 
 
 def subtract_vectors_rust(left: list[float], right: list[float]) -> list[float]:
+    """Subtract Vectors Rust."""
     result = RUST.rust_subtract_vectors(left, right)
     return list(cast(Sequence[float], result))
 
 
 def normalize_vector_rust(vector: list[float]) -> list[float]:
+    """Normalize Vector Rust."""
     result = RUST.rust_normalize_vector(vector)
     return list(cast(Sequence[float], result))
 
 
 def dot_product_rust(left: list[float], right: list[float]) -> float:
+    """Dot Product Rust."""
     return float(RUST.rust_dot_product(left, right))
 
 
 def cosine_similarity_rust(left: list[float], right: list[float]) -> float:
+    """Cosine Similarity Rust."""
     return float(RUST.rust_cosine_similarity(left, right))
 
 
 def quantile_rust(values: list[float], percentile: float) -> float:
+    """Quantile Rust."""
     return float(RUST.rust_quantile(values, percentile))
 
 
@@ -233,6 +249,7 @@ def build_semaxis_rust(
     positive_vectors: list[list[float]],
     negative_vectors: list[list[float]],
 ) -> list[float] | None:
+    """Build Semaxis Rust."""
     result = RUST.rust_build_semaxis(positive_vectors, negative_vectors)
     if result is None:
         return None
@@ -243,6 +260,7 @@ def score_against_axis_rust(
     article_vectors: list[tuple[int, list[float]]],
     axis: list[float],
 ) -> list[tuple[int, float]]:
+    """Score Against Axis Rust."""
     return list(RUST.rust_score_against_axis(article_vectors, axis))
 
 
@@ -250,6 +268,7 @@ def score_against_axis_rust(
 
 
 def extract_mentioned_countries_rust(text: str) -> list[str]:
+    """Extract Mentioned Countries Rust."""
     return list(RUST.rust_extract_mentioned_countries(text))
 
 
@@ -258,6 +277,7 @@ def build_article_text_rust(
     summary: str | None,
     content: str | None,
 ) -> str:
+    """Build Article Text Rust."""
     return str(RUST.rust_build_article_text(title, summary, content))
 
 
@@ -266,4 +286,5 @@ def extract_article_mentioned_countries_rust(
     summary: str | None,
     content: str | None,
 ) -> list[str]:
+    """Extract Article Mentioned Countries Rust."""
     return list(RUST.rust_extract_article_mentioned_countries(title, summary, content))

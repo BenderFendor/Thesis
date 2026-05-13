@@ -574,9 +574,7 @@ class TestMergeOrgData:
 
 class TestHttpClientSetup:
     def test_user_agent_header_set(self):
-        with patch(
-            "app.services.funding_researcher.get_openai_client", return_value=None
-        ):
+        with patch("app.services.funding_researcher.get_openai_client", return_value=None):
             r = FundingResearcher()
         assert "User-Agent" in r.http_client.headers
         assert "ScoopNewsApp" in r.http_client.headers["User-Agent"]
@@ -596,9 +594,7 @@ async def test_research_organization_uses_limited_parallelism(researcher):
         return payload
 
     researcher._search_wikipedia = AsyncMock(
-        side_effect=lambda name: _tracked_result(
-            {"wikipedia_url": "https://example.com/wiki"}
-        )
+        side_effect=lambda name: _tracked_result({"wikipedia_url": "https://example.com/wiki"})
     )
     researcher._search_propublica_nonprofit = AsyncMock(
         side_effect=lambda name: _tracked_result({"ein": "123"})

@@ -1,3 +1,5 @@
+"""Run Clusters."""
+
 import asyncio
 
 from app.database import AsyncSessionLocal, init_db
@@ -6,6 +8,7 @@ from app.vector_store import is_chroma_reachable, CHROMA_HOST, CHROMA_PORT
 
 
 async def main():
+    """Main."""
     print(f"CHROMA_HOST: {CHROMA_HOST}, CHROMA_PORT: {CHROMA_PORT}")
     print(f"is_chroma_reachable: {is_chroma_reachable()}")
     await init_db()

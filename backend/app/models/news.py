@@ -1,4 +1,6 @@
-from typing import Any, Dict, List, Optional
+"""News."""
+
+from typing import Any
 
 from pydantic import Field
 
@@ -6,40 +8,48 @@ from app.models.base import StrictBaseModel
 
 
 class NewsArticle(StrictBaseModel):
-    id: Optional[int] = None
+    """News Article."""
+
+    id: int | None = None
     title: str
     link: str
     description: str
     published: str
     source: str
-    author: Optional[str] = None
-    authors: List[str] = Field(default_factory=list)
+    author: str | None = None
+    authors: list[str] = Field(default_factory=list)
     category: str = "general"
-    country: Optional[str] = None
-    image: Optional[str] = None
-    mentioned_countries: List[str] = Field(default_factory=list)
+    country: str | None = None
+    image: str | None = None
+    mentioned_countries: list[str] = Field(default_factory=list)
 
 
 class BookmarkCreateRequest(StrictBaseModel):
+    """Bookmark Create Request."""
+
     article_id: int
 
 
 class NewsResponse(StrictBaseModel):
-    articles: List[NewsArticle]
+    """News Response."""
+
+    articles: list[NewsArticle]
     total: int
-    sources: List[str]
+    sources: list[str]
 
 
 class SourceInfo(StrictBaseModel):
-    id: Optional[str] = None
-    slug: Optional[str] = None
+    """Source Info."""
+
+    id: str | None = None
+    slug: str | None = None
     name: str
     url: str
     category: str
     country: str = "US"
-    funding_type: Optional[str] = None
-    bias_rating: Optional[str] = None
-    ownership_label: Optional[str] = None
-    factual_rating: Optional[str] = None
-    credibility_score: Optional[float] = None
-    extra: Dict[str, Any] | None = None
+    funding_type: str | None = None
+    bias_rating: str | None = None
+    ownership_label: str | None = None
+    factual_rating: str | None = None
+    credibility_score: float | None = None
+    extra: dict[str, Any] | None = None

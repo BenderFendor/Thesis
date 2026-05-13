@@ -22,10 +22,10 @@ import subprocess
 import sys
 import time
 from dataclasses import dataclass, field
-from datetime import datetime, timezone
+from datetime import datetime, UTC
 from enum import Enum
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any
 import httpx
 
 BACKEND_URL = os.getenv("BACKEND_URL", "http://localhost:8000")
@@ -45,8 +45,8 @@ class Endpoint:
     method: str
     category: EndpointCategory
     description: str
-    payload: Optional[Dict[str, Any]] = None
-    headers: Dict[str, str] = field(default_factory=dict)
+    payload: dict[str, Any] | None = None
+    headers: dict[str, str] = field(default_factory=dict)
 
 
 ENDPOINTS = [
@@ -115,7 +115,7 @@ class BenchmarkResult:
     p95_ms: float
     p99_ms: float
     timestamp: str
-    error_message: Optional[str] = None
+    error_message: str | None = None
 
 
 def wait_for_server(url: str, timeout: int = 60) -> bool:
@@ -142,7 +142,7 @@ async def run_http_benchmark_async(
 
     client = httpx.AsyncClient(base_url=BACKEND_URL, timeout=30.0)
 
-    async def make_request() -> Tuple[float, bool, int]:
+    async def make_request() -> tuple[float, bool, int]:
         start = time.perf_counter()
         try:
             resp = await client.request(
@@ -157,7 +157,7 @@ async def run_http_benchmark_async(
             duration_ms = (time.perf_counter() - start) * 1000
             return duration_ms, False, 500
 
-    latencies: List[float] = []
+    latencies: list[float] = []
     success_count = 0
     error_count = 0
 
@@ -200,7 +200,7 @@ async def run_http_benchmark_async(
             p75_ms=0,
             p95_ms=0,
             p99_ms=0,
-            timestamp=datetime.now(timezone.utc).isoformat(),
+            timestamp=datetime.now(UTC).isoformat(),
         )
 
     p50_idx = int(total_requests * 0.50)
@@ -222,7 +222,7 @@ async def run_http_benchmark_async(
         p75_ms=latencies[p75_idx],
         p95_ms=latencies[p95_idx],
         p99_ms=latencies[p99_idx],
-        timestamp=datetime.now(timezone.utc).isoformat(),
+        timestamp=datetime.now(UTC).isoformat(),
     )
 
 
@@ -240,8 +240,8 @@ def run_wrk2_benchmark(
     endpoint: str,
     users: int,
     duration: int,
-    rate: Optional[int] = None,
-) -> Dict[str, Any]:
+    rate: int | None = None,
+) -> dict[str, Any]:
     """Run wrk2 benchmark if available."""
     try:
         cmd = [
@@ -256,9 +256,7 @@ def run_wrk2_benchmark(
         if rate:
             cmd.insert(2, f"-R{rate}")
 
-        result = subprocess.run(
-            cmd, capture_output=True, text=True, timeout=duration + 30
-        )
+        result = subprocess.run(cmd, capture_output=True, text=True, timeout=duration + 30)
         return {"success": True, "output": result.stdout, "error": result.stderr}
     except FileNotFoundError:
         return {"success": False, "error": "wrk2 not found"}
@@ -269,7 +267,7 @@ def run_locust_benchmark(
     users: int,
     duration: int,
     spawn_rate: int = 10,
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     """Run locust benchmark if available."""
     try:
         cmd = [
@@ -288,19 +286,17 @@ def run_locust_benchmark(
             "--csv",
             str(OUTPUT_DIR / "locust_results"),
         ]
-        result = subprocess.run(
-            cmd, capture_output=True, text=True, timeout=duration + 60
-        )
+        result = subprocess.run(cmd, capture_output=True, text=True, timeout=duration + 60)
         return {"success": True, "output": result.stdout, "error": result.stderr}
     except FileNotFoundError:
         return {"success": False, "error": "locust not found"}
 
 
 def run_all_benchmarks(
-    user_counts: List[int],
+    user_counts: list[int],
     duration: int,
     warmup: int = 5,
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     """Run benchmarks for all endpoints with multiple user counts."""
     results = {
         "metadata": {
@@ -308,7 +304,7 @@ def run_all_benchmarks(
             "user_counts": user_counts,
             "duration_seconds": duration,
             "warmup_seconds": warmup,
-            "timestamp": datetime.now(timezone.utc).isoformat(),
+            "timestamp": datetime.now(UTC).isoformat(),
         },
         "endpoints": {},
     }
@@ -348,9 +344,7 @@ def run_all_benchmarks(
                 print(
                     f"    Latency (p50/p95/p99): {result.p50_ms:.1f}/{result.p95_ms:.1f}/{result.p99_ms:.1f}ms"
                 )
-                print(
-                    f"    Success: {result.completed_requests}, Errors: {result.failed_requests}"
-                )
+                print(f"    Success: {result.completed_requests}, Errors: {result.failed_requests}")
 
             except Exception as e:
                 print(f"    ERROR: {e}")
@@ -370,15 +364,14 @@ def run_all_benchmarks(
     return results
 
 
-def save_results(results: Dict[str, Any], filename: str) -> Path:
+def save_results(results: dict[str, Any], filename: str) -> Path:
     """Save benchmark results to JSON file."""
     filepath = OUTPUT_DIR / filename
-    with open(filepath, "w") as f:
-        json.dump(results, f, indent=2)
+    filepath.write_text(json.dumps(results, indent=2))
     return filepath
 
 
-def print_summary(results: Dict[str, Any]) -> None:
+def print_summary(results: dict[str, Any]) -> None:
     """Print a summary of benchmark results."""
     print(f"\n{'=' * 60}")
     print("BENCHMARK SUMMARY")

@@ -1,5 +1,4 @@
-"""
-Agentic Search Tool using LangChain with configurable LLM backends.
+"""Agentic Search Tool using LangChain with configurable LLM backends.
 
 Supports llama.cpp, OpenRouter, or direct Gemini access for reasoning plus a
 web search tool for current information.
@@ -24,8 +23,7 @@ load_dotenv()
 
 @tool
 def get_web_search_results(query: str) -> str:
-    """
-    Search the web for real-time information using DuckDuckGo's Instant Answer API.
+    """Search the web for real-time information using DuckDuckGo's Instant Answer API.
 
     This tool should be used when you need current, factual information that you don't
     have in your training data, such as:
@@ -89,8 +87,7 @@ def get_web_search_results(query: str) -> str:
 
 
 def create_agent_executor():
-    """
-    Create and configure the agent executor with the configured LLM and search tool.
+    """Create and configure the agent executor with the configured LLM and search tool.
 
     Returns:
         AgentExecutor configured with the LLM, tools, and prompt
@@ -178,9 +175,7 @@ def _backend_banner() -> str:
 
 
 def main():
-    """
-    Main execution function demonstrating the agentic search tool.
-    """
+    """Main execution function demonstrating the agentic search tool."""
     # Check if API key is set
     if (
         settings.llm_backend != "llamacpp"

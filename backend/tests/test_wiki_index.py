@@ -20,9 +20,7 @@ class TestWikiIndexStatus:
     async def test_counts_are_correct(self, client: AsyncClient):
         resp = await client.get("/api/wiki/index/status")
         data = resp.json()
-        assert (
-            data["total_entries"] == 2
-        )  # Test News (complete) + State Gazette (pending)
+        assert data["total_entries"] == 2  # Test News (complete) + State Gazette (pending)
         assert data["by_status"]["complete"] == 1
         assert data["by_status"]["pending"] == 1
         assert data["by_type"]["source"] == 2

@@ -1,6 +1,6 @@
 """News by country endpoints for globe visualization and Local Lens feature."""
 
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timedelta, UTC
 from typing import Any
 
 from fastapi import APIRouter, Depends, Query
@@ -93,9 +93,7 @@ async def _fetch_country_filtered_articles(
             .offset(offset)
         )
         records = list((await db.execute(stmt)).scalars().all())
-        source_count_stmt = select(func.count(func.distinct(Article.source))).where(
-            *filters
-        )
+        source_count_stmt = select(func.count(func.distinct(Article.source))).where(*filters)
         source_count = int((await db.execute(source_count_stmt)).scalar_one())
         return records, total, source_count
 
@@ -110,8 +108,7 @@ async def _fetch_country_filtered_articles(
         filtered = [
             record
             for record in candidate_records
-            if record.country == code_upper
-            and code_upper in (record.mentioned_countries or [])
+            if record.country == code_upper and code_upper in (record.mentioned_countries or [])
         ]
     else:
         filtered = [
@@ -128,6 +125,7 @@ async def _fetch_country_filtered_articles(
 
 @router.get("/countries/geo")
 async def get_countries_geo_data_route() -> dict[str, object]:
+    """Get Countries Geo Data Route."""
     countries = get_country_geo_data()
     return {
         "countries": countries,
@@ -140,7 +138,8 @@ async def get_article_counts_by_country(
     hours: int = Query(24, ge=1, le=720),
     db: AsyncSession = Depends(get_db),
 ) -> dict[str, object]:
-    since = datetime.now(timezone.utc).replace(tzinfo=None) - timedelta(hours=hours)
+    """Get Article Counts By Country."""
+    since = datetime.now(UTC).replace(tzinfo=None) - timedelta(hours=hours)
 
     source_stmt = (
         select(Article.country, func.count(Article.id).label("count"))
@@ -189,9 +188,7 @@ async def get_article_counts_by_country(
         )
         covered_article_count = int((await db.execute(covered_stmt)).scalar_one())
     else:
-        mention_stmt = select(Article.mentioned_countries).where(
-            Article.published_at >= since
-        )
+        mention_stmt = select(Article.mentioned_countries).where(Article.published_at >= since)
         mention_rows = list((await db.execute(mention_stmt)).scalars().all())
         for mentions in mention_rows:
             mentions = mentions or []
@@ -238,12 +235,13 @@ async def get_news_for_country(
     hours: int | None = Query(None, ge=1, le=720),
     db: AsyncSession = Depends(get_db),
 ) -> dict[str, object]:
+    """Get News For Country."""
     code_upper = code.upper()
     country_label = country_name(code_upper)
 
     base_filters: list[Any] = []
     if hours is not None:
-        since = datetime.now(timezone.utc).replace(tzinfo=None) - timedelta(hours=hours)
+        since = datetime.now(UTC).replace(tzinfo=None) - timedelta(hours=hours)
         base_filters.append(Article.published_at >= since)
 
     if view == "internal":
@@ -282,9 +280,7 @@ async def get_news_for_country(
             .offset(offset)
         )
         records = list((await db.execute(stmt)).scalars().all())
-        source_count_stmt = select(func.count(func.distinct(Article.source))).where(
-            *filters
-        )
+        source_count_stmt = select(func.count(func.distinct(Article.source))).where(*filters)
         source_count = int((await db.execute(source_count_stmt)).scalar_one())
 
     articles = _serialize_articles(
@@ -318,6 +314,7 @@ async def get_news_for_country(
 async def list_available_countries(
     db: AsyncSession = Depends(get_db),
 ) -> dict[str, object]:
+    """List Available Countries."""
     stmt = (
         select(
             Article.country,
@@ -335,9 +332,7 @@ async def list_available_countries(
         {
             "code": row.country,
             "article_count": row.article_count,
-            "latest_article": row.latest_article.isoformat()
-            if row.latest_article
-            else None,
+            "latest_article": row.latest_article.isoformat() if row.latest_article else None,
         }
         for row in rows
         if row.country

@@ -54,9 +54,7 @@ def test_dedup_tool_node_blocks_duplicate_calls(monkeypatch) -> None:
     contents = [str(message.content) for message in out["messages"]]
 
     assert sum(content.startswith("ran ") for content in contents) == 1
-    assert any(
-        "Already called with the same arguments" in content for content in contents
-    )
+    assert any("Already called with the same arguments" in content for content in contents)
     assert out["tool_calls_used"] == 1
     assert len(out["tool_history"]) == 1
 
@@ -67,9 +65,7 @@ def test_dedup_tool_node_enforces_session_cap(monkeypatch) -> None:
             pass
 
         def invoke(self, _state):
-            raise AssertionError(
-                "Tool execution should be skipped when session cap is hit"
-            )
+            raise AssertionError("Tool execution should be skipped when session cap is hit")
 
     monkeypatch.setattr(agent, "ToolNode", FakeToolNode)
 
@@ -107,9 +103,7 @@ def test_dedup_tool_node_blocks_external_search_before_internal_search(
             pass
 
         def invoke(self, _state):
-            raise AssertionError(
-                "External search should be blocked before internal search"
-            )
+            raise AssertionError("External search should be blocked before internal search")
 
     monkeypatch.setattr(agent, "ToolNode", FakeToolNode)
 
@@ -149,9 +143,7 @@ def test_dedup_tool_node_blocks_gdelt_search_before_internal_search(
             pass
 
         def invoke(self, _state):
-            raise AssertionError(
-                "GDELT search should be blocked before internal search"
-            )
+            raise AssertionError("GDELT search should be blocked before internal search")
 
     monkeypatch.setattr(agent, "ToolNode", FakeToolNode)
 
@@ -190,9 +182,7 @@ def test_dedup_tool_node_requires_internal_fetches_before_external_search(
             pass
 
         def invoke(self, _state):
-            raise AssertionError(
-                "External search should be blocked until internal reads happen"
-            )
+            raise AssertionError("External search should be blocked until internal reads happen")
 
     monkeypatch.setattr(agent, "ToolNode", FakeToolNode)
     agent.set_news_articles(
@@ -233,9 +223,7 @@ def test_dedup_tool_node_requires_internal_fetches_before_external_search(
                     ],
                 ),
             ],
-            "tool_history": {
-                'search_internal_news:{"query": "iran latest", "top_k": 5}'
-            },
+            "tool_history": {'search_internal_news:{"query": "iran latest", "top_k": 5}'},
             "tool_calls_used": 1,
         },
     )
@@ -267,9 +255,7 @@ def test_research_stream_emits_unique_tool_start_events(monkeypatch) -> None:
             assert stream_mode == "updates"
             yield {
                 "agent": {
-                    "messages": [
-                        AIMessage(content="thinking", tool_calls=duplicate_tool_calls)
-                    ]
+                    "messages": [AIMessage(content="thinking", tool_calls=duplicate_tool_calls)]
                 }
             }
             yield {
@@ -283,9 +269,7 @@ def test_research_stream_emits_unique_tool_start_events(monkeypatch) -> None:
                     ]
                 }
             }
-            yield {
-                "agent": {"messages": [AIMessage(content=final_answer, tool_calls=[])]}
-            }
+            yield {"agent": {"messages": [AIMessage(content=final_answer, tool_calls=[])]}}
 
     monkeypatch.setattr(agent, "_get_graph", lambda: FakeGraph())
 
@@ -472,9 +456,7 @@ def test_research_news_refinalizes_when_draft_denies_available_context(
                     ]
                 }
             }
-            yield {
-                "agent": {"messages": [AIMessage(content=draft_answer, tool_calls=[])]}
-            }
+            yield {"agent": {"messages": [AIMessage(content=draft_answer, tool_calls=[])]}}
 
     monkeypatch.setattr(agent, "_get_graph", lambda: FakeGraph())
     monkeypatch.setattr(
@@ -486,9 +468,7 @@ def test_research_news_refinalizes_when_draft_denies_available_context(
         ),
     )
 
-    result = agent.research_news(
-        query="What is currently happening in iran", articles=[]
-    )
+    result = agent.research_news(query="What is currently happening in iran", articles=[])
 
     assert result["answer"].startswith("Answer\nAP reports")
     assert result["referenced_articles"]
@@ -531,9 +511,7 @@ def test_research_news_records_gdelt_source_providers(monkeypatch) -> None:
                     ]
                 }
             }
-            yield {
-                "agent": {"messages": [AIMessage(content=final_answer, tool_calls=[])]}
-            }
+            yield {"agent": {"messages": [AIMessage(content=final_answer, tool_calls=[])]}}
 
     monkeypatch.setattr(agent, "_get_graph", lambda: FakeGraph())
 
@@ -541,9 +519,7 @@ def test_research_news_records_gdelt_source_providers(monkeypatch) -> None:
 
     assert result["source_providers"] == ["gdelt"]
     assert result["referenced_articles"][0]["provider"] == "gdelt"
-    assert (
-        result["referenced_articles"][0]["context_snippet"] == "GDELT context snippet"
-    )
+    assert result["referenced_articles"][0]["context_snippet"] == "GDELT context snippet"
 
 
 @pytest.mark.asyncio
@@ -568,9 +544,7 @@ async def test_stream_route_fallback_answer_contract(monkeypatch) -> None:
         if False:
             yield ""
 
-    monkeypatch.setattr(
-        research_route, "load_articles_for_research", fake_load_articles
-    )
+    monkeypatch.setattr(research_route, "load_articles_for_research", fake_load_articles)
     monkeypatch.setattr(research_route, "stream_research_agent", fake_stream_agent)
 
     response = await research_route.news_research_stream_endpoint(
@@ -656,9 +630,7 @@ async def test_stream_route_includes_tool_name_on_tool_results(monkeypatch) -> N
             + "\n\n"
         )
 
-    monkeypatch.setattr(
-        research_route, "load_articles_for_research", fake_load_articles
-    )
+    monkeypatch.setattr(research_route, "load_articles_for_research", fake_load_articles)
     monkeypatch.setattr(research_route, "stream_research_agent", fake_stream_agent)
 
     response = await research_route.news_research_stream_endpoint(
@@ -675,9 +647,7 @@ async def test_stream_route_includes_tool_name_on_tool_results(monkeypatch) -> N
             if line.startswith("data: "):
                 parsed_events.append(json.loads(line[6:]))
 
-    tool_results = [
-        event for event in parsed_events if event.get("type") == "tool_result"
-    ]
+    tool_results = [event for event in parsed_events if event.get("type") == "tool_result"]
     assert len(tool_results) == 1
     assert tool_results[0]["tool"] == "news_search"
     assert tool_results[0]["content"] == "Fallback provider result"
@@ -710,15 +680,9 @@ async def test_stream_route_stops_when_client_disconnects(monkeypatch) -> None:
         for idx in range(3):
             if stop_event.is_set():
                 return
-            yield (
-                "data: "
-                + json.dumps({"type": "thinking", "content": f"step-{idx}"})
-                + "\n\n"
-            )
+            yield ("data: " + json.dumps({"type": "thinking", "content": f"step-{idx}"}) + "\n\n")
 
-    monkeypatch.setattr(
-        research_route, "load_articles_for_research", fake_load_articles
-    )
+    monkeypatch.setattr(research_route, "load_articles_for_research", fake_load_articles)
     monkeypatch.setattr(research_route, "stream_research_agent", fake_stream_agent)
 
     response = await research_route.news_research_stream_endpoint(

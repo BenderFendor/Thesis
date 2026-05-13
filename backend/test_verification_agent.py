@@ -1,5 +1,4 @@
-"""
-Tests for the verification agent.
+"""Tests for the verification agent.
 
 Tests claim extraction, source searching, credibility scoring,
 and the full verification workflow.
@@ -8,7 +7,7 @@ Run with: python -m pytest test_verification_agent.py -v
 """
 
 import pytest
-from datetime import datetime, timezone
+from datetime import datetime, UTC
 from unittest.mock import AsyncMock, MagicMock, patch
 
 from app.models.verification import (
@@ -192,13 +191,17 @@ class TestClaimExtraction:
         self.agent = VerificationAgent()
 
     def test_extract_claims_with_numbers(self):
-        text = "The unemployment rate rose to 5.2% in Q3 2024. This represents a significant change."
+        text = (
+            "The unemployment rate rose to 5.2% in Q3 2024. This represents a significant change."
+        )
         claims = self.agent._extract_claims(text)
         assert len(claims) >= 1
         assert any("5.2%" in c for c in claims)
 
     def test_extract_claims_with_attribution(self):
-        text = "According to Reuters, the deal is worth $50 billion. The company declined to comment."
+        text = (
+            "According to Reuters, the deal is worth $50 billion. The company declined to comment."
+        )
         claims = self.agent._extract_claims(text)
         assert len(claims) >= 1
         assert any("Reuters" in c or "$50 billion" in c for c in claims)
@@ -244,22 +247,16 @@ class TestVerifiableClaim:
         assert self.agent._is_verifiable_claim("The GDP grew by 2.5% last quarter.")
 
     def test_claim_with_quote(self):
-        assert self.agent._is_verifiable_claim(
-            'The CEO said "we are optimistic about growth."'
-        )
+        assert self.agent._is_verifiable_claim('The CEO said "we are optimistic about growth."')
 
     def test_claim_with_date(self):
         assert self.agent._is_verifiable_claim("The policy was enacted in March 2024.")
 
     def test_claim_with_attribution(self):
-        assert self.agent._is_verifiable_claim(
-            "According to the report, sales increased."
-        )
+        assert self.agent._is_verifiable_claim("According to the report, sales increased.")
 
     def test_claim_with_comparison(self):
-        assert self.agent._is_verifiable_claim(
-            "Exports increased more than imports this year."
-        )
+        assert self.agent._is_verifiable_claim("Exports increased more than imports this year.")
 
     def test_meta_statement_not_verifiable(self):
         assert not self.agent._is_verifiable_claim(
@@ -267,9 +264,7 @@ class TestVerifiableClaim:
         )
 
     def test_vague_statement_not_verifiable(self):
-        assert not self.agent._is_verifiable_claim(
-            "The situation is complex and evolving."
-        )
+        assert not self.agent._is_verifiable_claim("The situation is complex and evolving.")
 
 
 class TestVerificationAgentWorkflow:
@@ -312,17 +307,17 @@ class TestVerificationAgentWorkflow:
             },
         ]
 
-        with patch.object(
-            VerificationAgent, "_ddg_search", return_value=mock_ddg_results
-        ):
-            with patch.object(
+        with (
+            patch.object(VerificationAgent, "_ddg_search", return_value=mock_ddg_results),
+            patch.object(
                 VerificationAgent,
                 "_search_internal_sources",
                 new_callable=AsyncMock,
                 return_value=[],
-            ):
-                async with VerificationAgent() as agent:
-                    result = await agent.verify(request)
+            ),
+        ):
+            async with VerificationAgent() as agent:
+                result = await agent.verify(request)
 
         assert len(result.verified_claims) >= 1
         assert result.overall_confidence > 0
@@ -369,14 +364,14 @@ class TestInternalSourceSearch:
         mock_article_1.url = "https://reuters.com/internal/article1"
         mock_article_1.title = "Internal Article 1"
         mock_article_1.summary = "Summary of article 1"
-        mock_article_1.published_at = datetime.now(timezone.utc)
+        mock_article_1.published_at = datetime.now(UTC)
 
         mock_article_2 = MagicMock()
         mock_article_2.id = 2
         mock_article_2.url = "https://bbc.com/internal/article2"
         mock_article_2.title = "Internal Article 2"
         mock_article_2.summary = "Summary of article 2"
-        mock_article_2.published_at = datetime.now(timezone.utc)
+        mock_article_2.published_at = datetime.now(UTC)
 
         with patch(
             "app.vector_store.get_vector_store",
@@ -393,9 +388,7 @@ class TestInternalSourceSearch:
                 mock_db.execute = AsyncMock(return_value=mock_result)
                 agent.db = mock_db
 
-                sources = await agent._search_internal_sources(
-                    "test claim about economics"
-                )
+                sources = await agent._search_internal_sources("test claim about economics")
 
         assert len(sources) == 2
         assert sources[0].id.startswith("internal_")
@@ -426,13 +419,9 @@ class TestExternalSourceSearch:
             },
         ]
 
-        with patch.object(
-            VerificationAgent, "_ddg_search", return_value=mock_ddg_results
-        ):
+        with patch.object(VerificationAgent, "_ddg_search", return_value=mock_ddg_results):
             async with VerificationAgent() as agent:
-                sources = await agent._search_external_sources(
-                    "test query", max_results=5
-                )
+                sources = await agent._search_external_sources("test query", max_results=5)
 
         # Should filter out random-blog.com
         domains = [s.domain for s in sources]
@@ -483,7 +472,7 @@ class TestArticleToSourceConversion:
         mock_article.url = "https://reuters.com/article/test"
         mock_article.title = "Test Article Title"
         mock_article.summary = "This is a test summary that provides context."
-        mock_article.published_at = datetime(2024, 1, 15, 10, 0, 0, tzinfo=timezone.utc)
+        mock_article.published_at = datetime(2024, 1, 15, 10, 0, 0, tzinfo=UTC)
 
         async with VerificationAgent() as agent:
             source = agent._article_to_source_info(mock_article, similarity_score=0.8)

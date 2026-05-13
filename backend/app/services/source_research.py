@@ -1,12 +1,14 @@
+"""Source Research."""
+
 from __future__ import annotations
 
 import json
 import os
 import re
 from collections import Counter
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timedelta, UTC
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 from app.core.config import settings
 from app.core.logging import get_logger
@@ -35,11 +37,9 @@ from app.services.source_url_guard import (
 
 logger = get_logger("source_research")
 
-CACHE_DIR = Path(
-    os.getenv("SOURCE_RESEARCH_CACHE_DIR", "/tmp/thesis_source_research_cache")
-)
+CACHE_DIR = Path(os.getenv("SOURCE_RESEARCH_CACHE_DIR", "/tmp/thesis_source_research_cache"))
 
-_CATALOG_WEBSITE_CACHE: Dict[str, Optional[str]] = {}
+_CATALOG_WEBSITE_CACHE: dict[str, str | None] = {}
 
 
 def _slugify(value: str) -> str:
@@ -54,7 +54,7 @@ def _cache_path(source_name: str) -> Path:
 def _infer_website_from_feed_articles(
     source_name: str,
     url_value: Any,
-) -> Optional[str]:
+) -> str | None:
     feed_urls = iter_urls(url_value)
     if not feed_urls:
         return None
@@ -93,7 +93,7 @@ def _infer_website_from_feed_articles(
     return f"https://{top_domain}"
 
 
-def _resolve_website_from_catalog(source_name: str) -> Optional[str]:
+def _resolve_website_from_catalog(source_name: str) -> str | None:
     normalized_target = source_name.strip().lower()
     if not normalized_target:
         return None
@@ -122,9 +122,7 @@ def _resolve_website_from_catalog(source_name: str) -> Optional[str]:
 
             if inferred_website:
                 inferred_host = extract_domain(inferred_website) or ""
-                normalized_host = (
-                    extract_domain(normalized_website) if normalized_website else None
-                )
+                normalized_host = extract_domain(normalized_website) if normalized_website else None
                 if normalized_host and not hosts_match(normalized_host, inferred_host):
                     logger.info(
                         "Website guard replaced %s catalog host %s with inferred host %s",
@@ -143,19 +141,15 @@ def _resolve_website_from_catalog(source_name: str) -> Optional[str]:
     return None
 
 
-def _load_cached_profile(source_name: str) -> Optional[Dict[str, Any]]:
+def _load_cached_profile(source_name: str) -> dict[str, Any] | None:
     path = _cache_path(source_name)
     if not path.exists():
         return None
 
     ttl = timedelta(hours=settings.source_research_cache_ttl_hours)
-    cache_age = datetime.now(timezone.utc) - datetime.fromtimestamp(
-        path.stat().st_mtime, tz=timezone.utc
-    )
+    cache_age = datetime.now(UTC) - datetime.fromtimestamp(path.stat().st_mtime, tz=UTC)
     if cache_age > ttl:
-        logger.info(
-            "Cache expired for %s (age: %s, ttl: %s)", source_name, cache_age, ttl
-        )
+        logger.info("Cache expired for %s (age: %s, ttl: %s)", source_name, cache_age, ttl)
         return None
 
     try:
@@ -163,30 +157,26 @@ def _load_cached_profile(source_name: str) -> Optional[Dict[str, Any]]:
             payload = json.load(handle)
             return payload if isinstance(payload, dict) else None
     except Exception as exc:
-        logger.warning(
-            "Failed to read source research cache for %s: %s", source_name, exc
-        )
+        logger.warning("Failed to read source research cache for %s: %s", source_name, exc)
         return None
 
 
-def _save_cached_profile(source_name: str, payload: Dict[str, Any]) -> None:
+def _save_cached_profile(source_name: str, payload: dict[str, Any]) -> None:
     CACHE_DIR.mkdir(parents=True, exist_ok=True)
     path = _cache_path(source_name)
     try:
         with path.open("w", encoding="utf-8") as handle:
             json.dump(payload, handle, ensure_ascii=True, indent=2)
     except Exception as exc:
-        logger.warning(
-            "Failed to write source research cache for %s: %s", source_name, exc
-        )
+        logger.warning("Failed to write source research cache for %s: %s", source_name, exc)
 
 
 def _append_field(
-    fields: Dict[str, List[Dict[str, Any]]],
+    fields: dict[str, list[dict[str, Any]]],
     key: str,
-    value: Optional[str],
-    sources: Optional[List[str]] = None,
-    notes: Optional[str] = None,
+    value: str | None,
+    sources: list[str] | None = None,
+    notes: str | None = None,
 ) -> None:
     if value is None:
         return
@@ -205,7 +195,7 @@ def _append_field(
     )
 
 
-def _collect_key_reporters(source_name: str, limit: int = 6) -> List[Dict[str, Any]]:
+def _collect_key_reporters(source_name: str, limit: int = 6) -> list[dict[str, Any]]:
     articles = news_cache.articles_by_source.get(source_name) or []
     counts: Counter[str] = Counter()
     for article in articles:
@@ -217,26 +207,23 @@ def _collect_key_reporters(source_name: str, limit: int = 6) -> List[Dict[str, A
             counts[cleaned] += 1
     if not counts:
         return []
-    return [
-        {"name": name, "article_count": count}
-        for name, count in counts.most_common(limit)
-    ]
+    return [{"name": name, "article_count": count} for name, count in counts.most_common(limit)]
 
 
 async def _build_source_profile(
     source_name: str,
-    website: Optional[str],
-) -> Dict[str, Any]:
+    website: str | None,
+) -> dict[str, Any]:
     profile = await build_deterministic_source_profile(source_name, website)
-    profile["fetched_at"] = datetime.now(timezone.utc).isoformat()
+    profile["fetched_at"] = datetime.now(UTC).isoformat()
     profile["key_reporters"] = _collect_key_reporters(source_name)
     return profile
 
 
 async def _build_with_llm_extraction(
     source_name: str,
-    website: Optional[str],
-    fields: Dict[str, List[Dict[str, Any]]],
+    website: str | None,
+    fields: dict[str, list[dict[str, Any]]],
 ) -> bool:
     """Two-step LLM pipeline: generate queries, extract fields, synthesize."""
     try:
@@ -274,15 +261,11 @@ async def _build_with_llm_extraction(
                     entry.get("sources"),
                     entry.get("notes"),
                 )
-            logger.info(
-                f"LLM extracted {len(extracted_entries)} field entries for {source_name}"
-            )
+            logger.info(f"LLM extracted {len(extracted_entries)} field entries for {source_name}")
         else:
             _merge_extracted_fields(fields, build_fields_from_documents(documents))
 
-        synthesized_fields = await synthesize_source_fields(
-            source_name, documents, fields
-        )
+        synthesized_fields = await synthesize_source_fields(source_name, documents, fields)
         if synthesized_fields:
             _merge_extracted_fields(fields, synthesized_fields)
             logger.info(f"LLM synthesis complete for {source_name}")
@@ -296,8 +279,8 @@ async def _build_with_llm_extraction(
 
 async def _build_with_regex_only(
     source_name: str,
-    website: Optional[str],
-    fields: Dict[str, List[Dict[str, Any]]],
+    website: str | None,
+    fields: dict[str, list[dict[str, Any]]],
 ) -> None:
     """Fallback: use regex extraction only (no LLM)."""
     try:
@@ -324,8 +307,8 @@ async def _build_with_regex_only(
 
 
 def _merge_extracted_fields(
-    fields: Dict[str, List[Dict[str, Any]]],
-    extracted_fields: Dict[str, List[Dict[str, Any]]],
+    fields: dict[str, list[dict[str, Any]]],
+    extracted_fields: dict[str, list[dict[str, Any]]],
 ) -> None:
     for field_name, values in extracted_fields.items():
         for entry in values:
@@ -338,15 +321,11 @@ def _merge_extracted_fields(
             )
 
 
-def _add_wikidata_fields(
-    fields: Dict[str, List[Dict[str, Any]]], org_data: Dict[str, Any]
-) -> None:
+def _add_wikidata_fields(fields: dict[str, list[dict[str, Any]]], org_data: dict[str, Any]) -> None:
     wikidata_url = org_data.get("wikidata_url")
     wikidata_sources = [wikidata_url] if wikidata_url else ["wikidata"]
     for owner in org_data.get("owned_by") or []:
-        _append_field(
-            fields, "ownership", owner, wikidata_sources, "Wikidata P127 (owned by)"
-        )
+        _append_field(fields, "ownership", owner, wikidata_sources, "Wikidata P127 (owned by)")
     for parent in org_data.get("parent_orgs") or []:
         _append_field(
             fields,
@@ -364,9 +343,7 @@ def _add_wikidata_fields(
             "Wikidata P361 (part of)",
         )
     for hq in org_data.get("headquarters") or []:
-        _append_field(
-            fields, "headquarters", hq, wikidata_sources, "Wikidata P159 (headquarters)"
-        )
+        _append_field(fields, "headquarters", hq, wikidata_sources, "Wikidata P159 (headquarters)")
     if org_data.get("inception"):
         _append_field(
             fields,
@@ -386,7 +363,7 @@ def _add_wikidata_fields(
 
 
 def _add_propublica_fields(
-    fields: Dict[str, List[Dict[str, Any]]], org_data: Dict[str, Any]
+    fields: dict[str, list[dict[str, Any]]], org_data: dict[str, Any]
 ) -> None:
     propublica_url = _propublica_org_url(org_data.get("ein"))
     propublica_sources = [propublica_url] if propublica_url else ["propublica"]
@@ -425,11 +402,11 @@ def _add_propublica_fields(
 
 
 def _append_form_990_value(
-    fields: Dict[str, List[Dict[str, Any]]],
-    org_data: Dict[str, Any],
+    fields: dict[str, list[dict[str, Any]]],
+    org_data: dict[str, Any],
     key: str,
     label: str,
-    sources: List[str],
+    sources: list[str],
 ) -> None:
     value = org_data.get(key)
     if not value:
@@ -447,8 +424,8 @@ def _append_form_990_value(
     )
 
 
-def _missing_fields(fields: Dict[str, List[Dict[str, Any]]]) -> List[str]:
-    missing: List[str] = []
+def _missing_fields(fields: dict[str, list[dict[str, Any]]]) -> list[str]:
+    missing: list[str] = []
     for key in FIELD_KEYS:
         if not fields.get(key):
             missing.append(key)
@@ -456,15 +433,15 @@ def _missing_fields(fields: Dict[str, List[Dict[str, Any]]]) -> List[str]:
 
 
 def _build_gap_queries(
-    missing_fields: List[str],
+    missing_fields: list[str],
     source_name: str,
-    website: Optional[str],
-) -> List[str]:
+    website: str | None,
+) -> list[str]:
     site_filter = ""
     if website:
         site_filter = f" site:{_extract_domain(website)}"
 
-    queries: List[str] = []
+    queries: list[str] = []
     if "funding" in missing_fields or "nonprofit_filings" in missing_fields:
         queries.extend(
             [
@@ -509,9 +486,9 @@ def _extract_domain(website: str) -> str:
     return extract_domain(website) or ""
 
 
-def _dedupe_queries(queries: List[str]) -> List[str]:
+def _dedupe_queries(queries: list[str]) -> list[str]:
     seen: set[str] = set()
-    deduped: List[str] = []
+    deduped: list[str] = []
     for query in queries:
         cleaned = " ".join(query.split())
         if not cleaned:
@@ -524,7 +501,7 @@ def _dedupe_queries(queries: List[str]) -> List[str]:
     return deduped
 
 
-def _propublica_org_url(ein: Optional[str]) -> Optional[str]:
+def _propublica_org_url(ein: str | None) -> str | None:
     if not ein:
         return None
     cleaned = str(ein).strip()
@@ -533,13 +510,13 @@ def _propublica_org_url(ein: Optional[str]) -> Optional[str]:
     return f"https://projects.propublica.org/nonprofits/organizations/{cleaned}"
 
 
-def _map_research_sources(org_data: Dict[str, Any]) -> List[str]:
+def _map_research_sources(org_data: dict[str, Any]) -> list[str]:
     research_sources = org_data.get("research_sources") or []
     wikipedia_url = org_data.get("wikipedia_url")
     wikidata_url = org_data.get("wikidata_url")
     propublica_url = _propublica_org_url(org_data.get("ein"))
 
-    mapped: List[str] = []
+    mapped: list[str] = []
     for source in research_sources:
         if source == "wikipedia" and wikipedia_url:
             mapped.append(wikipedia_url)
@@ -556,10 +533,11 @@ def _map_research_sources(org_data: Dict[str, Any]) -> List[str]:
 
 async def get_source_profile(
     source_name: str,
-    website: Optional[str] = None,
+    website: str | None = None,
     force_refresh: bool = False,
     cache_only: bool = False,
-) -> Optional[Dict[str, Any]]:
+) -> dict[str, Any] | None:
+    """Get Source Profile."""
     if not force_refresh:
         cached = _load_cached_profile(source_name)
         if cached:

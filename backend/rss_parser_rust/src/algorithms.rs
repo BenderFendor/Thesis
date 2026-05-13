@@ -14,10 +14,15 @@ const SENTENCE_MATCH_THRESHOLD: f64 = 0.6;
 const SENTENCE_WORD_OVERLAP_THRESHOLD: f64 = 0.5;
 const MAX_SIMILAR_SENTENCES: usize = 10;
 
+/// Represents a pair of documents flagged as near-duplicates by MinHash
+/// comparison, together with their estimated Jaccard similarity.
 #[derive(Debug, Clone, Serialize)]
 pub struct DuplicatePair {
+    /// Identifier of the first document in the pair.
     pub doc_id_1: String,
+    /// Identifier of the second document in the pair.
     pub doc_id_2: String,
+    /// Estimated Jaccard similarity in the range [0.0, 1.0].
     pub similarity: f64,
 }
 
@@ -49,6 +54,10 @@ struct SentenceOnly {
     kind: &'static str,
 }
 
+/// Converts a text string into a set of character n-grams (shingles).
+///
+/// If the text is shorter than `n` characters, the entire normalized text
+/// is returned as a single shingle. Returns an empty set for empty input.
 pub fn shingle_text(text: &str, n: usize) -> HashSet<String> {
     let normalized = text.trim().to_lowercase();
     if normalized.is_empty() {
@@ -80,6 +89,10 @@ fn hash_params(num_hashes: usize, seed: u64) -> Vec<(u64, u64)> {
         .collect()
 }
 
+/// Computes a MinHash signature for a text string using character n-gram
+/// shingling and configurable hash parameters.
+///
+/// Returns a vector of `num_hashes` 128-bit minimum hash values.
 pub fn compute_minhash_signature(text: &str, num_hashes: usize, seed: u64) -> Vec<u128> {
     let shingles = shingle_text(text, DEFAULT_CHAR_NGRAM);
     if shingles.is_empty() {
@@ -103,6 +116,10 @@ pub fn compute_minhash_signature(text: &str, num_hashes: usize, seed: u64) -> Ve
         .collect()
 }
 
+/// Estimates the Jaccard similarity between two documents from their
+/// MinHash signatures.
+///
+/// Returns 0.0 if the signatures differ in length or either is empty.
 pub fn estimate_jaccard_similarity(sig1: &[u128], sig2: &[u128]) -> f64 {
     if sig1.is_empty() || sig2.is_empty() || sig1.len() != sig2.len() {
         return 0.0;
@@ -187,6 +204,11 @@ fn sentence_word_overlap(text1: &str, text2: &str) -> f64 {
     intersection / left.len().max(right.len()) as f64
 }
 
+/// Calculates the normalized text similarity between two strings using
+/// normalized Levenshtein distance.
+///
+/// Returns 1.0 for identical strings, 0.0 if either string is empty, and
+/// a value in between for partial matches.
 pub fn calculate_text_similarity(text1: &str, text2: &str) -> f64 {
     if text1 == text2 {
         return 1.0;
@@ -274,6 +296,11 @@ fn generate_sentence_diff(
     (added, removed, similar)
 }
 
+/// Detects near-duplicate document pairs using MinHash signatures.
+///
+/// Accepts a list of `(doc_id, text)` tuples and an optional Jaccard
+/// threshold. Returns a list of dicts with `doc_id_1`, `doc_id_2`, and
+/// `similarity` keys, sorted by similarity descending.
 #[pyfunction]
 pub fn minhash_duplicate_pairs<'py>(
     py: Python<'py>,
@@ -302,11 +329,20 @@ pub fn minhash_duplicate_pairs<'py>(
     Ok(result)
 }
 
+/// Python-facing wrapper for [`calculate_text_similarity`].
+///
+/// Returns the normalized Levenshtein similarity between two strings as a
+/// Python float.
 #[pyfunction]
 pub fn text_similarity(text1: &str, text2: &str) -> f64 {
     calculate_text_similarity(text1, text2)
 }
 
+/// Compares two texts sentence-by-sentence and returns a sentence-level
+/// diff.
+///
+/// Returns a Python dict with `added`, `removed`, and `similar` keys. Each
+/// sentence entry includes index, text, similarity, and type metadata.
 #[pyfunction]
 pub fn sentence_diff<'py>(
     py: Python<'py>,
@@ -351,6 +387,11 @@ pub fn sentence_diff<'py>(
     Ok(result)
 }
 
+/// Groups articles into duplicate sets by first grouping identical-text
+/// articles by MD5 hash, then merging near-duplicate groups via MinHash.
+///
+/// Accepts a list of `(doc_id, text)` tuples and returns a Python dict
+/// mapping each group representative ID to a list of all member IDs.
 #[pyfunction]
 pub fn deduplicate_article_groups<'py>(
     py: Python<'py>,

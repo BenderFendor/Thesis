@@ -104,9 +104,9 @@ describe("useBrowseIndex", () => {
       },
     ])
 
-    expect(article.summary).toBe("Short browse summary")
-    expect(article.content).toBeUndefined()
-    expect(article.hasFullContent).toBe(false)
+    expect(article!.summary).toBe("Short browse summary")
+    expect(article!.content).toBeUndefined()
+    expect(article!.hasFullContent).toBe(false)
   })
 
   it("marks live cache rows without durable ids as unpersisted", () => {
@@ -122,7 +122,7 @@ describe("useBrowseIndex", () => {
       },
     ])
 
-    expect(article.id).toEqual(expect.any(Number))
-    expect(article.isPersisted).toBe(false)
+    expect(article!.id).toEqual(expect.any(Number))
+    expect(article!.isPersisted).toBe(false)
   })
 })

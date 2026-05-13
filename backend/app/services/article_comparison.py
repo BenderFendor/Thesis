@@ -13,6 +13,8 @@ from app.services.rss_parser_rust_bindings import (
 
 
 class CommonKeywordDiff(TypedDict):
+    """Common Keyword Diff."""
+
     keyword: str
     source_1_freq: int
     source_2_freq: int
@@ -21,11 +23,15 @@ class CommonKeywordDiff(TypedDict):
 
 
 class UniqueKeywordFrequency(TypedDict):
+    """Unique Keyword Frequency."""
+
     keyword: str
     frequency: int
 
 
 class KeywordComparisonResult(TypedDict):
+    """Keyword Comparison Result."""
+
     common_keywords: list[CommonKeywordDiff]
     unique_to_source_1: list[UniqueKeywordFrequency]
     unique_to_source_2: list[UniqueKeywordFrequency]
@@ -103,9 +109,7 @@ def extract_entities(text: str) -> dict[str, list[str]]:
         "December",
     }
 
-    potential_entities = [
-        word for word in words if word not in common_words and len(word) > 2
-    ]
+    potential_entities = [word for word in words if word not in common_words and len(word) > 2]
 
     for entity in set(potential_entities):
         entity_lower = entity.lower()
@@ -354,14 +358,10 @@ def find_common_and_unique(
             entity for entity in entities1.get(category, []) if entity.lower() in common
         ]
         result["unique_to_source_1"][category] = [
-            entity
-            for entity in entities1.get(category, [])
-            if entity.lower() in unique1
+            entity for entity in entities1.get(category, []) if entity.lower() in unique1
         ]
         result["unique_to_source_2"][category] = [
-            entity
-            for entity in entities2.get(category, [])
-            if entity.lower() in unique2
+            entity for entity in entities2.get(category, []) if entity.lower() in unique2
         ]
 
     return result
@@ -389,11 +389,7 @@ def compare_keywords(
                 "source_1_freq": freq1,
                 "source_2_freq": freq2,
                 "difference": diff,
-                "emphasis": "source_1"
-                if diff > 0
-                else "source_2"
-                if diff < 0
-                else "equal",
+                "emphasis": "source_1" if diff > 0 else "source_2" if diff < 0 else "equal",
             }
         )
 
@@ -440,9 +436,7 @@ def compare_articles(
     keywords2 = extract_keywords(content2)
 
     content_similarity = calculate_text_similarity(content1, content2)
-    title_similarity = (
-        calculate_text_similarity(title1, title2) if title1 and title2 else 0.0
-    )
+    title_similarity = calculate_text_similarity(title1, title2) if title1 and title2 else 0.0
 
     entity_comparison = find_common_and_unique(entities1, entities2)
     keyword_comparison = compare_keywords(keywords1, keywords2)
@@ -460,12 +454,8 @@ def compare_articles(
             "comparison": entity_comparison,
         },
         "keywords": {
-            "source_1_top": [
-                {"word": word, "count": count} for word, count in keywords1[:10]
-            ],
-            "source_2_top": [
-                {"word": word, "count": count} for word, count in keywords2[:10]
-            ],
+            "source_1_top": [{"word": word, "count": count} for word, count in keywords1[:10]],
+            "source_2_top": [{"word": word, "count": count} for word, count in keywords2[:10]],
             "comparison": keyword_comparison,
         },
         "diff": diff_highlights,

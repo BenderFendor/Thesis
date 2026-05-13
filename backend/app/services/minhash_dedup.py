@@ -1,6 +1,4 @@
-"""
-MinHash deduplication backed by the Rust extension.
-"""
+"""MinHash deduplication backed by the Rust extension."""
 
 from __future__ import annotations
 
@@ -24,12 +22,14 @@ class MinHashDeduplicator:
         threshold: float = SIMILARITY_THRESHOLD,
         bands: int | None = None,
     ) -> None:
+        """Initialize."""
         self.num_hashes = num_hashes
         self.threshold = threshold
         self.bands = bands if bands is not None else 8
         self.documents: dict[str, str] = {}
 
     def add_document(self, doc_id: str, text: str) -> None:
+        """Add Document."""
         self.documents[doc_id] = text
         logger.debug("Added document %s to Rust MinHash index", doc_id)
 
@@ -38,6 +38,7 @@ class MinHashDeduplicator:
         documents: dict[str, str],
         batch_size: int = 100,
     ) -> int:
+        """Add Documents Batch."""
         count = 0
         for doc_id, text in documents.items():
             self.add_document(doc_id, text)
@@ -53,6 +54,7 @@ class MinHashDeduplicator:
         doc_ids: list[str] | None = None,
         threshold: float | None = None,
     ) -> list[tuple[str, str, float]]:
+        """Find Duplicates."""
         active_threshold = threshold or self.threshold
         selected_ids = doc_ids or list(self.documents.keys())
         documents = [
@@ -86,15 +88,16 @@ class MinHashDeduplicator:
         self,
         doc_ids: list[str] | None = None,
     ) -> list[tuple[str, str, float]]:
+        """Find Duplicates Lsh."""
         return self.find_duplicates(doc_ids=doc_ids, threshold=self.threshold)
 
     def get_signature(self, doc_id: str) -> list[int] | None:
-        logger.debug(
-            "Rust-backed deduplicator does not expose signatures for %s", doc_id
-        )
+        """Get Signature."""
+        logger.debug("Rust-backed deduplicator does not expose signatures for %s", doc_id)
         return None
 
     def get_stats(self) -> dict[str, int | float]:
+        """Get Stats."""
         return {
             "document_count": len(self.documents),
             "num_hashes": self.num_hashes,
@@ -103,6 +106,7 @@ class MinHashDeduplicator:
         }
 
     def clear(self) -> None:
+        """Clear."""
         self.documents.clear()
 
 
@@ -112,13 +116,12 @@ def deduplicate_articles(
     id_field: str = "chroma_id",
     threshold: float = SIMILARITY_THRESHOLD,
 ) -> dict[str, set[str]]:
+    """Deduplicate Articles."""
     rust_documents = []
     for article in articles:
         doc_id_value = article.get(id_field, "")
         text_value = article.get(text_field, "")
-        doc_id = (
-            doc_id_value if isinstance(doc_id_value, str) else str(doc_id_value or "")
-        )
+        doc_id = doc_id_value if isinstance(doc_id_value, str) else str(doc_id_value or "")
         text = text_value if isinstance(text_value, str) else str(text_value or "")
         if doc_id and text:
             rust_documents.append((doc_id, text))

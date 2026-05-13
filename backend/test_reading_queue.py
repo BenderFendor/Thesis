@@ -1,5 +1,4 @@
-"""
-Tests for reading queue service functionality.
+"""Tests for reading queue service functionality.
 
 Covers queue operations, digest generation, and metrics calculation.
 """
@@ -29,9 +28,7 @@ async def test_db():
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
 
-    async_session = async_sessionmaker(
-        engine, class_=AsyncSession, expire_on_commit=False
-    )
+    async_session = async_sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
 
     async with async_session() as session:
         yield session
@@ -146,9 +143,7 @@ class TestReadingQueueService:
 
         # Update status
         update_request = UpdateQueueItemRequest(read_status="reading")
-        updated = await queue_service.update_queue_item(
-            test_db, item.id, update_request
-        )
+        updated = await queue_service.update_queue_item(test_db, item.id, update_request)
         assert updated.read_status == "reading"
 
     @pytest.mark.asyncio
@@ -182,9 +177,7 @@ class TestReadingQueueService:
         )
 
         await queue_service.add_to_queue(test_db, request)
-        success = await queue_service.remove_by_url(
-            test_db, "https://example.com/article1"
-        )
+        success = await queue_service.remove_by_url(test_db, "https://example.com/article1")
         assert success
 
         items, _, _ = await queue_service.get_queue(test_db)

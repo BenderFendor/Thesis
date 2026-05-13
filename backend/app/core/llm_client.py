@@ -1,10 +1,13 @@
+"""Llm Client."""
+
 from __future__ import annotations
 
 import uuid
 import json
 import time
-from datetime import datetime, timezone
-from typing import Any, Iterable, Optional, TextIO, cast
+from datetime import datetime, UTC
+from typing import Any, TextIO, cast
+from collections.abc import Iterable
 
 from openai import OpenAI
 from openai.types.chat import ChatCompletion, ChatCompletionMessageParam
@@ -18,18 +21,22 @@ from app.core.logging import get_session_dir
 
 
 class LLMCallLogger:
-    _instance: Optional["LLMCallLogger"] = None
+    """LLM Call Logger."""
+
+    _instance: LLMCallLogger | None = None
     _llm_log_file: TextIO | None = None
     _error_log_file: TextIO | None = None
     _initialized: bool = False
 
     def __new__(cls) -> LLMCallLogger:
+        """New."""
         if cls._instance is None:
             cls._instance = super().__new__(cls)
             cls._instance._initialized = False
         return cls._instance
 
     def __init__(self) -> None:
+        """Initialize."""
         if self._initialized:
             return
         self._initialized = True
@@ -44,10 +51,11 @@ class LLMCallLogger:
         llm_log_path = session_dir / "llm_calls.log"
         error_log_path = session_dir / "api_errors.log"
 
-        LLMCallLogger._llm_log_file = open(llm_log_path, "a")
-        LLMCallLogger._error_log_file = open(error_log_path, "a")
+        LLMCallLogger._llm_log_file = llm_log_path.open("a")
+        LLMCallLogger._error_log_file = error_log_path.open("a")
 
     def close(self) -> None:
+        """Close."""
         if LLMCallLogger._llm_log_file:
             LLMCallLogger._llm_log_file.close()
             LLMCallLogger._llm_log_file = None
@@ -63,12 +71,13 @@ class LLMCallLogger:
         messages: list[dict[str, str]],
         duration_ms: int,
         success: bool,
-        error_type: Optional[str] = None,
-        error_message: Optional[str] = None,
-        finish_reason: Optional[str] = None,
+        error_type: str | None = None,
+        error_message: str | None = None,
+        finish_reason: str | None = None,
     ) -> None:
+        """Log Call."""
         log_entry = {
-            "timestamp": datetime.now(timezone.utc).isoformat(),
+            "timestamp": datetime.now(UTC).isoformat(),
             "request_id": request_id,
             "service": service_name,
             "model": model,
@@ -90,7 +99,7 @@ class LLMCallLogger:
 
         if not success:
             error_entry = {
-                "timestamp": datetime.now(timezone.utc).isoformat(),
+                "timestamp": datetime.now(UTC).isoformat(),
                 "request_id": request_id,
                 "service": service_name,
                 "model": model,
@@ -104,7 +113,10 @@ class LLMCallLogger:
 
 
 class LLMClient:
+    """LLM Client."""
+
     def __init__(self) -> None:
+        """Initialize."""
         self._client = get_openai_client()
         self._logger = LLMCallLogger()
 
@@ -112,9 +124,10 @@ class LLMClient:
         self,
         service_name: str,
         messages: list[dict[str, str]],
-        model: Optional[str] = None,
+        model: str | None = None,
         **kwargs: Any,
     ) -> ChatCompletion:
+        """Chat Completions Create."""
         if model is None:
             model = (
                 get_llamacpp_model()
@@ -137,9 +150,7 @@ class LLMClient:
                 instruct_params = get_llamacpp_instruct_params()
                 kwargs.setdefault("temperature", instruct_params["temperature"])
                 kwargs.setdefault("top_p", instruct_params["top_p"])
-                kwargs.setdefault(
-                    "presence_penalty", instruct_params["presence_penalty"]
-                )
+                kwargs.setdefault("presence_penalty", instruct_params["presence_penalty"])
 
                 extra_body = dict(kwargs.pop("extra_body", {}) or {})
                 for key in ("top_k", "min_p", "repetition_penalty"):
@@ -166,9 +177,7 @@ class LLMClient:
 
                 duration_ms = int((time.monotonic() - start_time) * 1000)
 
-                finish_reason = (
-                    response.choices[0].finish_reason if response.choices else "unknown"
-                )
+                finish_reason = response.choices[0].finish_reason if response.choices else "unknown"
 
                 span.set_attribute("duration_ms", duration_ms)
                 span.set_attribute("finish_reason", finish_reason)
@@ -208,10 +217,11 @@ class LLMClient:
                 raise
 
 
-_llm_client_instance: Optional[LLMClient] = None
+_llm_client_instance: LLMClient | None = None
 
 
 def get_llm_client() -> LLMClient:
+    """Get Llm Client."""
     global _llm_client_instance
     if _llm_client_instance is None:
         _llm_client_instance = LLMClient()

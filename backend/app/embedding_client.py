@@ -1,3 +1,5 @@
+"""Embedding Client."""
+
 from __future__ import annotations
 
 from collections.abc import Sequence
@@ -12,19 +14,21 @@ if TYPE_CHECKING:
 
 
 class EmbeddingServiceClient:
+    """Embedding Service Client."""
+
     def __init__(self, base_url: str, timeout_seconds: float) -> None:
+        """Initialize."""
         self._base_url = base_url.rstrip("/")
         self._timeout_seconds = timeout_seconds
 
     def embed(self, texts: Sequence[str], batch_size: int) -> list[list[float]]:
+        """Embed."""
         payload = {
             "texts": list(texts),
             "batch_size": batch_size,
         }
 
-        with httpx.Client(
-            base_url=self._base_url, timeout=self._timeout_seconds
-        ) as client:
+        with httpx.Client(base_url=self._base_url, timeout=self._timeout_seconds) as client:
             response = client.post("/embed", json=payload)
             response.raise_for_status()
             data = response.json()
@@ -35,9 +39,8 @@ class EmbeddingServiceClient:
         return cast(list[list[float]], embeddings)
 
     def health(self) -> dict[str, object]:
-        with httpx.Client(
-            base_url=self._base_url, timeout=self._timeout_seconds
-        ) as client:
+        """Health."""
+        with httpx.Client(base_url=self._base_url, timeout=self._timeout_seconds) as client:
             response = client.get("/health")
             response.raise_for_status()
             data = response.json()
@@ -45,7 +48,10 @@ class EmbeddingServiceClient:
 
 
 class RemoteEmbeddingModel:
+    """Remote Embedding Model."""
+
     def __init__(self, client: EmbeddingServiceClient) -> None:
+        """Initialize."""
         self._client = client
 
     def encode(
@@ -56,17 +62,15 @@ class RemoteEmbeddingModel:
         show_progress_bar: bool | None = None,
         convert_to_numpy: bool = False,
         **kwargs: object,
-    ) -> "NDArray[Any]":
+    ) -> NDArray[Any]:
+        """Encode."""
         del show_progress_bar, convert_to_numpy, kwargs
 
         import numpy as np
 
         single_input = isinstance(sentences, str)
         texts: list[str]
-        if single_input:
-            texts = [cast(str, sentences)]
-        else:
-            texts = list(sentences)
+        texts = [cast(str, sentences)] if single_input else list(sentences)
         if not texts:
             return np.array([], dtype=float)
 
@@ -78,6 +82,7 @@ class RemoteEmbeddingModel:
 
 
 def create_remote_embedding_model() -> RemoteEmbeddingModel:
+    """Create Remote Embedding Model."""
     client = EmbeddingServiceClient(
         base_url=settings.embedding_service_url,
         timeout_seconds=settings.embedding_service_timeout_seconds,

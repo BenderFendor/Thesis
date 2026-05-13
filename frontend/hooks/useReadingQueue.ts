@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from "react";
-import { NewsArticle, API_BASE_URL } from "@/lib/api";
+import type { NewsArticle} from "@/lib/api";
+import { API_BASE_URL } from "@/lib/api";
 import {
   addToReadingQueue as apiAddToQueue,
   removeFromReadingQueueByUrl as apiRemoveFromQueue,
@@ -131,6 +132,7 @@ export function useReadingQueue() {
         unsubscribe();
       };
     }
+    return
   }, []);
 
   useEffect(() => {

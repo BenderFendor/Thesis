@@ -1,6 +1,8 @@
+"""Reporter Wikipedia."""
+
 from __future__ import annotations
 
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 import httpx
 
@@ -22,8 +24,9 @@ JOURNALISM_CATEGORIES = [
 
 async def fetch_journalist_bio(
     name: str,
-    http_client: Optional[httpx.AsyncClient] = None,
-) -> Dict[str, Any]:
+    http_client: httpx.AsyncClient | None = None,
+) -> dict[str, Any]:
+    """Fetch Journalist Bio."""
     owned_client = http_client is None
     client = http_client or httpx.AsyncClient(timeout=10.0)
     try:
@@ -105,12 +108,13 @@ async def fetch_journalist_bio(
 async def fetch_category_journalists(
     category: str,
     limit: int = 100,
-    http_client: Optional[httpx.AsyncClient] = None,
-) -> List[Dict[str, Any]]:
+    http_client: httpx.AsyncClient | None = None,
+) -> list[dict[str, Any]]:
+    """Fetch Category Journalists."""
     owned_client = http_client is None
     client = http_client or httpx.AsyncClient(timeout=10.0)
-    results: List[Dict[str, Any]] = []
-    params: Dict[str, Any] = {
+    results: list[dict[str, Any]] = []
+    params: dict[str, Any] = {
         "action": "query",
         "list": "categorymembers",
         "cmtitle": f"Category:{category}",

@@ -1,8 +1,10 @@
+"""Source Profile Extractor."""
+
 from __future__ import annotations
 
 import re
 from dataclasses import dataclass
-from typing import Dict, List, Sequence
+from collections.abc import Sequence
 
 FIELD_KEYS = [
     "funding",
@@ -23,6 +25,8 @@ FIELD_KEYS = [
 
 @dataclass(frozen=True)
 class SourceDocument:
+    """Source Document."""
+
     url: str
     title: str
     text: str
@@ -30,8 +34,9 @@ class SourceDocument:
 
 def build_fields_from_documents(
     documents: Sequence[SourceDocument],
-) -> Dict[str, List[Dict[str, object]]]:
-    fields: Dict[str, List[Dict[str, object]]] = {key: [] for key in FIELD_KEYS}
+) -> dict[str, list[dict[str, object]]]:
+    """Build Fields From Documents."""
+    fields: dict[str, list[dict[str, object]]] = {key: [] for key in FIELD_KEYS}
 
     for document in documents:
         text = _normalize_text(document.text)
@@ -87,10 +92,10 @@ def _source_label(url: str) -> str:
 
 
 def _append_field_unique(
-    fields: Dict[str, List[Dict[str, object]]],
+    fields: dict[str, list[dict[str, object]]],
     key: str,
     value: str,
-    sources: List[str] | None = None,
+    sources: list[str] | None = None,
     notes: str | None = None,
 ) -> None:
     cleaned = str(value or "").strip()
@@ -110,15 +115,11 @@ def _append_field_unique(
     )
 
 
-def _extract_funding_values(text: str) -> List[str]:
-    values: List[str] = []
-    if re.search(
-        r"\bnon[- ]?profit\b|\bnot[- ]?for[- ]?profit\b|\b501\(c\)\(3\)\b", text, re.I
-    ):
+def _extract_funding_values(text: str) -> list[str]:
+    values: list[str] = []
+    if re.search(r"\bnon[- ]?profit\b|\bnot[- ]?for[- ]?profit\b|\b501\(c\)\(3\)\b", text, re.I):
         _append_unique(values, "non-profit")
-    if re.search(
-        r"reader[- ]supported|supported by readers|supported by reader", text, re.I
-    ):
+    if re.search(r"reader[- ]supported|supported by readers|supported by reader", text, re.I):
         _append_unique(values, "reader-supported")
     if re.search(r"reader donations", text, re.I):
         _append_unique(values, "reader-supported")
@@ -140,8 +141,8 @@ def _extract_funding_values(text: str) -> List[str]:
     return values
 
 
-def _extract_editorial_stance_values(text: str) -> List[str]:
-    values: List[str] = []
+def _extract_editorial_stance_values(text: str) -> list[str]:
+    values: list[str] = []
     if re.search(r"\bindependent\b", text, re.I):
         _append_unique(values, "independent")
     if re.search(r"social justice", text, re.I):
@@ -158,15 +159,13 @@ def _extract_editorial_stance_values(text: str) -> List[str]:
 def _extract_corrections_value(text: str) -> str | None:
     if re.search(r"corrections? policy", text, re.I):
         return "Corrections policy published"
-    if re.search(r"corrections?", text, re.I) and re.search(
-        r"errors?|mistakes?", text, re.I
-    ):
+    if re.search(r"corrections?", text, re.I) and re.search(r"errors?|mistakes?", text, re.I):
         return "Corrections process mentioned"
     return None
 
 
-def _extract_political_bias_values(text: str) -> List[str]:
-    values: List[str] = []
+def _extract_political_bias_values(text: str) -> list[str]:
+    values: list[str] = []
     patterns = [
         r"\bbias rating\s*:\s*(left|right|center[- ]left|center[- ]right|center)\b",
         r"\b(left|right|center[- ]left|center[- ]right|center)\s+bias\b",
@@ -188,8 +187,8 @@ def _extract_political_bias_values(text: str) -> List[str]:
     return values
 
 
-def _extract_factual_reporting_values(text: str) -> List[str]:
-    values: List[str] = []
+def _extract_factual_reporting_values(text: str) -> list[str]:
+    values: list[str] = []
     match = re.search(
         r"\bfactual reporting\s*:\s*(very high|high|mixed|low|very low|mostly factual)\b",
         text,
@@ -208,8 +207,8 @@ def _extract_factual_reporting_values(text: str) -> List[str]:
     return values
 
 
-def _extract_ownership_values(text: str) -> List[str]:
-    values: List[str] = []
+def _extract_ownership_values(text: str) -> list[str]:
+    values: list[str] = []
     patterns = [
         r"owned by ([A-Za-z][A-Za-z0-9&,.\-\s]{2,60}?)(?:[.;,\n]|$)",
         r"subsidiary of ([A-Za-z][A-Za-z0-9&,.\-\s]{2,60}?)(?:[.;,\n]|$)",
@@ -224,8 +223,8 @@ def _extract_ownership_values(text: str) -> List[str]:
     return values
 
 
-def _extract_reach_traffic_values(text: str) -> List[str]:
-    values: List[str] = []
+def _extract_reach_traffic_values(text: str) -> list[str]:
+    values: list[str] = []
     match = re.search(
         r"\b([0-9][0-9,]*\s*(million|billion)?\s*(readers|visitors|subscribers|monthly visitors|monthly readers))\b",
         text,
@@ -236,8 +235,8 @@ def _extract_reach_traffic_values(text: str) -> List[str]:
     return values
 
 
-def _extract_affiliations(text: str) -> List[str]:
-    values: List[str] = []
+def _extract_affiliations(text: str) -> list[str]:
+    values: list[str] = []
     patterns = [
         r"member of ([A-Za-z][A-Za-z0-9&,.\-\s]{2,60}?)(?:[.;,\n]|$)",
         r"affiliated with ([A-Za-z][A-Za-z0-9&,.\-\s]{2,60}?)(?:[.;,\n]|$)",
@@ -250,8 +249,8 @@ def _extract_affiliations(text: str) -> List[str]:
     return values
 
 
-def _extract_major_controversies(text: str) -> List[str]:
-    values: List[str] = []
+def _extract_major_controversies(text: str) -> list[str]:
+    values: list[str] = []
     for sentence in _sentences(text):
         if not re.search(r"controvers", sentence, re.I):
             continue
@@ -268,12 +267,8 @@ def _extract_major_controversies(text: str) -> List[str]:
     return values
 
 
-def _sentences(text: str) -> List[str]:
-    return [
-        segment.strip()
-        for segment in re.split(r"(?<=[.!?])\s+", text)
-        if segment.strip()
-    ]
+def _sentences(text: str) -> list[str]:
+    return [segment.strip() for segment in re.split(r"(?<=[.!?])\s+", text) if segment.strip()]
 
 
 def _trim_words(text: str, limit: int) -> str:
@@ -283,7 +278,7 @@ def _trim_words(text: str, limit: int) -> str:
     return " ".join(words[:limit])
 
 
-def _append_unique(values: List[str], value: str) -> None:
+def _append_unique(values: list[str], value: str) -> None:
     if value not in values:
         values.append(value)
 

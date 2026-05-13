@@ -1,6 +1,6 @@
 import React from "react"
 
-import { Highlight } from "./api"
+import type { Highlight } from "./api"
 import { createHighlightFingerprint } from "./highlight-store"
 
 export type HighlightStableId = string
@@ -27,7 +27,7 @@ export function getGlobalOffset(root: HTMLElement, node: Node, offset: number): 
         if (child === currentNode) {
           return globalOffset
         }
-        globalOffset += child.textContent?.length ?? 0
+        globalOffset += child!.textContent?.length ?? 0
       }
     }
 

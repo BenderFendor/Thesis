@@ -6,7 +6,7 @@
 
 import { renderHook, waitFor } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { ReactNode } from "react";
+import type { ReactNode } from "react";
 
 // Mock the API functions
 jest.mock("@/lib/api", () => ({
@@ -302,9 +302,9 @@ describe("usePaginatedNews", () => {
     // Should only have 2 articles (deduplicated by ID)
     expect(result.current.articles).toHaveLength(2);
     // The first occurrence should be kept
-    expect(result.current.articles[0].id).toBe(1);
-    expect(result.current.articles[0].title).toBe("Test Article 1");
-    expect(result.current.articles[1].id).toBe(2);
+    expect(result.current.articles[0]!.id).toBe(1);
+    expect(result.current.articles[0]!.title).toBe("Test Article 1");
+    expect(result.current.articles[1]!.id).toBe(2);
   });
 
   it("should request 500 articles for scroll-sized cached fetches", async () => {

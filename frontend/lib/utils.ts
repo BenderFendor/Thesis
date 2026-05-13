@@ -25,7 +25,7 @@ export function getDebugMode(): boolean {
   return DEBUG_MODE
 }
 
-export function get_logger(name: string) {
+export function getLogger(name: string) {
   return {
     debug: (...args: unknown[]) => {
       if (getDebugMode()) {

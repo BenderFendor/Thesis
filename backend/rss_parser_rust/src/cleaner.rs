@@ -1,10 +1,16 @@
 use once_cell::sync::Lazy;
 use regex::Regex;
 
-static HTML_TAG_RE: Lazy<Regex> = Lazy::new(|| Regex::new(r"<[^>]+>").unwrap());
-static WHITESPACE_RE: Lazy<Regex> = Lazy::new(|| Regex::new(r"\s+").unwrap());
-static NBSP_RE: Lazy<Regex> = Lazy::new(|| Regex::new(r"[\u{00A0}\u{2009}\u{202F}]").unwrap());
+static HTML_TAG_RE: Lazy<Regex> =
+    Lazy::new(|| Regex::new(r"<[^>]+>").expect("valid html tag regex"));
+static WHITESPACE_RE: Lazy<Regex> =
+    Lazy::new(|| Regex::new(r"\s+").expect("valid whitespace regex"));
+static NBSP_RE: Lazy<Regex> =
+    Lazy::new(|| Regex::new(r"[\u{00A0}\u{2009}\u{202F}]").expect("valid nbsp regex"));
 
+/// Strips HTML tags, decodes HTML entities, replaces non-breaking space
+/// characters with regular spaces, and collapses all whitespace into single
+/// spaces.
 pub fn clean_html(input: &str) -> String {
     if input.is_empty() {
         return String::new();

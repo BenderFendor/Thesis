@@ -27,12 +27,6 @@ import {
 } from "@/components/ui/select"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import {
-  ChromaDebugResponse,
-  DatabaseDebugResponse,
-  StorageDriftReport,
-  StartupMetricsResponse,
-  CacheDebugResponse,
-  CacheDeltaResponse,
   fetchCacheDebugArticles,
   fetchCacheDelta,
   fetchChromaDebugArticles,
@@ -54,7 +48,13 @@ import type {
   DebugErrorsResponse,
   LlmLogResponse,
   SourceStats,
-} from "@/lib/api"
+
+  ChromaDebugResponse,
+  DatabaseDebugResponse,
+  StorageDriftReport,
+  StartupMetricsResponse,
+  CacheDebugResponse,
+  CacheDeltaResponse} from "@/lib/api"
 
 function usePersistentNumber(initial: number, min: number, max: number): [number, (value: number) => void] {
   const [value, setValue] = useState(initial)

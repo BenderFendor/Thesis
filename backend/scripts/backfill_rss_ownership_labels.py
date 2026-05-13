@@ -173,9 +173,7 @@ def backfill_ownership_labels(path: Path, write: bool) -> tuple[int, int]:
         updated += 1
 
     if write and updated:
-        path.write_text(
-            json.dumps(data, indent=4, ensure_ascii=True) + "\n", encoding="utf-8"
-        )
+        path.write_text(json.dumps(data, indent=4, ensure_ascii=True) + "\n", encoding="utf-8")
 
     return updated, total
 

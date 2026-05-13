@@ -31,9 +31,7 @@ def postgres_container() -> PostgresContainer:
 @pytest.fixture(scope="session")
 def chroma_container() -> str:
     _require_docker()
-    with DockerContainer("chromadb/chroma:0.5.23").with_exposed_ports(
-        8000
-    ) as container:
+    with DockerContainer("chromadb/chroma:0.5.23").with_exposed_ports(8000) as container:
         host = container.get_container_host_ip()
         port = container.get_exposed_port(8000)
         base_url = f"http://{host}:{port}"

@@ -1,3 +1,5 @@
+"""Embedding Service."""
+
 from __future__ import annotations
 
 from collections.abc import AsyncIterator
@@ -25,11 +27,12 @@ configure_logging()
 logger = get_logger("embedding_service")
 
 _model_lock = Lock()
-_embedding_model: "SentenceTransformer | None" = None
+_embedding_model: SentenceTransformer | None = None
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncIterator[None]:
+    """Lifespan."""
     raise_nofile_soft_limit(logger)
     soft_nofile, hard_nofile = get_nofile_limits()
     logger.info(
@@ -53,30 +56,32 @@ app = FastAPI(
 
 
 class EmbedRequest(BaseModel):
+    """Embed Request."""
+
     texts: list[str] = Field(default_factory=list)
     batch_size: int = Field(default=32, ge=1, le=256)
 
 
 class EmbedResponse(BaseModel):
+    """Embed Response."""
+
     embeddings: list[list[float]]
     model: str
     count: int
     dimension: int
 
 
-def _get_sentence_transformer_class() -> type["SentenceTransformer"]:
+def _get_sentence_transformer_class() -> type[SentenceTransformer]:
     try:
         transformer_module = import_module("sentence_transformers")
     except ImportError as exc:  # pragma: no cover - optional at import time
         raise RuntimeError(
             "sentence-transformers is not installed; cannot generate embeddings."
         ) from exc
-    return cast(
-        type["SentenceTransformer"], getattr(transformer_module, "SentenceTransformer")
-    )
+    return cast(type["SentenceTransformer"], transformer_module.SentenceTransformer)
 
 
-def _get_embedding_model() -> "SentenceTransformer":
+def _get_embedding_model() -> SentenceTransformer:
     global _embedding_model
 
     if _embedding_model is not None:
@@ -97,6 +102,7 @@ def _get_embedding_model() -> "SentenceTransformer":
 
 @app.get("/health")
 def health() -> dict[str, object]:
+    """Health."""
     return {
         "ok": True,
         "model": settings.embedding_model_name,
@@ -106,6 +112,7 @@ def health() -> dict[str, object]:
 
 @app.post("/embed", response_model=EmbedResponse)
 def embed(request: EmbedRequest) -> EmbedResponse:
+    """Embed."""
     if not request.texts:
         raise HTTPException(status_code=400, detail="texts must not be empty")
 

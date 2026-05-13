@@ -1,11 +1,11 @@
 "use client"
 
-import { useState, useCallback, useMemo, useEffect, useRef } from "react"
+import { useState, useCallback, useMemo, useEffect } from "react"
 import { LiveNewsToolbar } from "./live-news-toolbar"
 import { LiveNewsSourcePicker } from "./live-news-source-picker"
 import { StreamCard } from "./stream-card"
 import { useLiveNewsPreferences } from "@/hooks/useLiveNewsPreferences"
-import { getDefaultSources, type LiveNewsSource } from "@/lib/live-news-sources"
+import { getDefaultSources } from "@/lib/live-news-sources"
 import type { NewsArticle } from "@/lib/api"
 
 interface LiveNewsViewProps {
@@ -29,8 +29,6 @@ export function LiveNewsView({ articles: _articles, loading: _loading }: LiveNew
     const activeIds = new Set(prefs.activeSourceIds)
     return allSources.filter((s) => activeIds.has(s.id))
   }, [allSources, prefs.activeSourceIds])
-
-  const visibleRef = useRef<Set<string>>(new Set())
 
   useEffect(() => {
     const check = () => setIsDesktop(window.innerWidth >= MIN_DESKTOP_WIDTH)
@@ -70,8 +68,7 @@ export function LiveNewsView({ articles: _articles, loading: _loading }: LiveNew
   }, [])
 
   const handleToggleMute = useCallback(
-    (sourceId: string) => {
-      // per-source mute not implemented in MVP, treat as toggle all
+    (_sourceId: string) => {
       if (prefs.muteState === "all-muted") {
         updatePrefs({ muteState: "per-source" })
       } else {

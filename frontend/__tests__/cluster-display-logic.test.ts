@@ -77,10 +77,10 @@ describe("cluster display logic", () => {
 
           expect(mapped).toHaveLength(articles.length);
           mapped.forEach((article, index) => {
-            expect(article.title).toBe(articles[index].title);
-            expect(article.url).toBe(articles[index].url);
-            expect(article.summary).toBe(articles[index].summary || "");
-            expect(article.image).toBe(articles[index].image_url || "");
+            expect(article.title).toBe(articles[index]!.title);
+            expect(article.url).toBe(articles[index]!.url);
+            expect(article.summary).toBe(articles[index]!.summary || "");
+            expect(article.image).toBe(articles[index]!.image_url || "");
           });
         },
       ),

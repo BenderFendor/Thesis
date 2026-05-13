@@ -1,11 +1,10 @@
-"""
-Article extraction service for full-text content retrieval and processing.
+"""Article extraction service for full-text content retrieval and processing.
 
 Provides functionality to extract, cache, and serve full article content
 for the reading queue and reader mode.
 """
 
-from typing import Any, Dict, Optional
+from typing import Any
 import asyncio
 import re
 from html import unescape
@@ -44,9 +43,8 @@ PAYWALL_PATTERNS = (
 ACCESS_BLOCK_STATUS_CODES = {401, 402, 403, 429}
 
 
-async def extract_article_full_text(url: str) -> Dict[str, Any]:
-    """
-    Extract full article content from a URL.
+async def extract_article_full_text(url: str) -> dict[str, Any]:
+    """Extract full article content from a URL.
 
     Returns a dictionary with:
         - success: bool indicating if extraction was successful
@@ -66,16 +64,15 @@ async def extract_article_full_text(url: str) -> Dict[str, Any]:
         return {"success": False, "error": str(exc), "text": None}
 
 
-def _extract_sync(url: str) -> Dict[str, Any]:
-    """
-    Synchronous extraction helper (runs in executor).
+def _extract_sync(url: str) -> dict[str, Any]:
+    """Synchronous extraction helper (runs in executor).
 
     This is a blocking operation that fetches article HTML and applies
     site-specific and Rust-based extraction.
     """
     try:
         html = ""
-        status_code: Optional[int] = None
+        status_code: int | None = None
         try:
             html, status_code = _fetch_article_response(url)
         except Exception as fetch_exc:
@@ -84,9 +81,7 @@ def _extract_sync(url: str) -> Dict[str, Any]:
         if html:
             rebelmouse_payload = _extract_rebelmouse_article(url, html)
             if rebelmouse_payload:
-                return _log_success(
-                    url, "rebelmouse", {**rebelmouse_payload, "html": html}
-                )
+                return _log_success(url, "rebelmouse", {**rebelmouse_payload, "html": html})
 
             rust_payload = _extract_with_rust(html)
             access_barrier = _detect_access_barrier(
@@ -155,23 +150,23 @@ def _fetch_article_html(url: str) -> str:
     return html
 
 
-def _log_success(url: str, extractor: str, payload: Dict[str, Any]) -> Dict[str, Any]:
+def _log_success(url: str, extractor: str, payload: dict[str, Any]) -> dict[str, Any]:
     logger.info("Article extracted with %s for %s", extractor, url)
     payload["extractor"] = extractor
     return payload
 
 
-def _has_extracted_text(payload: Dict[str, Any]) -> bool:
+def _has_extracted_text(payload: dict[str, Any]) -> bool:
     text = payload.get("text")
     return isinstance(text, str) and bool(text.strip())
 
 
-def extract_article_content(url: str) -> Dict[str, Any]:
+def extract_article_content(url: str) -> dict[str, Any]:
     """Blocking helper for contexts that cannot await coroutines."""
     return _extract_sync(url)
 
 
-def _normalize_text(text: Optional[str]) -> str:
+def _normalize_text(text: str | None) -> str:
     if not isinstance(text, str):
         return ""
     return re.sub(r"\s+", " ", text).strip().lower()
@@ -184,17 +179,15 @@ def _contains_pattern(text: str, patterns: tuple[str, ...]) -> bool:
 def _detect_access_barrier(
     *,
     html: str,
-    status_code: Optional[int],
-    extracted_payload: Dict[str, Any],
-) -> Optional[Dict[str, str]]:
+    status_code: int | None,
+    extracted_payload: dict[str, Any],
+) -> dict[str, str] | None:
     normalized_html = _normalize_text(html)
     normalized_title = _normalize_text(extracted_payload.get("title"))
     normalized_description = _normalize_text(extracted_payload.get("meta_description"))
     normalized_text = _normalize_text(extracted_payload.get("text"))
     combined = " ".join(
-        value
-        for value in (normalized_title, normalized_description, normalized_text)
-        if value
+        value for value in (normalized_title, normalized_description, normalized_text) if value
     )
 
     page_looks_short = len(normalized_text.split()) < 120
@@ -219,7 +212,7 @@ def _detect_access_barrier(
     return None
 
 
-def _extract_with_rust(html: str) -> Dict[str, Any]:
+def _extract_with_rust(html: str) -> dict[str, Any]:
     """Extract article content via Rust HTML parser."""
     from app.core.tracing import get_tracer
 
@@ -241,7 +234,7 @@ def _extract_with_rust(html: str) -> Dict[str, Any]:
     }
 
 
-def _extract_rebelmouse_article(url: str, html: str) -> Optional[Dict[str, Any]]:
+def _extract_rebelmouse_article(url: str, html: str) -> dict[str, Any] | None:
     if not html:
         return None
     match = re.search(r'"fullBootstrapUrl"\s*:\s*"([^"]+)"', html)
@@ -300,25 +293,22 @@ def _extract_rebelmouse_article(url: str, html: str) -> Optional[Dict[str, Any]]
         "title": post.get("headline") or post.get("title") or payload.get("title"),
         "authors": [author] if author else (payload.get("authors") or []),
         "publish_date": publish_date or payload.get("publish_date"),
-        "top_image": post.get("image")
-        or post.get("image_external")
-        or payload.get("top_image"),
+        "top_image": post.get("image") or post.get("image_external") or payload.get("top_image"),
         "images": payload.get("images") or [],
         "meta_description": payload.get("meta_description"),
         "keywords": [],
     }
 
 
-def calculate_word_count(text: Optional[str]) -> Optional[int]:
+def calculate_word_count(text: str | None) -> int | None:
     """Calculate word count from text."""
     if not text:
         return None
     return len(text.split())
 
 
-def calculate_read_time_minutes(text: Optional[str], wpm: int = 230) -> Optional[int]:
-    """
-    Calculate estimated read time in minutes.
+def calculate_read_time_minutes(text: str | None, wpm: int = 230) -> int | None:
+    """Calculate estimated read time in minutes.
 
     Args:
         text: Article text

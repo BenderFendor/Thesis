@@ -65,9 +65,11 @@ import { useDebugMode } from "@/hooks/useDebugMode"
 import { useFavorites } from "@/hooks/useFavorites"
 import { useLiveBrowseIndex } from "@/hooks/useLiveBrowseIndex"
 import { useSourceFilter } from "@/hooks/useSourceFilter"
-import { fetchCacheStatus, fetchCategories, NewsArticle } from "@/lib/api"
+import type { NewsArticle } from "@/lib/api";
+import { fetchCacheStatus, fetchCategories } from "@/lib/api"
 import { ErrorBoundary } from '@/components/ErrorBoundary';
-import { NotificationsPopup, Notification, type NotificationActionType } from '@/components/notification-popup';
+import type { Notification} from '@/components/notification-popup';
+import { NotificationsPopup, type NotificationActionType } from '@/components/notification-popup';
 import { SourceSidebar } from "@/components/source-sidebar";
 import { CredibilityBadge } from "@/components/credibility-badge";
 import { cn } from "@/lib/utils";

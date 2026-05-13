@@ -1,5 +1,4 @@
-"""
-Source analysis scorer for the Media Accountability Wiki.
+"""Source analysis scorer for the Media Accountability Wiki.
 
 Scores each news source on five axes:
 1. funding
@@ -13,7 +12,8 @@ from __future__ import annotations
 
 import json
 import re
-from typing import Any, Dict, Iterable, List, Optional, cast
+from typing import Any, cast
+from collections.abc import Iterable
 
 from openai import OpenAI
 from openai.types.chat import ChatCompletionMessageParam
@@ -31,8 +31,7 @@ logger = get_logger("source_analysis_scorer")
 SCORER_SYSTEM_PROMPT = build_json_system_prompt(
     role="media systems analyst",
     task=(
-        "Score a news source against a five-axis source-analysis rubric using the "
-        "supplied context."
+        "Score a news source against a five-axis source-analysis rubric using the supplied context."
     ),
     output_rules=compose_prompt_blocks(
         "Return valid JSON only. No markdown fences or extra prose.",
@@ -58,10 +57,11 @@ class AnalysisAxisScore:
         score: int,
         confidence: str,
         prose: str,
-        citations: List[Dict[str, str]],
+        citations: list[dict[str, str]],
         empirical_basis: str,
         scored_by: str = "llm",
     ):
+        """Initialize."""
         self.axis_name = axis_name
         self.score = max(1, min(5, score))
         self.confidence = confidence
@@ -70,7 +70,8 @@ class AnalysisAxisScore:
         self.empirical_basis = empirical_basis
         self.scored_by = scored_by
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
+        """To Dict."""
         return {
             "axis_name": self.axis_name,
             "score": self.score,
@@ -87,9 +88,10 @@ class SourceAnalysisResult:
 
     def __init__(
         self,
-        scores: List[AnalysisAxisScore],
-        org_updates: Optional[Dict[str, Any]] = None,
+        scores: list[AnalysisAxisScore],
+        org_updates: dict[str, Any] | None = None,
     ):
+        """Initialize."""
         self.scores = scores
         self.org_updates = org_updates
 
@@ -98,20 +100,20 @@ class SourceAnalysisScorer:
     """Scores sources on the five source-analysis axes."""
 
     def __init__(self) -> None:
+        """Initialize."""
         self.client: OpenAI | None = get_openai_client()
 
     async def score_source(
         self,
         source_name: str,
-        org_data: Optional[Dict[str, Any]] = None,
-        source_metadata: Optional[Dict[str, Any]] = None,
-        article_corpus_stats: Optional[Dict[str, Any]] = None,
+        org_data: dict[str, Any] | None = None,
+        source_metadata: dict[str, Any] | None = None,
+        article_corpus_stats: dict[str, Any] | None = None,
     ) -> SourceAnalysisResult:
+        """Score Source."""
         logger.info("Scoring source analysis for: %s", source_name)
 
-        context = self._build_context(
-            source_name, org_data, source_metadata, article_corpus_stats
-        )
+        context = self._build_context(source_name, org_data, source_metadata, article_corpus_stats)
 
         needs_org_enhancement = (
             org_data is not None and org_data.get("research_confidence") != "high"
@@ -151,11 +153,11 @@ class SourceAnalysisScorer:
     def _build_context(
         self,
         source_name: str,
-        org_data: Optional[Dict[str, Any]],
-        source_metadata: Optional[Dict[str, Any]],
-        article_corpus_stats: Optional[Dict[str, Any]],
-    ) -> Dict[str, Any]:
-        ctx: Dict[str, Any] = {"source_name": source_name}
+        org_data: dict[str, Any] | None,
+        source_metadata: dict[str, Any] | None,
+        article_corpus_stats: dict[str, Any] | None,
+    ) -> dict[str, Any]:
+        ctx: dict[str, Any] = {"source_name": source_name}
         if org_data:
             ctx["org_data"] = org_data
         if source_metadata:
@@ -164,9 +166,7 @@ class SourceAnalysisScorer:
             ctx["corpus_stats"] = article_corpus_stats
         return ctx
 
-    def _score_funding(
-        self, source_name: str, context: Dict[str, Any]
-    ) -> AnalysisAxisScore:
+    def _score_funding(self, source_name: str, context: dict[str, Any]) -> AnalysisAxisScore:
         """Score funding TRANSPARENCY, not the funding model itself.
 
         A state-funded outlet that fully discloses its budget scores well.
@@ -175,18 +175,16 @@ class SourceAnalysisScorer:
         org = context.get("org_data", {})
         metadata = context.get("source_metadata", {})
 
-        funding_type = (
-            org.get("funding_type") or metadata.get("funding_type") or ""
-        ).lower()
+        funding_type = (org.get("funding_type") or metadata.get("funding_type") or "").lower()
         funding_transparency = (org.get("funding_transparency") or "").lower()
-        citations: List[Dict[str, str]] = []
+        citations: list[dict[str, str]] = []
         if org.get("wikipedia_url"):
             citations.append(
                 {"url": org["wikipedia_url"], "title": f"{source_name} funding context"}
             )
 
         # Sub-score builders
-        sub_risks: List[str] = []
+        sub_risks: list[str] = []
         base_score = 3  # neutral default
 
         # 1. Ownership concentration risk
@@ -254,9 +252,7 @@ class SourceAnalysisScorer:
             confidence = "low"
 
         # Compose prose
-        risk_summary = (
-            "; ".join(sub_risks) if sub_risks else "minimal funding data available"
-        )
+        risk_summary = "; ".join(sub_risks) if sub_risks else "minimal funding data available"
         prose = (
             f"{source_name} funding risk analysis: {risk_summary}. "
             f"Score {base_score}/5 reflects transparency of funding structure, "
@@ -278,19 +274,15 @@ class SourceAnalysisScorer:
             scored_by="data",
         )
 
-    def _score_credibility(
-        self, source_name: str, context: Dict[str, Any]
-    ) -> AnalysisAxisScore:
+    def _score_credibility(self, source_name: str, context: dict[str, Any]) -> AnalysisAxisScore:
         org = context.get("org_data", {})
         metadata = context.get("source_metadata", {})
 
         credibility_score = metadata.get("credibility_score")
         factual_reporting = (org.get("factual_reporting") or "").lower()
-        citations: List[Dict[str, str]] = []
+        citations: list[dict[str, str]] = []
         if org.get("wikipedia_url"):
-            citations.append(
-                {"url": org["wikipedia_url"], "title": f"{source_name} profile"}
-            )
+            citations.append({"url": org["wikipedia_url"], "title": f"{source_name} profile"})
 
         if isinstance(credibility_score, (int, float)):
             if credibility_score >= 0.9:
@@ -359,9 +351,9 @@ class SourceAnalysisScorer:
     async def _llm_score_axes(
         self,
         source_name: str,
-        context: Dict[str, Any],
+        context: dict[str, Any],
         include_org_metadata: bool = False,
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         if not self.client:
             logger.warning("No LLM client available; skipping LLM-scored axes")
             return {"scores": {}}
@@ -469,9 +461,7 @@ Respond ONLY with valid JSON (no markdown):
             )
 
             content = response.choices[0].message.content or ""
-            finish_reason = (
-                response.choices[0].finish_reason if response.choices else "unknown"
-            )
+            finish_reason = response.choices[0].finish_reason if response.choices else "unknown"
 
             if not content:
                 logger.error(
@@ -492,7 +482,7 @@ Respond ONLY with valid JSON (no markdown):
                 return {"scores": {}}
 
             data = json.loads(json_match.group())
-            results: Dict[str, AnalysisAxisScore] = {}
+            results: dict[str, AnalysisAxisScore] = {}
 
             for axis_name in ["source_network", "political_bias", "framing_omission"]:
                 axis_data = data.get(axis_name, {})
@@ -519,7 +509,7 @@ Respond ONLY with valid JSON (no markdown):
                     ),
                 )
 
-            output: Dict[str, Any] = {"scores": results}
+            output: dict[str, Any] = {"scores": results}
 
             if include_org_metadata and "organization" in data:
                 output["org_updates"] = data["organization"]
@@ -538,8 +528,8 @@ Respond ONLY with valid JSON (no markdown):
             logger.error("LLM scoring failed for %s: %s", source_name, exc)
             return {"scores": {}}
 
-    def _format_context_for_llm(self, source_name: str, context: Dict[str, Any]) -> str:
-        parts: List[str] = []
+    def _format_context_for_llm(self, source_name: str, context: dict[str, Any]) -> str:
+        parts: list[str] = []
 
         org = context.get("org_data", {})
         if org:
@@ -569,32 +559,26 @@ Respond ONLY with valid JSON (no markdown):
             if metadata.get("political_bias"):
                 parts.append(f"Catalog political bias: {metadata['political_bias']}")
             if metadata.get("credibility_score") is not None:
-                parts.append(
-                    f"Stored credibility score: {metadata['credibility_score']}"
-                )
+                parts.append(f"Stored credibility score: {metadata['credibility_score']}")
 
         corpus = context.get("corpus_stats", {})
         if corpus:
             if corpus.get("article_count"):
                 parts.append(f"Articles in our database: {corpus['article_count']}")
             if corpus.get("top_categories"):
-                parts.append(
-                    f"Top categories: {', '.join(corpus['top_categories'][:5])}"
-                )
+                parts.append(f"Top categories: {', '.join(corpus['top_categories'][:5])}")
 
         if not parts:
-            return (
-                "No structured data available. Score based on general knowledge of this "
-                "source."
-            )
+            return "No structured data available. Score based on general knowledge of this source."
 
         return "\n".join(parts)
 
 
-_scorer: Optional[SourceAnalysisScorer] = None
+_scorer: SourceAnalysisScorer | None = None
 
 
 def get_source_analysis_scorer() -> SourceAnalysisScorer:
+    """Get Source Analysis Scorer."""
     global _scorer
     if _scorer is None:
         _scorer = SourceAnalysisScorer()

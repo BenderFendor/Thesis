@@ -1,5 +1,4 @@
-"""
-Material Interest Agent for Phase 5C.
+"""Material Interest Agent for Phase 5C.
 
 This agent analyzes material interests that may influence news coverage:
 - Trade relationships between countries (OEC data from trade_flows table)
@@ -13,8 +12,8 @@ Helps identify potential conflicts of interest in news coverage.
 import json
 import re
 import asyncio
-from datetime import datetime, timedelta, timezone
-from typing import Any, Dict, List, Optional, cast
+from datetime import datetime, timedelta, UTC
+from typing import Any, cast
 
 import httpx
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
@@ -42,10 +41,10 @@ _CAMEO_ECONOMIC_LO = 14
 _CAMEO_ECONOMIC_HI = 20
 
 
-def _extract_json(content: str) -> Optional[Dict[str, Any]]:
+def _extract_json(content: str) -> dict[str, Any] | None:
     match = re.search(r"\{[\s\S]*\}", content)
     if match:
-        return cast(Dict[str, Any], json.loads(match.group()))
+        return cast(dict[str, Any], json.loads(match.group()))
     return None
 
 
@@ -53,6 +52,7 @@ class MaterialInterestAgent:
     """Agent that analyzes material interests affecting news coverage."""
 
     def __init__(self) -> None:
+        """Initialize."""
         self.llm_client = get_llm_client()
         self.http_client = httpx.AsyncClient(timeout=30.0)
         self.oec_base = "https://oec.world/olap-proxy/data"
@@ -67,10 +67,10 @@ class MaterialInterestAgent:
 
     async def _get_gdelt_economic_context(
         self,
-        countries: List[str],
+        countries: list[str],
         days: int = 30,
-        session: Optional[AsyncSession] = None,
-    ) -> Dict[str, Any]:
+        session: AsyncSession | None = None,
+    ) -> dict[str, Any]:
         upper = [c.upper() for c in countries]
         if not upper:
             return {
@@ -82,9 +82,9 @@ class MaterialInterestAgent:
                 "total_events": 0,
             }
 
-        cutoff = datetime.now(timezone.utc) - timedelta(days=days)
+        cutoff = datetime.now(UTC) - timedelta(days=days)
 
-        async def _run_query(db: AsyncSession) -> Dict[str, Any]:
+        async def _run_query(db: AsyncSession) -> dict[str, Any]:
             result = await db.execute(
                 text(
                     """
@@ -125,9 +125,7 @@ class MaterialInterestAgent:
                 "cooperation_events": int(row.cooperation_events or 0),
                 "conflict_events": int(row.conflict_events or 0),
                 "economic_events": int(row.economic_events or 0),
-                "avg_tone": round(row.avg_tone, 3)
-                if row.avg_tone is not None
-                else None,
+                "avg_tone": round(row.avg_tone, 3) if row.avg_tone is not None else None,
                 "avg_goldstein": round(row.avg_goldstein, 3)
                 if row.avg_goldstein is not None
                 else None,
@@ -152,13 +150,13 @@ class MaterialInterestAgent:
             }
 
     async def _get_country_resources(
-        self, country_codes: List[str], session: Optional[AsyncSession] = None
-    ) -> Dict[str, Dict[str, Any]]:
+        self, country_codes: list[str], session: AsyncSession | None = None
+    ) -> dict[str, dict[str, Any]]:
         upper = [c.upper() for c in country_codes]
         if not upper:
             return {}
 
-        async def _run(db: AsyncSession) -> Dict[str, Dict[str, Any]]:
+        async def _run(db: AsyncSession) -> dict[str, dict[str, Any]]:
             result = await db.execute(
                 text(
                     """
@@ -190,9 +188,9 @@ class MaterialInterestAgent:
             return {}
 
     async def _get_trade_flows(
-        self, exporter: str, importer: str, session: Optional[AsyncSession] = None
-    ) -> Dict[str, Any]:
-        async def _run(db: AsyncSession) -> Dict[str, Any]:
+        self, exporter: str, importer: str, session: AsyncSession | None = None
+    ) -> dict[str, Any]:
+        async def _run(db: AsyncSession) -> dict[str, Any]:
             agg_result = await db.execute(
                 text(
                     """
@@ -242,9 +240,7 @@ class MaterialInterestAgent:
             async with await self._get_db_session() as new_s:
                 return await _run(new_s)
         except Exception as e:
-            logger.error(
-                "Trade flows query failed for %s->%s: %s", exporter, importer, e
-            )
+            logger.error("Trade flows query failed for %s->%s: %s", exporter, importer, e)
             return {
                 "total_trade_value_usd": None,
                 "product_count": 0,
@@ -252,14 +248,14 @@ class MaterialInterestAgent:
             }
 
     async def _get_commodity_context(
-        self, commodities: List[str], session: Optional[AsyncSession] = None
-    ) -> Dict[str, Dict[str, Any]]:
+        self, commodities: list[str], session: AsyncSession | None = None
+    ) -> dict[str, dict[str, Any]]:
         if not commodities:
             return {}
 
-        six_months_ago = datetime.now(timezone.utc) - timedelta(days=180)
+        six_months_ago = datetime.now(UTC) - timedelta(days=180)
 
-        async def _run(db: AsyncSession) -> Dict[str, Dict[str, Any]]:
+        async def _run(db: AsyncSession) -> dict[str, dict[str, Any]]:
             result = await db.execute(
                 text(
                     """
@@ -273,7 +269,7 @@ class MaterialInterestAgent:
                 {"names": commodities, "six_months": six_months_ago},
             )
             rows = list(result)
-            grouped: Dict[str, List[Dict[str, Any]]] = {}
+            grouped: dict[str, list[dict[str, Any]]] = {}
             for row in rows:
                 grouped.setdefault(row.commodity_name, []).append(
                     {
@@ -283,7 +279,7 @@ class MaterialInterestAgent:
                     }
                 )
 
-            context: Dict[str, Dict[str, Any]] = {}
+            context: dict[str, dict[str, Any]] = {}
             for name, prices in grouped.items():
                 latest = prices[0]["price_usd"] if prices else None
                 oldest = prices[-1]["price_usd"] if prices else None
@@ -307,9 +303,9 @@ class MaterialInterestAgent:
             return {}
 
     async def _get_source_owner_interests(
-        self, source_name: str, session: Optional[AsyncSession] = None
-    ) -> Dict[str, Any]:
-        async def _run(db: AsyncSession) -> Dict[str, Any]:
+        self, source_name: str, session: AsyncSession | None = None
+    ) -> dict[str, Any]:
+        async def _run(db: AsyncSession) -> dict[str, Any]:
             normalized = source_name.lower().strip()
             org_result = await db.execute(
                 text(
@@ -370,8 +366,8 @@ class MaterialInterestAgent:
         self,
         article_url: str,
         source_name: str,
-        analysis_json: Dict[str, Any],
-        session: Optional[AsyncSession] = None,
+        analysis_json: dict[str, Any],
+        session: AsyncSession | None = None,
     ) -> None:
         async def _run(db: AsyncSession) -> None:
             await db.execute(
@@ -386,7 +382,7 @@ class MaterialInterestAgent:
                     "url": article_url,
                     "source": source_name,
                     "analysis": json.dumps(analysis_json, default=str),
-                    "now": datetime.now(timezone.utc),
+                    "now": datetime.now(UTC),
                 },
             )
             await db.commit()
@@ -403,15 +399,15 @@ class MaterialInterestAgent:
         self,
         source_name: str,
         source_country: str,
-        mentioned_countries: List[str],
-        topics: Optional[List[str]],
-        article_text: Optional[str],
-        gdelt_context: Dict[str, Any],
-        country_resources: Dict[str, Dict[str, Any]],
-        trade_data: List[Dict[str, Any]],
-        owner_interests: Dict[str, Any],
-        commodity_context: Dict[str, Dict[str, Any]],
-    ) -> Dict[str, Any]:
+        mentioned_countries: list[str],
+        topics: list[str] | None,
+        article_text: str | None,
+        gdelt_context: dict[str, Any],
+        country_resources: dict[str, dict[str, Any]],
+        trade_data: list[dict[str, Any]],
+        owner_interests: dict[str, Any],
+        commodity_context: dict[str, dict[str, Any]],
+    ) -> dict[str, Any]:
         if not self.llm_client:
             return {
                 "beneficiary_table": [],
@@ -513,13 +509,12 @@ Return ONLY valid JSON:
         self,
         article_source: str,
         source_country: str,
-        mentioned_countries: List[str],
-        topics: Optional[List[str]] = None,
-        article_text: Optional[str] = None,
-    ) -> Dict[str, Any]:
-        logger.info(
-            "Analyzing material context for %s (%s)", article_source, source_country
-        )
+        mentioned_countries: list[str],
+        topics: list[str] | None = None,
+        article_text: str | None = None,
+    ) -> dict[str, Any]:
+        """Analyze Material Context."""
+        logger.info("Analyzing material context for %s (%s)", article_source, source_country)
 
         all_countries = [c for c in [source_country] + mentioned_countries[:4] if c]
         if not all_countries:
@@ -533,7 +528,7 @@ Return ONLY valid JSON:
                 self._get_source_owner_interests(article_source, session=session),
             )
 
-            trade_data: List[Dict[str, Any]] = []
+            trade_data: list[dict[str, Any]] = []
             trade_tasks = []
             for i, c1 in enumerate(all_countries):
                 for c2 in all_countries[i + 1 :]:
@@ -541,7 +536,7 @@ Return ONLY valid JSON:
             trade_results = await asyncio.gather(*trade_tasks)
             pair_index = 0
             for i, c1 in enumerate(all_countries):
-                for j, c2 in enumerate(all_countries[i + 1 :]):
+                for _j, c2 in enumerate(all_countries[i + 1 :]):
                     if pair_index < len(trade_results):
                         trade_data.append(
                             {
@@ -552,7 +547,7 @@ Return ONLY valid JSON:
                         )
                     pair_index += 1
 
-            commodity_names: List[str] = []
+            commodity_names: list[str] = []
             for cr in resources.values():
                 for res in cr.get("natural_resources", []):
                     commodity_names.append(str(res))
@@ -573,13 +568,13 @@ Return ONLY valid JSON:
                 commodity_context=commodity_context,
             )
 
-            timestamp_str = datetime.now(timezone.utc).strftime("%Y%m%d%H%M%S")
+            timestamp_str = datetime.now(UTC).strftime("%Y%m%d%H%M%S")
             article_url_hint = f"material_{article_source}_{timestamp_str}"
             await self._persist_analysis(
                 article_url_hint, article_source, analysis, session=session
             )
 
-            result: Dict[str, Any] = {
+            result: dict[str, Any] = {
                 "source": article_source,
                 "source_country": source_country,
                 "mentioned_countries": mentioned_countries,
@@ -592,26 +587,27 @@ Return ONLY valid JSON:
                 "gdelt_context": gdelt_context,
                 "commodity_context": commodity_context,
                 "confidence": analysis.get("confidence", "medium"),
-                "analyzed_at": datetime.now(timezone.utc).isoformat(),
+                "analyzed_at": datetime.now(UTC).isoformat(),
             }
             return result
         finally:
             await session.close()
 
-    async def get_country_economic_profile(self, country_code: str) -> Dict[str, Any]:
+    async def get_country_economic_profile(self, country_code: str) -> dict[str, Any]:
+        """Get Country Economic Profile."""
         resources = await self._get_country_resources([country_code])
-        return resources.get(
-            country_code.upper(), {"note": "Economic data not available"}
-        )
+        return resources.get(country_code.upper(), {"note": "Economic data not available"})
 
     async def close(self) -> None:
+        """Close."""
         await self.http_client.aclose()
 
 
-_agent: Optional[MaterialInterestAgent] = None
+_agent: MaterialInterestAgent | None = None
 
 
 def get_material_interest_agent() -> MaterialInterestAgent:
+    """Get Material Interest Agent."""
     global _agent
     if _agent is None:
         _agent = MaterialInterestAgent()

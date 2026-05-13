@@ -6,7 +6,8 @@ it reads exclusively from pre-computed rows written by the background worker.
 
 from __future__ import annotations
 
-from typing import Any, AsyncGenerator, Dict, List
+from typing import Any
+from collections.abc import AsyncGenerator
 from unittest.mock import patch
 
 import pytest
@@ -47,7 +48,7 @@ async def db_session(db_engine) -> AsyncGenerator[AsyncSession, None]:
         yield session
 
 
-def _sample_clusters(count: int = 3) -> List[Dict[str, Any]]:
+def _sample_clusters(count: int = 3) -> list[dict[str, Any]]:
     return [
         {
             "cluster_id": i,
@@ -108,9 +109,7 @@ async def test_save_snapshot_prunes_old_rows(db_session: AsyncSession):
     from sqlalchemy import func, select
 
     count_result = await db_session.execute(
-        select(func.count(TopicClusterSnapshot.id)).where(
-            TopicClusterSnapshot.window == "1m"
-        )
+        select(func.count(TopicClusterSnapshot.id)).where(TopicClusterSnapshot.window == "1m")
     )
     count = count_result.scalar()
     assert count == SNAPSHOT_KEEP_COUNT
@@ -184,9 +183,7 @@ async def test_clusters_route_initializing_when_no_snapshot(api_client: AsyncCli
 
 
 @pytest.mark.asyncio
-async def test_clusters_route_returns_cached_data(
-    api_client: AsyncClient, db_engine
-) -> None:
+async def test_clusters_route_returns_cached_data(api_client: AsyncClient, db_engine) -> None:
     """With a snapshot in Postgres, the route returns it regardless of ChromaDB state."""
     # Write a snapshot directly so the API can serve it
     factory = async_sessionmaker(db_engine, class_=AsyncSession, expire_on_commit=False)
@@ -203,9 +200,7 @@ async def test_clusters_route_returns_cached_data(
 
 
 @pytest.mark.asyncio
-async def test_clusters_route_uses_window_param(
-    api_client: AsyncClient, db_engine
-) -> None:
+async def test_clusters_route_uses_window_param(api_client: AsyncClient, db_engine) -> None:
     """Different window params return the correct snapshot for that window."""
     factory = async_sessionmaker(db_engine, class_=AsyncSession, expire_on_commit=False)
     async with factory() as session:

@@ -1,10 +1,12 @@
+"""Persistence."""
+
 from __future__ import annotations
 
 import asyncio
 import concurrent.futures
 from collections import defaultdict
-from datetime import datetime, timezone
-from typing import Any, Dict, List, Optional, Tuple, cast
+from datetime import datetime, UTC
+from typing import Any, cast
 
 from sqlalchemy import bindparam, update
 from sqlalchemy.dialects.postgresql import insert
@@ -22,13 +24,11 @@ from app.vector_store import BatchArticlePayload, get_vector_store
 
 logger = get_logger("persistence")
 
-article_persistence_queue: asyncio.Queue[Tuple[List[NewsArticle], Dict[str, Any]]] = (
-    asyncio.Queue()
+article_persistence_queue: asyncio.Queue[tuple[list[NewsArticle], dict[str, Any]]] = asyncio.Queue()
+embedding_generation_queue: asyncio.Queue[tuple[list[EmbeddingArticlePayload], list[str]]] = (
+    asyncio.Queue(maxsize=settings.embedding_queue_size)
 )
-embedding_generation_queue: asyncio.Queue[
-    Tuple[List["EmbeddingArticlePayload"], List[str]]
-] = asyncio.Queue(maxsize=settings.embedding_queue_size)
-_main_event_loop: Optional[asyncio.AbstractEventLoop] = None
+_main_event_loop: asyncio.AbstractEventLoop | None = None
 
 
 def _database_enabled() -> bool:
@@ -36,19 +36,24 @@ def _database_enabled() -> bool:
 
 
 def set_main_event_loop(loop: asyncio.AbstractEventLoop) -> None:
+    """Set Main Event Loop."""
     global _main_event_loop
     _main_event_loop = loop
 
 
-def get_main_event_loop() -> Optional[asyncio.AbstractEventLoop]:
+def get_main_event_loop() -> asyncio.AbstractEventLoop | None:
+    """Get Main Event Loop."""
     return _main_event_loop
 
 
 def get_embedding_queue_depth() -> int:
+    """Get Embedding Queue Depth."""
     return embedding_generation_queue.qsize()
 
 
 class EmbeddingArticlePayload(BatchArticlePayload):
+    """Embedding Article Payload."""
+
     article_id: int
 
 
@@ -56,7 +61,8 @@ def _get_session_factory() -> Any:
     return cast(Any, AsyncSessionLocal)
 
 
-def parse_published_datetime(published: Optional[str]) -> datetime:
+def parse_published_datetime(published: str | None) -> datetime:
+    """Parse Published Datetime."""
     from email.utils import parsedate_to_datetime
 
     if isinstance(published, datetime):
@@ -69,19 +75,16 @@ def parse_published_datetime(published: Optional[str]) -> datetime:
                 normalized = published.replace("Z", "+00:00")
                 dt = datetime.fromisoformat(normalized)
             except Exception:
-                dt = datetime.now(timezone.utc)
+                dt = datetime.now(UTC)
     else:
-        dt = datetime.now(timezone.utc)
+        dt = datetime.now(UTC)
 
-    if dt.tzinfo is None:
-        dt = dt.replace(tzinfo=timezone.utc)
-    else:
-        dt = dt.astimezone(timezone.utc)
+    dt = dt.replace(tzinfo=UTC) if dt.tzinfo is None else dt.astimezone(UTC)
     return dt
 
 
-def _build_article_tags(article: NewsArticle) -> List[str]:
-    tags: List[str] = []
+def _build_article_tags(article: NewsArticle) -> list[str]:
+    tags: list[str] = []
     if article.category:
         tags.append(article.category)
     if article.source:
@@ -89,11 +92,9 @@ def _build_article_tags(article: NewsArticle) -> List[str]:
     return list(dict.fromkeys([tag for tag in tags if tag]))
 
 
-def _build_article_values(
-    article: NewsArticle, source_info: Dict[str, Any]
-) -> Dict[str, Any]:
+def _build_article_values(article: NewsArticle, source_info: dict[str, Any]) -> dict[str, Any]:
     published_dt = parse_published_datetime(article.published)
-    published_value = published_dt.astimezone(timezone.utc).replace(tzinfo=None)
+    published_value = published_dt.astimezone(UTC).replace(tzinfo=None)
     tags = _build_article_tags(article)
     author_value = getattr(article, "author", None)
     author = author_value if isinstance(author_value, str) else None
@@ -121,13 +122,11 @@ def _build_article_values(
             article.description,
             article.description,
         ),
-        "updated_at": datetime.now(timezone.utc).replace(tzinfo=None),
+        "updated_at": datetime.now(UTC).replace(tzinfo=None),
     }
 
 
-async def _persist_articles_async(
-    articles: List[NewsArticle], source_info: Dict[str, Any]
-) -> None:
+async def _persist_articles_async(articles: list[NewsArticle], source_info: dict[str, Any]) -> None:
     if not articles:
         return
     if not _database_enabled():
@@ -136,7 +135,7 @@ async def _persist_articles_async(
     vector_store = get_vector_store()
     async with _get_session_factory()() as session:
         try:
-            unique_articles: Dict[str, NewsArticle] = {}
+            unique_articles: dict[str, NewsArticle] = {}
             for article in articles:
                 if article.link:
                     unique_articles.setdefault(article.link, article)
@@ -145,8 +144,7 @@ async def _persist_articles_async(
                 return
 
             payloads = [
-                _build_article_values(article, source_info)
-                for article in unique_articles.values()
+                _build_article_values(article, source_info) for article in unique_articles.values()
             ]
 
             insert_stmt = insert(ArticleRecord).values(payloads)
@@ -193,9 +191,9 @@ async def _persist_articles_async(
                 if row:
                     article.id = row.id
 
-            embedding_payloads: List[EmbeddingArticlePayload] = []
-            chroma_updates: List[Dict[str, Any]] = []
-            vector_deletes: List[str] = []
+            embedding_payloads: list[EmbeddingArticlePayload] = []
+            chroma_updates: list[dict[str, Any]] = []
+            vector_deletes: list[str] = []
 
             if vector_store:
                 for row in rows:
@@ -206,9 +204,7 @@ async def _persist_articles_async(
                     if chroma_changed:
                         if row.chroma_id:
                             vector_deletes.append(row.chroma_id)
-                        chroma_updates.append(
-                            {"b_id": row.id, "b_chroma_id": desired_chroma_id}
-                        )
+                        chroma_updates.append({"b_id": row.id, "b_chroma_id": desired_chroma_id})
 
                     if needs_embedding:
                         source_article = unique_articles.get(row.url)
@@ -216,13 +212,9 @@ async def _persist_articles_async(
                             continue
                         metadata_payload = {
                             "source": row.source,
-                            "category": row.category
-                            or source_info.get("category", "general"),
-                            "published": row.published_at.isoformat()
-                            if row.published_at
-                            else None,
-                            "country": row.country
-                            or source_info.get("country", "Unknown"),
+                            "category": row.category or source_info.get("category", "general"),
+                            "published": row.published_at.isoformat() if row.published_at else None,
+                            "country": row.country or source_info.get("country", "Unknown"),
                             "url": row.url,
                         }
                         embedding_payloads.append(
@@ -251,18 +243,10 @@ async def _persist_articles_async(
                     from app.core.tracing import get_tracer
 
                     tracer = get_tracer("scoop-backend")
-                    with tracer.start_as_current_span(
-                        "vector_store_batch_ops"
-                    ) as vs_span:
-                        vs_span.set_attribute(
-                            "embedding_payload_count", len(embedding_payloads)
-                        )
-                        vs_span.set_attribute(
-                            "vector_delete_count", len(vector_deletes)
-                        )
-                        embedding_generation_queue.put_nowait(
-                            (embedding_payloads, vector_deletes)
-                        )
+                    with tracer.start_as_current_span("vector_store_batch_ops") as vs_span:
+                        vs_span.set_attribute("embedding_payload_count", len(embedding_payloads))
+                        vs_span.set_attribute("vector_delete_count", len(vector_deletes))
+                        embedding_generation_queue.put_nowait((embedding_payloads, vector_deletes))
                 except asyncio.QueueFull:
                     logger.warning(
                         "Embedding queue full; dropping %s embeddings",
@@ -278,9 +262,8 @@ async def _persist_articles_async(
             )
 
 
-def persist_articles_dual_write(
-    articles: List[NewsArticle], source_info: Dict[str, Any]
-) -> None:
+def persist_articles_dual_write(articles: list[NewsArticle], source_info: dict[str, Any]) -> None:
+    """Persist Articles Dual Write."""
     if not articles:
         return
     if not _database_enabled():
@@ -313,6 +296,7 @@ def persist_articles_dual_write(
 
 
 async def article_persistence_worker() -> None:
+    """Article Persistence Worker."""
     if not _database_enabled():
         logger.info("Persistence worker exiting; ENABLE_DATABASE=0")
         return
@@ -332,6 +316,7 @@ async def article_persistence_worker() -> None:
 
 
 async def embedding_generation_worker() -> None:
+    """Embedding Generation Worker."""
     if not _database_enabled():
         logger.info("Embedding worker exiting; ENABLE_DATABASE=0")
         return
@@ -344,9 +329,7 @@ async def embedding_generation_worker() -> None:
                 and not embedding_generation_queue.empty()
             ):
                 try:
-                    extra_payloads, extra_deletes = (
-                        embedding_generation_queue.get_nowait()
-                    )
+                    extra_payloads, extra_deletes = embedding_generation_queue.get_nowait()
                 except asyncio.QueueEmpty:
                     break
                 payloads.extend(extra_payloads)
@@ -370,7 +353,7 @@ async def embedding_generation_worker() -> None:
 
             if payloads:
                 added_count = vector_store.batch_add_articles(
-                    cast(List[BatchArticlePayload], payloads)
+                    cast(list[BatchArticlePayload], payloads)
                 )
                 if added_count:
                     article_ids = [item["article_id"] for item in payloads]
@@ -384,9 +367,7 @@ async def embedding_generation_worker() -> None:
                         await session.commit()
 
                 if settings.embedding_max_per_minute > 0:
-                    delay = (
-                        len(payloads) * 60 / max(1, settings.embedding_max_per_minute)
-                    )
+                    delay = len(payloads) * 60 / max(1, settings.embedding_max_per_minute)
                     if delay > 0:
                         await asyncio.sleep(delay)
         except Exception as exc:  # pragma: no cover - defensive logging
@@ -397,6 +378,7 @@ async def embedding_generation_worker() -> None:
 
 
 async def migrate_cached_articles_on_startup(delay_seconds: int = 5) -> None:
+    """Migrate Cached Articles On Startup."""
     if not _database_enabled():
         logger.info("Database disabled; skipping cached article migration")
         return
@@ -408,16 +390,14 @@ async def migrate_cached_articles_on_startup(delay_seconds: int = 5) -> None:
         logger.info("No cached articles to migrate to databases")
         return
 
-    grouped_articles: Dict[str, List[NewsArticle]] = defaultdict(list)
+    grouped_articles: dict[str, list[NewsArticle]] = defaultdict(list)
     for cached_article in cached_articles:
         grouped_articles[cached_article.source].append(cached_article)
 
     rss_sources = get_rss_sources()
     migrated_count = 0
     for source_name, articles in grouped_articles.items():
-        source_info = rss_sources.get(
-            source_name, {"category": "general", "country": "US"}
-        )
+        source_info = rss_sources.get(source_name, {"category": "general", "country": "US"})
         await _persist_articles_async(articles, source_info)
         migrated_count += len(articles)
 

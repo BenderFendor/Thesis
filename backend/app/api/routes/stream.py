@@ -1,3 +1,5 @@
+"""Stream."""
+
 from __future__ import annotations
 
 import asyncio
@@ -6,8 +8,8 @@ import json
 import random
 import time
 from collections.abc import AsyncIterator, Mapping
-from datetime import datetime, timezone
-from typing import Any, Dict, List, Tuple, TypeAlias
+from datetime import datetime, UTC
+from typing import Any, TypeAlias
 
 from fastapi import APIRouter, Request
 from fastapi.responses import StreamingResponse
@@ -38,6 +40,7 @@ async def stream_news(
     use_cache: bool = True,
     category: str | None = None,
 ) -> StreamingResponse:
+    """Stream News."""
     stream_id = f"stream_{int(time.time())}_{random.randint(1000, 9999)}"
     request_id = getattr(request.state, "request_id", None)
     stream_logger.info("NEWS REQUEST: %s, use_cache=%s", stream_id, use_cache)
@@ -69,6 +72,7 @@ async def stream_news(
         end_stream(stream_id, reason="rejected_too_many_streams")
 
         async def error_stream() -> AsyncIterator[str]:
+            """Error Stream."""
             yield f"data: {json.dumps({'status': 'error', 'message': f'Too many active streams ({active_count}). Please try again later.'})}\n\n"
 
         return StreamingResponse(error_stream(), media_type="text/event-stream")
@@ -78,9 +82,11 @@ async def stream_news(
     stream_manager.update_stream(stream_id, status="starting")
 
     async def event_generator() -> AsyncIterator[str]:
+        """Event Generator."""
         fetch_start_time = time.time()
 
         def format_sse_event(event_name: str, payload: Mapping[str, object]) -> str:
+            """Format Sse Event."""
             encode_start = time.perf_counter()
             encoded = f"data: {json.dumps(payload)}\n\n"
             encode_ms = (time.perf_counter() - encode_start) * 1000
@@ -99,17 +105,15 @@ async def stream_news(
             stream_logger.info("Stream %s starting event generation", stream_id)
 
             # IMMEDIATELY emit cached data as "initial" event before anything else
-            cached_articles: List[NewsArticle] = []
-            cached_stats: List[Dict[str, object]] = []
+            cached_articles: list[NewsArticle] = []
+            cached_stats: list[dict[str, object]] = []
             cache_age = None
 
             try:
                 cache_load_start = time.time()
                 cached_articles = news_cache.get_articles()
                 cached_stats = news_cache.get_source_stats()
-                cache_age = (
-                    datetime.now(timezone.utc) - news_cache.last_updated
-                ).total_seconds()
+                cache_age = (datetime.now(UTC) - news_cache.last_updated).total_seconds()
                 cache_load_duration = (time.time() - cache_load_start) * 1000
 
                 debug_logger.log_cache_operation(
@@ -133,9 +137,7 @@ async def stream_news(
                 # Apply category filter if specified
                 if category:
                     cached_articles = [
-                        article
-                        for article in cached_articles
-                        if article.category == category
+                        article for article in cached_articles if article.category == category
                     ]
                     stream_logger.info(
                         "Stream %s filtered to category '%s': %s articles",
@@ -153,7 +155,7 @@ async def stream_news(
                         "source_stats": cached_stats,
                         "cache_age_seconds": cache_age,
                         "message": f"Loaded {len(cached_articles)} cached articles instantly",
-                        "timestamp": datetime.now(timezone.utc).isoformat(),
+                        "timestamp": datetime.now(UTC).isoformat(),
                     }
                     yield format_sse_event("initial", initial_data)
 
@@ -173,9 +175,7 @@ async def stream_news(
                         len(cached_articles),
                     )
             except Exception as cache_err:
-                stream_logger.warning(
-                    "Stream %s couldn't load cache: %s", stream_id, cache_err
-                )
+                stream_logger.warning("Stream %s couldn't load cache: %s", stream_id, cache_err)
                 debug_logger.log_event(
                     EventType.CACHE_MISS,
                     component="cache",
@@ -190,7 +190,7 @@ async def stream_news(
                 "status": "starting",
                 "stream_id": stream_id,
                 "message": f"Initializing news stream (use_cache={use_cache})...",
-                "timestamp": datetime.now(timezone.utc).isoformat(),
+                "timestamp": datetime.now(UTC).isoformat(),
                 "active_streams": stream_manager.get_active_stream_count(),
             }
             yield format_sse_event("starting", initial_status)
@@ -209,7 +209,7 @@ async def stream_news(
                         "stream_id": stream_id,
                         "message": "Used fresh cached data",
                         "cache_age_seconds": cache_age,
-                        "timestamp": datetime.now(timezone.utc).isoformat(),
+                        "timestamp": datetime.now(UTC).isoformat(),
                     }
                     yield format_sse_event("complete", final_data)
                     return
@@ -225,9 +225,7 @@ async def stream_news(
             loop = asyncio.get_event_loop()
             rss_sources = get_rss_sources()
 
-            sources_to_process: List[Tuple[str, Dict[str, object]]] = list(
-                rss_sources.items()
-            )
+            sources_to_process: list[tuple[str, dict[str, object]]] = list(rss_sources.items())
             if category:
                 sources_to_process = [
                     (name, info)
@@ -240,9 +238,7 @@ async def stream_news(
                     len(sources_to_process),
                 )
 
-            stream_manager.update_stream(
-                stream_id, total_sources=len(sources_to_process)
-            )
+            stream_manager.update_stream(stream_id, total_sources=len(sources_to_process))
             stream_logger.info(
                 "Stream %s will process %s sources",
                 stream_id,
@@ -254,9 +250,7 @@ async def stream_news(
             try:
                 future_to_source: dict[SourceFuture, str] = {}
                 for name, info in sources_to_process:
-                    should_throttle, wait_time = stream_manager.should_throttle_source(
-                        name
-                    )
+                    should_throttle, wait_time = stream_manager.should_throttle_source(name)
                     source_future: SourceFuture
 
                     if should_throttle:
@@ -269,9 +263,10 @@ async def stream_news(
 
                         async def delayed_process(
                             source_name: str,
-                            source_info: Dict[str, object],
+                            source_info: dict[str, object],
                             delay: float,
                         ) -> SourceResult:
+                            """Delayed Process."""
                             await asyncio.sleep(delay)
                             return await loop.run_in_executor(
                                 executor,
@@ -281,9 +276,7 @@ async def stream_news(
                                 stream_id,
                             )
 
-                        source_future = asyncio.create_task(
-                            delayed_process(name, info, wait_time)
-                        )
+                        source_future = asyncio.create_task(delayed_process(name, info, wait_time))
                     else:
                         source_future = loop.run_in_executor(
                             executor, _process_source_with_debug, name, info, stream_id
@@ -293,8 +286,8 @@ async def stream_news(
 
                 completed_sources = 0
                 total_sources = len(sources_to_process)
-                all_articles: List[NewsArticle] = []
-                all_source_stats: List[Dict[str, object]] = []
+                all_articles: list[NewsArticle] = []
+                all_source_stats: list[dict[str, object]] = []
 
                 stream_logger.info(
                     "Stream %s processing %s sources with %s futures",
@@ -305,9 +298,7 @@ async def stream_news(
 
                 for completed_future in asyncio.as_completed(tuple(future_to_source)):
                     if await request.is_disconnected():
-                        stream_logger.warning(
-                            "Stream %s client disconnected", stream_id
-                        )
+                        stream_logger.warning("Stream %s client disconnected", stream_id)
                         stream_manager.update_stream(stream_id, client_connected=False)
                         end_stream(stream_id, reason="client_disconnect")
                         # Cancel pending futures instead of blocking
@@ -370,13 +361,11 @@ async def stream_news(
                             "progress": {
                                 "completed": completed_sources,
                                 "total": total_sources,
-                                "percentage": round(
-                                    (completed_sources / total_sources) * 100, 1
-                                )
+                                "percentage": round((completed_sources / total_sources) * 100, 1)
                                 if total_sources
                                 else 100,
                             },
-                            "timestamp": datetime.now(timezone.utc).isoformat(),
+                            "timestamp": datetime.now(UTC).isoformat(),
                         }
                         yield format_sse_event("source_complete", progress_data)
                     except Exception as exc:  # pragma: no cover - defensive logging
@@ -403,13 +392,11 @@ async def stream_news(
                             "progress": {
                                 "completed": completed_sources,
                                 "total": total_sources,
-                                "percentage": round(
-                                    (completed_sources / total_sources) * 100, 1
-                                )
+                                "percentage": round((completed_sources / total_sources) * 100, 1)
                                 if total_sources
                                 else 100,
                             },
-                            "timestamp": datetime.now(timezone.utc).isoformat(),
+                            "timestamp": datetime.now(UTC).isoformat(),
                         }
                         yield format_sse_event("source_error", error_data)
 
@@ -423,13 +410,9 @@ async def stream_news(
                 )
 
                 try:
-                    all_articles.sort(
-                        key=lambda article: article.published, reverse=True
-                    )
+                    all_articles.sort(key=lambda article: article.published, reverse=True)
                 except Exception as exc:  # pragma: no cover - defensive logging
-                    stream_logger.warning(
-                        "Stream %s couldn't sort articles: %s", stream_id, exc
-                    )
+                    stream_logger.warning("Stream %s couldn't sort articles: %s", stream_id, exc)
 
                 final_data = {
                     "status": "complete",
@@ -448,7 +431,7 @@ async def stream_news(
                         "percentage": 100,
                     },
                     "duration_ms": total_duration_ms,
-                    "timestamp": datetime.now(timezone.utc).isoformat(),
+                    "timestamp": datetime.now(UTC).isoformat(),
                 }
                 yield format_sse_event("complete", final_data)
 
@@ -470,7 +453,7 @@ async def stream_news(
                 "status": "error",
                 "stream_id": stream_id,
                 "error": str(exc),
-                "timestamp": datetime.now(timezone.utc).isoformat(),
+                "timestamp": datetime.now(UTC).isoformat(),
             }
             yield format_sse_event("error", error_response)
         finally:

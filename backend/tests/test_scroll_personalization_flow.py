@@ -173,13 +173,9 @@ async def test_scroll_personalization_backend_flow_is_batched(
         assert bookmarks_resp.status_code == 200
         assert liked_resp.status_code == 200
 
-        bookmark_article_ids = [
-            item["article_id"] for item in bookmarks_resp.json()["bookmarks"]
-        ]
+        bookmark_article_ids = [item["article_id"] for item in bookmarks_resp.json()["bookmarks"]]
         liked_article_ids = [item["article_id"] for item in liked_resp.json()["liked"]]
-        topic_ids = list(
-            dict.fromkeys(page_article_ids + bookmark_article_ids + liked_article_ids)
-        )
+        topic_ids = list(dict.fromkeys(page_article_ids + bookmark_article_ids + liked_article_ids))
 
         topics_resp = await client.post(
             "/api/similarity/bulk-article-topics",

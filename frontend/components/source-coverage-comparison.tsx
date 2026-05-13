@@ -5,9 +5,10 @@ import { useQuery } from "@tanstack/react-query";
 import { BarChart3, Loader2, RefreshCw } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import type {
+  SourceCoverageResponse} from "@/lib/api";
 import {
-  fetchSourceCoverage,
-  SourceCoverageResponse,
+  fetchSourceCoverage
 } from "@/lib/api";
 
 interface SourceCoverageComparisonProps {

@@ -3,7 +3,8 @@
 import { useQuery } from "@tanstack/react-query";
 import { Sparkles, Loader2 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
-import { fetchNoveltyScore, NoveltyScoreResponse } from "@/lib/api";
+import type { NoveltyScoreResponse } from "@/lib/api";
+import { fetchNoveltyScore } from "@/lib/api";
 
 interface NoveltyBadgeProps {
   articleId: number;

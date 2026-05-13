@@ -5,7 +5,7 @@ with mocked LLM/HTTP dependencies (funding_researcher, source_analysis_scorer).
 """
 
 import asyncio
-from datetime import timedelta
+from datetime import timedelta, UTC
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -75,9 +75,7 @@ def engine_and_session():
         engine = create_async_engine("sqlite+aiosqlite:///:memory:", echo=False)
         async with engine.begin() as conn:
             await conn.run_sync(Base.metadata.create_all)
-        factory = async_sessionmaker(
-            engine, class_=AsyncSession, expire_on_commit=False
-        )
+        factory = async_sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
         return engine, factory
 
     return _setup
@@ -102,9 +100,7 @@ class TestIndexSource:
         )
 
         with (
-            patch(
-                "app.services.wiki_indexer._get_session", side_effect=lambda: factory()
-            ),
+            patch("app.services.wiki_indexer._get_session", side_effect=lambda: factory()),
             patch(
                 "app.services.wiki_indexer.get_funding_researcher",
                 return_value=mock_researcher,
@@ -116,23 +112,17 @@ class TestIndexSource:
         ):
             from app.services.wiki_indexer import index_source
 
-            result = await index_source(
-                "Test Source", {"country": "US", "category": "general"}
-            )
+            result = await index_source("Test Source", {"country": "US", "category": "general"})
 
         assert result is True
 
         # Verify research_organization called with use_ai=False (consolidated call)
-        mock_researcher.research_organization.assert_awaited_once_with(
-            "Test Source", use_ai=False
-        )
+        mock_researcher.research_organization.assert_awaited_once_with("Test Source", use_ai=False)
 
         async with factory() as session:
             row = (
                 await session.execute(
-                    select(WikiIndexStatus).where(
-                        WikiIndexStatus.entity_name == "Test Source"
-                    )
+                    select(WikiIndexStatus).where(WikiIndexStatus.entity_name == "Test Source")
                 )
             ).scalar_one_or_none()
 
@@ -155,9 +145,7 @@ class TestIndexSource:
         )
 
         with (
-            patch(
-                "app.services.wiki_indexer._get_session", side_effect=lambda: factory()
-            ),
+            patch("app.services.wiki_indexer._get_session", side_effect=lambda: factory()),
             patch(
                 "app.services.wiki_indexer.get_funding_researcher",
                 return_value=mock_researcher,
@@ -200,14 +188,10 @@ class TestIndexSource:
         engine, factory = await engine_and_session()
 
         mock_researcher = MagicMock()
-        mock_researcher.research_organization = AsyncMock(
-            side_effect=RuntimeError("API down")
-        )
+        mock_researcher.research_organization = AsyncMock(side_effect=RuntimeError("API down"))
 
         with (
-            patch(
-                "app.services.wiki_indexer._get_session", side_effect=lambda: factory()
-            ),
+            patch("app.services.wiki_indexer._get_session", side_effect=lambda: factory()),
             patch(
                 "app.services.wiki_indexer.get_funding_researcher",
                 return_value=mock_researcher,
@@ -222,9 +206,7 @@ class TestIndexSource:
         async with factory() as session:
             row = (
                 await session.execute(
-                    select(WikiIndexStatus).where(
-                        WikiIndexStatus.entity_name == "Broken Source"
-                    )
+                    select(WikiIndexStatus).where(WikiIndexStatus.entity_name == "Broken Source")
                 )
             ).scalar_one_or_none()
 
@@ -255,9 +237,7 @@ class TestIndexSource:
         )
 
         with (
-            patch(
-                "app.services.wiki_indexer._get_session", side_effect=lambda: factory()
-            ),
+            patch("app.services.wiki_indexer._get_session", side_effect=lambda: factory()),
             patch(
                 "app.services.wiki_indexer.get_funding_researcher",
                 return_value=mock_researcher,
@@ -320,9 +300,7 @@ class TestIndexSource:
         )
 
         with (
-            patch(
-                "app.services.wiki_indexer._get_session", side_effect=lambda: factory()
-            ),
+            patch("app.services.wiki_indexer._get_session", side_effect=lambda: factory()),
             patch(
                 "app.services.wiki_indexer.get_funding_researcher",
                 return_value=mock_researcher,
@@ -341,9 +319,7 @@ class TestIndexSource:
         async with factory() as session:
             org = (
                 await session.execute(
-                    select(Organization).where(
-                        Organization.normalized_name == "indie wire"
-                    )
+                    select(Organization).where(Organization.normalized_name == "indie wire")
                 )
             ).scalar_one_or_none()
 
@@ -369,15 +345,11 @@ class TestIndexSource:
         # SourceAnalysisResult without org_updates (confidence was high)
         mock_scorer = MagicMock()
         mock_scorer.score_source = AsyncMock(
-            return_value=SourceAnalysisResult(
-                scores=_make_analysis_scores(), org_updates=None
-            )
+            return_value=SourceAnalysisResult(scores=_make_analysis_scores(), org_updates=None)
         )
 
         with (
-            patch(
-                "app.services.wiki_indexer._get_session", side_effect=lambda: factory()
-            ),
+            patch("app.services.wiki_indexer._get_session", side_effect=lambda: factory()),
             patch(
                 "app.services.wiki_indexer.get_funding_researcher",
                 return_value=mock_researcher,
@@ -398,9 +370,7 @@ class TestIndexSource:
 
         await engine.dispose()
 
-    async def test_org_updates_do_not_overwrite_existing_values(
-        self, engine_and_session
-    ):
+    async def test_org_updates_do_not_overwrite_existing_values(self, engine_and_session):
         """LLM org_updates should only fill gaps, not overwrite existing values."""
         engine, factory = await engine_and_session()
 
@@ -414,9 +384,7 @@ class TestIndexSource:
         }
 
         mock_researcher = MagicMock()
-        mock_researcher.research_organization = AsyncMock(
-            return_value=org_with_some_data
-        )
+        mock_researcher.research_organization = AsyncMock(return_value=org_with_some_data)
 
         org_updates = {
             "funding_type": "independent",  # should NOT overwrite "commercial"
@@ -430,9 +398,7 @@ class TestIndexSource:
         )
 
         with (
-            patch(
-                "app.services.wiki_indexer._get_session", side_effect=lambda: factory()
-            ),
+            patch("app.services.wiki_indexer._get_session", side_effect=lambda: factory()),
             patch(
                 "app.services.wiki_indexer.get_funding_researcher",
                 return_value=mock_researcher,
@@ -449,9 +415,7 @@ class TestIndexSource:
         async with factory() as session:
             org = (
                 await session.execute(
-                    select(Organization).where(
-                        Organization.normalized_name == "partial org"
-                    )
+                    select(Organization).where(Organization.normalized_name == "partial org")
                 )
             ).scalar_one_or_none()
 
@@ -486,12 +450,8 @@ class TestIndexStaleSources:
         )
 
         with (
-            patch(
-                "app.services.wiki_indexer._get_session", side_effect=lambda: factory()
-            ),
-            patch(
-                "app.services.wiki_indexer.get_rss_sources", return_value=mock_sources
-            ),
+            patch("app.services.wiki_indexer._get_session", side_effect=lambda: factory()),
+            patch("app.services.wiki_indexer.get_rss_sources", return_value=mock_sources),
             patch(
                 "app.services.wiki_indexer.get_funding_researcher",
                 return_value=mock_researcher,
@@ -539,12 +499,8 @@ class TestIndexStaleSources:
         )
 
         with (
-            patch(
-                "app.services.wiki_indexer._get_session", side_effect=lambda: factory()
-            ),
-            patch(
-                "app.services.wiki_indexer.get_rss_sources", return_value=mock_sources
-            ),
+            patch("app.services.wiki_indexer._get_session", side_effect=lambda: factory()),
+            patch("app.services.wiki_indexer.get_rss_sources", return_value=mock_sources),
             patch(
                 "app.services.wiki_indexer.get_funding_researcher",
                 return_value=mock_researcher,
@@ -583,12 +539,8 @@ class TestIndexStaleSources:
         mock_sources = {"Fresh News": {"country": "US", "category": "general"}}
 
         with (
-            patch(
-                "app.services.wiki_indexer._get_session", side_effect=lambda: factory()
-            ),
-            patch(
-                "app.services.wiki_indexer.get_rss_sources", return_value=mock_sources
-            ),
+            patch("app.services.wiki_indexer._get_session", side_effect=lambda: factory()),
+            patch("app.services.wiki_indexer.get_rss_sources", return_value=mock_sources),
         ):
             from app.services.wiki_indexer import index_stale_sources
 
@@ -669,7 +621,7 @@ def test_poll_interval_clamp_bounds(interval_seconds: int):
 
 
 def test_due_rss_sources_respects_next_check_times():
-    from datetime import datetime, timedelta, timezone
+    from datetime import datetime, timedelta
 
     with (
         patch(
@@ -681,15 +633,11 @@ def test_due_rss_sources_respects_next_check_times():
             return_value=[
                 {
                     "name": "Fast Feed",
-                    "next_check_at": (
-                        datetime.now(timezone.utc) - timedelta(seconds=5)
-                    ).isoformat(),
+                    "next_check_at": (datetime.now(UTC) - timedelta(seconds=5)).isoformat(),
                 },
                 {
                     "name": "Slow Feed",
-                    "next_check_at": (
-                        datetime.now(timezone.utc) + timedelta(minutes=10)
-                    ).isoformat(),
+                    "next_check_at": (datetime.now(UTC) + timedelta(minutes=10)).isoformat(),
                 },
             ],
         ),
@@ -741,9 +689,7 @@ class TestRssConfigFundingTypePriority:
         )
 
         with (
-            patch(
-                "app.services.wiki_indexer._get_session", side_effect=lambda: factory()
-            ),
+            patch("app.services.wiki_indexer._get_session", side_effect=lambda: factory()),
             patch(
                 "app.services.wiki_indexer.get_funding_researcher",
                 return_value=mock_researcher,
@@ -764,9 +710,7 @@ class TestRssConfigFundingTypePriority:
         async with factory() as session:
             org = (
                 await session.execute(
-                    select(Organization).where(
-                        Organization.normalized_name == "bloomberg"
-                    )
+                    select(Organization).where(Organization.normalized_name == "bloomberg")
                 )
             ).scalar_one_or_none()
 
@@ -797,9 +741,7 @@ class TestRssConfigFundingTypePriority:
         )
 
         with (
-            patch(
-                "app.services.wiki_indexer._get_session", side_effect=lambda: factory()
-            ),
+            patch("app.services.wiki_indexer._get_session", side_effect=lambda: factory()),
             patch(
                 "app.services.wiki_indexer.get_funding_researcher",
                 return_value=mock_researcher,
@@ -851,9 +793,7 @@ class TestRssConfigFundingTypePriority:
         )
 
         with (
-            patch(
-                "app.services.wiki_indexer._get_session", side_effect=lambda: factory()
-            ),
+            patch("app.services.wiki_indexer._get_session", side_effect=lambda: factory()),
             patch(
                 "app.services.wiki_indexer.get_funding_researcher",
                 return_value=mock_researcher,
@@ -865,18 +805,14 @@ class TestRssConfigFundingTypePriority:
         ):
             from app.services.wiki_indexer import index_source
 
-            result = await index_source(
-                "SomeSource", {"funding_type": "", "category": "general"}
-            )
+            result = await index_source("SomeSource", {"funding_type": "", "category": "general"})
 
         assert result is True
 
         async with factory() as session:
             org = (
                 await session.execute(
-                    select(Organization).where(
-                        Organization.normalized_name == "somesource"
-                    )
+                    select(Organization).where(Organization.normalized_name == "somesource")
                 )
             ).scalar_one_or_none()
 
@@ -906,9 +842,7 @@ class TestRssConfigFundingTypePriority:
         )
 
         with (
-            patch(
-                "app.services.wiki_indexer._get_session", side_effect=lambda: factory()
-            ),
+            patch("app.services.wiki_indexer._get_session", side_effect=lambda: factory()),
             patch(
                 "app.services.wiki_indexer.get_funding_researcher",
                 return_value=mock_researcher,
@@ -920,9 +854,7 @@ class TestRssConfigFundingTypePriority:
         ):
             from app.services.wiki_indexer import index_source
 
-            await index_source(
-                "Axios", {"funding_type": "Commercial", "category": "general"}
-            )
+            await index_source("Axios", {"funding_type": "Commercial", "category": "general"})
 
         async with factory() as session:
             org = (

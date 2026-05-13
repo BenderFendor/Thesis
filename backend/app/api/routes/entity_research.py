@@ -1,5 +1,4 @@
-"""
-API routes for Phase 5B: Reporter and Organization Research.
+"""API routes for Phase 5B: Reporter and Organization Research.
 
 Provides endpoints for:
 - Reporter profiling and lookup
@@ -10,7 +9,7 @@ Provides endpoints for:
 from __future__ import annotations
 
 import asyncio
-from typing import Any, Dict, List, Optional, cast
+from typing import Any, cast
 from urllib.parse import parse_qs, quote, unquote, urlparse
 
 import httpx
@@ -30,15 +29,15 @@ from app.services.async_utils import gather_limited
 router = APIRouter(prefix="/research/entity", tags=["entity-research"])
 logger = get_logger("entity_research_routes")
 
-_WIKIPEDIA_URL_CACHE: Dict[str, str] = {}
+_WIKIPEDIA_URL_CACHE: dict[str, str] = {}
 _external_semaphore = asyncio.Semaphore(5)
 
 
-def _required_str(value: Optional[str]) -> str:
+def _required_str(value: str | None) -> str:
     return cast(str, value)
 
 
-def _extract_wikipedia_lang_and_title(url: str) -> tuple[Optional[str], Optional[str]]:
+def _extract_wikipedia_lang_and_title(url: str) -> tuple[str | None, str | None]:
     parsed = urlparse(url)
     host = parsed.netloc.lower()
     if not host.endswith("wikipedia.org"):
@@ -89,9 +88,7 @@ async def _resolve_english_wikipedia_url(url: str, client: httpx.AsyncClient) ->
             "format": "json",
         }
         async with _external_semaphore:
-            response = await client.get(
-                f"https://{lang}.wikipedia.org/w/api.php", params=params
-            )
+            response = await client.get(f"https://{lang}.wikipedia.org/w/api.php", params=params)
         if response.status_code != 200:
             _WIKIPEDIA_URL_CACHE[url] = url
             return url
@@ -104,7 +101,9 @@ async def _resolve_english_wikipedia_url(url: str, client: httpx.AsyncClient) ->
                 if link.get("lang") == "en":
                     en_title = link.get("*") or link.get("title")
                     if en_title:
-                        normalized = f"https://en.wikipedia.org/wiki/{quote(en_title.replace(' ', '_'))}"
+                        normalized = (
+                            f"https://en.wikipedia.org/wiki/{quote(en_title.replace(' ', '_'))}"
+                        )
                         _WIKIPEDIA_URL_CACHE[url] = normalized
                         return normalized
     except Exception as exc:
@@ -115,8 +114,8 @@ async def _resolve_english_wikipedia_url(url: str, client: httpx.AsyncClient) ->
 
 
 async def _normalize_wikipedia_urls(
-    urls: List[Optional[str]],
-) -> List[Optional[str]]:
+    urls: list[str | None],
+) -> list[str | None]:
     unique_urls = [url for url in {u for u in urls if u}]
     if not unique_urls:
         return urls
@@ -125,13 +124,13 @@ async def _normalize_wikipedia_urls(
         tasks = [_resolve_english_wikipedia_url(url, client) for url in unique_urls]
         results = await asyncio.gather(*tasks)
 
-    normalized_map = dict(zip(unique_urls, results))
+    normalized_map = dict(zip(unique_urls, results, strict=False))
     return [normalized_map.get(url) if url else None for url in urls]
 
 
 async def _ensure_english_wikipedia_url(
-    url: Optional[str],
-) -> Optional[str]:
+    url: str | None,
+) -> str | None:
     if not url:
         return None
     return (await _normalize_wikipedia_urls([url]))[0]
@@ -141,110 +140,132 @@ async def _ensure_english_wikipedia_url(
 
 
 class ReporterProfileRequest(BaseModel):
+    """Reporter Profile Request."""
+
     name: str
-    organization: Optional[str] = None
-    article_context: Optional[str] = None
+    organization: str | None = None
+    article_context: str | None = None
 
 
 class ReporterProfileResponse(BaseModel):
-    id: Optional[int] = None
+    """Reporter Profile Response."""
+
+    id: int | None = None
     name: str
-    normalized_name: Optional[str] = None
-    bio: Optional[str] = None
-    career_history: Optional[List[Dict[str, Any]]] = None
-    topics: Optional[List[str]] = None
-    education: Optional[List[Dict[str, Any]]] = None
-    political_leaning: Optional[str] = None
-    leaning_confidence: Optional[str] = None
-    twitter_handle: Optional[str] = None
-    linkedin_url: Optional[str] = None
-    wikipedia_url: Optional[str] = None
-    wikidata_qid: Optional[str] = None
-    wikidata_url: Optional[str] = None
-    canonical_name: Optional[str] = None
-    match_status: Optional[str] = None
-    overview: Optional[str] = None
-    dossier_sections: Optional[List[Dict[str, Any]]] = None
-    citations: Optional[List[Dict[str, str]]] = None
-    search_links: Optional[Dict[str, str]] = None
-    match_explanation: Optional[str] = None
-    research_sources: Optional[List[str]] = None
-    research_confidence: Optional[str] = None
+    normalized_name: str | None = None
+    bio: str | None = None
+    career_history: list[dict[str, Any]] | None = None
+    topics: list[str] | None = None
+    education: list[dict[str, Any]] | None = None
+    political_leaning: str | None = None
+    leaning_confidence: str | None = None
+    twitter_handle: str | None = None
+    linkedin_url: str | None = None
+    wikipedia_url: str | None = None
+    wikidata_qid: str | None = None
+    wikidata_url: str | None = None
+    canonical_name: str | None = None
+    match_status: str | None = None
+    overview: str | None = None
+    dossier_sections: list[dict[str, Any]] | None = None
+    citations: list[dict[str, str]] | None = None
+    search_links: dict[str, str] | None = None
+    match_explanation: str | None = None
+    research_sources: list[str] | None = None
+    research_confidence: str | None = None
     cached: bool = False
 
 
 class OrganizationResearchRequest(BaseModel):
+    """Organization Research Request."""
+
     name: str
-    website: Optional[str] = None
+    website: str | None = None
 
 
 class OrganizationResearchResponse(BaseModel):
-    id: Optional[int] = None
+    """Organization Research Response."""
+
+    id: int | None = None
     name: str
-    normalized_name: Optional[str] = None
-    org_type: Optional[str] = None
-    parent_org: Optional[str] = None
-    funding_type: Optional[str] = None
-    funding_sources: Optional[List[str]] = None
-    ein: Optional[str] = None
-    annual_revenue: Optional[str] = None
-    media_bias_rating: Optional[str] = None
-    factual_reporting: Optional[str] = None
-    wikipedia_url: Optional[str] = None
-    research_sources: Optional[List[str]] = None
-    research_confidence: Optional[str] = None
+    normalized_name: str | None = None
+    org_type: str | None = None
+    parent_org: str | None = None
+    funding_type: str | None = None
+    funding_sources: list[str] | None = None
+    ein: str | None = None
+    annual_revenue: str | None = None
+    media_bias_rating: str | None = None
+    factual_reporting: str | None = None
+    wikipedia_url: str | None = None
+    research_sources: list[str] | None = None
+    research_confidence: str | None = None
     cached: bool = False
 
 
 class SourceResearchRequest(BaseModel):
+    """Source Research Request."""
+
     name: str
-    website: Optional[str] = None
+    website: str | None = None
 
 
 class SourceBatchRequest(BaseModel):
-    sources: List[SourceResearchRequest]
+    """Source Batch Request."""
+
+    sources: list[SourceResearchRequest]
     force_refresh: bool = False
 
 
 class SourceBatchResponse(BaseModel):
-    results: Dict[str, Optional[SourceResearchResponse]]
+    """Source Batch Response."""
+
+    results: dict[str, SourceResearchResponse | None]
     cached_count: int
     newly_researched_count: int
 
 
 class SourceResearchValue(BaseModel):
+    """Source Research Value."""
+
     value: str
-    sources: Optional[List[str]] = None
-    notes: Optional[str] = None
+    sources: list[str] | None = None
+    notes: str | None = None
 
 
 class SourceReporterSummary(BaseModel):
+    """Source Reporter Summary."""
+
     name: str
     article_count: int
 
 
 class SourceResearchResponse(BaseModel):
+    """Source Research Response."""
+
     name: str
-    canonical_name: Optional[str] = None
-    website: Optional[str] = None
-    fetched_at: Optional[str] = None
+    canonical_name: str | None = None
+    website: str | None = None
+    fetched_at: str | None = None
     cached: bool = False
-    fields: Dict[str, List[SourceResearchValue]]
-    key_reporters: List[SourceReporterSummary] = []
-    overview: Optional[str] = None
-    match_status: Optional[str] = None
-    wikipedia_url: Optional[str] = None
-    wikidata_qid: Optional[str] = None
-    wikidata_url: Optional[str] = None
-    dossier_sections: Optional[List[Dict[str, Any]]] = None
-    citations: Optional[List[Dict[str, str]]] = None
-    search_links: Optional[Dict[str, str]] = None
-    match_explanation: Optional[str] = None
+    fields: dict[str, list[SourceResearchValue]]
+    key_reporters: list[SourceReporterSummary] = []
+    overview: str | None = None
+    match_status: str | None = None
+    wikipedia_url: str | None = None
+    wikidata_qid: str | None = None
+    wikidata_url: str | None = None
+    dossier_sections: list[dict[str, Any]] | None = None
+    citations: list[dict[str, str]] | None = None
+    search_links: dict[str, str] | None = None
+    match_explanation: str | None = None
 
 
 class OwnershipChainResponse(BaseModel):
+    """Ownership Chain Response."""
+
     organization: str
-    chain: List[Dict[str, Any]]
+    chain: list[dict[str, Any]]
     depth: int
 
 
@@ -253,7 +274,7 @@ class OwnershipChainResponse(BaseModel):
 
 def _reporter_response_from_record(
     reporter: Reporter,
-    wikipedia_url: Optional[str],
+    wikipedia_url: str | None,
     cached: bool,
 ) -> ReporterProfileResponse:
     return ReporterProfileResponse(
@@ -290,8 +311,7 @@ async def profile_reporter(
     db: AsyncSession = Depends(get_db),
     force_refresh: bool = Query(False, description="Force re-research even if cached"),
 ) -> ReporterProfileResponse:
-    """
-    Profile a reporter/journalist.
+    """Profile a reporter/journalist.
 
     First checks the database for cached data, then researches if needed.
     """
@@ -306,12 +326,8 @@ async def profile_reporter(
 
         if cached:
             logger.info(f"Returning cached profile for {request.name}")
-            normalized_wikipedia_url = await _ensure_english_wikipedia_url(
-                cached.wikipedia_url
-            )
-            return _reporter_response_from_record(
-                cached, normalized_wikipedia_url, True
-            )
+            normalized_wikipedia_url = await _ensure_english_wikipedia_url(cached.wikipedia_url)
+            return _reporter_response_from_record(cached, normalized_wikipedia_url, True)
 
     profile_data = await build_reporter_dossier(
         name=request.name,
@@ -380,9 +396,7 @@ async def profile_reporter(
     await db.commit()
     await db.refresh(reporter)
 
-    normalized_wikipedia_url = await _ensure_english_wikipedia_url(
-        reporter.wikipedia_url
-    )
+    normalized_wikipedia_url = await _ensure_english_wikipedia_url(reporter.wikipedia_url)
     return _reporter_response_from_record(reporter, normalized_wikipedia_url, False)
 
 
@@ -399,9 +413,7 @@ async def get_reporter(
     if not reporter:
         raise HTTPException(status_code=404, detail="Reporter not found")
 
-    normalized_wikipedia_url = await _ensure_english_wikipedia_url(
-        reporter.wikipedia_url
-    )
+    normalized_wikipedia_url = await _ensure_english_wikipedia_url(reporter.wikipedia_url)
     return _reporter_response_from_record(reporter, normalized_wikipedia_url, True)
 
 
@@ -411,9 +423,7 @@ async def research_organization(
     db: AsyncSession = Depends(get_db),
     force_refresh: bool = Query(False, description="Force re-research even if cached"),
 ) -> OrganizationResearchResponse:
-    """
-    Research a news organization's funding and ownership.
-    """
+    """Research a news organization's funding and ownership."""
     logger.info(f"Organization research request: {request.name}")
 
     # Check cache first
@@ -426,9 +436,7 @@ async def research_organization(
 
         if cached:
             logger.info(f"Returning cached org data for {request.name}")
-            normalized_wikipedia_url = await _ensure_english_wikipedia_url(
-                cached.wikipedia_url
-            )
+            normalized_wikipedia_url = await _ensure_english_wikipedia_url(cached.wikipedia_url)
             return OrganizationResearchResponse(
                 id=cached.id,
                 name=_required_str(cached.name),
@@ -449,13 +457,9 @@ async def research_organization(
 
     # Research the organization
     researcher = get_funding_researcher()
-    org_data = await researcher.research_organization(
-        name=request.name, website=request.website
-    )
+    org_data = await researcher.research_organization(name=request.name, website=request.website)
 
-    org_data["wikipedia_url"] = await _ensure_english_wikipedia_url(
-        org_data.get("wikipedia_url")
-    )
+    org_data["wikipedia_url"] = await _ensure_english_wikipedia_url(org_data.get("wikipedia_url"))
 
     # Save to database
     organization = Organization(
@@ -500,15 +504,11 @@ async def research_organization(
 @router.post("/source/profile", response_model=SourceResearchResponse)
 async def research_source_profile(
     request: SourceResearchRequest,
-    force_refresh: bool = Query(
-        False, description="Force refresh cached source profile"
-    ),
-    cache_only: bool = Query(
-        False, description="Only return cached data, 404 if not cached"
-    ),
+    force_refresh: bool = Query(False, description="Force refresh cached source profile"),
+    cache_only: bool = Query(False, description="Only return cached data, 404 if not cached"),
 ) -> SourceResearchResponse:
-    """
-    Build a source profile with funding, ownership, bias, and related metadata.
+    """Build a source profile with funding, ownership, bias, and related metadata.
+
     Uses file-based caching unless force_refresh is requested.
     If cache_only=true, returns cached data or 404 without triggering research.
     """
@@ -531,14 +531,14 @@ async def research_source_profile(
 async def research_source_batch(
     request: SourceBatchRequest,
 ) -> SourceBatchResponse:
-    """
-    Research multiple sources in a single request.
+    """Research multiple sources in a single request.
+
     Uses file-based caching unless force_refresh is requested.
     Returns results for all sources, using cache when available.
     """
     from app.services.source_research import get_source_profile
 
-    valid_sources: List[tuple[SourceResearchRequest, str]] = []
+    valid_sources: list[tuple[SourceResearchRequest, str]] = []
     for source_req in request.sources:
         source_name = source_req.name.strip()
         if not source_name:
@@ -551,7 +551,8 @@ async def research_source_batch(
     async def fetch_profile(
         source_req: SourceResearchRequest,
         source_name: str,
-    ) -> tuple[str, Optional[Dict[str, Any]]]:
+    ) -> tuple[str, dict[str, Any] | None]:
+        """Fetch Profile."""
         profile = await get_source_profile(
             source_name=source_name,
             website=source_req.website,
@@ -566,7 +567,7 @@ async def research_source_batch(
         return_exceptions=True,
     )
 
-    results: Dict[str, Optional[SourceResearchResponse]] = {}
+    results: dict[str, SourceResearchResponse | None] = {}
     cached_count = 0
     newly_researched_count = 0
 
@@ -624,9 +625,7 @@ async def get_organization(
     )
 
 
-@router.get(
-    "/organization/{org_name}/ownership-chain", response_model=OwnershipChainResponse
-)
+@router.get("/organization/{org_name}/ownership-chain", response_model=OwnershipChainResponse)
 async def get_ownership_chain(
     org_name: str,
     max_depth: int = Query(5, ge=1, le=10),
@@ -638,12 +637,12 @@ async def get_ownership_chain(
     return OwnershipChainResponse(organization=org_name, chain=chain, depth=len(chain))
 
 
-@router.get("/reporters", response_model=List[ReporterProfileResponse])
+@router.get("/reporters", response_model=list[ReporterProfileResponse])
 async def list_reporters(
     db: AsyncSession = Depends(get_db),
     limit: int = Query(50, ge=1, le=200),
     offset: int = Query(0, ge=0),
-) -> List[ReporterProfileResponse]:
+) -> list[ReporterProfileResponse]:
     """List all cached reporters."""
     stmt = select(Reporter).limit(limit).offset(offset)
     result = await db.execute(stmt)
@@ -657,19 +656,17 @@ async def list_reporters(
     ]
 
 
-@router.get("/organizations", response_model=List[OrganizationResearchResponse])
+@router.get("/organizations", response_model=list[OrganizationResearchResponse])
 async def list_organizations(
     db: AsyncSession = Depends(get_db),
     limit: int = Query(50, ge=1, le=200),
     offset: int = Query(0, ge=0),
-) -> List[OrganizationResearchResponse]:
+) -> list[OrganizationResearchResponse]:
     """List all cached organizations."""
     stmt = select(Organization).limit(limit).offset(offset)
     result = await db.execute(stmt)
     orgs = result.scalars().all()
-    normalized_wikipedia_urls = await _normalize_wikipedia_urls(
-        [o.wikipedia_url for o in orgs]
-    )
+    normalized_wikipedia_urls = await _normalize_wikipedia_urls([o.wikipedia_url for o in orgs])
     return [
         OrganizationResearchResponse(
             id=o.id,
@@ -696,41 +693,42 @@ async def list_organizations(
 
 
 class MaterialContextRequest(BaseModel):
+    """Material Context Request."""
+
     source: str
     source_country: str
-    mentioned_countries: List[str]
-    topics: Optional[List[str]] = None
-    article_text: Optional[str] = None
+    mentioned_countries: list[str]
+    topics: list[str] | None = None
+    article_text: str | None = None
 
 
 class MaterialContextResponse(BaseModel):
+    """Material Context Response."""
+
     source: str
     source_country: str
-    mentioned_countries: List[str]
-    trade_relationships: List[Dict[str, Any]]
-    known_interests: Dict[str, Any]
-    potential_conflicts: List[str]
-    analysis_summary: Optional[str] = None
-    reader_warnings: Optional[List[str]] = None
-    confidence: Optional[str] = None
-    analyzed_at: Optional[str] = None
+    mentioned_countries: list[str]
+    trade_relationships: list[dict[str, Any]]
+    known_interests: dict[str, Any]
+    potential_conflicts: list[str]
+    analysis_summary: str | None = None
+    reader_warnings: list[str] | None = None
+    confidence: str | None = None
+    analyzed_at: str | None = None
 
 
 @router.post("/material-context", response_model=MaterialContextResponse)
 async def analyze_material_context(
     request: MaterialContextRequest,
 ) -> MaterialContextResponse:
-    """
-    Analyze material interests that may affect news coverage.
+    """Analyze material interests that may affect news coverage.
 
     Examines trade relationships, ownership interests, and potential
     conflicts of interest for a given news source and story.
     """
     from app.services.material_interest import get_material_interest_agent
 
-    logger.info(
-        f"Material context analysis: {request.source} on {request.mentioned_countries}"
-    )
+    logger.info(f"Material context analysis: {request.source} on {request.mentioned_countries}")
 
     agent = get_material_interest_agent()
     analysis = await agent.analyze_material_context(
@@ -744,9 +742,7 @@ async def analyze_material_context(
     return MaterialContextResponse(
         source=analysis.get("source", request.source),
         source_country=analysis.get("source_country", request.source_country),
-        mentioned_countries=analysis.get(
-            "mentioned_countries", request.mentioned_countries
-        ),
+        mentioned_countries=analysis.get("mentioned_countries", request.mentioned_countries),
         trade_relationships=analysis.get("trade_relationships", []),
         known_interests=analysis.get("known_interests", {}),
         potential_conflicts=analysis.get("potential_conflicts", []),
@@ -758,7 +754,7 @@ async def analyze_material_context(
 
 
 @router.get("/country/{country_code}/economic-profile")
-async def get_country_economic_profile(country_code: str) -> Dict[str, Any]:
+async def get_country_economic_profile(country_code: str) -> dict[str, Any]:
     """Get economic profile for a country."""
     from app.services.material_interest import get_material_interest_agent
 

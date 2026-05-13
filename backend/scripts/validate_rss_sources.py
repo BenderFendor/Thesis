@@ -44,9 +44,7 @@ def _trim_to_feed_document(body: bytes) -> bytes:
 
 def _strip_invalid_xml_bytes(body: bytes) -> bytes:
     return bytes(
-        byte
-        for byte in body
-        if byte in (0x09, 0x0A, 0x0D) or 0x20 <= byte <= 0x7E or byte >= 0x80
+        byte for byte in body if byte in (0x09, 0x0A, 0x0D) or 0x20 <= byte <= 0x7E or byte >= 0x80
     )
 
 
@@ -152,9 +150,7 @@ def validate_url(url: str) -> tuple[bool, str, int | None]:
     return True, f"status={status} items={items} root={root.tag}", status
 
 
-def validate_sources(
-    data: dict[str, Any], *, only_names: set[str] | None = None
-) -> int:
+def validate_sources(data: dict[str, Any], *, only_names: set[str] | None = None) -> int:
     failures = 0
     status_counts: Counter[str] = Counter()
 
@@ -220,11 +216,7 @@ def validate_sources(
                 print(
                     f"GUARD\t{source_name}\tstatus=mismatch\treason=aggregator_feed\tconfigured={configured_host or feed_host}\tfeed_host={feed_host}\tinferred_site={inferred_site_host or '-'}\tarticle_domain={article_domain or '-'}"
                 )
-        elif (
-            site_host
-            and configured_host
-            and not hosts_match(configured_host, site_host)
-        ):
+        elif site_host and configured_host and not hosts_match(configured_host, site_host):
             print(
                 f"GUARD\t{source_name}\tstatus=mismatch\treason=site_url_mismatch\tconfigured={configured_host}\tsite_url={site_host}\tarticle_domain={article_domain or '-'}"
             )
@@ -237,9 +229,7 @@ def validate_sources(
                 f"GUARD\t{source_name}\tstatus=mismatch\treason=inferred_site_mismatch\tconfigured={configured_host}\tinferred_site={inferred_site_host}\tarticle_domain={article_domain or '-'}"
             )
         elif (
-            article_domain
-            and configured_host
-            and not hosts_match(configured_host, article_domain)
+            article_domain and configured_host and not hosts_match(configured_host, article_domain)
         ):
             print(
                 f"GUARD\t{source_name}\tstatus=mismatch\treason=first_article_domain_mismatch\tconfigured={configured_host}\tarticle_domain={article_domain}"

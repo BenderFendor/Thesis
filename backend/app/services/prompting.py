@@ -1,6 +1,8 @@
+"""Prompting."""
+
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import datetime, UTC
 
 COPY_STYLE_GUIDE = (
     "Write direct prose. Keep sentences short and plain. Use a modern, casual tone. "
@@ -31,14 +33,17 @@ ANSWER_SECTION_RULE = "Respond with a section titled 'Answer'."
 
 
 def current_date_string() -> str:
-    return datetime.now(timezone.utc).strftime("%Y-%m-%d")
+    """Current Date String."""
+    return datetime.now(UTC).strftime("%Y-%m-%d")
 
 
 def build_assistant_identity(role: str) -> str:
+    """Build Assistant Identity."""
     return f"Current date is {current_date_string()}. You are Scoop's {role}."
 
 
 def compose_prompt_blocks(*blocks: str) -> str:
+    """Compose Prompt Blocks."""
     return "\n\n".join(block.strip() for block in blocks if block and block.strip())
 
 
@@ -49,6 +54,7 @@ def build_text_system_prompt(
     grounding_rules: str = FACT_GROUNDING_RULES,
     output_rules: str = TEXT_OUTPUT_RULES,
 ) -> str:
+    """Build Text System Prompt."""
     return compose_prompt_blocks(
         build_assistant_identity(role),
         task,
@@ -65,6 +71,7 @@ def build_json_system_prompt(
     grounding_rules: str = FACT_GROUNDING_RULES,
     output_rules: str = JSON_OUTPUT_RULES,
 ) -> str:
+    """Build Json System Prompt."""
     return compose_prompt_blocks(
         build_assistant_identity(role),
         task,

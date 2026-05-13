@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import datetime, UTC
 from unittest.mock import AsyncMock, Mock
 
 import pytest
@@ -18,7 +18,7 @@ def test_build_article_from_rust_payload_preserves_authors() -> None:
             "title": "Reporter Test",
             "link": "https://example.com/reporter-test",
             "description": "A test article",
-            "published": datetime.now(timezone.utc).isoformat(),
+            "published": datetime.now(UTC).isoformat(),
             "authors": ["Jane Reporter", "John Editor"],
         },
         "Test Source",
@@ -42,7 +42,7 @@ def test_browse_article_to_dict_includes_author_fields() -> None:
             "bias": "left",
             "summary": "A compact summary",
             "image_url": None,
-            "published_at": datetime(2026, 3, 13, tzinfo=timezone.utc),
+            "published_at": datetime(2026, 3, 13, tzinfo=UTC),
             "category": "news",
             "url": "https://example.com/reporter-test",
             "author": "Jane Reporter",
@@ -75,9 +75,7 @@ async def test_get_total_article_count_falls_back_when_postgres_estimate_is_nega
     count_result.scalar_one.return_value = 42
     session.execute = AsyncMock(side_effect=[estimate_result, count_result])
 
-    monkeypatch.setattr(
-        database, "get_session_dialect_name", lambda _session: "postgresql"
-    )
+    monkeypatch.setattr(database, "get_session_dialect_name", lambda _session: "postgresql")
 
     total = await database.get_total_article_count(session)
 

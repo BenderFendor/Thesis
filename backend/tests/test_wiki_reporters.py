@@ -1,6 +1,6 @@
 """Tests for wiki reporter endpoints: listing and dossier."""
 
-from datetime import datetime, timezone
+from datetime import datetime, UTC
 
 import pytest
 from httpx import AsyncClient
@@ -71,7 +71,7 @@ class TestListWikiReporters:
     async def test_reporter_graph_respects_edge_limit(
         self, client: AsyncClient, db_session: AsyncSession
     ):
-        now = datetime.now(timezone.utc).replace(tzinfo=None)
+        now = datetime.now(UTC).replace(tzinfo=None)
         reporters = [
             Reporter(
                 id=reporter_id,

@@ -1,7 +1,8 @@
+"""Stream Manager."""
+
 import threading
 import time
-from datetime import datetime, timezone
-from typing import Dict, Tuple
+from datetime import datetime, UTC
 
 from app.core.logging import get_logger
 
@@ -9,26 +10,28 @@ logger = get_logger("stream_manager")
 
 
 class StreamManager:
+    """Stream Manager."""
+
     def __init__(self) -> None:
-        self.active_streams: Dict[str, Dict[str, object]] = {}
-        self.source_last_accessed: Dict[str, float] = {}
+        """Initialize."""
+        self.active_streams: dict[str, dict[str, object]] = {}
+        self.source_last_accessed: dict[str, float] = {}
         self.stream_counter = 0
         self.lock = threading.Lock()
 
     def _assert_invariants(self) -> None:
         assert self.stream_counter >= 0, "stream_counter must be non-negative"
         assert isinstance(self.active_streams, dict), "active_streams must be dict"
-        assert isinstance(self.source_last_accessed, dict), (
-            "source_last_accessed must be dict"
-        )
+        assert isinstance(self.source_last_accessed, dict), "source_last_accessed must be dict"
 
-    def register_stream(self, stream_id: str) -> Dict[str, object]:
+    def register_stream(self, stream_id: str) -> dict[str, object]:
+        """Register Stream."""
         assert stream_id, "stream_id is required"
         with self.lock:
             self._assert_invariants()
             stream_info = {
                 "id": stream_id,
-                "start_time": datetime.now(timezone.utc),
+                "start_time": datetime.now(UTC),
                 "status": "starting",
                 "sources_completed": 0,
                 "total_sources": 0,
@@ -45,6 +48,7 @@ class StreamManager:
             return stream_info
 
     def update_stream(self, stream_id: str, **updates: object) -> None:
+        """Update Stream."""
         assert stream_id, "stream_id is required"
         with self.lock:
             if stream_id in self.active_streams:
@@ -53,14 +57,15 @@ class StreamManager:
                 self._assert_invariants()
 
     def unregister_stream(self, stream_id: str) -> None:
+        """Unregister Stream."""
         assert stream_id, "stream_id is required"
         with self.lock:
             if stream_id in self.active_streams:
                 stream_info = self.active_streams.pop(stream_id)
                 start_time = stream_info.get("start_time")
                 if not isinstance(start_time, datetime):
-                    start_time = datetime.now(timezone.utc)
-                duration = (datetime.now(timezone.utc) - start_time).total_seconds()
+                    start_time = datetime.now(UTC)
+                duration = (datetime.now(UTC) - start_time).total_seconds()
                 logger.info(
                     "Stream %s completed in %.2fs. Active streams: %s",
                     stream_id,
@@ -70,12 +75,14 @@ class StreamManager:
                 self._assert_invariants()
 
     def get_active_stream_count(self) -> int:
+        """Get Active Stream Count."""
         with self.lock:
             return len(self.active_streams)
 
     def should_throttle_source(
         self, source_name: str, min_interval: int = 10
-    ) -> Tuple[bool, float]:
+    ) -> tuple[bool, float]:
+        """Should Throttle Source."""
         assert source_name, "source_name is required"
         assert min_interval > 0, "min_interval must be positive"
         with self.lock:

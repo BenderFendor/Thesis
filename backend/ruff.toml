@@ -1,0 +1,31 @@
+target-version = "py311"
+line-length = 100
+
+[lint]
+extend-select = [
+    "UP",
+    "B",
+    "SIM",
+    "PTH",
+    "D",
+]
+ignore = [
+    "B008",
+    "B904",
+]
+
+[lint.per-file-ignores]
+"tests/**/*.py" = ["B", "SIM", "D"]
+"scripts/**/*.py" = ["B", "SIM", "D"]
+"test_*.py" = ["B", "SIM", "D"]
+"app/core/llm_client.py" = ["SIM115"]
+"app/services/rss_parser_rust_bindings.py" = ["D102"]
+"app/services/hybrid_search.py" = ["D102"]
+"app/vector_store.py" = ["D102"]
+
+[lint.pydocstyle]
+convention = "google"
+
+[format]
+quote-style = "double"
+indent-style = "space"

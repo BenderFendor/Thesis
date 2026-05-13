@@ -1,5 +1,4 @@
-"""
-LittleSis Integration - Import and cross-reference LittleSis bulk data.
+"""LittleSis Integration - Import and cross-reference LittleSis bulk data.
 
 LittleSis is a free, open-source power-research database (CC BY-SA).
 It tracks relationships between powerful people and organizations.
@@ -23,7 +22,8 @@ from __future__ import annotations
 import gzip
 import json
 import os
-from typing import Any, Dict, List, Optional, Set, Tuple, cast
+from pathlib import Path
+from typing import Any, cast
 
 import httpx
 
@@ -69,16 +69,16 @@ RELATIONSHIP_CATEGORIES_OF_INTEREST = {
 
 LITTLESIS_DATA_DIR = os.environ.get(
     "LITTLESIS_DATA_DIR",
-    os.path.join(os.path.dirname(__file__), "..", "..", "data", "littlesis"),
+    str(Path(__file__).resolve().parent.parent.parent / "data" / "littlesis"),
 )
 
 
 def _ensure_data_dir() -> str:
-    os.makedirs(LITTLESIS_DATA_DIR, exist_ok=True)
+    Path(LITTLESIS_DATA_DIR).mkdir(parents=True, exist_ok=True)
     return LITTLESIS_DATA_DIR
 
 
-def _is_media_entity(entity: Dict[str, Any]) -> bool:
+def _is_media_entity(entity: dict[str, Any]) -> bool:
     name = str(entity.get("name", "")).lower()
     description = str(entity.get("description", "")).lower()
     entity_type = str(entity.get("primary_ext", "")).lower()
@@ -86,13 +86,13 @@ def _is_media_entity(entity: Dict[str, Any]) -> bool:
     return any(keyword in text for keyword in MEDIA_KEYWORDS)
 
 
-def _name_tokens(name: str) -> Set[str]:
+def _name_tokens(name: str) -> set[str]:
     return set(name.lower().strip().split())
 
 
 async def download_littlesis_bulk(
-    client: Optional[httpx.AsyncClient] = None,
-) -> Dict[str, str]:
+    client: httpx.AsyncClient | None = None,
+) -> dict[str, str]:
     """Download LittleSis bulk data files.
 
     Returns dict of filename -> local filepath.
@@ -102,12 +102,12 @@ async def download_littlesis_bulk(
     http_client = client or httpx.AsyncClient(timeout=300.0, follow_redirects=True)
 
     try:
-        results: Dict[str, str] = {}
+        results: dict[str, str] = {}
         for filename in [LITTLESIS_ENTITIES_FILE, LITTLESIS_RELATIONSHIPS_FILE]:
-            local_path = os.path.join(data_dir, filename)
+            local_path = str(Path(data_dir) / filename)
             url = f"{LITTLESIS_BULK_BASE}/{filename}"
 
-            if os.path.exists(local_path):
+            if Path(local_path).exists():
                 logger.info("LittleSis file already cached: %s", local_path)
                 results[filename] = local_path
                 continue
@@ -115,13 +115,10 @@ async def download_littlesis_bulk(
             logger.info("Downloading %s ...", url)
             response = await http_client.get(url)
             if response.status_code != 200:
-                logger.error(
-                    "Failed to download %s: HTTP %d", url, response.status_code
-                )
+                logger.error("Failed to download %s: HTTP %d", url, response.status_code)
                 continue
 
-            with open(local_path, "wb") as f:
-                f.write(response.content)
+            Path(local_path).write_bytes(response.content)
             logger.info("Downloaded %s -> %s", filename, local_path)
             results[filename] = local_path
 
@@ -132,21 +129,21 @@ async def download_littlesis_bulk(
 
 
 def load_littlesis_entities(
-    filepath: Optional[str] = None,
-) -> List[Dict[str, Any]]:
+    filepath: str | None = None,
+) -> list[dict[str, Any]]:
     """Load entities from a LittleSis JSON gzip file.
 
     Returns list of entity dicts filtered to media-related entities.
     """
     if filepath is None:
-        filepath = os.path.join(_ensure_data_dir(), LITTLESIS_ENTITIES_FILE)
+        filepath = str(Path(_ensure_data_dir()) / LITTLESIS_ENTITIES_FILE)
 
-    if not os.path.exists(filepath):
+    if not Path(filepath).exists():
         logger.error("LittleSis entities file not found: %s", filepath)
         return []
 
     logger.info("Loading entities from %s ...", filepath)
-    entities: List[Dict[str, Any]] = []
+    entities: list[dict[str, Any]] = []
 
     line_num = 0
     with gzip.open(filepath, "rt", encoding="utf-8") as f:
@@ -155,7 +152,7 @@ def load_littlesis_entities(
             if not line:
                 continue
             try:
-                entity = cast(Dict[str, Any], json.loads(line))
+                entity = cast(dict[str, Any], json.loads(line))
                 if _is_media_entity(entity):
                     entities.append(entity)
             except json.JSONDecodeError:
@@ -177,22 +174,22 @@ def load_littlesis_entities(
 
 
 def load_littlesis_relationships(
-    filepath: Optional[str] = None,
-    entity_ids: Optional[Set[int]] = None,
-) -> List[Dict[str, Any]]:
+    filepath: str | None = None,
+    entity_ids: set[int] | None = None,
+) -> list[dict[str, Any]]:
     """Load relationships from a LittleSis JSON gzip file.
 
     If entity_ids is provided, filters to relationships involving those entities.
     """
     if filepath is None:
-        filepath = os.path.join(_ensure_data_dir(), LITTLESIS_RELATIONSHIPS_FILE)
+        filepath = str(Path(_ensure_data_dir()) / LITTLESIS_RELATIONSHIPS_FILE)
 
-    if not os.path.exists(filepath):
+    if not Path(filepath).exists():
         logger.error("LittleSis relationships file not found: %s", filepath)
         return []
 
     logger.info("Loading relationships from %s ...", filepath)
-    relationships: List[Dict[str, Any]] = []
+    relationships: list[dict[str, Any]] = []
 
     line_num = 0
     with gzip.open(filepath, "rt", encoding="utf-8") as f:
@@ -201,7 +198,7 @@ def load_littlesis_relationships(
             if not line:
                 continue
             try:
-                rel = cast(Dict[str, Any], json.loads(line))
+                rel = cast(dict[str, Any], json.loads(line))
                 if entity_ids is not None:
                     entity1_id = rel.get("entity1_id")
                     entity2_id = rel.get("entity2_id")
@@ -227,9 +224,9 @@ def load_littlesis_relationships(
 
 
 def cross_reference_entities_with_reporters(
-    entities: List[Dict[str, Any]],
-    reporter_names: List[Tuple[int, str, Optional[str]]],
-) -> List[Dict[str, Any]]:
+    entities: list[dict[str, Any]],
+    reporter_names: list[tuple[int, str, str | None]],
+) -> list[dict[str, Any]]:
     """Match LittleSis entities to Reporter records by name.
 
     Args:
@@ -238,8 +235,8 @@ def cross_reference_entities_with_reporters(
 
     Returns list of match dicts with {reporter_id, littlesis_entity, match_name, score}
     """
-    matches: List[Dict[str, Any]] = []
-    entity_map: Dict[str, Dict[str, Any]] = {}
+    matches: list[dict[str, Any]] = []
+    entity_map: dict[str, dict[str, Any]] = {}
     for entity in entities:
         name = str(entity.get("name", "")).strip().lower()
         if name:
@@ -285,29 +282,29 @@ def cross_reference_entities_with_reporters(
 
 
 def extract_affiliations_from_relationships(
-    matches: List[Dict[str, Any]],
-    relationships: List[Dict[str, Any]],
-    entities_by_id: Dict[int, Dict[str, Any]],
-) -> List[Dict[str, Any]]:
+    matches: list[dict[str, Any]],
+    relationships: list[dict[str, Any]],
+    entities_by_id: dict[int, dict[str, Any]],
+) -> list[dict[str, Any]]:
     """For each matched reporter, extract their organizational affiliations.
 
     Returns list of {reporter_id, category, org, start_date, end_date, source_url}
     """
-    match_entity_ids: Set[int] = set()
+    match_entity_ids: set[int] = set()
     for match in matches:
         entity = match["littlesis_entity"]
         entity_id = entity.get("id")
         if entity_id:
             match_entity_ids.add(int(entity_id))
 
-    entity_id_to_reporter: Dict[int, int] = {}
+    entity_id_to_reporter: dict[int, int] = {}
     for match in matches:
         entity_id = match["littlesis_entity"].get("id")
         if entity_id:
             entity_id_to_reporter[int(entity_id)] = match["reporter_id"]
 
-    affiliations: List[Dict[str, Any]] = []
-    seen: Set[Tuple[int, int, str]] = set()
+    affiliations: list[dict[str, Any]] = []
+    seen: set[tuple[int, int, str]] = set()
 
     for rel in relationships:
         entity1_id = rel.get("entity1_id")
@@ -357,17 +354,15 @@ def extract_affiliations_from_relationships(
                 }
             )
 
-    logger.info(
-        "Extracted %d reporter affiliations from relationships", len(affiliations)
-    )
+    logger.info("Extracted %d reporter affiliations from relationships", len(affiliations))
     return affiliations
 
 
 def get_littlesis_affiliations_for_reporter(
     reporter_name: str,
-    employer_name: Optional[str] = None,
-    wikidata_qid: Optional[str] = None,
-) -> Dict[str, Any]:
+    employer_name: str | None = None,
+    wikidata_qid: str | None = None,
+) -> dict[str, Any]:
     """Look up a single reporter in the local LittleSis bulk data.
 
     Uses Wikidata QID as primary bridge if available, falls back to name +
@@ -376,14 +371,14 @@ def get_littlesis_affiliations_for_reporter(
     Returns:
         {littlesis_url, institutional_affiliations: [...], match_score}
     """
-    result: Dict[str, Any] = {
+    result: dict[str, Any] = {
         "littlesis_url": None,
         "institutional_affiliations": [],
         "match_score": 0.0,
     }
 
-    entities_file = os.path.join(_ensure_data_dir(), LITTLESIS_ENTITIES_FILE)
-    if not os.path.exists(entities_file):
+    entities_file = str(Path(_ensure_data_dir()) / LITTLESIS_ENTITIES_FILE)
+    if not Path(entities_file).exists():
         logger.debug("LittleSis entities file not cached; skipping reporter lookup")
         return result
 
@@ -409,13 +404,11 @@ def get_littlesis_affiliations_for_reporter(
     if entity_id:
         result["littlesis_url"] = f"https://littlesis.org/entities/{entity_id}"
 
-    rels_file = os.path.join(_ensure_data_dir(), LITTLESIS_RELATIONSHIPS_FILE)
-    if os.path.exists(rels_file) and entity_id:
-        entity_id_set: Set[int] = {int(entity_id)}
-        relationships = load_littlesis_relationships(
-            rels_file, entity_ids=entity_id_set
-        )
-        entities_by_id: Dict[int, Dict[str, Any]] = {}
+    rels_file = str(Path(_ensure_data_dir()) / LITTLESIS_RELATIONSHIPS_FILE)
+    if Path(rels_file).exists() and entity_id:
+        entity_id_set: set[int] = {int(entity_id)}
+        relationships = load_littlesis_relationships(rels_file, entity_ids=entity_id_set)
+        entities_by_id: dict[int, dict[str, Any]] = {}
         for entity in entities:
             eid = entity.get("id")
             if eid is not None:

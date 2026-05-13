@@ -1,5 +1,4 @@
-"""
-Profiling Routes for exposing metrics.
+"""Profiling Routes for exposing metrics.
 
 Endpoints:
 - GET /metrics - Prometheus-compatible metrics
@@ -11,8 +10,8 @@ Endpoints:
 from __future__ import annotations
 
 import statistics
-from datetime import datetime, timezone
-from typing import Any, Dict
+from datetime import datetime, UTC
+from typing import Any
 
 from fastapi import APIRouter, Response
 
@@ -40,9 +39,7 @@ async def metrics() -> Response:
 
     for endpoint in stats.get("endpoints", []):
         endpoint_name = endpoint["endpoint"].replace("/", "_").replace(":", "_")
-        lines.append(
-            f'http_requests_total{{endpoint="{endpoint_name}"}} {endpoint["call_count"]}'
-        )
+        lines.append(f'http_requests_total{{endpoint="{endpoint_name}"}} {endpoint["call_count"]}')
 
         lines.append(
             f'http_request_duration_seconds{{endpoint="{endpoint_name}",quantile="0.50"}} {endpoint["p50_ms"] / 1000}'
@@ -64,43 +61,43 @@ async def metrics() -> Response:
 
 
 @router.get("/summary")
-async def profiling_summary() -> Dict[str, Any]:
+async def profiling_summary() -> dict[str, Any]:
     """Get full profiling summary."""
     session = get_profiling_session()
     return session.get_summary()
 
 
 @router.get("/bottlenecks")
-async def bottlenecks() -> Dict[str, Any]:
+async def bottlenecks() -> dict[str, Any]:
     """Get bottleneck analysis."""
     return get_bottleneck_summary()
 
 
 @router.get("/queries")
-async def query_stats() -> Dict[str, Any]:
+async def query_stats() -> dict[str, Any]:
     """Get database query statistics."""
     profiler = get_query_profiler()
     return profiler.get_stats()
 
 
 @router.get("/startup")
-async def startup_stats() -> Dict[str, Any]:
+async def startup_stats() -> dict[str, Any]:
     """Get startup metrics."""
     return startup_metrics.to_dict()
 
 
 @router.get("/slow-endpoints")
-async def slow_endpoints(limit: int = 5) -> Dict[str, Any]:
+async def slow_endpoints(limit: int = 5) -> dict[str, Any]:
     """Get slowest endpoints."""
     endpoints = get_top_slow_endpoints(limit)
     return {
-        "timestamp": datetime.now(timezone.utc).isoformat(),
+        "timestamp": datetime.now(UTC).isoformat(),
         "endpoints": endpoints,
     }
 
 
 @router.post("/reset")
-async def reset_profiling() -> Dict[str, str]:
+async def reset_profiling() -> dict[str, str]:
     """Reset all profiling data."""
     session = get_profiling_session()
     session.stop()
@@ -111,7 +108,7 @@ async def reset_profiling() -> Dict[str, str]:
 
 
 @router.get("/health")
-async def profiling_health() -> Dict[str, Any]:
+async def profiling_health() -> dict[str, Any]:
     """Get profiling system health status."""
     session = get_profiling_session()
     stats = session.get_summary()
@@ -120,9 +117,7 @@ async def profiling_health() -> Dict[str, Any]:
         "status": "healthy" if stats["total_errors"] == 0 else "degraded",
         "total_requests": stats["total_requests"],
         "total_errors": stats["total_errors"],
-        "error_rate_percent": round(
-            stats["total_errors"] / stats["total_requests"] * 100, 2
-        )
+        "error_rate_percent": round(stats["total_errors"] / stats["total_requests"] * 100, 2)
         if stats["total_requests"] > 0
         else 0,
         "avg_latency_ms": round(

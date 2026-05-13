@@ -128,9 +128,7 @@ def validate_source(source_name: str, config: dict[str, Any]) -> dict[str, Any]:
     }
 
 
-async def validate_source_async(
-    source_name: str, config: dict[str, Any]
-) -> dict[str, Any]:
+async def validate_source_async(source_name: str, config: dict[str, Any]) -> dict[str, Any]:
     return await asyncio.to_thread(validate_source, source_name, config)
 
 
@@ -157,9 +155,7 @@ def extract_articles(root: Any, limit: int) -> list[dict[str, str]]:
         title = first_text(item, ["title"])
         if link:
             link = decode_google_news_url(link) or link
-            articles.append(
-                {"author": author or "", "link": link, "title": title or ""}
-            )
+            articles.append({"author": author or "", "link": link, "title": title or ""})
             if len(articles) >= limit:
                 break
 
@@ -292,9 +288,7 @@ def discover_author_pages(author_name: str, article_url: str) -> list[str]:
         if status != 200 or "html" not in content_type.lower():
             continue
         page_text = body[:250_000].decode("utf-8", errors="ignore").lower()
-        if expected_tokens and expected_tokens.issubset(
-            set(re.findall(r"[a-z0-9]+", page_text))
-        ):
+        if expected_tokens and expected_tokens.issubset(set(re.findall(r"[a-z0-9]+", page_text))):
             discovered.append(candidate_url)
             break
     return discovered
@@ -341,11 +335,7 @@ def validate_live_byline(
     for item in reporter_results:
         quality = str(item.get("quality") or "none")
         quality_counts[quality] = quality_counts.get(quality, 0) + 1
-    best = (
-        ok_reporters[0]
-        if ok_reporters
-        else (reporter_results[0] if reporter_results else {})
-    )
+    best = ok_reporters[0] if ok_reporters else (reporter_results[0] if reporter_results else {})
     authors = []
     reported_authors: set[str] = set()
     for item in ok_reporters:
@@ -380,9 +370,7 @@ def source_has_good_byline(result: dict[str, Any]) -> bool:
 
 
 def source_has_full_requested_coverage(result: dict[str, Any]) -> bool:
-    return int(result.get("reporters_found", 0)) >= int(
-        result.get("reporters_requested", 0)
-    )
+    return int(result.get("reporters_found", 0)) >= int(result.get("reporters_requested", 0))
 
 
 def byline_quality(
@@ -418,9 +406,7 @@ def best_quality(quality_counts: dict[str, int]) -> str:
 async def validate_live_byline_async(
     source_name: str, config: dict[str, Any], reporters_per_source: int
 ) -> dict[str, Any]:
-    return await asyncio.to_thread(
-        validate_live_byline, source_name, config, reporters_per_source
-    )
+    return await asyncio.to_thread(validate_live_byline, source_name, config, reporters_per_source)
 
 
 async def validate_reporter(
@@ -440,15 +426,9 @@ async def validate_reporter(
     citations = profile.get("citations") or []
     career_history = profile.get("career_history") or []
     public_ids = [
-        value
-        for value in (profile.get("wikidata_qid"), profile.get("wikipedia_url"))
-        if value
+        value for value in (profile.get("wikidata_qid"), profile.get("wikipedia_url")) if value
     ]
-    ok = (
-        profile.get("match_status") == "matched"
-        and bool(public_ids)
-        and bool(citations)
-    )
+    ok = profile.get("match_status") == "matched" and bool(public_ids) and bool(citations)
     return {
         "reporter": reporter_name,
         "outlet": outlet,
@@ -458,8 +438,6 @@ async def validate_reporter(
         "canonical_name": profile.get("canonical_name"),
         "wikidata_qid": profile.get("wikidata_qid"),
         "citations": len(citations) if isinstance(citations, list) else 0,
-        "career_entries": len(career_history)
-        if isinstance(career_history, list)
-        else 0,
+        "career_entries": len(career_history) if isinstance(career_history, list) else 0,
         "sources": profile.get("research_sources") or [],
     }

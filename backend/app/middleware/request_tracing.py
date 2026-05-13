@@ -1,5 +1,4 @@
-"""
-Request Tracing Middleware
+"""Request Tracing Middleware.
 
 Automatically traces all requests through the system, capturing timing,
 errors, and correlating with stream events.
@@ -9,7 +8,7 @@ from __future__ import annotations
 
 import time
 import uuid
-from typing import Awaitable, Callable
+from collections.abc import Awaitable, Callable
 
 from fastapi import Request, Response
 from starlette.middleware.base import BaseHTTPMiddleware
@@ -29,10 +28,9 @@ class RequestTracingMiddleware(BaseHTTPMiddleware):
         request: Request,
         call_next: Callable[[Request], Awaitable[Response]],
     ) -> Response:
+        """Dispatch."""
         # Generate or extract request ID
-        request_id = (
-            request.headers.get("X-Request-ID") or f"req_{uuid.uuid4().hex[:12]}"
-        )
+        request_id = request.headers.get("X-Request-ID") or f"req_{uuid.uuid4().hex[:12]}"
 
         # Store request ID in state for access by route handlers
         request.state.request_id = request_id

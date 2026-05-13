@@ -109,9 +109,7 @@ def test_tool_router_replaces_prior_system_message(monkeypatch) -> None:
         def invoke(self, payload):
             captured_messages.extend(payload)
             system_indexes = [
-                index
-                for index, message in enumerate(payload)
-                if isinstance(message, SystemMessage)
+                index for index, message in enumerate(payload) if isinstance(message, SystemMessage)
             ]
             assert system_indexes == [0]
             assert payload[0].content == agent._tool_router_system_prompt()

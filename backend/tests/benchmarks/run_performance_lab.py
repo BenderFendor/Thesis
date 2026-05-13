@@ -21,7 +21,7 @@ import os
 import subprocess
 import sys
 import time
-from datetime import datetime, timezone
+from datetime import datetime, UTC
 from pathlib import Path
 
 import httpx
@@ -126,11 +126,9 @@ def run_full_benchmark(url: str, users: list, duration: int) -> dict:
     return results
 
 
-def generate_report(
-    baseline: dict, after: dict, config: dict, output_path: str
-) -> None:
+def generate_report(baseline: dict, after: dict, config: dict, output_path: str) -> None:
     """Generate markdown performance report."""
-    timestamp = datetime.now(timezone.utc).isoformat()
+    timestamp = datetime.now(UTC).isoformat()
 
     report = f"""# Performance Optimization Report
 
@@ -198,8 +196,7 @@ def generate_report(
 - [ ] Move to next optimization
 """
 
-    with open(output_path, "w") as f:
-        f.write(report)
+    output_path.write_text(report)
 
     print(f"\nReport saved to: {output_path}")
 
@@ -249,12 +246,9 @@ def main():
     )
 
     config = {}
-    config_path = (
-        "/home/bender/classwork/Thesis/backend/tests/benchmarks/config_snapshot.json"
-    )
-    if os.path.exists(config_path):
-        with open(config_path) as f:
-            config = json.load(f)
+    config_path = "/home/bender/classwork/Thesis/backend/tests/benchmarks/config_snapshot.json"
+    if Path(config_path).exists():
+        config = json.loads(Path(config_path).read_text())
 
     print("2. Resetting profiling state...")
     reset_profiling(BACKEND_URL)
@@ -266,15 +260,13 @@ def main():
         baseline = run_full_benchmark(BACKEND_URL, user_counts, args.duration)
 
     baseline_path = OUTPUT_DIR / "baseline_results.json"
-    with open(baseline_path, "w") as f:
-        json.dump(baseline, f, indent=2)
+    baseline_path.write_text(json.dumps(baseline, indent=2))
     print(f"   Baseline results saved to: {baseline_path}")
 
     print("\n4. Analyzing bottlenecks...")
     bottlenecks = get_bottlenecks(BACKEND_URL)
     bottlenecks_path = OUTPUT_DIR / "bottlenecks.json"
-    with open(bottlenecks_path, "w") as f:
-        json.dump(bottlenecks, f, indent=2)
+    bottlenecks_path.write_text(json.dumps(bottlenecks, indent=2))
     print(f"   Bottlenecks saved to: {bottlenecks_path}")
 
     print("\n5. Generating report...")

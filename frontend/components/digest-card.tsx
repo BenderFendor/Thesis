@@ -2,7 +2,8 @@
 
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { getDailyDigest, ENABLE_DIGEST, ReadingQueueItem } from "@/lib/api";
+import type { ReadingQueueItem } from "@/lib/api";
+import { getDailyDigest, ENABLE_DIGEST } from "@/lib/api";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { BookMarked, Calendar, Clock } from "lucide-react";

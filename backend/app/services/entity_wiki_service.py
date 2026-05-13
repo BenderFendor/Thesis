@@ -1,3 +1,5 @@
+"""Entity Wiki Service."""
+
 from __future__ import annotations
 
 import json
@@ -5,7 +7,8 @@ import re
 from collections import OrderedDict
 from difflib import SequenceMatcher
 from html import unescape
-from typing import Any, Dict, Iterable, List, Optional, Sequence, Tuple, cast
+from typing import Any, cast
+from collections.abc import Iterable, Sequence
 from urllib.parse import quote, urlparse
 
 import httpx
@@ -89,7 +92,7 @@ EXPANDED_WIKIDATA_PROPS = {
     "P463": "member_of",
     "P937": "work_location",
 }
-OFFICIAL_PAGE_CANDIDATES: Sequence[Tuple[str, Sequence[str]]] = (
+OFFICIAL_PAGE_CANDIDATES: Sequence[tuple[str, Sequence[str]]] = (
     ("about", ("/about", "/about-us", "/about/", "/about-us/")),
     ("masthead", ("/masthead", "/staff", "/team", "/authors")),
     (
@@ -112,25 +115,26 @@ def _normalize_name(value: str) -> str:
     return cleaned
 
 
-def build_resolver_key(name: str, context: Optional[str] = None) -> str:
+def build_resolver_key(name: str, context: str | None = None) -> str:
+    """Build Resolver Key."""
     normalized = _normalize_name(name).lower()
     suffix = (context or "").strip().lower()
     return f"{normalized}::{suffix}" if suffix else normalized
 
 
-def _tokenize(value: Optional[str]) -> List[str]:
+def _tokenize(value: str | None) -> list[str]:
     if not value:
         return []
     return re.findall(r"[a-z0-9]+", value.lower())
 
 
-def _text_similarity(a: Optional[str], b: Optional[str]) -> float:
+def _text_similarity(a: str | None, b: str | None) -> float:
     if not a or not b:
         return 0.0
     return SequenceMatcher(None, a.lower(), b.lower()).ratio()
 
 
-def _token_overlap(a: Optional[str], b: Optional[str]) -> float:
+def _token_overlap(a: str | None, b: str | None) -> float:
     tokens_a = set(_tokenize(a))
     tokens_b = set(_tokenize(b))
     if not tokens_a or not tokens_b:
@@ -140,27 +144,25 @@ def _token_overlap(a: Optional[str], b: Optional[str]) -> float:
     return overlap / union if union else 0.0
 
 
-def _extract_entity_id(value: Optional[str]) -> Optional[str]:
+def _extract_entity_id(value: str | None) -> str | None:
     if not value:
         return None
     return value.rsplit("/", 1)[-1]
 
 
-def _extract_wikidata_string(claims: Dict[str, Any], prop: str) -> Optional[str]:
+def _extract_wikidata_string(claims: dict[str, Any], prop: str) -> str | None:
     """Extract a string value from a Wikidata claim property."""
     claim_list = claims.get(prop) or []
     if not claim_list:
         return None
     try:
-        return str(
-            claim_list[0].get("mainsnak", {}).get("datavalue", {}).get("value", "")
-        )
+        return str(claim_list[0].get("mainsnak", {}).get("datavalue", {}).get("value", ""))
     except (TypeError, KeyError, IndexError):
         return None
 
 
-def _unique_strings(values: Iterable[Optional[str]]) -> List[str]:
-    unique: "OrderedDict[str, None]" = OrderedDict()
+def _unique_strings(values: Iterable[str | None]) -> list[str]:
+    unique: OrderedDict[str, None] = OrderedDict()
     for value in values:
         cleaned = (value or "").strip()
         if cleaned and cleaned not in unique:
@@ -173,7 +175,7 @@ def _condense_overview_text(value: str, max_chars: int = 900) -> str:
     if len(cleaned) <= max_chars:
         return cleaned
     sentence_chunks = re.split(r"(?<=[.!?])\s+", cleaned)
-    selected: List[str] = []
+    selected: list[str] = []
     total = 0
     for chunk in sentence_chunks:
         piece = chunk.strip()
@@ -188,12 +190,12 @@ def _condense_overview_text(value: str, max_chars: int = 900) -> str:
     return cleaned[:max_chars].rstrip() + "..."
 
 
-def _build_fallback_overview(name: str, org_data: Dict[str, Any]) -> Optional[str]:
+def _build_fallback_overview(name: str, org_data: dict[str, Any]) -> str | None:
     description = str(org_data.get("description") or "").strip()
     if description:
         return _condense_overview_text(description)
 
-    pieces: List[str] = []
+    pieces: list[str] = []
     funding_type = str(org_data.get("funding_type") or "").strip()
     parent_org = str(org_data.get("parent_org") or "").strip()
     media_bias = str(org_data.get("media_bias_rating") or "").strip()
@@ -214,8 +216,8 @@ def _build_fallback_overview(name: str, org_data: Dict[str, Any]) -> Optional[st
     return _condense_overview_text(f"{prefix} {' '.join(pieces)}")
 
 
-def _coerce_sources_to_urls(values: Iterable[Any]) -> List[str]:
-    urls: List[str] = []
+def _coerce_sources_to_urls(values: Iterable[Any]) -> list[str]:
+    urls: list[str] = []
     for value in values:
         if isinstance(value, str) and value.strip():
             urls.append(value.strip())
@@ -223,10 +225,10 @@ def _coerce_sources_to_urls(values: Iterable[Any]) -> List[str]:
 
 
 def _append_claim_items(
-    fields: Dict[str, List[Dict[str, Any]]],
+    fields: dict[str, list[dict[str, Any]]],
     claim_type: str,
-    claim_value: Dict[str, Any],
-    evidence_urls: List[str],
+    claim_value: dict[str, Any],
+    evidence_urls: list[str],
 ) -> None:
     if claim_type == "parent_company":
         parent = str(claim_value.get("name") or "").strip()
@@ -309,7 +311,7 @@ def _strip_html(value: str) -> str:
     return text.strip()
 
 
-def _extract_domain(url: Optional[str]) -> Optional[str]:
+def _extract_domain(url: str | None) -> str | None:
     if not url:
         return None
     parsed = urlparse(url if "://" in url else f"https://{url}")
@@ -317,20 +319,14 @@ def _extract_domain(url: Optional[str]) -> Optional[str]:
     return host or None
 
 
-def _is_us_broadcast_source(
-    name: str, website: Optional[str], country: Optional[str]
-) -> bool:
+def _is_us_broadcast_source(name: str, website: str | None, country: str | None) -> bool:
     if (country or "").upper() != "US":
         return False
     tokens = " ".join([name.lower(), (website or "").lower()])
-    return any(
-        keyword in tokens for keyword in ("tv", "radio", "fm", "am", "broadcast")
-    )
+    return any(keyword in tokens for keyword in ("tv", "radio", "fm", "am", "broadcast"))
 
 
-def _citation(
-    url: Optional[str], label: str, note: Optional[str] = None
-) -> Dict[str, str]:
+def _citation(url: str | None, label: str, note: str | None = None) -> dict[str, str]:
     citation = {"label": label}
     if url:
         citation["url"] = url
@@ -341,7 +337,7 @@ def _citation(
 
 async def _resolve_labels(
     http_client: httpx.AsyncClient, item_ids: Sequence[str]
-) -> Dict[str, str]:
+) -> dict[str, str]:
     unique_ids = sorted({item_id for item_id in item_ids if item_id})
     if not unique_ids:
         return {}
@@ -360,7 +356,7 @@ async def _resolve_labels(
     if response.status_code != 200:
         return {}
     entities = response.json().get("entities") or {}
-    results: Dict[str, str] = {}
+    results: dict[str, str] = {}
     values = entities.values() if isinstance(entities, dict) else entities
     for entity in values:
         if not isinstance(entity, dict):
@@ -374,7 +370,7 @@ async def _resolve_labels(
 
 async def _fetch_entities(
     http_client: httpx.AsyncClient, ids: Sequence[str]
-) -> List[Dict[str, Any]]:
+) -> list[dict[str, Any]]:
     unique_ids = sorted({item_id for item_id in ids if item_id})
     if not unique_ids:
         return []
@@ -394,14 +390,10 @@ async def _fetch_entities(
         return []
     entities = response.json().get("entities") or {}
     values = entities.values() if isinstance(entities, dict) else entities
-    return [
-        cast(Dict[str, Any], entity) for entity in values if isinstance(entity, dict)
-    ]
+    return [cast(dict[str, Any], entity) for entity in values if isinstance(entity, dict)]
 
 
-async def _search_wikidata(
-    http_client: httpx.AsyncClient, name: str
-) -> List[Dict[str, Any]]:
+async def _search_wikidata(http_client: httpx.AsyncClient, name: str) -> list[dict[str, Any]]:
     response = await http_client.get(
         WIKIDATA_API_URL,
         params={
@@ -416,12 +408,12 @@ async def _search_wikidata(
     )
     if response.status_code != 200:
         return []
-    return cast(List[Dict[str, Any]], response.json().get("search") or [])
+    return cast(list[dict[str, Any]], response.json().get("search") or [])
 
 
 async def _fetch_wikipedia_summary(
-    http_client: httpx.AsyncClient, title: Optional[str]
-) -> Dict[str, Any]:
+    http_client: httpx.AsyncClient, title: str | None
+) -> dict[str, Any]:
     if not title:
         return {}
     response = await http_client.get(
@@ -452,12 +444,12 @@ async def _fetch_wikipedia_summary(
 
 
 async def _try_fetch_site_pages(
-    http_client: httpx.AsyncClient, website: Optional[str]
-) -> List[Dict[str, str]]:
+    http_client: httpx.AsyncClient, website: str | None
+) -> list[dict[str, str]]:
     if not website:
         return []
     base = website if "://" in website else f"https://{website}"
-    pages: List[Dict[str, str]] = []
+    pages: list[dict[str, str]] = []
     seen_urls: set[str] = set()
     for label, paths in OFFICIAL_PAGE_CANDIDATES:
         for path in paths:
@@ -480,9 +472,7 @@ async def _try_fetch_site_pages(
     return pages
 
 
-def _context_similarity(
-    name: str, description: str, article_context: Optional[str]
-) -> float:
+def _context_similarity(name: str, description: str, article_context: str | None) -> float:
     context = (article_context or "").strip()
     if not context or not description:
         return 0.0
@@ -496,21 +486,18 @@ def _context_similarity(
             description_norm = np.linalg.norm(description_vector)
             if context_norm > 0 and description_norm > 0:
                 raw_score = float(
-                    np.dot(context_vector, description_vector)
-                    / (context_norm * description_norm)
+                    np.dot(context_vector, description_vector) / (context_norm * description_norm)
                 )
                 return max(0.0, min(1.0, (raw_score + 1.0) / 2.0))
         except Exception as exc:
-            logger.debug(
-                "Reporter context embedding match failed for %s: %s", name, exc
-            )
+            logger.debug("Reporter context embedding match failed for %s: %s", name, exc)
     return _token_overlap(context, description)
 
 
 def _build_reporter_sections(
     canonical_name: str,
     match_explanation: str,
-    summary: Dict[str, Any],
+    summary: dict[str, Any],
     occupations: Sequence[str],
     field_of_work: Sequence[str],
     employers: Sequence[str],
@@ -520,14 +507,12 @@ def _build_reporter_sections(
     political_party: Sequence[str],
     political_ideology: Sequence[str],
     member_of: Sequence[str],
-    official_website: Optional[str],
-    wikipedia_url: Optional[str],
-    wikidata_url: Optional[str],
-) -> List[Dict[str, Any]]:
+    official_website: str | None,
+    wikipedia_url: str | None,
+    wikidata_url: str | None,
+) -> list[dict[str, Any]]:
     citation_urls = _unique_strings([wikipedia_url, wikidata_url, official_website])
-    identity_items = [
-        {"label": "Name", "value": canonical_name, "sources": citation_urls}
-    ]
+    identity_items = [{"label": "Name", "value": canonical_name, "sources": citation_urls}]
     if summary.get("extract"):
         identity_items.append(
             {
@@ -544,7 +529,7 @@ def _build_reporter_sections(
         }
     )
 
-    sections: List[Dict[str, Any]] = [
+    sections: list[dict[str, Any]] = [
         {
             "id": "identity",
             "title": "Identity",
@@ -675,10 +660,11 @@ def _build_reporter_sections(
 
 async def build_reporter_dossier(
     name: str,
-    organization: Optional[str] = None,
-    article_context: Optional[str] = None,
-    http_client: Optional[httpx.AsyncClient] = None,
-) -> Dict[str, Any]:
+    organization: str | None = None,
+    article_context: str | None = None,
+    http_client: httpx.AsyncClient | None = None,
+) -> dict[str, Any]:
+    """Build Reporter Dossier."""
     normalized_name = _normalize_name(name)
     resolver_key = build_resolver_key(name, organization)
     owned_client = http_client is None
@@ -738,21 +724,15 @@ async def build_reporter_dossier(
                     "P1142",
                     "P463",
                 )
-                for item_id in _extract_wikidata_item_ids(
-                    entity.get("claims") or {}, prop
-                )
+                for item_id in _extract_wikidata_item_ids(entity.get("claims") or {}, prop)
             ],
         )
 
-        scored: List[Tuple[float, Dict[str, Any], Dict[str, Any]]] = []
+        scored: list[tuple[float, dict[str, Any], dict[str, Any]]] = []
         for entity in entity_candidates:
             claims = entity.get("claims") or {}
-            label = (entity.get("labels") or {}).get("en", {}).get(
-                "value"
-            ) or normalized_name
-            description = (entity.get("descriptions") or {}).get("en", {}).get(
-                "value"
-            ) or ""
+            label = (entity.get("labels") or {}).get("en", {}).get("value") or normalized_name
+            description = (entity.get("descriptions") or {}).get("en", {}).get("value") or ""
             instance_ids = _extract_wikidata_item_ids(claims, "P31")
             occupation_labels = [
                 label_map[item_id]
@@ -764,9 +744,7 @@ async def build_reporter_dossier(
                 for item_id in _extract_wikidata_item_ids(claims, "P108")
                 if item_id in label_map
             ]
-            wiki_title = ((entity.get("sitelinks") or {}).get("enwiki") or {}).get(
-                "title"
-            )
+            wiki_title = ((entity.get("sitelinks") or {}).get("enwiki") or {}).get("title")
             twitter_handle = _extract_wikidata_string(claims, "P2002")
             linkedin_url = _extract_wikidata_url(claims, "P6634")
             instagram_handle = _extract_wikidata_string(claims, "P2003")
@@ -798,15 +776,13 @@ async def build_reporter_dossier(
             work_location = _extract_wikidata_string(claims, "P937")
             name_score = _text_similarity(normalized_name, label)
             organization_score = max(
-                max(
-                    _token_overlap(organization, emp_label)
-                    for emp_label in employer_labels
-                ) if employer_labels else 0.0,
+                max(_token_overlap(organization, emp_label) for emp_label in employer_labels)
+                if employer_labels
+                else 0.0,
                 0.0,
             )
             occupation_is_journalism = any(
-                keyword in " ".join(occupation_labels).lower()
-                for keyword in JOURNALISM_KEYWORDS
+                keyword in " ".join(occupation_labels).lower() for keyword in JOURNALISM_KEYWORDS
             )
             occupation_is_non_journalist = any(
                 keyword in " ".join(occupation_labels).lower()
@@ -814,9 +790,7 @@ async def build_reporter_dossier(
             )
             occupation_score = 1.0 if occupation_is_journalism else 0.0
             human_score = 1.0 if INSTANCE_HUMAN in instance_ids else 0.0
-            context_score = _context_similarity(
-                normalized_name, description, article_context
-            )
+            context_score = _context_similarity(normalized_name, description, article_context)
             total_score = (
                 name_score * 0.30
                 + human_score * 0.18
@@ -891,20 +865,14 @@ async def build_reporter_dossier(
             }
 
         scored.sort(key=lambda item: item[0], reverse=True)
-        has_journalist_candidate = any(
-            m["scores"]["occupation"] > 0 for _, _, m in scored
-        )
+        has_journalist_candidate = any(m["scores"]["occupation"] > 0 for _, _, m in scored)
         if has_journalist_candidate:
             journalist_scored = [s for s in scored if s[2]["scores"]["occupation"] > 0]
             best_score, _, best_meta = journalist_scored[0]
             second_score = (
                 journalist_scored[1][0]
                 if len(journalist_scored) > 1
-                else (
-                    scored[0][0]
-                    if scored[0][2].get("qid") != best_meta.get("qid")
-                    else 0.0
-                )
+                else (scored[0][0] if scored[0][2].get("qid") != best_meta.get("qid") else 0.0)
             )
         else:
             return {
@@ -937,25 +905,19 @@ async def build_reporter_dossier(
             if best_score >= matched_threshold and (best_score - second_score) >= 0.08
             else "ambiguous"
         )
-        summary: Dict[str, Any] = {}
+        summary: dict[str, Any] = {}
         try:
-            summary = await _fetch_wikipedia_summary(
-                client, best_meta.get("wiki_title")
-            )
+            summary = await _fetch_wikipedia_summary(client, best_meta.get("wiki_title"))
         except Exception:
             logger.debug("Wikipedia summary fetch failed for %s", normalized_name)
-        wikipedia_url = cast(Optional[str], summary.get("url"))
+        wikipedia_url = cast(str | None, summary.get("url"))
         wikidata_url = (
-            f"https://www.wikidata.org/wiki/{best_meta['qid']}"
-            if best_meta.get("qid")
-            else None
+            f"https://www.wikidata.org/wiki/{best_meta['qid']}" if best_meta.get("qid") else None
         )
         canonical_name = cast(
             str, summary.get("title") or best_meta.get("label") or normalized_name
         )
-        overview = cast(
-            Optional[str], summary.get("extract") or best_meta.get("description")
-        )
+        overview = cast(str | None, summary.get("extract") or best_meta.get("description"))
         citation_urls = _unique_strings(
             [wikipedia_url, wikidata_url, best_meta.get("official_website")]
         )
@@ -983,7 +945,7 @@ async def build_reporter_dossier(
             political_party=best_meta.get("political_party") or [],
             political_ideology=best_meta.get("political_ideology") or [],
             member_of=best_meta.get("member_of") or [],
-            official_website=cast(Optional[str], best_meta.get("official_website")),
+            official_website=cast(str | None, best_meta.get("official_website")),
             wikipedia_url=wikipedia_url,
             wikidata_url=wikidata_url,
         )
@@ -999,9 +961,7 @@ async def build_reporter_dossier(
                 {"organization": employer, "role": "employer", "source": "wikidata"}
                 for employer in best_meta["employers"]
             ],
-            "topics": _unique_strings(
-                [*best_meta["occupations"], *best_meta["field_of_work"]]
-            ),
+            "topics": _unique_strings([*best_meta["occupations"], *best_meta["field_of_work"]]),
             "education": [
                 {"institution": institution, "source": "wikidata"}
                 for institution in best_meta["education"]
@@ -1043,9 +1003,10 @@ async def build_reporter_dossier(
             await client.aclose()
 
 
-def build_source_sections(profile: Dict[str, Any]) -> List[Dict[str, Any]]:
-    fields = cast(Dict[str, List[Dict[str, Any]]], profile.get("fields") or {})
-    sections: List[Dict[str, Any]] = []
+def build_source_sections(profile: dict[str, Any]) -> list[dict[str, Any]]:
+    """Build Source Sections."""
+    fields = cast(dict[str, list[dict[str, Any]]], profile.get("fields") or {})
+    sections: list[dict[str, Any]] = []
     section_map = [
         ("overview", "Overview", ("overview", "about", "official_website")),
         ("ownership", "Ownership", ("ownership", "affiliations")),
@@ -1057,9 +1018,7 @@ def build_source_sections(profile: Dict[str, Any]) -> List[Dict[str, Any]]:
         ),
     ]
     for section_id, title, keys in section_map:
-        items = [
-            entry for key in keys for entry in fields.get(key, []) if entry.get("value")
-        ]
+        items = [entry for key in keys for entry in fields.get(key, []) if entry.get("value")]
         sections.append(
             {
                 "id": section_id,
@@ -1071,19 +1030,16 @@ def build_source_sections(profile: Dict[str, Any]) -> List[Dict[str, Any]]:
     return sections
 
 
-async def build_source_profile(
-    name: str, website: Optional[str] = None
-) -> Dict[str, Any]:
+async def build_source_profile(name: str, website: str | None = None) -> dict[str, Any]:
+    """Build Source Profile."""
     researcher = get_funding_researcher()
     org_data = await researcher.research_organization(name, website, use_ai=False)
-    wikipedia_description = cast(
-        Optional[str], (org_data.get("description") or "").strip() or None
-    )
+    wikipedia_description = cast(str | None, (org_data.get("description") or "").strip() or None)
     official_website = cast(
-        Optional[str],
+        str | None,
         org_data.get("website") or org_data.get("official_website") or website,
     )
-    official_pages: List[Dict[str, str]] = []
+    official_pages: list[dict[str, str]] = []
     async with httpx.AsyncClient(timeout=20.0, follow_redirects=True) as client:
         if official_website:
             official_pages = await _try_fetch_site_pages(client, official_website)
@@ -1099,7 +1055,7 @@ async def build_source_profile(
         official_website,
         about_page.get("url"),
     ]
-    fields: Dict[str, List[Dict[str, Any]]] = {
+    fields: dict[str, list[dict[str, Any]]] = {
         "overview": [],
         "about": [],
         "funding": [],
@@ -1117,9 +1073,7 @@ async def build_source_profile(
             {
                 "label": "Wikipedia",
                 "value": wikipedia_description,
-                "sources": _unique_strings(
-                    [cast(Optional[str], org_data.get("wikipedia_url"))]
-                ),
+                "sources": _unique_strings([cast(str | None, org_data.get("wikipedia_url"))]),
             }
         )
     if about_page.get("summary"):
@@ -1161,9 +1115,7 @@ async def build_source_profile(
             {
                 "label": "Funding type",
                 "value": org_data["funding_type"],
-                "sources": _unique_strings(
-                    cast(List[Optional[str]], citation_candidates)
-                ),
+                "sources": _unique_strings(cast(list[str | None], citation_candidates)),
             }
         )
     if org_data.get("media_bias_rating"):
@@ -1171,9 +1123,7 @@ async def build_source_profile(
             {
                 "label": "Catalog bias rating",
                 "value": str(org_data["media_bias_rating"]),
-                "sources": _unique_strings(
-                    cast(List[Optional[str]], citation_candidates)
-                ),
+                "sources": _unique_strings(cast(list[str | None], citation_candidates)),
             }
         )
     if org_data.get("factual_reporting"):
@@ -1181,15 +1131,13 @@ async def build_source_profile(
             {
                 "label": "Catalog factual reporting",
                 "value": str(org_data["factual_reporting"]),
-                "sources": _unique_strings(
-                    cast(List[Optional[str]], citation_candidates)
-                ),
+                "sources": _unique_strings(cast(list[str | None], citation_candidates)),
             }
         )
     for value in _unique_strings(
-        [cast(Optional[str], org_data.get("parent_org"))]
-        + cast(List[Optional[str]], org_data.get("owned_by") or [])
-        + cast(List[Optional[str]], org_data.get("parent_orgs") or [])
+        [cast(str | None, org_data.get("parent_org"))]
+        + cast(list[str | None], org_data.get("owned_by") or [])
+        + cast(list[str | None], org_data.get("parent_orgs") or [])
     ):
         fields["ownership"].append(
             {
@@ -1197,20 +1145,18 @@ async def build_source_profile(
                 "value": value,
                 "sources": _unique_strings(
                     [
-                        cast(Optional[str], org_data.get("wikidata_url")),
-                        cast(Optional[str], org_data.get("wikipedia_url")),
+                        cast(str | None, org_data.get("wikidata_url")),
+                        cast(str | None, org_data.get("wikipedia_url")),
                     ]
                 ),
             }
         )
-    for value in cast(List[str], org_data.get("part_of") or []):
+    for value in cast(list[str], org_data.get("part_of") or []):
         fields["affiliations"].append(
             {
                 "label": "Affiliation",
                 "value": value,
-                "sources": _unique_strings(
-                    [cast(Optional[str], org_data.get("wikidata_url"))]
-                ),
+                "sources": _unique_strings([cast(str | None, org_data.get("wikidata_url"))]),
             }
         )
     if org_data.get("inception"):
@@ -1218,19 +1164,15 @@ async def build_source_profile(
             {
                 "label": "Founded",
                 "value": org_data["inception"],
-                "sources": _unique_strings(
-                    [cast(Optional[str], org_data.get("wikidata_url"))]
-                ),
+                "sources": _unique_strings([cast(str | None, org_data.get("wikidata_url"))]),
             }
         )
-    for value in cast(List[str], org_data.get("headquarters") or []):
+    for value in cast(list[str], org_data.get("headquarters") or []):
         fields["headquarters"].append(
             {
                 "label": "Headquarters",
                 "value": value,
-                "sources": _unique_strings(
-                    [cast(Optional[str], org_data.get("wikidata_url"))]
-                ),
+                "sources": _unique_strings([cast(str | None, org_data.get("wikidata_url"))]),
             }
         )
     if org_data.get("ein"):
@@ -1239,9 +1181,7 @@ async def build_source_profile(
                 "label": "EIN",
                 "value": str(org_data["ein"]),
                 "sources": _unique_strings(
-                    [
-                        f"https://projects.propublica.org/nonprofits/organizations/{org_data['ein']}"
-                    ]
+                    [f"https://projects.propublica.org/nonprofits/organizations/{org_data['ein']}"]
                 ),
             }
         )
@@ -1251,9 +1191,7 @@ async def build_source_profile(
                 "label": "Revenue",
                 "value": str(org_data["annual_revenue"]),
                 "sources": _unique_strings(
-                    [
-                        f"https://projects.propublica.org/nonprofits/organizations/{org_data['ein']}"
-                    ]
+                    [f"https://projects.propublica.org/nonprofits/organizations/{org_data['ein']}"]
                     if org_data.get("ein")
                     else []
                 ),
@@ -1270,26 +1208,26 @@ async def build_source_profile(
             }
         )
 
-    claim_rows = cast(List[Dict[str, Any]], org_data.get("source_claims") or [])
+    claim_rows = cast(list[dict[str, Any]], org_data.get("source_claims") or [])
     for claim in claim_rows:
         claim_type = str(claim.get("type") or "").strip()
         claim_value_raw = claim.get("value")
-        claim_value: Dict[str, Any]
+        claim_value: dict[str, Any]
         if isinstance(claim_value_raw, dict):
-            claim_value = cast(Dict[str, Any], claim_value_raw)
+            claim_value = cast(dict[str, Any], claim_value_raw)
         elif isinstance(claim_value_raw, str):
-            parsed_value: Dict[str, Any] = {}
+            parsed_value: dict[str, Any] = {}
             try:
                 loaded = json.loads(claim_value_raw)
                 if isinstance(loaded, dict):
-                    parsed_value = cast(Dict[str, Any], loaded)
+                    parsed_value = cast(dict[str, Any], loaded)
             except Exception:
                 parsed_value = {}
             claim_value = parsed_value
         else:
             claim_value = {}
 
-        evidence = cast(List[Dict[str, Any]], claim.get("evidence") or [])
+        evidence = cast(list[dict[str, Any]], claim.get("evidence") or [])
         evidence_urls = _coerce_sources_to_urls(
             evidence_row.get("source_url") for evidence_row in evidence
         )
@@ -1301,15 +1239,13 @@ async def build_source_profile(
             {
                 "label": "Profile summary",
                 "value": fallback_overview,
-                "sources": _unique_strings(
-                    cast(List[Optional[str]], citation_candidates)
-                ),
+                "sources": _unique_strings(cast(list[str | None], citation_candidates)),
             }
         )
 
     citations = [
         _citation(url, "Public source")
-        for url in _unique_strings(cast(List[Optional[str]], citation_candidates))
+        for url in _unique_strings(cast(list[str | None], citation_candidates))
     ]
     if org_data.get("ein"):
         citations.append(
@@ -1335,9 +1271,7 @@ async def build_source_profile(
             )
         )
         else "none",
-        "overview": (
-            wikipedia_description or about_page.get("summary") or fallback_overview
-        ),
+        "overview": (wikipedia_description or about_page.get("summary") or fallback_overview),
         "wikipedia_url": org_data.get("wikipedia_url"),
         "wikidata_url": org_data.get("wikidata_url"),
         "wikidata_qid": org_data.get("wikidata_qid"),
@@ -1353,7 +1287,7 @@ async def build_source_profile(
         "match_explanation": "Built from Wikipedia, Wikidata, official site metadata, and public-record links.",
         "research_confidence": org_data.get("research_confidence", "low"),
         "research_sources": _unique_strings(
-            cast(List[Optional[str]], org_data.get("research_sources") or [])
+            cast(list[str | None], org_data.get("research_sources") or [])
         ),
         "key_reporters": [],
     }

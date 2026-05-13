@@ -15,7 +15,6 @@ import argparse
 import asyncio
 import csv
 import io
-import os
 import sys
 from pathlib import Path
 from typing import cast
@@ -27,8 +26,7 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 OEC_REPO_CSV_URL = (
-    "https://github.com/cid-harvard/pyOEC/raw/main/oec/datasets/"
-    "hs4_4digit.csv.gz.parsed"
+    "https://github.com/cid-harvard/pyOEC/raw/main/oec/datasets/hs4_4digit.csv.gz.parsed"
 )
 
 CHUNK_SIZE = 5000
@@ -47,9 +45,8 @@ async def import_csv(csv_path: str | None = None, chunk_size: int = CHUNK_SIZE) 
     rows_inserted = 0
     source_used = "csv"
 
-    if csv_path and os.path.exists(csv_path):
-        with open(csv_path, "r", encoding="utf-8") as f:
-            content = f.read()
+    if csv_path and Path(csv_path).exists():
+        content = Path(csv_path).read_text(encoding="utf-8")
         source_used = csv_path
     else:
         print(f"Downloading OEC HS4 dataset from {OEC_REPO_CSV_URL} ...")
@@ -80,9 +77,7 @@ async def import_csv(csv_path: str | None = None, chunk_size: int = CHUNK_SIZE) 
                         row.get("importer", row.get("importer_country", "")),
                     )
                     hs4 = row.get("HS4", row.get("hs4", row.get("product_code", "")))
-                    product = row.get(
-                        "Product", row.get("product", row.get("product_name", ""))
-                    )
+                    product = row.get("Product", row.get("product", row.get("product_name", "")))
                     value = row.get(
                         "Export Value",
                         row.get("export_val", row.get("trade_value_usd", "0")),
@@ -126,11 +121,7 @@ async def import_csv(csv_path: str | None = None, chunk_size: int = CHUNK_SIZE) 
                 await session.execute(stmt, params)
                 await session.commit()
                 rows_inserted += len(values_clauses)
-                pct = (
-                    min(100, round(rows_inserted / total_rows * 100, 1))
-                    if total_rows
-                    else 0
-                )
+                pct = min(100, round(rows_inserted / total_rows * 100, 1)) if total_rows else 0
                 print(
                     f"  Batch {batch_idx + 1}/{len(batches)}: "
                     f"{rows_inserted:,} / {total_rows:,} rows ({pct}%)"

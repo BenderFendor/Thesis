@@ -1,5 +1,4 @@
-"""
-Gunicorn configuration for FastAPI production deployment.
+"""Gunicorn configuration for FastAPI production deployment.
 
 Usage:
     gunicorn -c gunicorn.conf.py app.main:app

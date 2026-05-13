@@ -18,16 +18,18 @@ import {
   Clock,
   Square,
 } from "lucide-react";
+import type {
+  ThinkingStep} from "@/lib/api";
 import {
   API_BASE_URL,
-  ThinkingStep,
   type NewsArticle,
   semanticSearch,
   type SemanticSearchResult,
 } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import { ArticleDetailModal } from "@/components/article-detail-modal";
-import ChatSidebar, { ChatSummary } from "@/components/chat-sidebar";
+import type { ChatSummary } from "@/components/chat-sidebar";
+import ChatSidebar from "@/components/chat-sidebar";
 import { SafeImage } from "@/components/safe-image";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
@@ -103,16 +105,16 @@ interface Message {
   parentMessageId?: string;
 }
 
-type StatusMessage = { type: "status"; message: string };
-type ThinkingStepMessage = { type: "thinking_step"; step: ThinkingStep };
-type ArticlesJsonMessage = { type: "articles_json"; data: string };
-type ReferencedArticlesMessage = {
+interface StatusMessage { type: "status"; message: string }
+interface ThinkingStepMessage { type: "thinking_step"; step: ThinkingStep }
+interface ArticlesJsonMessage { type: "articles_json"; data: string }
+interface ReferencedArticlesMessage {
   type: "referenced_articles";
   articles?: ReferencedArticlePayload[];
-};
-type CompleteMessage = { type: "complete"; result: ResearchResult };
-type ErrorMessage = { type: "error"; message?: string };
-type UnknownMessage = { type: string; [key: string]: unknown };
+}
+interface CompleteMessage { type: "complete"; result: ResearchResult }
+interface ErrorMessage { type: "error"; message?: string }
+interface UnknownMessage { type: string; [key: string]: unknown }
 
 type ResearchStreamMessage =
   | StatusMessage
@@ -473,7 +475,7 @@ function NewsResearchPageContent() {
         parsed.activeChatId && revivedMessages[parsed.activeChatId]
           ? parsed.activeChatId
           : parsed.chats && parsed.chats.length > 0
-            ? parsed.chats[0].id
+            ? parsed.chats[0]!.id
             : null;
 
       if (targetChatId) {
@@ -707,7 +709,7 @@ function NewsResearchPageContent() {
                   );
                   if (jsonMatch)
                     parsed = JSON.parse(
-                      jsonMatch[1],
+                      jsonMatch[1]!,
                     ) as StructuredArticlesPayload;
                 }
                 if (parsed) {
@@ -1074,10 +1076,10 @@ function NewsResearchPageContent() {
     if (isSearching) return;
     const index = messages.findIndex((message) => message.id === messageId);
     if (index === -1) return;
-    const target = messages[index];
+    const target = messages[index]!;
     if (target.type !== "user") return;
     setEditingMessageId(messageId);
-    setEditingDraft(target.content);
+    setEditingDraft(target!.content);
   };
 
   const handleCancelEditMessage = () => {
@@ -1789,7 +1791,7 @@ function NewsResearchPageContent() {
                                                 versionInfo.groupId,
                                                 versionInfo.versionIds[
                                                   versionInfo.currentIndex - 1
-                                                ],
+                                                ]!,
                                               )
                                             }
                                             disabled={versionInfo.currentIndex === 0}
@@ -1811,7 +1813,7 @@ function NewsResearchPageContent() {
                                                 versionInfo.groupId,
                                                 versionInfo.versionIds[
                                                   versionInfo.currentIndex + 1
-                                                ],
+                                                ]!,
                                               )
                                             }
                                             disabled={

@@ -1,5 +1,4 @@
-"""
-Enhanced image extraction with candidate-based approach and structured errors.
+"""Enhanced image extraction with candidate-based approach and structured errors.
 
 This module provides robust image extraction from RSS entries and article pages,
 with detailed error tracking for debugging.
@@ -9,8 +8,8 @@ from __future__ import annotations
 
 import re
 from dataclasses import dataclass, field
-from enum import Enum
-from typing import Any, Dict, List, Optional
+from enum import StrEnum
+from typing import Any
 from urllib.parse import urljoin
 
 import httpx
@@ -22,7 +21,7 @@ from app.services.rss_parser_rust_bindings import extract_og_image_html
 logger = get_logger("image_extraction")
 
 
-class ImageErrorType(str, Enum):
+class ImageErrorType(StrEnum):
     """Structured error types for image extraction failures."""
 
     NO_IMAGE_IN_FEED = "NO_IMAGE_IN_FEED"
@@ -43,20 +42,21 @@ class ImageCandidate:
     url: str
     source: str
     priority: int
-    content_type: Optional[str] = None
+    content_type: str | None = None
 
 
 @dataclass
 class ImageExtractionResult:
     """Result of image extraction with candidates and error info."""
 
-    image_url: Optional[str] = None
-    image_candidates: List[ImageCandidate] = field(default_factory=list)
-    image_error: Optional[ImageErrorType] = None
-    image_error_details: Optional[str] = None
-    selected_source: Optional[str] = None
+    image_url: str | None = None
+    image_candidates: list[ImageCandidate] = field(default_factory=list)
+    image_error: ImageErrorType | None = None
+    image_error_details: str | None = None
+    selected_source: str | None = None
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
+        """To Dict."""
         return {
             "image_url": self.image_url,
             "image_candidates": [
@@ -69,7 +69,8 @@ class ImageExtractionResult:
         }
 
 
-def is_valid_image_url(url: Optional[str]) -> bool:
+def is_valid_image_url(url: str | None) -> bool:
+    """Is Valid Image Url."""
     if not url or not isinstance(url, str):
         return False
     trimmed = url.strip()
@@ -80,18 +81,15 @@ def is_valid_image_url(url: Optional[str]) -> bool:
         return False
     if "placeholder" in lowered:
         return False
-    if lowered.endswith(".svg"):
-        return False
-    return True
+    return not lowered.endswith(".svg")
 
 
 def extract_image_from_entry(
     entry: Any,
-    article_url: Optional[str] = None,
-    base_url: Optional[str] = None,
+    article_url: str | None = None,
+    base_url: str | None = None,
 ) -> ImageExtractionResult:
-    """
-    Extract image from RSS entry with candidate ranking.
+    """Extract image from RSS entry with candidate ranking.
 
     Priority order:
     1. media:content with image type
@@ -101,11 +99,9 @@ def extract_image_from_entry(
     5. Links with image file extensions
     """
     result = ImageExtractionResult()
-    candidates: List[ImageCandidate] = []
+    candidates: list[ImageCandidate] = []
     html_base_url = (
-        article_url
-        if article_url and article_url.startswith(("http://", "https://"))
-        else base_url
+        article_url if article_url and article_url.startswith(("http://", "https://")) else base_url
     )
 
     if hasattr(entry, "media_content") and entry.media_content:
@@ -132,9 +128,7 @@ def extract_image_from_entry(
         if isinstance(thumb, list) and thumb:
             for item in thumb:
                 if isinstance(item, dict):
-                    url = _resolve_url(
-                        item.get("url") or item.get("href"), html_base_url
-                    )
+                    url = _resolve_url(item.get("url") or item.get("href"), html_base_url)
                     if url and is_valid_image_url(url):
                         candidates.append(
                             ImageCandidate(
@@ -246,7 +240,7 @@ def extract_image_from_entry(
     return result
 
 
-def _extract_images_from_html(html: str) -> List[str]:
+def _extract_images_from_html(html: str) -> list[str]:
     if not html:
         return []
 
@@ -270,7 +264,7 @@ def _extract_images_from_html(html: str) -> List[str]:
         if first_src:
             urls.append(first_src)
 
-    normalized: List[str] = []
+    normalized: list[str] = []
     for candidate in urls:
         if "," in candidate:
             first = candidate.split(",")[0].strip().split()[0]
@@ -281,7 +275,7 @@ def _extract_images_from_html(html: str) -> List[str]:
     return normalized
 
 
-def _resolve_url(url: object, base_url: Optional[str] = None) -> Optional[str]:
+def _resolve_url(url: object, base_url: str | None = None) -> str | None:
     url_value: object = url
     if url_value is None:
         return None
@@ -306,11 +300,8 @@ def _resolve_url(url: object, base_url: Optional[str] = None) -> Optional[str]:
     return None
 
 
-async def fetch_og_image(
-    article_url: str, timeout: float = 10.0
-) -> ImageExtractionResult:
-    """
-    Fetch article page and extract og:image meta tag.
+async def fetch_og_image(article_url: str, timeout: float = 10.0) -> ImageExtractionResult:
+    """Fetch article page and extract og:image meta tag.
 
     This is an expensive operation and now relies on the Rust HTML parser.
     """
@@ -340,9 +331,7 @@ async def fetch_og_image(
                     ImageCandidate(
                         url=normalized_url,
                         source=candidate.get("source") or "og:image",
-                        priority=int(priority_value)
-                        if priority_value is not None
-                        else 1,
+                        priority=int(priority_value) if priority_value is not None else 1,
                     )
                 )
 
@@ -354,9 +343,7 @@ async def fetch_og_image(
                 result.selected_source = best.source
             else:
                 result.image_error = ImageErrorType.OG_IMAGE_NOT_FOUND
-                result.image_error_details = (
-                    "No og:image or twitter:image found by Rust parser"
-                )
+                result.image_error_details = "No og:image or twitter:image found by Rust parser"
 
     except httpx.TimeoutException:
         result.image_error = ImageErrorType.IMAGE_FETCH_TIMEOUT
@@ -364,9 +351,7 @@ async def fetch_og_image(
         logger.warning("Timeout fetching og:image from %s", article_url[:50])
     except httpx.HTTPStatusError as exc:
         result.image_error = ImageErrorType.ARTICLE_FETCH_FAILED
-        result.image_error_details = (
-            f"HTTP {exc.response.status_code} for {article_url}"
-        )
+        result.image_error_details = f"HTTP {exc.response.status_code} for {article_url}"
         logger.warning(
             "HTTP error %s fetching og:image from %s",
             exc.response.status_code,
