@@ -105,7 +105,8 @@ pub fn quantile(values: &[f64], percentile: f64) -> f64 {
 }
 
 /// Constructs a semantic axis from positive and negative example vectors.
-///
+/// https://arxiv.org/abs/1806.05521 based on this paper its not the best system but it is the
+/// current one.
 /// Computes the mean of positive and negative vectors, subtracts the
 /// negative mean from the positive mean, and normalizes the result. Returns
 /// `None` if either input set is empty or the resulting axis has zero

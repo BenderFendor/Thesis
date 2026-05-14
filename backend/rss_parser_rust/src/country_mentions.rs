@@ -98,7 +98,7 @@ impl CountryAliasData {
 
 fn is_textual_alias(alias: &str) -> bool {
     let stripped = alias.trim();
-    if stripped.len() < 4 {
+    if stripped.len() < 4 { // Why is this hard coded are this the only 6 countries that have this?
         return matches!(stripped, "U.K." | "UK" | "USA" | "UAE" | "PRC" | "DPRK");
     }
     if stripped.contains(',') || stripped.contains('/') {

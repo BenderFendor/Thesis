@@ -10,7 +10,7 @@ use crate::types::{FetchError, FetchResult, RawFeed, SourceRequest};
 fn build_client() -> Client {
     Client::builder()
         .timeout(Duration::from_secs(25))
-        .user_agent("ThesisNewsBot/2.0 (+https://github.com/BenderFendor/Thesis)")
+        .user_agent("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/144.0.0.0 Safari/537.36") // I don't want to get blocked
         .gzip(true)
         .brotli(true)
         .deflate(true)

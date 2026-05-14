@@ -281,6 +281,11 @@ pub fn extract_og_image_from_html(html: &str) -> OgImageExtraction {
 }
 
 #[cfg(test)]
+// What would be a cool idea here is that we make some test that take real articles like 20
+// different articles from all different sources as different as you can get. Then test those real
+// articles to make sure it pass, it would also be cool if this articles where to be different each
+// type the test was ran so that you couldn't hardcode to match it making it's as univerisal as
+// possible. Future Feature.
 mod tests {
     use super::extract_article_from_html;
 
