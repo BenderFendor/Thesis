@@ -11,7 +11,10 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Read Root */
+        /**
+         * Read Root
+         * @description Read Root.
+         */
         get: operations["read_root__get"];
         put?: never;
         post?: never;
@@ -28,7 +31,10 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Health Check */
+        /**
+         * Health Check
+         * @description Health Check.
+         */
         get: operations["health_check_health_get"];
         put?: never;
         post?: never;
@@ -67,7 +73,10 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Extract Article Text */
+        /**
+         * Extract Article Text
+         * @description Extract Article Text.
+         */
         get: operations["extract_article_text_article_extract_get"];
         put?: never;
         post?: never;
@@ -86,7 +95,10 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Analyze Article */
+        /**
+         * Analyze Article
+         * @description Analyze Article.
+         */
         post: operations["analyze_article_api_article_analyze_post"];
         delete?: never;
         options?: never;
@@ -138,6 +150,7 @@ export interface paths {
         /**
          * Get Cached News Paginated
          * @description Paginated endpoint using in-memory cache (faster for frequently accessed data).
+         *
          *     Uses offset pagination since cache is in-memory array.
          *
          *     Best for:
@@ -146,6 +159,26 @@ export interface paths {
          *     - Real-time updates
          */
         get: operations["get_cached_news_paginated_news_page_cached_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/news/index/cached": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Cached Browse Index
+         * @description Return lightweight article cards for the current in-memory RSS cache.
+         */
+        get: operations["get_cached_browse_index_news_index_cached_get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -196,6 +229,30 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/news/ranked": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Post Ranked Articles
+         * @description Rank articles using the Rust backend ranking engine.
+         *
+         *     Accepts article metadata, liked/bookmarked article IDs, and favorite
+         *     source IDs. Returns articles sorted by personalized ranking including
+         *     score breakdowns.
+         */
+        post: operations["post_ranked_articles_news_ranked_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/news/source/{source_name}": {
         parameters: {
             query?: never;
@@ -203,7 +260,10 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Get News By Source */
+        /**
+         * Get News By Source
+         * @description Get News By Source.
+         */
         get: operations["get_news_by_source_news_source__source_name__get"];
         put?: never;
         post?: never;
@@ -220,7 +280,10 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Get News By Category */
+        /**
+         * Get News By Category
+         * @description Get News By Category.
+         */
         get: operations["get_news_by_category_news_category__category_name__get"];
         put?: never;
         post?: never;
@@ -237,7 +300,10 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Get Sources */
+        /**
+         * Get Sources
+         * @description Get Sources.
+         */
         get: operations["get_sources_news_sources_get"];
         put?: never;
         post?: never;
@@ -254,7 +320,10 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Get Categories */
+        /**
+         * Get Categories
+         * @description Get Categories.
+         */
         get: operations["get_categories_news_categories_get"];
         put?: never;
         post?: never;
@@ -291,7 +360,10 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Get Countries Geo Data Route */
+        /**
+         * Get Countries Geo Data Route
+         * @description Get Countries Geo Data Route.
+         */
         get: operations["get_countries_geo_data_route_news_countries_geo_get"];
         put?: never;
         post?: never;
@@ -308,7 +380,10 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Get Article Counts By Country */
+        /**
+         * Get Article Counts By Country
+         * @description Get Article Counts By Country.
+         */
         get: operations["get_article_counts_by_country_news_by_country_get"];
         put?: never;
         post?: never;
@@ -325,7 +400,10 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Get News For Country */
+        /**
+         * Get News For Country
+         * @description Get News For Country.
+         */
         get: operations["get_news_for_country_news_country__code__get"];
         put?: never;
         post?: never;
@@ -342,7 +420,10 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** List Available Countries */
+        /**
+         * List Available Countries
+         * @description List Available Countries.
+         */
         get: operations["list_available_countries_news_countries_list_get"];
         put?: never;
         post?: never;
@@ -399,7 +480,10 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Get Cache Status */
+        /**
+         * Get Cache Status
+         * @description Get Cache Status.
+         */
         get: operations["get_cache_status_cache_status_get"];
         put?: never;
         post?: never;
@@ -416,7 +500,10 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Stream News */
+        /**
+         * Stream News
+         * @description Stream News.
+         */
         get: operations["stream_news_news_stream_get"];
         put?: never;
         post?: never;
@@ -433,7 +520,10 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Get Source Debug Data */
+        /**
+         * Get Source Debug Data
+         * @description Get Source Debug Data.
+         */
         get: operations["get_source_debug_data_debug_sources__source_name__get"];
         put?: never;
         post?: never;
@@ -450,7 +540,10 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Get Stream Status */
+        /**
+         * Get Stream Status
+         * @description Get Stream Status.
+         */
         get: operations["get_stream_status_debug_streams_get"];
         put?: never;
         post?: never;
@@ -507,7 +600,10 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** List Chromadb Articles */
+        /**
+         * List Chromadb Articles
+         * @description List Chromadb Articles.
+         */
         get: operations["list_chromadb_articles_debug_chromadb_articles_get"];
         put?: never;
         post?: never;
@@ -524,7 +620,10 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** List Database Articles */
+        /**
+         * List Database Articles
+         * @description List Database Articles.
+         */
         get: operations["list_database_articles_debug_database_articles_get"];
         put?: never;
         post?: never;
@@ -541,7 +640,10 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** List Cached Articles */
+        /**
+         * List Cached Articles
+         * @description List Cached Articles.
+         */
         get: operations["list_cached_articles_debug_cache_articles_get"];
         put?: never;
         post?: never;
@@ -558,7 +660,10 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Get Cache Db Delta */
+        /**
+         * Get Cache Db Delta
+         * @description Get Cache Db Delta.
+         */
         get: operations["get_cache_db_delta_debug_cache_delta_get"];
         put?: never;
         post?: never;
@@ -575,7 +680,10 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Get Storage Drift */
+        /**
+         * Get Storage Drift
+         * @description Get Storage Drift.
+         */
         get: operations["get_storage_drift_debug_storage_drift_get"];
         put?: never;
         post?: never;
@@ -911,6 +1019,46 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/debug/logs/llm": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Read Llm Calls
+         * @description Read Llm Calls.
+         */
+        get: operations["read_llm_calls_debug_logs_llm_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/debug/logs/errors": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Read Error Logs
+         * @description Read Error Logs.
+         */
+        get: operations["read_error_logs_debug_logs_errors_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/debug/backfill/images": {
         parameters: {
             query?: never;
@@ -943,7 +1091,10 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Backfill Article Mentions */
+        /**
+         * Backfill Article Mentions
+         * @description Backfill Article Mentions.
+         */
         post: operations["backfill_article_mentions_debug_backfill_mentioned_countries_post"];
         delete?: never;
         options?: never;
@@ -958,10 +1109,16 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** List Bookmarks */
+        /**
+         * List Bookmarks
+         * @description List Bookmarks.
+         */
         get: operations["list_bookmarks_api_bookmarks_get"];
         put?: never;
-        /** Create Bookmark */
+        /**
+         * Create Bookmark
+         * @description Create Bookmark.
+         */
         post: operations["create_bookmark_api_bookmarks_post"];
         delete?: never;
         options?: never;
@@ -976,12 +1133,21 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Get Bookmark */
+        /**
+         * Get Bookmark
+         * @description Get Bookmark.
+         */
         get: operations["get_bookmark_api_bookmarks__article_id__get"];
-        /** Update Bookmark */
+        /**
+         * Update Bookmark
+         * @description Update Bookmark.
+         */
         put: operations["update_bookmark_api_bookmarks__article_id__put"];
         post?: never;
-        /** Delete Bookmark */
+        /**
+         * Delete Bookmark
+         * @description Delete Bookmark.
+         */
         delete: operations["delete_bookmark_api_bookmarks__article_id__delete"];
         options?: never;
         head?: never;
@@ -995,10 +1161,16 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** List Liked Articles */
+        /**
+         * List Liked Articles
+         * @description List Liked Articles.
+         */
         get: operations["list_liked_articles_api_liked_get"];
         put?: never;
-        /** Create Liked Article */
+        /**
+         * Create Liked Article
+         * @description Create Liked Article.
+         */
         post: operations["create_liked_article_api_liked_post"];
         delete?: never;
         options?: never;
@@ -1013,11 +1185,17 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Get Liked Article */
+        /**
+         * Get Liked Article
+         * @description Get Liked Article.
+         */
         get: operations["get_liked_article_api_liked__article_id__get"];
         put?: never;
         post?: never;
-        /** Delete Liked Article */
+        /**
+         * Delete Liked Article
+         * @description Delete Liked Article.
+         */
         delete: operations["delete_liked_article_api_liked__article_id__delete"];
         options?: never;
         head?: never;
@@ -1303,7 +1481,10 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** News Research Stream Endpoint */
+        /**
+         * News Research Stream Endpoint
+         * @description News Research Stream Endpoint.
+         */
         get: operations["news_research_stream_endpoint_api_news_research_stream_get"];
         put?: never;
         post?: never;
@@ -1322,7 +1503,10 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** News Research Endpoint */
+        /**
+         * News Research Endpoint
+         * @description News Research Endpoint.
+         */
         post: operations["news_research_endpoint_api_news_research_post"];
         delete?: never;
         options?: never;
@@ -1404,6 +1588,7 @@ export interface paths {
         /**
          * Research Source Profile
          * @description Build a source profile with funding, ownership, bias, and related metadata.
+         *
          *     Uses file-based caching unless force_refresh is requested.
          *     If cache_only=true, returns cached data or 404 without triggering research.
          */
@@ -1426,6 +1611,7 @@ export interface paths {
         /**
          * Research Source Batch
          * @description Research multiple sources in a single request.
+         *
          *     Uses file-based caching unless force_refresh is requested.
          *     Returns results for all sources, using cache when available.
          */
@@ -1566,7 +1752,10 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Semantic Search */
+        /**
+         * Semantic Search
+         * @description Semantic Search.
+         */
         get: operations["semantic_search_api_search_semantic_get"];
         put?: never;
         post?: never;
@@ -1748,6 +1937,49 @@ export interface paths {
          * @description Get all available RSS sources.
          */
         get: operations["get_sources_sources_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/sources/add-rss": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Add Rss Source
+         * @description Add Rss Source.
+         */
+        post: operations["add_rss_source_sources_add_rss_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/sources/{domain}/credibility": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Source Credibility
+         * @description Return the 6-dimension credibility profile for a source domain.
+         *
+         *     Endpoint: GET /api/source/{domain}/credibility
+         *     Cache: 24 hours in-memory
+         */
+        get: operations["get_source_credibility_sources__domain__credibility_get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -2365,6 +2597,7 @@ export interface paths {
          *     Args:
          *         minutes: How far back to fetch events
          *         limit: Maximum number of events to process
+         *         session: Database session
          *
          *     Returns:
          *         Sync results with matched/total counts
@@ -2388,8 +2621,9 @@ export interface paths {
          * @description Get GDELT events matched to a specific article.
          *
          *     Args:
-         *         cluster_id: Cluster ID to query
+         *         article_id: Article ID to query
          *         limit: Maximum events to return
+         *         session: Database session
          *
          *     Returns:
          *         Cluster info with matched GDELT events
@@ -2416,6 +2650,7 @@ export interface paths {
          *
          *     Args:
          *         hours: Time window in hours
+         *         session: Database session
          *
          *     Returns:
          *         Statistics about GDELT coverage
@@ -2443,6 +2678,7 @@ export interface paths {
          *     Args:
          *         limit: Maximum events to return
          *         include_unmatched: Whether to include events without cluster matches
+         *         session: Database session
          *
          *     Returns:
          *         List of GDELT events
@@ -2504,6 +2740,7 @@ export interface paths {
          *     Args:
          *         source_name: Name of the news source
          *         days: Analysis period in days (1-90)
+         *         session: Database session
          *
          *     Returns:
          *         Blind spots analysis with coverage gaps
@@ -2533,6 +2770,7 @@ export interface paths {
          *
          *     Args:
          *         min_sources: Minimum number of sources covering topic to analyze
+         *         session: Database session
          *
          *     Returns:
          *         List of topics with blind spots and severity ratings
@@ -2564,6 +2802,7 @@ export interface paths {
          *
          *     Args:
          *         days: Analysis period in days (7-90)
+         *         session: Database session
          *
          *     Returns:
          *         Comprehensive coverage report
@@ -2728,6 +2967,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/wiki/reporters/graph": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Reporter Graph
+         * @description Get reporter network graph data for force-directed visualization.
+         */
+        get: operations["get_reporter_graph_api_wiki_reporters_graph_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/wiki/reporters/{reporter_id}": {
         parameters: {
             query?: never;
@@ -2799,7 +3058,8 @@ export interface paths {
          * Get Ownership Graph
          * @description Get the full ownership graph for force-directed visualization.
          *
-         *     Returns nodes (sources + organizations) and edges (ownership relationships).
+         *     Returns nodes (sources + organizations + reporters) and edges (ownership,
+         *     publishes, employed_by relationships).
          */
         get: operations["get_ownership_graph_api_wiki_organizations_graph_get"];
         put?: never;
@@ -2850,11 +3110,46 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/wiki/index/reporters": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Trigger Reporter Index
+         * @description Trigger reporter indexing (admin endpoint).
+         *
+         *     mode=all: Run both SPARQL seed and unresolved author indexing.
+         *     mode=unresolved: Only index unresolved article authors.
+         *     mode=sparql: Only run Wikidata SPARQL seed.
+         */
+        post: operations["trigger_reporter_index_api_wiki_index_reporters_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
-        /** AddToQueueRequest */
+        /**
+         * AddRssRequest
+         * @description Add Rss Request.
+         */
+        AddRssRequest: {
+            /** Url */
+            url: string;
+        };
+        /**
+         * AddToQueueRequest
+         * @description Add To Queue Request.
+         */
         AddToQueueRequest: {
             /** Article Id */
             article_id: number;
@@ -2894,7 +3189,10 @@ export interface components {
             articles?: components["schemas"]["ClusterArticle"][];
             gdelt_context?: components["schemas"]["GDELTContext"] | null;
         };
-        /** AllClustersResponse */
+        /**
+         * AllClustersResponse
+         * @description All Clusters Response.
+         */
         AllClustersResponse: {
             /** Window */
             window: string;
@@ -2907,7 +3205,10 @@ export interface components {
             /** Status */
             status?: string | null;
         };
-        /** AnalysisAxisResponse */
+        /**
+         * AnalysisAxisResponse
+         * @description Analysis Axis Response.
+         */
         AnalysisAxisResponse: {
             /** Axis Name */
             axis_name: string;
@@ -2928,14 +3229,20 @@ export interface components {
             /** Last Scored At */
             last_scored_at?: string | null;
         };
-        /** ArticleAnalysisRequest */
+        /**
+         * ArticleAnalysisRequest
+         * @description Article Analysis Request.
+         */
         ArticleAnalysisRequest: {
             /** Url */
             url: string;
             /** Source Name */
             source_name?: string | null;
         };
-        /** ArticleAnalysisResponse */
+        /**
+         * ArticleAnalysisResponse
+         * @description Article Analysis Response.
+         */
         ArticleAnalysisResponse: {
             /** Success */
             success: boolean;
@@ -2976,7 +3283,10 @@ export interface components {
             /** Error */
             error?: string | null;
         };
-        /** BlindspotCardResponse */
+        /**
+         * BlindspotCardResponse
+         * @description Blindspot Card Response.
+         */
         BlindspotCardResponse: {
             /** Cluster Id */
             cluster_id: number;
@@ -3012,7 +3322,10 @@ export interface components {
              */
             geography_signals: components["schemas"]["BlindspotGeographySignalResponse"][];
         };
-        /** BlindspotCoverageCountsResponse */
+        /**
+         * BlindspotCoverageCountsResponse
+         * @description Blindspot Coverage Counts Response.
+         */
         BlindspotCoverageCountsResponse: {
             /** Pole A */
             pole_a: number;
@@ -3021,7 +3334,10 @@ export interface components {
             /** Pole B */
             pole_b: number;
         };
-        /** BlindspotCoverageSharesResponse */
+        /**
+         * BlindspotCoverageSharesResponse
+         * @description Blindspot Coverage Shares Response.
+         */
         BlindspotCoverageSharesResponse: {
             /** Pole A */
             pole_a: number;
@@ -3030,7 +3346,10 @@ export interface components {
             /** Pole B */
             pole_b: number;
         };
-        /** BlindspotGeographySignalResponse */
+        /**
+         * BlindspotGeographySignalResponse
+         * @description Blindspot Geography Signal Response.
+         */
         BlindspotGeographySignalResponse: {
             /** Id */
             id: string;
@@ -3039,7 +3358,10 @@ export interface components {
             /** Count */
             count: number;
         };
-        /** BlindspotLaneResponse */
+        /**
+         * BlindspotLaneResponse
+         * @description Blindspot Lane Response.
+         */
         BlindspotLaneResponse: {
             /**
              * Id
@@ -3053,7 +3375,10 @@ export interface components {
             /** Cluster Count */
             cluster_count: number;
         };
-        /** BlindspotLensResponse */
+        /**
+         * BlindspotLensResponse
+         * @description Blindspot Lens Response.
+         */
         BlindspotLensResponse: {
             /**
              * Id
@@ -3069,7 +3394,10 @@ export interface components {
             /** Unavailable Reason */
             unavailable_reason?: string | null;
         };
-        /** BlindspotPreviewArticleResponse */
+        /**
+         * BlindspotPreviewArticleResponse
+         * @description Blindspot Preview Article Response.
+         */
         BlindspotPreviewArticleResponse: {
             /** Id */
             id: number;
@@ -3077,6 +3405,8 @@ export interface components {
             title: string;
             /** Source */
             source: string;
+            /** Source Id */
+            source_id?: string | null;
             /** Url */
             url: string;
             /** Image Url */
@@ -3087,8 +3417,28 @@ export interface components {
             summary?: string | null;
             /** Similarity */
             similarity: number;
+            /** Country */
+            country?: string | null;
+            /** Source Country */
+            source_country?: string | null;
+            /** Category */
+            category?: string | null;
+            /** Bias */
+            bias?: string | null;
+            /** Credibility */
+            credibility?: string | null;
+            /** Author */
+            author?: string | null;
+            /**
+             * Authors
+             * @default []
+             */
+            authors: string[];
         };
-        /** BlindspotViewerResponse */
+        /**
+         * BlindspotViewerResponse
+         * @description Blindspot Viewer Response.
+         */
         BlindspotViewerResponse: {
             /** Available Lenses */
             available_lenses: components["schemas"]["BlindspotLensResponse"][];
@@ -3101,7 +3451,10 @@ export interface components {
             /** Status */
             status: string;
         };
-        /** BlindspotViewerSummaryResponse */
+        /**
+         * BlindspotViewerSummaryResponse
+         * @description Blindspot Viewer Summary Response.
+         */
         BlindspotViewerSummaryResponse: {
             /** Window */
             window: string;
@@ -3116,12 +3469,18 @@ export interface components {
             /** Source Filters */
             source_filters: string[];
         };
-        /** BookmarkCreateRequest */
+        /**
+         * BookmarkCreateRequest
+         * @description Bookmark Create Request.
+         */
         BookmarkCreateRequest: {
             /** Article Id */
             article_id: number;
         };
-        /** BreakingCluster */
+        /**
+         * BreakingCluster
+         * @description Breaking Cluster.
+         */
         BreakingCluster: {
             /** Cluster Id */
             cluster_id: number;
@@ -3142,7 +3501,10 @@ export interface components {
             articles?: components["schemas"]["ClusterArticle"][];
             gdelt_context?: components["schemas"]["GDELTContext"] | null;
         };
-        /** BreakingResponse */
+        /**
+         * BreakingResponse
+         * @description Breaking Response.
+         */
         BreakingResponse: {
             /** Window Hours */
             window_hours: number;
@@ -3163,7 +3525,10 @@ export interface components {
             /** Total */
             total: number;
         };
-        /** ClusterArticle */
+        /**
+         * ClusterArticle
+         * @description Cluster Article.
+         */
         ClusterArticle: {
             /** Id */
             id: number;
@@ -3189,7 +3554,10 @@ export interface components {
             authors?: string[];
             gdelt_context?: components["schemas"]["GDELTContext"] | null;
         };
-        /** ClusterDetailResponse */
+        /**
+         * ClusterDetailResponse
+         * @description Cluster Detail Response.
+         */
         ClusterDetailResponse: {
             /** Id */
             id: number;
@@ -3257,6 +3625,7 @@ export interface components {
         };
         /**
          * ConfidenceLevel
+         * @description Ordinal confidence tier assigned to a verified claim.
          * @enum {string}
          */
         ConfidenceLevel: "high" | "medium" | "low" | "very_low";
@@ -3288,7 +3657,10 @@ export interface components {
                 [key: string]: unknown;
             }[];
         };
-        /** CreateHighlightRequest */
+        /**
+         * CreateHighlightRequest
+         * @description Create Highlight Request.
+         */
         CreateHighlightRequest: {
             /** Article Url */
             article_url: string;
@@ -3306,7 +3678,10 @@ export interface components {
             /** Character End */
             character_end: number;
         };
-        /** FrontendDebugReport */
+        /**
+         * FrontendDebugReport
+         * @description Frontend Debug Report.
+         */
         FrontendDebugReport: {
             /**
              * Session Id
@@ -3349,7 +3724,10 @@ export interface components {
             /** Generated At */
             generated_at?: string | null;
         };
-        /** GDELTContext */
+        /**
+         * GDELTContext
+         * @description GDELT Context.
+         */
         GDELTContext: {
             /** Total Events */
             total_events: number;
@@ -3370,7 +3748,10 @@ export interface components {
             /** Tone Delta Vs Cluster */
             tone_delta_vs_cluster?: number | null;
         };
-        /** GDELTTopCameo */
+        /**
+         * GDELTTopCameo
+         * @description GDELT Top Cameo.
+         */
         GDELTTopCameo: {
             /** Code */
             code?: string | null;
@@ -3384,7 +3765,10 @@ export interface components {
             /** Detail */
             detail?: components["schemas"]["ValidationError"][];
         };
-        /** Highlight */
+        /**
+         * Highlight
+         * @description Highlight.
+         */
         Highlight: {
             /** Id */
             id?: number | null;
@@ -3410,7 +3794,10 @@ export interface components {
             /** Updated At */
             updated_at?: string | null;
         };
-        /** InlineDefineRequest */
+        /**
+         * InlineDefineRequest
+         * @description Inline Define Request.
+         */
         InlineDefineRequest: {
             /**
              * Term
@@ -3423,7 +3810,10 @@ export interface components {
              */
             context?: string | null;
         };
-        /** InlineDefineResponse */
+        /**
+         * InlineDefineResponse
+         * @description Inline Define Response.
+         */
         InlineDefineResponse: {
             /** Success */
             success: boolean;
@@ -3464,7 +3854,10 @@ export interface components {
             /** Error */
             error?: string | null;
         };
-        /** MaterialContextRequest */
+        /**
+         * MaterialContextRequest
+         * @description Material Context Request.
+         */
         MaterialContextRequest: {
             /** Source */
             source: string;
@@ -3477,7 +3870,10 @@ export interface components {
             /** Article Text */
             article_text?: string | null;
         };
-        /** MaterialContextResponse */
+        /**
+         * MaterialContextResponse
+         * @description Material Context Response.
+         */
         MaterialContextResponse: {
             /** Source */
             source: string;
@@ -3504,7 +3900,10 @@ export interface components {
             /** Analyzed At */
             analyzed_at?: string | null;
         };
-        /** NewsArticle */
+        /**
+         * NewsArticle
+         * @description News Article.
+         */
         NewsArticle: {
             /** Id */
             id?: number | null;
@@ -3534,7 +3933,10 @@ export interface components {
             /** Mentioned Countries */
             mentioned_countries?: string[];
         };
-        /** NewsResearchRequest */
+        /**
+         * NewsResearchRequest
+         * @description News Research Request.
+         */
         NewsResearchRequest: {
             /** Query */
             query: string;
@@ -3544,7 +3946,10 @@ export interface components {
              */
             include_thinking: boolean;
         };
-        /** NewsResearchResponse */
+        /**
+         * NewsResearchResponse
+         * @description News Research Response.
+         */
         NewsResearchResponse: {
             /** Success */
             success: boolean;
@@ -3568,7 +3973,10 @@ export interface components {
             /** Error */
             error?: string | null;
         };
-        /** NewsResponse */
+        /**
+         * NewsResponse
+         * @description News Response.
+         */
         NewsResponse: {
             /** Articles */
             articles: components["schemas"]["NewsArticle"][];
@@ -3577,14 +3985,20 @@ export interface components {
             /** Sources */
             sources: string[];
         };
-        /** OrganizationResearchRequest */
+        /**
+         * OrganizationResearchRequest
+         * @description Organization Research Request.
+         */
         OrganizationResearchRequest: {
             /** Name */
             name: string;
             /** Website */
             website?: string | null;
         };
-        /** OrganizationResearchResponse */
+        /**
+         * OrganizationResearchResponse
+         * @description Organization Research Response.
+         */
         OrganizationResearchResponse: {
             /** Id */
             id?: number | null;
@@ -3620,7 +4034,10 @@ export interface components {
              */
             cached: boolean;
         };
-        /** OwnershipChainResponse */
+        /**
+         * OwnershipChainResponse
+         * @description Ownership Chain Response.
+         */
         OwnershipChainResponse: {
             /** Organization */
             organization: string;
@@ -3700,7 +4117,7 @@ export interface components {
         };
         /**
          * QueueOverviewResponse
-         * @description Queue overview statistics.
+         * @description Queue Overview Response.
          */
         QueueOverviewResponse: {
             /** Total Items */
@@ -3718,7 +4135,10 @@ export interface components {
             /** Estimated Total Read Time Minutes */
             estimated_total_read_time_minutes: number;
         };
-        /** QueueResponse */
+        /**
+         * QueueResponse
+         * @description Queue Response.
+         */
         QueueResponse: {
             /** Items */
             items: components["schemas"]["ReadingQueueItem"][];
@@ -3729,7 +4149,47 @@ export interface components {
             /** Total Count */
             total_count: number;
         };
-        /** ReadingQueueItem */
+        /**
+         * RankRequest
+         * @description Request model for the ranked feed endpoint.
+         */
+        RankRequest: {
+            /** Articles */
+            articles: {
+                [key: string]: unknown;
+            }[];
+            /**
+             * Liked Article Ids
+             * @default []
+             */
+            liked_article_ids: number[];
+            /**
+             * Bookmarked Article Ids
+             * @default []
+             */
+            bookmarked_article_ids: number[];
+            /**
+             * Favorite Source Ids
+             * @default []
+             */
+            favorite_source_ids: string[];
+        };
+        /**
+         * RankResponse
+         * @description Response model for the ranked feed endpoint.
+         */
+        RankResponse: {
+            /** Articles */
+            articles: {
+                [key: string]: unknown;
+            }[];
+            /** Total */
+            total: number;
+        };
+        /**
+         * ReadingQueueItem
+         * @description Reading Queue Item.
+         */
         ReadingQueueItem: {
             /** Id */
             id?: number | null;
@@ -3939,12 +4399,43 @@ export interface components {
             recent_articles: {
                 [key: string]: unknown;
             }[];
+            /** Activity Summary */
+            activity_summary?: {
+                [key: string]: unknown;
+            } | null;
+            /** Employer Context */
+            employer_context?: {
+                [key: string]: unknown;
+            } | null;
             /** Research Sources */
             research_sources?: string[] | null;
             /** Research Confidence */
             research_confidence?: string | null;
         };
-        /** ReporterProfileRequest */
+        /**
+         * ReporterGraphResponse
+         * @description Reporter Graph Response.
+         */
+        ReporterGraphResponse: {
+            /**
+             * Nodes
+             * @default []
+             */
+            nodes: {
+                [key: string]: unknown;
+            }[];
+            /**
+             * Edges
+             * @default []
+             */
+            edges: {
+                [key: string]: unknown;
+            }[];
+        };
+        /**
+         * ReporterProfileRequest
+         * @description Reporter Profile Request.
+         */
         ReporterProfileRequest: {
             /** Name */
             name: string;
@@ -3953,7 +4444,10 @@ export interface components {
             /** Article Context */
             article_context?: string | null;
         };
-        /** ReporterProfileResponse */
+        /**
+         * ReporterProfileResponse
+         * @description Reporter Profile Response.
+         */
         ReporterProfileResponse: {
             /** Id */
             id?: number | null;
@@ -4017,7 +4511,10 @@ export interface components {
              */
             cached: boolean;
         };
-        /** SourceBatchRequest */
+        /**
+         * SourceBatchRequest
+         * @description Source Batch Request.
+         */
         SourceBatchRequest: {
             /** Sources */
             sources: components["schemas"]["SourceResearchRequest"][];
@@ -4027,7 +4524,10 @@ export interface components {
              */
             force_refresh: boolean;
         };
-        /** SourceBatchResponse */
+        /**
+         * SourceBatchResponse
+         * @description Source Batch Response.
+         */
         SourceBatchResponse: {
             /** Results */
             results: {
@@ -4090,21 +4590,30 @@ export interface components {
             /** Last Indexed At */
             last_indexed_at?: string | null;
         };
-        /** SourceReporterSummary */
+        /**
+         * SourceReporterSummary
+         * @description Source Reporter Summary.
+         */
         SourceReporterSummary: {
             /** Name */
             name: string;
             /** Article Count */
             article_count: number;
         };
-        /** SourceResearchRequest */
+        /**
+         * SourceResearchRequest
+         * @description Source Research Request.
+         */
         SourceResearchRequest: {
             /** Name */
             name: string;
             /** Website */
             website?: string | null;
         };
-        /** SourceResearchResponse */
+        /**
+         * SourceResearchResponse
+         * @description Source Research Response.
+         */
         SourceResearchResponse: {
             /** Name */
             name: string;
@@ -4152,8 +4661,23 @@ export interface components {
             } | null;
             /** Match Explanation */
             match_explanation?: string | null;
+            /** Policy Transparency */
+            policy_transparency?: {
+                [key: string]: unknown;
+            } | null;
+            /** Ads Txt */
+            ads_txt?: {
+                [key: string]: unknown;
+            } | null;
+            /** Sellers Json */
+            sellers_json?: {
+                [key: string]: unknown;
+            } | null;
         };
-        /** SourceResearchValue */
+        /**
+         * SourceResearchValue
+         * @description Source Research Value.
+         */
         SourceResearchValue: {
             /** Value */
             value: string;
@@ -4164,6 +4688,7 @@ export interface components {
         };
         /**
          * SourceType
+         * @description Classification of a source's organizational nature.
          * @enum {string}
          */
         SourceType: "wire" | "newspaper" | "magazine" | "broadcast" | "nonprofit" | "fact_checker" | "government" | "academic" | "blog" | "social" | "unknown";
@@ -4174,6 +4699,8 @@ export interface components {
         SourceWikiResponse: {
             /** Name */
             name: string;
+            /** Website */
+            website?: string | null;
             /** Country */
             country?: string | null;
             /** Funding Type */
@@ -4221,6 +4748,32 @@ export interface components {
             /** Match Explanation */
             match_explanation?: string | null;
             /**
+             * Official Pages
+             * @default []
+             */
+            official_pages: {
+                [key: string]: string;
+            }[];
+            /** Policy Transparency */
+            policy_transparency?: {
+                [key: string]: unknown;
+            } | null;
+            /** Ads Txt */
+            ads_txt?: {
+                [key: string]: unknown;
+            } | null;
+            /** Sellers Json */
+            sellers_json?: {
+                [key: string]: unknown;
+            } | null;
+            /**
+             * Claims
+             * @default []
+             */
+            claims: {
+                [key: string]: unknown;
+            }[];
+            /**
              * Analysis Axes
              * @default []
              */
@@ -4263,7 +4816,10 @@ export interface components {
             /** Last Indexed At */
             last_indexed_at?: string | null;
         };
-        /** ThinkingStep */
+        /**
+         * ThinkingStep
+         * @description Thinking Step.
+         */
         ThinkingStep: {
             /** Type */
             type: string;
@@ -4298,7 +4854,10 @@ export interface components {
             /** Date Identified */
             date_identified: string;
         };
-        /** TrendingCluster */
+        /**
+         * TrendingCluster
+         * @description Trending Cluster.
+         */
         TrendingCluster: {
             /** Cluster Id */
             cluster_id: number;
@@ -4321,7 +4880,10 @@ export interface components {
             articles?: components["schemas"]["ClusterArticle"][];
             gdelt_context?: components["schemas"]["GDELTContext"] | null;
         };
-        /** TrendingResponse */
+        /**
+         * TrendingResponse
+         * @description Trending Response.
+         */
         TrendingResponse: {
             /** Window */
             window: string;
@@ -4330,14 +4892,20 @@ export interface components {
             /** Total */
             total: number;
         };
-        /** UpdateHighlightRequest */
+        /**
+         * UpdateHighlightRequest
+         * @description Update Highlight Request.
+         */
         UpdateHighlightRequest: {
             /** Color */
             color?: string | null;
             /** Note */
             note?: string | null;
         };
-        /** UpdateQueueItemRequest */
+        /**
+         * UpdateQueueItemRequest
+         * @description Update Queue Item Request.
+         */
         UpdateQueueItemRequest: {
             /** Read Status */
             read_status?: string | null;
@@ -4361,7 +4929,10 @@ export interface components {
             /** Context */
             ctx?: Record<string, never>;
         };
-        /** VerificationRequest */
+        /**
+         * VerificationRequest
+         * @description Input to the verification agent with the research findings to check.
+         */
         VerificationRequest: {
             /** Query */
             query: string;
@@ -4374,7 +4945,10 @@ export interface components {
             /** Previous Claims */
             previous_claims?: components["schemas"]["VerifiedClaim"][];
         };
-        /** VerificationResult */
+        /**
+         * VerificationResult
+         * @description Aggregated result containing all verified claims and their sources.
+         */
         VerificationResult: {
             /** Query */
             query: string;
@@ -4402,7 +4976,10 @@ export interface components {
             /** Error */
             error?: string | null;
         };
-        /** VerifiedClaim */
+        /**
+         * VerifiedClaim
+         * @description A single claim that has been cross-referenced against sources.
+         */
         VerifiedClaim: {
             /** Id */
             id: string;
@@ -4425,7 +5002,10 @@ export interface components {
             /** Recheck Reason */
             recheck_reason?: string | null;
         };
-        /** WikiIndexStatusResponse */
+        /**
+         * WikiIndexStatusResponse
+         * @description Wiki Index Status Response.
+         */
         WikiIndexStatusResponse: {
             /**
              * Total Entries
@@ -4447,7 +5027,10 @@ export interface components {
                 [key: string]: number;
             };
         };
-        /** SourceInfo */
+        /**
+         * SourceInfo
+         * @description Source Info.
+         */
         app__models__news__SourceInfo: {
             /** Id */
             id?: string | null;
@@ -4479,7 +5062,10 @@ export interface components {
                 [key: string]: unknown;
             } | null;
         };
-        /** SourceInfo */
+        /**
+         * SourceInfo
+         * @description Metadata for a single supporting or conflicting source.
+         */
         app__models__verification__SourceInfo: {
             /** Id */
             id: string;
@@ -4719,6 +5305,41 @@ export interface operations {
             };
         };
     };
+    get_cached_browse_index_news_index_cached_get: {
+        parameters: {
+            query?: {
+                category?: string | null;
+                source?: string | null;
+                /** @description Comma-separated source names for multi-select */
+                sources?: string | null;
+                search?: string | null;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BrowseIndexResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     get_browse_index_news_index_get: {
         parameters: {
             query?: {
@@ -4775,6 +5396,39 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["RecentPageResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    post_ranked_articles_news_ranked_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["RankRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RankResponse"];
                 };
             };
             /** @description Validation Error */
@@ -5844,6 +6498,80 @@ export interface operations {
             path: {
                 filename: string;
             };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    read_llm_calls_debug_logs_llm_get: {
+        parameters: {
+            query?: {
+                limit?: number;
+                offset?: number;
+                /** @description Filter by service name */
+                service?: string | null;
+                /** @description Filter by success status */
+                success?: boolean | null;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    read_error_logs_debug_logs_errors_get: {
+        parameters: {
+            query?: {
+                limit?: number;
+                offset?: number;
+                /** @description When true, append recent request/stream errors from the in-memory debug logger. */
+                include_request_stream_events?: boolean;
+            };
+            header?: never;
+            path?: never;
             cookie?: never;
         };
         requestBody?: never;
@@ -7346,6 +8074,74 @@ export interface operations {
             };
         };
     };
+    add_rss_source_sources_add_rss_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AddRssRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_source_credibility_sources__domain__credibility_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                domain: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     define_inline_api_inline_define_post: {
         parameters: {
             query?: never;
@@ -8627,6 +9423,39 @@ export interface operations {
             };
         };
     };
+    get_reporter_graph_api_wiki_reporters_graph_get: {
+        parameters: {
+            query?: {
+                limit?: number;
+                /** @description Maximum number of graph edges to return. */
+                edge_limit?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ReporterGraphResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     get_reporter_dossier_api_wiki_reporters__reporter_id__get: {
         parameters: {
             query?: never;
@@ -8787,6 +9616,41 @@ export interface operations {
                 content: {
                     "application/json": {
                         [key: string]: string;
+                    };
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    trigger_reporter_index_api_wiki_index_reporters_post: {
+        parameters: {
+            query?: {
+                limit?: number;
+                /** @description all, unresolved, or sparql */
+                mode?: "all" | "unresolved" | "sparql";
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: unknown;
                     };
                 };
             };

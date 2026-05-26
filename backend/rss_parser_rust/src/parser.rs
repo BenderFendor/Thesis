@@ -17,6 +17,7 @@ struct RssItemMetadata {
     title: Option<String>,
     link: Option<String>,
     authors: Vec<String>,
+    author_urls: Vec<String>,
 }
 
 fn push_unique_author(value: &str, seen: &mut HashSet<String>, authors: &mut Vec<String>) {
@@ -65,15 +66,27 @@ fn normalize_rss_author_value(value: &str) -> Option<String> {
     Some(cleaned)
 }
 
-fn extract_entry_authors(entry: &feed_rs::model::Entry) -> Vec<String> {
+fn extract_entry_authors(entry: &feed_rs::model::Entry) -> (Vec<String>, Vec<String>) {
     let mut authors = Vec::new();
+    let mut author_urls = Vec::new();
     let mut seen = HashSet::new();
 
     for person in &entry.authors {
-        push_unique_author(person.name.trim(), &mut seen, &mut authors);
+        let name = person.name.trim();
+        if !name.is_empty() {
+            for split in split_author_name(name) {
+                push_unique_author(&split, &mut seen, &mut authors);
+            }
+        }
+        if let Some(uri) = &person.uri {
+            let trimmed = uri.trim();
+            if !trimmed.is_empty() && !author_urls.contains(&trimmed.to_string()) {
+                author_urls.push(trimmed.to_string());
+            }
+        }
     }
 
-    authors
+    (authors, author_urls)
 }
 
 fn extract_tag_value(item_xml: &str, regex: &Regex) -> Option<String> {
@@ -87,6 +100,31 @@ fn extract_tag_value(item_xml: &str, regex: &Regex) -> Option<String> {
         return None;
     }
     Some(cleaned)
+}
+
+fn split_author_name(value: &str) -> Vec<String> {
+    let trimmed = value.trim();
+    if trimmed.is_empty() {
+        return Vec::new();
+    }
+    let mut parts: Vec<String> = trimmed
+        .split(',')
+        .map(|p| p.trim().to_string())
+        .filter(|p| !p.is_empty())
+        .collect();
+    let separators = [" and ", " & ", " e ", " y ", " und ", " et "];
+    for sep in &separators {
+        parts = parts
+            .iter()
+            .flat_map(|p| {
+                p.split(sep)
+                    .map(|s| s.trim().to_string())
+                    .collect::<Vec<_>>()
+            })
+            .filter(|p| !p.is_empty())
+            .collect();
+    }
+    parts
 }
 
 fn extract_rss_item_metadata(xml: &str) -> Vec<RssItemMetadata> {
@@ -103,35 +141,137 @@ fn extract_rss_item_metadata(xml: &str) -> Vec<RssItemMetadata> {
         r#"(?is)<dc:creator[^>]*><!\[CDATA\[(?P<cdata>.*?)\]\]></dc:creator>|<dc:creator[^>]*>(?P<plain>.*?)</dc:creator>"#,
     )
     .expect("valid creator regex");
-    let author_re = Regex::new(
+    let dc_author_re = Regex::new(
+        r#"(?is)<dc:author[^>]*><!\[CDATA\[(?P<cdata>.*?)\]\]></dc:author>|<dc:author[^>]*>(?P<plain>.*?)</dc:author>"#,
+    )
+    .expect("valid dc:author regex");
+    let rss_author_re = Regex::new(
         r#"(?is)<author[^>]*><!\[CDATA\[(?P<cdata>.*?)\]\]></author>|<author[^>]*>(?P<plain>.*?)</author>"#,
     )
     .expect("valid author regex");
+    let itunes_author_re = Regex::new(r#"(?is)<itunes:author[^>]*>(?P<plain>.*?)</itunes:author>"#)
+        .expect("valid itunes:author regex");
+    let media_credit_author_re = Regex::new(
+        r#"(?is)<media:credit[^>]*role\s*=\s*["']author["'][^>]*>(?P<plain>.*?)</media:credit>"#,
+    )
+    .expect("valid media:credit regex");
+    let atom_author_name_re = Regex::new(
+        r#"(?is)<(?:atom:)?author[^>]*>\s*<(?:atom:)?name[^>]*>(?P<plain>.*?)</(?:atom:)?name>"#,
+    )
+    .expect("valid atom:author/name regex");
+    let atom_uri_re = Regex::new(r#"(?is)<(?:atom:)?uri[^>]*>(?P<plain>.*?)</(?:atom:)?uri>"#)
+        .expect("valid atom:uri regex");
+    let link_author_re = Regex::new(
+        r#"(?is)<link[^>]*rel\s*=\s*["']author["'][^>]*href\s*=\s*["'](?P<plain>[^"']+)["'][^>]*>"#,
+    )
+    .expect("valid link rel=author regex");
 
     item_re
         .find_iter(xml)
         .map(|item_match| {
             let item_xml = item_match.as_str();
             let mut authors = Vec::new();
+            let mut author_urls = Vec::new();
             let mut seen = HashSet::new();
 
+            // dc:creator — often multi-author, split on comma then conjunctions
             for captures in creator_re.captures_iter(item_xml) {
                 let value = captures
                     .name("cdata")
                     .or_else(|| captures.name("plain"))
                     .map(|item| item.as_str())
                     .unwrap_or_default();
-                push_unique_author(value, &mut seen, &mut authors);
+                for name in split_author_name(value) {
+                    push_unique_author(&name, &mut seen, &mut authors);
+                }
             }
 
-            for captures in author_re.captures_iter(item_xml) {
+            // dc:author — same as creator, split multi-author
+            for captures in dc_author_re.captures_iter(item_xml) {
                 let value = captures
                     .name("cdata")
                     .or_else(|| captures.name("plain"))
                     .map(|item| item.as_str())
                     .unwrap_or_default();
+                for name in split_author_name(value) {
+                    push_unique_author(&name, &mut seen, &mut authors);
+                }
+            }
+
+            // RSS <author> (plain or email-wrapped, skip if nested XML inside)
+            for captures in rss_author_re.captures_iter(item_xml) {
+                let value = captures
+                    .name("cdata")
+                    .or_else(|| captures.name("plain"))
+                    .map(|item| item.as_str())
+                    .unwrap_or_default();
+                // Skip if this contains nested XML (e.g. <name> or <uri> inside <author>)
+                if value.contains('<') {
+                    continue;
+                }
                 if let Some(normalized) = normalize_rss_author_value(value) {
-                    push_unique_author(&normalized, &mut seen, &mut authors);
+                    for name in split_author_name(&normalized) {
+                        push_unique_author(&name, &mut seen, &mut authors);
+                    }
+                }
+            }
+
+            // itunes:author
+            for captures in itunes_author_re.captures_iter(item_xml) {
+                let value = captures
+                    .name("plain")
+                    .map(|item| item.as_str())
+                    .unwrap_or_default();
+                for name in split_author_name(value) {
+                    push_unique_author(&name, &mut seen, &mut authors);
+                }
+            }
+
+            // media:credit role="author"
+            for captures in media_credit_author_re.captures_iter(item_xml) {
+                let value = captures
+                    .name("plain")
+                    .map(|item| item.as_str())
+                    .unwrap_or_default();
+                for name in split_author_name(value) {
+                    push_unique_author(&name, &mut seen, &mut authors);
+                }
+            }
+
+            // atom:author/atom:name (namespaced or plain)
+            for captures in atom_author_name_re.captures_iter(item_xml) {
+                let value = captures
+                    .name("plain")
+                    .map(|item| item.as_str())
+                    .unwrap_or_default();
+                for name in split_author_name(value) {
+                    push_unique_author(&name, &mut seen, &mut authors);
+                }
+            }
+
+            // atom:uri — author profile URL
+            for captures in atom_uri_re.captures_iter(item_xml) {
+                let value = captures
+                    .name("plain")
+                    .map(|item| item.as_str())
+                    .unwrap_or_default()
+                    .trim()
+                    .to_string();
+                if !value.is_empty() && !author_urls.contains(&value) {
+                    author_urls.push(value);
+                }
+            }
+
+            // link rel="author" href="..."
+            for captures in link_author_re.captures_iter(item_xml) {
+                let value = captures
+                    .name("plain")
+                    .map(|item| item.as_str())
+                    .unwrap_or_default()
+                    .trim()
+                    .to_string();
+                if !value.is_empty() && !author_urls.contains(&value) {
+                    author_urls.push(value);
                 }
             }
 
@@ -139,16 +279,29 @@ fn extract_rss_item_metadata(xml: &str) -> Vec<RssItemMetadata> {
                 title: extract_tag_value(item_xml, &title_re),
                 link: extract_tag_value(item_xml, &link_re),
                 authors,
+                author_urls,
             }
         })
         .collect()
 }
 
 fn trim_to_feed_document(xml: &str) -> &str {
-    let lower = xml.to_lowercase();
     for closing_tag in ["</rss>", "</feed>"] {
-        if let Some(end) = lower.rfind(closing_tag) {
+        if let Some(end) = xml.rfind(closing_tag) {
             return &xml[..end + closing_tag.len()];
+        }
+        // Also try case-insensitive search manually for mixed-case XML
+        let lower = xml.to_lowercase();
+        if let Some(lower_end) = lower.rfind(closing_tag) {
+            // Scan around the lower-case position to find the real closing tag
+            let start = lower_end.saturating_sub(2);
+            let end = (lower_end + closing_tag.len() + 2).min(xml.len());
+            let window = &xml[start..end];
+            for search_tag in &["</rss>", "</RSS>", "</feed>", "</FEED>"] {
+                if let Some(offset) = window.find(search_tag) {
+                    return &xml[..start + offset + search_tag.len()];
+                }
+            }
         }
     }
     xml
@@ -159,17 +312,17 @@ fn find_rss_item_authors(
     link: &str,
     title: &str,
     index: usize,
-) -> Vec<String> {
+) -> (Vec<String>, Vec<String>) {
     if let Some(metadata) = item_metadata
         .iter()
         .find(|item| item.link.as_deref() == Some(link) || item.title.as_deref() == Some(title))
     {
-        return metadata.authors.clone();
+        return (metadata.authors.clone(), metadata.author_urls.clone());
     }
 
     item_metadata
         .get(index)
-        .map(|item| item.authors.clone())
+        .map(|item| (item.authors.clone(), item.author_urls.clone()))
         .unwrap_or_default()
 }
 
@@ -354,9 +507,10 @@ fn extract_articles(
                 .and_then(|c| c.label.clone())
                 .or_else(|| entry.categories.first().map(|c| c.term.clone()));
 
-            let mut authors = extract_entry_authors(&entry);
+            let (mut authors, mut author_urls) = extract_entry_authors(&entry);
             if authors.is_empty() {
-                authors = find_rss_item_authors(&item_metadata, &link, &title, index);
+                (authors, author_urls) =
+                    find_rss_item_authors(&item_metadata, &link, &title, index);
             }
 
             Some(ParsedArticle {
@@ -366,6 +520,7 @@ fn extract_articles(
                 published,
                 source: source_name.to_string(),
                 authors,
+                author_urls,
                 image,
                 category,
             })
@@ -419,7 +574,7 @@ fn matches_media_image(media_type: Option<&str>) -> bool {
 
 #[cfg(test)]
 mod tests {
-    use super::{extract_rss_item_metadata, trim_to_feed_document};
+    use super::{extract_rss_item_metadata, split_author_name, trim_to_feed_document};
 
     #[test]
     fn extracts_dc_creator_authors_from_rss_items() {
@@ -479,6 +634,157 @@ mod tests {
 
         assert_eq!(items.len(), 1);
         assert!(items[0].authors.is_empty());
+    }
+
+    #[test]
+    fn splits_multi_author_dc_creator() {
+        let xml = r#"
+        <rss><channel>
+          <item>
+            <title>Multi</title>
+            <link>https://example.com/multi</link>
+            <dc:creator>Motoko Rich, Elisabetta Povoledo and Elizabeth Dias</dc:creator>
+          </item>
+        </channel></rss>
+        "#;
+
+        let items = extract_rss_item_metadata(xml);
+        assert_eq!(
+            items[0].authors,
+            vec!["Motoko Rich", "Elisabetta Povoledo", "Elizabeth Dias",]
+        );
+    }
+
+    #[test]
+    fn splits_name_with_ampersand() {
+        let xml = r#"
+        <rss><channel>
+          <item>
+            <title>Amp</title>
+            <link>https://example.com/amp</link>
+            <dc:creator>Alice Smith & Bob Jones</dc:creator>
+          </item>
+        </channel></rss>
+        "#;
+
+        let items = extract_rss_item_metadata(xml);
+        assert_eq!(items[0].authors, vec!["Alice Smith", "Bob Jones"]);
+    }
+
+    #[test]
+    fn extracts_dc_author_tag() {
+        let xml = r#"
+        <rss><channel>
+          <item>
+            <title>DCA</title>
+            <link>https://example.com/dca</link>
+            <dc:author>Francis Writer</dc:author>
+          </item>
+        </channel></rss>
+        "#;
+
+        let items = extract_rss_item_metadata(xml);
+        assert_eq!(items[0].authors, vec!["Francis Writer"]);
+    }
+
+    #[test]
+    fn extracts_itunes_author() {
+        let xml = r#"
+        <rss xmlns:itunes="http://www.itunes.com/dtds/podcast-1.0.dtd"><channel>
+          <item>
+            <title>Podcast</title>
+            <link>https://example.com/pod</link>
+            <itunes:author>Marco Hostman</itunes:author>
+          </item>
+        </channel></rss>
+        "#;
+
+        let items = extract_rss_item_metadata(xml);
+        assert_eq!(items[0].authors, vec!["Marco Hostman"]);
+    }
+
+    #[test]
+    fn extracts_media_credit_author() {
+        let xml = r#"
+        <rss><channel>
+          <item>
+            <title>Media</title>
+            <link>https://example.com/media</link>
+            <media:credit role="author">Photo Journalist</media:credit>
+          </item>
+        </channel></rss>
+        "#;
+
+        let items = extract_rss_item_metadata(xml);
+        assert_eq!(items[0].authors, vec!["Photo Journalist"]);
+    }
+
+    #[test]
+    fn extracts_atom_author_name_in_rss() {
+        let xml = r#"
+        <rss><channel>
+          <item>
+            <title>Atom</title>
+            <link>https://example.com/atom</link>
+            <atom:author><atom:name>Namespace Author</atom:name></atom:author>
+          </item>
+        </channel></rss>
+        "#;
+
+        let items = extract_rss_item_metadata(xml);
+        assert_eq!(items[0].authors, vec!["Namespace Author"]);
+    }
+
+    #[test]
+    fn extracts_atom_author_uri() {
+        let xml = r#"
+        <rss><channel>
+          <item>
+            <title>URI</title>
+            <link>https://example.com/uri</link>
+            <author>
+              <name>Linked Author</name>
+              <uri>https://example.com/authors/linked-author</uri>
+            </author>
+          </item>
+        </channel></rss>
+        "#;
+
+        let items = extract_rss_item_metadata(xml);
+        assert_eq!(items[0].authors, vec!["Linked Author"]);
+        assert_eq!(
+            items[0].author_urls,
+            vec!["https://example.com/authors/linked-author"]
+        );
+    }
+
+    #[test]
+    fn extracts_link_rel_author_href() {
+        let xml = r#"
+        <rss><channel>
+          <item>
+            <title>Link</title>
+            <link>https://example.com/link</link>
+            <link rel="author" href="https://example.com/staff/jane"/>
+          </item>
+        </channel></rss>
+        "#;
+
+        let items = extract_rss_item_metadata(xml);
+        assert_eq!(items[0].author_urls, vec!["https://example.com/staff/jane"]);
+    }
+
+    #[test]
+    fn split_author_name_basic() {
+        assert_eq!(split_author_name("Alice, Bob"), vec!["Alice", "Bob"]);
+        assert_eq!(split_author_name("Alice and Bob"), vec!["Alice", "Bob"]);
+        assert_eq!(split_author_name("Alice & Bob"), vec!["Alice", "Bob"]);
+    }
+
+    #[test]
+    fn split_author_name_compound() {
+        let result = split_author_name("A, B and C & D");
+        assert_eq!(result, vec!["A", "B", "C", "D"]);
     }
 
     #[test]

@@ -14,6 +14,7 @@ AGGREGATOR_HOSTS = {
 
 _SITE_QUERY_RE = re.compile(r"site:([a-z0-9.-]+)", re.IGNORECASE)
 _HOST_FAMILIES = {
+    "asia_plus": ("asiaplustj.info", "asiaplus.news", "old.asiaplustj.info"),
     "bbc": ("bbc.com", "bbc.co.uk", "bbci.co.uk"),
 }
 

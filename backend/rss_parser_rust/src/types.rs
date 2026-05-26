@@ -61,6 +61,9 @@ pub struct ParsedArticle {
     pub source: String,
     /// List of author names extracted from the feed entry.
     pub authors: Vec<String>,
+    /// List of author profile/page URLs extracted from the feed entry
+    /// (Atom `<uri>`, RSS `<link rel="author">`, etc.).
+    pub author_urls: Vec<String>,
     /// URL of the lead image, if one was found in the entry metadata.
     pub image: Option<String>,
     /// Category or section label assigned to the article by the publisher.
@@ -157,6 +160,7 @@ pub fn parse_result_to_pydict<'py>(
         item.set_item("published", &article.published)?;
         item.set_item("source", &article.source)?;
         item.set_item("authors", &article.authors)?;
+        item.set_item("author_urls", &article.author_urls)?;
         item.set_item("image", &article.image)?;
         item.set_item("category", &article.category)?;
         article_dicts.append(item)?;

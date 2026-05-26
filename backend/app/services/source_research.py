@@ -38,6 +38,7 @@ from app.services.source_url_guard import (
 logger = get_logger("source_research")
 
 CACHE_DIR = Path(os.getenv("SOURCE_RESEARCH_CACHE_DIR", "/tmp/thesis_source_research_cache"))
+SOURCE_PROFILE_CACHE_SCHEMA_VERSION = 4
 
 _CATALOG_WEBSITE_CACHE: dict[str, str | None] = {}
 
@@ -155,7 +156,18 @@ def _load_cached_profile(source_name: str) -> dict[str, Any] | None:
     try:
         with path.open("r", encoding="utf-8") as handle:
             payload = json.load(handle)
-            return payload if isinstance(payload, dict) else None
+            if not isinstance(payload, dict):
+                return None
+            schema_version = int(payload.get("cache_schema_version") or 0)
+            if schema_version < SOURCE_PROFILE_CACHE_SCHEMA_VERSION:
+                logger.info(
+                    "Cache schema expired for %s (found: %s, expected: %s)",
+                    source_name,
+                    schema_version,
+                    SOURCE_PROFILE_CACHE_SCHEMA_VERSION,
+                )
+                return None
+            return payload
     except Exception as exc:
         logger.warning("Failed to read source research cache for %s: %s", source_name, exc)
         return None
@@ -166,6 +178,7 @@ def _save_cached_profile(source_name: str, payload: dict[str, Any]) -> None:
     path = _cache_path(source_name)
     try:
         with path.open("w", encoding="utf-8") as handle:
+            payload["cache_schema_version"] = SOURCE_PROFILE_CACHE_SCHEMA_VERSION
             json.dump(payload, handle, ensure_ascii=True, indent=2)
     except Exception as exc:
         logger.warning("Failed to write source research cache for %s: %s", source_name, exc)

@@ -10,6 +10,64 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import Reporter, get_utc_now
 
+# Politcal leaning mapping helpers
+_PARTY_LEFT = {"democratic", "labour", "socialist", "social democr", "green", "left", "progressive"}
+_PARTY_RIGHT = {
+    "republican",
+    "conservative",
+    "christian democr",
+    "right",
+    "libertarian",
+    "national",
+}
+_IDEO_LEFT = {
+    "socialism",
+    "social democr",
+    "communism",
+    "marxism",
+    "progressivism",
+    "left",
+    "liberalism",
+}
+_IDEO_RIGHT = {"conservatism", "libertarianism", "nationalism", "populism", "right", "reactionary"}
+
+
+def _derive_political_leaning_from_profile(
+    profile: dict[str, Any],
+) -> tuple[str | None, str | None, list[str]]:
+    party = profile.get("political_party") or []
+    ideology = profile.get("political_ideology") or []
+    sources: list[str] = []
+
+    party_lower = {p.lower() for p in party if p}
+    has_left = any(any(kw in p for kw in _PARTY_LEFT) for p in party_lower)
+    has_right = any(any(kw in p for kw in _PARTY_RIGHT) for p in party_lower)
+    if has_left and has_right:
+        sources.append("wikidata_party")
+        return "center", "medium", sources
+    if has_left:
+        sources.append("wikidata_party")
+        return "left", "medium", sources
+    if has_right:
+        sources.append("wikidata_party")
+        return "right", "medium", sources
+
+    ideology_lower = {i.lower() for i in ideology if i}
+    has_left = any(any(kw in i for kw in _IDEO_LEFT) for i in ideology_lower)
+    has_right = any(any(kw in i for kw in _IDEO_RIGHT) for i in ideology_lower)
+    if has_left and has_right:
+        sources.append("wikidata_ideology")
+        return "center", "low", sources
+    if has_left:
+        sources.append("wikidata_ideology")
+        return "left", "low", sources
+    if has_right:
+        sources.append("wikidata_ideology")
+        return "right", "low", sources
+
+    return None, None, []
+
+
 REPORTER_PROFILE_FIELDS = (
     "name",
     "normalized_name",
@@ -37,6 +95,11 @@ REPORTER_PROFILE_FIELDS = (
     "littlesis_url",
     "article_count",
     "last_article_at",
+    "canonical_author_url",
+    "author_page_url",
+    "confidence_tier",
+    "confidence_score",
+    "claims_count",
 )
 
 
@@ -101,6 +164,18 @@ async def upsert_reporter_profile(
             reporter.institutional_affiliations = [
                 {"organization": value, "source": "wikidata"} for value in affiliations
             ]
+
+    leaning, confidence, sources = _derive_political_leaning_from_profile(profile)
+    if leaning and not reporter.political_leaning:
+        reporter.political_leaning = leaning
+        reporter.leaning_confidence = confidence
+        if sources:
+            existing_sources = reporter.leaning_sources or []
+            if isinstance(existing_sources, list):
+                for s in sources:
+                    if s not in existing_sources:
+                        existing_sources.append(s)
+                reporter.leaning_sources = existing_sources
 
     reporter.last_researched_at = get_utc_now()
     session.add(reporter)

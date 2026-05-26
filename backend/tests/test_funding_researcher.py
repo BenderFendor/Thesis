@@ -184,6 +184,21 @@ class TestSearchProPublica:
         assert result["ein"] == "987654321"
         assert isinstance(result["ein"], str)
 
+    async def test_rejects_single_token_foundation_match(self, researcher):
+        """Long single-token outlet names should not match unrelated foundation records."""
+        search_resp = _make_httpx_response(
+            200,
+            {
+                "organizations": [
+                    {"name": "Reuters Foundation", "ein": "134192037"},
+                ]
+            },
+        )
+        researcher.http_client.get = AsyncMock(return_value=search_resp)
+
+        result = await researcher._search_propublica_nonprofit("Reuters")
+        assert result == {}
+
     async def test_substring_match_accepts(self, researcher):
         """Substring containment should pass the name filter."""
         search_resp = _make_httpx_response(
@@ -383,7 +398,8 @@ class TestMergeOrgData:
         )
         assert result["funding_type"] == "commercial"
         assert result["parent_org"] == "Fox Corporation"
-        assert result["ein"] == "999"
+        assert result["ein"] is None
+        assert "propublica" not in result["research_sources"]
 
     def test_propublica_sets_funding_type_when_no_prior(self):
         """When no higher-priority source sets funding_type, ProPublica can set it."""
@@ -566,7 +582,7 @@ class TestMergeOrgData:
         assert "known_data" in result["research_sources"]
         assert "wikipedia" in result["research_sources"]
         assert "wikidata" in result["research_sources"]
-        assert "propublica" in result["research_sources"]
+        assert "propublica" not in result["research_sources"]
 
 
 # ── User-Agent header ────────────────────────────────────────
@@ -631,8 +647,8 @@ async def test_research_organization_awaits_awaitable_dependency_results(researc
     result = await researcher.research_organization("Example News", use_ai=False)
 
     assert result["funding_type"] == "commercial"
-    assert result["ein"] == "123"
-    assert result["research_sources"] == ["known_data", "wikipedia", "propublica"]
+    assert result["ein"] is None
+    assert result["research_sources"] == ["known_data", "wikipedia"]
     researcher._fetch_wikidata.assert_awaited_once_with("Example News")
 
 
@@ -718,7 +734,8 @@ class TestKnownOrgsExpanded:
         )
         assert result["funding_type"] == "commercial"
         assert result["parent_org"] == "Bloomberg L.P."
-        assert result["ein"] == "999"
+        assert result["ein"] is None
+        assert "propublica" not in result["research_sources"]
 
 
 @given(st.text())

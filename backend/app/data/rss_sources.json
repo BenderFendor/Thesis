@@ -2185,6 +2185,7 @@
     },
     "Asia-Plus": {
         "url": "https://asiaplustj.info/en/rss.xml",
+        "site_url": "https://asiaplus.news",
         "category": "general",
         "country": "TJ",
         "funding_type": "Commercial",

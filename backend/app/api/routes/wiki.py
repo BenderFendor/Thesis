@@ -198,6 +198,9 @@ class SourceWikiResponse(BaseModel):
     search_links: dict[str, str] | None = None
     match_explanation: str | None = None
     official_pages: list[dict[str, str]] = []
+    policy_transparency: dict[str, Any] | None = None
+    ads_txt: dict[str, Any] | None = None
+    sellers_json: dict[str, Any] | None = None
     claims: list[dict[str, Any]] = []
 
     # Source analysis scores
@@ -652,6 +655,11 @@ async def get_source_wiki(
         official_pages=cast(
             list[dict[str, str]], (source_profile or {}).get("official_pages") or []
         ),
+        policy_transparency=cast(
+            dict[str, Any] | None, (source_profile or {}).get("policy_transparency")
+        ),
+        ads_txt=cast(dict[str, Any] | None, (source_profile or {}).get("ads_txt")),
+        sellers_json=cast(dict[str, Any] | None, (source_profile or {}).get("sellers_json")),
         claims=claim_payloads,
         analysis_axes=scores,
         reporters=reporters,
@@ -875,6 +883,28 @@ async def get_reporter_graph(
                 "weight": weight,
             }
         )
+
+    try:
+        from app.services.reporter_claim_store import store_identity_edge
+
+        for (r1, r2), weight in coauthor_weights.items():
+            confidence = min(0.5 + (weight - 1) * 0.1, 0.95)
+            await store_identity_edge(
+                session=db,
+                reporter_id=r1,
+                target_url=f"reporter:{r2}",
+                edge_type="coauthor",
+                confidence=confidence,
+            )
+            await store_identity_edge(
+                session=db,
+                reporter_id=r2,
+                target_url=f"reporter:{r1}",
+                edge_type="coauthor",
+                confidence=confidence,
+            )
+    except Exception:
+        logger.debug("Failed to persist coauthor identity edges", exc_info=True)
 
     return ReporterGraphResponse(nodes=nodes, edges=edges)
 

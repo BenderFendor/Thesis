@@ -3519,6 +3519,56 @@ export interface SourceReporterSummary {
   article_count: number;
 }
 
+export interface AdsTxtSummary {
+  url: string;
+  authorized_sellers: number;
+  direct_sellers: number;
+  resellers: number;
+  duplicate_records: number;
+  invalid_lines: number;
+  owner_domains: string[];
+  manager_domains: string[];
+  contact: string[];
+}
+
+export interface SellersJsonSystemSummary {
+  ad_system_domain: string;
+  status: "available" | "missing";
+  ads_txt_records: number;
+  seller_count?: number;
+  confidential_sellers?: number;
+  matched_records?: number;
+  missing_seller_ids?: number;
+  owner_domain_matches?: number;
+  manager_domain_matches?: number;
+  sellers_json_url?: string;
+}
+
+export interface SellersJsonSummary {
+  checked_ad_systems: number;
+  available_sellers_json: number;
+  checked_records: number;
+  matched_records: number;
+  missing_seller_ids: number;
+  owner_domain_matches: number;
+  manager_domain_matches: number;
+  systems: SellersJsonSystemSummary[];
+}
+
+export interface PolicyTransparencySignal {
+  id: string;
+  label: string;
+  status: "available";
+  sources: string[];
+  matched_terms: string[];
+}
+
+export interface PolicyTransparencySummary {
+  checked_pages: number;
+  available_signals: number;
+  signals: PolicyTransparencySignal[];
+}
+
 export interface SourceResearchProfile {
   name: string;
   canonical_name?: string;
@@ -3550,6 +3600,9 @@ export interface SourceResearchProfile {
   }>;
   search_links?: Record<string, string>;
   match_explanation?: string;
+  policy_transparency?: PolicyTransparencySummary | null;
+  ads_txt?: AdsTxtSummary | null;
+  sellers_json?: SellersJsonSummary | null;
 }
 
 /**
@@ -4880,6 +4933,9 @@ export interface WikiSourceProfile {
     url: string;
     summary: string;
   }>;
+  policy_transparency?: PolicyTransparencySummary | null;
+  ads_txt?: AdsTxtSummary | null;
+  sellers_json?: SellersJsonSummary | null;
   search_links?: Record<string, string>;
   match_explanation?: string;
   analysis_axes: WikiAnalysisAxis[];

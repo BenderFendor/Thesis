@@ -76,3 +76,8 @@ def test_build_source_url_guard_accepts_bbc_feed_family_match() -> None:
     assert guard["configured_host"] == "bbci.co.uk"
     assert guard["website_host"] == "bbc.com"
     assert guard["reason"] == "configured_host_matches_inferred_website"
+
+
+def test_hosts_match_accepts_asia_plus_current_and_legacy_domains() -> None:
+    assert hosts_match("asiaplustj.info", "asiaplus.news")
+    assert hosts_match("old.asiaplustj.info", "asiaplus.news")

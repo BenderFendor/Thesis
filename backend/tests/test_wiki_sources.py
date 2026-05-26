@@ -106,6 +106,91 @@ class TestGetSourceWiki:
         assert "citations" in data
         assert "official_pages" in data
 
+    async def test_exposes_ad_supply_transparency_payloads(
+        self, client: AsyncClient, monkeypatch: pytest.MonkeyPatch
+    ):
+        from app.api.routes import wiki
+
+        async def _fake_get_source_profile(*_args, **_kwargs):
+            return {
+                "name": "Test News",
+                "website": "https://test.example",
+                "overview": "Test News profile.",
+                "match_status": "matched",
+                "dossier_sections": [
+                    {
+                        "id": "transparency",
+                        "title": "Transparency",
+                        "status": "available",
+                        "items": [
+                            {
+                                "label": "sellers.json cross-check",
+                                "value": "1/1 checked ads.txt rows matched across 1/1 ad systems",
+                                "sources": ["https://google.com/sellers.json"],
+                            }
+                        ],
+                    }
+                ],
+                "citations": [],
+                "search_links": {},
+                "match_explanation": "Built from public records.",
+                "official_pages": [],
+                "policy_transparency": {
+                    "checked_pages": 1,
+                    "available_signals": 1,
+                    "signals": [
+                        {
+                            "id": "editorial_independence",
+                            "label": "Editorial independence",
+                            "status": "available",
+                            "sources": ["https://test.example/standards"],
+                            "matched_terms": ["editorial independence"],
+                        }
+                    ],
+                },
+                "ads_txt": {
+                    "url": "https://test.example/ads.txt",
+                    "authorized_sellers": 1,
+                    "direct_sellers": 1,
+                    "resellers": 0,
+                    "duplicate_records": 0,
+                    "invalid_lines": 0,
+                    "owner_domains": ["test.example"],
+                    "manager_domains": [],
+                    "contact": [],
+                },
+                "sellers_json": {
+                    "checked_ad_systems": 1,
+                    "available_sellers_json": 1,
+                    "checked_records": 1,
+                    "matched_records": 1,
+                    "missing_seller_ids": 0,
+                    "owner_domain_matches": 1,
+                    "manager_domain_matches": 0,
+                    "systems": [
+                        {
+                            "ad_system_domain": "google.com",
+                            "status": "available",
+                            "ads_txt_records": 1,
+                            "matched_records": 1,
+                            "missing_seller_ids": 0,
+                            "sellers_json_url": "https://google.com/sellers.json",
+                        }
+                    ],
+                },
+            }
+
+        monkeypatch.setattr(wiki, "get_source_profile", _fake_get_source_profile)
+
+        resp = await client.get("/api/wiki/sources/Test%20News")
+
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["policy_transparency"]["available_signals"] == 1
+        assert data["ads_txt"]["authorized_sellers"] == 1
+        assert data["sellers_json"]["matched_records"] == 1
+        assert data["dossier_sections"][0]["items"][0]["label"] == "sellers.json cross-check"
+
     async def test_includes_analysis_axes_array(self, client: AsyncClient):
         resp = await client.get("/api/wiki/sources/Test%20News")
         assert resp.status_code == 200

@@ -461,6 +461,29 @@ class FundingResearcher:
             return 0.0
         return overlap / union_size
 
+    def _propublica_name_matches(self, query: str, candidate: str) -> bool:
+        """Return true when a ProPublica result is a credible org-name match."""
+        normalized_query = self._normalize_name(query)
+        normalized_candidate = self._normalize_name(candidate)
+        if not normalized_query or not normalized_candidate:
+            return False
+
+        if normalized_query == normalized_candidate:
+            return True
+
+        query_tokens = normalized_query.split()
+        candidate_tokens = normalized_candidate.split()
+        if len(query_tokens) == 1:
+            raw_query = re.sub(r"[^A-Za-z]", "", query)
+            is_acronym = raw_query.isupper() and 2 <= len(raw_query) <= 4
+            return is_acronym and bool(candidate_tokens) and candidate_tokens[0] == query_tokens[0]
+
+        return (
+            normalized_query in normalized_candidate
+            or normalized_candidate in normalized_query
+            or self._name_overlap(normalized_query, normalized_candidate) >= 0.5
+        )
+
     async def _search_wikipedia(self, name: str) -> dict[str, Any]:
         """Search Wikipedia for organization information."""
         try:
@@ -580,15 +603,10 @@ class FundingResearcher:
                 return {}
 
             # Find the best match by name similarity
-            normalized_query = self._normalize_name(name)
             org = None
             for candidate in organizations:
-                candidate_name = (candidate.get("name") or "").lower().strip()
-                if (
-                    normalized_query in candidate_name
-                    or candidate_name in normalized_query
-                    or self._name_overlap(normalized_query, candidate_name) >= 0.5
-                ):
+                candidate_name = candidate.get("name") or ""
+                if self._propublica_name_matches(name, candidate_name):
                     org = candidate
                     break
 
@@ -868,9 +886,12 @@ class FundingResearcher:
             if org["research_confidence"] == "low":
                 org["research_confidence"] = "medium"
 
-        # Merge ProPublica nonprofit data (only EIN and revenue, not funding_type
-        # which would incorrectly label commercial orgs as non-profit)
-        if nonprofit:
+        # Merge ProPublica nonprofit data only when higher-priority sources do not
+        # identify the outlet as commercial. Partial nonprofit matches are common
+        # for foundations and charities whose names overlap with commercial media
+        # brands, so commercial identity should win completely.
+        known_commercial = str(org.get("funding_type") or "").lower() == "commercial"
+        if nonprofit and not known_commercial:
             nonprofit_ein = nonprofit.get("ein")
             org["ein"] = str(nonprofit_ein) if nonprofit_ein is not None else None
             org["annual_revenue"] = nonprofit.get("annual_revenue")

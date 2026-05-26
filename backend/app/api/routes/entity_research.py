@@ -259,6 +259,9 @@ class SourceResearchResponse(BaseModel):
     citations: list[dict[str, str]] | None = None
     search_links: dict[str, str] | None = None
     match_explanation: str | None = None
+    policy_transparency: dict[str, Any] | None = None
+    ads_txt: dict[str, Any] | None = None
+    sellers_json: dict[str, Any] | None = None
 
 
 class OwnershipChainResponse(BaseModel):

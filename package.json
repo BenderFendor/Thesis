@@ -1,6 +1,6 @@
 {
   "scripts": {
-    "openapi:export": "venv/bin/python backend/scripts/export_openapi.py",
+    "openapi:export": "cd backend && UV_CACHE_DIR=../.uv-cache uv run python -c \"import json; from pathlib import Path; from app.main import app; Path('openapi.json').write_text(json.dumps(app.openapi(), indent=2) + '\\n')\"",
     "openapi:types": "npm --prefix frontend run openapi:types",
     "openapi:refresh": "npm run openapi:export && npm run openapi:types",
     "deps:cycles": "bash ./scripts/check-cycles"

@@ -16,11 +16,17 @@ import numpy as np
 
 from app.core.config import SCOOP_WIKIMEDIA_UA
 from app.core.logging import get_logger
+from app.services.ad_supply_transparency import (
+    build_sellers_json_summary as _build_sellers_json_summary,
+    fetch_ads_txt as _fetch_ads_txt,
+    public_ads_txt_summary as _public_ads_txt_summary,
+)
 from app.services.funding_researcher import (
     _extract_wikidata_item_ids,
     _extract_wikidata_url,
     get_funding_researcher,
 )
+from app.services.source_policy_transparency import build_policy_transparency_summary
 from app.vector_store import get_vector_store
 
 logger = get_logger("entity_wiki_service")
@@ -96,17 +102,45 @@ OFFICIAL_PAGE_CANDIDATES: Sequence[tuple[str, Sequence[str]]] = (
     ("about", ("/about", "/about-us", "/about/", "/about-us/")),
     ("masthead", ("/masthead", "/staff", "/team", "/authors")),
     (
-        "editorial",
+        "editorial_standards",
         (
             "/editorial",
             "/editorial-policy",
+            "/editorial-policies",
+            "/editorial-guidelines",
+            "/editorial-standards",
             "/standards",
+            "/standards-and-practices",
             "/ethics",
+            "/principles",
+        ),
+    ),
+    (
+        "corrections",
+        (
             "/corrections",
+            "/corrections-policy",
+            "/corrections-and-clarifications",
+            "/clarifications",
         ),
     ),
     ("ownership", ("/ownership", "/company", "/about/ownership")),
 )
+OFFICIAL_PAGE_URL_TERMS: dict[str, Sequence[str]] = {
+    "about": ("about", "about-us", "mission"),
+    "masthead": ("masthead", "staff", "team", "author", "people"),
+    "editorial_standards": (
+        "editorial",
+        "policy",
+        "policies",
+        "guidelines",
+        "standards",
+        "ethics",
+        "principles",
+    ),
+    "corrections": ("correction", "corrections", "clarification", "clarifications"),
+    "ownership": ("ownership", "company", "corporate", "who-we-are"),
+}
 
 
 def _normalize_name(value: str) -> str:
@@ -335,6 +369,30 @@ def _citation(url: str | None, label: str, note: str | None = None) -> dict[str,
     return citation
 
 
+def _source_profile_citation(
+    url: str | None, official_website: str | None
+) -> dict[str, str] | None:
+    if not url:
+        return None
+    normalized_url = url.lower()
+    official_host = _extract_domain(official_website)
+    url_host = _extract_domain(url)
+    if "wikipedia.org/" in normalized_url:
+        return _citation(url, "Wikipedia profile")
+    if "wikidata.org/" in normalized_url:
+        return _citation(url, "Wikidata public record")
+    if "projects.propublica.org/nonprofits/" in normalized_url:
+        return _citation(url, "ProPublica Nonprofit Explorer")
+    if official_host and url_host == official_host:
+        if re.search(
+            r"/(about|ownership|company|masthead|staff|team|editorial|standards|ethics)",
+            urlparse(url).path,
+        ):
+            return _citation(url, "Official transparency page")
+        return _citation(url, "Official website")
+    return _citation(url, "Public source")
+
+
 async def _resolve_labels(
     http_client: httpx.AsyncClient, item_ids: Sequence[str]
 ) -> dict[str, str]:
@@ -464,12 +522,28 @@ async def _try_fetch_site_pages(
                 continue
             text = _strip_html(response.text)
             final_url = str(response.url)
-            if len(text) < 80 or final_url in seen_urls:
+            if (
+                len(text) < 80
+                or final_url in seen_urls
+                or not _official_page_url_matches_label(label, final_url)
+            ):
                 continue
             seen_urls.add(final_url)
             pages.append({"label": label, "url": final_url, "summary": text[:420]})
             break
     return pages
+
+
+def _official_page_url_matches_label(label: str, url: str) -> bool:
+    terms = OFFICIAL_PAGE_URL_TERMS.get(label)
+    if not terms:
+        return True
+    parsed = urlparse(url)
+    path = parsed.path.lower().strip("/")
+    if not path:
+        return False
+    normalized_path = re.sub(r"[^a-z0-9]+", "-", path).strip("-")
+    return any(term in normalized_path for term in terms)
 
 
 def _context_similarity(name: str, description: str, article_context: str | None) -> float:
@@ -723,6 +797,12 @@ async def build_reporter_dossier(
                     "P102",
                     "P1142",
                     "P463",
+                    "P166",
+                    "P800",
+                    "P512",
+                    "P1412",
+                    "P19",
+                    "P937",
                 )
                 for item_id in _extract_wikidata_item_ids(entity.get("claims") or {}, prop)
             ],
@@ -773,7 +853,39 @@ async def build_reporter_dossier(
                 for item_id in _extract_wikidata_item_ids(claims, "P463")
                 if item_id in label_map
             ]
-            work_location = _extract_wikidata_string(claims, "P937")
+            work_location = [
+                label_map[item_id]
+                for item_id in _extract_wikidata_item_ids(claims, "P937")
+                if item_id in label_map
+            ]
+            award_labels = [
+                label_map[item_id]
+                for item_id in _extract_wikidata_item_ids(claims, "P166")
+                if item_id in label_map
+            ]
+            notable_works = [
+                label_map[item_id]
+                for item_id in _extract_wikidata_item_ids(claims, "P800")
+                if item_id in label_map
+            ]
+            degrees = [
+                label_map[item_id]
+                for item_id in _extract_wikidata_item_ids(claims, "P512")
+                if item_id in label_map
+            ]
+            languages = [
+                label_map[item_id]
+                for item_id in _extract_wikidata_item_ids(claims, "P1412")
+                if item_id in label_map
+            ]
+            date_of_birth = _extract_wikidata_string(claims, "P569")
+            place_of_birth_labels = [
+                label_map[item_id]
+                for item_id in _extract_wikidata_item_ids(claims, "P19")
+                if item_id in label_map
+            ]
+            work_period_start = _extract_wikidata_string(claims, "P2031")
+            work_period_end = _extract_wikidata_string(claims, "P2032")
             name_score = _text_similarity(normalized_name, label)
             organization_score = max(
                 max(_token_overlap(organization, emp_label) for emp_label in employer_labels)
@@ -826,6 +938,14 @@ async def build_reporter_dossier(
                 "political_ideology": political_ideology,
                 "member_of": member_of,
                 "work_location": work_location,
+                "awards": award_labels,
+                "notable_works": notable_works,
+                "degrees": degrees,
+                "languages": languages,
+                "date_of_birth": date_of_birth,
+                "place_of_birth": place_of_birth_labels,
+                "work_period_start": work_period_start,
+                "work_period_end": work_period_end,
                 "wiki_title": wiki_title,
                 "scores": {
                     "name": round(name_score, 3),
@@ -994,6 +1114,14 @@ async def build_reporter_dossier(
             "political_ideology": best_meta.get("political_ideology"),
             "member_of": best_meta.get("member_of"),
             "work_location": best_meta.get("work_location"),
+            "awards": best_meta.get("awards"),
+            "notable_works": best_meta.get("notable_works"),
+            "degrees": best_meta.get("degrees"),
+            "languages": best_meta.get("languages"),
+            "date_of_birth": best_meta.get("date_of_birth"),
+            "place_of_birth": best_meta.get("place_of_birth"),
+            "work_period_start": best_meta.get("work_period_start"),
+            "work_period_end": best_meta.get("work_period_end"),
             "official_website": best_meta.get("official_website"),
             "raw_match_scores": best_meta["scores"],
             "citation_urls": citation_urls,
@@ -1011,6 +1139,7 @@ def build_source_sections(profile: dict[str, Any]) -> list[dict[str, Any]]:
         ("overview", "Overview", ("overview", "about", "official_website")),
         ("ownership", "Ownership", ("ownership", "affiliations")),
         ("funding", "Funding", ("funding", "nonprofit_filings")),
+        ("transparency", "Transparency", ("transparency",)),
         (
             "public_records",
             "Public Records",
@@ -1030,6 +1159,193 @@ def build_source_sections(profile: dict[str, Any]) -> list[dict[str, Any]]:
     return sections
 
 
+def _transparency_item(
+    label: str,
+    value: str,
+    sources: list[str],
+    notes: str | None = None,
+) -> dict[str, Any]:
+    item: dict[str, Any] = {
+        "label": label,
+        "value": value,
+        "sources": _unique_strings(sources),
+    }
+    if notes:
+        item["notes"] = notes
+    return item
+
+
+def _build_transparency_items(
+    official_pages: list[dict[str, str]],
+    fields: dict[str, list[dict[str, Any]]],
+    ads_txt: dict[str, Any] | None = None,
+    sellers_json: dict[str, Any] | None = None,
+    policy_transparency: dict[str, Any] | None = None,
+) -> list[dict[str, Any]]:
+    pages_by_label = {
+        page.get("label"): page for page in official_pages if page.get("label") and page.get("url")
+    }
+    items: list[dict[str, Any]] = []
+    checks = [
+        (
+            "About page",
+            "about",
+            "Trust/JTI-style identity signal: source publishes an about or mission page.",
+        ),
+        (
+            "Masthead or author directory",
+            "masthead",
+            "Trust/JTI-style people signal: source exposes staff, team, or author information.",
+        ),
+        (
+            "Editorial standards",
+            "editorial_standards",
+            "Trust/JTI-style policy signal: source exposes editorial standards, ethics, or policy information.",
+        ),
+        (
+            "Corrections policy",
+            "corrections",
+            "Trust/JTI-style accountability signal: source exposes a corrections page or policy.",
+        ),
+        (
+            "Ownership page",
+            "ownership",
+            "Trust/JTI-style governance signal: source exposes ownership or company information.",
+        ),
+    ]
+    for label, page_label, notes in checks:
+        page = pages_by_label.get(page_label)
+        if page:
+            items.append(_transparency_item(label, "available", [page["url"]], notes))
+
+    ownership_sources = [
+        source
+        for item in [*fields.get("ownership", []), *fields.get("affiliations", [])]
+        for source in cast(list[str], item.get("sources") or [])
+    ]
+    if ownership_sources:
+        items.append(
+            _transparency_item(
+                "Structured ownership record",
+                "available",
+                ownership_sources,
+                "Ownership or affiliation was resolved from public structured records.",
+            )
+        )
+
+    funding_sources = [
+        source
+        for item in [*fields.get("funding", []), *fields.get("nonprofit_filings", [])]
+        for source in cast(list[str], item.get("sources") or [])
+    ]
+    if funding_sources:
+        items.append(
+            _transparency_item(
+                "Funding record",
+                "available",
+                funding_sources,
+                "Funding type or nonprofit filing evidence is present.",
+            )
+        )
+    if ads_txt:
+        authorized_sellers = int(ads_txt.get("authorized_sellers") or 0)
+        direct_sellers = int(ads_txt.get("direct_sellers") or 0)
+        resellers = int(ads_txt.get("resellers") or 0)
+        items.append(
+            _transparency_item(
+                "ads.txt authorized sellers",
+                f"{authorized_sellers} authorized sellers ({direct_sellers} DIRECT, {resellers} RESELLER)",
+                _unique_strings([cast(str | None, ads_txt.get("url"))]),
+                "IAB ads.txt signal: publisher declares authorized digital advertising sellers.",
+            )
+        )
+        owner_domains = cast(list[str], ads_txt.get("owner_domains") or [])
+        if owner_domains:
+            items.append(
+                _transparency_item(
+                    "ads.txt owner domain",
+                    ", ".join(owner_domains),
+                    _unique_strings([cast(str | None, ads_txt.get("url"))]),
+                    "IAB ads.txt OWNERDOMAIN signal links publisher inventory to declared ownership domain.",
+                )
+            )
+        manager_domains = cast(list[str], ads_txt.get("manager_domains") or [])
+        if manager_domains:
+            items.append(
+                _transparency_item(
+                    "ads.txt manager domain",
+                    ", ".join(manager_domains),
+                    _unique_strings([cast(str | None, ads_txt.get("url"))]),
+                    "IAB ads.txt MANAGERDOMAIN signal names the declared monetization manager.",
+                )
+            )
+        duplicate_records = int(ads_txt.get("duplicate_records") or 0)
+        invalid_lines = int(ads_txt.get("invalid_lines") or 0)
+        if duplicate_records or invalid_lines:
+            items.append(
+                _transparency_item(
+                    "ads.txt diagnostics",
+                    f"{duplicate_records} duplicate records; {invalid_lines} invalid lines",
+                    _unique_strings([cast(str | None, ads_txt.get("url"))]),
+                    "Local parser diagnostics for malformed or repeated ads.txt seller declarations.",
+                )
+            )
+    if sellers_json:
+        systems = cast(list[dict[str, Any]], sellers_json.get("systems") or [])
+        sellers_json_urls = _unique_strings(
+            cast(str | None, system.get("sellers_json_url"))
+            for system in systems
+            if system.get("status") == "available"
+        )
+        checked_records = int(sellers_json.get("checked_records") or 0)
+        matched_records = int(sellers_json.get("matched_records") or 0)
+        available_sellers_json = int(sellers_json.get("available_sellers_json") or 0)
+        checked_ad_systems = int(sellers_json.get("checked_ad_systems") or 0)
+        items.append(
+            _transparency_item(
+                "sellers.json cross-check",
+                (
+                    f"{matched_records}/{checked_records} checked ads.txt rows matched "
+                    f"across {available_sellers_json}/{checked_ad_systems} ad systems"
+                ),
+                sellers_json_urls,
+                "IAB sellers.json signal: ad-system seller IDs were checked against published seller identity files.",
+            )
+        )
+        owner_domain_matches = int(sellers_json.get("owner_domain_matches") or 0)
+        manager_domain_matches = int(sellers_json.get("manager_domain_matches") or 0)
+        if owner_domain_matches or manager_domain_matches:
+            items.append(
+                _transparency_item(
+                    "sellers.json domain alignment",
+                    (
+                        f"{owner_domain_matches} OWNERDOMAIN matches; "
+                        f"{manager_domain_matches} MANAGERDOMAIN matches"
+                    ),
+                    sellers_json_urls,
+                    "Matched sellers.json domains are compared with ads.txt OWNERDOMAIN and MANAGERDOMAIN declarations.",
+                )
+            )
+    if policy_transparency:
+        for signal in cast(list[dict[str, Any]], policy_transparency.get("signals") or []):
+            sources = cast(list[str], signal.get("sources") or [])
+            if not sources:
+                continue
+            matched_terms = cast(list[str], signal.get("matched_terms") or [])
+            notes = "Official-page policy text matched deterministic transparency terms."
+            if matched_terms:
+                notes = f"{notes} Terms: {', '.join(matched_terms[:6])}."
+            items.append(
+                _transparency_item(
+                    f"Policy signal: {signal.get('label') or signal.get('id')}",
+                    "available",
+                    sources,
+                    notes,
+                )
+            )
+    return items
+
+
 async def build_source_profile(name: str, website: str | None = None) -> dict[str, Any]:
     """Build Source Profile."""
     researcher = get_funding_researcher()
@@ -1040,9 +1356,15 @@ async def build_source_profile(name: str, website: str | None = None) -> dict[st
         org_data.get("website") or org_data.get("official_website") or website,
     )
     official_pages: list[dict[str, str]] = []
+    ads_txt: dict[str, Any] | None = None
+    sellers_json: dict[str, Any] | None = None
+    policy_transparency: dict[str, Any] | None = None
     async with httpx.AsyncClient(timeout=20.0, follow_redirects=True) as client:
         if official_website:
             official_pages = await _try_fetch_site_pages(client, official_website)
+            ads_txt = await _fetch_ads_txt(client, official_website)
+            sellers_json = await _build_sellers_json_summary(client, ads_txt)
+            policy_transparency = build_policy_transparency_summary(official_pages)
 
     about_page = next(
         (page for page in official_pages if page.get("label") == "about"),
@@ -1066,6 +1388,7 @@ async def build_source_profile(name: str, website: str | None = None) -> dict[st
         "official_website": [],
         "nonprofit_filings": [],
         "public_records": [],
+        "transparency": [],
     }
 
     if wikipedia_description:
@@ -1093,8 +1416,8 @@ async def build_source_profile(name: str, website: str | None = None) -> dict[st
         target_field = "public_records"
         if label == "ownership":
             target_field = "ownership"
-        elif label == "editorial":
-            target_field = "about"
+        elif label in {"editorial_standards", "corrections", "masthead"}:
+            target_field = "transparency"
         fields[target_field].append(
             {
                 "label": label.replace("_", " ").title(),
@@ -1208,6 +1531,16 @@ async def build_source_profile(name: str, website: str | None = None) -> dict[st
             }
         )
 
+    fields["transparency"].extend(
+        _build_transparency_items(
+            official_pages,
+            fields,
+            ads_txt,
+            sellers_json,
+            policy_transparency,
+        )
+    )
+
     claim_rows = cast(list[dict[str, Any]], org_data.get("source_claims") or [])
     for claim in claim_rows:
         claim_type = str(claim.get("type") or "").strip()
@@ -1244,8 +1577,12 @@ async def build_source_profile(name: str, website: str | None = None) -> dict[st
         )
 
     citations = [
-        _citation(url, "Public source")
-        for url in _unique_strings(cast(list[str | None], citation_candidates))
+        citation
+        for citation in (
+            _source_profile_citation(url, official_website)
+            for url in _unique_strings(cast(list[str | None], citation_candidates))
+        )
+        if citation
     ]
     if org_data.get("ein"):
         citations.append(
@@ -1277,6 +1614,9 @@ async def build_source_profile(name: str, website: str | None = None) -> dict[st
         "wikidata_qid": org_data.get("wikidata_qid"),
         "citations": citations,
         "official_pages": official_pages,
+        "policy_transparency": policy_transparency,
+        "ads_txt": _public_ads_txt_summary(ads_txt),
+        "sellers_json": sellers_json,
         "search_links": {
             "wikipedia": org_data.get("wikipedia_url")
             or f"https://en.wikipedia.org/w/index.php?search={quote(name)}",

@@ -12,6 +12,7 @@
           "general"
         ],
         "summary": "Read Root",
+        "description": "Read Root.",
         "operationId": "read_root__get",
         "responses": {
           "200": {
@@ -37,6 +38,7 @@
           "general"
         ],
         "summary": "Health Check",
+        "description": "Health Check.",
         "operationId": "health_check_health_get",
         "responses": {
           "200": {
@@ -91,6 +93,7 @@
           "article-analysis"
         ],
         "summary": "Extract Article Text",
+        "description": "Extract Article Text.",
         "operationId": "extract_article_text_article_extract_get",
         "parameters": [
           {
@@ -135,6 +138,7 @@
           "article-analysis"
         ],
         "summary": "Analyze Article",
+        "description": "Analyze Article.",
         "operationId": "analyze_article_api_article_analyze_post",
         "requestBody": {
           "content": {
@@ -314,7 +318,7 @@
           "news"
         ],
         "summary": "Get Cached News Paginated",
-        "description": "Paginated endpoint using in-memory cache (faster for frequently accessed data).\nUses offset pagination since cache is in-memory array.\n\nBest for:\n- Initial page loads\n- Common category filters\n- Real-time updates",
+        "description": "Paginated endpoint using in-memory cache (faster for frequently accessed data).\n\nUses offset pagination since cache is in-memory array.\n\nBest for:\n- Initial page loads\n- Common category filters\n- Real-time updates",
         "operationId": "get_cached_news_paginated_news_page_cached_get",
         "parameters": [
           {
@@ -414,6 +418,106 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/PaginatedResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/news/index/cached": {
+      "get": {
+        "tags": [
+          "news"
+        ],
+        "summary": "Get Cached Browse Index",
+        "description": "Return lightweight article cards for the current in-memory RSS cache.",
+        "operationId": "get_cached_browse_index_news_index_cached_get",
+        "parameters": [
+          {
+            "name": "category",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Category"
+            }
+          },
+          {
+            "name": "source",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Source"
+            }
+          },
+          {
+            "name": "sources",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Comma-separated source names for multi-select",
+              "title": "Sources"
+            },
+            "description": "Comma-separated source names for multi-select"
+          },
+          {
+            "name": "search",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Search"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BrowseIndexResponse"
                 }
               }
             }
@@ -625,12 +729,55 @@
         }
       }
     },
+    "/news/ranked": {
+      "post": {
+        "tags": [
+          "news"
+        ],
+        "summary": "Post Ranked Articles",
+        "description": "Rank articles using the Rust backend ranking engine.\n\nAccepts article metadata, liked/bookmarked article IDs, and favorite\nsource IDs. Returns articles sorted by personalized ranking including\nscore breakdowns.",
+        "operationId": "post_ranked_articles_news_ranked_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RankRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RankResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/news/source/{source_name}": {
       "get": {
         "tags": [
           "news"
         ],
         "summary": "Get News By Source",
+        "description": "Get News By Source.",
         "operationId": "get_news_by_source_news_source__source_name__get",
         "parameters": [
           {
@@ -677,6 +824,7 @@
           "news"
         ],
         "summary": "Get News By Category",
+        "description": "Get News By Category.",
         "operationId": "get_news_by_category_news_category__category_name__get",
         "parameters": [
           {
@@ -719,6 +867,7 @@
           "news"
         ],
         "summary": "Get Sources",
+        "description": "Get Sources.",
         "operationId": "get_sources_news_sources_get",
         "responses": {
           "200": {
@@ -744,6 +893,7 @@
           "news"
         ],
         "summary": "Get Categories",
+        "description": "Get Categories.",
         "operationId": "get_categories_news_categories_get",
         "responses": {
           "200": {
@@ -796,6 +946,7 @@
           "news-by-country"
         ],
         "summary": "Get Countries Geo Data Route",
+        "description": "Get Countries Geo Data Route.",
         "operationId": "get_countries_geo_data_route_news_countries_geo_get",
         "responses": {
           "200": {
@@ -819,6 +970,7 @@
           "news-by-country"
         ],
         "summary": "Get Article Counts By Country",
+        "description": "Get Article Counts By Country.",
         "operationId": "get_article_counts_by_country_news_by_country_get",
         "parameters": [
           {
@@ -866,6 +1018,7 @@
           "news-by-country"
         ],
         "summary": "Get News For Country",
+        "description": "Get News For Country.",
         "operationId": "get_news_for_country_news_country__code__get",
         "parameters": [
           {
@@ -962,6 +1115,7 @@
           "news-by-country"
         ],
         "summary": "List Available Countries",
+        "description": "List Available Countries.",
         "operationId": "list_available_countries_news_countries_list_get",
         "responses": {
           "200": {
@@ -1031,6 +1185,7 @@
           "cache"
         ],
         "summary": "Get Cache Status",
+        "description": "Get Cache Status.",
         "operationId": "get_cache_status_cache_status_get",
         "responses": {
           "200": {
@@ -1054,6 +1209,7 @@
           "news-stream"
         ],
         "summary": "Stream News",
+        "description": "Stream News.",
         "operationId": "stream_news_news_stream_get",
         "parameters": [
           {
@@ -1111,6 +1267,7 @@
           "debug"
         ],
         "summary": "Get Source Debug Data",
+        "description": "Get Source Debug Data.",
         "operationId": "get_source_debug_data_debug_sources__source_name__get",
         "parameters": [
           {
@@ -1155,6 +1312,7 @@
           "debug"
         ],
         "summary": "Get Stream Status",
+        "description": "Get Stream Status.",
         "operationId": "get_stream_status_debug_streams_get",
         "responses": {
           "200": {
@@ -1226,6 +1384,7 @@
           "debug"
         ],
         "summary": "List Chromadb Articles",
+        "description": "List Chromadb Articles.",
         "operationId": "list_chromadb_articles_debug_chromadb_articles_get",
         "parameters": [
           {
@@ -1284,6 +1443,7 @@
           "debug"
         ],
         "summary": "List Database Articles",
+        "description": "List Database Articles.",
         "operationId": "list_database_articles_debug_database_articles_get",
         "parameters": [
           {
@@ -1418,6 +1578,7 @@
           "debug"
         ],
         "summary": "List Cached Articles",
+        "description": "List Cached Articles.",
         "operationId": "list_cached_articles_debug_cache_articles_get",
         "parameters": [
           {
@@ -1494,6 +1655,7 @@
           "debug"
         ],
         "summary": "Get Cache Db Delta",
+        "description": "Get Cache Db Delta.",
         "operationId": "get_cache_db_delta_debug_cache_delta_get",
         "parameters": [
           {
@@ -1582,6 +1744,7 @@
           "debug"
         ],
         "summary": "Get Storage Drift",
+        "description": "Get Storage Drift.",
         "operationId": "get_storage_drift_debug_storage_drift_get",
         "parameters": [
           {
@@ -2258,6 +2421,172 @@
         }
       }
     },
+    "/debug/logs/llm": {
+      "get": {
+        "tags": [
+          "debug"
+        ],
+        "summary": "Read Llm Calls",
+        "description": "Read Llm Calls.",
+        "operationId": "read_llm_calls_debug_logs_llm_get",
+        "parameters": [
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 1000,
+              "minimum": 1,
+              "default": 100,
+              "title": "Limit"
+            }
+          },
+          {
+            "name": "offset",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 0,
+              "default": 0,
+              "title": "Offset"
+            }
+          },
+          {
+            "name": "service",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Filter by service name",
+              "title": "Service"
+            },
+            "description": "Filter by service name"
+          },
+          {
+            "name": "success",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "boolean"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Filter by success status",
+              "title": "Success"
+            },
+            "description": "Filter by success status"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true,
+                  "title": "Response Read Llm Calls Debug Logs Llm Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/debug/logs/errors": {
+      "get": {
+        "tags": [
+          "debug"
+        ],
+        "summary": "Read Error Logs",
+        "description": "Read Error Logs.",
+        "operationId": "read_error_logs_debug_logs_errors_get",
+        "parameters": [
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 1000,
+              "minimum": 1,
+              "default": 100,
+              "title": "Limit"
+            }
+          },
+          {
+            "name": "offset",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 0,
+              "default": 0,
+              "title": "Offset"
+            }
+          },
+          {
+            "name": "include_request_stream_events",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "boolean",
+              "description": "When true, append recent request/stream errors from the in-memory debug logger.",
+              "default": true,
+              "title": "Include Request Stream Events"
+            },
+            "description": "When true, append recent request/stream errors from the in-memory debug logger."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true,
+                  "title": "Response Read Error Logs Debug Logs Errors Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/debug/backfill/images": {
       "post": {
         "tags": [
@@ -2333,6 +2662,7 @@
           "debug"
         ],
         "summary": "Backfill Article Mentions",
+        "description": "Backfill Article Mentions.",
         "operationId": "backfill_article_mentions_debug_backfill_mentioned_countries_post",
         "parameters": [
           {
@@ -2401,6 +2731,7 @@
           "bookmarks"
         ],
         "summary": "List Bookmarks",
+        "description": "List Bookmarks.",
         "operationId": "list_bookmarks_api_bookmarks_get",
         "responses": {
           "200": {
@@ -2422,6 +2753,7 @@
           "bookmarks"
         ],
         "summary": "Create Bookmark",
+        "description": "Create Bookmark.",
         "operationId": "create_bookmark_api_bookmarks_post",
         "requestBody": {
           "content": {
@@ -2465,6 +2797,7 @@
           "bookmarks"
         ],
         "summary": "Get Bookmark",
+        "description": "Get Bookmark.",
         "operationId": "get_bookmark_api_bookmarks__article_id__get",
         "parameters": [
           {
@@ -2507,6 +2840,7 @@
           "bookmarks"
         ],
         "summary": "Update Bookmark",
+        "description": "Update Bookmark.",
         "operationId": "update_bookmark_api_bookmarks__article_id__put",
         "parameters": [
           {
@@ -2549,6 +2883,7 @@
           "bookmarks"
         ],
         "summary": "Delete Bookmark",
+        "description": "Delete Bookmark.",
         "operationId": "delete_bookmark_api_bookmarks__article_id__delete",
         "parameters": [
           {
@@ -2593,6 +2928,7 @@
           "liked"
         ],
         "summary": "List Liked Articles",
+        "description": "List Liked Articles.",
         "operationId": "list_liked_articles_api_liked_get",
         "responses": {
           "200": {
@@ -2614,6 +2950,7 @@
           "liked"
         ],
         "summary": "Create Liked Article",
+        "description": "Create Liked Article.",
         "operationId": "create_liked_article_api_liked_post",
         "requestBody": {
           "content": {
@@ -2657,6 +2994,7 @@
           "liked"
         ],
         "summary": "Get Liked Article",
+        "description": "Get Liked Article.",
         "operationId": "get_liked_article_api_liked__article_id__get",
         "parameters": [
           {
@@ -2699,6 +3037,7 @@
           "liked"
         ],
         "summary": "Delete Liked Article",
+        "description": "Delete Liked Article.",
         "operationId": "delete_liked_article_api_liked__article_id__delete",
         "parameters": [
           {
@@ -3315,6 +3654,7 @@
           "news-research"
         ],
         "summary": "News Research Stream Endpoint",
+        "description": "News Research Stream Endpoint.",
         "operationId": "news_research_stream_endpoint_api_news_research_stream_get",
         "parameters": [
           {
@@ -3387,6 +3727,7 @@
           "news-research"
         ],
         "summary": "News Research Endpoint",
+        "description": "News Research Endpoint.",
         "operationId": "news_research_endpoint_api_news_research_post",
         "requestBody": {
           "content": {
@@ -3583,7 +3924,7 @@
           "entity-research"
         ],
         "summary": "Research Source Profile",
-        "description": "Build a source profile with funding, ownership, bias, and related metadata.\nUses file-based caching unless force_refresh is requested.\nIf cache_only=true, returns cached data or 404 without triggering research.",
+        "description": "Build a source profile with funding, ownership, bias, and related metadata.\n\nUses file-based caching unless force_refresh is requested.\nIf cache_only=true, returns cached data or 404 without triggering research.",
         "operationId": "research_source_profile_research_entity_source_profile_post",
         "parameters": [
           {
@@ -3651,7 +3992,7 @@
           "entity-research"
         ],
         "summary": "Research Source Batch",
-        "description": "Research multiple sources in a single request.\nUses file-based caching unless force_refresh is requested.\nReturns results for all sources, using cache when available.",
+        "description": "Research multiple sources in a single request.\n\nUses file-based caching unless force_refresh is requested.\nReturns results for all sources, using cache when available.",
         "operationId": "research_source_batch_research_entity_source_batch_post",
         "requestBody": {
           "content": {
@@ -4000,6 +4341,7 @@
           "search"
         ],
         "summary": "Semantic Search",
+        "description": "Semantic Search.",
         "operationId": "semantic_search_api_search_semantic_get",
         "parameters": [
           {
@@ -4298,6 +4640,95 @@
                   },
                   "type": "array",
                   "title": "Response Get Sources Sources Get"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/sources/add-rss": {
+      "post": {
+        "tags": [
+          "sources"
+        ],
+        "summary": "Add Rss Source",
+        "description": "Add Rss Source.",
+        "operationId": "add_rss_source_sources_add_rss_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AddRssRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "type": "object",
+                  "title": "Response Add Rss Source Sources Add Rss Post"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/sources/{domain}/credibility": {
+      "get": {
+        "tags": [
+          "sources"
+        ],
+        "summary": "Get Source Credibility",
+        "description": "Return the 6-dimension credibility profile for a source domain.\n\nEndpoint: GET /api/source/{domain}/credibility\nCache: 24 hours in-memory",
+        "operationId": "get_source_credibility_sources__domain__credibility_get",
+        "parameters": [
+          {
+            "name": "domain",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Domain"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true,
+                  "title": "Response Get Source Credibility Sources  Domain  Credibility Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
                 }
               }
             }
@@ -5389,7 +5820,7 @@
           "gdelt"
         ],
         "summary": "Trigger Gdelt Sync",
-        "description": "Trigger a manual sync of GDELT events to clusters.\n\nArgs:\n    minutes: How far back to fetch events\n    limit: Maximum number of events to process\n\nReturns:\n    Sync results with matched/total counts",
+        "description": "Trigger a manual sync of GDELT events to clusters.\n\nArgs:\n    minutes: How far back to fetch events\n    limit: Maximum number of events to process\n    session: Database session\n\nReturns:\n    Sync results with matched/total counts",
         "operationId": "trigger_gdelt_sync_gdelt_sync_post",
         "parameters": [
           {
@@ -5453,7 +5884,7 @@
           "gdelt"
         ],
         "summary": "Get Article Gdelt Events",
-        "description": "Get GDELT events matched to a specific article.\n\nArgs:\n    cluster_id: Cluster ID to query\n    limit: Maximum events to return\n\nReturns:\n    Cluster info with matched GDELT events",
+        "description": "Get GDELT events matched to a specific article.\n\nArgs:\n    article_id: Article ID to query\n    limit: Maximum events to return\n    session: Database session\n\nReturns:\n    Cluster info with matched GDELT events",
         "operationId": "get_article_gdelt_events_gdelt_article__article_id__get",
         "parameters": [
           {
@@ -5510,7 +5941,7 @@
           "gdelt"
         ],
         "summary": "Get Gdelt Stats",
-        "description": "Get GDELT coverage statistics.\n\nArgs:\n    hours: Time window in hours\n\nReturns:\n    Statistics about GDELT coverage",
+        "description": "Get GDELT coverage statistics.\n\nArgs:\n    hours: Time window in hours\n    session: Database session\n\nReturns:\n    Statistics about GDELT coverage",
         "operationId": "get_gdelt_stats_gdelt_stats_get",
         "parameters": [
           {
@@ -5558,7 +5989,7 @@
           "gdelt"
         ],
         "summary": "Get Recent Gdelt Events",
-        "description": "Get recently fetched GDELT events.\n\nArgs:\n    limit: Maximum events to return\n    include_unmatched: Whether to include events without cluster matches\n\nReturns:\n    List of GDELT events",
+        "description": "Get recently fetched GDELT events.\n\nArgs:\n    limit: Maximum events to return\n    include_unmatched: Whether to include events without cluster matches\n    session: Database session\n\nReturns:\n    List of GDELT events",
         "operationId": "get_recent_gdelt_events_gdelt_recent_get",
         "parameters": [
           {
@@ -5663,7 +6094,7 @@
           "blindspots"
         ],
         "summary": "Get Source Blind Spots",
-        "description": "Get blind spots analysis for a specific source.\n\nIdentifies topics that this source is NOT covering while other sources are.\n\nArgs:\n    source_name: Name of the news source\n    days: Analysis period in days (1-90)\n\nReturns:\n    Blind spots analysis with coverage gaps",
+        "description": "Get blind spots analysis for a specific source.\n\nIdentifies topics that this source is NOT covering while other sources are.\n\nArgs:\n    source_name: Name of the news source\n    days: Analysis period in days (1-90)\n    session: Database session\n\nReturns:\n    Blind spots analysis with coverage gaps",
         "operationId": "get_source_blind_spots_blindspots_source__source_name__get",
         "parameters": [
           {
@@ -5718,7 +6149,7 @@
           "blindspots"
         ],
         "summary": "Get Topic Blind Spots",
-        "description": "Get topics where major sources have blind spots.\n\nIdentifies stories that many sources are covering, but some major sources\nare not reporting on.\n\nArgs:\n    min_sources: Minimum number of sources covering topic to analyze\n\nReturns:\n    List of topics with blind spots and severity ratings",
+        "description": "Get topics where major sources have blind spots.\n\nIdentifies stories that many sources are covering, but some major sources\nare not reporting on.\n\nArgs:\n    min_sources: Minimum number of sources covering topic to analyze\n    session: Database session\n\nReturns:\n    List of topics with blind spots and severity ratings",
         "operationId": "get_topic_blind_spots_blindspots_topics_get",
         "parameters": [
           {
@@ -5768,7 +6199,7 @@
           "blindspots"
         ],
         "summary": "Get Coverage Report",
-        "description": "Get comprehensive coverage report for all sources.\n\nProvides:\n- Source rankings by coverage ratio\n- Systemic blind spots (topics many sources miss)\n- Underperforming sources (coverage ratio < 50%)\n\nArgs:\n    days: Analysis period in days (7-90)\n\nReturns:\n    Comprehensive coverage report",
+        "description": "Get comprehensive coverage report for all sources.\n\nProvides:\n- Source rankings by coverage ratio\n- Systemic blind spots (topics many sources miss)\n- Underperforming sources (coverage ratio < 50%)\n\nArgs:\n    days: Analysis period in days (7-90)\n    session: Database session\n\nReturns:\n    Comprehensive coverage report",
         "operationId": "get_coverage_report_blindspots_report_get",
         "parameters": [
           {
@@ -6323,6 +6754,66 @@
         }
       }
     },
+    "/api/wiki/reporters/graph": {
+      "get": {
+        "tags": [
+          "wiki"
+        ],
+        "summary": "Get Reporter Graph",
+        "description": "Get reporter network graph data for force-directed visualization.",
+        "operationId": "get_reporter_graph_api_wiki_reporters_graph_get",
+        "parameters": [
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 1000,
+              "minimum": 1,
+              "default": 200,
+              "title": "Limit"
+            }
+          },
+          {
+            "name": "edge_limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 10000,
+              "minimum": 0,
+              "description": "Maximum number of graph edges to return.",
+              "default": 3000,
+              "title": "Edge Limit"
+            },
+            "description": "Maximum number of graph edges to return."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReporterGraphResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/wiki/reporters/{reporter_id}": {
       "get": {
         "tags": [
@@ -6505,7 +6996,7 @@
           "wiki"
         ],
         "summary": "Get Ownership Graph",
-        "description": "Get the full ownership graph for force-directed visualization.\n\nReturns nodes (sources + organizations) and edges (ownership relationships).",
+        "description": "Get the full ownership graph for force-directed visualization.\n\nReturns nodes (sources + organizations + reporters) and edges (ownership,\npublishes, employed_by relationships).",
         "operationId": "get_ownership_graph_api_wiki_organizations_graph_get",
         "responses": {
           "200": {
@@ -6589,10 +7080,89 @@
           }
         }
       }
+    },
+    "/api/wiki/index/reporters": {
+      "post": {
+        "tags": [
+          "wiki"
+        ],
+        "summary": "Trigger Reporter Index",
+        "description": "Trigger reporter indexing (admin endpoint).\n\nmode=all: Run both SPARQL seed and unresolved author indexing.\nmode=unresolved: Only index unresolved article authors.\nmode=sparql: Only run Wikidata SPARQL seed.",
+        "operationId": "trigger_reporter_index_api_wiki_index_reporters_post",
+        "parameters": [
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 2000,
+              "minimum": 1,
+              "default": 500,
+              "title": "Limit"
+            }
+          },
+          {
+            "name": "mode",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "enum": [
+                "all",
+                "unresolved",
+                "sparql"
+              ],
+              "type": "string",
+              "description": "all, unresolved, or sparql",
+              "default": "all",
+              "title": "Mode"
+            },
+            "description": "all, unresolved, or sparql"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true,
+                  "title": "Response Trigger Reporter Index Api Wiki Index Reporters Post"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
     }
   },
   "components": {
     "schemas": {
+      "AddRssRequest": {
+        "properties": {
+          "url": {
+            "type": "string",
+            "title": "Url"
+          }
+        },
+        "type": "object",
+        "required": [
+          "url"
+        ],
+        "title": "AddRssRequest",
+        "description": "Add Rss Request."
+      },
       "AddToQueueRequest": {
         "properties": {
           "article_id": {
@@ -6635,7 +7205,8 @@
           "article_url",
           "article_source"
         ],
-        "title": "AddToQueueRequest"
+        "title": "AddToQueueRequest",
+        "description": "Add To Queue Request."
       },
       "AllCluster": {
         "properties": {
@@ -6759,7 +7330,8 @@
           "clusters",
           "total"
         ],
-        "title": "AllClustersResponse"
+        "title": "AllClustersResponse",
+        "description": "All Clusters Response."
       },
       "AnalysisAxisResponse": {
         "properties": {
@@ -6849,7 +7421,8 @@
           "axis_name",
           "score"
         ],
-        "title": "AnalysisAxisResponse"
+        "title": "AnalysisAxisResponse",
+        "description": "Analysis Axis Response."
       },
       "ArticleAnalysisRequest": {
         "properties": {
@@ -6873,7 +7446,8 @@
         "required": [
           "url"
         ],
-        "title": "ArticleAnalysisRequest"
+        "title": "ArticleAnalysisRequest",
+        "description": "Article Analysis Request."
       },
       "ArticleAnalysisResponse": {
         "properties": {
@@ -7037,7 +7611,8 @@
           "success",
           "article_url"
         ],
-        "title": "ArticleAnalysisResponse"
+        "title": "ArticleAnalysisResponse",
+        "description": "Article Analysis Response."
       },
       "BlindspotCardResponse": {
         "properties": {
@@ -7143,7 +7718,8 @@
           "coverage_shares",
           "articles"
         ],
-        "title": "BlindspotCardResponse"
+        "title": "BlindspotCardResponse",
+        "description": "Blindspot Card Response."
       },
       "BlindspotCoverageCountsResponse": {
         "properties": {
@@ -7166,7 +7742,8 @@
           "shared",
           "pole_b"
         ],
-        "title": "BlindspotCoverageCountsResponse"
+        "title": "BlindspotCoverageCountsResponse",
+        "description": "Blindspot Coverage Counts Response."
       },
       "BlindspotCoverageSharesResponse": {
         "properties": {
@@ -7189,7 +7766,8 @@
           "shared",
           "pole_b"
         ],
-        "title": "BlindspotCoverageSharesResponse"
+        "title": "BlindspotCoverageSharesResponse",
+        "description": "Blindspot Coverage Shares Response."
       },
       "BlindspotGeographySignalResponse": {
         "properties": {
@@ -7212,7 +7790,8 @@
           "label",
           "count"
         ],
-        "title": "BlindspotGeographySignalResponse"
+        "title": "BlindspotGeographySignalResponse",
+        "description": "Blindspot Geography Signal Response."
       },
       "BlindspotLaneResponse": {
         "properties": {
@@ -7245,7 +7824,8 @@
           "description",
           "cluster_count"
         ],
-        "title": "BlindspotLaneResponse"
+        "title": "BlindspotLaneResponse",
+        "description": "Blindspot Lane Response."
       },
       "BlindspotLensResponse": {
         "properties": {
@@ -7290,7 +7870,8 @@
           "description",
           "available"
         ],
-        "title": "BlindspotLensResponse"
+        "title": "BlindspotLensResponse",
+        "description": "Blindspot Lens Response."
       },
       "BlindspotPreviewArticleResponse": {
         "properties": {
@@ -7305,6 +7886,17 @@
           "source": {
             "type": "string",
             "title": "Source"
+          },
+          "source_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Source Id"
           },
           "url": {
             "type": "string",
@@ -7346,6 +7938,80 @@
           "similarity": {
             "type": "number",
             "title": "Similarity"
+          },
+          "country": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Country"
+          },
+          "source_country": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Source Country"
+          },
+          "category": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Category"
+          },
+          "bias": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Bias"
+          },
+          "credibility": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Credibility"
+          },
+          "author": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Author"
+          },
+          "authors": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Authors",
+            "default": []
           }
         },
         "type": "object",
@@ -7356,7 +8022,8 @@
           "url",
           "similarity"
         ],
-        "title": "BlindspotPreviewArticleResponse"
+        "title": "BlindspotPreviewArticleResponse",
+        "description": "Blindspot Preview Article Response."
       },
       "BlindspotViewerResponse": {
         "properties": {
@@ -7401,7 +8068,8 @@
           "cards",
           "status"
         ],
-        "title": "BlindspotViewerResponse"
+        "title": "BlindspotViewerResponse",
+        "description": "Blindspot Viewer Response."
       },
       "BlindspotViewerSummaryResponse": {
         "properties": {
@@ -7448,7 +8116,8 @@
           "generated_at",
           "source_filters"
         ],
-        "title": "BlindspotViewerSummaryResponse"
+        "title": "BlindspotViewerSummaryResponse",
+        "description": "Blindspot Viewer Summary Response."
       },
       "BookmarkCreateRequest": {
         "properties": {
@@ -7461,7 +8130,8 @@
         "required": [
           "article_id"
         ],
-        "title": "BookmarkCreateRequest"
+        "title": "BookmarkCreateRequest",
+        "description": "Bookmark Create Request."
       },
       "BreakingCluster": {
         "properties": {
@@ -7541,7 +8211,8 @@
           "spike_magnitude",
           "is_new_story"
         ],
-        "title": "BreakingCluster"
+        "title": "BreakingCluster",
+        "description": "Breaking Cluster."
       },
       "BreakingResponse": {
         "properties": {
@@ -7567,7 +8238,8 @@
           "clusters",
           "total"
         ],
-        "title": "BreakingResponse"
+        "title": "BreakingResponse",
+        "description": "Breaking Response."
       },
       "BrowseIndexResponse": {
         "properties": {
@@ -7701,7 +8373,8 @@
           "source",
           "url"
         ],
-        "title": "ClusterArticle"
+        "title": "ClusterArticle",
+        "description": "Cluster Article."
       },
       "ClusterDetailResponse": {
         "properties": {
@@ -7785,7 +8458,8 @@
           "last_seen",
           "is_active"
         ],
-        "title": "ClusterDetailResponse"
+        "title": "ClusterDetailResponse",
+        "description": "Cluster Detail Response."
       },
       "ComparisonRequest": {
         "properties": {
@@ -7863,7 +8537,8 @@
           "low",
           "very_low"
         ],
-        "title": "ConfidenceLevel"
+        "title": "ConfidenceLevel",
+        "description": "Ordinal confidence tier assigned to a verified claim."
       },
       "CoverageReportResponse": {
         "properties": {
@@ -7968,7 +8643,8 @@
           "character_start",
           "character_end"
         ],
-        "title": "CreateHighlightRequest"
+        "title": "CreateHighlightRequest",
+        "description": "Create Highlight Request."
       },
       "FrontendDebugReport": {
         "properties": {
@@ -8060,7 +8736,8 @@
           "session_id",
           "summary"
         ],
-        "title": "FrontendDebugReport"
+        "title": "FrontendDebugReport",
+        "description": "Frontend Debug Report."
       },
       "GDELTContext": {
         "properties": {
@@ -8157,7 +8834,8 @@
         "required": [
           "total_events"
         ],
-        "title": "GDELTContext"
+        "title": "GDELTContext",
+        "description": "GDELT Context."
       },
       "GDELTTopCameo": {
         "properties": {
@@ -8192,7 +8870,8 @@
         "required": [
           "count"
         ],
-        "title": "GDELTTopCameo"
+        "title": "GDELTTopCameo",
+        "description": "GDELT Top Cameo."
       },
       "HTTPValidationError": {
         "properties": {
@@ -8295,7 +8974,8 @@
           "character_start",
           "character_end"
         ],
-        "title": "Highlight"
+        "title": "Highlight",
+        "description": "Highlight."
       },
       "InlineDefineRequest": {
         "properties": {
@@ -8321,7 +9001,8 @@
         "required": [
           "term"
         ],
-        "title": "InlineDefineRequest"
+        "title": "InlineDefineRequest",
+        "description": "Inline Define Request."
       },
       "InlineDefineResponse": {
         "properties": {
@@ -8361,7 +9042,8 @@
           "success",
           "term"
         ],
-        "title": "InlineDefineResponse"
+        "title": "InlineDefineResponse",
+        "description": "Inline Define Response."
       },
       "JobStartResponse": {
         "properties": {
@@ -8477,7 +9159,8 @@
           "source_country",
           "mentioned_countries"
         ],
-        "title": "MaterialContextRequest"
+        "title": "MaterialContextRequest",
+        "description": "Material Context Request."
       },
       "MaterialContextResponse": {
         "properties": {
@@ -8573,7 +9256,8 @@
           "known_interests",
           "potential_conflicts"
         ],
-        "title": "MaterialContextResponse"
+        "title": "MaterialContextResponse",
+        "description": "Material Context Response."
       },
       "NewsArticle": {
         "properties": {
@@ -8669,7 +9353,8 @@
           "published",
           "source"
         ],
-        "title": "NewsArticle"
+        "title": "NewsArticle",
+        "description": "News Article."
       },
       "NewsResearchRequest": {
         "properties": {
@@ -8687,7 +9372,8 @@
         "required": [
           "query"
         ],
-        "title": "NewsResearchRequest"
+        "title": "NewsResearchRequest",
+        "description": "News Research Request."
       },
       "NewsResearchResponse": {
         "properties": {
@@ -8748,7 +9434,8 @@
           "query",
           "answer"
         ],
-        "title": "NewsResearchResponse"
+        "title": "NewsResearchResponse",
+        "description": "News Research Response."
       },
       "NewsResponse": {
         "properties": {
@@ -8777,7 +9464,8 @@
           "total",
           "sources"
         ],
-        "title": "NewsResponse"
+        "title": "NewsResponse",
+        "description": "News Response."
       },
       "OrganizationResearchRequest": {
         "properties": {
@@ -8801,7 +9489,8 @@
         "required": [
           "name"
         ],
-        "title": "OrganizationResearchRequest"
+        "title": "OrganizationResearchRequest",
+        "description": "Organization Research Request."
       },
       "OrganizationResearchResponse": {
         "properties": {
@@ -8968,7 +9657,8 @@
         "required": [
           "name"
         ],
-        "title": "OrganizationResearchResponse"
+        "title": "OrganizationResearchResponse",
+        "description": "Organization Research Response."
       },
       "OwnershipChainResponse": {
         "properties": {
@@ -8995,7 +9685,8 @@
           "chain",
           "depth"
         ],
-        "title": "OwnershipChainResponse"
+        "title": "OwnershipChainResponse",
+        "description": "Ownership Chain Response."
       },
       "OwnershipGraphResponse": {
         "properties": {
@@ -9163,7 +9854,7 @@
           "estimated_total_read_time_minutes"
         ],
         "title": "QueueOverviewResponse",
-        "description": "Queue overview statistics."
+        "description": "Queue Overview Response."
       },
       "QueueResponse": {
         "properties": {
@@ -9194,7 +9885,73 @@
           "permanent_count",
           "total_count"
         ],
-        "title": "QueueResponse"
+        "title": "QueueResponse",
+        "description": "Queue Response."
+      },
+      "RankRequest": {
+        "properties": {
+          "articles": {
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "type": "array",
+            "title": "Articles"
+          },
+          "liked_article_ids": {
+            "items": {
+              "type": "integer"
+            },
+            "type": "array",
+            "title": "Liked Article Ids",
+            "default": []
+          },
+          "bookmarked_article_ids": {
+            "items": {
+              "type": "integer"
+            },
+            "type": "array",
+            "title": "Bookmarked Article Ids",
+            "default": []
+          },
+          "favorite_source_ids": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Favorite Source Ids",
+            "default": []
+          }
+        },
+        "type": "object",
+        "required": [
+          "articles"
+        ],
+        "title": "RankRequest",
+        "description": "Request model for the ranked feed endpoint."
+      },
+      "RankResponse": {
+        "properties": {
+          "articles": {
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "type": "array",
+            "title": "Articles"
+          },
+          "total": {
+            "type": "integer",
+            "title": "Total"
+          }
+        },
+        "type": "object",
+        "required": [
+          "articles",
+          "total"
+        ],
+        "title": "RankResponse",
+        "description": "Response model for the ranked feed endpoint."
       },
       "ReadingQueueItem": {
         "properties": {
@@ -9345,7 +10102,8 @@
           "article_source",
           "added_at"
         ],
-        "title": "ReadingQueueItem"
+        "title": "ReadingQueueItem",
+        "description": "Reading Queue Item."
       },
       "RecentPageResponse": {
         "properties": {
@@ -9883,6 +10641,30 @@
             "title": "Recent Articles",
             "default": []
           },
+          "activity_summary": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Activity Summary"
+          },
+          "employer_context": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Employer Context"
+          },
           "research_sources": {
             "anyOf": [
               {
@@ -9917,6 +10699,31 @@
         "title": "ReporterDossierResponse",
         "description": "Full reporter dossier for the wiki page."
       },
+      "ReporterGraphResponse": {
+        "properties": {
+          "nodes": {
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "type": "array",
+            "title": "Nodes",
+            "default": []
+          },
+          "edges": {
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "type": "array",
+            "title": "Edges",
+            "default": []
+          }
+        },
+        "type": "object",
+        "title": "ReporterGraphResponse",
+        "description": "Reporter Graph Response."
+      },
       "ReporterProfileRequest": {
         "properties": {
           "name": {
@@ -9950,7 +10757,8 @@
         "required": [
           "name"
         ],
-        "title": "ReporterProfileRequest"
+        "title": "ReporterProfileRequest",
+        "description": "Reporter Profile Request."
       },
       "ReporterProfileResponse": {
         "properties": {
@@ -10237,7 +11045,8 @@
         "required": [
           "name"
         ],
-        "title": "ReporterProfileResponse"
+        "title": "ReporterProfileResponse",
+        "description": "Reporter Profile Response."
       },
       "SourceBatchRequest": {
         "properties": {
@@ -10258,7 +11067,8 @@
         "required": [
           "sources"
         ],
-        "title": "SourceBatchRequest"
+        "title": "SourceBatchRequest",
+        "description": "Source Batch Request."
       },
       "SourceBatchResponse": {
         "properties": {
@@ -10291,7 +11101,8 @@
           "cached_count",
           "newly_researched_count"
         ],
-        "title": "SourceBatchResponse"
+        "title": "SourceBatchResponse",
+        "description": "Source Batch Response."
       },
       "SourceBlindSpotsResponse": {
         "properties": {
@@ -10477,7 +11288,8 @@
           "name",
           "article_count"
         ],
-        "title": "SourceReporterSummary"
+        "title": "SourceReporterSummary",
+        "description": "Source Reporter Summary."
       },
       "SourceResearchRequest": {
         "properties": {
@@ -10501,7 +11313,8 @@
         "required": [
           "name"
         ],
-        "title": "SourceResearchRequest"
+        "title": "SourceResearchRequest",
+        "description": "Source Research Request."
       },
       "SourceResearchResponse": {
         "properties": {
@@ -10676,6 +11489,42 @@
               }
             ],
             "title": "Match Explanation"
+          },
+          "policy_transparency": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Policy Transparency"
+          },
+          "ads_txt": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ads Txt"
+          },
+          "sellers_json": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Sellers Json"
           }
         },
         "type": "object",
@@ -10683,7 +11532,8 @@
           "name",
           "fields"
         ],
-        "title": "SourceResearchResponse"
+        "title": "SourceResearchResponse",
+        "description": "Source Research Response."
       },
       "SourceResearchValue": {
         "properties": {
@@ -10721,7 +11571,8 @@
         "required": [
           "value"
         ],
-        "title": "SourceResearchValue"
+        "title": "SourceResearchValue",
+        "description": "Source Research Value."
       },
       "SourceType": {
         "type": "string",
@@ -10738,13 +11589,25 @@
           "social",
           "unknown"
         ],
-        "title": "SourceType"
+        "title": "SourceType",
+        "description": "Classification of a source's organizational nature."
       },
       "SourceWikiResponse": {
         "properties": {
           "name": {
             "type": "string",
             "title": "Name"
+          },
+          "website": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Website"
           },
           "country": {
             "anyOf": [
@@ -10934,6 +11797,62 @@
             ],
             "title": "Match Explanation"
           },
+          "official_pages": {
+            "items": {
+              "additionalProperties": {
+                "type": "string"
+              },
+              "type": "object"
+            },
+            "type": "array",
+            "title": "Official Pages",
+            "default": []
+          },
+          "policy_transparency": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Policy Transparency"
+          },
+          "ads_txt": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ads Txt"
+          },
+          "sellers_json": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Sellers Json"
+          },
+          "claims": {
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "type": "array",
+            "title": "Claims",
+            "default": []
+          },
           "analysis_axes": {
             "items": {
               "$ref": "#/components/schemas/AnalysisAxisResponse"
@@ -11044,7 +11963,8 @@
           "content",
           "timestamp"
         ],
-        "title": "ThinkingStep"
+        "title": "ThinkingStep",
+        "description": "Thinking Step."
       },
       "TopicBlindSpotResponse": {
         "properties": {
@@ -11197,7 +12117,8 @@
           "trending_score",
           "velocity"
         ],
-        "title": "TrendingCluster"
+        "title": "TrendingCluster",
+        "description": "Trending Cluster."
       },
       "TrendingResponse": {
         "properties": {
@@ -11223,7 +12144,8 @@
           "clusters",
           "total"
         ],
-        "title": "TrendingResponse"
+        "title": "TrendingResponse",
+        "description": "Trending Response."
       },
       "UpdateHighlightRequest": {
         "properties": {
@@ -11251,7 +12173,8 @@
           }
         },
         "type": "object",
-        "title": "UpdateHighlightRequest"
+        "title": "UpdateHighlightRequest",
+        "description": "Update Highlight Request."
       },
       "UpdateQueueItemRequest": {
         "properties": {
@@ -11302,7 +12225,8 @@
           }
         },
         "type": "object",
-        "title": "UpdateQueueItemRequest"
+        "title": "UpdateQueueItemRequest",
+        "description": "Update Queue Item Request."
       },
       "ValidationError": {
         "properties": {
@@ -11381,7 +12305,8 @@
         "required": [
           "query"
         ],
-        "title": "VerificationRequest"
+        "title": "VerificationRequest",
+        "description": "Input to the verification agent with the research findings to check."
       },
       "VerificationResult": {
         "properties": {
@@ -11444,7 +12369,8 @@
           "overall_confidence",
           "overall_confidence_level"
         ],
-        "title": "VerificationResult"
+        "title": "VerificationResult",
+        "description": "Aggregated result containing all verified claims and their sources."
       },
       "VerifiedClaim": {
         "properties": {
@@ -11510,7 +12436,8 @@
           "confidence",
           "confidence_level"
         ],
-        "title": "VerifiedClaim"
+        "title": "VerifiedClaim",
+        "description": "A single claim that has been cross-referenced against sources."
       },
       "WikiIndexStatusResponse": {
         "properties": {
@@ -11537,7 +12464,8 @@
           }
         },
         "type": "object",
-        "title": "WikiIndexStatusResponse"
+        "title": "WikiIndexStatusResponse",
+        "description": "Wiki Index Status Response."
       },
       "app__models__news__SourceInfo": {
         "properties": {
@@ -11654,7 +12582,8 @@
           "url",
           "category"
         ],
-        "title": "SourceInfo"
+        "title": "SourceInfo",
+        "description": "Source Info."
       },
       "app__models__verification__SourceInfo": {
         "properties": {
@@ -11726,7 +12655,8 @@
           "domain",
           "credibility_score"
         ],
-        "title": "SourceInfo"
+        "title": "SourceInfo",
+        "description": "Metadata for a single supporting or conflicting source."
       }
     }
   }

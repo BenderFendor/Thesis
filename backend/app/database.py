@@ -388,6 +388,13 @@ class Reporter(Base):
     last_researched_at = Column(DateTime)
     research_confidence = Column(String)  # overall confidence in data quality
 
+    # Reporter identity graph fields (Phase A)
+    canonical_author_url = Column(String)  # outlet + path identity key
+    author_page_url = Column(String)  # discovered profile page URL
+    confidence_tier = Column(String)  # verified | strong | likely | unmatched
+    confidence_score = Column(Float, nullable=True)  # 0.0-1.0 numeric score
+    claims_count = Column(Integer, default=0)  # count of reporter_claim records
+
     created_at = Column(DateTime, default=get_utc_now)
     updated_at = Column(DateTime, default=get_utc_now, onupdate=get_utc_now)
 
@@ -460,6 +467,8 @@ class ArticleAuthor(Base):
     reporter_id = Column(Integer, nullable=False, index=True)
     author_role = Column(String, default="author")  # author, contributor, editor
     author_confidence = Column(Float, nullable=True)  # 0.0-1.0 confidence in reporter-article link
+    observation_source = Column(String)  # jsonld, meta_author, anchor_rel, rss_byline, microdata
+    author_url_raw = Column(String)  # the URL from structured data before resolution
 
     created_at = Column(DateTime, default=get_utc_now)
 
@@ -471,6 +480,62 @@ class ArticleAuthor(Base):
             unique=True,
         ),
     )
+
+
+class ReporterClaim(Base):
+    """Versioned claim records for reporter dossiers with provenance metadata."""
+
+    __tablename__ = "reporter_claims"
+
+    id = Column(Integer, primary_key=True, index=True)
+    reporter_id = Column(
+        Integer,
+        ForeignKey("reporters.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+    claim_type = Column(String, nullable=False, index=True)
+    claim_value = Column(Text, nullable=False)
+    source_url = Column(Text)
+    source_type = Column(String, nullable=False)  # author_page, wikidata, openalex, wayback, etc.
+
+    # Confidence and provenance
+    confidence = Column(Float, default=0.5)
+    is_current = Column(Boolean, default=True, index=True)
+    valid_from = Column(DateTime, default=get_utc_now)
+    valid_to = Column(DateTime)
+
+    created_at = Column(DateTime, default=get_utc_now)
+    updated_at = Column(DateTime, default=get_utc_now, onupdate=get_utc_now)
+
+    __table_args__ = (
+        Index("ix_reporter_claims_reporter_current", "reporter_id", "is_current"),
+        Index("ix_reporter_claims_reporter_type", "reporter_id", "claim_type"),
+    )
+
+
+class IdentityEdge(Base):
+    """Cross-entity identity links for reporters."""
+
+    __tablename__ = "identity_edges"
+
+    id = Column(Integer, primary_key=True, index=True)
+    reporter_id = Column(
+        Integer,
+        ForeignKey("reporters.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+    target_url = Column(String, nullable=False)
+    edge_type = Column(
+        String, nullable=False, index=True
+    )  # sameAs, author_url, social_link, wikidata, viaf, openalex
+    source_url = Column(String)
+    confidence = Column(Float, default=0.5)
+
+    created_at = Column(DateTime, default=get_utc_now)
+
+    __table_args__ = (Index("ix_identity_edges_reporter_type", "reporter_id", "edge_type"),)
 
 
 class GDELTEvent(Base):

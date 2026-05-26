@@ -6,6 +6,7 @@ import asyncio
 import json
 import re
 from collections import Counter, OrderedDict
+from html import unescape
 from typing import Any
 from collections.abc import Iterable
 from urllib.parse import urljoin, urlparse
@@ -13,6 +14,11 @@ from urllib.parse import urljoin, urlparse
 import httpx
 
 from app.core.logging import get_logger
+from app.services.cloudflare_fetcher import (
+    classify_access_barrier,
+    fetch_html_document,
+    outcome_to_error,
+)
 
 logger = get_logger("reporter_public_records")
 
@@ -24,6 +30,7 @@ _META_AUTHOR_PATTERN = re.compile(
     r"<meta[^>]+name=[\"']author[\"'][^>]+content=[\"']([^\"']+)[\"'][^>]*>",
     re.IGNORECASE,
 )
+_META_TAG_PATTERN = re.compile(r"<meta\b([^>]*)>", re.IGNORECASE | re.DOTALL)
 _ITEMPROP_AUTHOR_PATTERN = re.compile(
     r"<[^>]+itemprop=[\"']author[\"'][^>]*>(.*?)</[^>]+>",
     re.IGNORECASE | re.DOTALL,
@@ -35,6 +42,25 @@ _AUTHOR_PATH_PATTERN = re.compile(
     re.IGNORECASE,
 )
 _EMAIL_WRAPPED_NAME_PATTERN = re.compile(r"^[^\s@]+@[^\s@]+\s*\(([^)]+)\)$")
+_EMAIL_PATTERN = re.compile(r"[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}")
+_TRAILING_PARENTHETICAL_PATTERN = re.compile(r"^(.+?)\s*\([^)]+\)$")
+_ROLE_SUFFIX_SEPARATOR_PATTERN = re.compile(r"\s+(?:-|–|—|\|)\s+(.+)$")
+_LOCATION_SUFFIX_PATTERN = re.compile(
+    r"^(.+?)\s+(?:in|at)\s+[A-Za-z][A-Za-z .'-]+$",
+    re.IGNORECASE,
+)
+_TRAILING_SECTION_SUFFIX_PATTERN = re.compile(
+    r"^(.+?)\s+"
+    r"(?:africa|asia|australia|business|culture|environment|europe|middle east|"
+    r"politics|science|sport|sports|technology|uk|us)$",
+    re.IGNORECASE,
+)
+_TRAILING_BEAT_SUFFIX_PATTERN = re.compile(
+    r"^(.+?)\s+"
+    r"(?:community|consumer|education|foreign|health|home|legal|media|political|royal|social)\s+"
+    r"affairs$",
+    re.IGNORECASE,
+)
 _NON_PERSON_AUTHOR_LABELS = {
     "about",
     "admin",
@@ -43,32 +69,157 @@ _NON_PERSON_AUTHOR_LABELS = {
     "authors",
     "bluesky",
     "board of directors",
+    "breitbart tv",
+    "change password",
+    "chalkbeat philadelphia",
     "comments",
+    "contributing writer",
     "contact",
+    "crime correspondent",
     "email",
+    "el jalapeno",
+    "el jalapeño",
     "facebook",
+    "fpa obituary",
+    "l'equipe tv",
+    "guest contributor",
+    "guardian sport",
+    "guardian correspondents",
+    "guardian writers",
+    "inequalities correspondent",
     "instagram",
     "linkedin",
+    "malay mail",
     "mastodon",
+    "mengesnamibian com na",
+    "mnd plus",
+    "namibia press agency",
     "news desk",
+    "newsday reporter",
     "newsletter",
+    "observer online reporter",
+    "onzonkundaneki yetu",
+    "nashville public radio",
+    "national post view",
+    "parx casino",
     "people",
+    "pennsylvania capital star",
+    "phillyvoice in partnership",
     "print",
     "share",
+    "socialism ai",
+    "social affairs",
     "staff",
+    "special to national post",
     "telegram",
     "threads",
     "twitter",
+    "university of california",
     "view license",
+    "visit philadelphia",
     "whatsapp",
     "x",
     "youtube",
+    "يمن مونيتور",
+    "amnesty international",
+    "agencia efe",
+    "agence france-presse",
+    "australian associated press",
+    "associated press",
+    "press release",
+    "the costa rica star",
+    "the associated press",
+    "the brief",
+    "the france 24 observers",
+    "sponsored by independence blue cross",
 }
 _NON_PERSON_AUTHOR_PHRASES = (
+    "anonymous ",
     "board of directors",
+    "editorial board",
+    "editorial team",
+    "editorial staff",
+    "news desk",
+    "newsroom",
     "cookie policy",
     "privacy policy",
     "terms of use",
+)
+_ROLE_SUFFIX_TERMS = (
+    "columnist",
+    "contributor",
+    "correspondent",
+    "digital",
+    "editor",
+    "online",
+    "reporter",
+    "staff",
+    "writer",
+)
+_ROLE_ONLY_PREFIXES = {
+    "business",
+    "climate",
+    "crime",
+    "culture",
+    "community",
+    "education",
+    "environment",
+    "foreign",
+    "global development",
+    "health",
+    "home",
+    "inequalities",
+    "legal",
+    "media",
+    "news",
+    "political",
+    "royal",
+    "science",
+    "social",
+    "sport",
+    "sports",
+    "technology",
+    "uk",
+    "us",
+}
+_LEADING_ROLE_PREFIX_PATTERN = re.compile(
+    r"^(?:lead|senior|chief|staff|digital|online|associate|assistant)?\s*"
+    r"(?:producer|reporter|correspondent|editor|writer|columnist|blogger)\s+(.+)$",
+    re.IGNORECASE,
+)
+_TRAILING_ROLE_SUFFIX_PATTERN = re.compile(
+    r"^(.+?)\s+"
+    r"(?:(?:assistant|associate|business|chief|content|digital|foreign|lead|national|"
+    r"contributing|guest|observer|online|political|senior|special|sports?|state|staff|"
+    r"sunday|victorian)\s+){0,6}"
+    r"(?:blogger|columnist|contributor|coordinator|correspondent|editor|freelancer|manager|producer|"
+    r"reporter|writer)$",
+    re.IGNORECASE,
+)
+_ORGANIZATION_AUTHOR_PATTERN = re.compile(
+    r"\b("
+    r"association|committee|company|corp(?:oration)?|editor(?:a|ial)?|enterprise|"
+    r"federation|foundation|group|inc|institute|international|llc|ltd|"
+    r"media|newspaper|newsroom|publisher|publishing|services|society|staff|students|team|youth"
+    r")\b|"
+    r"\b(s\.?a\.?|s\.?a\.?c\.?|s\.?a\.?s\.?)\b",
+    re.IGNORECASE,
+)
+_ROLE_AUTHOR_PATTERN = re.compile(
+    r"^(staff|sports?|business|culture|political|news|online|digital)\s+"
+    r"(?:correspondent|reporter)$|^the\s+.+\s+reporter$",
+    re.IGNORECASE,
+)
+_GENERIC_BYLINE_PATTERN = re.compile(
+    r"\b("
+    r"bureau|desk|digital|editors?|fact\s*check|news|redacci[oó]n|"
+    r"report|reports?|staff|wire"
+    r")\b",
+    re.IGNORECASE,
+)
+_GENERIC_BYLINE_EXACT_PATTERN = re.compile(
+    r"^(?:our\s+)?correspondents?$",
+    re.IGNORECASE,
 )
 
 
@@ -99,6 +250,10 @@ def _ordered_unique(values: Iterable[str | None]) -> list[str]:
     return list(unique.keys())
 
 
+def _word_token_count(value: str) -> int:
+    return len(re.findall(r"[^\W\d_]+", value, flags=re.UNICODE))
+
+
 def _domain(url: str | None) -> str | None:
     if not url:
         return None
@@ -115,7 +270,8 @@ def _is_fetchable_article_url(url: str) -> bool:
 
 def _parse_tag_attrs(raw_attrs: str) -> dict[str, str]:
     return {
-        match.group(1).lower(): match.group(2) for match in _TAG_ATTR_PATTERN.finditer(raw_attrs)
+        match.group(1).lower(): unescape(match.group(2))
+        for match in _TAG_ATTR_PATTERN.finditer(raw_attrs)
     }
 
 
@@ -123,7 +279,7 @@ def _strip_html(value: str) -> str:
     text = re.sub(r"(?is)<script.*?>.*?</script>", " ", value)
     text = re.sub(r"(?is)<style.*?>.*?</style>", " ", text)
     text = re.sub(r"(?is)<[^>]+>", " ", text)
-    text = re.sub(r"\s+", " ", text)
+    text = unescape(re.sub(r"\s+", " ", text))
     return text.strip()
 
 
@@ -131,30 +287,92 @@ def clean_author_name(value: str | None) -> str | None:
     """Return a reporter-like author name or None for generic navigation labels."""
     if not isinstance(value, str):
         return None
-    text = _strip_html(value)
+    text = _strip_html(value).replace("\u200b", "").replace("\ufeff", "")
     if not text:
         return None
 
     wrapped = _EMAIL_WRAPPED_NAME_PATTERN.match(text)
-    if wrapped:
-        text = wrapped.group(1).strip()
+    text = wrapped.group(1).strip() if wrapped else _EMAIL_PATTERN.sub(" ", text)
 
     if " / " in text:
         first_part = text.split(" / ", 1)[0].strip()
         if first_part:
             text = first_part
 
+    text = text.replace("`", "'")
     text = re.sub(r"\s+", " ", text).strip(" \t\r\n:|,;")
+    text = re.sub(
+        r"^(?:analysis|exclusive|illustrations?|photographs?|photography|"
+        r"photos?|pictures?|presented|produced|reported|written|words)\s+by\s+",
+        "",
+        text,
+        flags=re.IGNORECASE,
+    ).strip()
+    text = re.sub(r"^as\s+told\s+to\s+", "", text, flags=re.IGNORECASE).strip()
+    text = re.sub(r"^(?:by|por)\s+", "", text, flags=re.IGNORECASE).strip()
+    parenthetical_match = _TRAILING_PARENTHETICAL_PATTERN.match(text)
+    if parenthetical_match:
+        parenthetical_candidate = parenthetical_match.group(1).strip()
+        if _word_token_count(parenthetical_candidate) >= 2:
+            text = parenthetical_candidate
+    suffix_match = _ROLE_SUFFIX_SEPARATOR_PATTERN.search(text)
+    if suffix_match:
+        suffix = suffix_match.group(1).lower()
+        prefix = text[: suffix_match.start()].strip()
+        if prefix and any(term in suffix for term in _ROLE_SUFFIX_TERMS):
+            text = prefix
+        elif prefix and _word_token_count(suffix) >= 2:
+            return None
+    leading_role_match = _LEADING_ROLE_PREFIX_PATTERN.match(text)
+    if leading_role_match:
+        leading_candidate = leading_role_match.group(1).strip()
+        if _word_token_count(leading_candidate) >= 2:
+            text = leading_candidate
+    trailing_role_match = _TRAILING_ROLE_SUFFIX_PATTERN.match(text)
+    if trailing_role_match:
+        trailing_candidate = trailing_role_match.group(1).strip()
+        lowered_trailing_candidate = trailing_candidate.lower()
+        if lowered_trailing_candidate in _ROLE_ONLY_PREFIXES:
+            return None
+        if _word_token_count(trailing_candidate) >= 2 and not lowered_trailing_candidate.startswith(
+            "the "
+        ):
+            text = trailing_candidate
+    location_suffix_match = _LOCATION_SUFFIX_PATTERN.match(text)
+    if location_suffix_match:
+        location_candidate = location_suffix_match.group(1).strip()
+        if _word_token_count(location_candidate) >= 2:
+            text = location_candidate
+    for _ in range(3):
+        section_suffix_match = _TRAILING_SECTION_SUFFIX_PATTERN.match(text)
+        if section_suffix_match:
+            section_candidate = section_suffix_match.group(1).strip()
+            if _word_token_count(section_candidate) >= 2:
+                text = section_candidate
+                continue
+        beat_suffix_match = _TRAILING_BEAT_SUFFIX_PATTERN.match(text)
+        if beat_suffix_match:
+            beat_candidate = beat_suffix_match.group(1).strip()
+            if _word_token_count(beat_candidate) >= 2:
+                text = beat_candidate
+                continue
+        break
     lowered = text.lower()
     if (
         not text
         or lowered in _NON_PERSON_AUTHOR_LABELS
         or any(phrase in lowered for phrase in _NON_PERSON_AUTHOR_PHRASES)
+        or _ORGANIZATION_AUTHOR_PATTERN.search(text)
+        or _ROLE_AUTHOR_PATTERN.search(text)
+        or _GENERIC_BYLINE_PATTERN.search(text)
+        or _GENERIC_BYLINE_EXACT_PATTERN.match(text)
+        or ("_" in text and " " not in text)
+        or ((" " not in text) and re.search(r"[.@\d]", text))
+        or bool(re.fullmatch(r"([A-Za-z]+)\d+\s+\1\d+", text))
     ):
         return None
 
-    word_tokens = re.findall(r"[^\W\d_]+", text, flags=re.UNICODE)
-    if len(word_tokens) < 2:
+    if _word_token_count(text) < 2:
         return None
 
     return text
@@ -183,6 +401,90 @@ def _collect_author_objects(payload: Any) -> list[dict[str, Any]]:
         for item in payload:
             results.extend(_collect_author_objects(item))
     return results
+
+
+def _collect_json_ld_publishers(payload: Any) -> list[str]:
+    publishers: list[str] = []
+    if isinstance(payload, dict):
+        publisher = payload.get("publisher") or payload.get("sourceOrganization")
+        if isinstance(publisher, dict):
+            name = publisher.get("name")
+            if isinstance(name, str) and name.strip():
+                publishers.append(name.strip())
+        elif isinstance(publisher, str) and publisher.strip():
+            publishers.append(publisher.strip())
+
+        graph = payload.get("@graph")
+        if isinstance(graph, list):
+            for item in graph:
+                publishers.extend(_collect_json_ld_publishers(item))
+    elif isinstance(payload, list):
+        for item in payload:
+            publishers.extend(_collect_json_ld_publishers(item))
+    return publishers
+
+
+_AUTHOR_META_KEYS = {
+    "article:author",
+    "author",
+    "byl",
+    "byline",
+    "citation_author",
+    "dc.creator",
+    "dcterms.creator",
+    "parsely-author",
+    "sailthru.author",
+}
+_PUBLISHER_META_KEYS = {
+    "article:publisher",
+    "dc.publisher",
+    "dcterms.publisher",
+    "og:site_name",
+    "twitter:site",
+}
+
+
+def _meta_entries(html: str) -> list[tuple[str, str]]:
+    entries: list[tuple[str, str]] = []
+    for raw_attrs in _META_TAG_PATTERN.findall(html):
+        attrs = _parse_tag_attrs(raw_attrs)
+        key = (attrs.get("name") or attrs.get("property") or attrs.get("itemprop") or "").strip()
+        content = (attrs.get("content") or "").strip()
+        if key and content:
+            entries.append((key.lower(), content))
+    return entries
+
+
+def _parse_metadata_author_data(html: str, page_url: str) -> dict[str, list[str]]:
+    names: list[str] = []
+    author_pages: list[str] = []
+    publishers: list[str] = []
+    site_names: list[str] = []
+    for key, content in _meta_entries(html):
+        if key in _AUTHOR_META_KEYS:
+            if content.startswith(("http://", "https://", "/")):
+                author_pages.append(urljoin(page_url, content))
+                continue
+            for part in re.split(r"\s+(?:and|with)\s+|[,;]", content):
+                name = clean_author_name(part)
+                if name:
+                    names.append(name)
+        elif key in _PUBLISHER_META_KEYS:
+            cleaned = _strip_html(content).strip()
+            if cleaned.startswith("@"):
+                cleaned = cleaned[1:].strip()
+            if not cleaned:
+                continue
+            if key == "og:site_name":
+                site_names.append(cleaned)
+            else:
+                publishers.append(cleaned)
+    return {
+        "names": _ordered_unique(names),
+        "author_pages": _ordered_unique(author_pages),
+        "publisher_names": _ordered_unique(publishers),
+        "site_names": _ordered_unique(site_names),
+    }
 
 
 def _parse_json_ld_author_data(
@@ -228,7 +530,8 @@ def _parse_anchor_author_links(html: str, reporter_name: str, page_url: str) -> 
         text = _strip_html(raw_text)
         absolute = urljoin(page_url, href)
         if "author" in rel.lower() or _AUTHOR_PATH_PATTERN.search(urlparse(absolute).path):
-            if text and not _name_matches(text, reporter_name):
+            label = text or attrs.get("aria-label", "") or attrs.get("title", "")
+            if not label or not _name_matches(label, reporter_name):
                 continue
             links.append(absolute)
     return _ordered_unique(links)
@@ -248,12 +551,16 @@ def extract_article_author_candidates(html: str, page_url: str) -> dict[str, Any
     social_links: list[str] = []
     structured_person_names: list[str] = []
     microdata_author_names: list[str] = []
+    metadata_author_names: list[str] = []
+    publisher_names: list[str] = []
+    site_names: list[str] = []
 
     for raw_json in _JSON_LD_PATTERN.findall(html):
         try:
             payload = json.loads(raw_json.strip())
         except json.JSONDecodeError:
             continue
+        publisher_names.extend(_collect_json_ld_publishers(payload))
         for author in _collect_author_objects(payload):
             name = clean_author_name(author.get("name"))
             if name:
@@ -272,10 +579,12 @@ def extract_article_author_candidates(html: str, page_url: str) -> dict[str, Any
             elif isinstance(same_as, str):
                 social_links.append(urljoin(page_url, same_as))
 
-    meta_author = _author_name_from_meta(html)
-    meta_author = clean_author_name(meta_author)
-    if meta_author:
-        names.append(meta_author)
+    metadata_authors = _parse_metadata_author_data(html, page_url)
+    names.extend(metadata_authors["names"])
+    author_pages.extend(metadata_authors["author_pages"])
+    metadata_author_names.extend(metadata_authors["names"])
+    publisher_names.extend(metadata_authors["publisher_names"])
+    site_names.extend(metadata_authors["site_names"])
     for raw_author in _ITEMPROP_AUTHOR_PATTERN.findall(html):
         author_text = clean_author_name(raw_author)
         if author_text:
@@ -302,6 +611,9 @@ def extract_article_author_candidates(html: str, page_url: str) -> dict[str, Any
         "social_links": _ordered_unique(social_links),
         "structured_person_names": _ordered_unique(structured_person_names),
         "microdata_author_names": _ordered_unique(microdata_author_names),
+        "metadata_author_names": _ordered_unique(metadata_author_names),
+        "publisher_names": _ordered_unique(publisher_names),
+        "site_names": _ordered_unique(site_names),
     }
 
 
@@ -310,27 +622,32 @@ async def _fetch_article_author_signals(
     reporter_name: str,
     article_url: str,
 ) -> dict[str, Any]:
-    try:
-        response = await client.get(article_url, follow_redirects=True)
-    except Exception as exc:
-        logger.debug("Reporter article fetch failed for %s: %s", article_url, exc)
-        return {}
+    outcome = await fetch_html_document(client, article_url, timeout_seconds=15.0)
+    fetch_error = outcome_to_error(outcome)
+    if fetch_error:
+        logger.debug("Reporter article fetch failed for %s: %s", article_url, fetch_error)
+        result: dict[str, Any] = {"article_url": outcome.url, "access_path": outcome.access_path}
+        barrier = classify_access_barrier(outcome)
+        if barrier:
+            result["access_barrier"] = barrier
+        if outcome.fallback_error:
+            result["fallback_error"] = outcome.fallback_error
+        return result
 
-    if response.status_code != 200:
-        return {}
-    if "text/html" not in response.headers.get("content-type", ""):
-        return {}
-
-    html = response.text
-    json_ld = _parse_json_ld_author_data(html, reporter_name, str(response.url))
-    anchor_links = _parse_anchor_author_links(html, reporter_name, str(response.url))
-    meta_author = _author_name_from_meta(html)
+    html = outcome.text
+    json_ld = _parse_json_ld_author_data(html, reporter_name, outcome.url)
+    anchor_links = _parse_anchor_author_links(html, reporter_name, outcome.url)
+    metadata_author_names = extract_article_author_candidates(html, outcome.url).get(
+        "metadata_author_names", []
+    )
+    meta_author = metadata_author_names[0] if metadata_author_names else None
 
     return {
-        "article_url": str(response.url),
+        "article_url": outcome.url,
         "author_pages": _ordered_unique(json_ld["author_pages"] + anchor_links),
         "social_links": json_ld["social_links"],
         "meta_author": meta_author,
+        "access_path": outcome.access_path,
     }
 
 

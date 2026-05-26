@@ -30,6 +30,19 @@ This map helps Codex agents orient quickly before editing.
 - `backend/scripts/validate_rss_sources.py`: RSS health validation.
 - `backend/scripts/backfill_rss_ownership_labels.py`: ownership label backfill.
 
+## Reporter Verification Pipeline
+
+- `backend/scripts/verify_and_promote_reporters.py`: multi-tier universal author verification. Escalates through httpx → JSON-LD → curl_cffi → RSS → Wayback → Wikidata.
+- `backend/scripts/rss_verify_reporters.py`: batch RSS dc:creator verification using the Rust parser. One feed download per source, bulk promotion.
+- `backend/scripts/wikidata_verify_strong.py`: Wikidata employer cross-check. Matches Wikidata P108 employer labels against RSS catalog sources.
+- `backend/scripts/promote_byline_verified.py`: byline consistency promotion. Uses article observation counts as publisher-confirmed evidence.
+- `backend/scripts/wayback_verify_reporters.py`: Wayback Machine cached author page discovery and verification.
+
+## Rust RSS Parser
+
+- `backend/rss_parser_rust/src/parser.rs`: feed parsing with universal author extraction (dc:creator, dc:author, itunes:author, media:credit, atom:author/name, atom:uri, link rel=author, multi-author splitting).
+- `backend/rss_parser_rust/src/types.rs`: `ParsedArticle` with `authors` and `author_urls` fields, Python dict serialization.
+
 ## Frontend Hotspots
 
 - `frontend/app/`: route-driven pages.
