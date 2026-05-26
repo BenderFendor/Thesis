@@ -1,6 +1,20 @@
 # Log
 
+## 2026-05-26 — Reporter Confidence Evidence Correction
+
+Corrected the reporter verification model so `verified` requires person-level author/profile evidence instead of any public URL citation.
+
+- `backend/app/services/reporter_confidence_scorer.py` now distinguishes public URLs from author/profile URLs. Source homepages, RSS feeds, article URLs, and Wikidata items no longer satisfy verified author-page evidence.
+- RSS feed bylines, repeated local bylines, and Wikidata employer matches are now stored as supporting evidence that can keep reporters strong, not verified.
+- `backend/scripts/verify_and_promote_reporters.py`, `rss_verify_reporters.py`, `wikidata_verify_strong.py`, and `promote_byline_verified.py` no longer write source/feed/Wikidata URLs into `author_page_url`.
+- Rust-extracted `author_urls` now flow through `NewsArticle`, `Article.author_urls`, RSS persistence, and ArticleAuthor backfill so official feed-provided author URLs are preserved as first-class evidence.
+- `measure_wiki_profile_coverage.py`, `verify_reporter_intelligence.py`, and the source-enrichment planner now count only real author/profile URLs for author-page identity coverage and deduplication.
+- Local-byline rows with source-label names, combined bylines, or raw byline residue such as role/location/email text are blocked from high-confidence scoring.
+- After recomputing the local database with the corrected model, verified coverage is 3,561 reporters overall and 3,561 of 8,901 eligible article-attributed reporters (40.01%). The older 94.9% figure below is retained as historical context, but it is superseded by this correction.
+
 ## 2026-05-26 — Universal Reporter Verification Pipeline (94.9% verified)
+
+Superseded note: the coverage numbers in this entry used source homepages, RSS feeds, article URLs, and Wikidata item URLs as verified author-page evidence. The corrected model above no longer treats those as verified reporter identity evidence.
 
 Built a 6-layer verification pipeline that promoted reporters from 2,022 verified (17.5%) to 12,722 verified (94.9%). Every layer targets a different class of evidence.
 

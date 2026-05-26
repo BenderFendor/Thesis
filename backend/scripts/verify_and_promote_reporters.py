@@ -42,6 +42,7 @@ from app.database import (  # noqa: E402
 )
 from app.services.reporter_author_page_scraper import scrape_author_profile  # noqa: E402
 from app.services.reporter_confidence_scorer import (  # noqa: E402
+    is_author_profile_url,
     update_reporter_confidence,
 )
 from app.services.reporter_public_records import (  # noqa: E402
@@ -291,6 +292,16 @@ async def _promote_reporter(
     """Set author page URLs and citations on a reporter, then recompute confidence."""
     reporter_id = int(reporter.id or 0)
 
+    if not is_author_profile_url(author_url):
+        return await _record_supporting_evidence(
+            session,
+            reporter,
+            author_url,
+            evidence_source=evidence_source,
+            label="Article JSON-LD author",
+            note=f"Article metadata names '{profile_name}' via {evidence_source}.",
+        )
+
     if not reporter.author_page_url:
         reporter.author_page_url = author_url
     if not reporter.canonical_author_url:
@@ -344,6 +355,41 @@ async def _promote_reporter(
             evidence_source,
         )
     return promoted
+
+
+async def _record_supporting_evidence(
+    session: AsyncSession,
+    reporter: Reporter,
+    evidence_url: str,
+    *,
+    evidence_source: str,
+    label: str,
+    note: str,
+) -> bool:
+    """Record non-author-page evidence without marking it as profile verification."""
+    reporter_id = int(reporter.id or 0)
+    citations = deepcopy(reporter.citations) if isinstance(reporter.citations, list) else []
+    if not any(
+        isinstance(c, dict)
+        and str(c.get("url") or "") == evidence_url
+        and str(c.get("source_type") or "") == evidence_source
+        for c in citations
+    ):
+        citations.append(
+            {
+                "label": label,
+                "url": evidence_url,
+                "source_type": evidence_source,
+                "note": note,
+            }
+        )
+    reporter.citations = citations
+    reporter.research_sources = sorted(set((reporter.research_sources or []) + [evidence_source]))
+    reporter.updated_at = get_utc_now()
+    await session.commit()
+    await update_reporter_confidence(session, reporter_id)
+    await session.refresh(reporter)
+    return reporter.confidence_tier == "verified"
 
 
 # ── Bloomberg article API author extraction ────────────────────────────
@@ -684,16 +730,28 @@ async def _process_reporter(
                 if _person_name_match(name, author_name):
                     author_url = cffi_author_urls[0] if cffi_author_urls else article_urls_to_try[0]
                     if not dry_run:
-                        promoted = await _promote_reporter(
-                            session,
-                            reporter,
-                            author_url,
-                            author_name,
-                            evidence_source="curl_cffi_jsonld",
-                        )
+                        if cffi_author_urls:
+                            promoted = await _promote_reporter(
+                                session,
+                                reporter,
+                                author_url,
+                                author_name,
+                                evidence_source="curl_cffi_jsonld",
+                            )
+                        else:
+                            promoted = await _record_supporting_evidence(
+                                session,
+                                reporter,
+                                author_url,
+                                evidence_source="article_jsonld_author",
+                                label="Article JSON-LD author",
+                                note=f"Article JSON-LD names '{author_name}'.",
+                            )
+                            result["evidence_recorded"] = True
                         result["promoted"] = promoted
                     else:
-                        result["promoted"] = True
+                        result["promoted"] = bool(cffi_author_urls)
+                        result["evidence_recorded"] = not cffi_author_urls
                         result["_dry_run_match"] = {
                             "url": author_url,
                             "profile_name": author_name,
@@ -780,17 +838,20 @@ async def _process_reporter(
     # Tier 5: RSS feed dc:creator verification
     rss_match = await _try_rss_feed_verification(name, source_attr, vid, session)
     if rss_match:
+        promoted = False
         if not dry_run:
-            promoted = await _promote_reporter(
+            await _record_supporting_evidence(
                 session,
                 reporter,
                 rss_match["url"],
-                rss_match["profile_name"],
-                evidence_source=rss_match.get("source", "rss_dc_creator"),
+                evidence_source="rss_feed_author",
+                label="RSS dc:creator attribution",
+                note=f"RSS feed byline matches '{rss_match['profile_name']}'.",
             )
-            result["promoted"] = promoted
+            result["evidence_recorded"] = True
         else:
-            result["promoted"] = True
+            result["promoted"] = False
+            result["evidence_recorded"] = True
             result["_dry_run_match"] = rss_match
         if promoted:
             return result
@@ -820,16 +881,19 @@ async def _process_reporter(
         wd_match = _try_wikidata_employer_check(reporter, source_attr)
         if wd_match:
             if not dry_run:
-                promoted = await _promote_reporter(
+                promoted = await _record_supporting_evidence(
                     session,
                     reporter,
                     wd_match["url"],
-                    wd_match["profile_name"],
-                    evidence_source=wd_match.get("source", "wikidata_employer_match"),
+                    evidence_source="wikidata_employer_match",
+                    label="Wikidata employer match",
+                    note=f"Wikidata employer evidence matches source '{source_attr}'.",
                 )
                 result["promoted"] = promoted
+                result["evidence_recorded"] = True
             else:
-                result["promoted"] = True
+                result["promoted"] = False
+                result["evidence_recorded"] = True
                 result["_dry_run_match"] = wd_match
 
     return result

@@ -32,9 +32,11 @@ if str(REPO_BACKEND) not in sys.path:
 from app.database import Article, ArticleAuthor, Reporter  # noqa: E402
 from app.services.reporter_confidence_scorer import (  # noqa: E402
     compute_confidence_tier,
+    has_supporting_byline_evidence,
+    has_verified_author_page_citation,
     has_journalism_profile_evidence,
     has_person_like_reporter_name,
-    is_public_author_url,
+    is_author_profile_url,
 )
 from app.services.reporter_public_records import clean_author_name  # noqa: E402
 
@@ -86,14 +88,7 @@ async def _load_reporter_article_counts(session: Any) -> dict[int, int]:
 
 
 def _author_page_citation_present(reporter: Reporter) -> bool:
-    author_page_url = str(reporter.author_page_url or "")
-    if not author_page_url:
-        return False
-    citations = reporter.citations if isinstance(reporter.citations, list) else []
-    return any(
-        isinstance(citation, dict) and str(citation.get("url") or "") == author_page_url
-        for citation in citations
-    )
+    return has_verified_author_page_citation(reporter)
 
 
 def _sample_reporter(reporter: Reporter) -> str:
@@ -110,13 +105,15 @@ def _is_combined_byline_name(value: str | None) -> bool:
     if not name:
         return False
     lowered = name.lower()
-    return bool(
-        " and " in lowered
-        or " with " in lowered
-        or " & " in lowered
-        or " y " in lowered
-        or "," in name
-    )
+    if any(separator in lowered for separator in (" and ", " with ", " & ", " y ")):
+        return True
+    if "," not in name:
+        return False
+    parts = [part.strip() for part in name.split(",") if part.strip()]
+    if len(parts) < 2:
+        return False
+    suffixes = {"jr", "jr.", "sr", "sr.", "ii", "iii", "iv", "phd", "ph.d."}
+    return parts[1].lower() not in suffixes
 
 
 def _normalized_source_label(value: str | None) -> str:
@@ -138,15 +135,23 @@ def _profile_issue_samples(
 ) -> dict[str, Any]:
     issue_counts: Counter[str] = Counter()
     samples: dict[str, list[str]] = {}
+    blocking_failure_count = 0
+    backlog_issue_count = 0
 
     def record(issue: str, reporter: Reporter) -> None:
+        nonlocal blocking_failure_count, backlog_issue_count
         issue_counts[issue] += 1
+        tier = str(reporter.confidence_tier or "unmatched")
+        if tier in {"verified", "strong"}:
+            blocking_failure_count += 1
+        else:
+            backlog_issue_count += 1
         bucket = samples.setdefault(issue, [])
         if len(bucket) < 10:
             source_hint = ", ".join(reporter_sources.get(int(reporter.id or 0), [])[:2])
             bucket.append(
                 f"{_sample_reporter(reporter)}"
-                f"|tier={reporter.confidence_tier or 'unmatched'}"
+                f"|tier={tier}"
                 f"|canonical={reporter.canonical_name or '-'}"
                 f"|qid={reporter.wikidata_qid or '-'}"
                 f"|source={source_hint or '-'}"
@@ -161,7 +166,15 @@ def _profile_issue_samples(
                 str(reporter.canonical_name or "")
             ):
                 record(f"{tier}_qid_label_name", reporter)
-            if tier == "strong" and not has_journalism_profile_evidence(reporter):
+            has_author_profile = is_author_profile_url(
+                str(reporter.author_page_url or "")
+            ) or is_author_profile_url(str(reporter.canonical_author_url or ""))
+            if (
+                tier == "strong"
+                and not has_journalism_profile_evidence(reporter)
+                and not has_author_profile
+                and not has_supporting_byline_evidence(reporter)
+            ):
                 record(f"{tier}_missing_journalism_profile_evidence", reporter)
 
         if reporter.match_status == "local_byline":
@@ -177,12 +190,13 @@ def _profile_issue_samples(
             ):
                 record(f"{tier}_source_label_local_byline_name", reporter)
 
-    hard_failure_count = sum(issue_counts.values())
     return {
         "total_reporters": len(reporters),
         "issue_counts": dict(issue_counts),
         "sample_issues": samples,
-        "quality_failures": hard_failure_count,
+        "quality_failures": blocking_failure_count,
+        "backlog_issues": backlog_issue_count,
+        "total_issues": blocking_failure_count + backlog_issue_count,
     }
 
 
@@ -364,6 +378,8 @@ def _format_profile_audit(audit: dict[str, Any]) -> list[str]:
     lines = [
         f"profile_total_reporters={audit['total_reporters']}",
         f"profile_quality_failures={audit['quality_failures']}",
+        f"profile_backlog_issues={audit.get('backlog_issues', 0)}",
+        f"profile_total_issues={audit.get('total_issues', audit['quality_failures'])}",
     ]
     for issue, count in sorted((audit.get("issue_counts") or {}).items()):
         lines.append(f"profile_issue_{issue}={count}")
@@ -420,20 +436,39 @@ def _identity_alias_audit(reporters: list[Reporter]) -> dict[str, Any]:
                     f"|url={reporter.author_page_url or '-'}"
                 )
 
-        normalized_url = _normalized_author_url(str(reporter.author_page_url or ""))
+        identity_url = ""
+        if is_author_profile_url(str(reporter.author_page_url or "")):
+            identity_url = str(reporter.author_page_url or "")
+        elif is_author_profile_url(str(reporter.canonical_author_url or "")):
+            identity_url = str(reporter.canonical_author_url or "")
+        normalized_url = _normalized_author_url(identity_url)
         if normalized_url:
             author_url_groups.setdefault(normalized_url, []).append(reporter)
 
     duplicate_groups: list[dict[str, Any]] = []
     duplicate_rows = 0
+    duplicate_conflict_rows = 0
     for author_url, group in sorted(author_url_groups.items()):
         if len(group) < 2:
             continue
+        identity_labels = {
+            label
+            for reporter in group
+            if (
+                label := _normalized_identity_label(
+                    clean_author_name(str(reporter.canonical_name or reporter.name or ""))
+                )
+            )
+        }
+        conflict_rows = len(group) - 1 if len(identity_labels) > 1 else 0
         duplicate_rows += len(group) - 1
+        duplicate_conflict_rows += conflict_rows
         duplicate_groups.append(
             {
                 "author_url": author_url,
                 "rows": len(group),
+                "conflict_rows": conflict_rows,
+                "identity_labels": sorted(identity_labels),
                 "sample": [
                     f"{_sample_reporter(reporter)}|canonical={reporter.canonical_name or '-'}"
                     for reporter in group[:8]
@@ -452,10 +487,11 @@ def _identity_alias_audit(reporters: list[Reporter]) -> dict[str, Any]:
         "tiered_author_page_identities": unique_author_page_identities,
         "duplicate_author_page_groups": len(duplicate_groups),
         "duplicate_author_page_rows": duplicate_rows,
+        "duplicate_author_page_conflict_rows": duplicate_conflict_rows,
         "raw_byline_residue": raw_residue_count,
         "sample_raw_byline_residue": raw_residue_samples,
         "sample_duplicate_author_pages": duplicate_groups[:20],
-        "quality_failures": duplicate_rows,
+        "quality_failures": duplicate_conflict_rows,
     }
 
 
@@ -465,6 +501,7 @@ def _format_identity_alias_audit(audit: dict[str, Any]) -> list[str]:
         f"identity_tiered_author_page_identities={audit['tiered_author_page_identities']}",
         f"identity_duplicate_author_page_groups={audit['duplicate_author_page_groups']}",
         f"identity_duplicate_author_page_rows={audit['duplicate_author_page_rows']}",
+        f"identity_duplicate_author_page_conflict_rows={audit['duplicate_author_page_conflict_rows']}",
         f"identity_raw_byline_residue={audit['raw_byline_residue']}",
         f"identity_quality_failures={audit['quality_failures']}",
     ]
@@ -475,7 +512,8 @@ def _format_identity_alias_audit(audit: dict[str, Any]) -> list[str]:
     for row in duplicate_samples:
         lines.append(
             "identity_duplicate_author_page="
-            f"{row['author_url']}|rows={row['rows']}|sample={row['sample']}"
+            f"{row['author_url']}|rows={row['rows']}|conflict_rows={row['conflict_rows']}"
+            f"|labels={row['identity_labels']}|sample={row['sample']}"
         )
     return lines
 
@@ -488,7 +526,10 @@ def _audit_reporter_quality(reporters: list[Reporter]) -> dict[str, Any]:
     bad_author_page = [
         reporter
         for reporter in verified
-        if not is_public_author_url(str(reporter.author_page_url or ""))
+        if not (
+            is_author_profile_url(str(reporter.author_page_url or ""))
+            or is_author_profile_url(str(reporter.canonical_author_url or ""))
+        )
     ]
     bad_author_page_citation = [
         reporter for reporter in verified if not _author_page_citation_present(reporter)
@@ -505,6 +546,7 @@ def _audit_reporter_quality(reporters: list[Reporter]) -> dict[str, Any]:
         "verified_reporters": len(verified),
         "verified_person_names": len(verified) - len(bad_non_person),
         "verified_public_author_pages": len(verified) - len(bad_author_page),
+        "verified_author_profile_pages": len(verified) - len(bad_author_page),
         "verified_author_page_citations": len(verified) - len(bad_author_page_citation),
         "quality_failures": failure_count,
         "sample_verified_non_person_names": [_sample_reporter(r) for r in bad_non_person[:10]],
@@ -524,6 +566,7 @@ def _format_quality_audit(audit: dict[str, Any]) -> list[str]:
         f"quality_verified_reporters={audit['verified_reporters']}",
         f"quality_verified_person_names={audit['verified_person_names']}",
         f"quality_verified_public_author_pages={audit['verified_public_author_pages']}",
+        f"quality_verified_author_profile_pages={audit['verified_author_profile_pages']}",
         f"quality_verified_author_page_citations={audit['verified_author_page_citations']}",
         f"quality_failures={audit['quality_failures']}",
     ]
@@ -666,14 +709,11 @@ async def _compute_source_metrics(
 
             if reporter.author_page_url:
                 m["with_author_page_url"] += 1
-                if is_public_author_url(str(reporter.author_page_url)):
+                if is_author_profile_url(str(reporter.author_page_url)) or is_author_profile_url(
+                    str(reporter.canonical_author_url or "")
+                ):
                     m["with_public_author_page_url"] += 1
-                    citations = reporter.citations if isinstance(reporter.citations, list) else []
-                    if tier == "verified" and any(
-                        isinstance(citation, dict)
-                        and str(citation.get("url") or "") == str(reporter.author_page_url)
-                        for citation in citations
-                    ):
+                    if tier == "verified" and has_verified_author_page_citation(reporter):
                         m["verified_author_page_citations"] += 1
             if reporter.claims_count and reporter.claims_count > 0:
                 m["with_claims"] += 1
@@ -904,8 +944,8 @@ def parse_args() -> argparse.Namespace:
         "--audit-aliases",
         action="store_true",
         help=(
-            "Fail if verified/strong reporter rows contain duplicate official author-page "
-            "identities; also report raw byline residue that should be canonicalized."
+            "Fail if verified/strong reporter rows share an official author-page URL across "
+            "conflicting identity labels; also report dedupe backlog and raw byline residue."
         ),
     )
     parser.add_argument(

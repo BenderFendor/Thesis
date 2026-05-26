@@ -222,6 +222,7 @@ class Article(Base):
     url = Column(String, unique=True, nullable=False, index=True)
     author = Column(String)
     authors = Column(TagListType(), default=list)
+    author_urls = Column(TagListType(), default=list)
     tags = Column(TagListType(), default=list)
     mentioned_countries = Column(MentionedCountriesType(), default=list)
     original_language = Column(String, default="en")

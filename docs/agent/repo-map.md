@@ -32,11 +32,13 @@ This map helps Codex agents orient quickly before editing.
 
 ## Reporter Verification Pipeline
 
-- `backend/scripts/verify_and_promote_reporters.py`: multi-tier universal author verification. Escalates through httpx → JSON-LD → curl_cffi → RSS → Wayback → Wikidata.
-- `backend/scripts/rss_verify_reporters.py`: batch RSS dc:creator verification using the Rust parser. One feed download per source, bulk promotion.
-- `backend/scripts/wikidata_verify_strong.py`: Wikidata employer cross-check. Matches Wikidata P108 employer labels against RSS catalog sources.
-- `backend/scripts/promote_byline_verified.py`: byline consistency promotion. Uses article observation counts as publisher-confirmed evidence.
+- `backend/scripts/verify_and_promote_reporters.py`: multi-tier author-page verification. Only person-level author/profile pages can move a reporter to `verified`; RSS, byline-frequency, and Wikidata-only evidence remain supporting evidence.
+- `backend/scripts/rss_verify_reporters.py`: batch RSS dc:creator evidence using the Rust parser. One feed download per source, bulk supporting-evidence updates.
+- `backend/scripts/wikidata_verify_strong.py`: Wikidata employer cross-check. Matches Wikidata P108 employer labels against RSS catalog sources as supporting evidence.
+- `backend/scripts/promote_byline_verified.py`: byline consistency evidence. Uses article observation counts as source-level support without treating source homepages as author pages.
 - `backend/scripts/wayback_verify_reporters.py`: Wayback Machine cached author page discovery and verification.
+- `backend/scripts/verify_reporter_intelligence.py`: quality gates for verified author-profile citations, high-confidence profile validity, alias conflicts, and the honest 70% eligible-cohort coverage target.
+- `backend/scripts/plan_reporter_source_enrichment.py`: source/reporter backlog planner. Dedupe identity keys only use real author/profile URLs, not source homepages or feeds.
 
 ## Rust RSS Parser
 

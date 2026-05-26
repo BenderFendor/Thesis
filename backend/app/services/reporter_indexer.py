@@ -192,13 +192,21 @@ async def _create_article_author_links(
     """Create ArticleAuthor junction records linking reporter to their articles."""
     from sqlalchemy import select
 
-    stmt = select(Article.id).where(Article.author == author_name)
+    stmt = select(Article.id, Article.authors, Article.author_urls).where(
+        Article.author == author_name
+    )
     if source_name:
         stmt = stmt.where(Article.source == source_name)
 
-    article_ids = (await session.execute(stmt)).scalars().all()
+    article_rows = (await session.execute(stmt)).all()
     created = 0
-    for article_id in article_ids:
+    for article_id, raw_authors, raw_author_urls in article_rows:
+        author_url_raw = None
+        if isinstance(raw_authors, list) and isinstance(raw_author_urls, list):
+            for index, raw_author in enumerate(raw_authors):
+                if raw_author == author_name and index < len(raw_author_urls):
+                    author_url_raw = raw_author_urls[index]
+                    break
         existing = await session.execute(
             select(ArticleAuthor).where(
                 ArticleAuthor.article_id == article_id,
@@ -214,7 +222,7 @@ async def _create_article_author_links(
                 author_role="author",
                 author_confidence=confidence,  # type: ignore[arg-type]
                 observation_source="rss_byline",
-                author_url_raw=None,
+                author_url_raw=author_url_raw,
             )
         )
         created += 1

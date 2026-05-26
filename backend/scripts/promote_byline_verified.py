@@ -1,8 +1,9 @@
-"""Promote likely reporters with consistent byline evidence to verified.
+"""Record consistent byline evidence for likely reporters.
 
-For reporters with 10+ article observations from the same source, uses the
-source website as evidence URL with a 'consistent byline' citation.
-Runs as a pure DB batch operation — no network calls.
+For reporters with repeated article observations from the same source, records
+source-level byline evidence without treating the source homepage as a person
+author page. This can raise confidence to strong, but verified remains reserved
+for confirmed author/profile pages.
 
 Usage:
     python scripts/promote_byline_verified.py
@@ -38,7 +39,7 @@ from app.services.reporter_confidence_scorer import (  # noqa: E402
 
 logger = get_logger("byline_verify")
 
-MIN_ARTICLES = 1
+DEFAULT_MIN_ARTICLES = 5
 
 
 async def _get_session():
@@ -50,14 +51,14 @@ async def _get_session():
 async def main_async(args: argparse.Namespace) -> int:
     session = await _get_session()
     try:
-        # Get all likely reporters with article observation counts
+        min_articles = max(1, int(args.min_articles))
         result = await session.execute(
             select(Reporter, func.count(ArticleAuthor.id).label("obs_count"), Article.source)
             .join(ArticleAuthor, ArticleAuthor.reporter_id == Reporter.id)
             .join(Article, Article.id == ArticleAuthor.article_id)
             .where(Reporter.confidence_tier == "likely")
             .group_by(Reporter.id, Article.source)
-            .having(func.count(ArticleAuthor.id) >= MIN_ARTICLES)
+            .having(func.count(ArticleAuthor.id) >= min_articles)
             .order_by(func.count(ArticleAuthor.id).desc())
         )
 
@@ -69,13 +70,13 @@ async def main_async(args: argparse.Namespace) -> int:
                 reporter_obs[rid] = (reporter, obs, str(source))
 
         if not reporter_obs:
-            logger.info("No likely reporters with %d+ observations", MIN_ARTICLES)
+            logger.info("No likely reporters with %d+ observations", min_articles)
             return 0
 
         logger.info(
             "Found %d likely reporters with %d+ observations",
             len(reporter_obs),
-            MIN_ARTICLES,
+            min_articles,
         )
 
         # Build source URL lookup from RSS catalog
@@ -90,16 +91,11 @@ async def main_async(args: argparse.Namespace) -> int:
                 else:
                     source_urls[base] = str(site)
 
-        promoted = 0
-        skipped_has_author_url = 0
+        updated = 0
+        upgraded_to_strong = 0
         skipped_no_source_url = 0
 
         for rid, (reporter, obs_count, source_name) in reporter_obs.items():
-            if reporter.author_page_url:
-                skipped_has_author_url += 1
-                continue
-
-            # Find source website URL
             source_lower = source_name.lower()
             source_key = source_name.split(" - ")[0].strip().lower()
             evidence_url = (
@@ -112,29 +108,36 @@ async def main_async(args: argparse.Namespace) -> int:
                 skipped_no_source_url += 1
                 continue
 
-            # Set author page URL and citation
-            reporter.author_page_url = evidence_url
-            reporter.canonical_author_url = evidence_url
-
             citations = deepcopy(reporter.citations) if isinstance(reporter.citations, list) else []
             citation = {
                 "label": "Consistent byline attribution",
                 "url": evidence_url,
+                "source_type": "byline_frequency",
                 "note": (f"Name appears as article author {obs_count} times for {source_name}."),
             }
-            citations.append(citation)
+            if not any(
+                isinstance(c, dict)
+                and c.get("label") == citation["label"]
+                and c.get("url") == citation["url"]
+                for c in citations
+            ):
+                citations.append(citation)
             reporter.citations = citations
+            reporter.research_sources = sorted(
+                set((reporter.research_sources or []) + ["byline_frequency"])
+            )
             reporter.updated_at = get_utc_now()
 
             if not args.dry_run:
                 await session.commit()
                 await update_reporter_confidence(session, rid)
                 await session.refresh(reporter)
+                updated += 1
                 new_tier = reporter.confidence_tier or "unmatched"
-                if new_tier == "verified":
-                    promoted += 1
+                if new_tier == "strong":
+                    upgraded_to_strong += 1
                     logger.debug(
-                        "Promoted: %s (%d obs, %s)",
+                        "Recorded strong byline evidence: %s (%d obs, %s)",
                         reporter.name,
                         obs_count,
                         source_name,
@@ -144,9 +147,9 @@ async def main_async(args: argparse.Namespace) -> int:
         print("=" * 72)
         print(f"BYLINE VERIFY  (dry_run={args.dry_run})")
         print("=" * 72)
-        print(f"Reporters with {MIN_ARTICLES}+ obs: {len(reporter_obs)}")
-        print(f"Promoted to verified:          {promoted}")
-        print(f"Skipped (has author_url):       {skipped_has_author_url}")
+        print(f"Reporters with {min_articles}+ obs: {len(reporter_obs)}")
+        print(f"Evidence rows updated:         {updated}")
+        print(f"Upgraded to strong:            {upgraded_to_strong}")
         print(f"Skipped (no source URL):        {skipped_no_source_url}")
         print("=" * 72)
 
@@ -158,9 +161,10 @@ async def main_async(args: argparse.Namespace) -> int:
 
 def main() -> int:
     parser = argparse.ArgumentParser(
-        description="Promote likely reporters with consistent byline evidence."
+        description="Record repeated byline evidence without marking it as verified."
     )
     parser.add_argument("--dry-run", action="store_true")
+    parser.add_argument("--min-articles", type=int, default=DEFAULT_MIN_ARTICLES)
     return asyncio.run(main_async(parser.parse_args()))
 
 

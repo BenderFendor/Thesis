@@ -302,7 +302,7 @@ def clean_author_name(value: str | None) -> str | None:
     text = text.replace("`", "'")
     text = re.sub(r"\s+", " ", text).strip(" \t\r\n:|,;")
     text = re.sub(
-        r"^(?:analysis|exclusive|illustrations?|photographs?|photography|"
+        r"^(?:analysis|exclusive|interviews?|illustrations?|photographs?|photography|"
         r"photos?|pictures?|presented|produced|reported|written|words)\s+by\s+",
         "",
         text,

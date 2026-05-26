@@ -144,9 +144,12 @@ async def test_reporter_coverage_uses_lazy_session_factory(monkeypatch) -> None:
         "with_wikidata_qid": 3,
         "with_author_page_url": 2,
         "with_public_author_page_url": 1,
+        "with_author_profile_url": 1,
         "verified_public_author_page_url": 1,
+        "verified_author_profile_url": 1,
         "verified_author_page_citations": 1,
         "non_public_author_page_url": 1,
+        "non_profile_author_page_url": 1,
         "with_claims": 1,
         "with_article_links": 1,
     }

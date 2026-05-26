@@ -32,7 +32,7 @@ from app.database import Article, ArticleAuthor, Reporter, get_utc_now  # noqa: 
 from app.services.reporter_author_page_scraper import scrape_author_profile  # noqa: E402
 from app.services.reporter_confidence_scorer import (  # noqa: E402
     compute_confidence_tier,
-    is_public_author_url,
+    is_author_profile_url,
     update_reporter_confidence,
 )
 from app.services.reporter_public_records import (  # noqa: E402
@@ -587,7 +587,7 @@ async def repair_verified_author_page_citations(
     for reporter in reporters:
         metrics.reporters_scanned += 1
         author_url = str(reporter.author_page_url or "")
-        if not is_public_author_url(author_url):
+        if not is_author_profile_url(author_url):
             metrics.skipped_non_public_author_pages += 1
             continue
         metrics.public_author_pages += 1

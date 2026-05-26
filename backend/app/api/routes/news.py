@@ -152,6 +152,7 @@ def _browse_article_to_dict(row: Mapping[str, Any]) -> dict[str, Any]:
         "link": row.get("url"),
         "author": row.get("author"),
         "authors": row.get("authors") or [],
+        "author_urls": row.get("author_urls") or [],
     }
 
 
@@ -175,6 +176,7 @@ def _cached_article_to_dict(article: NewsArticle) -> dict[str, Any]:
         "url": article.link,
         "author": article.author,
         "authors": article.authors,
+        "author_urls": article.author_urls,
         "tags": None,
         "mentioned_countries": article.mentioned_countries,
         "original_language": None,
@@ -299,6 +301,7 @@ _BROWSE_SELECT_COLUMNS = (
     Article.url.label("url"),
     Article.author.label("author"),
     Article.authors.label("authors"),
+    Article.author_urls.label("author_urls"),
     Article.mentioned_countries.label("mentioned_countries"),
 )
 

@@ -286,7 +286,10 @@ async def _measure_reporter_coverage() -> dict[str, Any]:
     from app.database import AsyncSessionLocal
     from app.database import ArticleAuthor as ArticleAuthorModel
     from app.database import Reporter as ReporterModel
-    from app.services.reporter_confidence_scorer import is_public_author_url
+    from app.services.reporter_confidence_scorer import (
+        has_verified_author_page_citation,
+        is_author_profile_url,
+    )
 
     if AsyncSessionLocal is None:
         raise RuntimeError("Database not available")
@@ -343,27 +346,24 @@ async def _measure_reporter_coverage() -> dict[str, Any]:
 
         reporter_result = await session.execute(select(ReporterModel))
         reporters = list(reporter_result.scalars().all())
-        with_public_author_page = 0
-        verified_public_author_page = 0
+        with_author_profile_page = 0
+        verified_author_profile_page = 0
         verified_author_page_citations = 0
-        non_public_author_page = 0
+        non_profile_author_page = 0
         for reporter_model in reporters:
             author_page_url = str(reporter_model.author_page_url or "")
             if not author_page_url:
                 continue
-            if not is_public_author_url(author_page_url):
-                non_public_author_page += 1
+            if not (
+                is_author_profile_url(author_page_url)
+                or is_author_profile_url(str(reporter_model.canonical_author_url or ""))
+            ):
+                non_profile_author_page += 1
                 continue
-            with_public_author_page += 1
+            with_author_profile_page += 1
             if reporter_model.confidence_tier == "verified":
-                verified_public_author_page += 1
-                citations = (
-                    reporter_model.citations if isinstance(reporter_model.citations, list) else []
-                )
-                if any(
-                    isinstance(citation, dict) and str(citation.get("url") or "") == author_page_url
-                    for citation in citations
-                ):
+                verified_author_profile_page += 1
+                if has_verified_author_page_citation(reporter_model):
                     verified_author_page_citations += 1
 
         return {
@@ -371,10 +371,13 @@ async def _measure_reporter_coverage() -> dict[str, Any]:
             "tier_counts": tier_counts,
             "with_wikidata_qid": with_qid,
             "with_author_page_url": with_author_page,
-            "with_public_author_page_url": with_public_author_page,
-            "verified_public_author_page_url": verified_public_author_page,
+            "with_public_author_page_url": with_author_profile_page,
+            "with_author_profile_url": with_author_profile_page,
+            "verified_public_author_page_url": verified_author_profile_page,
+            "verified_author_profile_url": verified_author_profile_page,
             "verified_author_page_citations": verified_author_page_citations,
-            "non_public_author_page_url": non_public_author_page,
+            "non_public_author_page_url": non_profile_author_page,
+            "non_profile_author_page_url": non_profile_author_page,
             "with_claims": with_claims,
             "with_article_links": with_article_links,
         }
@@ -455,9 +458,12 @@ async def main_async(limit: int, force_refresh: bool, reporter: bool = False) ->
             print(f"with_wikidata_qid={rc['with_wikidata_qid']}")
             print(f"with_author_page_url={rc['with_author_page_url']}")
             print(f"with_public_author_page_url={rc['with_public_author_page_url']}")
+            print(f"with_author_profile_url={rc['with_author_profile_url']}")
             print(f"verified_public_author_page_url={rc['verified_public_author_page_url']}")
+            print(f"verified_author_profile_url={rc['verified_author_profile_url']}")
             print(f"verified_author_page_citations={rc['verified_author_page_citations']}")
             print(f"non_public_author_page_url={rc['non_public_author_page_url']}")
+            print(f"non_profile_author_page_url={rc['non_profile_author_page_url']}")
             print(f"with_claims={rc['with_claims']}")
             print(f"with_article_links={rc['with_article_links']}")
         except Exception as exc:

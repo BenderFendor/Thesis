@@ -3921,6 +3921,8 @@ export interface components {
             author?: string | null;
             /** Authors */
             authors?: string[];
+            /** Author Urls */
+            author_urls?: string[];
             /**
              * Category
              * @default general

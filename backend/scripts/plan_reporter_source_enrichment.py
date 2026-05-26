@@ -29,6 +29,7 @@ if str(REPO_BACKEND) not in sys.path:
 
 from app.data.rss_sources import get_rss_sources  # noqa: E402
 from app.database import Article, ArticleAuthor, Reporter  # noqa: E402
+from app.services.reporter_confidence_scorer import is_author_profile_url  # noqa: E402
 from app.services.reporter_public_records import clean_author_name  # noqa: E402
 
 
@@ -145,6 +146,8 @@ class ReporterBacklogRow:
 
 
 def _normalized_author_url(value: str | None) -> str:
+    if not is_author_profile_url(value):
+        return ""
     parsed = urlparse(str(value or "").strip())
     if parsed.scheme not in {"http", "https"} or not parsed.netloc:
         return ""

@@ -91,14 +91,15 @@ def test_quality_audit_flags_verified_rows_without_person_evidence() -> None:
     assert audit["verified_reporters"] == 4
     assert audit["verified_person_names"] == 3
     assert audit["verified_public_author_pages"] == 3
-    assert audit["verified_author_page_citations"] == 3
-    assert audit["quality_failures"] == 3
+    assert audit["verified_author_page_citations"] == 2
+    assert audit["quality_failures"] == 4
     assert audit["sample_verified_non_person_names"] == ["2:Guest Contributor"]
     assert audit["sample_verified_non_public_author_pages"] == [
         "3:John Public:https://test.local/author/john"
     ]
     assert audit["sample_verified_missing_author_page_citations"] == [
-        "4:Jane Missing:https://example.org/author/missing"
+        "3:John Public:https://test.local/author/john",
+        "4:Jane Missing:https://example.org/author/missing",
     ]
 
 
@@ -152,7 +153,9 @@ def test_profile_audit_flags_bad_strong_and_stale_local_profiles() -> None:
 
     audit = verifier._profile_issue_samples(reporters, {4: ["Example News"], 5: ["Example News"]})
 
-    assert audit["quality_failures"] == 5
+    assert audit["quality_failures"] == 2
+    assert audit["backlog_issues"] == 3
+    assert audit["total_issues"] == 5
     assert audit["issue_counts"] == {
         "strong_missing_person_like_name": 1,
         "strong_qid_label_name": 1,
@@ -183,6 +186,42 @@ def test_profile_audit_accepts_strong_profile_with_journalism_dossier_evidence()
     ]
 
     audit = verifier._profile_issue_samples(reporters, {})
+
+    assert audit["quality_failures"] == 0
+    assert audit["issue_counts"] == {}
+
+
+def test_profile_audit_accepts_strong_publisher_author_profile_without_role_terms() -> None:
+    reporters = [
+        Reporter(
+            id=1,
+            name="Jane Doe",
+            canonical_name="Jane Doe",
+            confidence_tier="strong",
+            match_status="local_byline",
+            canonical_author_url="https://example.org/author/jane",
+        )
+    ]
+
+    audit = verifier._profile_issue_samples(reporters, {1: ["Example News"]})
+
+    assert audit["quality_failures"] == 0
+    assert audit["issue_counts"] == {}
+
+
+def test_profile_audit_does_not_treat_suffix_as_combined_byline() -> None:
+    reporters = [
+        Reporter(
+            id=1,
+            name="Peter P. Toe, Jr",
+            canonical_name="Peter P. Toe, Jr",
+            confidence_tier="strong",
+            match_status="local_byline",
+            canonical_author_url="https://example.org/author/peter-toe",
+        )
+    ]
+
+    audit = verifier._profile_issue_samples(reporters, {1: ["Example News"]})
 
     assert audit["quality_failures"] == 0
     assert audit["issue_counts"] == {}
@@ -236,16 +275,24 @@ def test_identity_alias_audit_reports_duplicate_author_pages_and_raw_residue() -
             confidence_tier="strong",
             author_page_url="https://example.org/author/jane",
         ),
+        Reporter(
+            id=4,
+            name="Jane Wrong",
+            canonical_name="Jane Wrong",
+            confidence_tier="verified",
+            author_page_url="https://theguardian.com/profile/ali-martin/",
+        ),
     ]
 
     audit = verifier._identity_alias_audit(reporters)
 
-    assert audit["tiered_reporters"] == 3
+    assert audit["tiered_reporters"] == 4
     assert audit["tiered_author_page_identities"] == 2
     assert audit["duplicate_author_page_groups"] == 1
-    assert audit["duplicate_author_page_rows"] == 1
+    assert audit["duplicate_author_page_rows"] == 2
+    assert audit["duplicate_author_page_conflict_rows"] == 2
     assert audit["raw_byline_residue"] == 2
-    assert audit["quality_failures"] == 1
+    assert audit["quality_failures"] == 2
     assert audit["sample_duplicate_author_pages"][0]["author_url"] == (
         "https://theguardian.com/profile/ali-martin"
     )

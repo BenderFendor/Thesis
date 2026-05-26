@@ -12,7 +12,12 @@ from app.models.news import NewsArticle
 from app.services.rss_ingestion import _build_article_from_rust_payload
 
 
-def test_build_article_from_rust_payload_preserves_authors() -> None:
+def test_build_article_from_rust_payload_preserves_authors(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(
+        "app.services.rss_ingestion.extract_article_mentioned_countries",
+        lambda *_args: [],
+    )
+
     article = _build_article_from_rust_payload(
         {
             "title": "Reporter Test",
@@ -20,6 +25,10 @@ def test_build_article_from_rust_payload_preserves_authors() -> None:
             "description": "A test article",
             "published": datetime.now(UTC).isoformat(),
             "authors": ["Jane Reporter", "John Editor"],
+            "author_urls": [
+                "https://example.com/author/jane-reporter",
+                "https://example.com/author/john-editor",
+            ],
         },
         "Test Source",
         {"country": "US", "category": "news"},
@@ -28,6 +37,10 @@ def test_build_article_from_rust_payload_preserves_authors() -> None:
     assert isinstance(article, NewsArticle)
     assert article.author == "Jane Reporter"
     assert article.authors == ["Jane Reporter", "John Editor"]
+    assert article.author_urls == [
+        "https://example.com/author/jane-reporter",
+        "https://example.com/author/john-editor",
+    ]
 
 
 def test_browse_article_to_dict_includes_author_fields() -> None:
@@ -47,11 +60,13 @@ def test_browse_article_to_dict_includes_author_fields() -> None:
             "url": "https://example.com/reporter-test",
             "author": "Jane Reporter",
             "authors": ["Jane Reporter", "John Editor"],
+            "author_urls": ["https://example.com/author/jane-reporter"],
         }
     )
 
     assert payload["author"] == "Jane Reporter"
     assert payload["authors"] == ["Jane Reporter", "John Editor"]
+    assert payload["author_urls"] == ["https://example.com/author/jane-reporter"]
 
 
 @pytest.mark.asyncio

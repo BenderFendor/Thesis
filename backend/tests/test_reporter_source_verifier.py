@@ -204,6 +204,7 @@ def test_clean_author_name_preserves_person_names() -> None:
     assert clean_author_name("Presented by Annie Kelly") == "Annie Kelly"
     assert clean_author_name("Produced by Ruth Abrahams") == "Ruth Abrahams"
     assert clean_author_name("Photography by Christopher Thomond") == "Christopher Thomond"
+    assert clean_author_name("Interviews by Georgina Lawton") == "Georgina Lawton"
     assert clean_author_name("Words by Sam Wollaston") == "Sam Wollaston"
     assert clean_author_name("as told to Katie Cunningham") == "Katie Cunningham"
     assert (

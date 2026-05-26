@@ -9,9 +9,10 @@ import pytest
 from app.database import ArticleAuthor, IdentityEdge, Reporter, ReporterClaim
 from app.services.reporter_confidence_scorer import (
     compute_confidence_tier,
-    has_author_page_citation,
+    has_verified_author_page_citation,
     has_journalism_profile_evidence,
     has_person_like_reporter_name,
+    is_author_profile_url,
     is_public_author_url,
     update_reporter_confidence,
 )
@@ -245,7 +246,7 @@ async def test_public_author_url_requires_citation_to_verify_reporter() -> None:
     assert tier == "strong"
     assert score == 0.85
     assert evidence["canonical_url_found"] is True
-    assert has_author_page_citation(reporter) is False
+    assert has_verified_author_page_citation(reporter) is False
 
 
 @pytest.mark.asyncio
@@ -270,7 +271,74 @@ async def test_public_author_url_with_citation_verifies_reporter() -> None:
     assert tier == "verified"
     assert score == 1.0
     assert evidence["publisher_confirmed"] is True
-    assert has_author_page_citation(reporter) is True
+    assert has_verified_author_page_citation(reporter) is True
+
+
+@pytest.mark.asyncio
+async def test_source_homepage_byline_evidence_does_not_verify_reporter() -> None:
+    reporter = Reporter(
+        id=1,
+        name="Jane Doe",
+        canonical_author_url="https://example.org",
+        author_page_url="https://example.org",
+        citations=[
+            {
+                "label": "Consistent byline attribution",
+                "url": "https://example.org",
+                "source_type": "byline_frequency",
+            }
+        ],
+    )
+    session = FakeSession(
+        [
+            FakeResult(values=[]),
+            FakeResult(values=[]),
+            FakeResult(
+                values=[
+                    ArticleAuthor(article_id=idx, reporter_id=1, observation_source="rss_byline")
+                    for idx in range(1, 6)
+                ]
+            ),
+        ]
+    )
+
+    tier, score, evidence = await compute_confidence_tier(session, reporter)
+
+    assert tier == "strong"
+    assert score == 0.7
+    assert evidence["publisher_byline_evidence"] is True
+    assert has_verified_author_page_citation(reporter) is False
+
+
+@pytest.mark.asyncio
+async def test_rss_feed_url_citation_does_not_verify_reporter() -> None:
+    reporter = Reporter(
+        id=1,
+        name="Jane Doe",
+        canonical_author_url="https://feeds.example.org/news.rss",
+        author_page_url="https://feeds.example.org/news.rss",
+        citations=[
+            {
+                "label": "RSS dc:creator attribution",
+                "url": "https://feeds.example.org/news.rss",
+                "source_type": "rss_feed_author",
+            }
+        ],
+    )
+    session = FakeSession(
+        [
+            FakeResult(values=[]),
+            FakeResult(values=[]),
+            FakeResult(values=[ArticleAuthor(article_id=1, reporter_id=1)]),
+        ]
+    )
+
+    tier, score, evidence = await compute_confidence_tier(session, reporter)
+
+    assert tier == "likely"
+    assert score == 0.45
+    assert evidence["single_article_observation"] is True
+    assert has_verified_author_page_citation(reporter) is False
 
 
 @pytest.mark.asyncio
@@ -391,3 +459,49 @@ def test_is_public_author_url_rejects_test_hosts() -> None:
     assert is_public_author_url("https://test.local/author/jane") is False
     assert is_public_author_url("https://news.example.test/author/jane") is False
     assert is_public_author_url("https://example.org/author/jane") is True
+
+
+def test_is_author_profile_url_rejects_homepage_feeds_and_wikidata() -> None:
+    assert is_author_profile_url("https://example.org") is False
+    assert is_author_profile_url("https://feeds.example.org/news.rss") is False
+    assert is_author_profile_url("https://www.wikidata.org/wiki/Q123") is False
+    assert is_author_profile_url("https://example.org/author/jane") is True
+    assert is_author_profile_url("https://example.org/profile/jane") is True
+
+
+def test_combined_byline_name_is_not_person_like() -> None:
+    reporter = Reporter(
+        id=1,
+        name="Jane Doe and John Smith",
+        canonical_name="Jane Doe and John Smith",
+    )
+
+    assert has_person_like_reporter_name(reporter) is False
+
+
+def test_local_byline_with_role_residue_is_not_person_like() -> None:
+    reporter = Reporter(
+        id=1,
+        name="Jane Doe, Example News reporter, jane@example.org",
+        canonical_name="Jane Doe, Example News reporter, jane@example.org",
+        match_status="local_byline",
+        career_history=[
+            {"organization": "Example News", "role": "byline outlet", "source": "rss_catalog"}
+        ],
+    )
+
+    assert has_person_like_reporter_name(reporter) is False
+
+
+def test_local_byline_source_label_is_not_person_like() -> None:
+    reporter = Reporter(
+        id=1,
+        name="Example News",
+        canonical_name="Example News",
+        match_status="local_byline",
+        career_history=[
+            {"organization": "Example News", "role": "byline outlet", "source": "rss_catalog"}
+        ],
+    )
+
+    assert has_person_like_reporter_name(reporter) is False

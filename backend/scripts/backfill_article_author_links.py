@@ -48,6 +48,7 @@ class BylinedArticle:
     article_id: int
     source: str | None
     author: str
+    author_url_raw: str | None
     title: str | None
     url: str | None
     published_at: Any | None
@@ -134,6 +135,39 @@ def _clean_author_names(value: str | None) -> list[str]:
         seen.add(key)
         unique.append(name)
     return unique
+
+
+def _article_author_pairs(
+    raw_author: str | None,
+    raw_authors: Any,
+    raw_author_urls: Any,
+) -> list[tuple[str, str | None]]:
+    """Return raw byline strings paired with same-index author URLs when present."""
+    author_values = (
+        [
+            str(author).strip()
+            for author in raw_authors
+            if isinstance(author, str) and author.strip()
+        ]
+        if isinstance(raw_authors, list)
+        else []
+    )
+    if not author_values and raw_author:
+        author_values = [str(raw_author)]
+
+    author_urls = (
+        [
+            str(author_url).strip()
+            for author_url in raw_author_urls
+            if isinstance(author_url, str) and author_url.strip()
+        ]
+        if isinstance(raw_author_urls, list)
+        else []
+    )
+    return [
+        (author, author_urls[index] if index < len(author_urls) else None)
+        for index, author in enumerate(author_values)
+    ]
 
 
 def _is_combined_byline_name(value: str | None) -> bool:
@@ -300,6 +334,8 @@ async def _load_groups(
             Article.id,
             Article.source,
             Article.author,
+            Article.authors,
+            Article.author_urls,
             Article.title,
             Article.url,
             Article.published_at,
@@ -317,9 +353,17 @@ async def _load_groups(
     skipped_generic = 0
     skipped_disallowed = 0
     sample_skipped_sources: list[str] = []
-    for article_id, source, raw_author, title, url, published_at, category in (
-        await session.execute(stmt)
-    ).all():
+    for (
+        article_id,
+        source,
+        raw_author,
+        raw_authors,
+        raw_author_urls,
+        title,
+        url,
+        published_at,
+        category,
+    ) in (await session.execute(stmt)).all():
         scanned += 1
         source_name = str(source) if source else None
         if not _source_allows_local_byline(source_name, source_configs):
@@ -327,21 +371,28 @@ async def _load_groups(
             if source_name and source_name not in sample_skipped_sources:
                 sample_skipped_sources.append(source_name)
             continue
-        authors = [
-            author
-            for author in _clean_author_names(str(raw_author or ""))
-            if not _is_source_label_byline(author, source_name)
-        ]
-        if not authors:
+        author_pairs: list[tuple[str, str | None]] = []
+        for raw_author_value, author_url_raw in _article_author_pairs(
+            str(raw_author or ""),
+            raw_authors,
+            raw_author_urls,
+        ):
+            author_pairs.extend(
+                (author, author_url_raw)
+                for author in _clean_author_names(raw_author_value)
+                if not _is_source_label_byline(author, source_name)
+            )
+        if not author_pairs:
             skipped_generic += 1
             continue
-        for author in authors:
+        for author, author_url_raw in author_pairs:
             group_key = _group_key(author, source_name)
             groups[group_key].append(
                 BylinedArticle(
                     article_id=int(article_id),
                     source=source_name,
                     author=author,
+                    author_url_raw=author_url_raw,
                     title=str(title) if title else None,
                     url=str(url) if url else None,
                     published_at=published_at,
@@ -422,6 +473,8 @@ async def backfill_article_author_links(
                 ).scalar_one_or_none()
             if existing:
                 metrics.existing_links += 1
+                if apply and article.author_url_raw and not existing.author_url_raw:
+                    existing.author_url_raw = article.author_url_raw
                 continue
 
             metrics.links_created += 1
@@ -435,7 +488,7 @@ async def backfill_article_author_links(
                         author_role="author",
                         author_confidence=0.55,
                         observation_source="rss_byline",
-                        author_url_raw=None,
+                        author_url_raw=article.author_url_raw,
                     )
                 )
 

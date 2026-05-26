@@ -1,5 +1,25 @@
 # Learnings
 
+## 2026-05-26 — Reporter verified means author-profile evidence
+
+Context:
+- A broad reporter enrichment pass counted source homepages, RSS feed URLs, article URLs, and Wikidata item URLs as `author_page_url` evidence.
+- The aggregate verified percentage looked high, but profile and alias audits showed combined bylines, source-label bylines, and duplicate non-person author-page identities.
+
+What worked:
+- Split URL checks into public URL versus author/profile URL semantics.
+- Reserve `verified` for official or archived author/profile citations.
+- Keep RSS bylines, repeated local bylines, and Wikidata employer matches as supporting evidence that can support `strong`.
+- Preserve Rust parser `author_urls` through ingestion and backfill so real feed-provided author profile URLs are not lost.
+- Treat source-label names, combined bylines, and raw local-byline residue as ineligible for `strong` or `verified`.
+- Separate high-confidence audit failures from lower-tier cleanup backlog so failed gates identify wrong verified/strong evidence instead of expected unverified work.
+
+Future agents should:
+- Never set `Reporter.author_page_url` to a source homepage, RSS feed, article URL, Wikidata item, or other non-person profile URL.
+- Re-run profile and alias audits after any bulk confidence update, not only headline coverage.
+- Treat high verified coverage as untrusted until the author/profile URL audit passes.
+- Treat same-URL duplicate rows with the same cleaned identity as dedupe backlog, and same-URL rows with conflicting cleaned identities as a blocking quality failure.
+
 ## 2026-05-12 — Non-journalist Wikidata false positives require occupation gate
 
 Context:

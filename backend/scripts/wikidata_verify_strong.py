@@ -1,9 +1,9 @@
-"""Promote strong-tier reporters by cross-checking Wikidata employer against source.
+"""Record Wikidata employer evidence for strong-tier reporters.
 
 For every strong-tier reporter with a Wikidata QID, checks if their career_history
 entries (from Wikidata P108 employer labels) match any source they've written for.
-If there's a match, sets the Wikidata URL as the author_page_url with citation and
-recomputes confidence to promote them to verified.
+If there's a match, records a Wikidata citation and recomputes confidence without
+treating the Wikidata item as a publisher author page.
 
 Pure DB operation — no network calls.
 
@@ -84,10 +84,9 @@ async def main_async(args: argparse.Namespace) -> int:
         for rid, src in source_result.all():
             reporter_sources.setdefault(int(rid), set()).add(str(src))
 
-        promoted = 0
+        updated = 0
         skipped_no_employer = 0
         skipped_no_match = 0
-        already_has_author_url = 0
 
         # Build RSS catalog source name set for employer matching
         catalog_sources = get_rss_sources()
@@ -113,10 +112,6 @@ async def main_async(args: argparse.Namespace) -> int:
             if not wd_employers:
                 skipped_no_employer += 1
                 continue
-
-            # Check if already has author_page_url
-            if reporter.author_page_url:
-                already_has_author_url += 1
 
             # Get source from article attribution, or fall back to RSS catalog
             sources = reporter_sources.get(rid, set())
@@ -149,20 +144,15 @@ async def main_async(args: argparse.Namespace) -> int:
                 skipped_no_match += 1
                 continue
 
-            # Promote
             wikidata_url = (
                 reporter.wikidata_url or f"https://www.wikidata.org/wiki/{reporter.wikidata_qid}"
             )
-
-            if not reporter.author_page_url:
-                reporter.author_page_url = wikidata_url
-            if not reporter.canonical_author_url:
-                reporter.canonical_author_url = wikidata_url
 
             citations = deepcopy(reporter.citations) if isinstance(reporter.citations, list) else []
             citation = {
                 "label": "Wikidata employer match",
                 "url": wikidata_url,
+                "source_type": "wikidata_employer_match",
                 "note": (
                     f"Wikidata employer '{matched_employer}' matches source '{matched_source}'."
                 ),
@@ -172,38 +162,32 @@ async def main_async(args: argparse.Namespace) -> int:
             ):
                 citations.append(citation)
             reporter.citations = citations
+            reporter.research_sources = sorted(
+                set((reporter.research_sources or []) + ["wikidata_employer_match"])
+            )
             reporter.updated_at = get_utc_now()
 
             if not args.dry_run:
                 await session.commit()
                 await update_reporter_confidence(session, rid)
                 await session.refresh(reporter)
-                new_tier = reporter.confidence_tier or "unmatched"
-                if new_tier == "verified":
-                    promoted += 1
-                    logger.info(
-                        "Promoted: %s (employer=%s, source=%s)",
-                        reporter.name,
-                        matched_employer,
-                        matched_source,
-                    )
-                else:
-                    logger.debug(
-                        "Not promoted: %s tier=%s score=%s",
-                        reporter.name,
-                        new_tier,
-                        reporter.confidence_score,
-                    )
+                updated += 1
+                logger.info(
+                    "Recorded Wikidata employer evidence: %s (employer=%s, source=%s, tier=%s)",
+                    reporter.name,
+                    matched_employer,
+                    matched_source,
+                    reporter.confidence_tier,
+                )
 
         print()
         print("=" * 72)
         print(f"WIKIDATA EMPLOYER VERIFY  (dry_run={args.dry_run})")
         print("=" * 72)
         print(f"Strong+Wikidata rptrs: {len(reporters)}")
-        print(f"Promoted to verified:  {promoted}")
+        print(f"Evidence rows updated: {updated}")
         print(f"Skipped: no employer   {skipped_no_employer}")
         print(f"Skipped: no match      {skipped_no_match}")
-        print(f"Already has author URL {already_has_author_url}")
         print("=" * 72)
         print("=" * 72)
 
@@ -215,7 +199,7 @@ async def main_async(args: argparse.Namespace) -> int:
 
 def main() -> int:
     parser = argparse.ArgumentParser(
-        description="Promote strong-tier reporters via Wikidata employer cross-check."
+        description="Record Wikidata employer evidence for strong-tier reporters."
     )
     parser.add_argument("--dry-run", action="store_true")
     return asyncio.run(main_async(parser.parse_args()))

@@ -628,6 +628,7 @@ async def _promote_via_wayback(
             {
                 "label": "Wayback Machine archive",
                 "url": author_page_url,
+                "source_type": "archived_author_page",
                 "note": (
                     f"Live page 403/blocked. Cached snapshot {ts}. "
                     f"Profile name verified as '{profile_name}'."

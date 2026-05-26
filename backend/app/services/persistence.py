@@ -100,6 +100,8 @@ def _build_article_values(article: NewsArticle, source_info: dict[str, Any]) -> 
     author = author_value if isinstance(author_value, str) else None
     raw_authors = getattr(article, "authors", None)
     authors = raw_authors if isinstance(raw_authors, list) else []
+    raw_author_urls = getattr(article, "author_urls", None)
+    author_urls = raw_author_urls if isinstance(raw_author_urls, list) else []
     return {
         "title": article.title,
         "source": article.source,
@@ -115,6 +117,7 @@ def _build_article_values(article: NewsArticle, source_info: dict[str, Any]) -> 
         "url": article.link,
         "author": author,
         "authors": authors or None,
+        "author_urls": author_urls or None,
         "tags": tags if tags else None,
         "mentioned_countries": article.mentioned_countries
         or extract_article_mentioned_countries(
@@ -164,6 +167,7 @@ async def _persist_articles_async(articles: list[NewsArticle], source_info: dict
                     "bias": insert_stmt.excluded.bias,
                     "author": insert_stmt.excluded.author,
                     "authors": insert_stmt.excluded.authors,
+                    "author_urls": insert_stmt.excluded.author_urls,
                     "tags": insert_stmt.excluded.tags,
                     "mentioned_countries": insert_stmt.excluded.mentioned_countries,
                     "updated_at": insert_stmt.excluded.updated_at,

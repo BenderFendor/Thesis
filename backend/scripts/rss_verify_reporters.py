@@ -1,9 +1,9 @@
 """Verify reporters via RSS feed author attribution using the Rust parser.
 
 Downloads RSS feeds for each source in the catalog, parses them with the Rust
-RSS parser (which already handles dc:creator, dc:author, RSS author, itunes:author,
-media:credit, atom:author, and multi-author name splitting), then promotes
-reporters whose names match the RSS feed author set.
+RSS parser, then records RSS byline evidence for matching reporters. RSS feed
+evidence can support a strong tier, but verified remains reserved for
+person-level author/profile pages.
 
 Usage:
     python scripts/rss_verify_reporters.py
@@ -94,26 +94,29 @@ async def _promote_via_rss(
     feed_url: str,
 ) -> bool:
     rid = int(reporter.id or 0)
-    if not reporter.author_page_url:
-        reporter.author_page_url = feed_url
-    if not reporter.canonical_author_url:
-        reporter.canonical_author_url = feed_url
 
     citations = list(reporter.citations) if isinstance(reporter.citations, list) else []
-    citations.append(
-        {
-            "label": "RSS dc:creator attribution",
-            "url": feed_url,
-            "note": "Publisher-confirmed byline in RSS feed.",
-        }
-    )
+    citation = {
+        "label": "RSS dc:creator attribution",
+        "url": feed_url,
+        "source_type": "rss_feed_author",
+        "note": "Publisher feed confirms the name appears as an article byline.",
+    }
+    if not any(
+        isinstance(c, dict)
+        and c.get("label") == citation["label"]
+        and c.get("url") == citation["url"]
+        for c in citations
+    ):
+        citations.append(citation)
     reporter.citations = citations
+    reporter.research_sources = sorted(set((reporter.research_sources or []) + ["rss_feed_author"]))
     reporter.updated_at = get_utc_now()
 
     await session.commit()
     await update_reporter_confidence(session, rid)
     await session.refresh(reporter)
-    return reporter.confidence_tier == "verified"
+    return reporter.confidence_tier in {"verified", "strong"}
 
 
 async def verify_source_rss(
@@ -210,68 +213,6 @@ async def verify_source_rss(
             promoted,
         )
     return result
-    result["rss_authors"] = len(all_names)
-
-    # Find reporters for this source
-    source_variants = [
-        name
-        for name in get_rss_sources()
-        if name.split(" - ")[0].strip().lower() == source_name.lower()
-    ]
-    if not source_variants:
-        source_variants = [source_name]
-
-    # Avoid DISTINCT on JSON columns — get IDs first, then load reporters
-    id_result = await session.execute(
-        select(Reporter.id)
-        .join(ArticleAuthor, ArticleAuthor.reporter_id == Reporter.id)
-        .join(Article, Article.id == ArticleAuthor.article_id)
-        .where(Article.source.in_(source_variants))
-        .distinct()
-    )
-    reporter_ids = [int(row[0]) for row in id_result.all()]
-
-    if not reporter_ids:
-        return result
-
-    full_result = await session.execute(select(Reporter).where(Reporter.id.in_(reporter_ids)))
-    reporters: dict[str, Reporter] = {}
-    for r in full_result.scalars().all():
-        if r.name and r.confidence_tier != "verified":
-            key = _clean_rss_name(str(r.name or ""))
-            if key:
-                reporters[key] = r
-
-    if not reporters:
-        return result
-
-    matched = 0
-    promoted = 0
-    for rss_name in all_names:
-        reporter = reporters.get(rss_name)
-        if not reporter:
-            # Try fuzzy match
-            for rname, r in reporters.items():
-                if _name_subsumes(rss_name, rname):
-                    reporter = r
-                    break
-        if reporter:
-            matched += 1
-            if not dry_run:
-                if await _promote_via_rss(session, reporter, str(rss_urls[0])):
-                    promoted += 1
-
-    result["matched"] = matched
-    result["promoted"] = promoted
-    if matched > 0:
-        logger.info(
-            "RSS %s: %d authors in feed, %d matched reporters, %d promoted",
-            source_name,
-            len(all_names),
-            matched,
-            promoted,
-        )
-    return result
 
 
 async def main_async(args: argparse.Namespace) -> int:
@@ -325,7 +266,7 @@ async def main_async(args: argparse.Namespace) -> int:
         print(f"Sources processed:    {len(source_names)}")
         print(f"RSS author names:     {total_rss_authors}")
         print(f"Matched reporters:    {total_matched}")
-        print(f"Promoted to verified: {total_promoted}")
+        print(f"Updated to strong+:   {total_promoted}")
         print("=" * 72)
 
     finally:

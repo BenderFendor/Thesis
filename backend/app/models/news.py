@@ -18,6 +18,7 @@ class NewsArticle(StrictBaseModel):
     source: str
     author: str | None = None
     authors: list[str] = Field(default_factory=list)
+    author_urls: list[str] = Field(default_factory=list)
     category: str = "general"
     country: str | None = None
     image: str | None = None

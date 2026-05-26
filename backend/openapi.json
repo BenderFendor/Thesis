@@ -9310,6 +9310,13 @@
             "type": "array",
             "title": "Authors"
           },
+          "author_urls": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Author Urls"
+          },
           "category": {
             "type": "string",
             "title": "Category",

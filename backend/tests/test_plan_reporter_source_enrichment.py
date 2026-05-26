@@ -188,6 +188,33 @@ def test_identity_dedupe_collapses_author_page_aliases_for_planning() -> None:
     }
 
 
+def test_identity_dedupe_does_not_collapse_source_homepage_urls() -> None:
+    facts = [
+        ReporterSourceFact(
+            "Example News",
+            1,
+            "likely",
+            author_page_url="https://example.org",
+            reporter_name="Jane Doe",
+            canonical_name="Jane Doe",
+            article_count=2,
+        ),
+        ReporterSourceFact(
+            "Example News",
+            2,
+            "likely",
+            author_page_url="https://example.org",
+            reporter_name="John Smith",
+            canonical_name="John Smith",
+            article_count=3,
+        ),
+    ]
+
+    deduped = dedupe_reporter_facts_by_identity(facts)
+
+    assert len(deduped) == 2
+
+
 def test_disallowed_catalog_sources_are_excluded_from_broad_eligible_cohort() -> None:
     rows = summarize_source_backlog(
         [

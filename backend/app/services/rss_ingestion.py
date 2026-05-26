@@ -325,6 +325,16 @@ def _build_article_from_rust_payload(
         if isinstance(payload_authors, list)
         else []
     )
+    payload_author_urls = item.get("author_urls")
+    author_urls = (
+        [
+            str(author_url).strip()
+            for author_url in payload_author_urls
+            if isinstance(author_url, str) and str(author_url).strip()
+        ]
+        if isinstance(payload_author_urls, list)
+        else []
+    )
     primary_author = authors[0] if authors else None
     return NewsArticle(
         title=title,
@@ -334,6 +344,7 @@ def _build_article_from_rust_payload(
         source=source_name,
         author=primary_author,
         authors=authors,
+        author_urls=author_urls,
         category=category,
         country=source_info.get("country"),
         image=image_url,

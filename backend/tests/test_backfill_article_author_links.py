@@ -41,6 +41,8 @@ async def test_backfill_creates_local_reporter_and_article_author_links(engine_a
                     url="https://example.test/a",
                     source="Example News",
                     author="Jane Doe",
+                    authors=["Jane Doe"],
+                    author_urls=["https://example.test/author/jane-doe"],
                     published_at=now,
                     category="politics",
                 ),
@@ -94,6 +96,10 @@ async def test_backfill_creates_local_reporter_and_article_author_links(engine_a
     assert reporter.confidence_tier == "likely"
     assert {link.article_id for link in links} == {1, 2}
     assert all(link.observation_source == "rss_byline" for link in links)
+    assert [link.author_url_raw for link in sorted(links, key=lambda item: item.article_id)] == [
+        "https://example.test/author/jane-doe",
+        None,
+    ]
 
     await engine.dispose()
 
@@ -156,6 +162,46 @@ async def test_backfill_links_each_person_in_multi_author_byline(engine_and_sess
     assert [reporter.name for reporter in reporters] == ["Jane Doe", "John Smith"]
     assert {link.article_id for link in links} == {1}
     assert len(links) == 2
+
+    await engine.dispose()
+
+
+@pytest.mark.asyncio
+async def test_backfill_pairs_rust_author_urls_by_author_index(engine_and_session) -> None:
+    engine, factory = await engine_and_session()
+
+    async with factory() as session:
+        session.add(
+            Article(
+                id=1,
+                title="Joint Article",
+                url="https://example.test/a",
+                source="Example News",
+                author="Jane Doe",
+                authors=["Jane Doe", "John Smith"],
+                author_urls=[
+                    "https://example.test/author/jane-doe",
+                    "https://example.test/author/john-smith",
+                ],
+                published_at=get_utc_now(),
+                category="politics",
+            )
+        )
+        await session.commit()
+
+        metrics = await backfill_article_author_links(session, apply=True)
+        links = (
+            (await session.execute(select(ArticleAuthor).order_by(ArticleAuthor.id)))
+            .scalars()
+            .all()
+        )
+
+    assert metrics.candidate_groups == 2
+    assert metrics.links_created == 2
+    assert [link.author_url_raw for link in links] == [
+        "https://example.test/author/jane-doe",
+        "https://example.test/author/john-smith",
+    ]
 
     await engine.dispose()
 
