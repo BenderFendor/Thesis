@@ -25,9 +25,7 @@ export function readSidebarExpanded(): boolean {
 
   try {
     const storedValue = window.localStorage.getItem(SIDEBAR_EXPANDED_STORAGE_KEY)
-    if (storedValue !== null) {
-      sidebarExpandedFallback = storedValue === "true"
-    }
+    sidebarExpandedFallback = storedValue === "true"
   } catch {
     // Fall back to the in-memory state in restricted browser contexts.
   }
