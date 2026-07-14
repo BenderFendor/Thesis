@@ -55,7 +55,7 @@ export function GlobalNavigation({
 
     const syncViewFromLocation = () => {
       const requestedView = getViewFromSearch(window.location.search)
-      if (requestedView && requestedView !== currentView) {
+      if (requestedView) {
         onViewChange(requestedView)
       }
     }
@@ -63,7 +63,7 @@ export function GlobalNavigation({
     syncViewFromLocation()
     window.addEventListener("popstate", syncViewFromLocation)
     return () => window.removeEventListener("popstate", syncViewFromLocation)
-  }, [currentView, onViewChange, pathname])
+  }, [onViewChange, pathname])
 
   const updateExpanded = useCallback((nextExpanded: boolean) => {
     writeSidebarExpanded(nextExpanded)
