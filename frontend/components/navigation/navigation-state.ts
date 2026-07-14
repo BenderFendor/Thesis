@@ -49,7 +49,7 @@ export function subscribeSidebarExpanded(onChange: () => void): () => void {
   if (typeof window === "undefined") return () => undefined
 
   const handleStorage = (event: StorageEvent) => {
-    if (event.key === SIDEBAR_EXPANDED_STORAGE_KEY) {
+    if (event.key === SIDEBAR_EXPANDED_STORAGE_KEY || event.key === null) {
       onChange()
     }
   }
