@@ -99,6 +99,12 @@ Run dependency cycle checks:
 npm run deps:cycles
 ```
 
+## Frontend architecture
+
+The frontend uses route files for page-level orchestration and reusable components for shared interactions. The workspace navigation is decomposed under `frontend/components/navigation` into configuration, state helpers, accessible navigation items, sections, and search behavior. View selections are synchronized with the URL so links from wiki and research routes open the intended home view.
+
+See [Frontend architecture and interaction rules](docs/frontend-architecture.md) for component boundaries, accessibility requirements, and the frontend verification checklist.
+
 ## Documentation
 
 - GitHub Wiki: end-user guides, workflows, troubleshooting, architecture overview, and release notes.
