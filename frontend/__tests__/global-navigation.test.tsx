@@ -6,12 +6,10 @@ import { GlobalNavigation } from "@/components/global-navigation"
 const push = jest.fn()
 const replace = jest.fn()
 let pathname = "/"
-let searchParams = new URLSearchParams()
 
 jest.mock("next/navigation", () => ({
   usePathname: () => pathname,
   useRouter: () => ({ push, replace }),
-  useSearchParams: () => searchParams,
 }))
 
 jest.mock("@/components/safe-image", () => ({
@@ -21,10 +19,10 @@ jest.mock("@/components/safe-image", () => ({
 describe("GlobalNavigation", () => {
   beforeEach(() => {
     pathname = "/"
-    searchParams = new URLSearchParams()
     push.mockReset()
     replace.mockReset()
     window.localStorage.clear()
+    window.history.replaceState({}, "", "/")
   })
 
   it("changes the home view and writes a shareable URL", async () => {
@@ -39,7 +37,7 @@ describe("GlobalNavigation", () => {
   })
 
   it("restores a requested view when arriving from another route", async () => {
-    searchParams = new URLSearchParams("view=blindspot")
+    window.history.replaceState({}, "", "/?view=blindspot")
     const onViewChange = jest.fn()
 
     render(<GlobalNavigation currentView="grid" onViewChange={onViewChange} />)
@@ -68,6 +66,19 @@ describe("GlobalNavigation", () => {
     await user.click(screen.getByRole("button", { name: "Submit search" }))
 
     expect(push).toHaveBeenCalledWith("/search?query=public%20media%20ownership")
+  })
+
+  it("persists explicit sidebar expansion", async () => {
+    const user = userEvent.setup()
+
+    render(<GlobalNavigation />)
+    await user.click(screen.getByRole("button", { name: "Expand navigation" }))
+
+    expect(window.localStorage.getItem("scoop:sidebar-expanded")).toBe("true")
+    expect(screen.getByRole("complementary", { name: "Primary workspace navigation" })).toHaveAttribute(
+      "data-expanded",
+      "true",
+    )
   })
 
   it("marks library routes as active", () => {
