@@ -1,8 +1,8 @@
 "use client"
 
-import { useCallback, useEffect, useState } from "react"
+import { useCallback, useEffect, useSyncExternalStore } from "react"
 import Link from "next/link"
-import { usePathname, useRouter, useSearchParams } from "next/navigation"
+import { usePathname, useRouter } from "next/navigation"
 import { Bell, ChevronLeft, ChevronRight } from "lucide-react"
 
 import { SafeImage } from "@/components/safe-image"
@@ -10,12 +10,18 @@ import {
   LIBRARY_NAVIGATION,
   VIEW_NAVIGATION,
   WIKI_NAVIGATION,
-  isViewMode,
   type ViewMode,
 } from "@/components/navigation/navigation-config"
+import {
+  buildSearchHref,
+  buildViewHref,
+  getViewFromSearch,
+  readSidebarExpanded,
+  subscribeSidebarExpanded,
+  writeSidebarExpanded,
+} from "@/components/navigation/navigation-state"
 import { SidebarNavigationItem } from "@/components/navigation/sidebar-navigation-item"
 import { SidebarSection } from "@/components/navigation/sidebar-section"
-import { buildSearchHref, buildViewHref, SIDEBAR_EXPANDED_STORAGE_KEY } from "@/components/navigation/navigation-state"
 import { WorkspaceSearch } from "@/components/navigation/workspace-search"
 import { cn } from "@/lib/utils"
 
@@ -38,32 +44,29 @@ export function GlobalNavigation({
 }: GlobalNavigationProps) {
   const pathname = usePathname()
   const router = useRouter()
-  const searchParams = useSearchParams()
-  const [expanded, setExpanded] = useState(false)
-
-  useEffect(() => {
-    try {
-      setExpanded(window.localStorage.getItem(SIDEBAR_EXPANDED_STORAGE_KEY) === "true")
-    } catch {
-      // Storage can be unavailable in hardened/private browser contexts.
-    }
-  }, [])
+  const expanded = useSyncExternalStore(
+    subscribeSidebarExpanded,
+    readSidebarExpanded,
+    () => false,
+  )
 
   useEffect(() => {
     if (pathname !== "/" || !onViewChange) return
-    const requestedView = searchParams.get("view")
-    if (isViewMode(requestedView) && requestedView !== currentView) {
-      onViewChange(requestedView)
+
+    const syncViewFromLocation = () => {
+      const requestedView = getViewFromSearch(window.location.search)
+      if (requestedView && requestedView !== currentView) {
+        onViewChange(requestedView)
+      }
     }
-  }, [currentView, onViewChange, pathname, searchParams])
+
+    syncViewFromLocation()
+    window.addEventListener("popstate", syncViewFromLocation)
+    return () => window.removeEventListener("popstate", syncViewFromLocation)
+  }, [currentView, onViewChange, pathname])
 
   const updateExpanded = useCallback((nextExpanded: boolean) => {
-    setExpanded(nextExpanded)
-    try {
-      window.localStorage.setItem(SIDEBAR_EXPANDED_STORAGE_KEY, String(nextExpanded))
-    } catch {
-      // The navigation remains functional without persistence.
-    }
+    writeSidebarExpanded(nextExpanded)
   }, [])
 
   const handleViewClick = useCallback(
