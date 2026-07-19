@@ -171,6 +171,18 @@ class BlindspotGeoSignalPayload(TypedDict):
     count: int
 
 
+class PaywallConcentrationPayload(TypedDict):
+    """Paywall Concentration Payload."""
+
+    total_articles: int
+    paywalled_articles: int
+    free_articles: int
+    unknown_articles: int
+    paywall_share: float
+    status: str
+    best_free_sources: list[str]
+
+
 class BlindspotCardPayload(TypedDict):
     """Blindspot Card Payload."""
 
@@ -189,6 +201,7 @@ class BlindspotCardPayload(TypedDict):
     representative_article: SnapshotArticlePayload | None
     articles: list[SnapshotArticlePayload]
     geography_signals: list[BlindspotGeoSignalPayload]
+    paywall_concentration: PaywallConcentrationPayload
 
 
 class BlindspotSummaryPayload(TypedDict):
@@ -520,6 +533,59 @@ def _article_preview(article: SnapshotArticlePayload) -> SnapshotArticlePayload:
         "credibility": article.get("credibility"),
         "author": article.get("author"),
         "authors": list(article.get("authors", [])),
+    }
+
+
+def _article_paywall_status(article: Any) -> str:
+    value = _article_value(article, "paywall_status")
+    if _has_text(value):
+        return cast(str, value).strip().lower()
+    return "unknown"
+
+
+def _paywall_concentration(
+    articles: list[Any],
+) -> PaywallConcentrationPayload:
+    paywalled_statuses = {"hard_paywall", "paywalled", "metered", "subscription_required"}
+    free_statuses = {"free", "open", "available"}
+    paywalled = 0
+    free = 0
+    unknown = 0
+    free_sources: list[str] = []
+    seen_free_sources: set[str] = set()
+
+    for article in articles:
+        status = _article_paywall_status(article)
+        if status in paywalled_statuses:
+            paywalled += 1
+        elif status in free_statuses:
+            free += 1
+            source_name = _article_source_name(article)
+            source_key = source_name.strip().lower()
+            if source_key and source_key not in seen_free_sources:
+                seen_free_sources.add(source_key)
+                free_sources.append(source_name)
+        else:
+            unknown += 1
+
+    total = paywalled + free + unknown
+    paywall_share = round(paywalled / total, 4) if total else 0.0
+    if total == 0:
+        status = "unknown"
+    elif paywall_share >= 0.6:
+        status = "high"
+    elif paywall_share >= 0.3:
+        status = "mixed"
+    else:
+        status = "low"
+    return {
+        "total_articles": total,
+        "paywalled_articles": paywalled,
+        "free_articles": free,
+        "unknown_articles": unknown,
+        "paywall_share": paywall_share,
+        "status": status,
+        "best_free_sources": free_sources[:4],
     }
 
 
@@ -1011,8 +1077,8 @@ class BlindspotViewerService:
 
         article_ids_needing_db: set[int] = set()
         for article_id, article in snapshot_articles_by_id.items():
+            article_ids_needing_db.add(article_id)
             if lens == "institutional_populist":
-                article_ids_needing_db.add(article_id)
                 continue
             if (
                 lens == "bias"
@@ -1121,6 +1187,7 @@ class BlindspotViewerService:
                 elif isinstance(published_at, str) and published_at.strip():
                     published_candidates.append(published_at)
             selected_preview_articles = _select_preview_articles(preview_articles)
+            paywall_concentration = _paywall_concentration(cluster_articles)
             card_payload: BlindspotCardPayload = {
                 "cluster_id": cluster_id,
                 "cluster_label": cluster.get("label") or "Topic",
@@ -1141,6 +1208,7 @@ class BlindspotViewerService:
                 "geography_signals": _geography_signals_for_articles(matching_articles)
                 if lens == "geography"
                 else [],
+                "paywall_concentration": paywall_concentration,
             }
             candidates.append(
                 ClusterCardCandidate(

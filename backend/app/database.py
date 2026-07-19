@@ -227,6 +227,7 @@ class Article(Base):
     mentioned_countries = Column(MentionedCountriesType(), default=list)
     original_language = Column(String, default="en")
     translated = Column(Boolean, default=False)
+    paywall_status = Column(String, default="unknown", index=True)
     chroma_id = Column(String, unique=True)
     embedding_generated = Column(Boolean, default=False)
     created_at = Column(DateTime, default=get_utc_now)
@@ -313,6 +314,24 @@ class ReadingQueueItem(Base):
     word_count = Column(Integer, nullable=True)
     estimated_read_time_minutes = Column(Integer, nullable=True)
     full_text = Column(Text, nullable=True)
+    why_saved = Column(Text, nullable=True)
+    unresolved_question = Column(Text, nullable=True)
+    shelf_id = Column(Integer, nullable=True, index=True)
+
+
+class ReadingShelf(Base):
+    """Named research shelf for saved reading memory."""
+
+    __tablename__ = "reading_shelves"
+
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, index=True, default=1)
+    name = Column(String, nullable=False)
+    description = Column(Text, nullable=True)
+    created_at = Column(DateTime, default=get_utc_now)
+    updated_at = Column(DateTime, default=get_utc_now, onupdate=get_utc_now)
+
+    __table_args__ = (Index("ix_reading_shelves_user_name", "user_id", "name", unique=True),)
 
 
 class Highlight(Base):
@@ -737,6 +756,121 @@ class TopicClusterSnapshot(Base):
             "computed_at",
         ),
     )
+
+
+class StoryCluster(Base):
+    """Durable story object promoted from a topic-cluster snapshot."""
+
+    __tablename__ = "story_clusters"
+
+    id = Column(Integer, primary_key=True, index=True)
+    external_cluster_id = Column(Integer, unique=True, nullable=False, index=True)
+    label = Column(String)
+    keywords = Column(JSON, default=list)
+    first_seen_at = Column(DateTime)
+    last_seen_at = Column(DateTime)
+    earliest_article_id = Column(Integer, index=True)
+    current_summary = Column(Text)
+    confidence = Column(Float, default=0.0)
+    created_at = Column(DateTime, default=get_utc_now)
+    updated_at = Column(DateTime, default=get_utc_now, onupdate=get_utc_now)
+
+
+class ArticleEdge(Base):
+    """Directed article lineage edge inside a durable story cluster."""
+
+    __tablename__ = "article_edges"
+
+    id = Column(Integer, primary_key=True, index=True)
+    story_cluster_id = Column(Integer, nullable=False, index=True)
+    from_article_id = Column(Integer, nullable=False, index=True)
+    to_article_id = Column(Integer, nullable=False, index=True)
+    relation = Column(String, nullable=False, index=True)
+    evidence = Column(JSON, default=dict)
+    confidence = Column(Float, default=0.0)
+    created_at = Column(DateTime, default=get_utc_now)
+
+    __table_args__ = (
+        Index(
+            "ix_article_edges_unique_story_edge",
+            "story_cluster_id",
+            "from_article_id",
+            "to_article_id",
+            "relation",
+            unique=True,
+        ),
+    )
+
+
+class ExtractedClaim(Base):
+    """Checkable claim extracted from a clustered article."""
+
+    __tablename__ = "extracted_claims"
+
+    id = Column(Integer, primary_key=True, index=True)
+    story_cluster_id = Column(Integer, nullable=False, index=True)
+    article_id = Column(Integer, nullable=False, index=True)
+    claim_text = Column(Text, nullable=False)
+    normalized_claim = Column(Text, nullable=False)
+    claim_hash = Column(String, nullable=False, index=True)
+    claim_type = Column(String, default="general")
+    checkability = Column(String, default="medium")
+    evidence_span = Column(Text)
+    entities = Column(JSON, default=list)
+    numbers = Column(JSON, default=list)
+    extracted_at = Column(DateTime, default=get_utc_now)
+
+    __table_args__ = (
+        Index(
+            "ix_extracted_claims_article_hash",
+            "article_id",
+            "claim_hash",
+            unique=True,
+        ),
+        Index("ix_extracted_claims_story_hash", "story_cluster_id", "claim_hash"),
+    )
+
+
+class ClaimEdge(Base):
+    """Directed claim relationship inside a durable story cluster."""
+
+    __tablename__ = "claim_edges"
+
+    id = Column(Integer, primary_key=True, index=True)
+    story_cluster_id = Column(Integer, nullable=False, index=True)
+    from_claim_id = Column(Integer, nullable=False, index=True)
+    to_claim_id = Column(Integer, nullable=False, index=True)
+    relation = Column(String, nullable=False, index=True)
+    evidence = Column(JSON, default=dict)
+    confidence = Column(Float, default=0.0)
+    created_at = Column(DateTime, default=get_utc_now)
+
+    __table_args__ = (
+        Index(
+            "ix_claim_edges_unique_story_edge",
+            "story_cluster_id",
+            "from_claim_id",
+            "to_claim_id",
+            "relation",
+            unique=True,
+        ),
+    )
+
+
+class Correction(Base):
+    """Correction-watch record matched to story or claim evidence."""
+
+    __tablename__ = "corrections"
+
+    id = Column(Integer, primary_key=True, index=True)
+    source = Column(String, nullable=False, index=True)
+    article_id = Column(Integer, index=True)
+    correction_url = Column(String, unique=True, index=True)
+    correction_text = Column(Text, nullable=False)
+    corrected_claim_id = Column(Integer, index=True)
+    downstream_article_ids = Column(JSON, default=list)
+    published_at = Column(DateTime)
+    created_at = Column(DateTime, default=get_utc_now)
 
 
 # Verification Agent Tables

@@ -16,6 +16,7 @@ CREATE TABLE IF NOT EXISTS articles (
   tags TEXT[],
   original_language TEXT DEFAULT 'en',
   translated BOOLEAN DEFAULT false,
+  paywall_status TEXT DEFAULT 'unknown',
   chroma_id TEXT UNIQUE,
   embedding_generated BOOLEAN DEFAULT false,
   created_at TIMESTAMPTZ DEFAULT NOW(),
@@ -28,6 +29,7 @@ CREATE INDEX IF NOT EXISTS idx_articles_category ON articles(category);
 CREATE INDEX IF NOT EXISTS idx_articles_published ON articles(published_at DESC);
 CREATE INDEX IF NOT EXISTS idx_articles_url ON articles(url);
 CREATE INDEX IF NOT EXISTS idx_articles_chroma_id ON articles(chroma_id);
+CREATE INDEX IF NOT EXISTS idx_articles_paywall_status ON articles(paywall_status);
 
 -- Full-text search index covering the weighted backend search vector.
 CREATE INDEX IF NOT EXISTS idx_articles_search ON articles USING GIN((
@@ -89,7 +91,13 @@ CREATE TABLE IF NOT EXISTS reading_queue (
   added_at TIMESTAMPTZ DEFAULT NOW(),
   archived_at TIMESTAMPTZ,
   created_at TIMESTAMPTZ DEFAULT NOW(),
-  updated_at TIMESTAMPTZ DEFAULT NOW()
+  updated_at TIMESTAMPTZ DEFAULT NOW(),
+  word_count INTEGER,
+  estimated_read_time_minutes INTEGER,
+  full_text TEXT,
+  why_saved TEXT,
+  unresolved_question TEXT,
+  shelf_id INTEGER
 );
 
 -- Indexes for reading queue queries
@@ -98,8 +106,24 @@ CREATE INDEX IF NOT EXISTS idx_reading_queue_queue_type ON reading_queue(queue_t
 CREATE INDEX IF NOT EXISTS idx_reading_queue_read_status ON reading_queue(read_status);
 CREATE INDEX IF NOT EXISTS idx_reading_queue_position ON reading_queue(position);
 CREATE INDEX IF NOT EXISTS idx_reading_queue_added_at ON reading_queue(added_at DESC);
+CREATE INDEX IF NOT EXISTS idx_reading_queue_shelf_id ON reading_queue(shelf_id);
+
+CREATE TABLE IF NOT EXISTS reading_shelves (
+  id SERIAL PRIMARY KEY,
+  user_id INTEGER DEFAULT 1,
+  name TEXT NOT NULL,
+  description TEXT,
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  updated_at TIMESTAMPTZ DEFAULT NOW(),
+  UNIQUE(user_id, name)
+);
+
+CREATE INDEX IF NOT EXISTS idx_reading_shelves_user_id ON reading_shelves(user_id);
 
 CREATE TRIGGER update_reading_queue_updated_at BEFORE UPDATE ON reading_queue
+FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+
+CREATE TRIGGER update_reading_shelves_updated_at BEFORE UPDATE ON reading_shelves
 FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 
 -- Auto-update timestamps
@@ -115,6 +139,99 @@ CREATE TRIGGER update_articles_updated_at BEFORE UPDATE ON articles
 FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 
 CREATE TRIGGER update_preferences_updated_at BEFORE UPDATE ON preferences
+FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+
+-- Durable story lineage tables promoted from topic-cluster snapshots.
+CREATE TABLE IF NOT EXISTS story_clusters (
+  id SERIAL PRIMARY KEY,
+  external_cluster_id INTEGER UNIQUE NOT NULL,
+  label TEXT,
+  keywords JSONB DEFAULT '[]'::jsonb,
+  first_seen_at TIMESTAMPTZ,
+  last_seen_at TIMESTAMPTZ,
+  earliest_article_id INTEGER,
+  current_summary TEXT,
+  confidence DOUBLE PRECISION DEFAULT 0,
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_story_clusters_external_cluster_id ON story_clusters(external_cluster_id);
+CREATE INDEX IF NOT EXISTS idx_story_clusters_earliest_article_id ON story_clusters(earliest_article_id);
+
+CREATE TABLE IF NOT EXISTS article_edges (
+  id SERIAL PRIMARY KEY,
+  story_cluster_id INTEGER NOT NULL,
+  from_article_id INTEGER NOT NULL,
+  to_article_id INTEGER NOT NULL,
+  relation TEXT NOT NULL,
+  evidence JSONB DEFAULT '{}'::jsonb,
+  confidence DOUBLE PRECISION DEFAULT 0,
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  UNIQUE(story_cluster_id, from_article_id, to_article_id, relation)
+);
+
+CREATE INDEX IF NOT EXISTS idx_article_edges_story_cluster_id ON article_edges(story_cluster_id);
+CREATE INDEX IF NOT EXISTS idx_article_edges_from_article_id ON article_edges(from_article_id);
+CREATE INDEX IF NOT EXISTS idx_article_edges_to_article_id ON article_edges(to_article_id);
+CREATE INDEX IF NOT EXISTS idx_article_edges_relation ON article_edges(relation);
+
+CREATE TABLE IF NOT EXISTS extracted_claims (
+  id SERIAL PRIMARY KEY,
+  story_cluster_id INTEGER NOT NULL,
+  article_id INTEGER NOT NULL,
+  claim_text TEXT NOT NULL,
+  normalized_claim TEXT NOT NULL,
+  claim_hash TEXT NOT NULL,
+  claim_type TEXT DEFAULT 'general',
+  checkability TEXT DEFAULT 'medium',
+  evidence_span TEXT,
+  entities JSONB DEFAULT '[]'::jsonb,
+  numbers JSONB DEFAULT '[]'::jsonb,
+  extracted_at TIMESTAMPTZ DEFAULT NOW(),
+  UNIQUE(article_id, claim_hash)
+);
+
+CREATE INDEX IF NOT EXISTS idx_extracted_claims_story_cluster_id ON extracted_claims(story_cluster_id);
+CREATE INDEX IF NOT EXISTS idx_extracted_claims_article_id ON extracted_claims(article_id);
+CREATE INDEX IF NOT EXISTS idx_extracted_claims_claim_hash ON extracted_claims(claim_hash);
+CREATE INDEX IF NOT EXISTS idx_extracted_claims_story_hash ON extracted_claims(story_cluster_id, claim_hash);
+
+CREATE TABLE IF NOT EXISTS claim_edges (
+  id SERIAL PRIMARY KEY,
+  story_cluster_id INTEGER NOT NULL,
+  from_claim_id INTEGER NOT NULL,
+  to_claim_id INTEGER NOT NULL,
+  relation TEXT NOT NULL,
+  evidence JSONB DEFAULT '{}'::jsonb,
+  confidence DOUBLE PRECISION DEFAULT 0,
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  UNIQUE(story_cluster_id, from_claim_id, to_claim_id, relation)
+);
+
+CREATE INDEX IF NOT EXISTS idx_claim_edges_story_cluster_id ON claim_edges(story_cluster_id);
+CREATE INDEX IF NOT EXISTS idx_claim_edges_from_claim_id ON claim_edges(from_claim_id);
+CREATE INDEX IF NOT EXISTS idx_claim_edges_to_claim_id ON claim_edges(to_claim_id);
+CREATE INDEX IF NOT EXISTS idx_claim_edges_relation ON claim_edges(relation);
+
+CREATE TABLE IF NOT EXISTS corrections (
+  id SERIAL PRIMARY KEY,
+  source TEXT NOT NULL,
+  article_id INTEGER,
+  correction_url TEXT UNIQUE,
+  correction_text TEXT NOT NULL,
+  corrected_claim_id INTEGER,
+  downstream_article_ids JSONB DEFAULT '[]'::jsonb,
+  published_at TIMESTAMPTZ,
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_corrections_source ON corrections(source);
+CREATE INDEX IF NOT EXISTS idx_corrections_article_id ON corrections(article_id);
+CREATE INDEX IF NOT EXISTS idx_corrections_corrected_claim_id ON corrections(corrected_claim_id);
+CREATE INDEX IF NOT EXISTS idx_corrections_correction_url ON corrections(correction_url);
+
+CREATE TRIGGER update_story_clusters_updated_at BEFORE UPDATE ON story_clusters
 FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 
 -- Verification Agent Tables

@@ -8,9 +8,11 @@ import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { X, Star, Search, ChevronDown, AlertTriangle, BookOpen, GitBranch, Users } from "lucide-react";
 import { useFavorites } from "@/hooks/useFavorites";
+import { useNewsLens } from "@/hooks/useNewsLens";
 import { useSourceFilter } from "@/hooks/useSourceFilter";
 import type { NewsSource } from "@/lib/api";
 import { fetchSources } from "@/lib/api";
+import { getLensStats, NEWS_LENSES, type NewsLensId } from "@/lib/news-lens";
 import { SourceCoverageComparison } from "@/components/source-coverage-comparison";
 import { AddRssDialog } from "@/components/add-rss-dialog";
 
@@ -28,6 +30,7 @@ export function SourceSidebar({ isOpen, onClose, sourceRecency }: SourceSidebarP
   });
 
   const { toggleFavorite, isFavorite } = useFavorites();
+  const { lens, setLens, clearLens } = useNewsLens();
   const {
     selectedSources,
     toggleSource,
@@ -99,6 +102,7 @@ export function SourceSidebar({ isOpen, onClose, sourceRecency }: SourceSidebarP
       )
       .map((source) => source.id);
   }, [selectedSources, sources]);
+  const lensStats = useMemo(() => getLensStats(sources, lens), [lens, sources]);
 
   const toggleSection = (section: "favorites" | "allSources") => {
     setExpandedSections((prev) => ({
@@ -149,11 +153,17 @@ export function SourceSidebar({ isOpen, onClose, sourceRecency }: SourceSidebarP
         </div>
 
         {/* Filter Badge */}
-        {isFilterActive() && (
+        {(isFilterActive() || lens !== "all") && (
           <div className="px-4 pt-2 pb-1">
             <Badge variant="outline" className="cursor-pointer border-white/10 bg-white/5 text-[10px] font-mono uppercase tracking-[0.3em] text-foreground/80"
-              onClick={handleClearAll}>
-              {getSelectionCount()} selected </Badge>
+              onClick={() => {
+                handleClearAll();
+                clearLens();
+              }}>
+              {lens === "all"
+                ? `${getSelectionCount()} selected`
+                : `${NEWS_LENSES.find((item) => item.id === lens)?.label ?? "Lens"}: ${lensStats.included} in / ${lensStats.excluded} out`}
+            </Badge>
           </div>
         )}
 
@@ -177,6 +187,29 @@ export function SourceSidebar({ isOpen, onClose, sourceRecency }: SourceSidebarP
               onChange={(e) => setSearchQuery(e.target.value)}
               className="pl-8 h-9 rounded-md border-white/10 bg-[var(--news-bg-primary)] text-foreground"
             />
+          </div>
+        </div>
+
+        <div className="border-b border-white/10 px-4 py-3">
+          <div className="mb-2 text-[10px] font-mono uppercase tracking-[0.25em] text-muted-foreground">
+            News Lens
+          </div>
+          <div className="grid grid-cols-2 gap-1.5">
+            {NEWS_LENSES.map((preset) => (
+              <button
+                key={preset.id}
+                type="button"
+                onClick={() => setLens(preset.id as NewsLensId)}
+                title={preset.description}
+                className={`rounded-md border px-2 py-2 text-left text-[10px] font-mono uppercase tracking-[0.16em] transition-colors ${
+                  lens === preset.id
+                    ? "border-primary/60 bg-primary/10 text-foreground"
+                    : "border-white/10 bg-[var(--news-bg-primary)]/40 text-muted-foreground hover:text-foreground"
+                }`}
+              >
+                {preset.label}
+              </button>
+            ))}
           </div>
         </div>
 

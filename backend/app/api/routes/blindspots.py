@@ -102,6 +102,18 @@ class BlindspotGeographySignalResponse(BaseModel):
     count: int
 
 
+class PaywallConcentrationResponse(BaseModel):
+    """Paywall concentration for a topic cluster."""
+
+    total_articles: int
+    paywalled_articles: int
+    free_articles: int
+    unknown_articles: int
+    paywall_share: float
+    status: str
+    best_free_sources: list[str] = []
+
+
 class BlindspotPreviewArticleResponse(BaseModel):
     """Blindspot Preview Article Response."""
 
@@ -141,6 +153,7 @@ class BlindspotCardResponse(BaseModel):
     representative_article: BlindspotPreviewArticleResponse | None = None
     articles: list[BlindspotPreviewArticleResponse]
     geography_signals: list[BlindspotGeographySignalResponse] = []
+    paywall_concentration: PaywallConcentrationResponse
 
 
 class BlindspotViewerSummaryResponse(BaseModel):

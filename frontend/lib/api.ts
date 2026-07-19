@@ -178,6 +178,8 @@ export interface NewsSource extends Pick<SourceCore, "id" | "name"> {
   category: string[];
   language: string;
   funding: string[];
+  sourceType?: string | null;
+  isPaywalled?: boolean;
   credibilityScore?: number;
   factualRating?: string;
 }
@@ -332,6 +334,8 @@ const BackendSourceSchema = z
     bias_rating: z.string().optional(),
     category: z.string().optional(),
     funding_type: z.string().optional(),
+    source_type: z.string().optional().nullable(),
+    is_paywalled: z.boolean().optional(),
     ownership_label: z.string().optional(),
     factual_rating: z.string().optional(),
     credibility_score: z.number().optional(),
@@ -576,6 +580,8 @@ export async function fetchSources(): Promise<NewsSource[]> {
       category: source.category ? [source.category] : ["general"],
       language: "en",
       funding: [source.funding_type || source.ownership_label || "Unknown"],
+      sourceType: source.source_type,
+      isPaywalled: source.is_paywalled ?? false,
       credibilityScore: source.credibility_score,
       factualRating: source.factual_rating,
     }));
@@ -1143,15 +1149,60 @@ export interface AddRssResponse {
   url: string;
   article_count: number;
   status: string;
+  promoted?: boolean;
+  sample_articles?: Array<{
+    title: string;
+    url: string;
+    source: string;
+  }>;
+  duplicate_candidates?: Array<{
+    name: string;
+    url: string;
+  }>;
+  inferred?: {
+    domain?: string;
+    source_type?: string | null;
+    category?: string;
+    country?: string;
+    is_paywalled?: boolean;
+  };
 }
 
 export async function validateRssUrl(
   url: string,
 ): Promise<AddRssResponse> {
-  const response = await fetch(`${API_BASE_URL}/sources/add-rss`, {
+  const response = await fetch(`${API_BASE_URL}/sources/rss/validate`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ url }),
+  });
+
+  if (!response.ok) {
+    const body = await response.json().catch(() => null);
+    const detail =
+      body && typeof body.detail === "string" ? body.detail : `HTTP ${response.status}`;
+    throw new Error(detail);
+  }
+
+  return response.json();
+}
+
+export async function promoteRssSource(request: {
+  url: string;
+  name?: string;
+  category?: string;
+  country?: string;
+  source_type?: string;
+  funding_type?: string;
+  bias_rating?: string;
+  ownership_label?: string;
+  factual_reporting?: string;
+  is_paywalled?: boolean;
+}): Promise<AddRssResponse> {
+  const response = await fetch(`${API_BASE_URL}/sources/rss/promote`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(request),
   });
 
   if (!response.ok) {
@@ -2579,6 +2630,40 @@ export interface FactCheckResult {
   notes?: string;
 }
 
+export interface LanguageDiagnosticExample {
+  sentence: string;
+  term?: string | null;
+  pattern?: string | null;
+  category?: string | null;
+}
+
+export interface LanguageDiagnosticMetric {
+  count: number;
+  rate: number;
+  status: "low" | "medium" | "high";
+  examples: LanguageDiagnosticExample[];
+}
+
+export interface LanguageDiagnosticOverall {
+  score: number;
+  status: "low" | "medium" | "high";
+  summary: string;
+}
+
+export interface LanguageDiagnostics {
+  success: boolean;
+  article_url: string;
+  title?: string | null;
+  sentence_count: number;
+  word_count: number;
+  passive_voice?: LanguageDiagnosticMetric | null;
+  actor_omission?: LanguageDiagnosticMetric | null;
+  euphemisms?: LanguageDiagnosticMetric | null;
+  sanitized_language?: LanguageDiagnosticMetric | null;
+  overall?: LanguageDiagnosticOverall | null;
+  error?: string | null;
+}
+
 // --- Trending & Breaking News ---
 // The interfaces and functions for fetching trending and breaking news
 // are now consolidated at the bottom of this file (Phase 6 section) to avoid duplication.
@@ -2612,11 +2697,12 @@ export interface ArticleAnalysis {
   };
   fact_check_suggestions?: string[];
   fact_check_results?: FactCheckResult[];
-    grounding_metadata?: {
-      grounding_chunks?: Array<{ uri?: string; title?: string }>;
-      grounding_supports?: unknown[];
-      web_search_queries?: string[];
-    };
+  grounding_metadata?: {
+    grounding_chunks?: Array<{ uri?: string; title?: string }>;
+    grounding_supports?: unknown[];
+    web_search_queries?: string[];
+  };
+  language_diagnostics?: LanguageDiagnostics | null;
   summary?: string;
   error?: string;
 }
@@ -2648,6 +2734,42 @@ export async function analyzeArticle(
     return data;
   } catch (error) {
     console.error("Failed to analyze article:", error);
+    throw error;
+  }
+}
+
+export async function fetchLanguageDiagnostics({
+  url,
+  text,
+  title,
+  sourceName,
+}: {
+  url: string;
+  text?: string;
+  title?: string;
+  sourceName?: string;
+}): Promise<LanguageDiagnostics> {
+  try {
+    const response = await fetch(`${API_BASE_URL}/api/article/language-diagnostics`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        url,
+        text,
+        title,
+        source_name: sourceName,
+      }),
+    });
+
+    if (!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status}`);
+    }
+
+    return await response.json();
+  } catch (error) {
+    console.error("Failed to analyze article language:", error);
     throw error;
   }
 }
@@ -2763,6 +2885,9 @@ export interface ReadingQueueItem {
   archived_at?: string;
   created_at?: string;
   updated_at?: string;
+  why_saved?: string | null;
+  unresolved_question?: string | null;
+  shelf_id?: number | null;
 }
 
 export interface QueueResponse {
@@ -2868,6 +2993,9 @@ export interface UpdateQueueItemRequest {
   queue_type?: "daily" | "permanent";
   position?: number;
   archived_at?: string;
+  why_saved?: string | null;
+  unresolved_question?: string | null;
+  shelf_id?: number | null;
 }
 
 export async function updateReadingQueueItem(
@@ -2922,6 +3050,41 @@ export async function getQueueOverview(): Promise<QueueOverview> {
     console.error("Failed to fetch queue overview:", error);
     throw error;
   }
+}
+
+export interface ReadingShelf {
+  id?: number;
+  user_id?: number | null;
+  name: string;
+  description?: string | null;
+  created_at?: string | null;
+  updated_at?: string | null;
+}
+
+export async function getReadingShelves(): Promise<ReadingShelf[]> {
+  const response = await fetch(`${API_BASE_URL}/api/queue/shelves`);
+  if (!response.ok) {
+    throw new Error(`HTTP error! status: ${response.status}`);
+  }
+  return response.json();
+}
+
+export async function createReadingShelf(request: {
+  name: string;
+  description?: string | null;
+}): Promise<ReadingShelf> {
+  const response = await fetch(`${API_BASE_URL}/api/queue/shelves`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(request),
+  });
+  if (!response.ok) {
+    const body = await response.json().catch(() => null);
+    const detail =
+      body && typeof body.detail === "string" ? body.detail : `HTTP ${response.status}`;
+    throw new Error(detail);
+  }
+  return response.json();
 }
 
 // Highlights API
@@ -4077,6 +4240,97 @@ export interface ClusterDetail {
   }>;
 }
 
+export interface ContradictionEvidence {
+  source: string;
+  article_url: string;
+  stance: string;
+  snippet: string;
+}
+
+export interface ContradictionClaim {
+  claim: string;
+  status: string;
+  evidence: ContradictionEvidence[];
+}
+
+export interface AgreedFact {
+  claim: string;
+  evidence: ContradictionEvidence[];
+}
+
+export interface ContradictionPanelResponse {
+  status: string;
+  reason?: string | null;
+  claims: ContradictionClaim[];
+  agreed_facts: AgreedFact[];
+  unconfirmed_gaps: string[];
+  source_count: number;
+  article_count: number;
+}
+
+export interface LineageStory {
+  id: number;
+  external_cluster_id: number;
+  label?: string | null;
+  keywords: string[];
+  first_seen_at?: string | null;
+  last_seen_at?: string | null;
+  earliest_article_id?: number | null;
+  current_summary?: string | null;
+  confidence?: number | null;
+}
+
+export interface LineageArticleEdge {
+  id?: number | null;
+  from_article_id: number;
+  to_article_id: number;
+  from_title: string;
+  to_title: string;
+  relation: string;
+  evidence: Record<string, unknown>;
+  confidence?: number | null;
+}
+
+export interface LineageClaim {
+  id?: number | null;
+  article_id: number;
+  claim_text: string;
+  claim_type: string;
+  checkability: string;
+  evidence_span?: string | null;
+  numbers: string[];
+}
+
+export interface LineageClaimEdge {
+  id?: number | null;
+  from_claim_id: number;
+  to_claim_id: number;
+  relation: string;
+  evidence: Record<string, unknown>;
+  confidence?: number | null;
+}
+
+export interface LineageCorrection {
+  id: number;
+  source: string;
+  article_id?: number | null;
+  correction_url?: string | null;
+  correction_text: string;
+  corrected_claim_id?: number | null;
+  downstream_article_ids: number[];
+  published_at?: string | null;
+}
+
+export interface StoryLineageResponse {
+  status: string;
+  reason?: string | null;
+  story?: LineageStory | null;
+  article_edges: LineageArticleEdge[];
+  claims: LineageClaim[];
+  claim_edges: LineageClaimEdge[];
+  corrections: LineageCorrection[];
+}
+
 export interface BlindspotLens {
   id: "bias" | "credibility" | "geography" | "institutional_populist";
   label: string;
@@ -4137,6 +4391,15 @@ export interface BlindspotCard {
     label: string;
     count: number;
   }>;
+  paywall_concentration: {
+    total_articles: number;
+    paywalled_articles: number;
+    free_articles: number;
+    unknown_articles: number;
+    paywall_share: number;
+    status: string;
+    best_free_sources: string[];
+  };
   representative_article?: BlindspotPreviewArticle | null;
   articles: BlindspotPreviewArticle[];
 }
@@ -4304,6 +4567,97 @@ const ClusterDetailSchema = z.object({
   gdelt_context: GdeltContextSchema.nullable().default(null),
 });
 
+const ContradictionEvidenceSchema = z.object({
+  source: z.string(),
+  article_url: z.string(),
+  stance: z.string(),
+  snippet: z.string(),
+});
+
+const ContradictionClaimSchema = z.object({
+  claim: z.string(),
+  status: z.string(),
+  evidence: z.array(ContradictionEvidenceSchema).default([]),
+});
+
+const AgreedFactSchema = z.object({
+  claim: z.string(),
+  evidence: z.array(ContradictionEvidenceSchema).default([]),
+});
+
+const ContradictionPanelResponseSchema = z.object({
+  status: z.string(),
+  reason: z.string().nullable().optional(),
+  claims: z.array(ContradictionClaimSchema).default([]),
+  agreed_facts: z.array(AgreedFactSchema).default([]),
+  unconfirmed_gaps: z.array(z.string()).default([]),
+  source_count: z.number(),
+  article_count: z.number(),
+});
+
+const LineageStorySchema = z.object({
+  id: z.number(),
+  external_cluster_id: z.number(),
+  label: z.string().nullable().optional(),
+  keywords: z.array(z.string()).default([]),
+  first_seen_at: z.string().nullable().optional(),
+  last_seen_at: z.string().nullable().optional(),
+  earliest_article_id: z.number().nullable().optional(),
+  current_summary: z.string().nullable().optional(),
+  confidence: z.number().nullable().optional(),
+});
+
+const LineageArticleEdgeSchema = z.object({
+  id: z.number().nullable().optional(),
+  from_article_id: z.number(),
+  to_article_id: z.number(),
+  from_title: z.string(),
+  to_title: z.string(),
+  relation: z.string(),
+  evidence: z.record(z.string(), z.unknown()).default({}),
+  confidence: z.number().nullable().optional(),
+});
+
+const LineageClaimSchema = z.object({
+  id: z.number().nullable().optional(),
+  article_id: z.number(),
+  claim_text: z.string(),
+  claim_type: z.string(),
+  checkability: z.string(),
+  evidence_span: z.string().nullable().optional(),
+  numbers: z.array(z.string()).default([]),
+});
+
+const LineageClaimEdgeSchema = z.object({
+  id: z.number().nullable().optional(),
+  from_claim_id: z.number(),
+  to_claim_id: z.number(),
+  relation: z.string(),
+  evidence: z.record(z.string(), z.unknown()).default({}),
+  confidence: z.number().nullable().optional(),
+});
+
+const LineageCorrectionSchema = z.object({
+  id: z.number(),
+  source: z.string(),
+  article_id: z.number().nullable().optional(),
+  correction_url: z.string().nullable().optional(),
+  correction_text: z.string(),
+  corrected_claim_id: z.number().nullable().optional(),
+  downstream_article_ids: z.array(z.number()).default([]),
+  published_at: z.string().nullable().optional(),
+});
+
+const StoryLineageResponseSchema = z.object({
+  status: z.string(),
+  reason: z.string().nullable().optional(),
+  story: LineageStorySchema.nullable().optional(),
+  article_edges: z.array(LineageArticleEdgeSchema).default([]),
+  claims: z.array(LineageClaimSchema).default([]),
+  claim_edges: z.array(LineageClaimEdgeSchema).default([]),
+  corrections: z.array(LineageCorrectionSchema).default([]),
+});
+
 const BlindspotLensSchema = z.object({
   id: z.enum(["bias", "credibility", "geography", "institutional_populist"]),
   label: z.string(),
@@ -4368,6 +4722,15 @@ const BlindspotCardSchema = z.object({
       }),
     )
     .default([]),
+  paywall_concentration: z.object({
+    total_articles: z.number(),
+    paywalled_articles: z.number(),
+    free_articles: z.number(),
+    unknown_articles: z.number(),
+    paywall_share: z.number(),
+    status: z.string(),
+    best_free_sources: z.array(z.string()).default([]),
+  }),
   representative_article: BlindspotPreviewArticleSchema.nullable().optional(),
   articles: z.array(BlindspotPreviewArticleSchema),
 });
@@ -4485,6 +4848,32 @@ export async function fetchClusterDetail(
   const parsed = ClusterDetailSchema.parse(payload);
   parsed satisfies OpenApiClusterDetailResponse;
   return parsed;
+}
+
+export async function fetchClusterContradictions(
+  clusterId: number,
+): Promise<ContradictionPanelResponse> {
+  const response = await fetch(
+    `${API_BASE_URL}/trending/clusters/${clusterId}/contradictions`,
+  );
+  if (!response.ok) {
+    throw new Error(`HTTP error! status: ${response.status}`);
+  }
+  const payload: unknown = await response.json();
+  return ContradictionPanelResponseSchema.parse(payload);
+}
+
+export async function fetchClusterLineage(
+  clusterId: number,
+): Promise<StoryLineageResponse> {
+  const response = await fetch(
+    `${API_BASE_URL}/trending/clusters/${clusterId}/lineage`,
+  );
+  if (!response.ok) {
+    throw new Error(`HTTP error! status: ${response.status}`);
+  }
+  const payload: unknown = await response.json();
+  return StoryLineageResponseSchema.parse(payload);
 }
 
 export async function fetchBlindspotViewer(params?: {
@@ -4896,6 +5285,51 @@ export interface WikiSourceCard {
   last_indexed_at?: string;
 }
 
+export interface SourceLedgerMetric {
+  id: string;
+  label: string;
+  value: number;
+  unit: string;
+  description: string;
+  status: string;
+}
+
+export interface SourceLedger {
+  source_name: string;
+  article_count: number;
+  paywall: {
+    paywalled_articles: number;
+    free_articles: number;
+    unknown_articles: number;
+    paywall_rate: number;
+    source_flagged_paywalled: boolean;
+  };
+  original_reporting: {
+    earliest_story_count: number;
+    earliest_story_rate: number;
+  };
+  wire_dependency: {
+    wire_edge_count: number;
+    downstream_edge_count: number;
+    wire_dependency_rate: number;
+  };
+  author_transparency: {
+    named_author_articles: number;
+    named_author_rate: number;
+  };
+  source_transparency: {
+    policy_signal_count: number;
+    has_policy_signals: boolean;
+  };
+  rss_health: {
+    status: string;
+    feed_url?: string | null;
+    last_successful_fetch_at?: unknown;
+    last_error?: unknown;
+  };
+  metrics: SourceLedgerMetric[];
+}
+
 export interface WikiSourceProfile {
   name: string;
   website?: string;
@@ -4936,6 +5370,7 @@ export interface WikiSourceProfile {
   policy_transparency?: PolicyTransparencySummary | null;
   ads_txt?: AdsTxtSummary | null;
   sellers_json?: SellersJsonSummary | null;
+  source_ledger?: SourceLedger | null;
   search_links?: Record<string, string>;
   match_explanation?: string;
   analysis_axes: WikiAnalysisAxis[];

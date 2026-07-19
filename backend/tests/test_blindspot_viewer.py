@@ -11,6 +11,7 @@ from app.services.blindspot_viewer import (
     _load_embeddings_for_articles,
     _metadata_counts_for_lens,
     _geography_signals_for_articles,
+    _paywall_concentration,
     _select_preview_articles,
     _shares_from_counts,
     _source_catalog_lookup,
@@ -267,3 +268,24 @@ def test_select_preview_articles_prefers_source_diversity() -> None:
     selected = _select_preview_articles(articles, limit=3)
 
     assert [article["id"] for article in selected] == [1, 3, 4]
+
+
+def test_paywall_concentration_tracks_free_alternatives() -> None:
+    concentration = _paywall_concentration(
+        [
+            {"source": "Outlet A", "paywall_status": "metered"},
+            {"source": "Outlet B", "paywall_status": "hard_paywall"},
+            {"source": "Outlet C", "paywall_status": "free"},
+            {"source": "Outlet D", "paywall_status": "unknown"},
+        ]
+    )
+
+    assert concentration == {
+        "total_articles": 4,
+        "paywalled_articles": 2,
+        "free_articles": 1,
+        "unknown_articles": 1,
+        "paywall_share": 0.5,
+        "status": "mixed",
+        "best_free_sources": ["Outlet C"],
+    }

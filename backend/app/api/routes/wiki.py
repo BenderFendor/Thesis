@@ -33,6 +33,7 @@ from app.database import (
 )
 from app.services.source_research import get_source_profile
 from app.services.reporter_public_records import build_reporter_activity_summary
+from app.services.source_ledger import build_source_ledger
 
 router = APIRouter(prefix="/api/wiki", tags=["wiki"])
 logger = get_logger("wiki_routes")
@@ -175,6 +176,31 @@ class SourceCardResponse(BaseModel):
     last_indexed_at: str | None = None
 
 
+class SourceLedgerMetricResponse(BaseModel):
+    """Single transparent source-ledger metric."""
+
+    id: str
+    label: str
+    value: float | int
+    unit: str
+    description: str
+    status: str
+
+
+class SourceLedgerResponse(BaseModel):
+    """Observed source ledger for a source wiki page."""
+
+    source_name: str
+    article_count: int
+    paywall: dict[str, Any]
+    original_reporting: dict[str, Any]
+    wire_dependency: dict[str, Any]
+    author_transparency: dict[str, Any]
+    source_transparency: dict[str, Any]
+    rss_health: dict[str, Any]
+    metrics: list[SourceLedgerMetricResponse]
+
+
 class SourceWikiResponse(BaseModel):
     """Full wiki page data for a single source."""
 
@@ -202,6 +228,7 @@ class SourceWikiResponse(BaseModel):
     ads_txt: dict[str, Any] | None = None
     sellers_json: dict[str, Any] | None = None
     claims: list[dict[str, Any]] = []
+    source_ledger: SourceLedgerResponse | None = None
 
     # Source analysis scores
     analysis_axes: list[AnalysisAxisResponse] = []
@@ -630,6 +657,20 @@ async def get_source_wiki(
             "Skipping source claim loading due to mock session result exhaustion",
         )
 
+    source_ledger: dict[str, Any] | None = None
+    try:
+        source_ledger = await build_source_ledger(
+            db,
+            source_name=source_name,
+            matched_source_names=matched_source_names,
+            source_config=source_config,
+            meta=meta,
+        )
+    except AssertionError:
+        logger.debug(
+            "Skipping source ledger loading due to mock session result exhaustion",
+        )
+
     return SourceWikiResponse(
         name=source_name,
         website=cast(str | None, (source_profile or {}).get("website")),
@@ -661,6 +702,9 @@ async def get_source_wiki(
         ads_txt=cast(dict[str, Any] | None, (source_profile or {}).get("ads_txt")),
         sellers_json=cast(dict[str, Any] | None, (source_profile or {}).get("sellers_json")),
         claims=claim_payloads,
+        source_ledger=(
+            SourceLedgerResponse.model_validate(source_ledger) if source_ledger else None
+        ),
         analysis_axes=scores,
         reporters=reporters,
         organization=org_data,

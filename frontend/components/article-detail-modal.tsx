@@ -5,11 +5,11 @@ import { useQuery } from "@tanstack/react-query"
 import { motion } from "framer-motion"
 import { logUserAction } from "@/lib/performance-logger"
 import Link from "next/link"
-import { X, ExternalLink, Heart, Bookmark, AlertTriangle, DollarSign, Bug, Link as LinkIcon, Sparkles, Maximize2, Minimize2, Loader2, Search, RefreshCw, CheckCircle2, XCircle, Copy, PlusCircle, MinusCircle, Star, Edit2, Trash2, Eye, EyeOff, Download, BookOpen } from "lucide-react"
+import { X, ExternalLink, Heart, Bookmark, AlertTriangle, DollarSign, Bug, Link as LinkIcon, Sparkles, Maximize2, Minimize2, Loader2, Search, RefreshCw, CheckCircle2, XCircle, Copy, PlusCircle, MinusCircle, Star, Edit2, Trash2, Eye, EyeOff, Download, BookOpen, ScanText } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
-import { type NewsArticle, getSourceById, type NewsSource, fetchSourceDebugData, type SourceDebugData, analyzeArticle, type ArticleAnalysis, API_BASE_URL, performAgenticSearch, type FactCheckResult, type Highlight, getHighlightsForArticle, createHighlight, updateHighlight, deleteHighlight } from "@/lib/api"
+import { type NewsArticle, getSourceById, type NewsSource, fetchSourceDebugData, type SourceDebugData, analyzeArticle, type ArticleAnalysis, API_BASE_URL, performAgenticSearch, type FactCheckResult, type Highlight, getHighlightsForArticle, createHighlight, updateHighlight, deleteHighlight, fetchLanguageDiagnostics, type LanguageDiagnosticMetric, type LanguageDiagnostics } from "@/lib/api"
 import { useDebugMode } from "@/hooks/useDebugMode"
 import { useLikedArticles } from "@/hooks/useLikedArticles"
 import { loadHighlightStore, mergeHighlights, saveHighlightStore, toRemoteHighlights, type LocalHighlight, type HighlightSyncStatus, generateClientId, markFailed, markPending, markSynced, createHighlightFingerprint, dedupeLocalHighlights } from "@/lib/highlight-store"
@@ -49,6 +49,18 @@ const VERIFICATION_LABEL_MAP: Record<FactCheckStatus, string> = {
 const STATUS_FILTERS: FactCheckStatusFilter[] = ["all", "verified", "partially-verified", "unverified", "false"]
 
 const fullArticleCache = new Map<string, string | null>()
+
+const LANGUAGE_STATUS_STYLE: Record<"low" | "medium" | "high", string> = {
+  low: "border-emerald-500/30 bg-emerald-500/10 text-emerald-200",
+  medium: "border-amber-500/30 bg-amber-500/10 text-amber-200",
+  high: "border-rose-500/30 bg-rose-500/10 text-rose-200",
+}
+
+const LANGUAGE_METRIC_LABELS: Array<{ key: "passive_voice" | "actor_omission" | "euphemisms"; label: string }> = [
+  { key: "passive_voice", label: "Passive voice" },
+  { key: "actor_omission", label: "Actor omission" },
+  { key: "euphemisms", label: "Euphemisms" },
+]
 
 const isExtractableUrl = (url?: string | null) => {
   if (!url) return false
@@ -105,6 +117,88 @@ async function fetchFullArticleText(
     }
     return initialText
   }
+}
+
+function LanguageForensicsCard({
+  diagnostics,
+  loading,
+  error,
+}: {
+  diagnostics?: LanguageDiagnostics | null
+  loading: boolean
+  error?: string | null
+}) {
+  const metrics = LANGUAGE_METRIC_LABELS.map(({ key, label }) => ({
+    key,
+    label,
+    metric: diagnostics?.[key] as LanguageDiagnosticMetric | null | undefined,
+  }))
+  const examples = [
+    ...(diagnostics?.passive_voice?.examples ?? []),
+    ...(diagnostics?.actor_omission?.examples ?? []),
+    ...(diagnostics?.euphemisms?.examples ?? []),
+    ...(diagnostics?.sanitized_language?.examples ?? []),
+  ].slice(0, 4)
+  const status = diagnostics?.overall?.status ?? "low"
+
+  return (
+    <div className="rounded-lg border border-border/60 bg-secondary/70 p-5">
+      <div className="mb-4 flex items-start justify-between gap-3">
+        <div>
+          <p className="font-mono text-xs uppercase tracking-widest text-muted-foreground">Language Forensics</p>
+          <h3 className="mt-1 flex items-center gap-2 text-lg font-semibold text-foreground">
+            <ScanText className="h-5 w-5 text-primary" />
+            Framing diagnostics
+          </h3>
+        </div>
+        <Badge className={`${LANGUAGE_STATUS_STYLE[status]} uppercase tracking-wide`}>
+          {loading ? "Scanning" : status}
+        </Badge>
+      </div>
+
+      {error ? (
+        <div className="rounded-md border border-rose-500/30 bg-rose-500/10 px-3 py-2 text-sm text-rose-200">
+          {error}
+        </div>
+      ) : null}
+
+      <div className="grid grid-cols-3 gap-2">
+        {metrics.map(({ key, label, metric }) => (
+          <div key={key} className="rounded-md border border-border/50 bg-background/45 px-3 py-2">
+            <div className="text-xs uppercase tracking-widest text-muted-foreground">{label}</div>
+            <div className="mt-1 flex items-baseline gap-2">
+              <span className="text-lg font-semibold text-foreground">{metric?.count ?? 0}</span>
+              <span className="text-xs text-muted-foreground">{Math.round((metric?.rate ?? 0) * 100)}%</span>
+            </div>
+          </div>
+        ))}
+      </div>
+
+      {diagnostics?.overall?.summary ? (
+        <p className="mt-4 text-sm leading-relaxed text-foreground/80">{diagnostics.overall.summary}</p>
+      ) : (
+        <p className="mt-4 text-sm text-muted-foreground">
+          {loading ? "Scanning article language." : "No diagnostic result available for this article."}
+        </p>
+      )}
+
+      {examples.length > 0 ? (
+        <div className="mt-4 space-y-2">
+          {examples.map((example, index) => (
+            <div key={`${example.sentence}-${index}`} className="rounded-md border border-border/50 bg-background/35 px-3 py-2">
+              <div className="mb-1 flex items-center gap-2">
+                <Badge variant="outline" className="text-xs uppercase tracking-widest">
+                  {example.category || example.pattern || "example"}
+                </Badge>
+                {example.term ? <span className="text-xs text-muted-foreground">{example.term}</span> : null}
+              </div>
+              <p className="line-clamp-3 text-xs leading-relaxed text-foreground/75">{example.sentence}</p>
+            </div>
+          ))}
+        </div>
+      ) : null}
+    </div>
+  )
 }
 
 interface ArticleDetailModalProps {
@@ -755,6 +849,26 @@ function ArticleDetailModalContent({ article, isOpen, onClose, onBookmarkChange,
   const articleTextForMetrics = (fullArticleText || currentArticle?.content || currentArticle?.summary || "").trim()
   const wordCount = articleTextForMetrics ? articleTextForMetrics.split(/\s+/).filter(Boolean).length : 0
   const estimatedReadMinutes = Math.max(1, Math.ceil(wordCount / 230))
+  const {
+    data: languageDiagnostics,
+    isFetching: languageDiagnosticsLoading,
+    error: languageDiagnosticsQueryError,
+  } = useQuery<LanguageDiagnostics, Error>({
+    queryKey: ["article-language-diagnostics", currentArticle.url, articleTextForMetrics.slice(0, 120)],
+    queryFn: () =>
+      fetchLanguageDiagnostics({
+        url: currentArticle.url,
+        text: articleTextForMetrics,
+        title: currentArticle.title,
+        sourceName: currentArticle.source,
+      }),
+    enabled: isOpen && wordCount >= 20,
+    retry: 1,
+    staleTime: 1000 * 60 * 5,
+  })
+  const renderedLanguageDiagnostics = aiAnalysis?.language_diagnostics?.success
+    ? aiAnalysis.language_diagnostics
+    : languageDiagnostics
   const summaryText = (currentArticle?.summary || "").trim()
   const contentText = (currentArticle?.content || "").trim()
   const fullText = (fullArticleText || "").trim()
@@ -1747,6 +1861,12 @@ function ArticleDetailModalContent({ article, isOpen, onClose, onBookmarkChange,
                       </p>
                     </div>
                   )}
+
+                  <LanguageForensicsCard
+                    diagnostics={renderedLanguageDiagnostics}
+                    loading={languageDiagnosticsLoading}
+                    error={languageDiagnosticsQueryError?.message ?? renderedLanguageDiagnostics?.error ?? null}
+                  />
 
                   <SourceResearchPanel
                     sourceName={article.source}

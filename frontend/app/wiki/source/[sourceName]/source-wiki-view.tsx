@@ -141,6 +141,15 @@ export function SourceWikiView({ sourceName }: { sourceName: string }) {
               {data.credibility_score != null && (
                 <SidebarFact label="Credibility" value={data.credibility_score.toFixed(1)} />
               )}
+              {data.source_ledger && (
+                <SidebarFact
+                  label="Paywall rate"
+                  value={formatLedgerValue(data.source_ledger.paywall.paywall_rate, "share")}
+                />
+              )}
+              {data.source_ledger && (
+                <SidebarFact label="RSS health" value={data.source_ledger.rss_health.status} />
+              )}
               {avgScore != null && <SidebarFact label="Avg stored score" value={avgScore.toFixed(1)} />}
             </SidebarCard>
 
@@ -246,6 +255,50 @@ export function SourceWikiView({ sourceName }: { sourceName: string }) {
                 </div>
               </div>
             </Panel>
+
+            {data.source_ledger && (
+              <Panel title="Source Ledger" eyebrow="Observed database signals">
+                <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+                  {data.source_ledger.metrics.map((metric) => (
+                    <div
+                      key={metric.id}
+                      className="rounded-2xl bg-black/20 border border-white/5 transition-all hover:bg-white/[0.03] hover:-translate-y-px hover:shadow-lg p-4"
+                    >
+                      <div className="flex items-start justify-between gap-3">
+                        <div>
+                          <div className="font-mono text-[10px] uppercase tracking-widest text-muted-foreground">
+                            {metric.label}
+                          </div>
+                          <p className="mt-2 text-sm leading-6 text-muted-foreground">
+                            {metric.description}
+                          </p>
+                        </div>
+                        <Badge variant="outline" className="font-mono text-[10px] tracking-widest">
+                          {metric.status}
+                        </Badge>
+                      </div>
+                      <div className="mt-4 font-serif text-2xl">
+                        {formatLedgerValue(metric.value, metric.unit)}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+                <div className="mt-4 grid gap-3 md:grid-cols-3">
+                  <LedgerFact
+                    label="Paywall mix"
+                    value={`${data.source_ledger.paywall.paywalled_articles} locked / ${data.source_ledger.paywall.free_articles} free`}
+                  />
+                  <LedgerFact
+                    label="RSS health"
+                    value={data.source_ledger.rss_health.status}
+                  />
+                  <LedgerFact
+                    label="Policy signals"
+                    value={String(data.source_ledger.source_transparency.policy_signal_count)}
+                  />
+                </div>
+              </Panel>
+            )}
 
             <Panel title="Public Evidence" eyebrow="Official pages and public records">
               <div className="space-y-3">
@@ -440,6 +493,24 @@ function SidebarLink({ href, label }: { href: string; label: string }) {
       <ExternalLink className="h-3.5 w-3.5 group-hover:opacity-100" />
       <span className="font-mono text-[10px] tracking-widest uppercase">{label}</span>
     </a>
+  );
+}
+
+function formatLedgerValue(value: number, unit: string): string {
+  if (unit === "share") {
+    return `${Math.round(value * 100)}%`;
+  }
+  return `${value} ${unit}`;
+}
+
+function LedgerFact({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="rounded-2xl bg-black/20 border border-white/5 p-4">
+      <div className="font-mono text-[10px] uppercase tracking-widest text-muted-foreground">
+        {label}
+      </div>
+      <div className="mt-2 font-mono text-sm">{value}</div>
+    </div>
   );
 }
 

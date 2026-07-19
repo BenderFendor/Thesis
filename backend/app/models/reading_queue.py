@@ -25,6 +25,9 @@ class ReadingQueueItem(StrictBaseModel):
     word_count: int | None = None
     estimated_read_time_minutes: int | None = None
     full_text: str | None = None
+    why_saved: str | None = None
+    unresolved_question: str | None = None
+    shelf_id: int | None = None
 
     class Config:
         """Config."""
@@ -46,6 +49,9 @@ class AddToQueueRequest(StrictBaseModel):
     article_source: str
     article_image: str | None = None
     queue_type: str = "daily"
+    why_saved: str | None = None
+    unresolved_question: str | None = None
+    shelf_id: int | None = None
 
 
 class UpdateQueueItemRequest(StrictBaseModel):
@@ -55,6 +61,9 @@ class UpdateQueueItemRequest(StrictBaseModel):
     queue_type: str | None = None
     position: int | None = None
     archived_at: datetime | None = None
+    why_saved: str | None = None
+    unresolved_question: str | None = None
+    shelf_id: int | None = None
 
 
 class QueueResponse(StrictBaseModel):
@@ -76,6 +85,41 @@ class QueueOverviewResponse(StrictBaseModel):
     reading_count: int
     completed_count: int
     estimated_total_read_time_minutes: int
+
+
+class ReadingShelf(StrictBaseModel):
+    """Reading Shelf."""
+
+    id: int | None = None
+    user_id: int | None = 1
+    name: str
+    description: str | None = None
+    created_at: datetime | None = None
+    updated_at: datetime | None = None
+
+    class Config:
+        """Config."""
+
+        from_attributes = True
+
+    @classmethod
+    def from_attributes(cls, obj: Any) -> "ReadingShelf":
+        """From Attributes."""
+        return cls.model_validate(obj, from_attributes=True)
+
+
+class CreateShelfRequest(StrictBaseModel):
+    """Create Shelf Request."""
+
+    name: str
+    description: str | None = None
+
+
+class UpdateShelfRequest(StrictBaseModel):
+    """Update Shelf Request."""
+
+    name: str | None = None
+    description: str | None = None
 
 
 class Highlight(StrictBaseModel):

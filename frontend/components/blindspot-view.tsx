@@ -164,6 +164,14 @@ function articleSourceSummary(card: BlindspotCard): string | null {
   return remaining > 0 ? `${visibleSources} +${remaining} more` : visibleSources
 }
 
+function paywallLabel(card: BlindspotCard): string | null {
+  const paywall = card.paywall_concentration
+  if (!paywall || paywall.total_articles === 0 || paywall.status === "low") {
+    return null
+  }
+  return `${Math.round(paywall.paywall_share * 100)}% paywalled`
+}
+
 function displayPoleLabel(label: string): string {
   return label.replace(/^For the\s+/i, "the ").replace(/^For\s+/i, "")
 }
@@ -188,6 +196,7 @@ function LeadStory({
     ? Math.round(card.coverage_shares.pole_a * 100) 
     : Math.round(card.coverage_shares.pole_b * 100)
   const sourceSummary = articleSourceSummary(card)
+  const paywallText = paywallLabel(card)
 
   return (
     <button
@@ -215,6 +224,11 @@ function LeadStory({
           )}>
             {blindspotLabel}: {blindspotValue}%
           </span>
+          {paywallText ? (
+            <span className="hidden shrink-0 bg-black/70 px-2.5 py-1 font-mono text-[10px] font-bold uppercase tracking-widest text-white shadow-lg lg:inline">
+              {paywallText}
+            </span>
+          ) : null}
         </div>
 
         <div className="absolute bottom-2 left-2 right-2 lg:bottom-4 lg:left-4 lg:right-4">
@@ -241,6 +255,11 @@ function LeadStory({
           {sourceSummary ? (
             <p className="line-clamp-2 text-[10px] font-medium leading-snug text-muted-foreground/55 lg:font-mono lg:uppercase lg:tracking-[0.16em] lg:text-muted-foreground/45">
               Comparing {card.articles.length} sampled articles from {sourceSummary}
+            </p>
+          ) : null}
+          {paywallText ? (
+            <p className="font-mono text-[9px] uppercase tracking-[0.16em] text-amber-200/70">
+              {paywallText}; free alternatives from {card.paywall_concentration.best_free_sources.slice(0, 2).join(" · ") || "none detected"}
             </p>
           ) : null}
           <div className="hidden grid-cols-3 gap-2 text-[8px] font-mono uppercase tracking-[0.12em] text-muted-foreground/40 lg:flex lg:items-center lg:justify-between lg:text-[9px] lg:tracking-[0.2em]">
@@ -274,6 +293,7 @@ function StoryRow({
   onOpen: (card: BlindspotCard) => void
 }) {
   const sourceSummary = articleSourceSummary(card)
+  const paywallText = paywallLabel(card)
 
   return (
     <button
@@ -287,6 +307,12 @@ function StoryRow({
             <span>{card.source_count} sources</span>
             <span className="h-0.5 w-0.5 rounded-full bg-white/10" />
             <span className="hidden lg:inline">{formatDate(card.published_at)}</span>
+            {paywallText ? (
+              <>
+                <span className="h-0.5 w-0.5 rounded-full bg-white/10" />
+                <span className="text-amber-200/60">{paywallText}</span>
+              </>
+            ) : null}
           </div>
           <h4 className="mt-1 line-clamp-3 font-serif text-sm leading-tight text-foreground/85 transition-colors group-hover:text-white lg:mt-1.5 lg:line-clamp-2 lg:text-lg lg:leading-snug lg:text-foreground/80">
             {card.cluster_label}
@@ -334,6 +360,7 @@ function MobileBlindspotTile({
   const blindspotValue = isLackingPoleA
     ? Math.round(card.coverage_shares.pole_a * 100)
     : Math.round(card.coverage_shares.pole_b * 100)
+  const paywallText = paywallLabel(card)
 
   return (
     <button
@@ -356,6 +383,11 @@ function MobileBlindspotTile({
         <div className="absolute left-2 top-2 max-w-[calc(100%-1rem)] truncate bg-primary px-1.5 py-0.5 text-[8px] font-semibold uppercase tracking-wide text-black">
           {blindspotLabel}: {blindspotValue}%
         </div>
+        {paywallText ? (
+          <div className="absolute right-2 top-7 max-w-[calc(100%-1rem)] truncate bg-black/70 px-1.5 py-0.5 text-[8px] font-semibold uppercase tracking-wide text-white">
+            {paywallText}
+          </div>
+        ) : null}
         <div className="absolute bottom-2 left-2 right-2 flex items-center gap-1.5 text-[9px] font-medium text-white/75">
           <span>{card.source_count} sources</span>
           <span className="h-1 w-1 rounded-full bg-white/40" />

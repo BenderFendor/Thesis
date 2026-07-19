@@ -26,6 +26,21 @@ class AddRssRequest(BaseModel):
     url: str
 
 
+class PromoteRssRequest(BaseModel):
+    """Promote Rss Request."""
+
+    url: str
+    name: str | None = None
+    category: str = "general"
+    country: str = ""
+    source_type: str | None = None
+    funding_type: str = ""
+    bias_rating: str = ""
+    ownership_label: str = ""
+    factual_reporting: str = "unknown"
+    is_paywalled: bool = False
+
+
 def _source_slug(name: str) -> str:
     return "-".join(name.lower().split())
 
@@ -37,6 +52,119 @@ def _derive_source_name(url: str) -> str:
     if len(parts) >= 2 and parts[-2] in ("co", "com", "org", "net", "gov"):
         return parts[-3].replace("-", " ").title() if len(parts) >= 3 else host
     return parts[0].replace("-", " ").title()
+
+
+def _normalize_source_url(url: str) -> str:
+    normalized = url.strip()
+    if not normalized:
+        raise HTTPException(status_code=400, detail="URL is required")
+    if not normalized.startswith(("http://", "https://")):
+        raise HTTPException(status_code=400, detail="URL must start with http:// or https://")
+    return normalized
+
+
+def _domain_for_url(url: str) -> str:
+    return (urlparse(url).hostname or "").removeprefix("www.").lower()
+
+
+def _validate_rss_feed(url: str) -> dict[str, Any]:
+    source_name = _derive_source_name(url)
+
+    try:
+        result = parse_feeds_parallel([(source_name, [url])], 6)
+    except Exception as exc:
+        logger.warning("RSS validation failed for %s: %s", url, exc)
+        raise HTTPException(status_code=422, detail=f"Failed to parse RSS feed: {exc}")
+
+    articles_payload = result.get("articles", [])
+    stats_payload = result.get("source_stats", {})
+    stat = stats_payload.get(source_name, {})
+    status = stat.get("status", "error")
+    error_message = stat.get("error_message")
+    article_count = stat.get("article_count", len(articles_payload))
+
+    if status == "error" and article_count == 0:
+        detail = error_message or "Could not parse any articles from this feed"
+        raise HTTPException(status_code=422, detail=detail)
+
+    feed_title = source_name
+    sample_articles: list[dict[str, str]] = []
+    for article in articles_payload[:5]:
+        if not isinstance(article, dict):
+            continue
+        if article.get("source"):
+            feed_title = str(article["source"])
+        sample_articles.append(
+            {
+                "title": str(article.get("title") or ""),
+                "url": str(article.get("url") or article.get("link") or ""),
+                "source": str(article.get("source") or feed_title),
+            }
+        )
+
+    existing_sources = get_rss_sources()
+    feed_domain = _domain_for_url(url)
+    duplicate_candidates = []
+    for name, source_data in existing_sources.items():
+        source_urls = source_data.get("url")
+        urls = source_urls if isinstance(source_urls, list) else [source_urls]
+        for existing_url in urls:
+            if not isinstance(existing_url, str):
+                continue
+            if existing_url == url or _domain_for_url(existing_url) == feed_domain:
+                duplicate_candidates.append({"name": name, "url": existing_url})
+
+    return {
+        "success": True,
+        "name": feed_title,
+        "url": url,
+        "article_count": article_count,
+        "status": status,
+        "sample_articles": sample_articles,
+        "duplicate_candidates": duplicate_candidates,
+        "inferred": {
+            "domain": feed_domain,
+            "source_type": None,
+            "category": "general",
+            "country": "",
+            "is_paywalled": False,
+        },
+    }
+
+
+def _promote_rss_source(request: PromoteRssRequest) -> dict[str, Any]:
+    url = _normalize_source_url(request.url)
+    validation = _validate_rss_feed(url)
+    feed_title = (request.name or validation["name"]).strip() or validation["name"]
+
+    existing_sources = get_rss_sources()
+    if feed_title in existing_sources:
+        raise HTTPException(status_code=409, detail=f"Source '{feed_title}' already exists")
+
+    raw_sources = json.loads(_DATA_PATH.read_text(encoding="utf-8"))
+    raw_sources[feed_title] = {
+        "url": url,
+        "category": request.category or "general",
+        "country": request.country,
+        "source_type": request.source_type or "",
+        "funding_type": request.funding_type,
+        "bias_rating": request.bias_rating,
+        "ownership_label": request.ownership_label,
+        "factual_reporting": request.factual_reporting,
+        "is_paywalled": request.is_paywalled,
+    }
+
+    _DATA_PATH.write_text(
+        json.dumps(raw_sources, indent=4, ensure_ascii=False) + "\n", encoding="utf-8"
+    )
+    reload_rss_sources()
+    logger.info("Promoted new RSS source: %s (%s)", feed_title, url)
+
+    return {
+        **validation,
+        "name": feed_title,
+        "promoted": True,
+    }
 
 
 router = APIRouter(prefix="/sources", tags=["sources"])
@@ -57,6 +185,8 @@ async def get_sources() -> list[dict[str, Any]]:
             "rssUrl": source_data.get("url"),  # Same as url for RSS feeds
             "category": source_data.get("category", "general"),
             "country": source_data.get("country", ""),
+            "source_type": source_data.get("source_type", ""),
+            "is_paywalled": bool(source_data.get("is_paywalled", False)),
             "funding_type": source_data.get("funding_type", ""),
             "bias_rating": source_data.get("bias_rating", ""),
             "ownership_label": source_data.get("ownership_label", ""),
@@ -67,69 +197,20 @@ async def get_sources() -> list[dict[str, Any]]:
 
 @router.post("/add-rss")
 async def add_rss_source(request: AddRssRequest) -> dict[str, Any]:
-    """Add Rss Source."""
-    url = request.url.strip()
-    if not url:
-        raise HTTPException(status_code=400, detail="URL is required")
+    """Compatibility endpoint: validate and promote an RSS source."""
+    return _promote_rss_source(PromoteRssRequest(url=request.url))
 
-    if not url.startswith(("http://", "https://")):
-        raise HTTPException(status_code=400, detail="URL must start with http:// or https://")
 
-    source_name = _derive_source_name(url)
+@router.post("/rss/validate")
+async def validate_rss_source(request: AddRssRequest) -> dict[str, Any]:
+    """Validate an RSS feed without mutating the source catalog."""
+    return _validate_rss_feed(_normalize_source_url(request.url))
 
-    try:
-        result = parse_feeds_parallel([(source_name, [url])], 6)
-    except Exception as exc:
-        logger.warning("RSS validation failed for %s: %s", url, exc)
-        raise HTTPException(status_code=422, detail=f"Failed to parse RSS feed: {exc}")
 
-    articles_payload = result.get("articles", [])
-    stats_payload = result.get("source_stats", {})
-    stat = stats_payload.get(source_name, {})
-    status = stat.get("status", "error")
-    error_message = stat.get("error_message")
-    article_count = stat.get("article_count", len(articles_payload))
-
-    if status == "error" and article_count == 0:
-        detail = error_message or "Could not parse any articles from this feed"
-        raise HTTPException(status_code=422, detail=detail)
-
-    # Derive feed title from the first article's source or the stat
-    feed_title = source_name
-    for article in articles_payload:
-        if isinstance(article, dict) and article.get("source"):
-            feed_title = str(article["source"])
-            break
-
-    existing_sources = get_rss_sources()
-    if feed_title in existing_sources:
-        raise HTTPException(status_code=409, detail=f"Source '{feed_title}' already exists")
-
-    # Read raw JSON for appending
-    raw_sources = json.loads(_DATA_PATH.read_text(encoding="utf-8"))
-    raw_sources[feed_title] = {
-        "url": url,
-        "category": "general",
-        "country": "",
-        "funding_type": "",
-        "bias_rating": "",
-        "ownership_label": "",
-        "factual_reporting": "unknown",
-    }
-
-    _DATA_PATH.write_text(
-        json.dumps(raw_sources, indent=4, ensure_ascii=False) + "\n", encoding="utf-8"
-    )
-    reload_rss_sources()
-    logger.info("Added new RSS source: %s (%s)", feed_title, url)
-
-    return {
-        "success": True,
-        "name": feed_title,
-        "url": url,
-        "article_count": article_count,
-        "status": status,
-    }
+@router.post("/rss/promote")
+async def promote_rss_source(request: PromoteRssRequest) -> dict[str, Any]:
+    """Promote a reviewed RSS feed into the source catalog."""
+    return _promote_rss_source(request)
 
 
 _credibility_cache: dict[str, tuple[dict[str, Any], float]] = {}

@@ -1,6 +1,7 @@
 "use client"
 
 import { useState, useEffect, useCallback, useMemo } from "react"
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { type NewsArticle } from "@/lib/api"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
@@ -30,7 +31,7 @@ import { useBookmarks } from "@/hooks/useBookmarks"
 import { HighlightsView } from "@/components/highlights-view"
 import ReactMarkdown from "react-markdown"
 import { cn } from "@/lib/utils"
-import { API_BASE_URL, getAllHighlights } from "@/lib/api"
+import { API_BASE_URL, createReadingShelf, getAllHighlights, getReadingShelves } from "@/lib/api"
 import { SafeImage } from "@/components/safe-image"
 
 export default function SavedArticlesPage() {
@@ -46,6 +47,20 @@ export default function SavedArticlesPage() {
   const [showDigest, setShowDigest] = useState(false)
   const [highlightCount, setHighlightCount] = useState(0)
   const [loadIssues, setLoadIssues] = useState<string[]>([])
+  const [newShelfName, setNewShelfName] = useState("")
+  const queryClient = useQueryClient()
+  const shelvesQuery = useQuery({
+    queryKey: ["reading-shelves"],
+    queryFn: getReadingShelves,
+    retry: 1,
+  })
+  const createShelfMutation = useMutation({
+    mutationFn: createReadingShelf,
+    onSuccess: () => {
+      setNewShelfName("")
+      void queryClient.invalidateQueries({ queryKey: ["reading-shelves"] })
+    },
+  })
   
   const { 
     queuedArticles, 
@@ -194,6 +209,63 @@ export default function SavedArticlesPage() {
     
     return Array.from(allArticles.values())
   }, [bookmarks, likedArticles])
+
+  const handleCreateShelf = () => {
+    const name = newShelfName.trim()
+    if (!name) return
+    createShelfMutation.mutate({ name })
+  }
+
+  const renderResearchShelvesCard = () => (
+    <Card className="border border-white/10 bg-[var(--news-bg-secondary)]">
+      <CardContent className="p-4">
+        <div className="mb-4 flex items-center justify-between">
+          <h3 className="font-serif text-lg font-bold">Research Shelves</h3>
+          <Badge>{shelvesQuery.data?.length ?? 0}</Badge>
+        </div>
+        <div className="mb-3 flex gap-2">
+          <input
+            value={newShelfName}
+            onChange={(event) => setNewShelfName(event.target.value)}
+            onKeyDown={(event) => {
+              if (event.key === "Enter") handleCreateShelf()
+            }}
+            placeholder="New shelf"
+            className="min-w-0 flex-1 rounded-md border border-white/10 bg-[var(--news-bg-primary)] px-3 py-2 text-sm text-foreground"
+          />
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={handleCreateShelf}
+            disabled={createShelfMutation.isPending || !newShelfName.trim()}
+          >
+            <PlusCircle className="h-4 w-4" />
+          </Button>
+        </div>
+        {shelvesQuery.isLoading ? (
+          <p className="text-sm text-muted-foreground">Loading shelves...</p>
+        ) : shelvesQuery.data && shelvesQuery.data.length > 0 ? (
+          <div className="space-y-2">
+            {shelvesQuery.data.map((shelf) => (
+              <div
+                key={shelf.id ?? shelf.name}
+                className="rounded-md border border-white/10 bg-[var(--news-bg-primary)]/50 px-3 py-2"
+              >
+                <div className="text-sm font-medium">{shelf.name}</div>
+                {shelf.description && (
+                  <div className="text-xs text-muted-foreground">{shelf.description}</div>
+                )}
+              </div>
+            ))}
+          </div>
+        ) : (
+          <p className="text-sm text-muted-foreground">
+            Create shelves for topics, open questions, and claim trails.
+          </p>
+        )}
+      </CardContent>
+    </Card>
+  )
 
   const renderArticleCard = (article: NewsArticle & { type?: "bookmark" | "liked" | "both" }, index?: number) => {
     const showImage = hasRealImage(article.image)
@@ -532,18 +604,23 @@ export default function SavedArticlesPage() {
                 <span className="text-muted-foreground">Loading saved articles...</span>
               </div>
             ) : allSavedArticles.length === 0 ? (
-              <Card className="border-dashed border-white/20 bg-[var(--news-bg-secondary)]/50">
-                <CardContent className="flex flex-col items-center justify-center py-12 text-center">
-                  <Inbox className="w-12 h-12 text-muted-foreground mb-4" />
-                  <h3 className="text-lg font-semibold mb-2 font-serif">No saved articles yet</h3>
-                  <p className="text-sm text-muted-foreground max-w-md">
-                    Articles you bookmark or like will appear here. Click the bookmark or heart icon on any article to save it.
-                  </p>
-                  <Link href="/" className="mt-4">
-                    <Button>Browse News</Button>
-                  </Link>
-                </CardContent>
-              </Card>
+              <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
+                <Card className="border-dashed border-white/20 bg-[var(--news-bg-secondary)]/50 lg:col-span-2">
+                  <CardContent className="flex flex-col items-center justify-center py-12 text-center">
+                    <Inbox className="w-12 h-12 text-muted-foreground mb-4" />
+                    <h3 className="text-lg font-semibold mb-2 font-serif">No saved articles yet</h3>
+                    <p className="text-sm text-muted-foreground max-w-md">
+                      Articles you bookmark or like will appear here. Click the bookmark or heart icon on any article to save it.
+                    </p>
+                    <Link href="/" className="mt-4">
+                      <Button>Browse News</Button>
+                    </Link>
+                  </CardContent>
+                </Card>
+                <div className="space-y-6">
+                  {renderResearchShelvesCard()}
+                </div>
+              </div>
             ) : (
               <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
                 {/* Main Content - Saved Articles */}
@@ -614,6 +691,8 @@ export default function SavedArticlesPage() {
                       )}
                     </CardContent>
                   </Card>
+
+                  {renderResearchShelvesCard()}
 
                   {/* Stats Card */}
                   <Card className="border border-white/10 bg-[var(--news-bg-secondary)]">

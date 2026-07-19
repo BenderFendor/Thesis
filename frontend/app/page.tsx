@@ -64,9 +64,10 @@ const ArticleDetailModal = dynamic(
 import { useDebugMode } from "@/hooks/useDebugMode"
 import { useFavorites } from "@/hooks/useFavorites"
 import { useLiveBrowseIndex } from "@/hooks/useLiveBrowseIndex"
+import { useNewsLens } from "@/hooks/useNewsLens"
 import { useSourceFilter } from "@/hooks/useSourceFilter"
-import type { NewsArticle } from "@/lib/api";
-import { fetchCacheStatus, fetchCategories } from "@/lib/api"
+import type { NewsArticle, NewsSource } from "@/lib/api";
+import { fetchCacheStatus, fetchCategories, fetchSources } from "@/lib/api"
 import { ErrorBoundary } from '@/components/ErrorBoundary';
 import type { Notification} from '@/components/notification-popup';
 import { NotificationsPopup, type NotificationActionType } from '@/components/notification-popup';
@@ -87,6 +88,7 @@ import {
 import {
   useDismissedNotifications,
 } from "@/lib/notification-state";
+import { filterArticlesByLens, getLensSourceIds, NEWS_LENSES } from "@/lib/news-lens";
 
 const VIEW_OPTIONS: Array<{ value: ViewMode; label: string }> = [
   { value: "globe", label: "Globe" },
@@ -97,6 +99,7 @@ const VIEW_OPTIONS: Array<{ value: ViewMode; label: string }> = [
 ]
 
 const MOBILE_VIEW_OPTIONS = VIEW_OPTIONS
+const EMPTY_SOURCES: NewsSource[] = []
 
 const categoryIcons: { [key: string]: React.ElementType } = {
   politics: Building2,
@@ -142,7 +145,23 @@ function NewsPage() {
   // Source filtering and favorites
   const { isFavorite } = useFavorites()
   const { selectedSources, isFilterActive } = useSourceFilter()
+  const { lens } = useNewsLens()
   const selectedSourceIds = useMemo(() => Array.from(selectedSources), [selectedSources])
+  const sourcesQuery = useQuery({
+    queryKey: ["all-sources"],
+    queryFn: fetchSources,
+    staleTime: 60 * 1000,
+    retry: 1,
+  })
+  const sources = sourcesQuery.data ?? EMPTY_SOURCES
+  const lensSourceIds = useMemo(() => getLensSourceIds(sources, lens), [lens, sources])
+  const combinedSourceIds = useMemo(() => {
+    if (lens === "all") return selectedSourceIds
+    if (selectedSourceIds.length > 0) {
+      return selectedSourceIds.filter((sourceId) => lensSourceIds.has(sourceId))
+    }
+    return Array.from(lensSourceIds)
+  }, [lens, lensSourceIds, selectedSourceIds])
 
   const {
     articles: browseIndexArticles,
@@ -152,7 +171,7 @@ function NewsPage() {
     refetch: refetchBrowseIndex,
   } = useLiveBrowseIndex({
     category: activeCategory === "all" ? undefined : activeCategory,
-    sources: selectedSourceIds.length > 0 ? selectedSourceIds : undefined,
+    sources: combinedSourceIds.length > 0 ? combinedSourceIds : undefined,
     enabled: true,
   })
   const { data: cacheStatus } = useQuery({
@@ -234,8 +253,13 @@ function NewsPage() {
     [isFavorite, sortMode]
   )
 
-  const browseArticles = useMemo(() => sortArticles(browseIndexArticles), [browseIndexArticles, sortArticles])
+  const lensFilteredArticles = useMemo(
+    () => filterArticlesByLens(browseIndexArticles, sources, lens),
+    [browseIndexArticles, lens, sources],
+  )
+  const browseArticles = useMemo(() => sortArticles(lensFilteredArticles), [lensFilteredArticles, sortArticles])
   const activeViewArticles = getSharedViewArticles(currentView, browseArticles)
+  const activeLensLabel = NEWS_LENSES.find((item) => item.id === lens)?.label ?? "All Sources"
 
   const sourceRecency = useMemo(() => {
     const articles = activeViewArticles
@@ -665,7 +689,7 @@ function NewsPage() {
                     isGlobeView && "h-7 bg-black/25 backdrop-blur-xl",
                   )}
                 >
-                  Sources
+                  {lens === "all" ? "Sources" : activeLensLabel}
                 </Button>
               </div>
             </div>
@@ -802,11 +826,11 @@ function NewsPage() {
 
       </div>
       {/* Source Sidebar */}
-      <SourceSidebar
-        isOpen={sidebarOpen}
-        onClose={() => setSidebarOpen(false)}
-        sourceRecency={sourceRecency}
-      />
+          <SourceSidebar
+            isOpen={sidebarOpen}
+            onClose={() => setSidebarOpen(false)}
+            sourceRecency={sourceRecency}
+          />
 
       {leadModalOpen && leadArticle && (
         <ArticleDetailModal

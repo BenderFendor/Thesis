@@ -15,6 +15,8 @@ import {
 import dynamic from "next/dynamic"
 import Link from "next/link"
 import { SafeImage } from "@/components/safe-image"
+import { ContradictionPanel } from "@/components/contradiction-panel"
+import { StoryLineagePanel } from "@/components/story-lineage-panel"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Skeleton } from "@/components/ui/skeleton"
@@ -989,6 +991,9 @@ export function GridView({
                               </div>
 
                               <div className="space-y-4 px-3 py-4 sm:space-y-6 sm:px-6 sm:py-6">
+                                <ContradictionPanel clusterId={expandedCluster.cluster_id} />
+                                <StoryLineagePanel clusterId={expandedCluster.cluster_id} />
+
                                 {expandedClusterArticles.length > 0 ? (
                                   <div className="grid grid-cols-3 gap-2 sm:grid-cols-2 sm:gap-6 lg:grid-cols-3 xl:grid-cols-4">
                                     {expandedClusterArticles.map((article, index) => (

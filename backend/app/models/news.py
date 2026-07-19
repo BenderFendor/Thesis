@@ -49,6 +49,8 @@ class SourceInfo(StrictBaseModel):
     category: str
     country: str = "US"
     funding_type: str | None = None
+    source_type: str | None = None
+    is_paywalled: bool = False
     bias_rating: str | None = None
     ownership_label: str | None = None
     factual_rating: str | None = None

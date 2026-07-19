@@ -155,4 +155,5 @@ export function subscribeToStorageKey(
 export const STORAGE_KEYS = {
   FAVORITE_SOURCES: "favoriteSourceIds",
   SELECTED_SOURCES: "selectedSourceIds",
+  NEWS_LENS: "newsLensPreset",
 } as const;

@@ -4,8 +4,14 @@ from __future__ import annotations
 
 from fastapi import APIRouter
 
-from app.models.article_analysis import ArticleAnalysisRequest, ArticleAnalysisResponse
+from app.models.article_analysis import (
+    ArticleAnalysisRequest,
+    ArticleAnalysisResponse,
+    LanguageDiagnosticsRequest,
+    LanguageDiagnosticsResponse,
+)
 from app.services.article_analysis import analyze_with_gemini, extract_article_content
+from app.services.language_diagnostics import analyze_language_diagnostics
 
 router = APIRouter(tags=["article-analysis"])
 
@@ -42,6 +48,12 @@ async def analyze_article(request: ArticleAnalysisRequest) -> ArticleAnalysisRes
             error=article_data.get("error", "Failed to extract article content"),
         )
 
+    language_diagnostics = _build_language_diagnostics_response(
+        article_url=request.url,
+        title=_as_optional_str(article_data.get("title")),
+        text=_as_optional_str(article_data.get("text")) or "",
+    )
+
     ai_analysis = await analyze_with_gemini(article_data, request.source_name)
     if "error" in ai_analysis and "raw_response" not in ai_analysis:
         return ArticleAnalysisResponse(
@@ -52,6 +64,7 @@ async def analyze_article(request: ArticleAnalysisRequest) -> ArticleAnalysisRes
             authors=article_data.get("authors"),
             publish_date=article_data.get("publish_date"),
             error=ai_analysis.get("error"),
+            language_diagnostics=language_diagnostics,
         )
 
     return ArticleAnalysisResponse(
@@ -67,5 +80,56 @@ async def analyze_article(request: ArticleAnalysisRequest) -> ArticleAnalysisRes
         fact_check_suggestions=ai_analysis.get("fact_check_suggestions"),
         fact_check_results=ai_analysis.get("fact_check_results"),
         grounding_metadata=ai_analysis.get("grounding_metadata"),
+        language_diagnostics=language_diagnostics,
         summary=ai_analysis.get("summary"),
     )
+
+
+@router.post("/api/article/language-diagnostics", response_model=LanguageDiagnosticsResponse)
+async def analyze_article_language(
+    request: LanguageDiagnosticsRequest,
+) -> LanguageDiagnosticsResponse:
+    """Analyze article language without requiring LLM services."""
+    text = request.text
+    title = request.title
+
+    if not text:
+        article_data = await extract_article_content(request.url)
+        if not article_data.get("success"):
+            return LanguageDiagnosticsResponse(
+                success=False,
+                article_url=request.url,
+                title=title,
+                error=article_data.get("error", "Failed to extract article content"),
+            )
+        text = _as_optional_str(article_data.get("text")) or ""
+        title = title or _as_optional_str(article_data.get("title"))
+
+    return _build_language_diagnostics_response(
+        article_url=request.url,
+        title=title,
+        text=text,
+    )
+
+
+def _build_language_diagnostics_response(
+    *,
+    article_url: str,
+    title: str | None,
+    text: str,
+) -> LanguageDiagnosticsResponse:
+    payload = analyze_language_diagnostics(text, title=title)
+    return LanguageDiagnosticsResponse.model_validate(
+        {
+            "success": True,
+            "article_url": article_url,
+            "title": title,
+            **payload,
+        }
+    )
+
+
+def _as_optional_str(value: object) -> str | None:
+    if isinstance(value, str):
+        return value
+    return None

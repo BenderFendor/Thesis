@@ -6,11 +6,14 @@ from datetime import datetime, timedelta, UTC
 from sqlalchemy import select, desc
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.database import ReadingQueueItem
+from app.database import ReadingQueueItem, ReadingShelf
 from app.models.reading_queue import ReadingQueueItem as ReadingQueueItemSchema
 from app.models.reading_queue import (
     AddToQueueRequest,
+    CreateShelfRequest,
     QueueOverviewResponse,
+    ReadingShelf as ReadingShelfSchema,
+    UpdateShelfRequest,
     UpdateQueueItemRequest,
 )
 from app.core.logging import get_logger
@@ -68,6 +71,20 @@ async def add_to_queue(
 
     if existing_item:
         logger.info("Article %s already in queue, skipping duplicate", request.article_url)
+        if request.why_saved is not None:
+            existing_item.why_saved = request.why_saved
+        if request.unresolved_question is not None:
+            existing_item.unresolved_question = request.unresolved_question
+        if request.shelf_id is not None:
+            existing_item.shelf_id = request.shelf_id
+        if (
+            request.why_saved is not None
+            or request.unresolved_question is not None
+            or request.shelf_id is not None
+        ):
+            existing_item.updated_at = _naive_utc_now()
+            await session.commit()
+            await session.refresh(existing_item)
         return ReadingQueueItemSchema.from_attributes(existing_item)
 
     # Get max position for new items (add to top)
@@ -114,6 +131,9 @@ async def add_to_queue(
         full_text=full_text,
         word_count=word_count,
         estimated_read_time_minutes=estimated_read_time,
+        why_saved=request.why_saved,
+        unresolved_question=request.unresolved_question,
+        shelf_id=request.shelf_id,
     )
 
     session.add(queue_item)
@@ -193,6 +213,12 @@ async def update_queue_item(
         queue_item.position = request.position
     if request.archived_at:
         queue_item.archived_at = request.archived_at
+    if request.why_saved is not None:
+        queue_item.why_saved = request.why_saved
+    if request.unresolved_question is not None:
+        queue_item.unresolved_question = request.unresolved_question
+    if request.shelf_id is not None:
+        queue_item.shelf_id = request.shelf_id
 
     queue_item.updated_at = _naive_utc_now()
     await session.commit()
@@ -351,3 +377,73 @@ async def generate_daily_digest(session: AsyncSession, user_id: int = 1) -> dict
         "estimated_read_time_minutes": estimated_read_time,
         "generated_at": datetime.now(UTC).isoformat(),
     }
+
+
+async def get_shelves(session: AsyncSession, user_id: int = 1) -> list[ReadingShelfSchema]:
+    """Get research shelves for a user."""
+    result = await session.execute(
+        select(ReadingShelf)
+        .where(ReadingShelf.user_id == user_id)
+        .order_by(ReadingShelf.name.asc())
+    )
+    return [ReadingShelfSchema.from_attributes(shelf) for shelf in result.scalars().all()]
+
+
+async def create_shelf(
+    session: AsyncSession, request: CreateShelfRequest, user_id: int = 1
+) -> ReadingShelfSchema:
+    """Create or return a named research shelf."""
+    name = request.name.strip()
+    if not name:
+        raise ValueError("Shelf name is required")
+
+    existing = await session.execute(
+        select(ReadingShelf).where(
+            ReadingShelf.user_id == user_id,
+            ReadingShelf.name == name,
+        )
+    )
+    existing_shelf = existing.scalar_one_or_none()
+    if existing_shelf:
+        if request.description is not None:
+            existing_shelf.description = request.description
+            existing_shelf.updated_at = _naive_utc_now()
+            await session.commit()
+            await session.refresh(existing_shelf)
+        return ReadingShelfSchema.from_attributes(existing_shelf)
+
+    shelf = ReadingShelf(user_id=user_id, name=name, description=request.description)
+    session.add(shelf)
+    await session.commit()
+    await session.refresh(shelf)
+    return ReadingShelfSchema.from_attributes(shelf)
+
+
+async def update_shelf(
+    session: AsyncSession,
+    shelf_id: int,
+    request: UpdateShelfRequest,
+    user_id: int = 1,
+) -> ReadingShelfSchema | None:
+    """Update a research shelf."""
+    result = await session.execute(
+        select(ReadingShelf).where(
+            ReadingShelf.id == shelf_id,
+            ReadingShelf.user_id == user_id,
+        )
+    )
+    shelf = result.scalar_one_or_none()
+    if not shelf:
+        return None
+
+    if request.name is not None:
+        name = request.name.strip()
+        if not name:
+            raise ValueError("Shelf name is required")
+        shelf.name = name
+    if request.description is not None:
+        shelf.description = request.description
+    shelf.updated_at = _naive_utc_now()
+    await session.commit()
+    await session.refresh(shelf)
+    return ReadingShelfSchema.from_attributes(shelf)

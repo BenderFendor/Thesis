@@ -12,7 +12,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Plus, Loader2, CheckCircle, AlertCircle, Rss } from "lucide-react";
-import { validateRssUrl, type AddRssResponse } from "@/lib/api";
+import { promoteRssSource, validateRssUrl, type AddRssResponse } from "@/lib/api";
 
 interface AddRssDialogProps {
   onSourceAdded?: () => void;
@@ -24,6 +24,10 @@ export function AddRssDialog({ onSourceAdded }: AddRssDialogProps) {
   const [validating, setValidating] = useState(false);
   const [adding, setAdding] = useState(false);
   const [validationResult, setValidationResult] = useState<AddRssResponse | null>(null);
+  const [reviewName, setReviewName] = useState("");
+  const [reviewCountry, setReviewCountry] = useState("");
+  const [reviewSourceType, setReviewSourceType] = useState("");
+  const [reviewPaywalled, setReviewPaywalled] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const handleValidate = async () => {
@@ -37,6 +41,10 @@ export function AddRssDialog({ onSourceAdded }: AddRssDialogProps) {
     try {
       const result = await validateRssUrl(trimmed);
       setValidationResult(result);
+      setReviewName(result.name);
+      setReviewCountry(result.inferred?.country || "");
+      setReviewSourceType(result.inferred?.source_type || "");
+      setReviewPaywalled(result.inferred?.is_paywalled || false);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Validation failed");
     } finally {
@@ -49,7 +57,13 @@ export function AddRssDialog({ onSourceAdded }: AddRssDialogProps) {
 
     setAdding(true);
     try {
-      await validateRssUrl(url.trim());
+      await promoteRssSource({
+        url: url.trim(),
+        name: reviewName.trim() || validationResult.name,
+        country: reviewCountry.trim(),
+        source_type: reviewSourceType.trim(),
+        is_paywalled: reviewPaywalled,
+      });
       setOpen(false);
       setUrl("");
       setValidationResult(null);
@@ -67,6 +81,10 @@ export function AddRssDialog({ onSourceAdded }: AddRssDialogProps) {
     if (!next) {
       setUrl("");
       setValidationResult(null);
+      setReviewName("");
+      setReviewCountry("");
+      setReviewSourceType("");
+      setReviewPaywalled(false);
       setError(null);
     }
   };
@@ -136,7 +154,48 @@ export function AddRssDialog({ onSourceAdded }: AddRssDialogProps) {
                   <span className="text-muted-foreground">Status: </span>
                   <span className="text-foreground">{validationResult.status}</span>
                 </div>
+                {validationResult.duplicate_candidates && validationResult.duplicate_candidates.length > 0 && (
+                  <div className="text-amber-300">
+                    Possible duplicate: {validationResult.duplicate_candidates[0]?.name}
+                  </div>
+                )}
               </div>
+            </div>
+          )}
+
+          {validationResult && (
+            <div className="space-y-2 rounded-none border border-white/10 bg-[var(--news-bg-primary)]/50 p-3">
+              <div className="text-[10px] font-mono uppercase tracking-[0.2em] text-muted-foreground">
+                Review before promotion
+              </div>
+              <Input
+                placeholder="Source name"
+                value={reviewName}
+                onChange={(event) => setReviewName(event.target.value)}
+                className="h-9 rounded-none border-white/10 bg-[var(--news-bg-primary)] text-foreground font-mono text-xs"
+              />
+              <div className="grid grid-cols-2 gap-2">
+                <Input
+                  placeholder="Country code"
+                  value={reviewCountry}
+                  onChange={(event) => setReviewCountry(event.target.value)}
+                  className="h-9 rounded-none border-white/10 bg-[var(--news-bg-primary)] text-foreground font-mono text-xs"
+                />
+                <Input
+                  placeholder="Source type"
+                  value={reviewSourceType}
+                  onChange={(event) => setReviewSourceType(event.target.value)}
+                  className="h-9 rounded-none border-white/10 bg-[var(--news-bg-primary)] text-foreground font-mono text-xs"
+                />
+              </div>
+              <label className="flex items-center gap-2 text-xs text-muted-foreground">
+                <input
+                  type="checkbox"
+                  checked={reviewPaywalled}
+                  onChange={(event) => setReviewPaywalled(event.target.checked)}
+                />
+                Paywalled source
+              </label>
             </div>
           )}
 

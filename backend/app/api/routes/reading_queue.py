@@ -10,12 +10,15 @@ from app.database import get_db
 from app.models.reading_queue import (
     ReadingQueueItem,
     AddToQueueRequest,
+    CreateShelfRequest,
     UpdateQueueItemRequest,
     QueueResponse,
     QueueOverviewResponse,
+    ReadingShelf,
     Highlight,
     CreateHighlightRequest,
     UpdateHighlightRequest,
+    UpdateShelfRequest,
 )
 from app.services import reading_queue as queue_service
 from app.services import highlights as highlights_service
@@ -127,6 +130,51 @@ async def get_queue_overview(
     except Exception as e:
         logger.error("Error fetching queue overview: %s", e)
         raise HTTPException(status_code=500, detail="Failed to fetch queue overview")
+
+
+@router.get("/shelves", response_model=list[ReadingShelf])
+async def get_shelves(session: AsyncSession = Depends(get_db)) -> list[ReadingShelf]:
+    """Get research shelves."""
+    try:
+        return await queue_service.get_shelves(session)
+    except Exception as e:
+        logger.error("Error fetching shelves: %s", e)
+        raise HTTPException(status_code=500, detail="Failed to fetch shelves")
+
+
+@router.post("/shelves", response_model=ReadingShelf)
+async def create_shelf(
+    request: CreateShelfRequest, session: AsyncSession = Depends(get_db)
+) -> ReadingShelf:
+    """Create a research shelf."""
+    try:
+        return await queue_service.create_shelf(session, request)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        logger.error("Error creating shelf: %s", e)
+        raise HTTPException(status_code=500, detail="Failed to create shelf")
+
+
+@router.patch("/shelves/{shelf_id}", response_model=ReadingShelf)
+async def update_shelf(
+    shelf_id: int,
+    request: UpdateShelfRequest,
+    session: AsyncSession = Depends(get_db),
+) -> ReadingShelf:
+    """Update a research shelf."""
+    try:
+        shelf = await queue_service.update_shelf(session, shelf_id, request)
+        if not shelf:
+            raise HTTPException(status_code=404, detail="Shelf not found")
+        return shelf
+    except HTTPException:
+        raise
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        logger.error("Error updating shelf: %s", e)
+        raise HTTPException(status_code=500, detail="Failed to update shelf")
 
 
 # Highlights endpoints

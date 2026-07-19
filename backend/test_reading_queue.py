@@ -11,6 +11,7 @@ from sqlalchemy import select
 from app.database import Base, ReadingQueueItem
 from app.models.reading_queue import (
     AddToQueueRequest,
+    CreateShelfRequest,
     UpdateQueueItemRequest,
 )
 from app.services import reading_queue as queue_service
@@ -92,6 +93,27 @@ class TestReadingQueueService:
         assert result.read_status == "unread"
 
     @pytest.mark.asyncio
+    async def test_add_to_queue_with_reading_memory(self, test_db):
+        """Test adding saved context to a queue item."""
+        shelf = await queue_service.create_shelf(test_db, CreateShelfRequest(name="Labor coverage"))
+        request = AddToQueueRequest(
+            article_id=1,
+            article_title="Test Article",
+            article_url="https://example.com/article-memory",
+            article_source="Example News",
+            queue_type="permanent",
+            why_saved="Useful primary quote.",
+            unresolved_question="Check if the agency revised this later.",
+            shelf_id=shelf.id,
+        )
+
+        result = await queue_service.add_to_queue(test_db, request)
+
+        assert result.why_saved == "Useful primary quote."
+        assert result.unresolved_question == "Check if the agency revised this later."
+        assert result.shelf_id == shelf.id
+
+    @pytest.mark.asyncio
     async def test_add_duplicate_to_queue(self, test_db):
         """Test that duplicate articles are not added."""
         request = AddToQueueRequest(
@@ -145,6 +167,22 @@ class TestReadingQueueService:
         update_request = UpdateQueueItemRequest(read_status="reading")
         updated = await queue_service.update_queue_item(test_db, item.id, update_request)
         assert updated.read_status == "reading"
+
+        memory_update = UpdateQueueItemRequest(why_saved="Need for follow-up")
+        updated = await queue_service.update_queue_item(test_db, item.id, memory_update)
+        assert updated.why_saved == "Need for follow-up"
+
+    @pytest.mark.asyncio
+    async def test_create_shelf_is_idempotent(self, test_db):
+        """Creating the same shelf twice returns one durable shelf."""
+        first = await queue_service.create_shelf(test_db, CreateShelfRequest(name="AI regulation"))
+        second = await queue_service.create_shelf(
+            test_db,
+            CreateShelfRequest(name="AI regulation", description="Policy sources"),
+        )
+
+        assert first.id == second.id
+        assert second.description == "Policy sources"
 
     @pytest.mark.asyncio
     async def test_remove_from_queue(self, test_db):

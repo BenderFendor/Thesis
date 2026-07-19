@@ -12,6 +12,8 @@ from app.core.logging import get_logger
 from app.database import get_db
 from app.services.chroma_topics import ChromaTopicService
 from app.services.cluster_cache import get_latest_snapshot
+from app.services.contradiction_extractor import build_contradiction_panel
+from app.services.story_lineage import build_story_lineage
 from app.vector_store import is_chroma_reachable
 
 logger = get_logger("trending_routes")
@@ -116,6 +118,117 @@ class ClusterDetailResponse(BaseModel):
     is_active: bool
     articles: list[ClusterArticle] = Field(default_factory=list)
     gdelt_context: GDELTContext | None = None
+
+
+class ContradictionEvidence(BaseModel):
+    """Contradiction Evidence."""
+
+    source: str
+    article_url: str
+    stance: str
+    snippet: str
+
+
+class ContradictionClaim(BaseModel):
+    """Contradiction Claim."""
+
+    claim: str
+    status: str
+    evidence: list[ContradictionEvidence] = Field(default_factory=list)
+
+
+class AgreedFact(BaseModel):
+    """Agreed Fact."""
+
+    claim: str
+    evidence: list[ContradictionEvidence] = Field(default_factory=list)
+
+
+class ContradictionPanelResponse(BaseModel):
+    """Contradiction Panel Response."""
+
+    status: str
+    reason: str | None = None
+    claims: list[ContradictionClaim] = Field(default_factory=list)
+    agreed_facts: list[AgreedFact] = Field(default_factory=list)
+    unconfirmed_gaps: list[str] = Field(default_factory=list)
+    source_count: int
+    article_count: int
+
+
+class LineageStory(BaseModel):
+    """Durable story object for a topic cluster."""
+
+    id: int
+    external_cluster_id: int
+    label: str | None = None
+    keywords: list[str] = Field(default_factory=list)
+    first_seen_at: str | None = None
+    last_seen_at: str | None = None
+    earliest_article_id: int | None = None
+    current_summary: str | None = None
+    confidence: float | None = None
+
+
+class LineageArticleEdge(BaseModel):
+    """Article lineage edge."""
+
+    id: int | None = None
+    from_article_id: int
+    to_article_id: int
+    from_title: str
+    to_title: str
+    relation: str
+    evidence: dict[str, Any] = Field(default_factory=dict)
+    confidence: float | None = None
+
+
+class LineageClaim(BaseModel):
+    """Extracted claim in a story lineage."""
+
+    id: int | None = None
+    article_id: int
+    claim_text: str
+    claim_type: str
+    checkability: str
+    evidence_span: str | None = None
+    numbers: list[str] = Field(default_factory=list)
+
+
+class LineageClaimEdge(BaseModel):
+    """Claim relationship in a story lineage."""
+
+    id: int | None = None
+    from_claim_id: int
+    to_claim_id: int
+    relation: str
+    evidence: dict[str, Any] = Field(default_factory=dict)
+    confidence: float | None = None
+
+
+class LineageCorrection(BaseModel):
+    """Correction watch match for a story lineage."""
+
+    id: int
+    source: str
+    article_id: int | None = None
+    correction_url: str | None = None
+    correction_text: str
+    corrected_claim_id: int | None = None
+    downstream_article_ids: list[int] = Field(default_factory=list)
+    published_at: str | None = None
+
+
+class StoryLineageResponse(BaseModel):
+    """Story lineage graph for a topic cluster."""
+
+    status: str
+    reason: str | None = None
+    story: LineageStory | None = None
+    article_edges: list[LineageArticleEdge] = Field(default_factory=list)
+    claims: list[LineageClaim] = Field(default_factory=list)
+    claim_edges: list[LineageClaimEdge] = Field(default_factory=list)
+    corrections: list[LineageCorrection] = Field(default_factory=list)
 
 
 class AllCluster(BaseModel):
@@ -240,6 +353,36 @@ async def get_cluster_detail(
         raise HTTPException(status_code=404, detail="Cluster not found")
 
     return ClusterDetailResponse(**detail)
+
+
+@router.get("/clusters/{cluster_id}/contradictions", response_model=ContradictionPanelResponse)
+async def get_cluster_contradictions(
+    cluster_id: int,
+    db: AsyncSession = Depends(get_db),
+) -> ContradictionPanelResponse:
+    """Get contradiction-first evidence for a topic cluster."""
+    service = ChromaTopicService()
+    detail = await service.get_cluster_detail(db, cluster_id)
+
+    if not detail:
+        raise HTTPException(status_code=404, detail="Cluster not found")
+
+    return ContradictionPanelResponse(**build_contradiction_panel(detail))
+
+
+@router.get("/clusters/{cluster_id}/lineage", response_model=StoryLineageResponse)
+async def get_cluster_lineage(
+    cluster_id: int,
+    db: AsyncSession = Depends(get_db),
+) -> StoryLineageResponse:
+    """Promote a topic cluster into story lineage and return graph evidence."""
+    service = ChromaTopicService()
+    detail = await service.get_cluster_detail(db, cluster_id)
+
+    if not detail:
+        raise HTTPException(status_code=404, detail="Cluster not found")
+
+    return StoryLineageResponse(**await build_story_lineage(db, detail))
 
 
 @router.get("/stats")

@@ -114,6 +114,15 @@ class _StubViewerService:
                             "count": 2,
                         },
                     ],
+                    "paywall_concentration": {
+                        "total_articles": 4,
+                        "paywalled_articles": 3,
+                        "free_articles": 1,
+                        "unknown_articles": 0,
+                        "paywall_share": 0.75,
+                        "status": "high",
+                        "best_free_sources": ["Outlet A"],
+                    },
                 }
             ],
             "status": "ok",
@@ -142,3 +151,5 @@ async def test_blindspots_viewer_exposes_geography_signals(
         {"id": "source_country", "label": "Source country", "count": 2},
         {"id": "baseline_country", "label": "Baseline country", "count": 2},
     ]
+    assert data["cards"][0]["paywall_concentration"]["status"] == "high"
+    assert data["cards"][0]["paywall_concentration"]["paywall_share"] == 0.75
