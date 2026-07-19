@@ -1,5 +1,33 @@
 # Known Errors
 
+## RSS refresh appears stuck before articles become visible
+
+Symptom:
+
+```txt
+The cache stays at its startup count while feed and image requests continue for about a minute.
+```
+
+Cause:
+
+- Older refresh code waited for Open Graph image extraction before publishing parsed articles.
+- A full refresh also rebuilt and sorted the full cache once for every source.
+
+Fix:
+
+- Publish the full parsed batch with one `NewsCache.update_cache` call.
+- Run image extraction and persistence after publication.
+- Start all configured feed URLs concurrently and derive the primary request deadline from the slowest prior successful request plus one second.
+- Keep cached articles for sources that time out, then retry those sources after publication with the full 25-second limit and merge late results.
+- Measure remote fetch, parse, local publish, and post-publish work as separate stages with `backend/tests/benchmarks/measure_rss_readiness.py`.
+
+Check:
+
+```bash
+cd backend
+PYTHONPATH=. uv run python tests/benchmarks/measure_rss_readiness.py --wait-for-enrichment
+```
+
 ## Backend virtualenv missing tools
 
 Symptom:

@@ -25,6 +25,11 @@ This map helps Codex agents orient quickly before editing.
 - `backend/app/services/reporter_social_search.py`: Mastodon and Bluesky social profile search.
 - `backend/app/services/reporter_wikipedia.py`: Wikipedia bio extraction and category mining.
 - `backend/app/services/reporter_directory.py`: Mastodon journalist directory enumeration.
+- `backend/app/services/contradiction_extractor.py`: deterministic topic-cluster contradiction panels from source-diverse article evidence.
+- `backend/app/services/language_diagnostics.py`: deterministic article-level language diagnostics for passive voice, actor omission, euphemisms, and sanitized framing.
+- `backend/app/services/story_lineage.py`: promotes topic-cluster snapshots into durable story, article-edge, claim, claim-edge, and correction-watch records.
+- `backend/app/services/source_ledger.py`: observed source wiki metrics for corrections, original reporting, wire dependency, paywalls, bylines, policy signals, and RSS health.
+- `backend/app/services/blindspot_viewer.py`: multi-lens blindspot cards, including paywall-concentration signals for coverage gaps.
 - `backend/app/data/rss_sources.json`: curated RSS catalog.
 - `backend/tests/`: backend regression tests.
 - `backend/scripts/validate_rss_sources.py`: RSS health validation.
@@ -39,6 +44,7 @@ This map helps Codex agents orient quickly before editing.
 - `backend/scripts/wayback_verify_reporters.py`: Wayback Machine cached author page discovery and verification.
 - `backend/scripts/verify_reporter_intelligence.py`: quality gates for verified author-profile citations, high-confidence profile validity, alias conflicts, and the honest 70% eligible-cohort coverage target.
 - `backend/scripts/plan_reporter_source_enrichment.py`: source/reporter backlog planner. Dedupe identity keys only use real author/profile URLs, not source homepages or feeds.
+- `docs/agent/reporter-verification-90-percent-roadmap.md`: target-state plan for reaching 90% verified eligible reporter coverage without weakening the evidence model.
 
 ## Rust RSS Parser
 
@@ -49,8 +55,15 @@ This map helps Codex agents orient quickly before editing.
 
 - `frontend/app/`: route-driven pages.
 - `frontend/components/`: reusable UI and feature components.
+- `frontend/components/contradiction-panel.tsx`: cluster context panel for disputed claims, agreed facts, and missing evidence.
+- `frontend/components/story-lineage-panel.tsx`: expanded topic panel for story origin, article variants, claim seeds, and correction matches.
+- `frontend/components/article-detail-modal.tsx`: expanded reader workspace, annotations, source/reporter wiki panels, AI analysis, and Language Forensics diagnostics.
+- `frontend/components/blindspot-view.tsx`: multi-lens blindspot UI, including paywall badges when access barriers affect the sampled coverage.
+- `frontend/app/wiki/source/[sourceName]/source-wiki-view.tsx`: source wiki profile UI with Source Ledger metrics and scan-level source facts.
 - `frontend/lib/`: API wrappers and helpers.
+- `frontend/lib/news-lens.ts`: source-type lens definitions and article filtering helpers.
 - `frontend/hooks/`: query/state hooks.
+- `frontend/hooks/useNewsLens.ts`: local-storage backed News Lens state.
 - `frontend/__tests__/`: frontend tests.
 
 ## Verification Entry Points

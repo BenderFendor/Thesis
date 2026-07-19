@@ -1,5 +1,42 @@
 # Learnings
 
+## 2026-07-19 — Article readiness must not wait for enrichment
+
+Context:
+- A 7,871-article refresh took 62.19 seconds even though Rust feed parsing took about 0.2 seconds.
+- Image extraction ran before cache publication, and full refreshes called the incremental cache rebuild once per source.
+- The leader-only startup cache load did not work for follower processes because the cache is process-local memory.
+
+What worked:
+- Define readiness as all successfully parsed articles being visible, with images and persistence continuing afterward.
+- Keep the existing Rust parser. Profiling showed cache sequencing and remote work were the bottlenecks, not the parser language.
+- Use one full cache replacement for a full refresh and retain per-source replacement only for partial refreshes.
+- Load the database cache in every API worker, while keeping scheduled background jobs leader-only.
+- Report remote fetch, Rust parse, local publish, and post-publish enrichment as separate timings.
+
+Future agents should:
+- Never place image, embedding, ownership, reporter, or persistence work on the article-visibility path.
+- Prove local publication with the 8,000-article regression before changing parser languages.
+- Treat a cold remote-feed target separately from startup readiness; hundreds of upstream servers cannot provide a deterministic 10-second bound.
+- Remember that file locks coordinate processes but do not share Python memory between workers.
+
+## 2026-07-19 — RSS fetch deadlines should learn from successful feeds
+
+Context:
+- The Rust client had a fixed 25-second request timeout, so one slow or dead feed controlled the completion time even when almost every feed had returned.
+- Starting all 270 current feed URLs together reduced queueing, but a real run still waited 19.636 seconds for the tail.
+
+What worked:
+- Record fetch time and timeout status for each feed URL in the existing polling-state data.
+- Exclude failed requests from the baseline and set the next primary deadline to the slowest prior success plus one second, with safe cold-start and upper bounds.
+- Preserve old articles at the source level when any sub-feed times out. Retry the complete source after primary publication so consolidated multi-feed sources are replaced as one consistent unit.
+- Keep the late retry outside the readiness path and prevent recursive retry chains.
+
+Future agents should:
+- Inspect the within-two-second count as well as total fetch time; 254 of 270 requests completed within two seconds in the measured run, while a working feed took 16.441 seconds.
+- Do not claim a two-second complete fetch while the catalog contains working feeds that take longer than two seconds. A percentile deadline would be a different product rule from slowest-success-plus-one-second.
+- Rebuild and install the PyO3 release binding after changing the Rust function signature; Python wrapper edits alone do not update the loaded native module.
+
 ## 2026-05-26 — Reporter verified means author-profile evidence
 
 Context:

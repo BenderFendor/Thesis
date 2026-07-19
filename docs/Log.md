@@ -1,5 +1,95 @@
 # Log
 
+## 2026-07-19: 8,000-Article Readiness Path
+
+- Raised the startup database cache load from 500 articles to a configurable 10,000-article default so the complete working set is available before the network refresh.
+- Made every API worker load its own in-memory cache. The process leader still owns refresh, persistence, vector, clustering, and research jobs.
+- Changed full RSS refresh publication to perform one cache rebuild and publish parsed articles before image extraction and persistence. Image extraction, per-source image reporting, persistence, and client invalidation continue in background work.
+- Split operational console output from detailed file logs. The console now keeps warnings, errors, and short startup/RSS progress lines; per-source results and service detail remain in `backend/logs/<session>/app.log`.
+- Replaced vector batch error payload logging with bounded batch size and exception type fields so failed embedding requests cannot print full embedding arrays to the console.
+- Added an 8,000-article readiness regression, console logging checks, startup cache coverage, and `backend/tests/benchmarks/measure_rss_readiness.py` for real-feed timing.
+- Started every configured feed URL in one Rust fetch pass instead of limiting the 270 current URLs to batches of 64.
+- Added per-feed fetch timing and timeout fields. The primary deadline is learned from the latest successful feed timings as the slowest success plus one second, bounded between 2 and 25 seconds, with a 5-second cold-start default.
+- Preserved cached articles for sources that miss the primary deadline and retry those complete sources after publication with the prior 25-second limit. Successful late results merge into the live cache without recursive retries.
+
+Verification:
+
+- Synthetic 8,000-article publication: `1.13s` before and `0.19s` after in unprofiled targeted tests; cache rebuild count fell from 261 to 1.
+- Profiled cache work: `3.927s` before and `0.017s` after.
+- Real database startup: 10,000 articles loaded in `0.534s`; isolated Gunicorn startup reported 10,000 cached articles in `0.63s`.
+- Real 261-source pull: 7,867 current articles published in `30.177s`, including `26.296s` of remote fetch time and `3.654s` of local publication work; image enrichment and persistence queueing completed in `66.554s` without delaying publication.
+- Adaptive real pull across 261 sources and 270 feed URLs: 254 requests completed within two seconds; the learned `17.441s` deadline ended fetching in `17.456s`, and 7,891 articles were visible in `21.343s`. One timed-out source retained its cached articles and entered the late-retry path.
+- `scripts/self-test`: frontend typecheck/build/lint, strict backend mypy, Ruff, Rust Clippy/format/release binding build, and 426 backend tests passed; 3 slow tests were deselected.
+- Final `scripts/self-test` after the adaptive deadline and late-merge changes: all checks passed, including 431 backend tests with 3 slow tests deselected.
+
+## 2026-07-09: Flagship Demo Setup
+
+- Added `docs/flagship-demo-plan.md` to select Scoop as the flagship resume project, define a bounded local operating envelope, and sequence the existing work into a demonstrable release.
+- Added `scripts/flagship-demo-preflight` to inspect dependencies, PostgreSQL readiness, storage capacity, and isolated showcase ports without starting services or fetching data by default.
+- Updated `runlocal.sh` so `BACKEND_PORT` controls the default Gunicorn bind address, allowing the isolated 8100 showcase profile without disrupting the existing service on port 8000.
+
+## 2026-06-01: Linguistic Forensics Article Diagnostics
+
+**What Changed:**
+- Added `backend/app/services/language_diagnostics.py` for deterministic passive-voice, actor-omission, euphemism, and sanitized-language diagnostics over article text.
+- Added `POST /api/article/language-diagnostics` so the article modal can request language diagnostics without invoking the LLM article analyzer.
+- Added `language_diagnostics` to `POST /api/article/analyze` responses so opt-in AI analysis carries the same deterministic diagnostics when extraction succeeds.
+- Added a Language Forensics card to the expanded article detail workspace with counts, rates, status, summary text, and sentence examples.
+- Refreshed `backend/openapi.json` and `frontend/lib/generated/openapi.ts`.
+
+**Verification:**
+- `python -m py_compile backend/app/services/language_diagnostics.py backend/app/api/routes/article_analysis.py backend/app/models/article_analysis.py`: passed.
+- `uv run pytest backend/tests/test_language_diagnostics.py -q`: 3 passed, 9 warnings.
+- `npm run openapi:refresh`: passed.
+- `npm --prefix frontend exec -- tsc -p frontend/tsconfig.json --noEmit`: passed.
+- `bash -lc 'cd backend && MYPYPATH=. .venv/bin/mypy --explicit-package-bases app --strict'`: passed.
+- `npm --prefix frontend run lint`: passed.
+
+## 2026-06-01: Source Ledger And Paywall Blindspot Metrics
+
+**What Changed:**
+- Added `backend/app/services/source_ledger.py` and wired `GET /api/wiki/sources/{source_name}` to return observed Source Ledger metrics for corrections, original reporting, wire dependency, paywall rate, named bylines, source policy signals, and RSS feed health.
+- Added paywall concentration to `GET /blindspots/viewer` cards so coverage gaps can show when sampled reporting is mostly locked behind paywalls and can list free-source alternatives.
+- Updated the source wiki page to show Source Ledger cards plus paywall and RSS quick facts.
+- Updated the blindspot UI to show paywall badges and free-alternative text only for mixed or high paywall concentrations.
+- Refreshed `backend/openapi.json` and `frontend/lib/generated/openapi.ts`.
+
+**Verification:**
+- `python -m py_compile backend/app/services/source_ledger.py backend/app/services/blindspot_viewer.py backend/app/api/routes/wiki.py backend/app/api/routes/blindspots.py`: passed.
+- `uv run pytest backend/tests/test_source_ledger.py backend/tests/test_blindspot_viewer.py backend/tests/test_blindspots_api.py backend/tests/test_wiki_sources.py -q`: 36 passed, 9 warnings.
+- `npm --prefix frontend exec -- tsc -p frontend/tsconfig.json --noEmit`: passed.
+- `npm --prefix frontend run lint`: passed.
+- `bash -lc 'cd backend && MYPYPATH=. .venv/bin/mypy --explicit-package-bases app --strict'`: passed.
+- `npm run openapi:refresh`: passed.
+- `npm --prefix frontend run build`: passed.
+- `scripts/self-test`: passed through `./verify.sh`; 416 passed, 3 deselected, 9 warnings.
+- Visual check: built frontend served on `localhost:3002`; source ledger and blindspot paywall states were inspected with mocked API responses because local PostgreSQL was not running and `frontend/.env.local` points to the production API.
+
+## 2026-05-31 — Scoop Source Review And Contradiction Slice
+
+Implemented the first Scoop roadmap slice for reviewed RSS intake, source lenses, contradiction-first cluster context, and reading-memory shelves.
+
+- Added non-mutating RSS validation and reviewed promotion endpoints alongside the existing `/sources/add-rss` compatibility path.
+- Extended source metadata with `source_type`, `is_paywalled`, correction-history scoring, and methodology-transparency scoring.
+- Added deterministic contradiction panels for topic clusters, focused on source-diverse evidence instead of LLM-generated summaries.
+- Added reading queue memory fields and research shelves so saved articles can retain the reason saved and unresolved question.
+- Added frontend News Lens filtering, reviewed RSS promotion UI, cluster contradiction panels, and saved-article shelf controls.
+- Refreshed `backend/openapi.json` and `frontend/lib/generated/openapi.ts`.
+
+## 2026-05-31 — Story Lineage Foundation
+
+Added the next Scoop roadmap layer for durable story lineage and correction-watch evidence.
+
+- Added durable `story_clusters`, `article_edges`, `extracted_claims`, `claim_edges`, and `corrections` models plus SQL bootstrap tables.
+- Added `backend/app/services/story_lineage.py` to promote topic-cluster snapshots into article lineage edges, claim seeds, claim relationships, and correction matches.
+- Added `/trending/clusters/{cluster_id}/lineage` for inspecting story origin, downstream variants, checkable claims, and matched corrections.
+- Added `frontend/components/story-lineage-panel.tsx` under expanded topic clusters so lineage evidence appears next to contradiction-first reading.
+- Refreshed OpenAPI artifacts for the new lineage route.
+
+## 2026-05-26 — Reporter Verification 90 Percent Roadmap
+
+Added `docs/agent/reporter-verification-90-percent-roadmap.md` as the working agent plan for moving from the corrected 40.01% eligible verified baseline to 90% verified coverage. The roadmap records the current shortfall, top source backlog, source-adapter design, blocked-source fetch strategy, evidence table needs, and quality gates that must stay strict while coverage improves.
+
 ## 2026-05-26 — Reporter Confidence Evidence Correction
 
 Corrected the reporter verification model so `verified` requires person-level author/profile evidence instead of any public URL citation.
