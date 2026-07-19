@@ -23,6 +23,8 @@ pub struct RawFeed {
     pub url: String,
     /// Raw XML body of the feed response.
     pub xml: String,
+    /// Wall-clock time spent fetching this URL.
+    pub duration_ms: u128,
 }
 
 /// Describes a fetch failure for a single feed URL.
@@ -34,6 +36,10 @@ pub struct FetchError {
     pub url: String,
     /// Human-readable error description.
     pub message: String,
+    /// Wall-clock time spent before the request failed.
+    pub duration_ms: u128,
+    /// Whether the HTTP client classified this failure as a timeout.
+    pub timed_out: bool,
 }
 
 /// Outcome of a single feed fetch operation.
@@ -81,6 +87,10 @@ pub struct SubFeedStat {
     pub article_count: usize,
     /// Error message if the sub-feed fetch or parse failed.
     pub error_message: Option<String>,
+    /// Wall-clock time spent fetching this sub-feed.
+    pub fetch_duration_ms: u128,
+    /// Whether this sub-feed failed because its request timed out.
+    pub timed_out: bool,
 }
 
 /// Aggregate statistics for one news source across all of its sub-feeds.
@@ -111,6 +121,16 @@ pub struct RustMetrics {
     pub parse_duration_ms: u128,
     /// Total number of articles successfully parsed.
     pub articles_parsed: usize,
+    /// Total number of feed URL requests attempted.
+    pub fetch_attempts: usize,
+    /// Feed URL requests that completed within two seconds.
+    pub fetch_completed_within_2s: usize,
+    /// Feed URL requests that completed within five seconds.
+    pub fetch_completed_within_5s: usize,
+    /// Feed URL requests that reached the configured timeout.
+    pub fetch_timed_out: usize,
+    /// Slowest individual feed URL request in milliseconds.
+    pub fetch_max_request_ms: u128,
 }
 
 /// Top-level result of a full fetch-and-parse pipeline run.
@@ -183,6 +203,8 @@ pub fn parse_result_to_pydict<'py>(
                 sub_dict.set_item("status", &sub.status)?;
                 sub_dict.set_item("article_count", sub.article_count)?;
                 sub_dict.set_item("error_message", &sub.error_message)?;
+                sub_dict.set_item("fetch_duration_ms", sub.fetch_duration_ms)?;
+                sub_dict.set_item("timed_out", sub.timed_out)?;
                 sub_list.append(sub_dict)?;
             }
             stat_dict.set_item("sub_feeds", sub_list)?;
@@ -197,6 +219,17 @@ pub fn parse_result_to_pydict<'py>(
     metrics_dict.set_item("fetch_duration_ms", result.metrics.fetch_duration_ms)?;
     metrics_dict.set_item("parse_duration_ms", result.metrics.parse_duration_ms)?;
     metrics_dict.set_item("articles_parsed", result.metrics.articles_parsed)?;
+    metrics_dict.set_item("fetch_attempts", result.metrics.fetch_attempts)?;
+    metrics_dict.set_item(
+        "fetch_completed_within_2s",
+        result.metrics.fetch_completed_within_2s,
+    )?;
+    metrics_dict.set_item(
+        "fetch_completed_within_5s",
+        result.metrics.fetch_completed_within_5s,
+    )?;
+    metrics_dict.set_item("fetch_timed_out", result.metrics.fetch_timed_out)?;
+    metrics_dict.set_item("fetch_max_request_ms", result.metrics.fetch_max_request_ms)?;
     dict.set_item("metrics", metrics_dict)?;
 
     Ok(dict)

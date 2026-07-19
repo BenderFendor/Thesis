@@ -25,7 +25,7 @@ from fastapi.middleware.gzip import GZipMiddleware
 
 from app.api.routes import router as api_router
 from app.core.config import settings
-from app.core.logging import configure_logging, get_logger
+from app.core.logging import configure_logging, get_logger, log_progress
 from app.core.process_limits import (
     get_nofile_limits,
     get_open_file_descriptor_count,
@@ -168,7 +168,7 @@ def _handle_shutdown_signal(signum: int, _frame: FrameType | None) -> None:
 
 
 async def _load_cache_from_db_fast() -> None:
-    """Fast path: Load small batch from DB on startup for instant readiness."""
+    """Load the complete working article set from the DB before network refresh."""
     if not settings.enable_database or AsyncSessionLocal is None:
         logger.info("Skipping DB cache warmup; ENABLE_DATABASE=0")
         return
@@ -179,8 +179,10 @@ async def _load_cache_from_db_fast() -> None:
     logger.info("Attempting to load articles from database...")
     try:
         async with session_factory() as session:
-            # Load small batch (500) for fast perceived startup
-            articles_dicts = await fetch_all_articles(session, limit=500)
+            articles_dicts = await fetch_all_articles(
+                session,
+                limit=settings.startup_cache_article_limit,
+            )
             if articles_dicts:
                 normalized_articles = []
                 for article_dict in articles_dicts:
@@ -207,7 +209,11 @@ async def _load_cache_from_db_fast() -> None:
                     }
                 ]
                 news_cache.update_cache(articles, stats)
-                logger.info("Loaded %d articles from database into cache.", len(articles))
+                log_progress(
+                    logger,
+                    "Startup cache ready: %d articles loaded from database",
+                    len(articles),
+                )
                 return
             else:
                 logger.info("No articles in DB; async refresh will populate cache.")
@@ -359,9 +365,9 @@ async def on_startup() -> None:
     """Elect a single worker as leader, then start background services.
 
     Uses a file-based lock at /tmp/thesis_startup_lock to ensure only one
-    worker across all gunicorn processes runs the leader path: cache
-    preloading, RSS refresh scheduling, article persistence, vector store
-    sync, cluster computation, and credibility scoring.
+    worker across all gunicorn processes runs background refresh, persistence,
+    vector store sync, cluster computation, and credibility scoring. Every
+    worker loads its own in-memory article cache before it serves requests.
 
     Non-leader workers skip all startup tasks and serve API traffic only.
     """
@@ -453,22 +459,8 @@ async def on_startup() -> None:
         startup_metrics.add_note("startup_role", "follower")
 
     if settings.enable_database and AsyncSessionLocal is not None:
-        if is_leader:
-            await _load_cache_from_db_fast()
-            startup_metrics.add_note("cache_loaded_by_leader", True)
-        else:
-            logger.info("Following workers wait for cache to be ready...")
-            for _ in range(30):
-                await asyncio.sleep(1)
-                if len(news_cache.get_articles()) > 0:
-                    logger.info("Cache is ready from leader")
-                    break
-
-    # Only leader runs initial cache load and RSS refresh
-    if is_leader:
-        cache_preload_task = asyncio.create_task(_initial_cache_load(), name="initial_cache_load")
-        _register_background_task(cache_preload_task)
-        startup_metrics.add_note("cache_preload_task", cache_preload_task.get_name())
+        await _initial_cache_load()
+        startup_metrics.add_note("cache_loaded_by_worker", True)
 
     # Only leader runs initial RSS refresh
     if is_leader:
@@ -538,7 +530,8 @@ async def on_startup() -> None:
         _register_background_task(credibility_task)
         startup_metrics.add_note("credibility_scoring_task", credibility_task.get_name())
 
-    logger.info(
+    log_progress(
+        logger,
         "API startup complete (%.2fs) - cache ready with %d articles",
         time.time() - startup_start,
         len(news_cache.get_articles()),

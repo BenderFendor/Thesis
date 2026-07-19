@@ -1,5 +1,5 @@
 use std::collections::{HashMap, HashSet};
-use std::time::Instant;
+use std::time::{Duration, Instant};
 
 use feed_rs::model::Content;
 use feed_rs::parser;
@@ -331,12 +331,34 @@ fn find_rss_item_authors(
 /// and timing metrics.
 ///
 /// Concurrency is bounded by `max_concurrent` using a semaphore.
-pub async fn parse_sources(sources: Vec<SourceRequest>, max_concurrent: usize) -> ParseResult {
+pub async fn parse_sources(
+    sources: Vec<SourceRequest>,
+    max_concurrent: usize,
+    request_timeout: Duration,
+) -> ParseResult {
     let start = Instant::now();
 
     let fetch_start = Instant::now();
-    let fetch_results = fetch_all(sources.clone(), max_concurrent).await;
+    let fetch_results = fetch_all(sources.clone(), max_concurrent, request_timeout).await;
     let fetch_duration = fetch_start.elapsed();
+    let fetch_attempts = fetch_results.len();
+    let fetch_completed_within_2s = fetch_results
+        .iter()
+        .filter(|result| fetch_result_duration_ms(result) <= 2_000)
+        .count();
+    let fetch_completed_within_5s = fetch_results
+        .iter()
+        .filter(|result| fetch_result_duration_ms(result) <= 5_000)
+        .count();
+    let fetch_timed_out = fetch_results
+        .iter()
+        .filter(|result| matches!(result, FetchResult::Error(err) if err.timed_out))
+        .count();
+    let fetch_max_request_ms = fetch_results
+        .iter()
+        .map(fetch_result_duration_ms)
+        .max()
+        .unwrap_or_default();
 
     let parse_start = Instant::now();
     let (articles, source_stats) = parse_results(fetch_results, sources);
@@ -348,9 +370,21 @@ pub async fn parse_sources(sources: Vec<SourceRequest>, max_concurrent: usize) -
             fetch_duration_ms: fetch_duration.as_millis(),
             parse_duration_ms: parse_duration.as_millis(),
             articles_parsed: articles.len(),
+            fetch_attempts,
+            fetch_completed_within_2s,
+            fetch_completed_within_5s,
+            fetch_timed_out,
+            fetch_max_request_ms,
         },
         articles,
         source_stats,
+    }
+}
+
+fn fetch_result_duration_ms(result: &FetchResult) -> u128 {
+    match result {
+        FetchResult::Success(raw) => raw.duration_ms,
+        FetchResult::Error(err) => err.duration_ms,
     }
 }
 
@@ -430,6 +464,8 @@ fn parse_source_group(
                             status: "success".to_string(),
                             article_count: count,
                             error_message: None,
+                            fetch_duration_ms: raw.duration_ms,
+                            timed_out: false,
                         });
                     }
                     Err(err) => {
@@ -441,6 +477,8 @@ fn parse_source_group(
                             status: "error".to_string(),
                             article_count: 0,
                             error_message: Some(msg),
+                            fetch_duration_ms: raw.duration_ms,
+                            timed_out: false,
                         });
                     }
                 }
@@ -453,6 +491,8 @@ fn parse_source_group(
                     status: "error".to_string(),
                     article_count: 0,
                     error_message: Some(err.message.clone()),
+                    fetch_duration_ms: err.duration_ms,
+                    timed_out: err.timed_out,
                 });
             }
         }

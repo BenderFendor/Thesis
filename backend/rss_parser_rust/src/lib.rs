@@ -55,11 +55,12 @@ use crate::types::{ensure_source_requests, parse_result_to_pydict};
 /// Accepts a list of named source groups (each with one or more feed URLs) and
 /// an optional maximum concurrency limit. Returns a Python dictionary with
 /// keys `articles`, `source_stats`, and `metrics`.
-#[pyfunction]
+#[pyfunction(signature = (sources, max_concurrent=None, timeout_ms=None))]
 fn parse_feeds_parallel<'py>(
     py: Python<'py>,
     sources: Vec<(String, Vec<String>)>,
     max_concurrent: Option<usize>,
+    timeout_ms: Option<u64>,
 ) -> PyResult<Bound<'py, PyDict>> {
     let runtime = Runtime::new().map_err(|err| {
         PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(format!(
@@ -68,8 +69,9 @@ fn parse_feeds_parallel<'py>(
     })?;
     let source_requests = ensure_source_requests(sources);
     let limit = max_concurrent.unwrap_or(32).max(1);
+    let request_timeout = std::time::Duration::from_millis(timeout_ms.unwrap_or(25_000).max(1));
 
-    let result = runtime.block_on(parse_sources(source_requests, limit));
+    let result = runtime.block_on(parse_sources(source_requests, limit, request_timeout));
     parse_result_to_pydict(py, &result)
 }
 

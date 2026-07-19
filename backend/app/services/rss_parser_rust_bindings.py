@@ -22,6 +22,7 @@ class RssParserRustProtocol(Protocol):
         self,
         sources: list[tuple[str, list[str]]],
         max_concurrent: int | None = None,
+        timeout_ms: int | None = None,
     ) -> Mapping[str, Any]: ...
 
     def extract_article_html(self, html: str) -> Mapping[str, Any]: ...
@@ -117,9 +118,10 @@ RUST = cast(RssParserRustProtocol, rss_parser_rust)
 def parse_feeds_parallel(
     sources: list[tuple[str, list[str]]],
     max_concurrent: int | None = None,
+    timeout_ms: int | None = None,
 ) -> dict[str, Any]:
     """Parse Feeds Parallel."""
-    return dict(RUST.parse_feeds_parallel(sources, max_concurrent))
+    return dict(RUST.parse_feeds_parallel(sources, max_concurrent, timeout_ms))
 
 
 def extract_article_html(html: str) -> dict[str, Any]:

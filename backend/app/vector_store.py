@@ -590,8 +590,14 @@ class VectorStore:
             return len(articles)
 
         except Exception as e:
-            logger.error("Batch add failed: %s", e)
-            if "Connection refused" in str(e) or "connect" in str(e).lower():
+            error_text = str(e)
+            logger.error(
+                "Vector batch add failed: %d articles (%s)",
+                len(articles),
+                type(e).__name__,
+            )
+            logger.info("Vector batch failure detail: %.4000s", error_text)
+            if "Connection refused" in error_text or "connect" in error_text.lower():
                 _vector_store = None
                 logger.warning(
                     "Cleared stale vector store after connection error in batch_add_articles"

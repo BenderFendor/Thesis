@@ -65,6 +65,7 @@ Common variables:
 | `OPEN_ROUTER_API_KEY` | Enables OpenRouter-backed research and analysis. |
 | `GEMINI_API_KEY` | Enables Gemini-backed research and analysis. |
 | `DATABASE_URL` | Overrides the default PostgreSQL connection string. |
+| `STARTUP_CACHE_ARTICLE_LIMIT` | Sets how many recent database articles each API worker loads at startup. Default: `10000`. |
 | `CHROMA_HOST` / `CHROMA_PORT` | Points the backend at ChromaDB. |
 | `EMBEDDING_SERVICE_URL` | Points the backend at the embedding worker. |
 | `NEXT_PUBLIC_API_URL` | Overrides the browser API base URL when needed. |
