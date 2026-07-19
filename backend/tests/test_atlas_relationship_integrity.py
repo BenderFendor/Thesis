@@ -14,9 +14,7 @@ def test_normalized_matching_is_exact_not_substring() -> None:
     assert normalize_entity_label("RT") == "rt"
     assert normalize_entity_label("Hartford Courant") == "hartford courant"
     assert normalize_entity_label("RT") != normalize_entity_label("Hartford Courant")
-    assert normalize_entity_label("Reuters") != normalize_entity_label(
-        "Thomson Reuters Foundation"
-    )
+    assert normalize_entity_label("Reuters") != normalize_entity_label("Thomson Reuters Foundation")
 
 
 def test_stable_source_ids_are_deterministic_and_distinct() -> None:

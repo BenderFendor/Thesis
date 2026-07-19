@@ -15,6 +15,7 @@ from app.services.atlas_graph import build_atlas_graph
 async def build_atlas_export(
     db: AsyncSession, request: AtlasExportRequest
 ) -> tuple[str, str, bytes]:
+    """Build a stable JSON or CSV export for an Atlas investigation."""
     filters = request.filters.model_copy(
         update={
             "selected": request.selected_entity or request.filters.selected,
@@ -24,10 +25,10 @@ async def build_atlas_export(
     graph = await build_atlas_graph(db, filters)
 
     if request.format == "json":
-        evidence = {
-            evidence.id: evidence.model_dump(mode="json")
+        evidence_by_id = {
+            evidence_ref.id: evidence_ref.model_dump(mode="json")
             for edge in graph.edges
-            for evidence in edge.evidence_preview
+            for evidence_ref in edge.evidence_preview
         }
         payload: dict[str, Any] = {
             "schema_version": "1.0",
@@ -37,7 +38,7 @@ async def build_atlas_export(
             "selected_entity": request.selected_entity,
             "nodes": [node.model_dump(mode="json") for node in graph.nodes],
             "relationships": [edge.model_dump(mode="json") for edge in graph.edges],
-            "evidence": list(evidence.values()),
+            "evidence": list(evidence_by_id.values()),
             "layout_positions": request.visible_layout_positions or {},
             "truncated": graph.truncated,
             "truncation_reason": graph.truncation_reason,
@@ -116,9 +117,7 @@ async def build_atlas_export(
                     edge.confidence if edge.confidence is not None else "",
                     edge.confidence_tier or "",
                     edge.evidence_count,
-                    edge.ownership_percentage
-                    if edge.ownership_percentage is not None
-                    else "",
+                    edge.ownership_percentage if edge.ownership_percentage is not None else "",
                     edge.valid_from.isoformat() if edge.valid_from else "",
                     edge.valid_to.isoformat() if edge.valid_to else "",
                     edge.last_verified_at.isoformat() if edge.last_verified_at else "",
@@ -139,18 +138,16 @@ async def build_atlas_export(
             ]
         )
         for edge in graph.edges:
-            for evidence in edge.evidence_preview:
+            for evidence_ref in edge.evidence_preview:
                 writer.writerow(
                     [
-                        evidence.id,
+                        evidence_ref.id,
                         edge.id,
-                        evidence.source_type,
-                        evidence.source_name or "",
-                        evidence.source_url or "",
-                        evidence.retrieved_at.isoformat()
-                        if evidence.retrieved_at
-                        else "",
-                        evidence.excerpt or "",
+                        evidence_ref.source_type,
+                        evidence_ref.source_name or "",
+                        evidence_ref.source_url or "",
+                        evidence_ref.retrieved_at.isoformat() if evidence_ref.retrieved_at else "",
+                        evidence_ref.excerpt or "",
                     ]
                 )
         filename = "atlas-evidence.csv"

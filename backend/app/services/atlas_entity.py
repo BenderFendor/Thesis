@@ -21,6 +21,7 @@ from app.database import (
 from app.models.atlas import (
     AtlasConnectionRecord,
     AtlasEntityRecord,
+    AtlasEntityType,
     AtlasGraphFilters,
     AtlasIndexResponse,
     AtlasNode,
@@ -35,7 +36,7 @@ def _catalog_sources() -> dict[str, dict[str, Any]]:
     unique: dict[str, dict[str, Any]] = {}
     for raw_name, raw_config in get_rss_sources().items():
         name = raw_name.split(" - ")[0].strip()
-        unique.setdefault(name, cast(dict[str, Any], raw_config))
+        unique.setdefault(name, raw_config)
     return unique
 
 
@@ -43,20 +44,14 @@ def _decode_cursor(cursor: str | None) -> int:
     if not cursor:
         return 0
     try:
-        decoded = base64.urlsafe_b64decode(cursor.encode("ascii") + b"===").decode(
-            "ascii"
-        )
+        decoded = base64.urlsafe_b64decode(cursor.encode("ascii") + b"===").decode("ascii")
         return max(int(decoded), 0)
     except (ValueError, UnicodeDecodeError):
         return 0
 
 
 def _encode_cursor(offset: int) -> str:
-    return (
-        base64.urlsafe_b64encode(str(offset).encode("ascii"))
-        .decode("ascii")
-        .rstrip("=")
-    )
+    return base64.urlsafe_b64encode(str(offset).encode("ascii")).decode("ascii").rstrip("=")
 
 
 def _source_name_for_id(entity_id: str) -> str | None:
@@ -66,9 +61,8 @@ def _source_name_for_id(entity_id: str) -> str | None:
     return None
 
 
-async def search_atlas(
-    db: AsyncSession, query: str, limit: int = 8
-) -> AtlasSearchResponse:
+async def search_atlas(db: AsyncSession, query: str, limit: int = 8) -> AtlasSearchResponse:
+    """Search the bounded Atlas projection for grouped entity matches."""
     normalized_query = normalize_entity_label(query)
     graph = await build_atlas_graph(
         db,
@@ -130,9 +124,8 @@ async def search_atlas(
     )
 
 
-async def get_atlas_entity(
-    db: AsyncSession, entity_id: str
-) -> AtlasEntityRecord | None:
+async def get_atlas_entity(db: AsyncSession, entity_id: str) -> AtlasEntityRecord | None:
+    """Load one Atlas entity with its details, evidence, and connections."""
     graph = await build_atlas_graph(
         db,
         AtlasGraphFilters(
@@ -187,7 +180,7 @@ async def get_atlas_entity(
             .scalars()
             .all()
         )
-        claim_ids = [cast(int, claim.id) for claim in claims if claim.id is not None]
+        claim_ids = [claim.id for claim in claims if claim.id is not None]
         claim_evidence = []
         if claim_ids:
             claim_evidence = list(
@@ -204,32 +197,25 @@ async def get_atlas_entity(
         details = {
             "source_name": source_name,
             "website": config.get("site_url") or config.get("url"),
-            "source_type": cast(str | None, metadata.source_type if metadata else None),
+            "source_type": metadata.source_type if metadata else None,
             "category": config.get("category"),
             "funding_type": cast(
                 str | None,
-                (metadata.funding_type if metadata else None)
-                or config.get("funding_type"),
+                (metadata.funding_type if metadata else None) or config.get("funding_type"),
             ),
             "bias_rating": cast(
                 str | None,
-                (metadata.political_bias if metadata else None)
-                or config.get("bias_rating"),
+                (metadata.political_bias if metadata else None) or config.get("bias_rating"),
             ),
             "factual_reporting": cast(
                 str | None,
-                (metadata.factual_rating if metadata else None)
-                or config.get("factual_reporting"),
+                (metadata.factual_rating if metadata else None) or config.get("factual_reporting"),
             ),
             "credibility_score": cast(
                 float | None, metadata.credibility_score if metadata else None
             ),
-            "parent_company": cast(
-                str | None, metadata.parent_company if metadata else None
-            ),
-            "geographic_focus": cast(
-                list[str], metadata.geographic_focus if metadata else []
-            ),
+            "parent_company": metadata.parent_company if metadata else None,
+            "geographic_focus": cast(list[str], metadata.geographic_focus if metadata else []),
             "topic_focus": cast(list[str], metadata.topic_focus if metadata else []),
             "claims": [
                 {
@@ -246,11 +232,7 @@ async def get_atlas_entity(
         }
         if claim_evidence:
             last_verified_at = max(
-                (
-                    cast(datetime, row.retrieved_at)
-                    for row in claim_evidence
-                    if row.retrieved_at
-                ),
+                (row.retrieved_at for row in claim_evidence if row.retrieved_at),
                 default=None,
             )
     elif entity_id.startswith("organization:"):
@@ -278,7 +260,7 @@ async def get_atlas_entity(
             "research_sources": org.research_sources or [],
             "conflict_flags": org.conflict_flags or [],
         }
-        last_verified_at = cast(datetime | None, org.last_researched_at)
+        last_verified_at = org.last_researched_at
     elif entity_id.startswith("reporter:"):
         try:
             reporter_id = int(entity_id.split(":", 1)[1])
@@ -311,7 +293,7 @@ async def get_atlas_entity(
             "research_sources": reporter.research_sources or [],
             "match_explanation": reporter.match_explanation,
         }
-        last_verified_at = cast(datetime | None, reporter.last_researched_at)
+        last_verified_at = reporter.last_researched_at
 
     deduped_evidence = {item.id: item for item in evidence}
     return AtlasEntityRecord(
@@ -340,7 +322,7 @@ async def get_atlas_entity(
 async def list_atlas_index(
     db: AsyncSession,
     *,
-    entity_types: list[str],
+    entity_types: list[AtlasEntityType],
     query: str | None,
     country: list[str],
     funding: list[str],
@@ -349,10 +331,11 @@ async def list_atlas_index(
     cursor: str | None,
     limit: int,
 ) -> AtlasIndexResponse:
+    """Return a filtered, sorted, cursor-based entity index page."""
     graph = await build_atlas_graph(
         db,
         AtlasGraphFilters(
-            entity_types=cast(list[Any], entity_types),
+            entity_types=entity_types,
             q=query,
             country=country,
             funding=funding,
@@ -394,19 +377,13 @@ async def list_atlas_index(
     offset = _decode_cursor(cursor)
     page = items[offset : offset + limit]
     next_offset = offset + len(page)
-    facets = {
+    facets: dict[str, dict[str, int]] = {
         "entity_type": dict(Counter(node.entity_type for node in items)),
-        "country": dict(
-            Counter(node.country_code for node in items if node.country_code)
-        ),
-        "funding": dict(
-            Counter(node.funding_type for node in items if node.funding_type)
-        ),
+        "country": dict(Counter(node.country_code for node in items if node.country_code)),
+        "funding": dict(Counter(node.funding_type for node in items if node.funding_type)),
         "bias": dict(Counter(node.bias_rating for node in items if node.bias_rating)),
         "status": dict(Counter(node.status for node in items if node.status)),
-        "confidence": dict(
-            Counter(node.confidence_tier for node in items if node.confidence_tier)
-        ),
+        "confidence": dict(Counter(node.confidence_tier for node in items if node.confidence_tier)),
     }
     return AtlasIndexResponse(
         items=page,

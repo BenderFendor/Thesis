@@ -54,13 +54,16 @@ function isWorkspaceTab(value: string): value is WorkspaceTab {
 }
 
 export function IntelligenceAtlasWorkspace() {
-  const pathname = usePathname();
-  const router = useRouter();
+  const currentPathname = usePathname();
+  const { push, replace } = useRouter();
   const searchParams = useSearchParams();
+  const searchParamsString = searchParams.toString();
   const queryClient = useQueryClient();
+  const pathnameRef = useRef(currentPathname);
+  pathnameRef.current = currentPathname;
   const parsedState = useMemo(
-    () => parseAtlasQueryState(new URLSearchParams(searchParams.toString())),
-    [searchParams],
+    () => parseAtlasQueryState(new URLSearchParams(searchParamsString)),
+    [searchParamsString],
   );
   const [searchText, setSearchText] = useState(parsedState.q);
   const [searchOpen, setSearchOpen] = useState(false);
@@ -72,11 +75,11 @@ export function IntelligenceAtlasWorkspace() {
   const writeState = useCallback(
     (patch: Partial<AtlasQueryState>, mode: "push" | "replace" = "push") => {
       const query = serializeAtlasQueryState({ ...parsedState, ...patch }).toString();
-      const href = `${pathname || "/wiki/ownership"}${query ? `?${query}` : ""}`;
-      if (mode === "replace") router.replace(href, { scroll: false });
-      else router.push(href, { scroll: false });
+      const href = `${pathnameRef.current || "/wiki/ownership"}${query ? `?${query}` : ""}`;
+      if (mode === "replace") replace(href, { scroll: false });
+      else push(href, { scroll: false });
     },
-    [parsedState, pathname, router],
+    [parsedState, push, replace],
   );
 
   useEffect(() => setSearchText(parsedState.q), [parsedState.q]);
@@ -161,7 +164,7 @@ export function IntelligenceAtlasWorkspace() {
     return () => window.removeEventListener("keydown", handleGlobalKeyboard);
   }, [parsedState.focus, parsedState.panel, searchOpen, writeState]);
 
-  const nodes = graphQuery.data?.nodes ?? [];
+  const nodes = useMemo(() => graphQuery.data?.nodes ?? [], [graphQuery.data?.nodes]);
   const nodesById = useMemo(() => new Map(nodes.map((node) => [node.id, node])), [nodes]);
   const selectedNode = parsedState.selected ? nodesById.get(parsedState.selected) ?? null : null;
   useEffect(() => {

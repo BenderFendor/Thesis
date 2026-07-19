@@ -4,8 +4,8 @@ from __future__ import annotations
 
 import hashlib
 import re
-from datetime import datetime
-from typing import Any, Iterable, cast
+from collections.abc import Iterable
+from typing import Any, cast
 
 from app.data.rss_sources import get_rss_sources
 from app.database import Reporter, SourceClaim, SourceClaimEvidence
@@ -38,7 +38,6 @@ _RELATION_GROUPS: dict[str, AtlasRelationType] = {
 
 def normalize_entity_label(value: str | None) -> str:
     """Normalize an entity label for exact alias matching, never substring matching."""
-
     if not value:
         return ""
     lowered = value.casefold().strip()
@@ -47,14 +46,14 @@ def normalize_entity_label(value: str | None) -> str:
 
 
 def stable_source_id(source_name: str) -> str:
+    """Build a stable public ID from a normalized source name."""
     normalized = normalize_entity_label(source_name)
-    digest = hashlib.sha1(
-        normalized.encode("utf-8"), usedforsecurity=False
-    ).hexdigest()[:12]
+    digest = hashlib.sha1(normalized.encode("utf-8"), usedforsecurity=False).hexdigest()[:12]
     return f"source:{digest}"
 
 
 def confidence_tier(value: float | None, *, stale: bool = False) -> AtlasConfidenceTier:
+    """Map a confidence score and freshness state to an Atlas tier."""
     if stale:
         return "stale"
     if value is None:
@@ -70,7 +69,6 @@ def confidence_tier(value: float | None, *, stale: bool = False) -> AtlasConfide
 
 def reporter_confidence_tier(reporter: Reporter) -> AtlasConfidenceTier:
     """Person-level verification requires a person profile, not only repeated bylines."""
-
     has_person_profile = bool(reporter.author_page_url or reporter.canonical_author_url)
     if reporter.match_status == "matched" and has_person_profile:
         return "verified"
@@ -85,7 +83,7 @@ def _catalog_sources() -> dict[str, dict[str, Any]]:
     unique: dict[str, dict[str, Any]] = {}
     for raw_name, raw_config in get_rss_sources().items():
         name = raw_name.split(" - ")[0].strip()
-        unique.setdefault(name, cast(dict[str, Any], raw_config))
+        unique.setdefault(name, raw_config)
     return unique
 
 
@@ -100,9 +98,7 @@ def _claim_name(claim: SourceClaim) -> str:
     return ""
 
 
-def _edge_id(
-    source_id: str, target_id: str, relation: str, discriminator: str = ""
-) -> str:
+def _edge_id(source_id: str, target_id: str, relation: str, discriminator: str = "") -> str:
     raw = f"{source_id}|{target_id}|{relation}|{discriminator}"
     digest = hashlib.sha1(raw.encode("utf-8"), usedforsecurity=False).hexdigest()[:16]
     return f"edge:{digest}"
@@ -138,10 +134,10 @@ def _evidence_ref(row: SourceClaimEvidence) -> AtlasEvidenceRef:
     return AtlasEvidenceRef(
         id=f"source-claim-evidence:{row.id}",
         source_type=cast(str, row.source_type),
-        source_name=cast(str | None, row.source_name),
-        source_url=cast(str | None, row.source_url),
-        retrieved_at=cast(datetime | None, row.retrieved_at),
-        excerpt=cast(str | None, row.raw_excerpt),
+        source_name=row.source_name,
+        source_url=row.source_url,
+        retrieved_at=row.retrieved_at,
+        excerpt=row.raw_excerpt,
     )
 
 
@@ -183,9 +179,7 @@ def _edge_matches(edge: AtlasEdge, filters: AtlasGraphFilters) -> bool:
         return False
     if edge.confidence is not None and edge.confidence < filters.min_confidence:
         return False
-    if edge.confidence is None and filters.min_confidence > 0:
-        return False
-    return True
+    return not (edge.confidence is None and filters.min_confidence > 0)
 
 
 def _dedupe_edges(edges: Iterable[AtlasEdge]) -> list[AtlasEdge]:

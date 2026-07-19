@@ -72,22 +72,31 @@ export function AtlasIndexSheet({
     staleTime: 60_000,
   });
 
-  const items = useMemo(() => indexQuery.data?.pages.flatMap((page) => page.items) ?? [], [indexQuery.data]);
-  const total = indexQuery.data?.pages[0]?.total ?? 0;
+  const {
+    data,
+    error,
+    fetchNextPage,
+    hasNextPage,
+    isFetchingNextPage,
+    isLoading,
+  } = indexQuery;
+  const items = useMemo(() => data?.pages.flatMap((page) => page.items) ?? [], [data]);
+  const total = data?.pages[0]?.total ?? 0;
   const virtualizer = useVirtualizer({
     count: items.length,
     getScrollElement: () => viewportRef.current,
     estimateSize: () => 66,
     overscan: 8,
   });
+  const { getTotalSize, getVirtualItems } = virtualizer;
 
   useEffect(() => {
     if (!open) return;
-    const virtualItems = virtualizer.getVirtualItems();
+    const virtualItems = getVirtualItems();
     const last = virtualItems[virtualItems.length - 1];
-    if (!last || last.index < items.length - 8 || !indexQuery.hasNextPage || indexQuery.isFetchingNextPage) return;
-    void indexQuery.fetchNextPage();
-  }, [indexQuery, items.length, open, virtualizer]);
+    if (!last || last.index < items.length - 8 || !hasNextPage || isFetchingNextPage) return;
+    void fetchNextPage();
+  }, [fetchNextPage, getVirtualItems, hasNextPage, isFetchingNextPage, items.length, open]);
 
   function choose(node: AtlasNode) {
     onSelect(node.id);
@@ -149,22 +158,22 @@ export function AtlasIndexSheet({
         </DialogHeader>
 
         <div ref={viewportRef} className={styles.indexViewport}>
-          {indexQuery.isLoading ? (
+          {isLoading ? (
             <div className={styles.emptyState}>
               <Loader2 className="h-6 w-6 animate-spin text-[#d7b35f]" aria-label="Loading entity index" />
             </div>
-          ) : indexQuery.error instanceof Error ? (
+          ) : error instanceof Error ? (
             <div className={styles.emptyState}>
               <div>
                 <div className={styles.brandTitle}>Index unavailable</div>
-                <p className={styles.contextCopy}>{indexQuery.error.message}</p>
+                <p className={styles.contextCopy}>{error.message}</p>
               </div>
             </div>
           ) : items.length === 0 ? (
             <div className={styles.emptyState}>No entity records match the current index filters.</div>
           ) : (
-            <div style={{ height: virtualizer.getTotalSize(), position: "relative" }}>
-              {virtualizer.getVirtualItems().map((row) => {
+            <div style={{ height: getTotalSize(), position: "relative" }}>
+              {getVirtualItems().map((row) => {
                 const node = items[row.index];
                 if (!node) return null;
                 return (
@@ -196,7 +205,7 @@ export function AtlasIndexSheet({
             </div>
           )}
         </div>
-        {indexQuery.isFetchingNextPage ? (
+        {isFetchingNextPage ? (
           <div className="flex items-center justify-center gap-2 border-t border-white/10 p-3 text-xs text-[#77736a]">
             <Loader2 className="h-3.5 w-3.5 animate-spin" /> Loading more records
           </div>

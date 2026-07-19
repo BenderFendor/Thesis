@@ -83,8 +83,8 @@ export function AtlasGraph({
   const containerRef = useRef<HTMLDivElement>(null);
   const svgRef = useRef<SVGSVGElement>(null);
   const [dimensions, setDimensions] = useState({ width: 1280, height: 760 });
-  const [transform, setTransform] = useState<Transform>({ x: 0, y: 0, scale: 1 });
-  const [activeNodeId, setActiveNodeId] = useState<string | null>(selectedId);
+  const [manualTransform, setManualTransform] = useState<{ key: string; value: Transform } | null>(null);
+  const [keyboardActiveNodeId, setKeyboardActiveNodeId] = useState<string | null>(selectedId);
   const [panning, setPanning] = useState(false);
   const panRef = useRef<{ pointerId: number; x: number; y: number; originX: number; originY: number } | null>(null);
 
@@ -113,7 +113,7 @@ export function AtlasGraph({
     }),
     [dimensions.height, dimensions.width, edges, graphVersion, layout, nodes, selectedId],
   );
-  const { positions, stable } = useAtlasLayout(layoutOptions);
+  const { key: layoutKey, positions, stable } = useAtlasLayout(layoutOptions);
   const selectedNeighbors = useMemo(() => {
     const ids = new Set<string>();
     if (!selectedId) return ids;
@@ -128,15 +128,14 @@ export function AtlasGraph({
     () => [...nodes].sort((left, right) => right.connection_count - left.connection_count || left.label.localeCompare(right.label)),
     [nodes],
   );
-
-  useEffect(() => {
-    if (selectedId) setActiveNodeId(selectedId);
-    else if (orderedNodes.length > 0 && !activeNodeId) setActiveNodeId(orderedNodes[0]!.id);
-  }, [activeNodeId, orderedNodes, selectedId]);
-
-  const fitGraph = useCallback(() => {
+  const activeNodeId = selectedId
+    ?? (keyboardActiveNodeId && nodes.some((node) => node.id === keyboardActiveNodeId)
+      ? keyboardActiveNodeId
+      : orderedNodes[0]?.id)
+    ?? null;
+  const fittedTransform = useMemo<Transform>(() => {
     const values = Object.values(positions);
-    if (values.length === 0) return;
+    if (values.length === 0) return { x: 0, y: 0, scale: 1 };
     const xs = values.map((position) => position.x);
     const ys = values.map((position) => position.y);
     const minX = Math.min(...xs);
@@ -150,16 +149,24 @@ export function AtlasGraph({
       1.45,
       Math.max(0.35, Math.min((dimensions.width - padding * 2) / width, (dimensions.height - padding * 2) / height)),
     );
-    setTransform({
+    return {
       scale,
       x: dimensions.width / 2 - ((minX + maxX) / 2) * scale,
       y: dimensions.height / 2 - ((minY + maxY) / 2) * scale,
-    });
+    };
   }, [dimensions.height, dimensions.width, positions]);
-
-  useEffect(() => {
-    if (stable) fitGraph();
-  }, [fitGraph, graphVersion, layout, stable]);
+  const transform = manualTransform?.key === layoutKey ? manualTransform.value : fittedTransform;
+  const setTransform = useCallback(
+    (update: Transform | ((current: Transform) => Transform)) => {
+      const current = manualTransform?.key === layoutKey ? manualTransform.value : fittedTransform;
+      const value = typeof update === "function" ? update(current) : update;
+      setManualTransform({ key: layoutKey, value });
+    },
+    [fittedTransform, layoutKey, manualTransform],
+  );
+  const fitGraph = useCallback(() => {
+    setManualTransform({ key: layoutKey, value: fittedTransform });
+  }, [fittedTransform, layoutKey]);
 
   const zoomAt = useCallback((clientX: number, clientY: number, factor: number) => {
     const bounds = svgRef.current?.getBoundingClientRect();
@@ -176,7 +183,7 @@ export function AtlasGraph({
         y: pointerY - worldY * nextScale,
       };
     });
-  }, []);
+  }, [setTransform]);
 
   function handleWheel(event: WheelEvent<SVGSVGElement>) {
     event.preventDefault();
@@ -226,7 +233,7 @@ export function AtlasGraph({
     const nextIndex = (currentIndex + direction + orderedNodes.length) % orderedNodes.length;
     const nextNode = orderedNodes[nextIndex];
     if (!nextNode) return;
-    setActiveNodeId(nextNode.id);
+    setKeyboardActiveNodeId(nextNode.id);
     requestAnimationFrame(() => {
       svgRef.current?.querySelector<SVGGElement>(`[data-node-id="${CSS.escape(nextNode.id)}"]`)?.focus();
     });
@@ -308,7 +315,7 @@ export function AtlasGraph({
                 opacity={dimmed ? 0.16 : 1}
                 onClick={(event) => {
                   event.stopPropagation();
-                  setActiveNodeId(node.id);
+                  setKeyboardActiveNodeId(node.id);
                   onSelect(node.id);
                 }}
                 onKeyDown={(event) => handleNodeKeyboard(event, node.id)}
@@ -344,7 +351,10 @@ export function AtlasGraph({
           type="button"
           className={styles.iconButton}
           aria-label="Zoom in"
-          onClick={() => zoomAt(dimensions.width / 2, dimensions.height / 2, 1.18)}
+          onClick={() => {
+            const bounds = svgRef.current?.getBoundingClientRect();
+            if (bounds) zoomAt(bounds.left + bounds.width / 2, bounds.top + bounds.height / 2, 1.18);
+          }}
         >
           <Plus className="h-4 w-4" />
         </button>
@@ -352,7 +362,10 @@ export function AtlasGraph({
           type="button"
           className={styles.iconButton}
           aria-label="Zoom out"
-          onClick={() => zoomAt(dimensions.width / 2, dimensions.height / 2, 1 / 1.18)}
+          onClick={() => {
+            const bounds = svgRef.current?.getBoundingClientRect();
+            if (bounds) zoomAt(bounds.left + bounds.width / 2, bounds.top + bounds.height / 2, 1 / 1.18);
+          }}
         >
           <Minus className="h-4 w-4" />
         </button>

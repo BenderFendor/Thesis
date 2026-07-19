@@ -82,11 +82,10 @@ async def get_atlas_graph(
     neighbors: int = Query(0, ge=0, le=2),
     limit_nodes: int = Query(350, ge=1, le=600),
     limit_edges: int = Query(1500, ge=1, le=2500),
-    layout: Literal["clustered", "ownership", "geography", "radial"] = Query(
-        "clustered"
-    ),
+    layout: Literal["clustered", "ownership", "geography", "radial"] = Query("clustered"),
     include_evidence_preview: bool = Query(True),
 ) -> AtlasGraphResponse:
+    """Return a bounded graph for the requested Atlas filters."""
     filters = AtlasGraphFilters(
         q=q,
         entity_types=_validated_entity_types(entity_types),
@@ -107,6 +106,7 @@ async def get_atlas_graph(
 
 @router.get("/stats", response_model=AtlasStatsResponse)
 async def get_atlas_stats(db: AsyncSession = Depends(get_db)) -> AtlasStatsResponse:
+    """Return graph coverage and indexing status."""
     return await build_atlas_stats(db)
 
 
@@ -116,6 +116,7 @@ async def search_atlas_entities(
     limit: int = Query(8, ge=1, le=20),
     db: AsyncSession = Depends(get_db),
 ) -> AtlasSearchResponse:
+    """Search Atlas entities and group matches by entity type."""
     return await search_atlas(db, q, limit=limit)
 
 
@@ -124,6 +125,7 @@ async def get_atlas_entity_record(
     entity_id: str,
     db: AsyncSession = Depends(get_db),
 ) -> AtlasEntityRecord:
+    """Return one Atlas entity with evidence and connections."""
     record = await get_atlas_entity(db, entity_id)
     if record is None:
         raise HTTPException(status_code=404, detail="Atlas entity not found")
@@ -138,6 +140,7 @@ async def get_atlas_entity_connections(
     entity_id: str,
     db: AsyncSession = Depends(get_db),
 ) -> list[AtlasConnectionRecord]:
+    """Return the relationships connected to one Atlas entity."""
     record = await get_atlas_entity(db, entity_id)
     if record is None:
         raise HTTPException(status_code=404, detail="Atlas entity not found")
@@ -162,6 +165,7 @@ async def get_atlas_index(
     cursor: str | None = Query(None, max_length=100),
     limit: int = Query(60, ge=1, le=100),
 ) -> AtlasIndexResponse:
+    """Return one filtered and sorted page of the Atlas entity index."""
     return await list_atlas_index(
         db,
         entity_types=_validated_entity_types(entity_types),
@@ -180,6 +184,7 @@ async def export_atlas(
     request: AtlasExportRequest,
     db: AsyncSession = Depends(get_db),
 ) -> Response:
+    """Export the requested Atlas graph as versioned JSON or CSV."""
     filename, content_type, content = await build_atlas_export(db, request)
     return Response(
         content=content,

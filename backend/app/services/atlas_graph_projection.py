@@ -45,9 +45,7 @@ from app.services.atlas_graph_helpers import (
 async def _load_graph_projection(
     db: AsyncSession,
     filters: AtlasGraphFilters,
-) -> tuple[
-    list[AtlasNode], list[AtlasEdge], int, dict[str, int], datetime | None, bool
-]:
+) -> tuple[list[AtlasNode], list[AtlasEdge], int, dict[str, int], datetime | None, bool]:
     catalog = _catalog_sources()
     orgs = list((await db.execute(select(Organization))).scalars().all())
     metadata = list((await db.execute(select(SourceMetadata))).scalars().all())
@@ -56,15 +54,13 @@ async def _load_graph_projection(
         .scalars()
         .all()
     )
-    claim_ids = [cast(int, claim.id) for claim in claims if claim.id is not None]
+    claim_ids = [claim.id for claim in claims if claim.id is not None]
     evidence_rows: list[SourceClaimEvidence] = []
     if claim_ids:
         evidence_rows = list(
             (
                 await db.execute(
-                    select(SourceClaimEvidence).where(
-                        SourceClaimEvidence.claim_id.in_(claim_ids)
-                    )
+                    select(SourceClaimEvidence).where(SourceClaimEvidence.claim_id.in_(claim_ids))
                 )
             )
             .scalars()
@@ -105,11 +101,7 @@ async def _load_graph_projection(
     }
     index_counts = Counter(cast(str, row.status) for row in index_rows)
     last_indexed_at = max(
-        (
-            cast(datetime, row.last_indexed_at)
-            for row in index_rows
-            if row.last_indexed_at
-        ),
+        (row.last_indexed_at for row in index_rows if row.last_indexed_at),
         default=None,
     )
     indexing_active = any(cast(str, row.status) == "indexing" for row in index_rows)
@@ -122,16 +114,14 @@ async def _load_graph_projection(
         evidence_by_claim[cast(int, row.claim_id)].append(_evidence_ref(row))
     claims_by_source: dict[str, list[SourceClaim]] = defaultdict(list)
     for claim in claims:
-        claims_by_source[normalize_entity_label(cast(str, claim.source_name))].append(
-            claim
-        )
+        claims_by_source[normalize_entity_label(cast(str, claim.source_name))].append(claim)
 
     org_alias_to_id: dict[str, int] = {}
     org_by_id: dict[int, Organization] = {}
     for org in orgs:
         org_id = cast(int, org.id)
         org_by_id[org_id] = org
-        for alias in (cast(str, org.name), cast(str | None, org.normalized_name)):
+        for alias in (cast(str, org.name), org.normalized_name):
             normalized = normalize_entity_label(alias)
             if normalized:
                 org_alias_to_id.setdefault(normalized, org_id)
@@ -169,30 +159,21 @@ async def _load_graph_projection(
                 ),
                 bias_rating=cast(
                     str | None,
-                    (meta.political_bias if meta else None)
-                    or config.get("bias_rating"),
+                    (meta.political_bias if meta else None) or config.get("bias_rating"),
                 ),
                 factual_reporting=cast(
                     str | None,
-                    (meta.factual_rating if meta else None)
-                    or config.get("factual_reporting"),
+                    (meta.factual_rating if meta else None) or config.get("factual_reporting"),
                 ),
-                credibility_score=cast(
-                    float | None, meta.credibility_score if meta else None
-                ),
+                credibility_score=cast(float | None, meta.credibility_score if meta else None),
                 article_count=article_count,
-                status=cast(str | None, status.status if status else None),
+                status=status.status if status else None,
                 confidence_tier=confidence_tier(
-                    _research_confidence(cast(str | None, meta.research_confidence))
-                    if meta
-                    else None
+                    _research_confidence(meta.research_confidence) if meta else None
                 ),
                 profile_path=f"/wiki/source/{source_name}",
-                updated_at=cast(
-                    datetime | None,
-                    (status.last_indexed_at if status else None)
-                    or (meta.updated_at if meta else None),
-                ),
+                updated_at=(status.last_indexed_at if status else None)
+                or (meta.updated_at if meta else None),
                 flags=["needs-review"]
                 if status and cast(str, status.status) in {"failed", "stale"}
                 else [],
@@ -200,32 +181,27 @@ async def _load_graph_projection(
         )
 
     for org in orgs:
-        org_id = cast(int, org.id)
+        org_pk = org.id
         normalized = normalize_entity_label(cast(str, org.name))
         status = index_by_key.get(("organization", normalized))
         nodes.append(
             AtlasNode(
-                id=f"organization:{org_id}",
+                id=f"organization:{org_pk}",
                 entity_type="organization",
                 label=cast(str, org.name),
-                subtitle=cast(str | None, org.org_type),
-                funding_type=cast(str | None, org.funding_type),
-                bias_rating=cast(str | None, org.media_bias_rating),
-                factual_reporting=cast(str | None, org.factual_reporting),
-                status=cast(str | None, status.status if status else None),
-                confidence_tier=confidence_tier(
-                    _research_confidence(cast(str | None, org.research_confidence))
-                ),
-                profile_path=f"/wiki/ownership?selected=organization:{org_id}",
-                updated_at=cast(
-                    datetime | None,
-                    (status.last_indexed_at if status else None) or org.updated_at,
-                ),
+                subtitle=org.org_type,
+                funding_type=org.funding_type,
+                bias_rating=org.media_bias_rating,
+                factual_reporting=org.factual_reporting,
+                status=status.status if status else None,
+                confidence_tier=confidence_tier(_research_confidence(org.research_confidence)),
+                profile_path=f"/wiki/ownership?selected=organization:{org_pk}",
+                updated_at=(status.last_indexed_at if status else None) or org.updated_at,
             )
         )
 
     for reporter in reporters:
-        reporter_id = cast(int, reporter.id)
+        reporter_id = reporter.id
         normalized = normalize_entity_label(cast(str, reporter.name))
         status = index_by_key.get(("reporter", normalized))
         nodes.append(
@@ -235,25 +211,20 @@ async def _load_graph_projection(
                 label=cast(str, reporter.canonical_name or reporter.name),
                 subtitle="Reporter",
                 article_count=int(reporter.article_count or 0),
-                bias_rating=cast(str | None, reporter.political_leaning),
-                status=cast(
-                    str | None, status.status if status else reporter.match_status
-                ),
+                bias_rating=reporter.political_leaning,
+                status=status.status if status else reporter.match_status,
                 confidence_tier=reporter_confidence_tier(reporter),
                 profile_path=f"/wiki/reporter/{reporter_id}",
-                updated_at=cast(
-                    datetime | None,
-                    (status.last_indexed_at if status else None) or reporter.updated_at,
-                ),
+                updated_at=(status.last_indexed_at if status else None) or reporter.updated_at,
             )
         )
 
     # Organization-to-organization links are exact ID or exact normalized alias links.
     for org in orgs:
-        child_id = f"organization:{cast(int, org.id)}"
-        org_confidence = _research_confidence(cast(str | None, org.research_confidence))
-        if org.parent_org_id and cast(int, org.parent_org_id) in org_by_id:
-            parent_id = f"organization:{cast(int, org.parent_org_id)}"
+        child_id = f"organization:{org.id}"
+        org_confidence = _research_confidence(org.research_confidence)
+        if org.parent_org_id and org.parent_org_id in org_by_id:
+            parent_id = f"organization:{org.parent_org_id}"
             edges.append(
                 AtlasEdge(
                     id=_edge_id(parent_id, child_id, "ownership", str(org.id)),
@@ -263,7 +234,7 @@ async def _load_graph_projection(
                     ownership_percentage=_parse_percentage(org.ownership_percentage),
                     confidence=org_confidence or 0.85,
                     confidence_tier=confidence_tier(org_confidence or 0.85),
-                    last_verified_at=cast(datetime | None, org.last_researched_at),
+                    last_verified_at=org.last_researched_at,
                     raw_relation_type="parent_org_id",
                 )
             )
@@ -273,7 +244,7 @@ async def _load_graph_projection(
             (cast(list[Any], org.parent_orgs or []), "parent_org", False),
             (cast(list[Any], org.part_of or []), "part_of", True),
         )
-        for values, relation, reverse in alias_relations:
+        for values, alias_relation, reverse in alias_relations:
             for raw_name in values:
                 if not isinstance(raw_name, str):
                     continue
@@ -281,21 +252,19 @@ async def _load_graph_projection(
                 if not related_org_id or related_org_id == org.id:
                     continue
                 related_id = f"organization:{related_org_id}"
-                source_id, target_id = (
-                    (child_id, related_id) if reverse else (related_id, child_id)
-                )
-                relation_type = cast(AtlasRelationType, relation)
+                source_id, target_id = (child_id, related_id) if reverse else (related_id, child_id)
+                relation_type = cast(AtlasRelationType, alias_relation)
                 edges.append(
                     AtlasEdge(
-                        id=_edge_id(source_id, target_id, relation, raw_name),
+                        id=_edge_id(source_id, target_id, alias_relation, raw_name),
                         source_id=source_id,
                         target_id=target_id,
                         relation_type=relation_type,
                         confidence=org_confidence or 0.72,
                         confidence_tier=confidence_tier(org_confidence or 0.72),
-                        last_verified_at=cast(datetime | None, org.last_researched_at),
+                        last_verified_at=org.last_researched_at,
                         is_inferred=False,
-                        raw_relation_type=relation,
+                        raw_relation_type=alias_relation,
                     )
                 )
 
@@ -308,36 +277,32 @@ async def _load_graph_projection(
             if claim_type not in _OWNER_CLAIM_TYPES | _LEGAL_ENTITY_CLAIM_TYPES:
                 continue
             org_name = _claim_name(claim)
-            org_id = org_alias_to_id.get(normalize_entity_label(org_name))
-            if not org_id:
+            source_org_id = org_alias_to_id.get(normalize_entity_label(org_name))
+            if not source_org_id:
                 continue
-            relation: AtlasRelationType = (
+            claim_relation: AtlasRelationType = (
                 "ownership" if claim_type in _OWNER_CLAIM_TYPES else "publishes"
             )
-            organization_id = f"organization:{org_id}"
+            organization_id = f"organization:{source_org_id}"
             source_edge_id = organization_id
             target_edge_id = source_id
             evidence = evidence_by_claim.get(cast(int, claim.id), [])
             confidence = float(claim.confidence or 0.0)
             edges.append(
                 AtlasEdge(
-                    id=_edge_id(
-                        source_edge_id, target_edge_id, relation, str(claim.id)
-                    ),
+                    id=_edge_id(source_edge_id, target_edge_id, claim_relation, str(claim.id)),
                     source_id=source_edge_id,
                     target_id=target_edge_id,
-                    relation_type=relation,
+                    relation_type=claim_relation,
                     confidence=confidence,
                     confidence_tier=confidence_tier(confidence),
                     evidence_count=len(evidence),
-                    evidence_preview=evidence[:3]
-                    if filters.include_evidence_preview
-                    else [],
-                    valid_from=cast(datetime | None, claim.valid_from),
-                    valid_to=cast(datetime | None, claim.valid_to),
+                    evidence_preview=evidence[:3] if filters.include_evidence_preview else [],
+                    valid_from=claim.valid_from,
+                    valid_to=claim.valid_to,
                     last_verified_at=max(
                         (item.retrieved_at for item in evidence if item.retrieved_at),
-                        default=cast(datetime | None, claim.updated_at),
+                        default=claim.updated_at,
                     ),
                     is_inferred=claim.claim_kind == "computed",
                     raw_relation_type=claim_type,
@@ -347,23 +312,19 @@ async def _load_graph_projection(
 
         meta = metadata_by_source.get(normalized_source)
         if meta and meta.parent_company:
-            org_id = org_alias_to_id.get(
-                normalize_entity_label(cast(str, meta.parent_company))
-            )
-            if org_id:
-                organization_id = f"organization:{org_id}"
+            metadata_org_id = org_alias_to_id.get(normalize_entity_label(meta.parent_company))
+            if metadata_org_id:
+                organization_id = f"organization:{metadata_org_id}"
                 edges.append(
                     AtlasEdge(
-                        id=_edge_id(
-                            organization_id, source_id, "ownership", "source_metadata"
-                        ),
+                        id=_edge_id(organization_id, source_id, "ownership", "source_metadata"),
                         source_id=organization_id,
                         target_id=source_id,
                         relation_type="ownership",
                         confidence=0.68,
                         confidence_tier="likely",
                         evidence_count=0,
-                        last_verified_at=cast(datetime | None, meta.updated_at),
+                        last_verified_at=meta.updated_at,
                         is_inferred=True,
                         raw_relation_type="source_metadata.parent_company",
                     )
@@ -399,21 +360,19 @@ async def _load_graph_projection(
             if not isinstance(affiliation, dict):
                 continue
             raw_name = (
-                affiliation.get("org")
-                or affiliation.get("name")
-                or affiliation.get("organization")
+                affiliation.get("org") or affiliation.get("name") or affiliation.get("organization")
             )
             if not isinstance(raw_name, str):
                 continue
-            org_id = org_alias_to_id.get(normalize_entity_label(raw_name))
-            if not org_id:
+            affiliation_org_id = org_alias_to_id.get(normalize_entity_label(raw_name))
+            if not affiliation_org_id:
                 continue
             evidence_url = affiliation.get("url") or affiliation.get("source_url")
             evidence = []
             if isinstance(evidence_url, str) and evidence_url:
                 evidence.append(
                     AtlasEvidenceRef(
-                        id=f"reporter-affiliation:{reporter.id}:{org_id}",
+                        id=f"reporter-affiliation:{reporter.id}:{affiliation_org_id}",
                         source_type="person_profile",
                         source_name=cast(str, reporter.name),
                         source_url=evidence_url,
@@ -421,8 +380,8 @@ async def _load_graph_projection(
                     )
                 )
             confidence = 0.9 if evidence else 0.62
-            source_id = f"reporter:{cast(int, reporter.id)}"
-            target_id = f"organization:{org_id}"
+            source_id = f"reporter:{reporter.id}"
+            target_id = f"organization:{affiliation_org_id}"
             edges.append(
                 AtlasEdge(
                     id=_edge_id(source_id, target_id, "employed_by", raw_name),
@@ -432,9 +391,7 @@ async def _load_graph_projection(
                     confidence=confidence,
                     confidence_tier=confidence_tier(confidence),
                     evidence_count=len(evidence),
-                    evidence_preview=evidence
-                    if filters.include_evidence_preview
-                    else [],
+                    evidence_preview=evidence if filters.include_evidence_preview else [],
                     is_inferred=not bool(evidence),
                     raw_relation_type="institutional_affiliation",
                 )

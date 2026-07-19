@@ -25,37 +25,30 @@ function topologyKey(options: UseAtlasLayoutOptions): string {
 }
 
 export function useAtlasLayout(options: UseAtlasLayoutOptions) {
-  const [positions, setPositions] = useState<Record<string, AtlasPosition>>({});
-  const [stable, setStable] = useState(false);
+  const key = topologyKey(options);
+  const cached = layoutCache.get(key);
+  const empty = options.nodes.length === 0 || options.width <= 0 || options.height <= 0;
+  const [result, setResult] = useState<{
+    key: string;
+    positions: Record<string, AtlasPosition>;
+    stable: boolean;
+  }>({ key: "", positions: {}, stable: false });
   const requestIdRef = useRef(0);
 
   useEffect(() => {
-    if (options.nodes.length === 0 || options.width <= 0 || options.height <= 0) {
-      setPositions({});
-      setStable(true);
-      return;
-    }
-
-    const key = topologyKey(options);
-    const cached = layoutCache.get(key);
-    if (cached) {
-      setPositions(cached);
-      setStable(true);
-      return;
-    }
+    if (empty || cached) return;
 
     const requestId = requestIdRef.current + 1;
     requestIdRef.current = requestId;
-    setStable(false);
     const worker = new Worker(new URL("../../../workers/atlas-layout.worker.ts", import.meta.url), {
       type: "module",
     });
     worker.onmessage = (event: MessageEvent<AtlasLayoutResponse>) => {
       if (event.data.requestId !== requestIdRef.current) return;
-      setPositions(event.data.positions);
-      if (event.data.type === "complete") {
+      const complete = event.data.type === "complete";
+      setResult({ key, positions: event.data.positions, stable: complete });
+      if (complete) {
         layoutCache.set(key, event.data.positions);
-        setStable(true);
         worker.terminate();
       }
     };
@@ -73,8 +66,7 @@ export function useAtlasLayout(options: UseAtlasLayoutOptions) {
           ];
         }),
       );
-      setPositions(fallback);
-      setStable(true);
+      setResult({ key, positions: fallback, stable: true });
       worker.terminate();
     };
     worker.postMessage({
@@ -102,7 +94,10 @@ export function useAtlasLayout(options: UseAtlasLayoutOptions) {
       worker.postMessage({ type: "cancel", requestId });
       worker.terminate();
     };
-  }, [options]);
+  }, [cached, empty, key, options]);
 
-  return { positions, stable };
+  if (empty) return { key, positions: {}, stable: true };
+  if (cached) return { key, positions: cached, stable: true };
+  if (result.key === key) return { key, positions: result.positions, stable: result.stable };
+  return { key, positions: {}, stable: false };
 }

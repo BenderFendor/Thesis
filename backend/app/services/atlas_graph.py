@@ -59,11 +59,7 @@ def _apply_neighborhood(
             queue.append((related, depth + 1))
     return (
         [node for node in nodes if node.id in visible],
-        [
-            edge
-            for edge in edges
-            if edge.source_id in visible and edge.target_id in visible
-        ],
+        [edge for edge in edges if edge.source_id in visible and edge.target_id in visible],
     )
 
 
@@ -108,8 +104,7 @@ def _rank_nodes(
 def _graph_version(nodes: list[AtlasNode], edges: list[AtlasEdge]) -> str:
     payload = {
         "nodes": sorted(
-            (node.id, node.updated_at.isoformat() if node.updated_at else "")
-            for node in nodes
+            (node.id, node.updated_at.isoformat() if node.updated_at else "") for node in nodes
         ),
         "edges": sorted(
             (
@@ -119,15 +114,12 @@ def _graph_version(nodes: list[AtlasNode], edges: list[AtlasEdge]) -> str:
             for edge in edges
         ),
     }
-    digest = hashlib.sha256(
-        json.dumps(payload, separators=(",", ":")).encode("utf-8")
-    ).hexdigest()
+    digest = hashlib.sha256(json.dumps(payload, separators=(",", ":")).encode("utf-8")).hexdigest()
     return digest[:20]
 
 
-async def build_atlas_graph(
-    db: AsyncSession, filters: AtlasGraphFilters
-) -> AtlasGraphResponse:
+async def build_atlas_graph(db: AsyncSession, filters: AtlasGraphFilters) -> AtlasGraphResponse:
+    """Build a bounded and filtered Atlas graph projection."""
     generated_at = datetime.now(UTC)
     (
         all_nodes,
@@ -141,12 +133,8 @@ async def build_atlas_graph(
     # A committed selection is a neighborhood lookup, not a label-only search.
     # Preserve q in the response contract/URL while allowing connected entities
     # that do not repeat the query text to remain visible.
-    node_match_filters = (
-        filters.model_copy(update={"q": None}) if filters.selected else filters
-    )
-    node_filtered = [
-        node for node in all_nodes if _node_matches(node, node_match_filters)
-    ]
+    node_match_filters = filters.model_copy(update={"q": None}) if filters.selected else filters
+    node_filtered = [node for node in all_nodes if _node_matches(node, node_match_filters)]
     allowed_node_ids = {node.id for node in node_filtered}
     edge_filtered = [
         edge
@@ -186,9 +174,7 @@ async def build_atlas_graph(
 
     evidence_edges = sum(1 for edge in edge_filtered if edge.evidence_count > 0)
     ownership_edges = [
-        edge
-        for edge in all_edges
-        if edge.relation_type in {"ownership", "owned_by", "parent_org"}
+        edge for edge in all_edges if edge.relation_type in {"ownership", "owned_by", "parent_org"}
     ]
     source_nodes = [node for node in all_nodes if node.entity_type == "source"]
     sources_with_owner = {
@@ -199,14 +185,10 @@ async def build_atlas_graph(
 
     stats = AtlasGraphStats(
         total_sources=len(source_nodes),
-        total_organizations=sum(
-            node.entity_type == "organization" for node in all_nodes
-        ),
+        total_organizations=sum(node.entity_type == "organization" for node in all_nodes),
         total_reporters=sum(node.entity_type == "reporter" for node in all_nodes),
         visible_sources=sum(node.entity_type == "source" for node in ranked_nodes),
-        visible_organizations=sum(
-            node.entity_type == "organization" for node in ranked_nodes
-        ),
+        visible_organizations=sum(node.entity_type == "organization" for node in ranked_nodes),
         visible_reporters=sum(node.entity_type == "reporter" for node in ranked_nodes),
         visible_relationships=len(edge_filtered),
         current_relationships=sum(edge.valid_to is None for edge in all_edges),
@@ -228,13 +210,12 @@ async def build_atlas_graph(
         applied_filters=filters,
         truncated=truncated,
         truncation_reason=",".join(reasons) if reasons else None,
-        next_expansion_token=(
-            filters.selected if truncated and filters.selected else None
-        ),
+        next_expansion_token=(filters.selected if truncated and filters.selected else None),
     )
 
 
 async def build_atlas_stats(db: AsyncSession) -> AtlasStatsResponse:
+    """Build aggregate Atlas graph and indexing statistics."""
     filters = AtlasGraphFilters(
         entity_types=["source", "organization", "reporter"],
         limit_nodes=600,
@@ -246,11 +227,7 @@ async def build_atlas_stats(db: AsyncSession) -> AtlasStatsResponse:
     index_rows = list((await db.execute(select(WikiIndexStatus))).scalars().all())
     index_counts = Counter(cast(str, row.status) for row in index_rows)
     last_indexed_at = max(
-        (
-            cast(datetime, row.last_indexed_at)
-            for row in index_rows
-            if row.last_indexed_at
-        ),
+        (row.last_indexed_at for row in index_rows if row.last_indexed_at),
         default=None,
     )
     return AtlasStatsResponse(
@@ -262,7 +239,7 @@ async def build_atlas_stats(db: AsyncSession) -> AtlasStatsResponse:
             "organization": graph.stats.total_organizations,
             "reporter": graph.stats.total_reporters,
         },
-        by_relation_type=dict(relation_counts),
+        by_relation_type={str(key): value for key, value in relation_counts.items()},
         by_index_status=dict(index_counts),
         last_indexed_at=last_indexed_at,
         indexing_active=any(cast(str, row.status) == "indexing" for row in index_rows),
@@ -270,4 +247,5 @@ async def build_atlas_stats(db: AsyncSession) -> AtlasStatsResponse:
 
 
 def canonical_relation_type(value: str) -> AtlasRelationType | None:
+    """Map a raw relationship label to its canonical Atlas type."""
     return _RELATION_GROUPS.get(value)

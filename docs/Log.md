@@ -1,5 +1,23 @@
 # Log
 
+## 2026-07-19 — Intelligence Atlas Review Fixes
+
+Repaired the Intelligence Atlas pull request before integration.
+
+- Removed React state-mirroring effects from graph focus, layout, and viewport fitting.
+- Kept Web Worker layout results keyed to their graph topology so stale results do not appear after filter or size changes.
+- Fixed graph zoom controls to use the SVG viewport center.
+- Replaced whole-hook dependencies in the Atlas index and workspace with the specific values and functions they use.
+- Corrected Atlas backend type mismatches in graph projection and evidence export, then brought the new routes, models, and services through the repository Ruff and strict mypy checks.
+
+Verification:
+
+- Atlas backend tests: 6 passed.
+- Atlas frontend tests: 3 passed.
+- Frontend lint: passed with one existing React Compiler warning for TanStack Virtual.
+- Frontend TypeScript check: passed.
+- Atlas backend Ruff and strict mypy checks: passed.
+
 ## 2026-05-26 — Reporter Confidence Evidence Correction
 
 Corrected the reporter verification model so `verified` requires person-level author/profile evidence instead of any public URL citation.

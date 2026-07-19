@@ -34,14 +34,10 @@ class AuditRow:
 
 
 def _hash_payload(payload: dict[str, Any]) -> str:
-    return hashlib.sha256(
-        json.dumps(payload, sort_keys=True).encode("utf-8")
-    ).hexdigest()
+    return hashlib.sha256(json.dumps(payload, sort_keys=True).encode("utf-8")).hexdigest()
 
 
-async def run_backfill(
-    *, dry_run: bool, source_only: str | None, audit_path: Path
-) -> None:
+async def run_backfill(*, dry_run: bool, source_only: str | None, audit_path: Path) -> None:
     if AsyncSessionLocal is None:
         raise RuntimeError("Database is disabled")
     async with AsyncSessionLocal() as session:
@@ -61,9 +57,9 @@ async def run_backfill(
         created = 0
         for row in metadata:
             source_name = cast(str, row.source_name)
-            if source_only and normalize_entity_label(
-                source_name
-            ) != normalize_entity_label(source_only):
+            if source_only and normalize_entity_label(source_name) != normalize_entity_label(
+                source_only
+            ):
                 continue
             parent_company = cast(str | None, row.parent_company)
             if not parent_company:
@@ -111,9 +107,7 @@ async def run_backfill(
                 .scalars()
                 .all()
             )
-            stronger = [
-                claim for claim in existing if float(claim.confidence or 0) >= 0.68
-            ]
+            stronger = [claim for claim in existing if float(claim.confidence or 0) >= 0.68]
             if stronger:
                 audits.append(
                     AuditRow(
@@ -146,7 +140,7 @@ async def run_backfill(
                 claim_type="parent_company",
                 claim_value=claim_value,
                 claim_kind="factual",
-                confidence=0.68,
+                confidence=cast(Any, 0.68),
                 parser_version="atlas-backfill/v1",
                 is_current=True,
                 valid_from=get_utc_now(),
@@ -193,9 +187,7 @@ async def run_backfill(
 
 def main() -> None:
     parser = argparse.ArgumentParser()
-    parser.add_argument(
-        "--apply", action="store_true", help="Persist claims; default is dry run"
-    )
+    parser.add_argument("--apply", action="store_true", help="Persist claims; default is dry run")
     parser.add_argument("--source", help="Only process one source")
     parser.add_argument(
         "--audit",
@@ -204,9 +196,7 @@ def main() -> None:
     )
     args = parser.parse_args()
     asyncio.run(
-        run_backfill(
-            dry_run=not args.apply, source_only=args.source, audit_path=args.audit
-        )
+        run_backfill(dry_run=not args.apply, source_only=args.source, audit_path=args.audit)
     )
 
 
