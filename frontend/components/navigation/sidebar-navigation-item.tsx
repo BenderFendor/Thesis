@@ -3,7 +3,7 @@ import type { LucideIcon } from "lucide-react"
 
 import { cn } from "@/lib/utils"
 
-type SharedProps = {
+interface SharedProps {
   active?: boolean
   badge?: number
   description: string

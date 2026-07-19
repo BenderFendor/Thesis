@@ -43,7 +43,8 @@ export function GlobalNavigation({
   alertCount = 0,
 }: GlobalNavigationProps) {
   const pathname = usePathname()
-  const router = useRouter()
+  const isHomeRoute = pathname === "/"
+  const { push, replace } = useRouter()
   const expanded = useSyncExternalStore(
     subscribeSidebarExpanded,
     readSidebarExpanded,
@@ -51,7 +52,7 @@ export function GlobalNavigation({
   )
 
   useEffect(() => {
-    if (pathname !== "/" || !onViewChange) return
+    if (!isHomeRoute || !onViewChange) return
 
     const syncViewFromLocation = () => {
       const requestedView = getViewFromSearch(window.location.search)
@@ -63,7 +64,7 @@ export function GlobalNavigation({
     syncViewFromLocation()
     window.addEventListener("popstate", syncViewFromLocation)
     return () => window.removeEventListener("popstate", syncViewFromLocation)
-  }, [onViewChange, pathname])
+  }, [isHomeRoute, onViewChange])
 
   const updateExpanded = useCallback((nextExpanded: boolean) => {
     writeSidebarExpanded(nextExpanded)
@@ -71,21 +72,21 @@ export function GlobalNavigation({
 
   const handleViewClick = useCallback(
     (view: ViewMode) => {
-      if (pathname === "/" && onViewChange) {
+      if (isHomeRoute && onViewChange) {
         onViewChange(view)
-        router.replace(buildViewHref(view), { scroll: false })
+        replace(buildViewHref(view), { scroll: false })
         return
       }
-      router.push(buildViewHref(view))
+      push(buildViewHref(view))
     },
-    [onViewChange, pathname, router],
+    [isHomeRoute, onViewChange, push, replace],
   )
 
   const handleSearch = useCallback(
     (query: string) => {
-      router.push(buildSearchHref(query))
+      push(buildSearchHref(query))
     },
-    [router],
+    [push],
   )
 
   return (
