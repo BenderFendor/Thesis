@@ -106,6 +106,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/article/language-diagnostics": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Analyze Article Language
+         * @description Analyze article language without requiring LLM services.
+         */
+        post: operations["analyze_article_language_api_article_language_diagnostics_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/news/page": {
         parameters: {
             query?: never;
@@ -1326,6 +1346,50 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/queue/shelves": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Shelves
+         * @description Get research shelves.
+         */
+        get: operations["get_shelves_api_queue_shelves_get"];
+        put?: never;
+        /**
+         * Create Shelf
+         * @description Create a research shelf.
+         */
+        post: operations["create_shelf_api_queue_shelves_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/queue/shelves/{shelf_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /**
+         * Update Shelf
+         * @description Update a research shelf.
+         */
+        patch: operations["update_shelf_api_queue_shelves__shelf_id__patch"];
+        trace?: never;
+    };
     "/api/queue/highlights": {
         parameters: {
             query?: never;
@@ -1956,9 +2020,49 @@ export interface paths {
         put?: never;
         /**
          * Add Rss Source
-         * @description Add Rss Source.
+         * @description Compatibility endpoint: validate and promote an RSS source.
          */
         post: operations["add_rss_source_sources_add_rss_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/sources/rss/validate": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Validate Rss Source
+         * @description Validate an RSS feed without mutating the source catalog.
+         */
+        post: operations["validate_rss_source_sources_rss_validate_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/sources/rss/promote": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Promote Rss Source
+         * @description Promote a reviewed RSS feed into the source catalog.
+         */
+        post: operations["promote_rss_source_sources_rss_promote_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -2291,6 +2395,46 @@ export interface paths {
          * @description Get detailed information about a specific topic cluster.
          */
         get: operations["get_cluster_detail_trending_clusters__cluster_id__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/trending/clusters/{cluster_id}/contradictions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Cluster Contradictions
+         * @description Get contradiction-first evidence for a topic cluster.
+         */
+        get: operations["get_cluster_contradictions_trending_clusters__cluster_id__contradictions_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/trending/clusters/{cluster_id}/lineage": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Cluster Lineage
+         * @description Promote a topic cluster into story lineage and return graph evidence.
+         */
+        get: operations["get_cluster_lineage_trending_clusters__cluster_id__lineage_get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -3166,6 +3310,22 @@ export interface components {
              * @default daily
              */
             queue_type: string;
+            /** Why Saved */
+            why_saved?: string | null;
+            /** Unresolved Question */
+            unresolved_question?: string | null;
+            /** Shelf Id */
+            shelf_id?: number | null;
+        };
+        /**
+         * AgreedFact
+         * @description Agreed Fact.
+         */
+        AgreedFact: {
+            /** Claim */
+            claim: string;
+            /** Evidence */
+            evidence?: components["schemas"]["ContradictionEvidence"][];
         };
         /**
          * AllCluster
@@ -3278,6 +3438,7 @@ export interface components {
             grounding_metadata?: {
                 [key: string]: unknown;
             } | null;
+            language_diagnostics?: components["schemas"]["LanguageDiagnosticsResponse"] | null;
             /** Summary */
             summary?: string | null;
             /** Error */
@@ -3321,6 +3482,7 @@ export interface components {
              * @default []
              */
             geography_signals: components["schemas"]["BlindspotGeographySignalResponse"][];
+            paywall_concentration: components["schemas"]["PaywallConcentrationResponse"];
         };
         /**
          * BlindspotCoverageCountsResponse
@@ -3630,6 +3792,52 @@ export interface components {
          */
         ConfidenceLevel: "high" | "medium" | "low" | "very_low";
         /**
+         * ContradictionClaim
+         * @description Contradiction Claim.
+         */
+        ContradictionClaim: {
+            /** Claim */
+            claim: string;
+            /** Status */
+            status: string;
+            /** Evidence */
+            evidence?: components["schemas"]["ContradictionEvidence"][];
+        };
+        /**
+         * ContradictionEvidence
+         * @description Contradiction Evidence.
+         */
+        ContradictionEvidence: {
+            /** Source */
+            source: string;
+            /** Article Url */
+            article_url: string;
+            /** Stance */
+            stance: string;
+            /** Snippet */
+            snippet: string;
+        };
+        /**
+         * ContradictionPanelResponse
+         * @description Contradiction Panel Response.
+         */
+        ContradictionPanelResponse: {
+            /** Status */
+            status: string;
+            /** Reason */
+            reason?: string | null;
+            /** Claims */
+            claims?: components["schemas"]["ContradictionClaim"][];
+            /** Agreed Facts */
+            agreed_facts?: components["schemas"]["AgreedFact"][];
+            /** Unconfirmed Gaps */
+            unconfirmed_gaps?: string[];
+            /** Source Count */
+            source_count: number;
+            /** Article Count */
+            article_count: number;
+        };
+        /**
          * CoverageReportResponse
          * @description Response for comprehensive coverage report.
          */
@@ -3677,6 +3885,16 @@ export interface components {
             character_start: number;
             /** Character End */
             character_end: number;
+        };
+        /**
+         * CreateShelfRequest
+         * @description Create Shelf Request.
+         */
+        CreateShelfRequest: {
+            /** Name */
+            name: string;
+            /** Description */
+            description?: string | null;
         };
         /**
          * FrontendDebugReport
@@ -3853,6 +4071,205 @@ export interface components {
             };
             /** Error */
             error?: string | null;
+        };
+        /**
+         * LanguageDiagnosticExample
+         * @description Language Diagnostic Example.
+         */
+        LanguageDiagnosticExample: {
+            /** Sentence */
+            sentence: string;
+            /** Term */
+            term?: string | null;
+            /** Pattern */
+            pattern?: string | null;
+            /** Category */
+            category?: string | null;
+        };
+        /**
+         * LanguageDiagnosticMetric
+         * @description Language Diagnostic Metric.
+         */
+        LanguageDiagnosticMetric: {
+            /** Count */
+            count: number;
+            /** Rate */
+            rate: number;
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "low" | "medium" | "high";
+            /** Examples */
+            examples: components["schemas"]["LanguageDiagnosticExample"][];
+        };
+        /**
+         * LanguageDiagnosticOverall
+         * @description Language Diagnostic Overall.
+         */
+        LanguageDiagnosticOverall: {
+            /** Score */
+            score: number;
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "low" | "medium" | "high";
+            /** Summary */
+            summary: string;
+        };
+        /**
+         * LanguageDiagnosticsRequest
+         * @description Language Diagnostics Request.
+         */
+        LanguageDiagnosticsRequest: {
+            /** Url */
+            url: string;
+            /** Text */
+            text?: string | null;
+            /** Title */
+            title?: string | null;
+            /** Source Name */
+            source_name?: string | null;
+        };
+        /**
+         * LanguageDiagnosticsResponse
+         * @description Language Diagnostics Response.
+         */
+        LanguageDiagnosticsResponse: {
+            /** Success */
+            success: boolean;
+            /** Article Url */
+            article_url: string;
+            /** Title */
+            title?: string | null;
+            /**
+             * Sentence Count
+             * @default 0
+             */
+            sentence_count: number;
+            /**
+             * Word Count
+             * @default 0
+             */
+            word_count: number;
+            passive_voice?: components["schemas"]["LanguageDiagnosticMetric"] | null;
+            actor_omission?: components["schemas"]["LanguageDiagnosticMetric"] | null;
+            euphemisms?: components["schemas"]["LanguageDiagnosticMetric"] | null;
+            sanitized_language?: components["schemas"]["LanguageDiagnosticMetric"] | null;
+            overall?: components["schemas"]["LanguageDiagnosticOverall"] | null;
+            /** Error */
+            error?: string | null;
+        };
+        /**
+         * LineageArticleEdge
+         * @description Article lineage edge.
+         */
+        LineageArticleEdge: {
+            /** Id */
+            id?: number | null;
+            /** From Article Id */
+            from_article_id: number;
+            /** To Article Id */
+            to_article_id: number;
+            /** From Title */
+            from_title: string;
+            /** To Title */
+            to_title: string;
+            /** Relation */
+            relation: string;
+            /** Evidence */
+            evidence?: {
+                [key: string]: unknown;
+            };
+            /** Confidence */
+            confidence?: number | null;
+        };
+        /**
+         * LineageClaim
+         * @description Extracted claim in a story lineage.
+         */
+        LineageClaim: {
+            /** Id */
+            id?: number | null;
+            /** Article Id */
+            article_id: number;
+            /** Claim Text */
+            claim_text: string;
+            /** Claim Type */
+            claim_type: string;
+            /** Checkability */
+            checkability: string;
+            /** Evidence Span */
+            evidence_span?: string | null;
+            /** Numbers */
+            numbers?: string[];
+        };
+        /**
+         * LineageClaimEdge
+         * @description Claim relationship in a story lineage.
+         */
+        LineageClaimEdge: {
+            /** Id */
+            id?: number | null;
+            /** From Claim Id */
+            from_claim_id: number;
+            /** To Claim Id */
+            to_claim_id: number;
+            /** Relation */
+            relation: string;
+            /** Evidence */
+            evidence?: {
+                [key: string]: unknown;
+            };
+            /** Confidence */
+            confidence?: number | null;
+        };
+        /**
+         * LineageCorrection
+         * @description Correction watch match for a story lineage.
+         */
+        LineageCorrection: {
+            /** Id */
+            id: number;
+            /** Source */
+            source: string;
+            /** Article Id */
+            article_id?: number | null;
+            /** Correction Url */
+            correction_url?: string | null;
+            /** Correction Text */
+            correction_text: string;
+            /** Corrected Claim Id */
+            corrected_claim_id?: number | null;
+            /** Downstream Article Ids */
+            downstream_article_ids?: number[];
+            /** Published At */
+            published_at?: string | null;
+        };
+        /**
+         * LineageStory
+         * @description Durable story object for a topic cluster.
+         */
+        LineageStory: {
+            /** Id */
+            id: number;
+            /** External Cluster Id */
+            external_cluster_id: number;
+            /** Label */
+            label?: string | null;
+            /** Keywords */
+            keywords?: string[];
+            /** First Seen At */
+            first_seen_at?: string | null;
+            /** Last Seen At */
+            last_seen_at?: string | null;
+            /** Earliest Article Id */
+            earliest_article_id?: number | null;
+            /** Current Summary */
+            current_summary?: string | null;
+            /** Confidence */
+            confidence?: number | null;
         };
         /**
          * MaterialContextRequest
@@ -4094,6 +4511,76 @@ export interface components {
             has_more: boolean;
         };
         /**
+         * PaywallConcentrationResponse
+         * @description Paywall concentration for a topic cluster.
+         */
+        PaywallConcentrationResponse: {
+            /** Total Articles */
+            total_articles: number;
+            /** Paywalled Articles */
+            paywalled_articles: number;
+            /** Free Articles */
+            free_articles: number;
+            /** Unknown Articles */
+            unknown_articles: number;
+            /** Paywall Share */
+            paywall_share: number;
+            /** Status */
+            status: string;
+            /**
+             * Best Free Sources
+             * @default []
+             */
+            best_free_sources: string[];
+        };
+        /**
+         * PromoteRssRequest
+         * @description Promote Rss Request.
+         */
+        PromoteRssRequest: {
+            /** Url */
+            url: string;
+            /** Name */
+            name?: string | null;
+            /**
+             * Category
+             * @default general
+             */
+            category: string;
+            /**
+             * Country
+             * @default
+             */
+            country: string;
+            /** Source Type */
+            source_type?: string | null;
+            /**
+             * Funding Type
+             * @default
+             */
+            funding_type: string;
+            /**
+             * Bias Rating
+             * @default
+             */
+            bias_rating: string;
+            /**
+             * Ownership Label
+             * @default
+             */
+            ownership_label: string;
+            /**
+             * Factual Reporting
+             * @default unknown
+             */
+            factual_reporting: string;
+            /**
+             * Is Paywalled
+             * @default false
+             */
+            is_paywalled: boolean;
+        };
+        /**
          * QueueDigestRequest
          * @description Request for generating AI digest.
          */
@@ -4239,6 +4726,33 @@ export interface components {
             estimated_read_time_minutes?: number | null;
             /** Full Text */
             full_text?: string | null;
+            /** Why Saved */
+            why_saved?: string | null;
+            /** Unresolved Question */
+            unresolved_question?: string | null;
+            /** Shelf Id */
+            shelf_id?: number | null;
+        };
+        /**
+         * ReadingShelf
+         * @description Reading Shelf.
+         */
+        ReadingShelf: {
+            /** Id */
+            id?: number | null;
+            /**
+             * User Id
+             * @default 1
+             */
+            user_id: number | null;
+            /** Name */
+            name: string;
+            /** Description */
+            description?: string | null;
+            /** Created At */
+            created_at?: string | null;
+            /** Updated At */
+            updated_at?: string | null;
         };
         /**
          * RecentPageResponse
@@ -4593,6 +5107,60 @@ export interface components {
             last_indexed_at?: string | null;
         };
         /**
+         * SourceLedgerMetricResponse
+         * @description Single transparent source-ledger metric.
+         */
+        SourceLedgerMetricResponse: {
+            /** Id */
+            id: string;
+            /** Label */
+            label: string;
+            /** Value */
+            value: number;
+            /** Unit */
+            unit: string;
+            /** Description */
+            description: string;
+            /** Status */
+            status: string;
+        };
+        /**
+         * SourceLedgerResponse
+         * @description Observed source ledger for a source wiki page.
+         */
+        SourceLedgerResponse: {
+            /** Source Name */
+            source_name: string;
+            /** Article Count */
+            article_count: number;
+            /** Paywall */
+            paywall: {
+                [key: string]: unknown;
+            };
+            /** Original Reporting */
+            original_reporting: {
+                [key: string]: unknown;
+            };
+            /** Wire Dependency */
+            wire_dependency: {
+                [key: string]: unknown;
+            };
+            /** Author Transparency */
+            author_transparency: {
+                [key: string]: unknown;
+            };
+            /** Source Transparency */
+            source_transparency: {
+                [key: string]: unknown;
+            };
+            /** Rss Health */
+            rss_health: {
+                [key: string]: unknown;
+            };
+            /** Metrics */
+            metrics: components["schemas"]["SourceLedgerMetricResponse"][];
+        };
+        /**
          * SourceReporterSummary
          * @description Source Reporter Summary.
          */
@@ -4775,6 +5343,7 @@ export interface components {
             claims: {
                 [key: string]: unknown;
             }[];
+            source_ledger?: components["schemas"]["SourceLedgerResponse"] | null;
             /**
              * Analysis Axes
              * @default []
@@ -4817,6 +5386,25 @@ export interface components {
             index_status?: string | null;
             /** Last Indexed At */
             last_indexed_at?: string | null;
+        };
+        /**
+         * StoryLineageResponse
+         * @description Story lineage graph for a topic cluster.
+         */
+        StoryLineageResponse: {
+            /** Status */
+            status: string;
+            /** Reason */
+            reason?: string | null;
+            story?: components["schemas"]["LineageStory"] | null;
+            /** Article Edges */
+            article_edges?: components["schemas"]["LineageArticleEdge"][];
+            /** Claims */
+            claims?: components["schemas"]["LineageClaim"][];
+            /** Claim Edges */
+            claim_edges?: components["schemas"]["LineageClaimEdge"][];
+            /** Corrections */
+            corrections?: components["schemas"]["LineageCorrection"][];
         };
         /**
          * ThinkingStep
@@ -4917,6 +5505,22 @@ export interface components {
             position?: number | null;
             /** Archived At */
             archived_at?: string | null;
+            /** Why Saved */
+            why_saved?: string | null;
+            /** Unresolved Question */
+            unresolved_question?: string | null;
+            /** Shelf Id */
+            shelf_id?: number | null;
+        };
+        /**
+         * UpdateShelfRequest
+         * @description Update Shelf Request.
+         */
+        UpdateShelfRequest: {
+            /** Name */
+            name?: string | null;
+            /** Description */
+            description?: string | null;
         };
         /** ValidationError */
         ValidationError: {
@@ -5051,6 +5655,13 @@ export interface components {
             country: string;
             /** Funding Type */
             funding_type?: string | null;
+            /** Source Type */
+            source_type?: string | null;
+            /**
+             * Is Paywalled
+             * @default false
+             */
+            is_paywalled: boolean;
             /** Bias Rating */
             bias_rating?: string | null;
             /** Ownership Label */
@@ -5219,6 +5830,39 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ArticleAnalysisResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    analyze_article_language_api_article_language_diagnostics_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["LanguageDiagnosticsRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LanguageDiagnosticsResponse"];
                 };
             };
             /** @description Validation Error */
@@ -7139,6 +7783,94 @@ export interface operations {
             };
         };
     };
+    get_shelves_api_queue_shelves_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ReadingShelf"][];
+                };
+            };
+        };
+    };
+    create_shelf_api_queue_shelves_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CreateShelfRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ReadingShelf"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    update_shelf_api_queue_shelves__shelf_id__patch: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                shelf_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UpdateShelfRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ReadingShelf"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     get_all_highlights_api_queue_highlights_get: {
         parameters: {
             query?: never;
@@ -8111,6 +8843,76 @@ export interface operations {
             };
         };
     };
+    validate_rss_source_sources_rss_validate_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AddRssRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    promote_rss_source_sources_rss_promote_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PromoteRssRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     get_source_credibility_sources__domain__credibility_get: {
         parameters: {
             query?: never;
@@ -8523,6 +9325,68 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ClusterDetailResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_cluster_contradictions_trending_clusters__cluster_id__contradictions_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                cluster_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ContradictionPanelResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_cluster_lineage_trending_clusters__cluster_id__lineage_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                cluster_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["StoryLineageResponse"];
                 };
             };
             /** @description Validation Error */

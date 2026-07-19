@@ -174,6 +174,48 @@
         }
       }
     },
+    "/api/article/language-diagnostics": {
+      "post": {
+        "tags": [
+          "article-analysis"
+        ],
+        "summary": "Analyze Article Language",
+        "description": "Analyze article language without requiring LLM services.",
+        "operationId": "analyze_article_language_api_article_language_diagnostics_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LanguageDiagnosticsRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LanguageDiagnosticsResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/news/page": {
       "get": {
         "tags": [
@@ -3311,6 +3353,125 @@
         }
       }
     },
+    "/api/queue/shelves": {
+      "get": {
+        "tags": [
+          "reading_queue"
+        ],
+        "summary": "Get Shelves",
+        "description": "Get research shelves.",
+        "operationId": "get_shelves_api_queue_shelves_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/ReadingShelf"
+                  },
+                  "type": "array",
+                  "title": "Response Get Shelves Api Queue Shelves Get"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "reading_queue"
+        ],
+        "summary": "Create Shelf",
+        "description": "Create a research shelf.",
+        "operationId": "create_shelf_api_queue_shelves_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateShelfRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReadingShelf"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/queue/shelves/{shelf_id}": {
+      "patch": {
+        "tags": [
+          "reading_queue"
+        ],
+        "summary": "Update Shelf",
+        "description": "Update a research shelf.",
+        "operationId": "update_shelf_api_queue_shelves__shelf_id__patch",
+        "parameters": [
+          {
+            "name": "shelf_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Shelf Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateShelfRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReadingShelf"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/queue/highlights": {
       "get": {
         "tags": [
@@ -4653,7 +4814,7 @@
           "sources"
         ],
         "summary": "Add Rss Source",
-        "description": "Add Rss Source.",
+        "description": "Compatibility endpoint: validate and promote an RSS source.",
         "operationId": "add_rss_source_sources_add_rss_post",
         "requestBody": {
           "content": {
@@ -4674,6 +4835,94 @@
                   "additionalProperties": true,
                   "type": "object",
                   "title": "Response Add Rss Source Sources Add Rss Post"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/sources/rss/validate": {
+      "post": {
+        "tags": [
+          "sources"
+        ],
+        "summary": "Validate Rss Source",
+        "description": "Validate an RSS feed without mutating the source catalog.",
+        "operationId": "validate_rss_source_sources_rss_validate_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AddRssRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "type": "object",
+                  "title": "Response Validate Rss Source Sources Rss Validate Post"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/sources/rss/promote": {
+      "post": {
+        "tags": [
+          "sources"
+        ],
+        "summary": "Promote Rss Source",
+        "description": "Promote a reviewed RSS feed into the source catalog.",
+        "operationId": "promote_rss_source_sources_rss_promote_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PromoteRssRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "type": "object",
+                  "title": "Response Promote Rss Source Sources Rss Promote Post"
                 }
               }
             }
@@ -5242,6 +5491,92 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ClusterDetailResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/trending/clusters/{cluster_id}/contradictions": {
+      "get": {
+        "tags": [
+          "trending"
+        ],
+        "summary": "Get Cluster Contradictions",
+        "description": "Get contradiction-first evidence for a topic cluster.",
+        "operationId": "get_cluster_contradictions_trending_clusters__cluster_id__contradictions_get",
+        "parameters": [
+          {
+            "name": "cluster_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Cluster Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ContradictionPanelResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/trending/clusters/{cluster_id}/lineage": {
+      "get": {
+        "tags": [
+          "trending"
+        ],
+        "summary": "Get Cluster Lineage",
+        "description": "Promote a topic cluster into story lineage and return graph evidence.",
+        "operationId": "get_cluster_lineage_trending_clusters__cluster_id__lineage_get",
+        "parameters": [
+          {
+            "name": "cluster_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Cluster Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StoryLineageResponse"
                 }
               }
             }
@@ -7196,6 +7531,39 @@
             "type": "string",
             "title": "Queue Type",
             "default": "daily"
+          },
+          "why_saved": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Why Saved"
+          },
+          "unresolved_question": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Unresolved Question"
+          },
+          "shelf_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Shelf Id"
           }
         },
         "type": "object",
@@ -7207,6 +7575,27 @@
         ],
         "title": "AddToQueueRequest",
         "description": "Add To Queue Request."
+      },
+      "AgreedFact": {
+        "properties": {
+          "claim": {
+            "type": "string",
+            "title": "Claim"
+          },
+          "evidence": {
+            "items": {
+              "$ref": "#/components/schemas/ContradictionEvidence"
+            },
+            "type": "array",
+            "title": "Evidence"
+          }
+        },
+        "type": "object",
+        "required": [
+          "claim"
+        ],
+        "title": "AgreedFact",
+        "description": "Agreed Fact."
       },
       "AllCluster": {
         "properties": {
@@ -7583,6 +7972,16 @@
             ],
             "title": "Grounding Metadata"
           },
+          "language_diagnostics": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/LanguageDiagnosticsResponse"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "summary": {
             "anyOf": [
               {
@@ -7701,6 +8100,9 @@
             "type": "array",
             "title": "Geography Signals",
             "default": []
+          },
+          "paywall_concentration": {
+            "$ref": "#/components/schemas/PaywallConcentrationResponse"
           }
         },
         "type": "object",
@@ -7716,7 +8118,8 @@
           "explanation",
           "coverage_counts",
           "coverage_shares",
-          "articles"
+          "articles",
+          "paywall_concentration"
         ],
         "title": "BlindspotCardResponse",
         "description": "Blindspot Card Response."
@@ -8540,6 +8943,117 @@
         "title": "ConfidenceLevel",
         "description": "Ordinal confidence tier assigned to a verified claim."
       },
+      "ContradictionClaim": {
+        "properties": {
+          "claim": {
+            "type": "string",
+            "title": "Claim"
+          },
+          "status": {
+            "type": "string",
+            "title": "Status"
+          },
+          "evidence": {
+            "items": {
+              "$ref": "#/components/schemas/ContradictionEvidence"
+            },
+            "type": "array",
+            "title": "Evidence"
+          }
+        },
+        "type": "object",
+        "required": [
+          "claim",
+          "status"
+        ],
+        "title": "ContradictionClaim",
+        "description": "Contradiction Claim."
+      },
+      "ContradictionEvidence": {
+        "properties": {
+          "source": {
+            "type": "string",
+            "title": "Source"
+          },
+          "article_url": {
+            "type": "string",
+            "title": "Article Url"
+          },
+          "stance": {
+            "type": "string",
+            "title": "Stance"
+          },
+          "snippet": {
+            "type": "string",
+            "title": "Snippet"
+          }
+        },
+        "type": "object",
+        "required": [
+          "source",
+          "article_url",
+          "stance",
+          "snippet"
+        ],
+        "title": "ContradictionEvidence",
+        "description": "Contradiction Evidence."
+      },
+      "ContradictionPanelResponse": {
+        "properties": {
+          "status": {
+            "type": "string",
+            "title": "Status"
+          },
+          "reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reason"
+          },
+          "claims": {
+            "items": {
+              "$ref": "#/components/schemas/ContradictionClaim"
+            },
+            "type": "array",
+            "title": "Claims"
+          },
+          "agreed_facts": {
+            "items": {
+              "$ref": "#/components/schemas/AgreedFact"
+            },
+            "type": "array",
+            "title": "Agreed Facts"
+          },
+          "unconfirmed_gaps": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Unconfirmed Gaps"
+          },
+          "source_count": {
+            "type": "integer",
+            "title": "Source Count"
+          },
+          "article_count": {
+            "type": "integer",
+            "title": "Article Count"
+          }
+        },
+        "type": "object",
+        "required": [
+          "status",
+          "source_count",
+          "article_count"
+        ],
+        "title": "ContradictionPanelResponse",
+        "description": "Contradiction Panel Response."
+      },
       "CoverageReportResponse": {
         "properties": {
           "report_period_days": {
@@ -8645,6 +9159,31 @@
         ],
         "title": "CreateHighlightRequest",
         "description": "Create Highlight Request."
+      },
+      "CreateShelfRequest": {
+        "properties": {
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "description": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Description"
+          }
+        },
+        "type": "object",
+        "required": [
+          "name"
+        ],
+        "title": "CreateShelfRequest",
+        "description": "Create Shelf Request."
       },
       "FrontendDebugReport": {
         "properties": {
@@ -9109,6 +9648,604 @@
         ],
         "title": "JobStatus",
         "description": "Current status of a job."
+      },
+      "LanguageDiagnosticExample": {
+        "properties": {
+          "sentence": {
+            "type": "string",
+            "title": "Sentence"
+          },
+          "term": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Term"
+          },
+          "pattern": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Pattern"
+          },
+          "category": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Category"
+          }
+        },
+        "type": "object",
+        "required": [
+          "sentence"
+        ],
+        "title": "LanguageDiagnosticExample",
+        "description": "Language Diagnostic Example."
+      },
+      "LanguageDiagnosticMetric": {
+        "properties": {
+          "count": {
+            "type": "integer",
+            "title": "Count"
+          },
+          "rate": {
+            "type": "number",
+            "title": "Rate"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "low",
+              "medium",
+              "high"
+            ],
+            "title": "Status"
+          },
+          "examples": {
+            "items": {
+              "$ref": "#/components/schemas/LanguageDiagnosticExample"
+            },
+            "type": "array",
+            "title": "Examples"
+          }
+        },
+        "type": "object",
+        "required": [
+          "count",
+          "rate",
+          "status",
+          "examples"
+        ],
+        "title": "LanguageDiagnosticMetric",
+        "description": "Language Diagnostic Metric."
+      },
+      "LanguageDiagnosticOverall": {
+        "properties": {
+          "score": {
+            "type": "number",
+            "title": "Score"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "low",
+              "medium",
+              "high"
+            ],
+            "title": "Status"
+          },
+          "summary": {
+            "type": "string",
+            "title": "Summary"
+          }
+        },
+        "type": "object",
+        "required": [
+          "score",
+          "status",
+          "summary"
+        ],
+        "title": "LanguageDiagnosticOverall",
+        "description": "Language Diagnostic Overall."
+      },
+      "LanguageDiagnosticsRequest": {
+        "properties": {
+          "url": {
+            "type": "string",
+            "title": "Url"
+          },
+          "text": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Text"
+          },
+          "title": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Title"
+          },
+          "source_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Source Name"
+          }
+        },
+        "type": "object",
+        "required": [
+          "url"
+        ],
+        "title": "LanguageDiagnosticsRequest",
+        "description": "Language Diagnostics Request."
+      },
+      "LanguageDiagnosticsResponse": {
+        "properties": {
+          "success": {
+            "type": "boolean",
+            "title": "Success"
+          },
+          "article_url": {
+            "type": "string",
+            "title": "Article Url"
+          },
+          "title": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Title"
+          },
+          "sentence_count": {
+            "type": "integer",
+            "title": "Sentence Count",
+            "default": 0
+          },
+          "word_count": {
+            "type": "integer",
+            "title": "Word Count",
+            "default": 0
+          },
+          "passive_voice": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/LanguageDiagnosticMetric"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "actor_omission": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/LanguageDiagnosticMetric"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "euphemisms": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/LanguageDiagnosticMetric"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "sanitized_language": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/LanguageDiagnosticMetric"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "overall": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/LanguageDiagnosticOverall"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "error": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Error"
+          }
+        },
+        "type": "object",
+        "required": [
+          "success",
+          "article_url"
+        ],
+        "title": "LanguageDiagnosticsResponse",
+        "description": "Language Diagnostics Response."
+      },
+      "LineageArticleEdge": {
+        "properties": {
+          "id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Id"
+          },
+          "from_article_id": {
+            "type": "integer",
+            "title": "From Article Id"
+          },
+          "to_article_id": {
+            "type": "integer",
+            "title": "To Article Id"
+          },
+          "from_title": {
+            "type": "string",
+            "title": "From Title"
+          },
+          "to_title": {
+            "type": "string",
+            "title": "To Title"
+          },
+          "relation": {
+            "type": "string",
+            "title": "Relation"
+          },
+          "evidence": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Evidence"
+          },
+          "confidence": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Confidence"
+          }
+        },
+        "type": "object",
+        "required": [
+          "from_article_id",
+          "to_article_id",
+          "from_title",
+          "to_title",
+          "relation"
+        ],
+        "title": "LineageArticleEdge",
+        "description": "Article lineage edge."
+      },
+      "LineageClaim": {
+        "properties": {
+          "id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Id"
+          },
+          "article_id": {
+            "type": "integer",
+            "title": "Article Id"
+          },
+          "claim_text": {
+            "type": "string",
+            "title": "Claim Text"
+          },
+          "claim_type": {
+            "type": "string",
+            "title": "Claim Type"
+          },
+          "checkability": {
+            "type": "string",
+            "title": "Checkability"
+          },
+          "evidence_span": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Evidence Span"
+          },
+          "numbers": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Numbers"
+          }
+        },
+        "type": "object",
+        "required": [
+          "article_id",
+          "claim_text",
+          "claim_type",
+          "checkability"
+        ],
+        "title": "LineageClaim",
+        "description": "Extracted claim in a story lineage."
+      },
+      "LineageClaimEdge": {
+        "properties": {
+          "id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Id"
+          },
+          "from_claim_id": {
+            "type": "integer",
+            "title": "From Claim Id"
+          },
+          "to_claim_id": {
+            "type": "integer",
+            "title": "To Claim Id"
+          },
+          "relation": {
+            "type": "string",
+            "title": "Relation"
+          },
+          "evidence": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Evidence"
+          },
+          "confidence": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Confidence"
+          }
+        },
+        "type": "object",
+        "required": [
+          "from_claim_id",
+          "to_claim_id",
+          "relation"
+        ],
+        "title": "LineageClaimEdge",
+        "description": "Claim relationship in a story lineage."
+      },
+      "LineageCorrection": {
+        "properties": {
+          "id": {
+            "type": "integer",
+            "title": "Id"
+          },
+          "source": {
+            "type": "string",
+            "title": "Source"
+          },
+          "article_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Article Id"
+          },
+          "correction_url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Correction Url"
+          },
+          "correction_text": {
+            "type": "string",
+            "title": "Correction Text"
+          },
+          "corrected_claim_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Corrected Claim Id"
+          },
+          "downstream_article_ids": {
+            "items": {
+              "type": "integer"
+            },
+            "type": "array",
+            "title": "Downstream Article Ids"
+          },
+          "published_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Published At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "source",
+          "correction_text"
+        ],
+        "title": "LineageCorrection",
+        "description": "Correction watch match for a story lineage."
+      },
+      "LineageStory": {
+        "properties": {
+          "id": {
+            "type": "integer",
+            "title": "Id"
+          },
+          "external_cluster_id": {
+            "type": "integer",
+            "title": "External Cluster Id"
+          },
+          "label": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Label"
+          },
+          "keywords": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Keywords"
+          },
+          "first_seen_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "First Seen At"
+          },
+          "last_seen_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Seen At"
+          },
+          "earliest_article_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Earliest Article Id"
+          },
+          "current_summary": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Current Summary"
+          },
+          "confidence": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Confidence"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "external_cluster_id"
+        ],
+        "title": "LineageStory",
+        "description": "Durable story object for a topic cluster."
       },
       "MaterialContextRequest": {
         "properties": {
@@ -9775,6 +10912,124 @@
         "title": "PaginatedResponse",
         "description": "Response model for paginated article lists."
       },
+      "PaywallConcentrationResponse": {
+        "properties": {
+          "total_articles": {
+            "type": "integer",
+            "title": "Total Articles"
+          },
+          "paywalled_articles": {
+            "type": "integer",
+            "title": "Paywalled Articles"
+          },
+          "free_articles": {
+            "type": "integer",
+            "title": "Free Articles"
+          },
+          "unknown_articles": {
+            "type": "integer",
+            "title": "Unknown Articles"
+          },
+          "paywall_share": {
+            "type": "number",
+            "title": "Paywall Share"
+          },
+          "status": {
+            "type": "string",
+            "title": "Status"
+          },
+          "best_free_sources": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Best Free Sources",
+            "default": []
+          }
+        },
+        "type": "object",
+        "required": [
+          "total_articles",
+          "paywalled_articles",
+          "free_articles",
+          "unknown_articles",
+          "paywall_share",
+          "status"
+        ],
+        "title": "PaywallConcentrationResponse",
+        "description": "Paywall concentration for a topic cluster."
+      },
+      "PromoteRssRequest": {
+        "properties": {
+          "url": {
+            "type": "string",
+            "title": "Url"
+          },
+          "name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Name"
+          },
+          "category": {
+            "type": "string",
+            "title": "Category",
+            "default": "general"
+          },
+          "country": {
+            "type": "string",
+            "title": "Country",
+            "default": ""
+          },
+          "source_type": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Source Type"
+          },
+          "funding_type": {
+            "type": "string",
+            "title": "Funding Type",
+            "default": ""
+          },
+          "bias_rating": {
+            "type": "string",
+            "title": "Bias Rating",
+            "default": ""
+          },
+          "ownership_label": {
+            "type": "string",
+            "title": "Ownership Label",
+            "default": ""
+          },
+          "factual_reporting": {
+            "type": "string",
+            "title": "Factual Reporting",
+            "default": "unknown"
+          },
+          "is_paywalled": {
+            "type": "boolean",
+            "title": "Is Paywalled",
+            "default": false
+          }
+        },
+        "type": "object",
+        "required": [
+          "url"
+        ],
+        "title": "PromoteRssRequest",
+        "description": "Promote Rss Request."
+      },
       "QueueDigestRequest": {
         "properties": {
           "articles": {
@@ -10099,6 +11354,39 @@
               }
             ],
             "title": "Full Text"
+          },
+          "why_saved": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Why Saved"
+          },
+          "unresolved_question": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Unresolved Question"
+          },
+          "shelf_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Shelf Id"
           }
         },
         "type": "object",
@@ -10111,6 +11399,78 @@
         ],
         "title": "ReadingQueueItem",
         "description": "Reading Queue Item."
+      },
+      "ReadingShelf": {
+        "properties": {
+          "id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Id"
+          },
+          "user_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "User Id",
+            "default": 1
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "description": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Description"
+          },
+          "created_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Created At"
+          },
+          "updated_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Updated At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "name"
+        ],
+        "title": "ReadingShelf",
+        "description": "Reading Shelf."
       },
       "RecentPageResponse": {
         "properties": {
@@ -11279,6 +12639,115 @@
         "title": "SourceCardResponse",
         "description": "Compact source card for the wiki index grid."
       },
+      "SourceLedgerMetricResponse": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "label": {
+            "type": "string",
+            "title": "Label"
+          },
+          "value": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "integer"
+              }
+            ],
+            "title": "Value"
+          },
+          "unit": {
+            "type": "string",
+            "title": "Unit"
+          },
+          "description": {
+            "type": "string",
+            "title": "Description"
+          },
+          "status": {
+            "type": "string",
+            "title": "Status"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "label",
+          "value",
+          "unit",
+          "description",
+          "status"
+        ],
+        "title": "SourceLedgerMetricResponse",
+        "description": "Single transparent source-ledger metric."
+      },
+      "SourceLedgerResponse": {
+        "properties": {
+          "source_name": {
+            "type": "string",
+            "title": "Source Name"
+          },
+          "article_count": {
+            "type": "integer",
+            "title": "Article Count"
+          },
+          "paywall": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Paywall"
+          },
+          "original_reporting": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Original Reporting"
+          },
+          "wire_dependency": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Wire Dependency"
+          },
+          "author_transparency": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Author Transparency"
+          },
+          "source_transparency": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Source Transparency"
+          },
+          "rss_health": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Rss Health"
+          },
+          "metrics": {
+            "items": {
+              "$ref": "#/components/schemas/SourceLedgerMetricResponse"
+            },
+            "type": "array",
+            "title": "Metrics"
+          }
+        },
+        "type": "object",
+        "required": [
+          "source_name",
+          "article_count",
+          "paywall",
+          "original_reporting",
+          "wire_dependency",
+          "author_transparency",
+          "source_transparency",
+          "rss_health",
+          "metrics"
+        ],
+        "title": "SourceLedgerResponse",
+        "description": "Observed source ledger for a source wiki page."
+      },
       "SourceReporterSummary": {
         "properties": {
           "name": {
@@ -11860,6 +13329,16 @@
             "title": "Claims",
             "default": []
           },
+          "source_ledger": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/SourceLedgerResponse"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "analysis_axes": {
             "items": {
               "$ref": "#/components/schemas/AnalysisAxisResponse"
@@ -11948,6 +13427,69 @@
         ],
         "title": "SourceWikiResponse",
         "description": "Full wiki page data for a single source."
+      },
+      "StoryLineageResponse": {
+        "properties": {
+          "status": {
+            "type": "string",
+            "title": "Status"
+          },
+          "reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reason"
+          },
+          "story": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/LineageStory"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "article_edges": {
+            "items": {
+              "$ref": "#/components/schemas/LineageArticleEdge"
+            },
+            "type": "array",
+            "title": "Article Edges"
+          },
+          "claims": {
+            "items": {
+              "$ref": "#/components/schemas/LineageClaim"
+            },
+            "type": "array",
+            "title": "Claims"
+          },
+          "claim_edges": {
+            "items": {
+              "$ref": "#/components/schemas/LineageClaimEdge"
+            },
+            "type": "array",
+            "title": "Claim Edges"
+          },
+          "corrections": {
+            "items": {
+              "$ref": "#/components/schemas/LineageCorrection"
+            },
+            "type": "array",
+            "title": "Corrections"
+          }
+        },
+        "type": "object",
+        "required": [
+          "status"
+        ],
+        "title": "StoryLineageResponse",
+        "description": "Story lineage graph for a topic cluster."
       },
       "ThinkingStep": {
         "properties": {
@@ -12229,11 +13771,73 @@
               }
             ],
             "title": "Archived At"
+          },
+          "why_saved": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Why Saved"
+          },
+          "unresolved_question": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Unresolved Question"
+          },
+          "shelf_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Shelf Id"
           }
         },
         "type": "object",
         "title": "UpdateQueueItemRequest",
         "description": "Update Queue Item Request."
+      },
+      "UpdateShelfRequest": {
+        "properties": {
+          "name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Name"
+          },
+          "description": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Description"
+          }
+        },
+        "type": "object",
+        "title": "UpdateShelfRequest",
+        "description": "Update Shelf Request."
       },
       "ValidationError": {
         "properties": {
@@ -12525,6 +14129,22 @@
               }
             ],
             "title": "Funding Type"
+          },
+          "source_type": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Source Type"
+          },
+          "is_paywalled": {
+            "type": "boolean",
+            "title": "Is Paywalled",
+            "default": false
           },
           "bias_rating": {
             "anyOf": [
