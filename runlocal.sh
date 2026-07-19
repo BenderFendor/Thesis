@@ -11,6 +11,7 @@ LOG_DIR="${LOG_DIR:-$ROOT_DIR/log}"
 
 BACKEND_PORT="${BACKEND_PORT:-8000}"
 FRONTEND_PORT="${FRONTEND_PORT:-3000}"
+GUNICORN_BIND="${GUNICORN_BIND:-0.0.0.0:${BACKEND_PORT}}"
 POSTGRES_HOST="${POSTGRES_HOST:-localhost}"
 POSTGRES_PORT="${POSTGRES_PORT:-5432}"
 POSTGRES_USER="${POSTGRES_USER:-newsuser}"
@@ -35,7 +36,7 @@ CORS_ORIGIN_REGEX="${CORS_ORIGIN_REGEX:-^https?://(localhost|127\.0\.0\.1|10\.[0
 RUNLOCAL_STATE_DIR="${RUNLOCAL_STATE_DIR:-$ROOT_DIR/.runlocal}"
 RUNLOCAL_PID_FILE="${RUNLOCAL_PID_FILE:-$RUNLOCAL_STATE_DIR/pids}"
 
-export DATABASE_URL CHROMA_HOST CHROMA_PORT EMBEDDING_SERVICE_URL GUNICORN_WORKERS CORS_ORIGIN_REGEX
+export DATABASE_URL CHROMA_HOST CHROMA_PORT EMBEDDING_SERVICE_URL GUNICORN_WORKERS GUNICORN_BIND CORS_ORIGIN_REGEX
 
 if [[ -n "$NEXT_PUBLIC_API_URL" ]]; then
 	export NEXT_PUBLIC_API_URL
@@ -92,6 +93,7 @@ Usage: ./runlocal.sh [setup|services|backend|frontend|frontend-release|all|relea
 
   Environment overrides:
   BACKEND_PORT   Port for gunicorn (default 8000)
+  GUNICORN_BIND  Gunicorn bind address (default 0.0.0.0:<BACKEND_PORT>)
   FRONTEND_PORT  Port for Next.js dev server (default 3000)
   POSTGRES_HOST  Postgres hostname (default localhost)
   POSTGRES_PORT  Postgres port (default 5432)

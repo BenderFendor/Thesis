@@ -1,0 +1,157 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+STORAGE_ROOT="${SCOOP_DEMO_STORAGE_ROOT:-/mnt/Big storage/scoop-demo}"
+MIN_FREE_GIB="${SCOOP_DEMO_MIN_FREE_GIB:-48}"
+INIT_STORAGE=false
+PRINT_ENV=false
+failures=0
+
+usage() {
+	cat <<'USAGE'
+Usage: bash scripts/flagship-demo-preflight [--init-storage] [--print-env]
+
+Checks whether this machine can run the isolated Scoop showcase profile. It does
+not install dependencies, start services, fetch sources, or modify the project
+unless --init-storage is passed.
+
+Options:
+  --init-storage  Create the configured SCOOP_DEMO_STORAGE_ROOT directory.
+  --print-env     Print the isolated launch command after the checks pass.
+  -h, --help      Show this help.
+
+Environment:
+  SCOOP_DEMO_STORAGE_ROOT  Persistent demo-data directory.
+                           Default: /mnt/Big storage/scoop-demo
+  SCOOP_DEMO_MIN_FREE_GIB  Required free GiB on that storage mount.
+                           Default: 48
+USAGE
+}
+
+while [[ $# -gt 0 ]]; do
+	case "$1" in
+		--init-storage)
+			INIT_STORAGE=true
+			;;
+		--print-env)
+			PRINT_ENV=true
+			;;
+		-h|--help)
+			usage
+			exit 0
+			;;
+		*)
+			printf 'Unknown option: %s\n' "$1" >&2
+			usage >&2
+			exit 2
+			;;
+	esac
+	shift
+done
+
+if ! [[ "$MIN_FREE_GIB" =~ ^[0-9]+$ ]]; then
+	printf 'SCOOP_DEMO_MIN_FREE_GIB must be a non-negative integer.\n' >&2
+	exit 2
+fi
+
+check_command() {
+	local command_name="$1"
+	if command -v "$command_name" >/dev/null 2>&1; then
+		printf '[ok] command: %s\n' "$command_name"
+	else
+		printf '[fail] missing command: %s\n' "$command_name" >&2
+		failures=$((failures + 1))
+	fi
+}
+
+check_file() {
+	local path="$1"
+	local label="$2"
+	if [[ -e "$path" ]]; then
+		printf '[ok] %s: %s\n' "$label" "$path"
+	else
+		printf '[fail] missing %s: %s\n' "$label" "$path" >&2
+		failures=$((failures + 1))
+	fi
+}
+
+check_port() {
+	local port="$1"
+	local label="$2"
+	if ! command -v ss >/dev/null 2>&1; then
+		printf '[warn] cannot inspect %s port %s because ss is unavailable.\n' "$label" "$port"
+		return
+	fi
+
+	if ss -ltn "sport = :${port}" | awk 'NR > 1 { found = 1 } END { exit !found }'; then
+		printf '[warn] %s port %s is already listening; choose another isolated port before launch.\n' "$label" "$port"
+	else
+		printf '[ok] %s port %s is available\n' "$label" "$port"
+	fi
+}
+
+storage_parent="$(dirname "$STORAGE_ROOT")"
+if [[ ! -d "$storage_parent" ]]; then
+	printf '[fail] storage parent does not exist: %s\n' "$storage_parent" >&2
+	failures=$((failures + 1))
+elif [[ "$INIT_STORAGE" == true ]]; then
+	mkdir -p "$STORAGE_ROOT"
+	printf '[ok] storage directory created: %s\n' "$STORAGE_ROOT"
+elif [[ -d "$STORAGE_ROOT" ]]; then
+	printf '[ok] storage directory: %s\n' "$STORAGE_ROOT"
+else
+	printf '[warn] storage directory is absent: %s (run with --init-storage to create it)\n' "$STORAGE_ROOT"
+fi
+
+if [[ -d "$storage_parent" ]]; then
+	available_kib="$(df -Pk "$storage_parent" | awk 'NR == 2 { print $4 }')"
+	if [[ "$available_kib" =~ ^[0-9]+$ ]]; then
+		available_gib=$((available_kib / 1024 / 1024))
+		if (( available_gib >= MIN_FREE_GIB )); then
+			printf '[ok] storage free: %s GiB (minimum %s GiB)\n' "$available_gib" "$MIN_FREE_GIB"
+		else
+			printf '[fail] storage free: %s GiB (minimum %s GiB)\n' "$available_gib" "$MIN_FREE_GIB" >&2
+			failures=$((failures + 1))
+		fi
+	else
+		printf '[fail] could not measure free storage under: %s\n' "$storage_parent" >&2
+		failures=$((failures + 1))
+	fi
+fi
+
+for command_name in node npm cargo uv pg_isready ss; do
+	check_command "$command_name"
+done
+
+check_file "$ROOT_DIR/backend/.venv/bin/python" "backend Python environment"
+check_file "$ROOT_DIR/frontend/node_modules/.bin/next" "frontend dependencies"
+check_file "$ROOT_DIR/backend/rss_parser_rust/Cargo.toml" "Rust parser manifest"
+
+if ! command -v pg_isready >/dev/null 2>&1; then
+	printf '[warn] cannot inspect PostgreSQL readiness because pg_isready is unavailable.\n'
+elif pg_isready -h 127.0.0.1 -p 5432 >/dev/null 2>&1; then
+	printf '[ok] PostgreSQL accepts connections on 127.0.0.1:5432\n'
+else
+	printf '[warn] PostgreSQL is not ready on 127.0.0.1:5432; start it before launching Scoop.\n'
+fi
+
+check_port 3100 "frontend"
+check_port 8100 "backend"
+check_port 8101 "Chroma"
+check_port 8102 "embedding service"
+
+if (( failures > 0 )); then
+	printf 'Flagship demo preflight failed with %s blocking issue(s).\n' "$failures" >&2
+	exit 1
+fi
+
+printf 'Flagship demo preflight completed without blocking issues.\n'
+
+if [[ "$PRINT_ENV" == true ]]; then
+	chroma_dir="$STORAGE_ROOT/chroma"
+	log_dir="$STORAGE_ROOT/logs"
+	printf '\nLaunch command (only run after confirming the four ports above are unused):\n'
+	printf 'BACKEND_PORT=8100 FRONTEND_PORT=3100 CHROMA_PORT=8101 EMBEDDING_SERVICE_PORT=8102 '
+	printf 'CHROMA_DATA_DIR=%q LOG_DIR=%q GUNICORN_WORKERS=1 ./runlocal.sh release\n' "$chroma_dir" "$log_dir"
+fi
