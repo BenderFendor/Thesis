@@ -3,6 +3,7 @@ import { GeistMono } from 'geist/font/mono'
 import { Instrument_Serif, Outfit } from 'next/font/google'
 import './globals.css'
 import { Providers } from './providers'
+import { BrowserTelemetry } from '@/components/observability/browser-telemetry'
 
 const instrumentSerif = Instrument_Serif({
   weight: '400',
@@ -37,6 +38,7 @@ export default function RootLayout({
         suppressHydrationWarning
       >
         <Providers>
+          <BrowserTelemetry />
           <div className="min-h-screen bg-background text-foreground selection:bg-primary selection:text-primary-foreground">
             {children}
           </div>

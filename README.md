@@ -13,7 +13,7 @@ Active thesis project. The app runs locally with `runlocal.sh` or Docker Compose
 - Source and reporter wiki pages, including ownership and reporter graph views backed by deterministic indexing and public-source evidence.
 - Research agents for article search, source context, and verification workflows.
 - Semantic search through ChromaDB with lexical fallback paths.
-- Operator/debug surfaces for cache status, source health, logs, and wiki indexing.
+- Operator/debug surfaces for cache status, source health, logs, wiki indexing, resource use, and agent-readable debug bundles.
 
 ## Requirements
 
@@ -69,6 +69,10 @@ Common variables:
 | `CHROMA_HOST` / `CHROMA_PORT` | Points the backend at ChromaDB. |
 | `EMBEDDING_SERVICE_URL` | Points the backend at the embedding worker. |
 | `NEXT_PUBLIC_API_URL` | Overrides the browser API base URL when needed. |
+| `THESIS_RUNTIME_DIR` | Stores local structured logs, resource samples, and traces. |
+| `THESIS_OBSERVABILITY_ENABLED` | Enables lightweight resource sampling; defaults to enabled. |
+| `THESIS_LOG_MAX_BYTES` / `THESIS_LOG_BACKUP_COUNT` | Bounds each runtime JSONL file; defaults to 25 MiB plus three backups. |
+| `OTEL_ENABLED` | Enables local JSONL OpenTelemetry trace export. |
 
 Restart the backend after changing `backend/.env`.
 
@@ -99,6 +103,14 @@ Run dependency cycle checks:
 ```bash
 npm run deps:cycles
 ```
+
+Collect an agent-readable debug bundle after reproducing a problem:
+
+```bash
+./scripts/collect-debug-bundle --since 30m
+```
+
+See [Evidence-based debugging](docs/agent-debugging.md) for the file layout, correlation fields, privacy rules, endpoints, and optional deeper profilers.
 
 ## Frontend architecture
 

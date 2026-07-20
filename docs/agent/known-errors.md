@@ -1,5 +1,23 @@
 # Known Errors
 
+## Runtime evidence fills local storage
+
+Symptom:
+
+```txt
+Files under runtime-data/logs keep growing while observability or tracing runs.
+```
+
+Cause:
+
+- A JSONL writer appends resource samples, traces, or debug events without size-based rotation.
+
+Fix:
+
+- Write runtime records through `app.core.jsonl.append_jsonl`.
+- Keep `THESIS_LOG_MAX_BYTES` and `THESIS_LOG_BACKUP_COUNT` at bounded positive values. The defaults are 25 MiB and three backups.
+- Keep process IDs in per-process log names so workers do not rotate the same file.
+
 ## RSS refresh appears stuck before articles become visible
 
 Symptom:

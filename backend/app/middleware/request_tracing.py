@@ -1,8 +1,4 @@
-"""Request Tracing Middleware.
-
-Automatically traces all requests through the system, capturing timing,
-errors, and correlating with stream events.
-"""
+"""Request correlation and structured timing middleware."""
 
 from __future__ import annotations
 
@@ -14,38 +10,52 @@ from fastapi import Request, Response
 from starlette.middleware.base import BaseHTTPMiddleware
 
 from app.core.logging import get_logger
-from app.services.debug_logger import debug_logger, EventType
+from app.services.debug_logger import EventType, debug_logger
 
 logger = get_logger("request_tracing")
-SKIP_TRACE_PREFIXES = ("/health", "/favicon.ico", "/static/")
+SKIP_TRACE_PREFIXES = (
+    "/health",
+    "/favicon.ico",
+    "/static/",
+    "/debug/observability/health",
+)
+
+
+def _current_trace_id(request_id: str) -> str | None:
+    """Attach the request ID to the current OTel span and return its trace ID."""
+    try:
+        from opentelemetry.trace import format_trace_id, get_current_span
+
+        span = get_current_span()
+        context = span.get_span_context()
+        if not context.trace_id:
+            return None
+        span.set_attribute("thesis.request_id", request_id)
+        return format_trace_id(context.trace_id)
+    except Exception:
+        return None
 
 
 class RequestTracingMiddleware(BaseHTTPMiddleware):
-    """Middleware that traces all HTTP requests."""
+    """Correlate requests with structured logs and optional OpenTelemetry spans."""
 
     async def dispatch(
         self,
         request: Request,
         call_next: Callable[[Request], Awaitable[Response]],
     ) -> Response:
-        """Dispatch."""
-        # Generate or extract request ID
+        """Trace one request and attach correlation and timing headers."""
         request_id = request.headers.get("X-Request-ID") or f"req_{uuid.uuid4().hex[:12]}"
-
-        # Store request ID in state for access by route handlers
         request.state.request_id = request_id
 
-        # Start tracing
         path = request.url.path
         method = request.method
-
-        # Skip tracing for health checks and static assets
         should_trace = not path.startswith(SKIP_TRACE_PREFIXES)
+        trace_id = _current_trace_id(request_id)
+        request.state.trace_id = trace_id
 
         if should_trace:
             debug_logger.start_request(request_id, path, method)
-
-            # Log query params and headers for debugging
             debug_logger.log_event(
                 EventType.CUSTOM,
                 component="request",
@@ -53,17 +63,19 @@ class RequestTracingMiddleware(BaseHTTPMiddleware):
                 message="Request details",
                 request_id=request_id,
                 details={
-                    "query_params": dict(request.query_params),
-                    "user_agent": request.headers.get("User-Agent", "unknown")[:100],
+                    "trace_id": trace_id,
+                    # Keep names for reproducibility without persisting query values.
+                    "query_param_names": sorted(set(request.query_params.keys())),
+                    "user_agent": request.headers.get("User-Agent", "unknown")[:160],
                     "content_type": request.headers.get("Content-Type"),
                     "accept": request.headers.get("Accept"),
                 },
             )
 
-        start_time = time.time()
-        error = None
+        start_time = time.perf_counter()
+        error: Exception | None = None
         status_code = 500
-        response = None
+        response: Response | None = None
 
         try:
             response = await call_next(request)
@@ -73,23 +85,24 @@ class RequestTracingMiddleware(BaseHTTPMiddleware):
             error = exc
             raise
         finally:
-            duration_ms = (time.time() - start_time) * 1000
+            duration_ms = (time.perf_counter() - start_time) * 1000
 
             if should_trace:
                 debug_logger.end_request(request_id, status_code, error)
-
-                # Log slow requests
-                if duration_ms > 5000:  # 5 seconds
+                if duration_ms > 5000:
                     logger.warning(
-                        "Slow request detected: %s %s took %.1fms",
+                        "Slow request detected: %s %s took %.1fms request_id=%s trace_id=%s",
                         method,
                         path,
                         duration_ms,
+                        request_id,
+                        trace_id,
                     )
 
-            # Add headers to response if we have one
             if response is not None:
                 response.headers["X-Request-ID"] = request_id
+                if trace_id:
+                    response.headers["X-Trace-ID"] = trace_id
                 response.headers["X-Response-Time"] = f"{duration_ms:.1f}ms"
                 response.headers["Server-Timing"] = f"app;dur={duration_ms:.1f}"
 
@@ -97,3 +110,8 @@ class RequestTracingMiddleware(BaseHTTPMiddleware):
 def get_request_id(request: Request) -> str:
     """Get the request ID from request state."""
     return getattr(request.state, "request_id", "unknown")
+
+
+def get_trace_id(request: Request) -> str | None:
+    """Get the current OpenTelemetry trace ID from request state."""
+    return getattr(request.state, "trace_id", None)

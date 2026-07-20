@@ -1,5 +1,19 @@
 # Log
 
+## 2026-07-19 — Agent-Readable Debug Bundles
+
+- Added local structured resource samples, OpenTelemetry span files, browser error and timing capture, and correlated request and trace IDs.
+- Added `./scripts/collect-debug-bundle --since 30m` for time-filtered runtime, API, Git, and host evidence.
+- Bounded each runtime JSONL file to 25 MiB plus three rotating backups by default.
+- Redacted nested secret fields, URL credentials, and query values both when runtime evidence is written and when a bundle is built.
+- Moved file scanning and direct resource collection off the API event loop, and bounded recent-sample memory to the requested result limit.
+
+Verification:
+
+- Focused observability tests: 12 passed.
+- Router lifespan smoke: passed.
+- `scripts/self-test`: frontend build/typecheck/lint, strict backend mypy and Ruff, Rust Clippy/format/native binding build, and 449 backend tests passed; 3 slow tests were deselected.
+
 ## 2026-07-19 — Intelligence Atlas Review Fixes
 
 Repaired the Intelligence Atlas pull request before integration.

@@ -1,4 +1,6 @@
-"""Logging."""
+"""Project logging and runtime-data paths."""
+
+from __future__ import annotations
 
 import logging
 import os
@@ -8,7 +10,15 @@ from pathlib import Path
 
 _LOG_FORMAT = "%(asctime)s - %(name)s - %(levelname)s - [%(funcName)s:%(lineno)d] - %(message)s"
 
-LOG_DIR = Path(os.environ.get("LOG_DIR", Path(__file__).parent.parent.parent / "logs"))
+REPO_ROOT = Path(__file__).resolve().parents[3]
+RUNTIME_DATA_DIR = Path(os.environ.get("THESIS_RUNTIME_DIR", REPO_ROOT / "runtime-data"))
+RUNTIME_LOG_DIR = RUNTIME_DATA_DIR / "logs"
+
+# Keep the existing structured debug logger, but point it at durable project data
+# unless a deployment explicitly chooses another directory.
+os.environ.setdefault("DEBUG_LOG_DIR", str(RUNTIME_LOG_DIR))
+
+LOG_DIR = Path(os.environ.get("LOG_DIR", RUNTIME_LOG_DIR / "sessions"))
 MAX_LOG_SIZE = 10 * 1024 * 1024  # 10 MB
 BACKUP_COUNT = 3
 
@@ -42,11 +52,23 @@ class ConsoleSummaryFormatter(logging.Formatter):
             record.stack_info = stack_info
 
 
+def get_runtime_data_dir() -> Path:
+    """Return the configured runtime-data directory, creating it when needed."""
+    RUNTIME_DATA_DIR.mkdir(parents=True, exist_ok=True)
+    return RUNTIME_DATA_DIR
+
+
+def get_runtime_log_dir() -> Path:
+    """Return the configured structured-log directory."""
+    RUNTIME_LOG_DIR.mkdir(parents=True, exist_ok=True)
+    return RUNTIME_LOG_DIR
+
+
 def get_session_dir() -> Path:
-    """Get Session Dir."""
+    """Return the current plain-text application-log session directory."""
     global _session_dir
     if _session_dir is None:
-        session_name = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
+        session_name = f"{datetime.now():%Y-%m-%d_%H-%M-%S}_{os.getpid()}"
         _session_dir = LOG_DIR / session_name
         _session_dir.mkdir(parents=True, exist_ok=True)
     return _session_dir
@@ -79,8 +101,8 @@ def configure_logging(level: int = logging.INFO) -> logging.Logger:
         )
         file_handler.setFormatter(formatter)
         root_logger.addHandler(file_handler)
-    except (OSError, PermissionError) as e:
-        root_logger.warning("Could not create log file: %s", e)
+    except (OSError, PermissionError) as exc:
+        root_logger.warning("Could not create log file: %s", exc)
 
     return logging.getLogger("app")
 

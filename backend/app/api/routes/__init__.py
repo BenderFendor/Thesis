@@ -22,6 +22,7 @@ from . import (
     liked,
     news,
     news_by_country,
+    observability,
     profiling,
     reading_queue,
     research,
@@ -55,6 +56,7 @@ router.include_router(news_by_country.router)
 router.include_router(cache.router)
 router.include_router(stream.router)
 router.include_router(debug.router)
+router.include_router(observability.router)
 router.include_router(bookmarks.router)
 router.include_router(liked.router)
 router.include_router(reading_queue.router)
