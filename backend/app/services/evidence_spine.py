@@ -5,12 +5,15 @@ import hashlib
 import json
 from collections import defaultdict
 from datetime import UTC, datetime
+from decimal import Decimal
 from typing import Any, cast
 from collections.abc import Iterable
 from sqlalchemy import and_, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from app.models.evidence import (
     AcceptedRelationship,
+    AdjudicationItem,
+    CalculationTrace,
     ClaimEvidence,
     DocumentSnapshot,
     EvidenceClaim,
@@ -26,7 +29,24 @@ from app.models.evidence_api import (
     EvidenceObservationRecord,
     RelationshipQueryResponse,
 )
+from app.services.claim_comparison import ComparableClaim, compare_claims
 from app.services.evidence_policy import ObservationEvidence, evaluate_acceptance
+from app.services.ownership_math import (
+    InterestRange,
+    OwnershipEdge,
+    OwnershipMathError,
+    compute_indirect_interest,
+)
+
+# Predicates whose qualifiers carry an ownership-interest percentage/band and
+# therefore participate in ownership_math's safe disjoint-summation check.
+INTEREST_PREDICATES = frozenset({"owns_equity_in", "directly_owns"})
+
+# compare_claims classifications that do not indicate a real contradiction
+# between the candidate claim and an existing accepted relationship.
+_NON_CONFLICTING_CLASSIFICATIONS = frozenset(
+    {"compatible", "temporal_successor", "different_relation", "different_share_class"}
+)
 
 
 class EvidenceSpineError(RuntimeError):
@@ -190,6 +210,251 @@ async def evaluate_claim_by_id(
     )
 
 
+def _claim_comparable(
+    claim_id: str,
+    subject_entity_id: str,
+    predicate: str,
+    object_entity_id: str | None,
+    object_value: Any | None,
+    qualifiers: dict[str, Any],
+    valid_from: datetime | None,
+    valid_to: datetime | None,
+) -> ComparableClaim:
+    return ComparableClaim(
+        id=claim_id,
+        subject_entity_id=subject_entity_id,
+        predicate=predicate,
+        object_entity_id=object_entity_id,
+        object_value=object_value,
+        qualifiers=qualifiers,
+        valid_from=valid_from,
+        valid_to=valid_to,
+    )
+
+
+async def _find_conflicting_relationship(
+    db: AsyncSession, claim: EvidenceClaim
+) -> tuple[AcceptedRelationship, Any] | None:
+    """Classify *claim* against every current accepted relationship sharing its subject and predicate.
+
+    Returns the first real contradiction found. A relationship carrying the exact same digest is handled separately by the
+    idempotent dedupe path in `materialize_claim`, so this only ever surfaces
+    genuinely competing facts (see `app.services.claim_comparison`).
+    """
+    candidates = list(
+        (
+            await db.execute(
+                select(AcceptedRelationship).where(
+                    AcceptedRelationship.subject_entity_id == claim.subject_entity_id,
+                    AcceptedRelationship.predicate == claim.predicate,
+                    AcceptedRelationship.retracted_at.is_(None),
+                )
+            )
+        )
+        .scalars()
+        .all()
+    )
+    left = _claim_comparable(
+        cast(str, claim.id),
+        cast(str, claim.subject_entity_id),
+        cast(str, claim.predicate),
+        claim.object_entity_id,
+        claim.object_value,
+        dict(cast(dict[str, Any], claim.qualifiers or {})),
+        claim.valid_from,
+        claim.valid_to,
+    )
+    for relationship in candidates:
+        right = _claim_comparable(
+            cast(str, relationship.id),
+            cast(str, relationship.subject_entity_id),
+            cast(str, relationship.predicate),
+            relationship.object_entity_id,
+            None,
+            dict(cast(dict[str, Any], relationship.qualifiers or {})),
+            relationship.valid_from,
+            relationship.valid_to,
+        )
+        comparison = compare_claims(left, right)
+        if comparison.classification not in _NON_CONFLICTING_CLASSIFICATIONS:
+            return relationship, comparison
+    return None
+
+
+async def _open_adjudication_item(
+    db: AsyncSession, claim: EvidenceClaim, relationship: AcceptedRelationship, comparison: Any
+) -> AdjudicationItem:
+    """Raise (or fetch) the durable human-review item for a claim contradiction."""
+    item_id = f"adj_{stable_hash(claim.id, relationship.id)[:32]}"
+    existing = await db.get(AdjudicationItem, item_id)
+    if existing is not None:
+        return existing
+    entity_ids = [cast(str, claim.subject_entity_id)]
+    if claim.object_entity_id:
+        entity_ids.append(claim.object_entity_id)
+    item = AdjudicationItem(
+        id=item_id,
+        item_type="claim_contradiction",
+        claim_ids=[claim.id],
+        entity_ids=entity_ids,
+        normalized_dimensions=json.loads(canonical_json(comparison.normalized_dimensions)),
+        reason=comparison.reason,
+        status="open",
+    )
+    db.add(item)
+    await db.flush()
+    return item
+
+
+def _interest_range_from_qualifiers(qualifiers: dict[str, Any]) -> InterestRange | None:
+    """Parse a claim's `pct`/`pct_band` qualifier into an `InterestRange`.
+
+    Returns `None` when the qualifiers simply don't carry an interest (not an
+    error). A qualifier that does carry one but is out of domain (negative,
+    inverted, or over 100%) raises `OwnershipMathError` -- callers that should
+    reject such a claim call this directly; `_record_interest_trace` is only
+    ever reached after `_check_interest_claim` has already validated it.
+    """
+    point = qualifiers.get("pct")
+    if point is not None:
+        try:
+            fraction = Decimal(str(point)) / Decimal(100)
+        except (ArithmeticError, ValueError):
+            return None
+        return InterestRange.point(fraction)
+    band = qualifiers.get("pct_band")
+    lower = upper = None
+    if isinstance(band, dict):
+        lower, upper = band.get("lower"), band.get("upper")
+    elif isinstance(band, (list, tuple)) and len(band) == 2:
+        lower, upper = band[0], band[1]
+    if lower is None or upper is None:
+        return None
+    try:
+        lower_fraction = Decimal(str(lower)) / Decimal(100)
+        upper_fraction = Decimal(str(upper)) / Decimal(100)
+    except (ArithmeticError, ValueError):
+        return None
+    return InterestRange(lower_fraction, upper_fraction)
+
+
+def _check_interest_claim(claim: EvidenceClaim) -> None:
+    """Reject a claim whose own interest qualifiers are out of domain.
+
+    `_interest_range_from_qualifiers` raises `OwnershipMathError` for a
+    negative, inverted, or over-100% `pct`/`pct_band` value; without this
+    guard that exception would otherwise surface deep inside
+    `_record_interest_trace`, after the relationship had already been created.
+    """
+    if claim.predicate not in INTEREST_PREDICATES:
+        return
+    qualifiers = dict(cast(dict[str, Any], claim.qualifiers or {}))
+    try:
+        _interest_range_from_qualifiers(qualifiers)
+    except OwnershipMathError as exc:
+        raise EvidenceSpineError(f"invalid ownership interest qualifiers: {exc}") from exc
+
+
+async def _all_accepted_interest_edges(db: AsyncSession) -> list[OwnershipEdge]:
+    """Load every current accepted interest-predicate relationship as an edge."""
+    rows = list(
+        (
+            await db.execute(
+                select(AcceptedRelationship).where(
+                    AcceptedRelationship.predicate.in_(INTEREST_PREDICATES),
+                    AcceptedRelationship.retracted_at.is_(None),
+                )
+            )
+        )
+        .scalars()
+        .all()
+    )
+    edges: list[OwnershipEdge] = []
+    for row in rows:
+        qualifiers = dict(cast(dict[str, Any], row.qualifiers or {}))
+        interest = _interest_range_from_qualifiers(qualifiers)
+        if interest is None:
+            continue
+        edges.append(
+            OwnershipEdge(
+                owner_id=cast(str, row.object_entity_id),
+                owned_id=cast(str, row.subject_entity_id),
+                interest=interest,
+                interest_type=cast(Any, qualifiers.get("interest", "economic")),
+                security_class=qualifiers.get("security_class"),
+                direct=bool(qualifiers.get("direct", True)),
+                claim_id=cast(str, row.id),
+                disjoint_group=qualifiers.get("disjoint_group"),
+            )
+        )
+    return edges
+
+
+async def compute_ownership_interest(
+    db: AsyncSession,
+    *,
+    owner_id: str,
+    target_id: str,
+    interest_type: str = "economic",
+    security_class: str | None = None,
+) -> dict[str, object]:
+    """Serve an owner's aggregate interest in a target across the full accepted graph.
+
+    Unlike a single accepted relationship's raw `pct`/`pct_band` qualifier
+    (see `evidence_export.build_relationship_proof_bundle`), this walks every
+    accepted `directly_owns`/`owns_equity_in` edge to compute indirect and
+    cross-holding-aware interest via `ownership_math.compute_indirect_interest`
+    -- the safe path-enumeration math previously only exercised in unit tests.
+    """
+    edges = await _all_accepted_interest_edges(db)
+    calculation = compute_indirect_interest(
+        edges,
+        owner_id=owner_id,
+        target_id=target_id,
+        interest_type=cast(Any, interest_type),
+        security_class=security_class,
+    )
+    return calculation.trace()
+
+
+async def _record_interest_trace(
+    db: AsyncSession, claim: EvidenceClaim, relationship: AcceptedRelationship
+) -> None:
+    """Store the ownership_math calculation trace backing an accepted interest claim."""
+    if claim.predicate not in INTEREST_PREDICATES:
+        return
+    qualifiers = dict(cast(dict[str, Any], claim.qualifiers or {}))
+    if _interest_range_from_qualifiers(qualifiers) is None:
+        return
+    owner_id = cast(str, claim.object_entity_id)
+    owned_id = cast(str, claim.subject_entity_id)
+    interest_type = qualifiers.get("interest", "economic")
+    security_class = qualifiers.get("security_class")
+    trace_id = f"calc_{stable_hash(relationship.id, owner_id, owned_id, interest_type)[:32]}"
+    if await db.get(CalculationTrace, trace_id) is not None:
+        return
+    all_edges = await _all_accepted_interest_edges(db)
+    calculation = compute_indirect_interest(
+        all_edges,
+        owner_id=owner_id,
+        target_id=owned_id,
+        interest_type=cast(Any, interest_type),
+        security_class=security_class,
+    )
+    db.add(
+        CalculationTrace(
+            id=trace_id,
+            relationship_id=relationship.id,
+            measurement_name="ownership_interest",
+            input_claim_ids=[claim.id],
+            subgraph={"edges": [f"{edge.owner_id}->{edge.owned_id}" for edge in all_edges]},
+            algorithm_version=calculation.algorithm_version,
+            result=calculation.trace(),
+        )
+    )
+    await db.flush()
+
+
 async def materialize_claim(
     db: AsyncSession, claim_id: str, *, complete_control_path: bool = False
 ) -> AcceptedRelationship:
@@ -234,6 +499,15 @@ async def materialize_claim(
                 )
             )
         return existing
+    conflict = await _find_conflicting_relationship(db, claim)
+    if conflict is not None:
+        conflicting_relationship, comparison = conflict
+        item = await _open_adjudication_item(db, claim, conflicting_relationship, comparison)
+        raise EvidenceSpineError(
+            f"claim contradicts accepted relationship {conflicting_relationship.id} "
+            f"({comparison.reason}); opened adjudication item {item.id}"
+        )
+    _check_interest_claim(claim)
     relationship_id = f"rel_{digest[:32]}"
     relationship = AcceptedRelationship(
         id=relationship_id,
@@ -257,6 +531,7 @@ async def materialize_claim(
     )
     claim.status = "accepted"
     await db.flush()
+    await _record_interest_trace(db, claim, relationship)
     return relationship
 
 
