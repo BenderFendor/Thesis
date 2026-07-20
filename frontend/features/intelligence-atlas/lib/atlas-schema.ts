@@ -59,7 +59,7 @@ export const AtlasGraphFiltersSchema = z.object({
   layout: z.enum(["clustered", "ownership", "geography", "radial"]).default("clustered"),
   limit_nodes: z.number().int().positive().default(350), limit_edges: z.number().int().positive().default(1500),
   include_evidence_preview: z.boolean().default(true), as_of: NullableDateSchema, known_at: NullableDateSchema,
-  accepted_only: z.boolean().default(false),
+  accepted_only: z.boolean().optional(),
 });
 
 export const AtlasGraphResponseSchema = z.object({
