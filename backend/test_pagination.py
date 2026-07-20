@@ -6,6 +6,7 @@ Run with: pytest backend/test_pagination.py -v
 import pytest
 from httpx import AsyncClient, ASGITransport
 
+from app import database
 from app.main import app
 from app.models.news import NewsArticle
 from app.services.cache import news_cache
@@ -14,6 +15,26 @@ from app.services.cache import news_cache
 @pytest.fixture
 def anyio_backend():
     return "asyncio"
+
+
+@pytest.fixture(autouse=True)
+async def _dispose_shared_db_engine_after_test():
+    """Force a fresh global async engine per test.
+
+    `app.database` lazily creates one process-wide `AsyncEngine` and reuses it
+    across every request. Each `@pytest.mark.anyio` test here gets its own
+    fresh event loop, but asyncpg connections are bound to the loop that
+    opened them -- reusing the pool across tests then fails with "attached to
+    a different loop" / "Event loop is closed" the moment two DB-hitting
+    tests run in the same file. Disposing and clearing the cached engine
+    after each test forces the next one to open fresh, loop-local
+    connections instead of reusing stale ones.
+    """
+    yield
+    if database._engine is not None:
+        await database._engine.dispose()
+        database._engine = None
+        database._session_factory = None
 
 
 @pytest.mark.anyio
@@ -193,12 +214,12 @@ async def test_limit_bounds():
         assert r1.json()["limit"] == 1
 
         # Test maximum limit
-        r2 = await client.get("/news/page/cached?limit=200")
+        r2 = await client.get("/news/page/cached?limit=500")
         assert r2.status_code == 200
-        assert r2.json()["limit"] == 200
+        assert r2.json()["limit"] == 500
 
         # Test exceeding maximum (should return 422 validation error)
-        r3 = await client.get("/news/page/cached?limit=500")
+        r3 = await client.get("/news/page/cached?limit=501")
         assert r3.status_code == 422
 
 

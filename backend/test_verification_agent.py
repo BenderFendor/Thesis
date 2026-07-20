@@ -76,27 +76,41 @@ class TestCredibilityScorer:
     def setup_method(self):
         self.scorer = CredibilityScorer()
 
-    def test_known_source_credibility(self):
-        score, source_type = self.scorer.get_credibility("reuters.com")
+    def test_known_source_credibility(self, monkeypatch):
+        """`CredibilityScorer` no longer bundles a static per-domain table --
+        it wraps `CredibilitySignalStore`, which is entirely DB-computed
+        (see `compute_all_source_credibility`). The only offline-testable
+        "known domain" mechanism left is the `CREDIBILITY_<DOMAIN>` env-var
+        override (`_load_env_overrides`), so that's what this exercises.
+        """
+        monkeypatch.setenv("CREDIBILITY_REUTERS_COM", "0.95")
+        scorer = CredibilityScorer()
+        score, source_type = scorer.get_credibility("reuters.com")
         assert score == 0.95
-        assert source_type == SourceType.WIRE
+        assert source_type == SourceType.UNKNOWN
 
-    def test_known_source_with_subdomain(self):
-        score, source_type = self.scorer.get_credibility("news.bbc.co.uk")
+    def test_known_source_with_subdomain(self, monkeypatch):
+        monkeypatch.setenv("CREDIBILITY_NEWS_BBC_CO_UK", "0.90")
+        scorer = CredibilityScorer()
+        score, source_type = scorer.get_credibility("news.bbc.co.uk")
         assert score == 0.90
-        assert source_type == SourceType.BROADCAST
+        assert source_type == SourceType.UNKNOWN
 
     def test_unknown_source_default(self):
         score, source_type = self.scorer.get_credibility("unknown-blog-xyz.com")
         assert score == 0.3
         assert source_type == SourceType.UNKNOWN
 
-    def test_url_extraction(self):
-        score, _ = self.scorer.get_credibility("https://www.reuters.com/article/123")
+    def test_url_extraction(self, monkeypatch):
+        monkeypatch.setenv("CREDIBILITY_REUTERS_COM", "0.95")
+        scorer = CredibilityScorer()
+        score, _ = scorer.get_credibility("https://www.reuters.com/article/123")
         assert score == 0.95
 
-    def test_get_source_info(self):
-        info = self.scorer.get_source_info(
+    def test_get_source_info(self, monkeypatch):
+        monkeypatch.setenv("CREDIBILITY_REUTERS_COM", "0.95")
+        scorer = CredibilityScorer()
+        info = scorer.get_source_info(
             url="https://reuters.com/article/test",
             title="Test Article",
             published_at="2024-01-15T10:00:00Z",
@@ -105,7 +119,7 @@ class TestCredibilityScorer:
         )
         assert info.domain == "reuters.com"
         assert info.credibility_score == 0.95
-        assert info.source_type == SourceType.WIRE
+        assert info.source_type == SourceType.UNKNOWN
         assert info.supports_claim is True
 
     def test_calculate_claim_confidence_no_sources(self):
