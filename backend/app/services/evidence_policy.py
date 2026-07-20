@@ -38,6 +38,7 @@ class ObservationEvidence:
     evidence_class: str
     root_id: str
     entailment: str
+    reviewed_by: str | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -167,11 +168,13 @@ def policy_for(predicate: str) -> PredicatePolicy:
 def _coerce_evidence(item: ObservationEvidence | Mapping[str, str]) -> ObservationEvidence:
     if isinstance(item, ObservationEvidence):
         return item
+    reviewed_by = item.get("reviewed_by")
     return ObservationEvidence(
         observation_id=str(item.get("observation_id", "")),
         evidence_class=str(item.get("evidence_class", "")),
         root_id=str(item.get("root_id", "")),
         entailment=str(item.get("entailment", "unevaluated")),
+        reviewed_by=str(reviewed_by) if reviewed_by else None,
     )
 
 
@@ -187,7 +190,9 @@ def evaluate_acceptance(
     items = tuple(_coerce_evidence(item) for item in evidence)
     reasons: list[str] = []
 
-    entailing = tuple(item for item in items if item.entailment == "reviewed_yes")
+    claimed_entailing = tuple(item for item in items if item.entailment == "reviewed_yes")
+    entailing = tuple(item for item in claimed_entailing if item.reviewed_by)
+    unattributed = len(claimed_entailing) - len(entailing)
     qualifying = tuple(
         item for item in entailing if item.evidence_class in active.allowed_evidence_classes
     )
@@ -195,6 +200,11 @@ def evaluate_acceptance(
 
     if not entailing:
         reasons.append("no reviewed evidence entails the claim")
+    if unattributed:
+        reasons.append(
+            f"{unattributed} observation(s) marked reviewed_yes without a recorded reviewer; "
+            "review action incomplete"
+        )
     if entailing and not qualifying:
         reasons.append("no entailing observation satisfies the predicate evidence gate")
     if len(root_ids) < active.minimum_independent_roots:

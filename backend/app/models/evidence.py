@@ -199,6 +199,10 @@ class EvidenceObservation(Base):
             "quoted_text IS NOT NULL OR structured_value IS NOT NULL",
             name="ck_evidence_observation_content",
         ),
+        CheckConstraint(
+            "entailment != 'reviewed_yes' OR reviewed_by IS NOT NULL",
+            name="ck_evidence_observation_reviewed_yes_has_reviewer",
+        ),
     )
 
 
@@ -291,6 +295,7 @@ class AcceptedRelationship(Base):
     recorded_at = Column(DateTime, nullable=False, default=get_utc_now, index=True)
     retracted_at = Column(DateTime, nullable=True, index=True)
     materialized_at = Column(DateTime, nullable=False, default=get_utc_now)
+    materialized_by = Column(String(255), nullable=True)
     acceptance_policy_version = Column(String(64), nullable=False)
     status = Column(String(32), nullable=False, default="accepted", index=True)
     relationship_hash = Column(String(64), nullable=False, unique=True, index=True)

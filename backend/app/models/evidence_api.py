@@ -61,6 +61,7 @@ class AcceptedRelationshipRecord(BaseModel):
     recorded_at: datetime
     retracted_at: datetime | None = None
     materialized_at: datetime
+    materialized_by: str | None = None
     acceptance_policy_version: str
     status: Literal["accepted", "historical", "disputed", "retracted"]
     claim_ids: list[str] = Field(default_factory=list)
