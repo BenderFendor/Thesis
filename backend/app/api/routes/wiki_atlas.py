@@ -1,59 +1,30 @@
 """SCOOP Intelligence Atlas API routes."""
 
 from __future__ import annotations
-
+from datetime import datetime
 from typing import Literal, cast
-
 from fastapi import APIRouter, Depends, HTTPException, Query, Response
 from sqlalchemy.ext.asyncio import AsyncSession
-
 from app.database import get_db
-from app.models.atlas import (
-    AtlasConnectionRecord,
-    AtlasEntityRecord,
-    AtlasEntityType,
-    AtlasExportRequest,
-    AtlasGraphFilters,
-    AtlasGraphResponse,
-    AtlasIndexResponse,
-    AtlasRelationType,
-    AtlasSearchResponse,
-    AtlasStatsResponse,
-)
+from app.models.atlas import AtlasConnectionRecord, AtlasEntityRecord, AtlasEntityType, AtlasExportRequest, AtlasGraphFilters, AtlasGraphResponse, AtlasIndexResponse, AtlasRelationType, AtlasSearchResponse, AtlasStatsResponse
 from app.services.atlas_entity import get_atlas_entity, list_atlas_index, search_atlas
 from app.services.atlas_export import build_atlas_export
 from app.services.atlas_graph import build_atlas_graph, build_atlas_stats
 
 router = APIRouter(prefix="/api/wiki/atlas", tags=["wiki-atlas"])
-
 _ENTITY_TYPES = {"source", "organization", "reporter"}
-_RELATION_TYPES = {
-    "ownership",
-    "owned_by",
-    "parent_org",
-    "part_of",
-    "publishes",
-    "employed_by",
-    "current_outlet",
-    "coauthor",
-    "shared_outlet",
-}
+_RELATION_TYPES = {"ownership", "owned_by", "parent_org", "part_of", "publishes", "employed_by", "current_outlet", "coauthor", "shared_outlet"}
 
 
 def _split_csv(value: str | None) -> list[str]:
-    if not value:
-        return []
-    return [item.strip() for item in value.split(",") if item.strip()]
+    return [item.strip() for item in value.split(",") if item.strip()] if value else []
 
 
 def _validated_entity_types(value: str | None) -> list[AtlasEntityType]:
     values = _split_csv(value)
     unsupported = sorted(set(values) - _ENTITY_TYPES)
     if unsupported:
-        raise HTTPException(
-            status_code=422,
-            detail=f"Unsupported entity types: {', '.join(unsupported)}",
-        )
+        raise HTTPException(status_code=422, detail=f"Unsupported entity types: {', '.join(unsupported)}")
     return cast(list[AtlasEntityType], values)
 
 
@@ -61,10 +32,7 @@ def _validated_relation_types(value: str | None) -> list[AtlasRelationType]:
     values = _split_csv(value)
     unsupported = sorted(set(values) - _RELATION_TYPES)
     if unsupported:
-        raise HTTPException(
-            status_code=422,
-            detail=f"Unsupported relation types: {', '.join(unsupported)}",
-        )
+        raise HTTPException(status_code=422, detail=f"Unsupported relation types: {', '.join(unsupported)}")
     return cast(list[AtlasRelationType], values)
 
 
@@ -84,63 +52,38 @@ async def get_atlas_graph(
     limit_edges: int = Query(1500, ge=1, le=2500),
     layout: Literal["clustered", "ownership", "geography", "radial"] = Query("clustered"),
     include_evidence_preview: bool = Query(True),
+    as_of: datetime | None = Query(None),
+    known_at: datetime | None = Query(None),
+    accepted_only: bool = Query(False),
 ) -> AtlasGraphResponse:
-    """Return a bounded graph for the requested Atlas filters."""
-    filters = AtlasGraphFilters(
-        q=q,
-        entity_types=_validated_entity_types(entity_types),
-        relation_types=_validated_relation_types(relation_types),
-        country=_split_csv(country),
-        funding=_split_csv(funding),
-        bias=_split_csv(bias),
-        min_confidence=min_confidence,
-        selected=selected,
-        neighbors=neighbors,
-        limit_nodes=limit_nodes,
-        limit_edges=limit_edges,
-        layout=layout,
-        include_evidence_preview=include_evidence_preview,
-    )
-    return await build_atlas_graph(db, filters)
+    return await build_atlas_graph(db, AtlasGraphFilters(
+        q=q, entity_types=_validated_entity_types(entity_types), relation_types=_validated_relation_types(relation_types),
+        country=_split_csv(country), funding=_split_csv(funding), bias=_split_csv(bias), min_confidence=min_confidence,
+        selected=selected, neighbors=neighbors, limit_nodes=limit_nodes, limit_edges=limit_edges, layout=layout,
+        include_evidence_preview=include_evidence_preview, as_of=as_of, known_at=known_at, accepted_only=accepted_only,
+    ))
 
 
 @router.get("/stats", response_model=AtlasStatsResponse)
 async def get_atlas_stats(db: AsyncSession = Depends(get_db)) -> AtlasStatsResponse:
-    """Return graph coverage and indexing status."""
     return await build_atlas_stats(db)
 
 
 @router.get("/search", response_model=AtlasSearchResponse)
-async def search_atlas_entities(
-    q: str = Query(..., min_length=1, max_length=200),
-    limit: int = Query(8, ge=1, le=20),
-    db: AsyncSession = Depends(get_db),
-) -> AtlasSearchResponse:
-    """Search Atlas entities and group matches by entity type."""
+async def search_atlas_entities(q: str = Query(..., min_length=1, max_length=200), limit: int = Query(8, ge=1, le=20), db: AsyncSession = Depends(get_db)) -> AtlasSearchResponse:
     return await search_atlas(db, q, limit=limit)
 
 
 @router.get("/entities/{entity_id}", response_model=AtlasEntityRecord)
-async def get_atlas_entity_record(
-    entity_id: str,
-    db: AsyncSession = Depends(get_db),
-) -> AtlasEntityRecord:
-    """Return one Atlas entity with evidence and connections."""
+async def get_atlas_entity_record(entity_id: str, db: AsyncSession = Depends(get_db)) -> AtlasEntityRecord:
     record = await get_atlas_entity(db, entity_id)
     if record is None:
         raise HTTPException(status_code=404, detail="Atlas entity not found")
     return record
 
 
-@router.get(
-    "/entities/{entity_id}/connections",
-    response_model=list[AtlasConnectionRecord],
-)
-async def get_atlas_entity_connections(
-    entity_id: str,
-    db: AsyncSession = Depends(get_db),
-) -> list[AtlasConnectionRecord]:
-    """Return the relationships connected to one Atlas entity."""
+@router.get("/entities/{entity_id}/connections", response_model=list[AtlasConnectionRecord])
+async def get_atlas_entity_connections(entity_id: str, db: AsyncSession = Depends(get_db)) -> list[AtlasConnectionRecord]:
     record = await get_atlas_entity(db, entity_id)
     if record is None:
         raise HTTPException(status_code=404, detail="Atlas entity not found")
@@ -149,45 +92,15 @@ async def get_atlas_entity_connections(
 
 @router.get("/index", response_model=AtlasIndexResponse)
 async def get_atlas_index(
-    db: AsyncSession = Depends(get_db),
-    entity_types: str | None = Query(None),
-    q: str | None = Query(None, max_length=200),
-    country: str | None = Query(None),
-    funding: str | None = Query(None),
-    bias: str | None = Query(None),
-    sort: Literal[
-        "name",
-        "most_connected",
-        "most_articles",
-        "recently_indexed",
-        "lowest_confidence",
-    ] = Query("name"),
-    cursor: str | None = Query(None, max_length=100),
-    limit: int = Query(60, ge=1, le=100),
+    db: AsyncSession = Depends(get_db), entity_types: str | None = Query(None), q: str | None = Query(None, max_length=200),
+    country: str | None = Query(None), funding: str | None = Query(None), bias: str | None = Query(None),
+    sort: Literal["name", "most_connected", "most_articles", "recently_indexed", "lowest_confidence"] = Query("name"),
+    cursor: str | None = Query(None, max_length=100), limit: int = Query(60, ge=1, le=100),
 ) -> AtlasIndexResponse:
-    """Return one filtered and sorted page of the Atlas entity index."""
-    return await list_atlas_index(
-        db,
-        entity_types=_validated_entity_types(entity_types),
-        query=q,
-        country=_split_csv(country),
-        funding=_split_csv(funding),
-        bias=_split_csv(bias),
-        sort=sort,
-        cursor=cursor,
-        limit=limit,
-    )
+    return await list_atlas_index(db, entity_types=_validated_entity_types(entity_types), query=q, country=_split_csv(country), funding=_split_csv(funding), bias=_split_csv(bias), sort=sort, cursor=cursor, limit=limit)
 
 
 @router.post("/export")
-async def export_atlas(
-    request: AtlasExportRequest,
-    db: AsyncSession = Depends(get_db),
-) -> Response:
-    """Export the requested Atlas graph as versioned JSON or CSV."""
+async def export_atlas(request: AtlasExportRequest, db: AsyncSession = Depends(get_db)) -> Response:
     filename, content_type, content = await build_atlas_export(db, request)
-    return Response(
-        content=content,
-        media_type=content_type,
-        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
-    )
+    return Response(content=content, media_type=content_type, headers={"Content-Disposition": f'attachment; filename="{filename}"'})
