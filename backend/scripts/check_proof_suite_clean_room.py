@@ -6,17 +6,38 @@ import argparse
 import re
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Iterable
+from collections.abc import Iterable
 
 BENCHMARK_NAMES = (
-    "Washington Post", "New York Times", "Wall Street Journal", "Reuters", "Fox News",
-    "Financial Times", "The Guardian", "BBC", "Associated Press", "NPR", "POLITICO",
-    "The Economist", "Philadelphia Inquirer", "Tampa Bay Times", "USA TODAY", "NBC News",
-    "MSNBC", "ABC News", "CNN", "Sinclair", "Bezos", "Murdoch", "Nash Holdings",
-    "Woodbridge", "Versant",
+    "Washington Post",
+    "New York Times",
+    "Wall Street Journal",
+    "Reuters",
+    "Fox News",
+    "Financial Times",
+    "The Guardian",
+    "BBC",
+    "Associated Press",
+    "NPR",
+    "POLITICO",
+    "The Economist",
+    "Philadelphia Inquirer",
+    "Tampa Bay Times",
+    "USA TODAY",
+    "NBC News",
+    "MSNBC",
+    "ABC News",
+    "CNN",
+    "Sinclair",
+    "Bezos",
+    "Murdoch",
+    "Nash Holdings",
+    "Woodbridge",
+    "Versant",
 )
 PIPELINE_DIR_MARKERS = ("adapter", "parser", "resolver", "extractor", "materialize")
 EXCLUDED_PARTS = {"proof_suite", "tests", "fixtures", "docs", "alembic", ".git", "node_modules"}
+
 
 @dataclass(frozen=True, slots=True)
 class Violation:
@@ -32,7 +53,11 @@ def _looks_like_pipeline(path: Path) -> bool:
 
 
 def scan_file(path: Path) -> list[Violation]:
-    if any(part in EXCLUDED_PARTS for part in path.parts) or path.suffix not in {".py", ".ts", ".tsx", ".js", ".mjs"} or not _looks_like_pipeline(path):
+    if (
+        any(part in EXCLUDED_PARTS for part in path.parts)
+        or path.suffix not in {".py", ".ts", ".tsx", ".js", ".mjs"}
+        or not _looks_like_pipeline(path)
+    ):
         return []
     pattern = re.compile("|".join(re.escape(name) for name in BENCHMARK_NAMES), re.IGNORECASE)
     violations = []
@@ -75,6 +100,7 @@ def main() -> int:
     for item in violations:
         print(f"{item.path}:{item.line_number}: {item.reason}: {item.line}")
     return 1 if violations else 0
+
 
 if __name__ == "__main__":
     raise SystemExit(main())

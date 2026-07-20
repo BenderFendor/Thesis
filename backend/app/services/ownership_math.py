@@ -4,7 +4,8 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from decimal import Decimal, InvalidOperation
-from typing import Iterable, Literal
+from typing import Literal
+from collections.abc import Iterable
 
 InterestType = Literal["economic", "voting"]
 
@@ -15,10 +16,13 @@ class OwnershipMathError(ValueError):
 
 @dataclass(frozen=True, slots=True)
 class InterestRange:
+    """A [lower, upper] ownership-interest band expressed as fractions of one."""
+
     lower: Decimal
     upper: Decimal
 
     def __post_init__(self) -> None:
+        """Validate the band is non-negative, ordered, and at most 100%."""
         if self.lower < 0 or self.upper < 0:
             raise OwnershipMathError("ownership interests cannot be negative")
         if self.lower > self.upper:
@@ -27,14 +31,17 @@ class InterestRange:
             raise OwnershipMathError("ownership interests must be expressed from zero to one")
 
     @classmethod
-    def point(cls, value: Decimal | float | int | str) -> "InterestRange":
+    def point(cls, value: Decimal | float | int | str) -> InterestRange:
+        """Build a degenerate band (lower == upper) from a single value."""
         decimal_value = _decimal(value)
         return cls(decimal_value, decimal_value)
 
-    def multiply(self, other: "InterestRange") -> "InterestRange":
+    def multiply(self, other: InterestRange) -> InterestRange:
+        """Multiply two bands element-wise (used to chain interests along a path)."""
         return InterestRange(self.lower * other.lower, self.upper * other.upper)
 
-    def add(self, other: "InterestRange") -> "InterestRange":
+    def add(self, other: InterestRange) -> InterestRange:
+        """Sum two disjoint bands, refusing to produce more than 100%."""
         lower = self.lower + other.lower
         upper = self.upper + other.upper
         if upper > 1:
@@ -42,6 +49,7 @@ class InterestRange:
         return InterestRange(lower, upper)
 
     def as_percent(self) -> dict[str, float]:
+        """Return the band as a {lower, upper} percentage dict for serialization."""
         return {
             "lower": float((self.lower * Decimal(100)).quantize(Decimal("0.0001"))),
             "upper": float((self.upper * Decimal(100)).quantize(Decimal("0.0001"))),
@@ -50,6 +58,8 @@ class InterestRange:
 
 @dataclass(frozen=True, slots=True)
 class OwnershipEdge:
+    """A single documented owner -> owned interest edge feeding path enumeration."""
+
     owner_id: str
     owned_id: str
     interest: InterestRange
@@ -62,6 +72,8 @@ class OwnershipEdge:
 
 @dataclass(frozen=True, slots=True)
 class InterestPath:
+    """One enumerated owner-to-target chain and the interest it carries."""
+
     entity_ids: tuple[str, ...]
     claim_ids: tuple[str, ...]
     interest: InterestRange
@@ -70,6 +82,8 @@ class InterestPath:
 
 @dataclass(frozen=True, slots=True)
 class InterestCalculation:
+    """The result of computing owner->target interest across all safe paths."""
+
     owner_id: str
     target_id: str
     interest_type: InterestType
@@ -81,6 +95,7 @@ class InterestCalculation:
     algorithm_version: str = "ownership-math/2.0"
 
     def trace(self) -> dict[str, object]:
+        """Return a JSON-serializable trace of this calculation for CalculationTrace."""
         return {
             "algorithm_version": self.algorithm_version,
             "owner_id": self.owner_id,
@@ -104,6 +119,8 @@ class InterestCalculation:
 
 @dataclass(frozen=True, slots=True)
 class ControlEdge:
+    """A single documented control mechanism from controller to controlled entity."""
+
     controller_id: str
     controlled_id: str
     mechanism: str
@@ -113,6 +130,8 @@ class ControlEdge:
 
 @dataclass(frozen=True, slots=True)
 class ControlPath:
+    """One enumerated chain of control mechanisms from controller to target."""
+
     entity_ids: tuple[str, ...]
     mechanisms: tuple[str, ...]
     claim_ids: tuple[str, ...]
@@ -247,21 +266,36 @@ def compute_indirect_interest(
     """Compute interest on a verified DAG without double-counting paths."""
     relevant = _filtered_edges(edges, interest_type=interest_type, security_class=security_class)
     if _has_cycle(relevant):
-        return InterestCalculation(owner_id, target_id, interest_type, security_class, None, (), False, True)
+        return InterestCalculation(
+            owner_id, target_id, interest_type, security_class, None, (), False, True
+        )
     paths = _enumerate_paths(relevant, owner_id, target_id, max_paths=max_paths)
     if not paths:
-        return InterestCalculation(owner_id, target_id, interest_type, security_class, None, (), False, False)
+        return InterestCalculation(
+            owner_id, target_id, interest_type, security_class, None, (), False, False
+        )
     if len(paths) == 1:
         return InterestCalculation(
-            owner_id, target_id, interest_type, security_class, paths[0].interest, paths, False, False
+            owner_id,
+            target_id,
+            interest_type,
+            security_class,
+            paths[0].interest,
+            paths,
+            False,
+            False,
         )
     groups = [path.disjoint_group for path in paths]
     if not (all(groups) and len(set(groups)) == len(groups)):
-        return InterestCalculation(owner_id, target_id, interest_type, security_class, None, paths, True, False)
+        return InterestCalculation(
+            owner_id, target_id, interest_type, security_class, None, paths, True, False
+        )
     aggregate = InterestRange.point(0)
     for path in paths:
         aggregate = aggregate.add(path.interest)
-    return InterestCalculation(owner_id, target_id, interest_type, security_class, aggregate, paths, False, False)
+    return InterestCalculation(
+        owner_id, target_id, interest_type, security_class, aggregate, paths, False, False
+    )
 
 
 def resolve_control_paths(
@@ -276,7 +310,12 @@ def resolve_control_paths(
         values.sort(key=lambda edge: (edge.controlled_id, edge.mechanism, edge.claim_id))
     results: list[ControlPath] = []
 
-    def walk(current: str, entity_ids: tuple[str, ...], mechanisms: tuple[str, ...], claim_ids: tuple[str, ...]) -> None:
+    def walk(
+        current: str,
+        entity_ids: tuple[str, ...],
+        mechanisms: tuple[str, ...],
+        claim_ids: tuple[str, ...],
+    ) -> None:
         if len(results) >= max_paths:
             raise OwnershipMathError(f"control path count exceeds safety limit {max_paths}")
         if current == target_id:

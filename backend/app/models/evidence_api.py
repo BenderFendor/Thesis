@@ -8,12 +8,12 @@ from typing import Any, Literal
 from pydantic import BaseModel, Field
 
 FactStatus = Literal["candidate", "accepted", "disputed", "rejected", "superseded"]
-EntailmentStatus = Literal[
-    "reviewed_yes", "reviewed_no", "model_suggested", "unevaluated"
-]
+EntailmentStatus = Literal["reviewed_yes", "reviewed_no", "model_suggested", "unevaluated"]
 
 
 class EvidenceObservationRecord(BaseModel):
+    """A single locator-backed excerpt or value, as returned by the API."""
+
     id: str
     snapshot_id: str
     locator: dict[str, Any]
@@ -28,6 +28,8 @@ class EvidenceObservationRecord(BaseModel):
 
 
 class EvidenceClaimRecord(BaseModel):
+    """A claim with its linked evidence observations, as returned by the API."""
+
     id: str
     subject_entity_id: str
     predicate: str
@@ -47,6 +49,8 @@ class EvidenceClaimRecord(BaseModel):
 
 
 class AcceptedRelationshipRecord(BaseModel):
+    """An accepted relationship, its supporting claims, and root count."""
+
     id: str
     subject_entity_id: str
     predicate: str
@@ -64,12 +68,16 @@ class AcceptedRelationshipRecord(BaseModel):
 
 
 class RelationshipQueryResponse(BaseModel):
+    """Accepted relationships current as of the requested valid/known time."""
+
     as_of: datetime
     known_at: datetime
     relationships: list[AcceptedRelationshipRecord] = Field(default_factory=list)
 
 
 class EvidencePolicyRecord(BaseModel):
+    """The serialized acceptance policy for one predicate."""
+
     predicate: str
     version: str
     allowed_evidence_classes: list[str]
@@ -79,11 +87,15 @@ class EvidencePolicyRecord(BaseModel):
 
 
 class AcceptanceEvaluationRequest(BaseModel):
+    """A request to evaluate whether a claim currently qualifies for acceptance."""
+
     claim_id: str
     complete_control_path: bool = False
 
 
 class AcceptanceEvaluationResponse(BaseModel):
+    """The result of evaluating a claim against its predicate's acceptance policy."""
+
     claim_id: str
     accepted: bool
     policy_version: str
@@ -93,6 +105,8 @@ class AcceptanceEvaluationResponse(BaseModel):
 
 
 class ProofBundleManifest(BaseModel):
+    """The manifest of files and hashes contained in a proof bundle."""
+
     relationship_id: str
     generated_at: datetime
     as_of: datetime
@@ -105,6 +119,8 @@ class ProofBundleManifest(BaseModel):
 
 
 class ContradictionRecord(BaseModel):
+    """A pairwise claim-comparison result and its normalized classification."""
+
     left_claim_id: str
     right_claim_id: str
     classification: Literal[

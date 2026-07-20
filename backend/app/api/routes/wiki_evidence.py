@@ -40,6 +40,7 @@ def _utc_naive(value: datetime | None) -> datetime:
 
 @router.get("/policies", response_model=list[EvidencePolicyRecord])
 async def get_evidence_policies() -> list[EvidencePolicyRecord]:
+    """Return the active acceptance policy for every predicate."""
     return [EvidencePolicyRecord.model_validate(item) for item in serialize_policies()]
 
 
@@ -48,6 +49,7 @@ async def get_evidence_claim(
     claim_id: str,
     db: AsyncSession = Depends(get_db),
 ) -> EvidenceClaimRecord:
+    """Return a single evidence claim with its linked observations."""
     record = await get_claim_record(db, claim_id)
     if record is None:
         raise HTTPException(status_code=404, detail="Evidence claim not found")
@@ -59,6 +61,7 @@ async def evaluate_evidence_claim(
     request: AcceptanceEvaluationRequest,
     db: AsyncSession = Depends(get_db),
 ) -> AcceptanceEvaluationResponse:
+    """Evaluate whether a claim currently qualifies for acceptance, without mutating it."""
     try:
         return await evaluate_claim_by_id(
             db,
@@ -75,6 +78,7 @@ async def materialize_evidence_claim(
     complete_control_path: bool = Query(False),
     db: AsyncSession = Depends(get_db),
 ) -> AcceptedRelationshipRecord:
+    """Materialize a qualifying claim into an accepted relationship."""
     try:
         relationship = await materialize_claim(
             db,
@@ -104,6 +108,7 @@ async def get_evidence_relationships(
     predicates: str | None = Query(None, max_length=500),
     entity_id: str | None = Query(None, max_length=128),
 ) -> RelationshipQueryResponse:
+    """Query accepted relationships as of the given valid/known time."""
     predicate_values = [item.strip() for item in (predicates or "").split(",") if item.strip()]
     return await list_relationships(
         db,
@@ -122,6 +127,7 @@ async def download_relationship_proof(
     known_at: datetime | None = Query(None),
     dataset_snapshot: str = Query("working-tree", max_length=128),
 ) -> Response:
+    """Download the zipped proof bundle for an accepted relationship."""
     try:
         content = await build_relationship_proof_bundle(
             db,
@@ -136,5 +142,7 @@ async def download_relationship_proof(
     return Response(
         content=content,
         media_type="application/zip",
-        headers={"Content-Disposition": f'attachment; filename="scoop-proof-{relationship_id}.zip"'},
+        headers={
+            "Content-Disposition": f'attachment; filename="scoop-proof-{relationship_id}.zip"'
+        },
     )

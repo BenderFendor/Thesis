@@ -5,11 +5,14 @@ from __future__ import annotations
 from dataclasses import dataclass
 from datetime import datetime
 from decimal import Decimal, InvalidOperation
-from typing import Any, Mapping
+from typing import Any
+from collections.abc import Mapping
 
 
 @dataclass(frozen=True, slots=True)
 class ComparableClaim:
+    """The subset of a claim's fields needed to compare it against another claim."""
+
     id: str
     subject_entity_id: str
     predicate: str
@@ -22,6 +25,8 @@ class ComparableClaim:
 
 @dataclass(frozen=True, slots=True)
 class ClaimComparison:
+    """The normalized classification of how two claims relate to each other."""
+
     classification: str
     normalized_dimensions: dict[str, Any]
     reason: str
@@ -94,9 +99,13 @@ def compare_claims(left: ComparableClaim, right: ComparableClaim) -> ClaimCompar
     }
 
     if left.subject_entity_id != right.subject_entity_id:
-        return ClaimComparison("different_relation", normalized, "claims concern different subjects")
+        return ClaimComparison(
+            "different_relation", normalized, "claims concern different subjects"
+        )
     if left.predicate != right.predicate:
-        return ClaimComparison("different_relation", normalized, "predicates are not the same relation")
+        return ClaimComparison(
+            "different_relation", normalized, "predicates are not the same relation"
+        )
 
     left_class = left.qualifiers.get("security_class")
     right_class = right.qualifiers.get("security_class")
@@ -114,12 +123,18 @@ def compare_claims(left: ComparableClaim, right: ComparableClaim) -> ClaimCompar
             )
 
     if not _temporal_overlap(left, right):
-        return ClaimComparison("temporal_successor", normalized, "valid-time intervals do not overlap")
+        return ClaimComparison(
+            "temporal_successor", normalized, "valid-time intervals do not overlap"
+        )
 
     left_status = left.qualifiers.get("txn_status")
     right_status = right.qualifiers.get("txn_status")
     if left_status != right_status and {left_status, right_status} <= {
-        "announced", "completed", "abandoned", "blocked", None
+        "announced",
+        "completed",
+        "abandoned",
+        "blocked",
+        None,
     }:
         return ClaimComparison(
             "different_relation",
@@ -128,7 +143,9 @@ def compare_claims(left: ComparableClaim, right: ComparableClaim) -> ClaimCompar
         )
 
     left_object = left.object_entity_id if left.object_entity_id is not None else left.object_value
-    right_object = right.object_entity_id if right.object_entity_id is not None else right.object_value
+    right_object = (
+        right.object_entity_id if right.object_entity_id is not None else right.object_value
+    )
     if left_object == right_object:
         left_band = _band(left.qualifiers)
         right_band = _band(right.qualifiers)

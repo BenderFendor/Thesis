@@ -7,7 +7,7 @@ materialize an accepted relationship.
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Iterable, Mapping, Sequence
+from collections.abc import Iterable, Mapping, Sequence
 
 POLICY_VERSION = "evidence-policy/2.0"
 
@@ -21,6 +21,8 @@ CATALOG_ONLY_CLASSES = {
 
 @dataclass(frozen=True, slots=True)
 class PredicatePolicy:
+    """The evidence-class and independence gate for one predicate."""
+
     predicate: str
     allowed_evidence_classes: frozenset[str]
     minimum_independent_roots: int = 1
@@ -30,6 +32,8 @@ class PredicatePolicy:
 
 @dataclass(frozen=True, slots=True)
 class ObservationEvidence:
+    """The subset of an observation's fields needed for acceptance evaluation."""
+
     observation_id: str
     evidence_class: str
     root_id: str
@@ -38,6 +42,8 @@ class ObservationEvidence:
 
 @dataclass(frozen=True, slots=True)
 class AcceptanceDecision:
+    """The outcome of evaluating a claim's evidence against its predicate policy."""
+
     accepted: bool
     policy_version: str
     reasons: tuple[str, ...]
@@ -65,9 +71,7 @@ POLICIES: dict[str, PredicatePolicy] = {
     "declared_mission": PredicatePolicy(
         "declared_mission", frozenset({"own_site", "registry_filing"})
     ),
-    "named_editor": PredicatePolicy(
-        "named_editor", frozenset({"own_site", "registry_filing"})
-    ),
+    "named_editor": PredicatePolicy("named_editor", frozenset({"own_site", "registry_filing"})),
     "same_legal_record": PredicatePolicy("same_legal_record", frozenset({"registry_filing"})),
     "legal_form": PredicatePolicy("legal_form", frozenset({"registry_filing"})),
     "jurisdiction": PredicatePolicy("jurisdiction", frozenset({"registry_filing"})),

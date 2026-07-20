@@ -31,6 +31,8 @@ AtlasFactStatus = Literal["candidate", "accepted", "disputed", "rejected", "supe
 
 
 class AtlasEvidenceRef(BaseModel):
+    """A single evidence citation attached to an Atlas node or edge."""
+
     id: str
     source_type: str
     source_name: str | None = None
@@ -43,6 +45,8 @@ class AtlasEvidenceRef(BaseModel):
 
 
 class AtlasNode(BaseModel):
+    """A single entity (source, organization, or reporter) in the Atlas graph."""
+
     id: str
     entity_type: AtlasEntityType
     label: str
@@ -63,6 +67,8 @@ class AtlasNode(BaseModel):
 
 
 class AtlasEdge(BaseModel):
+    """A relationship between two Atlas nodes, candidate or accepted."""
+
     id: str
     source_id: str
     target_id: str
@@ -90,17 +96,22 @@ class AtlasEdge(BaseModel):
 
 
 class AtlasCoverageMetric(BaseModel):
+    """A numerator/denominator pair reported as a rounded percentage."""
+
     numerator: int = 0
     denominator: int = 0
 
     @property
     def percentage(self) -> float:
+        """Return the coverage ratio as a percentage, 0 when there is no denominator."""
         if self.denominator <= 0:
             return 0.0
         return round((self.numerator / self.denominator) * 100, 1)
 
 
 class AtlasGraphStats(BaseModel):
+    """Aggregate node/edge counts and coverage metrics for a graph response."""
+
     total_sources: int = 0
     total_organizations: int = 0
     total_reporters: int = 0
@@ -118,6 +129,8 @@ class AtlasGraphStats(BaseModel):
 
 
 class AtlasGraphFilters(BaseModel):
+    """Query parameters that select and shape a requested Atlas graph view."""
+
     q: str | None = None
     entity_types: list[AtlasEntityType] = Field(default_factory=list)
     relation_types: list[AtlasRelationType] = Field(default_factory=list)
@@ -137,6 +150,8 @@ class AtlasGraphFilters(BaseModel):
 
 
 class AtlasGraphResponse(BaseModel):
+    """The full node/edge payload returned by the Atlas graph endpoint."""
+
     graph_version: str
     generated_at: datetime
     nodes: list[AtlasNode] = Field(default_factory=list)
@@ -149,6 +164,8 @@ class AtlasGraphResponse(BaseModel):
 
 
 class AtlasStatsResponse(BaseModel):
+    """Summary statistics for the Atlas graph, without node/edge payloads."""
+
     graph_version: str
     generated_at: datetime
     stats: AtlasGraphStats
@@ -160,6 +177,8 @@ class AtlasStatsResponse(BaseModel):
 
 
 class AtlasSearchItem(BaseModel):
+    """A single search-result row for one Atlas entity."""
+
     id: str
     entity_type: AtlasEntityType
     label: str
@@ -170,6 +189,8 @@ class AtlasSearchItem(BaseModel):
 
 
 class AtlasSearchResponse(BaseModel):
+    """Search results grouped by entity type."""
+
     query: str
     sources: list[AtlasSearchItem] = Field(default_factory=list)
     organizations: list[AtlasSearchItem] = Field(default_factory=list)
@@ -177,11 +198,15 @@ class AtlasSearchResponse(BaseModel):
 
 
 class AtlasConnectionRecord(BaseModel):
+    """One neighboring entity and the edge connecting it to the queried entity."""
+
     edge: AtlasEdge
     entity: AtlasNode
 
 
 class AtlasEntityRecord(BaseModel):
+    """The full inspector payload for a single Atlas entity."""
+
     id: str
     entity_type: AtlasEntityType
     label: str
@@ -197,6 +222,8 @@ class AtlasEntityRecord(BaseModel):
 
 
 class AtlasIndexResponse(BaseModel):
+    """A paginated, faceted listing of Atlas entities."""
+
     items: list[AtlasNode] = Field(default_factory=list)
     total: int = 0
     next_cursor: str | None = None
@@ -204,6 +231,8 @@ class AtlasIndexResponse(BaseModel):
 
 
 class AtlasExportRequest(BaseModel):
+    """Parameters selecting what slice of the Atlas graph to export and in what format."""
+
     filters: AtlasGraphFilters = Field(default_factory=AtlasGraphFilters)
     selected_entity: str | None = None
     format: Literal["json", "csv_nodes", "csv_relationships", "csv_evidence"] = "json"
