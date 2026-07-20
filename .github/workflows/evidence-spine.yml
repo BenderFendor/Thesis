@@ -22,6 +22,7 @@ on:
       - "backend/tests/test_wiki_atlas_contract.py"
       - "backend/alembic/**"
       - "frontend/features/intelligence-atlas/lib/atlas-schema.ts"
+      - "frontend/features/intelligence-atlas/lib/atlas-api.ts"
       - ".github/workflows/evidence-spine.yml"
   push:
     branches: [main]
@@ -45,6 +46,7 @@ on:
       - "backend/tests/test_wiki_atlas_contract.py"
       - "backend/alembic/**"
       - "frontend/features/intelligence-atlas/lib/atlas-schema.ts"
+      - "frontend/features/intelligence-atlas/lib/atlas-api.ts"
       - ".github/workflows/evidence-spine.yml"
 
 permissions:
@@ -164,12 +166,29 @@ jobs:
         working-directory: frontend
     steps:
       - uses: actions/checkout@v4
+        with:
+          show-progress: false
       - uses: actions/setup-node@v4
         with:
           node-version: "22"
           cache: npm
           cache-dependency-path: frontend/package-lock.json
       - name: Install frontend dependencies
-        run: npm ci --no-audit --no-fund
-      - name: Type-check Atlas schema integration
-        run: npx tsc --noEmit --pretty false
+        run: npm ci --no-audit --no-fund --silent
+      - name: Capture TypeScript diagnostics
+        id: typecheck
+        continue-on-error: true
+        run: npx tsc --noEmit --pretty false > tsc.log 2>&1
+      - name: Upload TypeScript diagnostics
+        if: steps.typecheck.outcome == 'failure'
+        uses: actions/upload-artifact@v4
+        with:
+          name: atlas-tsc-diagnostics
+          path: frontend/tsc.log
+          if-no-files-found: error
+          retention-days: 1
+      - name: Enforce TypeScript result
+        if: steps.typecheck.outcome == 'failure'
+        run: |
+          cat tsc.log
+          exit 1
