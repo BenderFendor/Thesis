@@ -91,6 +91,7 @@ async def _seed_qualifying_claim(
         extractor="test-extractor",
         extractor_version="1.0",
         entailment="reviewed_yes",
+        reviewed_by="test-reviewer",
     )
     db.add(observation)
     await db.flush()
@@ -136,7 +137,7 @@ async def test_competing_owner_claim_opens_adjudication_instead_of_materializing
         object_id="ent_owner_a",
         qualifiers={"pct": 100, "direct": True},
     )
-    await materialize_claim(db, first.id)
+    await materialize_claim(db, first.id, reviewer="test-reviewer")
     await db.flush()
 
     second = await _seed_qualifying_claim(
@@ -147,7 +148,7 @@ async def test_competing_owner_claim_opens_adjudication_instead_of_materializing
         qualifiers={"pct": 100, "direct": True},
     )
     with pytest.raises(EvidenceSpineError, match="adjudication item"):
-        await materialize_claim(db, second.id)
+        await materialize_claim(db, second.id, reviewer="test-reviewer")
 
     items = list((await db.execute(select(AdjudicationItem))).scalars().all())
     assert len(items) == 1
@@ -173,7 +174,7 @@ async def test_out_of_domain_interest_qualifiers_are_rejected(db: AsyncSession) 
         qualifiers={"pct": 150, "direct": True},
     )
     with pytest.raises(EvidenceSpineError, match="invalid ownership interest"):
-        await materialize_claim(db, claim.id)
+        await materialize_claim(db, claim.id, reviewer="test-reviewer")
 
 
 @pytest.mark.asyncio
@@ -199,9 +200,9 @@ async def test_compute_ownership_interest_resolves_a_multi_hop_chain(db: AsyncSe
         object_id="ent_midco",
         qualifiers={"pct": 60, "direct": True},
     )
-    await materialize_claim(db, first.id)
+    await materialize_claim(db, first.id, reviewer="test-reviewer")
     await db.flush()
-    await materialize_claim(db, second.id)
+    await materialize_claim(db, second.id, reviewer="test-reviewer")
     await db.flush()
 
     result = await compute_ownership_interest(
@@ -222,7 +223,7 @@ async def test_materializing_an_interest_claim_records_a_calculation_trace(
         object_id="ent_owner_e",
         qualifiers={"pct": 100, "direct": True},
     )
-    relationship = await materialize_claim(db, claim.id)
+    relationship = await materialize_claim(db, claim.id, reviewer="test-reviewer")
     await db.flush()
 
     traces = list((await db.execute(select(CalculationTrace))).scalars().all())

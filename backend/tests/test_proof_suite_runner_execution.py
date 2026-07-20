@@ -83,6 +83,7 @@ async def _seed_and_materialize(db: AsyncSession) -> tuple[EvidenceEntity, Evide
         extractor="test-extractor",
         extractor_version="1.0",
         entailment="reviewed_yes",
+        reviewed_by="test-reviewer",
     )
     db.add(observation)
     await db.flush()
@@ -105,7 +106,7 @@ async def _seed_and_materialize(db: AsyncSession) -> tuple[EvidenceEntity, Evide
     db.add(ClaimEvidence(claim_id=claim.id, observation_id=observation.id, role="supporting"))
     await db.flush()
 
-    relationship = await materialize_claim(db, claim.id)
+    relationship = await materialize_claim(db, claim.id, reviewer="test-reviewer")
     await db.flush()
     return publication, owner, relationship.id
 
