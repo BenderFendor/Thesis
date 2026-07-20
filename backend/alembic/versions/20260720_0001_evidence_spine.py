@@ -14,16 +14,11 @@ down_revision = None
 branch_labels = None
 depends_on = None
 
-_TABLES = (
-    "evidence_entities", "entity_external_ids", "entity_resolutions", "evidence_documents",
-    "document_snapshots", "archive_requests", "evidence_observations", "evidence_claims",
-    "claim_evidence_links", "accepted_relationships", "relationship_claim_links", "source_lineage",
-    "adjudication_items", "calculation_traces", "evidence_policy_rows", "external_material_events",
-    "preregistrations", "measurement_validation_cards", "corpus_coverage_windows", "proof_runs",
-)
+_TABLES = evidence_models.EVIDENCE_SPINE_TABLES
 
 
 def upgrade() -> None:
+    """Create every evidence-spine table (idempotent via checkfirst)."""
     bind = op.get_bind()
     metadata = evidence_models.Base.metadata
     for table_name in _TABLES:
@@ -31,6 +26,7 @@ def upgrade() -> None:
 
 
 def downgrade() -> None:
+    """Drop every evidence-spine table (idempotent via checkfirst)."""
     bind = op.get_bind()
     metadata = evidence_models.Base.metadata
     for table_name in reversed(_TABLES):

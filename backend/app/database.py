@@ -1133,12 +1133,31 @@ async def get_db() -> AsyncGenerator[AsyncSession, None]:
 
 
 # Initialize database tables
+def _alembic_managed_table_names() -> frozenset[str]:
+    """Tables owned by an Alembic revision, not by ad hoc create_all.
+
+    Imported lazily (not at module scope) to avoid a circular import: the
+    evidence models import ``Base`` from this module.
+    """
+    from app.models.evidence import EVIDENCE_SPINE_TABLES
+
+    return frozenset(EVIDENCE_SPINE_TABLES)
+
+
 async def init_db() -> None:
-    """Create all tables if they don't exist."""
+    """Create all tables if they don't exist.
+
+    Tables owned by an Alembic revision (see `_alembic_managed_table_names`)
+    are deliberately skipped here. Alembic must be the sole authority that
+    creates or alters those tables -- see the comment on
+    `EVIDENCE_SPINE_TABLES` in app/models/evidence.py for why.
+    """
     db_engine = get_engine()
     if db_engine is None:
         logger.info("Skipping database initialization; ENABLE_DATABASE=0")
         return
+
+    alembic_managed = _alembic_managed_table_names()
 
     async def _create_missing_tables() -> None:
         async with db_engine.begin() as conn:
@@ -1148,7 +1167,11 @@ async def init_db() -> None:
                 return set(inspector.get_table_names(schema="public"))
 
             existing = await conn.run_sync(_get_tables)
-            missing = [table for table in Base.metadata.sorted_tables if table.name not in existing]
+            missing = [
+                table
+                for table in Base.metadata.sorted_tables
+                if table.name not in existing and table.name not in alembic_managed
+            ]
             for table in missing:
                 await conn.run_sync(table.create, checkfirst=True)
 
@@ -1182,6 +1205,8 @@ async def init_db() -> None:
             added = 0
 
             for table in Base.metadata.sorted_tables:
+                if table.name in alembic_managed:
+                    continue
                 db_cols = existing_columns.get(table.name)
                 if not db_cols:
                     continue
@@ -1322,10 +1347,17 @@ async def init_db() -> None:
     delay_seconds = 0.25
     attempt = 0
 
+    non_alembic_tables = [
+        table for table in Base.metadata.sorted_tables if table.name not in alembic_managed
+    ]
+
+    def _create_all_except_alembic_managed(sync_conn: Connection) -> None:
+        Base.metadata.create_all(sync_conn, tables=non_alembic_tables)
+
     while True:
         try:
             async with db_engine.begin() as conn:
-                await conn.run_sync(Base.metadata.create_all)
+                await conn.run_sync(_create_all_except_alembic_managed)
                 await _drop_legacy_analysis_tables(conn)
                 logger.info("Database tables initialized successfully")
                 await _add_missing_columns(conn)
