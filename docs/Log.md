@@ -1,5 +1,23 @@
 # Log
 
+## 2026-07-19 — Intelligence Atlas Review Fixes
+
+Repaired the Intelligence Atlas pull request before integration.
+
+- Removed React state-mirroring effects from graph focus, layout, and viewport fitting.
+- Kept Web Worker layout results keyed to their graph topology so stale results do not appear after filter or size changes.
+- Fixed graph zoom controls to use the SVG viewport center.
+- Replaced whole-hook dependencies in the Atlas index and workspace with the specific values and functions they use.
+- Corrected Atlas backend type mismatches in graph projection and evidence export, then brought the new routes, models, and services through the repository Ruff and strict mypy checks.
+
+Verification:
+
+- Atlas backend tests: 6 passed.
+- Atlas frontend tests: 3 passed.
+- Frontend lint: passed with one existing React Compiler warning for TanStack Virtual.
+- Frontend TypeScript check: passed.
+- Atlas backend Ruff and strict mypy checks: passed.
+
 ## 2026-07-19: 8,000-Article Readiness Path
 
 - Raised the startup database cache load from 500 articles to a configurable 10,000-article default so the complete working set is available before the network refresh.
@@ -89,7 +107,6 @@ Added the next Scoop roadmap layer for durable story lineage and correction-watc
 ## 2026-05-26 — Reporter Verification 90 Percent Roadmap
 
 Added `docs/agent/reporter-verification-90-percent-roadmap.md` as the working agent plan for moving from the corrected 40.01% eligible verified baseline to 90% verified coverage. The roadmap records the current shortfall, top source backlog, source-adapter design, blocked-source fetch strategy, evidence table needs, and quality gates that must stay strict while coverage improves.
-
 ## 2026-05-26 — Reporter Confidence Evidence Correction
 
 Corrected the reporter verification model so `verified` requires person-level author/profile evidence instead of any public URL citation.

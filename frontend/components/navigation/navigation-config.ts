@@ -50,8 +50,8 @@ export const WIKI_NAVIGATION: readonly RouteNavigationItem[] = [
   },
   {
     href: "/wiki/ownership",
-    label: "Owner Graph",
-    description: "Trace ownership and funding relationships",
+    label: "Intelligence Atlas",
+    description: "Trace ownership, publishing, reporter, and evidence relationships",
     icon: Network,
     match: (pathname) => pathname.includes("/ownership"),
   },
