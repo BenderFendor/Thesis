@@ -47,6 +47,7 @@ def _load_route_module(module_name: str) -> _RouteModule:
 gdelt = _load_route_module("gdelt")
 wiki = _load_route_module("wiki")
 wiki_atlas = _load_route_module("wiki_atlas")
+wiki_evidence = _load_route_module("wiki_evidence")
 
 router = APIRouter()
 router.include_router(general.router)
@@ -77,3 +78,4 @@ router.include_router(comparison.router)
 router.include_router(blindspots.router)
 router.include_router(wiki.router)
 router.include_router(wiki_atlas.router)
+router.include_router(wiki_evidence.router)
