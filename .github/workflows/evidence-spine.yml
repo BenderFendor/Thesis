@@ -4,12 +4,14 @@ on:
   pull_request:
     paths:
       - "backend/app/models/evidence*.py"
+      - "backend/app/models/atlas.py"
       - "backend/app/services/evidence_*.py"
       - "backend/app/services/ownership_math.py"
       - "backend/app/services/claim_comparison.py"
-      - "backend/app/services/atlas_evidence_projection.py"
+      - "backend/app/services/atlas_*.py"
       - "backend/app/proof_suite/**"
       - "backend/app/api/routes/wiki_evidence.py"
+      - "backend/app/api/routes/wiki_atlas.py"
       - "backend/scripts/check_proof_suite_clean_room.py"
       - "backend/scripts/migrate_legacy_ownership_to_evidence.py"
       - "backend/tests/test_evidence_*.py"
@@ -17,18 +19,22 @@ on:
       - "backend/tests/test_claim_comparison.py"
       - "backend/tests/test_proof_suite_registry.py"
       - "backend/tests/test_clean_room_scanner.py"
+      - "backend/tests/test_wiki_atlas_contract.py"
       - "backend/alembic/**"
+      - "frontend/features/intelligence-atlas/lib/atlas-schema.ts"
       - ".github/workflows/evidence-spine.yml"
   push:
     branches: [main]
     paths:
       - "backend/app/models/evidence*.py"
+      - "backend/app/models/atlas.py"
       - "backend/app/services/evidence_*.py"
       - "backend/app/services/ownership_math.py"
       - "backend/app/services/claim_comparison.py"
-      - "backend/app/services/atlas_evidence_projection.py"
+      - "backend/app/services/atlas_*.py"
       - "backend/app/proof_suite/**"
       - "backend/app/api/routes/wiki_evidence.py"
+      - "backend/app/api/routes/wiki_atlas.py"
       - "backend/scripts/check_proof_suite_clean_room.py"
       - "backend/scripts/migrate_legacy_ownership_to_evidence.py"
       - "backend/tests/test_evidence_*.py"
@@ -36,14 +42,16 @@ on:
       - "backend/tests/test_claim_comparison.py"
       - "backend/tests/test_proof_suite_registry.py"
       - "backend/tests/test_clean_room_scanner.py"
+      - "backend/tests/test_wiki_atlas_contract.py"
       - "backend/alembic/**"
+      - "frontend/features/intelligence-atlas/lib/atlas-schema.ts"
       - ".github/workflows/evidence-spine.yml"
 
 permissions:
   contents: read
 
 jobs:
-  focused-validation:
+  backend-validation:
     runs-on: ubuntu-latest
     timeout-minutes: 15
     env:
@@ -78,23 +86,27 @@ jobs:
             "openai>=1.0.0" \
             "asyncpg>=0.29.0" \
             "psycopg2-binary>=2.9.9"
-      - name: Compile evidence modules and migration
+      - name: Compile evidence and Atlas modules
         run: |
           python -m compileall -q \
             app/models/evidence.py \
             app/models/evidence_api.py \
+            app/models/atlas.py \
             app/services/evidence_policy.py \
             app/services/evidence_spine.py \
             app/services/evidence_export.py \
             app/services/ownership_math.py \
             app/services/claim_comparison.py \
             app/services/atlas_evidence_projection.py \
+            app/services/atlas_graph.py \
+            app/services/atlas_graph_helpers.py \
             app/proof_suite \
             app/api/routes/wiki_evidence.py \
+            app/api/routes/wiki_atlas.py \
             scripts/check_proof_suite_clean_room.py \
             scripts/migrate_legacy_ownership_to_evidence.py \
             alembic
-      - name: Run focused regression suite
+      - name: Run focused and existing Atlas regressions
         run: |
           pytest -q \
             tests/test_evidence_policy.py \
@@ -102,7 +114,8 @@ jobs:
             tests/test_ownership_math.py \
             tests/test_proof_suite_registry.py \
             tests/test_clean_room_scanner.py \
-            tests/test_evidence_export.py
+            tests/test_evidence_export.py \
+            tests/test_wiki_atlas_contract.py
       - name: Enforce clean-room parser rule
         run: python scripts/check_proof_suite_clean_room.py app
       - name: Verify evidence metadata creates cleanly
@@ -142,3 +155,21 @@ jobs:
           assert not missing, f"missing evidence tables: {sorted(missing)}"
           assert names, "evidence model exports should not be empty"
           PY
+
+  frontend-contract:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - name: Install frontend dependencies
+        run: npm ci --no-audit --no-fund
+      - name: Type-check Atlas schema integration
+        run: npx tsc --noEmit --pretty false
