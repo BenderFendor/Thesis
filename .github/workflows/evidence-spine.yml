@@ -1,0 +1,141 @@
+name: Evidence spine
+
+on:
+  pull_request:
+    paths:
+      - "backend/app/models/evidence*.py"
+      - "backend/app/services/evidence_*.py"
+      - "backend/app/services/ownership_math.py"
+      - "backend/app/services/claim_comparison.py"
+      - "backend/app/services/atlas_evidence_projection.py"
+      - "backend/app/proof_suite/**"
+      - "backend/app/api/routes/wiki_evidence.py"
+      - "backend/scripts/check_proof_suite_clean_room.py"
+      - "backend/scripts/migrate_legacy_ownership_to_evidence.py"
+      - "backend/tests/test_evidence_*.py"
+      - "backend/tests/test_ownership_math.py"
+      - "backend/tests/test_claim_comparison.py"
+      - "backend/tests/test_proof_suite_registry.py"
+      - "backend/tests/test_clean_room_scanner.py"
+      - "backend/alembic/**"
+      - ".github/workflows/evidence-spine.yml"
+  push:
+    branches: [main]
+    paths:
+      - "backend/app/models/evidence*.py"
+      - "backend/app/services/evidence_*.py"
+      - "backend/app/services/ownership_math.py"
+      - "backend/app/services/claim_comparison.py"
+      - "backend/app/services/atlas_evidence_projection.py"
+      - "backend/app/proof_suite/**"
+      - "backend/app/api/routes/wiki_evidence.py"
+      - "backend/scripts/check_proof_suite_clean_room.py"
+      - "backend/scripts/migrate_legacy_ownership_to_evidence.py"
+      - "backend/tests/test_evidence_*.py"
+      - "backend/tests/test_ownership_math.py"
+      - "backend/tests/test_claim_comparison.py"
+      - "backend/tests/test_proof_suite_registry.py"
+      - "backend/tests/test_clean_room_scanner.py"
+      - "backend/alembic/**"
+      - ".github/workflows/evidence-spine.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  focused-validation:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      ENABLE_DATABASE: "0"
+      ENABLE_VECTOR_STORE: "0"
+      PYTHONPATH: .
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: backend/requirements.txt
+      - name: Install focused dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install \
+            "sqlalchemy>=2.0.35" \
+            "pydantic>=2.8.0" \
+            "fastapi>=0.110.0" \
+            "alembic>=1.13.0" \
+            "pytest>=8.0.0" \
+            "hypothesis>=6.0.0" \
+            "python-dotenv>=1.0.0" \
+            "google-genai>=0.1.0" \
+            "openai>=1.0.0" \
+            "asyncpg>=0.29.0" \
+            "psycopg2-binary>=2.9.9"
+      - name: Compile evidence modules and migration
+        run: |
+          python -m compileall -q \
+            app/models/evidence.py \
+            app/models/evidence_api.py \
+            app/services/evidence_policy.py \
+            app/services/evidence_spine.py \
+            app/services/evidence_export.py \
+            app/services/ownership_math.py \
+            app/services/claim_comparison.py \
+            app/services/atlas_evidence_projection.py \
+            app/proof_suite \
+            app/api/routes/wiki_evidence.py \
+            scripts/check_proof_suite_clean_room.py \
+            scripts/migrate_legacy_ownership_to_evidence.py \
+            alembic
+      - name: Run focused regression suite
+        run: |
+          pytest -q \
+            tests/test_evidence_policy.py \
+            tests/test_claim_comparison.py \
+            tests/test_ownership_math.py \
+            tests/test_proof_suite_registry.py \
+            tests/test_clean_room_scanner.py \
+            tests/test_evidence_export.py
+      - name: Enforce clean-room parser rule
+        run: python scripts/check_proof_suite_clean_room.py app
+      - name: Verify evidence metadata creates cleanly
+        run: |
+          python - <<'PY'
+          from sqlalchemy import create_engine, inspect
+          from app.database import Base
+          from app.models import evidence  # noqa: F401
+
+          engine = create_engine("sqlite:///:memory:")
+          names = set(evidence.__all__)
+          Base.metadata.create_all(engine)
+          tables = set(inspect(engine).get_table_names())
+          expected = {
+              "evidence_entities",
+              "entity_external_ids",
+              "entity_resolutions",
+              "evidence_documents",
+              "document_snapshots",
+              "archive_requests",
+              "evidence_observations",
+              "evidence_claims",
+              "claim_evidence_links",
+              "accepted_relationships",
+              "relationship_claim_links",
+              "source_lineage",
+              "adjudication_items",
+              "calculation_traces",
+              "evidence_policy_rows",
+              "external_material_events",
+              "preregistrations",
+              "measurement_validation_cards",
+              "corpus_coverage_windows",
+              "proof_runs",
+          }
+          missing = expected - tables
+          assert not missing, f"missing evidence tables: {sorted(missing)}"
+          assert names, "evidence model exports should not be empty"
+          PY
