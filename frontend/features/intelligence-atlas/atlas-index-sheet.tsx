@@ -25,6 +25,7 @@ interface AtlasIndexSheetProps {
   country: string[];
   funding: string[];
   bias: string[];
+  onFiltersChange: (filters: { country?: string[]; funding?: string[]; bias?: string[] }) => void;
   onSelect: (nodeId: string) => void;
 }
 
@@ -42,6 +43,7 @@ export function AtlasIndexSheet({
   country,
   funding,
   bias,
+  onFiltersChange,
   onSelect,
 }: AtlasIndexSheetProps) {
   const [type, setType] = useState<"all" | AtlasEntityType>("all");
@@ -82,6 +84,7 @@ export function AtlasIndexSheet({
   } = indexQuery;
   const items = useMemo(() => data?.pages.flatMap((page) => page.items) ?? [], [data]);
   const total = data?.pages[0]?.total ?? 0;
+  const facets = data?.pages[0]?.facets;
   const virtualizer = useVirtualizer({
     count: items.length,
     getScrollElement: () => viewportRef.current,
@@ -140,6 +143,24 @@ export function AtlasIndexSheet({
                   <option value="lowest_confidence">Lowest confidence</option>
                 </select>
               </label>
+              <FacetSelect
+                label="Country"
+                value={country[0] ?? "all"}
+                values={Object.keys(facets?.country ?? {}).sort()}
+                onChange={(value) => onFiltersChange({ country: value === "all" ? [] : [value] })}
+              />
+              <FacetSelect
+                label="Funding"
+                value={funding[0] ?? "all"}
+                values={Object.keys(facets?.funding ?? {}).sort()}
+                onChange={(value) => onFiltersChange({ funding: value === "all" ? [] : [value] })}
+              />
+              <FacetSelect
+                label="Bias"
+                value={bias[0] ?? "all"}
+                values={Object.keys(facets?.bias ?? {}).sort()}
+                onChange={(value) => onFiltersChange({ bias: value === "all" ? [] : [value] })}
+              />
             </div>
           </div>
           <div className="mt-4 flex gap-2 overflow-x-auto">
@@ -191,6 +212,9 @@ export function AtlasIndexSheet({
                       <span className="block truncate text-sm text-[#f0ede4]">{node.label}</span>
                       <span className="mt-1 block truncate font-mono text-[9px] uppercase tracking-[0.13em] text-[#77736a]">
                         {node.subtitle || node.entity_type}
+                        {Object.keys(node.analysis_scores).length > 0
+                          ? ` · ${Object.keys(node.analysis_scores).length} analysis scores`
+                          : ""}
                       </span>
                     </span>
                     <span className="text-xs text-[#c9c3b6]">{node.country_code || "—"}</span>
@@ -212,5 +236,34 @@ export function AtlasIndexSheet({
         ) : null}
       </DialogContent>
     </Dialog>
+  );
+}
+
+function FacetSelect({
+  label,
+  value,
+  values,
+  onChange,
+}: {
+  label: string;
+  value: string;
+  values: string[];
+  onChange: (value: string) => void;
+}) {
+  return (
+    <label className="rounded-xl border border-white/10 bg-black/20 px-3">
+      <span className="sr-only">{label}</span>
+      <select
+        value={value}
+        onChange={(event) => onChange(event.target.value)}
+        className="h-10 max-w-36 bg-transparent text-sm text-[#c9c3b6] outline-none"
+        aria-label={`Filter by ${label.toLowerCase()}`}
+      >
+        <option value="all">All {label.toLowerCase()}</option>
+        {values.map((option) => (
+          <option key={option} value={option}>{option}</option>
+        ))}
+      </select>
+    </label>
   );
 }

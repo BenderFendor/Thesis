@@ -88,4 +88,17 @@ describe("GlobalNavigation", () => {
 
     expect(screen.getByRole("link", { name: "Sources" })).toHaveAttribute("aria-current", "page")
   })
+
+  it("exposes the Atlas as the only media intelligence workspace", () => {
+    pathname = "/wiki/ownership"
+
+    render(<GlobalNavigation />)
+
+    expect(screen.getByRole("link", { name: "Intelligence Atlas" })).toHaveAttribute(
+      "aria-current",
+      "page",
+    )
+    expect(screen.queryByRole("link", { name: "Media Wiki" })).not.toBeInTheDocument()
+    expect(screen.queryByRole("link", { name: "Reporter Graph" })).not.toBeInTheDocument()
+  })
 })

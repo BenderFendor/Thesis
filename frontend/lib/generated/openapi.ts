@@ -3111,26 +3111,6 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/wiki/reporters/graph": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * Get Reporter Graph
-         * @description Get reporter network graph data for force-directed visualization.
-         */
-        get: operations["get_reporter_graph_api_wiki_reporters_graph_get"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
     "/api/wiki/reporters/{reporter_id}": {
         parameters: {
             query?: never;
@@ -3272,6 +3252,146 @@ export interface paths {
          *     mode=sparql: Only run Wikidata SPARQL seed.
          */
         post: operations["trigger_reporter_index_api_wiki_index_reporters_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/wiki/atlas/graph": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Atlas Graph
+         * @description Return a bounded graph for the requested Atlas filters.
+         */
+        get: operations["get_atlas_graph_api_wiki_atlas_graph_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/wiki/atlas/stats": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Atlas Stats
+         * @description Return graph coverage and indexing status.
+         */
+        get: operations["get_atlas_stats_api_wiki_atlas_stats_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/wiki/atlas/search": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Search Atlas Entities
+         * @description Search Atlas entities and group matches by entity type.
+         */
+        get: operations["search_atlas_entities_api_wiki_atlas_search_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/wiki/atlas/entities/{entity_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Atlas Entity Record
+         * @description Return one Atlas entity with evidence and connections.
+         */
+        get: operations["get_atlas_entity_record_api_wiki_atlas_entities__entity_id__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/wiki/atlas/entities/{entity_id}/connections": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Atlas Entity Connections
+         * @description Return the relationships connected to one Atlas entity.
+         */
+        get: operations["get_atlas_entity_connections_api_wiki_atlas_entities__entity_id__connections_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/wiki/atlas/index": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Atlas Index
+         * @description Return one filtered and sorted page of the Atlas entity index.
+         */
+        get: operations["get_atlas_index_api_wiki_atlas_index_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/wiki/atlas/export": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Export Atlas
+         * @description Export the requested Atlas graph as versioned JSON or CSV.
+         */
+        post: operations["export_atlas_api_wiki_atlas_export_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -3443,6 +3563,442 @@ export interface components {
             summary?: string | null;
             /** Error */
             error?: string | null;
+        };
+        /**
+         * AtlasConnectionRecord
+         * @description A relationship paired with the entity on its other end.
+         */
+        AtlasConnectionRecord: {
+            edge: components["schemas"]["AtlasEdge"];
+            entity: components["schemas"]["AtlasNode"];
+        };
+        /**
+         * AtlasCoverageMetric
+         * @description A numerator and denominator for an Atlas coverage measure.
+         */
+        AtlasCoverageMetric: {
+            /**
+             * Numerator
+             * @default 0
+             */
+            numerator: number;
+            /**
+             * Denominator
+             * @default 0
+             */
+            denominator: number;
+        };
+        /**
+         * AtlasEdge
+         * @description A typed, evidence-aware Atlas relationship.
+         */
+        AtlasEdge: {
+            /** Id */
+            id: string;
+            /** Source Id */
+            source_id: string;
+            /** Target Id */
+            target_id: string;
+            /**
+             * Relation Type
+             * @enum {string}
+             */
+            relation_type: "ownership" | "owned_by" | "parent_org" | "part_of" | "publishes" | "employed_by" | "current_outlet" | "coauthor" | "shared_outlet";
+            /**
+             * Direction
+             * @default directed
+             * @enum {string}
+             */
+            direction: "directed" | "undirected";
+            /**
+             * Weight
+             * @default 1
+             */
+            weight: number;
+            /** Ownership Percentage */
+            ownership_percentage?: number | null;
+            /** Confidence */
+            confidence?: number | null;
+            /** Confidence Tier */
+            confidence_tier?: ("verified" | "strong" | "likely" | "unresolved" | "conflicting" | "stale") | null;
+            /**
+             * Evidence Count
+             * @default 0
+             */
+            evidence_count: number;
+            /** Evidence Preview */
+            evidence_preview?: components["schemas"]["AtlasEvidenceRef"][];
+            /** Valid From */
+            valid_from?: string | null;
+            /** Valid To */
+            valid_to?: string | null;
+            /** Last Verified At */
+            last_verified_at?: string | null;
+            /**
+             * Is Inferred
+             * @default false
+             */
+            is_inferred: boolean;
+            /** Raw Relation Type */
+            raw_relation_type?: string | null;
+        };
+        /**
+         * AtlasEntityRecord
+         * @description Detailed evidence and connections for one Atlas entity.
+         */
+        AtlasEntityRecord: {
+            /** Id */
+            id: string;
+            /**
+             * Entity Type
+             * @enum {string}
+             */
+            entity_type: "source" | "organization" | "reporter";
+            /** Label */
+            label: string;
+            /** Subtitle */
+            subtitle?: string | null;
+            /** Country Code */
+            country_code?: string | null;
+            /** Status */
+            status?: string | null;
+            /** Confidence Tier */
+            confidence_tier?: ("verified" | "strong" | "likely" | "unresolved" | "conflicting" | "stale") | null;
+            /** Last Verified At */
+            last_verified_at?: string | null;
+            /** Profile Path */
+            profile_path?: string | null;
+            /** Details */
+            details?: {
+                [key: string]: unknown;
+            };
+            /** Evidence */
+            evidence?: components["schemas"]["AtlasEvidenceRef"][];
+            /** Connections */
+            connections?: components["schemas"]["AtlasConnectionRecord"][];
+        };
+        /**
+         * AtlasEvidenceRef
+         * @description Small evidence record safe to include in graph responses.
+         */
+        AtlasEvidenceRef: {
+            /** Id */
+            id: string;
+            /** Source Type */
+            source_type: string;
+            /** Source Name */
+            source_name?: string | null;
+            /** Source Url */
+            source_url?: string | null;
+            /** Retrieved At */
+            retrieved_at?: string | null;
+            /** Excerpt */
+            excerpt?: string | null;
+        };
+        /**
+         * AtlasExportRequest
+         * @description Requested Atlas export format, scope, and optional layout data.
+         */
+        AtlasExportRequest: {
+            filters?: components["schemas"]["AtlasGraphFilters"];
+            /** Selected Entity */
+            selected_entity?: string | null;
+            /**
+             * Format
+             * @default json
+             * @enum {string}
+             */
+            format: "json" | "csv_nodes" | "csv_relationships" | "csv_evidence";
+            /**
+             * Include Evidence
+             * @default true
+             */
+            include_evidence: boolean;
+            /** Visible Layout Positions */
+            visible_layout_positions?: {
+                [key: string]: {
+                    [key: string]: number;
+                };
+            } | null;
+        };
+        /**
+         * AtlasGraphFilters
+         * @description Validated filters and bounds for an Atlas graph request.
+         */
+        AtlasGraphFilters: {
+            /** Q */
+            q?: string | null;
+            /** Entity Types */
+            entity_types?: ("source" | "organization" | "reporter")[];
+            /** Relation Types */
+            relation_types?: ("ownership" | "owned_by" | "parent_org" | "part_of" | "publishes" | "employed_by" | "current_outlet" | "coauthor" | "shared_outlet")[];
+            /** Country */
+            country?: string[];
+            /** Funding */
+            funding?: string[];
+            /** Bias */
+            bias?: string[];
+            /**
+             * Min Confidence
+             * @default 0
+             */
+            min_confidence: number;
+            /** Selected */
+            selected?: string | null;
+            /**
+             * Neighbors
+             * @default 0
+             */
+            neighbors: number;
+            /**
+             * Layout
+             * @default clustered
+             * @enum {string}
+             */
+            layout: "clustered" | "ownership" | "geography" | "radial";
+            /**
+             * Limit Nodes
+             * @default 350
+             */
+            limit_nodes: number;
+            /**
+             * Limit Edges
+             * @default 1500
+             */
+            limit_edges: number;
+            /**
+             * Include Evidence Preview
+             * @default true
+             */
+            include_evidence_preview: boolean;
+        };
+        /**
+         * AtlasGraphResponse
+         * @description A bounded Atlas graph projection and its request metadata.
+         */
+        AtlasGraphResponse: {
+            /** Graph Version */
+            graph_version: string;
+            /**
+             * Generated At
+             * Format: date-time
+             */
+            generated_at: string;
+            /** Nodes */
+            nodes?: components["schemas"]["AtlasNode"][];
+            /** Edges */
+            edges?: components["schemas"]["AtlasEdge"][];
+            stats: components["schemas"]["AtlasGraphStats"];
+            applied_filters: components["schemas"]["AtlasGraphFilters"];
+            /**
+             * Truncated
+             * @default false
+             */
+            truncated: boolean;
+            /** Truncation Reason */
+            truncation_reason?: string | null;
+            /** Next Expansion Token */
+            next_expansion_token?: string | null;
+        };
+        /**
+         * AtlasGraphStats
+         * @description Aggregate counts for the full and currently visible Atlas graph.
+         */
+        AtlasGraphStats: {
+            /**
+             * Total Sources
+             * @default 0
+             */
+            total_sources: number;
+            /**
+             * Total Organizations
+             * @default 0
+             */
+            total_organizations: number;
+            /**
+             * Total Reporters
+             * @default 0
+             */
+            total_reporters: number;
+            /**
+             * Visible Sources
+             * @default 0
+             */
+            visible_sources: number;
+            /**
+             * Visible Organizations
+             * @default 0
+             */
+            visible_organizations: number;
+            /**
+             * Visible Reporters
+             * @default 0
+             */
+            visible_reporters: number;
+            /**
+             * Visible Relationships
+             * @default 0
+             */
+            visible_relationships: number;
+            /**
+             * Current Relationships
+             * @default 0
+             */
+            current_relationships: number;
+            ownership_coverage?: components["schemas"]["AtlasCoverageMetric"];
+            evidence_coverage?: components["schemas"]["AtlasCoverageMetric"];
+            /**
+             * Unresolved Source Links
+             * @default 0
+             */
+            unresolved_source_links: number;
+        };
+        /**
+         * AtlasIndexResponse
+         * @description One cursor-based page from the Atlas entity index.
+         */
+        AtlasIndexResponse: {
+            /** Items */
+            items?: components["schemas"]["AtlasNode"][];
+            /**
+             * Total
+             * @default 0
+             */
+            total: number;
+            /** Next Cursor */
+            next_cursor?: string | null;
+            /** Facets */
+            facets?: {
+                [key: string]: {
+                    [key: string]: number;
+                };
+            };
+        };
+        /**
+         * AtlasNode
+         * @description A stable Atlas entity node.
+         */
+        AtlasNode: {
+            /** Id */
+            id: string;
+            /**
+             * Entity Type
+             * @enum {string}
+             */
+            entity_type: "source" | "organization" | "reporter";
+            /** Label */
+            label: string;
+            /** Subtitle */
+            subtitle?: string | null;
+            /** Country Code */
+            country_code?: string | null;
+            /** Funding Type */
+            funding_type?: string | null;
+            /** Bias Rating */
+            bias_rating?: string | null;
+            /** Factual Reporting */
+            factual_reporting?: string | null;
+            /** Credibility Score */
+            credibility_score?: number | null;
+            /** Analysis Scores */
+            analysis_scores?: {
+                [key: string]: number;
+            };
+            /**
+             * Article Count
+             * @default 0
+             */
+            article_count: number;
+            /**
+             * Connection Count
+             * @default 0
+             */
+            connection_count: number;
+            /**
+             * Ownership Connection Count
+             * @default 0
+             */
+            ownership_connection_count: number;
+            /** Status */
+            status?: string | null;
+            /** Confidence Tier */
+            confidence_tier?: ("verified" | "strong" | "likely" | "unresolved" | "conflicting" | "stale") | null;
+            /** Profile Path */
+            profile_path?: string | null;
+            /** Updated At */
+            updated_at?: string | null;
+            /** Flags */
+            flags?: string[];
+        };
+        /**
+         * AtlasSearchItem
+         * @description A compact entity search result.
+         */
+        AtlasSearchItem: {
+            /** Id */
+            id: string;
+            /**
+             * Entity Type
+             * @enum {string}
+             */
+            entity_type: "source" | "organization" | "reporter";
+            /** Label */
+            label: string;
+            /** Subtitle */
+            subtitle?: string | null;
+            /** Country Code */
+            country_code?: string | null;
+            /** Confidence Tier */
+            confidence_tier?: ("verified" | "strong" | "likely" | "unresolved" | "conflicting" | "stale") | null;
+            /** Profile Path */
+            profile_path?: string | null;
+        };
+        /**
+         * AtlasSearchResponse
+         * @description Entity search results grouped by type.
+         */
+        AtlasSearchResponse: {
+            /** Query */
+            query: string;
+            /** Sources */
+            sources?: components["schemas"]["AtlasSearchItem"][];
+            /** Organizations */
+            organizations?: components["schemas"]["AtlasSearchItem"][];
+            /** Reporters */
+            reporters?: components["schemas"]["AtlasSearchItem"][];
+        };
+        /**
+         * AtlasStatsResponse
+         * @description Atlas graph and indexing statistics.
+         */
+        AtlasStatsResponse: {
+            /** Graph Version */
+            graph_version: string;
+            /**
+             * Generated At
+             * Format: date-time
+             */
+            generated_at: string;
+            stats: components["schemas"]["AtlasGraphStats"];
+            /** By Entity Type */
+            by_entity_type?: {
+                [key: string]: number;
+            };
+            /** By Relation Type */
+            by_relation_type?: {
+                [key: string]: number;
+            };
+            /** By Index Status */
+            by_index_status?: {
+                [key: string]: number;
+            };
+            /** Last Indexed At */
+            last_indexed_at?: string | null;
+            /**
+             * Indexing Active
+             * @default false
+             */
+            indexing_active: boolean;
         };
         /**
          * BlindspotCardResponse
@@ -4927,26 +5483,6 @@ export interface components {
             research_sources?: string[] | null;
             /** Research Confidence */
             research_confidence?: string | null;
-        };
-        /**
-         * ReporterGraphResponse
-         * @description Reporter Graph Response.
-         */
-        ReporterGraphResponse: {
-            /**
-             * Nodes
-             * @default []
-             */
-            nodes: {
-                [key: string]: unknown;
-            }[];
-            /**
-             * Edges
-             * @default []
-             */
-            edges: {
-                [key: string]: unknown;
-            }[];
         };
         /**
          * ReporterProfileRequest
@@ -10289,39 +10825,6 @@ export interface operations {
             };
         };
     };
-    get_reporter_graph_api_wiki_reporters_graph_get: {
-        parameters: {
-            query?: {
-                limit?: number;
-                /** @description Maximum number of graph edges to return. */
-                edge_limit?: number;
-            };
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ReporterGraphResponse"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
     get_reporter_dossier_api_wiki_reporters__reporter_id__get: {
         parameters: {
             query?: never;
@@ -10518,6 +11021,234 @@ export interface operations {
                     "application/json": {
                         [key: string]: unknown;
                     };
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_atlas_graph_api_wiki_atlas_graph_get: {
+        parameters: {
+            query?: {
+                q?: string | null;
+                entity_types?: string | null;
+                relation_types?: string | null;
+                country?: string | null;
+                funding?: string | null;
+                bias?: string | null;
+                min_confidence?: number;
+                selected?: string | null;
+                neighbors?: number;
+                limit_nodes?: number;
+                limit_edges?: number;
+                layout?: "clustered" | "ownership" | "geography" | "radial";
+                include_evidence_preview?: boolean;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AtlasGraphResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_atlas_stats_api_wiki_atlas_stats_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AtlasStatsResponse"];
+                };
+            };
+        };
+    };
+    search_atlas_entities_api_wiki_atlas_search_get: {
+        parameters: {
+            query: {
+                q: string;
+                limit?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AtlasSearchResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_atlas_entity_record_api_wiki_atlas_entities__entity_id__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                entity_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AtlasEntityRecord"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_atlas_entity_connections_api_wiki_atlas_entities__entity_id__connections_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                entity_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AtlasConnectionRecord"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_atlas_index_api_wiki_atlas_index_get: {
+        parameters: {
+            query?: {
+                entity_types?: string | null;
+                q?: string | null;
+                country?: string | null;
+                funding?: string | null;
+                bias?: string | null;
+                sort?: "name" | "most_connected" | "most_articles" | "recently_indexed" | "lowest_confidence";
+                cursor?: string | null;
+                limit?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AtlasIndexResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    export_atlas_api_wiki_atlas_export_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AtlasExportRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
                 };
             };
             /** @description Validation Error */

@@ -10,7 +10,7 @@ Active thesis project. The app runs locally with `runlocal.sh` or Docker Compose
 
 - Curated RSS ingestion with source ownership, funding, country, and bias metadata.
 - News feed, saved queue, source pages, topic clusters, and country/lens views.
-- Source and reporter wiki pages, including ownership and reporter graph views backed by deterministic indexing and public-source evidence.
+- A unified Intelligence Atlas for source profiles, ownership, reporter networks, and public-source evidence.
 - Research agents for article search, source context, and verification workflows.
 - Semantic search through ChromaDB with lexical fallback paths.
 - Operator/debug surfaces for cache status, source health, logs, wiki indexing, resource use, and agent-readable debug bundles.

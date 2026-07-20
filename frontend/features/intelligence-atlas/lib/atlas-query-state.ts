@@ -36,8 +36,18 @@ const PANEL_VALUES = new Set<AtlasPanel>(["none", "inspector", "index", "operati
 
 export const DEFAULT_ATLAS_QUERY_STATE: AtlasQueryState = {
   q: "",
-  entities: ["source", "organization"],
-  relations: ["ownership", "owned_by", "parent_org", "part_of", "publishes"],
+  entities: ["source", "organization", "reporter"],
+  relations: [
+    "ownership",
+    "owned_by",
+    "parent_org",
+    "part_of",
+    "publishes",
+    "employed_by",
+    "current_outlet",
+    "coauthor",
+    "shared_outlet",
+  ],
   country: [],
   funding: [],
   bias: [],

@@ -85,6 +85,7 @@ export function AtlasGraph({
   const [dimensions, setDimensions] = useState({ width: 1280, height: 760 });
   const [manualTransform, setManualTransform] = useState<{ key: string; value: Transform } | null>(null);
   const [keyboardActiveNodeId, setKeyboardActiveNodeId] = useState<string | null>(selectedId);
+  const [hoveredNodeId, setHoveredNodeId] = useState<string | null>(null);
   const [panning, setPanning] = useState(false);
   const panRef = useRef<{ pointerId: number; x: number; y: number; originX: number; originY: number } | null>(null);
 
@@ -124,10 +125,26 @@ export function AtlasGraph({
     });
     return ids;
   }, [edges, selectedId]);
+  const interactionNodeId = hoveredNodeId ?? selectedId;
+  const interactionNeighbors = useMemo(() => {
+    const ids = new Set<string>();
+    if (!interactionNodeId) return ids;
+    ids.add(interactionNodeId);
+    edges.forEach((edge) => {
+      if (edge.source_id === interactionNodeId) ids.add(edge.target_id);
+      if (edge.target_id === interactionNodeId) ids.add(edge.source_id);
+    });
+    return ids;
+  }, [edges, interactionNodeId]);
   const orderedNodes = useMemo(
     () => [...nodes].sort((left, right) => right.connection_count - left.connection_count || left.label.localeCompare(right.label)),
     [nodes],
   );
+  const priorityLabelIds = useMemo(
+    () => new Set(orderedNodes.slice(0, 28).map((node) => node.id)),
+    [orderedNodes],
+  );
+  const hoveredNode = hoveredNodeId ? nodes.find((node) => node.id === hoveredNodeId) ?? null : null;
   const activeNodeId = selectedId
     ?? (keyboardActiveNodeId && nodes.some((node) => node.id === keyboardActiveNodeId)
       ? keyboardActiveNodeId
@@ -277,8 +294,14 @@ export function AtlasGraph({
             const source = positions[edge.source_id];
             const target = positions[edge.target_id];
             if (!source || !target) return null;
-            const dimmed = focus && selectedId && !selectedNeighbors.has(edge.source_id) && !selectedNeighbors.has(edge.target_id);
+            const focusDimmed = focus && selectedId && !selectedNeighbors.has(edge.source_id) && !selectedNeighbors.has(edge.target_id);
+            const touchesInteraction = Boolean(
+              interactionNodeId &&
+              (edge.source_id === interactionNodeId || edge.target_id === interactionNodeId),
+            );
+            const dimmed = focusDimmed || Boolean(interactionNodeId && !touchesInteraction);
             const dashed = edge.is_inferred || edge.confidence_tier === "likely" || edge.confidence_tier === "unresolved";
+            const baseOpacity = Math.min(0.2, 0.06 + Math.log2(edge.weight + 1) * 0.025);
             return (
               <line
                 key={edge.id}
@@ -288,7 +311,8 @@ export function AtlasGraph({
                 x2={target.x}
                 y2={target.y}
                 stroke={EDGE_STROKE[edge.relation_type]}
-                strokeOpacity={dimmed ? 0.08 : Math.max(0.22, edge.confidence ?? 0.55)}
+                strokeOpacity={dimmed ? 0.025 : touchesInteraction ? 0.78 : baseOpacity}
+                strokeWidth={touchesInteraction ? 1.8 : Math.min(1.25, 0.55 + Math.log2(edge.weight + 1) * 0.14)}
                 strokeDasharray={dashed ? "5 5" : undefined}
                 markerEnd={edge.direction === "directed" ? `url(#${edge.relation_type === "ownership" ? "atlas-arrow-gold" : "atlas-arrow-neutral"})` : undefined}
               />
@@ -300,8 +324,15 @@ export function AtlasGraph({
             const radius = nodeRadius(node);
             const selected = selectedId === node.id;
             const active = activeNodeId === node.id;
-            const dimmed = focus && selectedId && !selectedNeighbors.has(node.id);
+            const interacting = hoveredNodeId === node.id;
+            const dimmed = (focus && selectedId && !selectedNeighbors.has(node.id))
+              || Boolean(interactionNodeId && !interactionNeighbors.has(node.id));
             const confidence = node.confidence_tier ?? "unresolved";
+            const showLabel = transform.scale >= 1.15
+              || priorityLabelIds.has(node.id)
+              || selected
+              || interacting;
+            const priorityLabel = selected || interacting || priorityLabelIds.has(node.id);
             return (
               <g
                 key={node.id}
@@ -312,7 +343,9 @@ export function AtlasGraph({
                 role="button"
                 aria-label={`${node.label}, ${node.entity_type}, ${node.connection_count} connections, ${confidence} confidence`}
                 aria-pressed={selected}
-                opacity={dimmed ? 0.16 : 1}
+                opacity={dimmed ? 0.14 : 1}
+                onMouseEnter={() => setHoveredNodeId(node.id)}
+                onMouseLeave={() => setHoveredNodeId((current) => current === node.id ? null : current)}
                 onClick={(event) => {
                   event.stopPropagation();
                   setKeyboardActiveNodeId(node.id);
@@ -320,6 +353,7 @@ export function AtlasGraph({
                 }}
                 onKeyDown={(event) => handleNodeKeyboard(event, node.id)}
               >
+                <title>{`${node.label} — ${node.entity_type}, ${node.connection_count} connections, ${node.article_count} articles`}</title>
                 <circle
                   className={styles.nodeHalo}
                   r={radius + (selected ? 8 : 5)}
@@ -334,12 +368,23 @@ export function AtlasGraph({
                 {node.flags.includes("needs-review") ? (
                   <circle cx={radius * 0.7} cy={-radius * 0.7} r={3.2} fill="#f1635e" stroke="#080907" strokeWidth={1.5} />
                 ) : null}
-                <text className={styles.nodeLabel} x={radius + 7} y={1} fill="#f0ede4">
-                  {node.label.length > 34 ? `${node.label.slice(0, 31)}…` : node.label}
-                </text>
-                <text className={styles.nodeMeta} x={radius + 7} y={13}>
-                  {node.entity_type} · {node.connection_count}
-                </text>
+                {showLabel ? (
+                  <>
+                    <text
+                      className={`${styles.nodeLabel} ${priorityLabel ? styles.nodeLabelPriority : ""}`}
+                      x={radius + 7}
+                      y={priorityLabel ? 0 : 1}
+                      fill="#f0ede4"
+                    >
+                      {node.label.length > 34 ? `${node.label.slice(0, 31)}…` : node.label}
+                    </text>
+                    {priorityLabel ? (
+                      <text className={styles.nodeMeta} x={radius + 7} y={14}>
+                        {node.entity_type} · {node.connection_count} links
+                      </text>
+                    ) : null}
+                  </>
+                ) : null}
               </g>
             );
           })}
@@ -373,6 +418,24 @@ export function AtlasGraph({
           <Scan className="h-4 w-4" />
         </button>
       </div>
+      <div className={styles.graphLegend} aria-hidden="true">
+        <span><span className="text-[#f0ede4]">■</span> source</span>
+        <span><span className="text-[#d7b35f]">●</span> organization</span>
+        <span><span className="text-[#88a9ff]">◆</span> reporter</span>
+        <span>Zoom for all labels</span>
+      </div>
+      {hoveredNode ? (
+        <div className={styles.graphHoverCard} aria-hidden="true">
+          <div className={styles.brandEyebrow}>{hoveredNode.entity_type}</div>
+          <div className="mt-1 font-serif text-xl text-[#f0ede4]">{hoveredNode.label}</div>
+          <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 font-mono text-[10px] uppercase tracking-[0.1em] text-[#77736a]">
+            <span>{hoveredNode.connection_count} links</span>
+            <span>{hoveredNode.article_count} articles</span>
+            {hoveredNode.bias_rating ? <span>{hoveredNode.bias_rating}</span> : null}
+            {hoveredNode.funding_type ? <span>{hoveredNode.funding_type}</span> : null}
+          </div>
+        </div>
+      ) : null}
       <div className={styles.graphStatus} aria-live="polite">
         <span className={`h-1.5 w-1.5 rounded-full ${stable ? "bg-emerald-300" : "animate-pulse bg-amber-300"}`} />
         {stable ? "Layout stable" : "Calculating layout"}

@@ -7,7 +7,23 @@ export const AtlasRelationTypeSchema = z.enum([
 ]);
 export const AtlasConfidenceTierSchema = z.enum(["verified", "strong", "likely", "unresolved", "conflicting", "stale"]);
 export const AtlasFactStatusSchema = z.enum(["candidate", "accepted", "disputed", "rejected", "superseded"]);
-const NullableDateSchema = z.string().datetime({ offset: true }).nullable().optional();
+
+const OffsetDateSchema = z.string().datetime({ offset: true });
+const AtlasDateSchema = z.string().transform((value, context) => {
+  const offsetDate = OffsetDateSchema.safeParse(value);
+  if (offsetDate.success) return offsetDate.data;
+
+  // PostgreSQL stores UTC datetimes without tzinfo in this project. FastAPI
+  // serializes those values as ISO strings without an offset, so restore the
+  // UTC marker at the API boundary instead of rejecting the whole graph.
+  const utcCandidate = `${value}Z`;
+  const utcDate = OffsetDateSchema.safeParse(utcCandidate);
+  if (utcDate.success) return utcDate.data;
+
+  context.addIssue({ code: z.ZodIssueCode.custom, message: "Invalid datetime" });
+  return z.NEVER;
+});
+const NullableDateSchema = AtlasDateSchema.nullable().optional();
 
 export const AtlasEvidenceSchema = z.object({
   id: z.string(), source_type: z.string(), source_name: z.string().nullable().optional(),
@@ -20,7 +36,8 @@ export const AtlasNodeSchema = z.object({
   id: z.string(), entity_type: AtlasEntityTypeSchema, label: z.string(), subtitle: z.string().nullable().optional(),
   country_code: z.string().nullable().optional(), funding_type: z.string().nullable().optional(),
   bias_rating: z.string().nullable().optional(), factual_reporting: z.string().nullable().optional(),
-  credibility_score: z.number().nullable().optional(), article_count: z.number().int().nonnegative().default(0),
+  credibility_score: z.number().nullable().optional(), analysis_scores: z.record(z.string(), z.number()).default({}),
+  article_count: z.number().int().nonnegative().default(0),
   connection_count: z.number().int().nonnegative().default(0), ownership_connection_count: z.number().int().nonnegative().default(0),
   status: z.string().nullable().optional(), confidence_tier: AtlasConfidenceTierSchema.nullable().optional(),
   profile_path: z.string().nullable().optional(), updated_at: NullableDateSchema, flags: z.array(z.string()).default([]),
@@ -63,12 +80,12 @@ export const AtlasGraphFiltersSchema = z.object({
 });
 
 export const AtlasGraphResponseSchema = z.object({
-  graph_version: z.string(), generated_at: z.string().datetime({ offset: true }), nodes: z.array(AtlasNodeSchema),
+  graph_version: z.string(), generated_at: AtlasDateSchema, nodes: z.array(AtlasNodeSchema),
   edges: z.array(AtlasEdgeSchema), stats: AtlasStatsSchema, applied_filters: AtlasGraphFiltersSchema,
   truncated: z.boolean(), truncation_reason: z.string().nullable().optional(), next_expansion_token: z.string().nullable().optional(),
 });
 export const AtlasStatsResponseSchema = z.object({
-  graph_version: z.string(), generated_at: z.string().datetime({ offset: true }), stats: AtlasStatsSchema,
+  graph_version: z.string(), generated_at: AtlasDateSchema, stats: AtlasStatsSchema,
   by_entity_type: z.record(z.string(), z.number()), by_relation_type: z.record(z.string(), z.number()),
   by_index_status: z.record(z.string(), z.number()), last_indexed_at: NullableDateSchema, indexing_active: z.boolean(),
 });

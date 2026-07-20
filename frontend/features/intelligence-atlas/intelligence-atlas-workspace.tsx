@@ -316,6 +316,7 @@ export function IntelligenceAtlasWorkspace() {
         country={parsedState.country}
         funding={parsedState.funding}
         bias={parsedState.bias}
+        onFiltersChange={(filters) => writeState(filters, "replace")}
         onSelect={(entityId) => selectEntity(entityId, nodesById.get(entityId)?.entity_type)}
       />
       <AtlasOperationsSheet

@@ -56,6 +56,7 @@ class AtlasNode(BaseModel):
     bias_rating: str | None = None
     factual_reporting: str | None = None
     credibility_score: float | None = None
+    analysis_scores: dict[str, int] = Field(default_factory=dict)
     article_count: int = 0
     connection_count: int = 0
     ownership_connection_count: int = 0

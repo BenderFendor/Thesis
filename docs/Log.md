@@ -1,5 +1,22 @@
 # Log
 
+## 2026-07-20 — Unified Intelligence Atlas
+
+- Removed the separate Media Wiki page, Reporter Graph page, client, and API endpoint. The Intelligence Atlas at `/wiki/ownership` is now the only media intelligence workspace.
+- Added article-backed `coauthor` and inferred `shared_outlet` reporter relationships to the Atlas, including weights, confidence labels, and evidence previews.
+- Added stored source-analysis scores and directory facets to Atlas source records, the index, and the inspector.
+- Fixed Atlas graph parsing for UTC database timestamps serialized without an offset.
+- Reduced graph label collisions with zoom-aware labels, hover neighborhoods, lower background edge contrast, and a hover detail card while retaining all nodes in the graph and semantic list.
+- Centered collapsed navigation icons and replaced the offset active-item stripe with an even border and fill.
+- Loaded pinned React Grab only in development for right-click component inspection without a production dependency.
+
+Verification:
+
+- Atlas and reporter endpoint tests: 24 passed.
+- Focused Atlas and navigation frontend tests: 12 passed.
+- Frontend TypeScript and lint: passed; lint retained the existing TanStack Virtual compiler warning.
+- Fresh local Atlas API smoke: 350 nodes, 1,472 visible relationships, 261 reporters, 118 coauthor links, and 1,352 shared-outlet links.
+
 ## 2026-07-19 — Agent-Readable Debug Bundles
 
 - Added local structured resource samples, OpenTelemetry span files, browser error and timing capture, and correlated request and trace IDs.

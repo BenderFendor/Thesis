@@ -48,4 +48,47 @@ describe("Atlas runtime graph schema", () => {
     expect(graph.nodes[0]?.id).toBe("source:abc");
     expect(metricPercentage(graph.stats.ownership_coverage)).toBe(0);
   });
+
+  it("normalizes UTC database datetimes that arrive without an offset", () => {
+    const graph = AtlasGraphResponseSchema.parse({
+      graph_version: "v2",
+      generated_at: "2026-07-20T09:32:21.474610Z",
+      nodes: [
+        {
+          id: "source:abc",
+          entity_type: "source",
+          label: "Example",
+          updated_at: "2026-07-19T17:24:14.994289",
+        },
+      ],
+      edges: [
+        {
+          id: "edge:1",
+          source_id: "source:abc",
+          target_id: "source:abc",
+          relation_type: "shared_outlet",
+          evidence_preview: [
+            {
+              id: "evidence:1",
+              source_type: "article_byline",
+              retrieved_at: "2026-04-17T20:24:39.422665",
+            },
+          ],
+          valid_from: "2026-04-17T20:24:39.422665",
+          last_verified_at: "2026-04-17T20:24:39.422665",
+        },
+      ],
+      stats: {
+        ownership_coverage: { numerator: 0, denominator: 1 },
+        evidence_coverage: { numerator: 1, denominator: 1 },
+      },
+      applied_filters: {},
+      truncated: false,
+    });
+
+    expect(graph.nodes[0]?.updated_at).toBe("2026-07-19T17:24:14.994289Z");
+    expect(graph.edges[0]?.evidence_preview[0]?.retrieved_at).toBe(
+      "2026-04-17T20:24:39.422665Z",
+    );
+  });
 });

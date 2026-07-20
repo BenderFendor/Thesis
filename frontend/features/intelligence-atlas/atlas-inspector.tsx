@@ -73,7 +73,11 @@ export function AtlasInspector({ record, loading, error, onSelectConnection }: A
     );
   }
 
+  const analysisScores = Object.entries(record.details.analysis_scores ?? {}).filter(
+    (entry): entry is [string, number] => typeof entry[1] === "number",
+  );
   const details = Object.entries(record.details)
+    .filter(([key]) => key !== "analysis_scores")
     .map(([key, value]) => [key, displayValue(value)] as const)
     .filter((entry): entry is readonly [string, string] => Boolean(entry[1]))
     .slice(0, 18);
@@ -115,6 +119,23 @@ export function AtlasInspector({ record, loading, error, onSelectConnection }: A
       </header>
 
       <div className={styles.inspectorBody}>
+        {analysisScores.length > 0 ? (
+          <section>
+            <div className="flex items-center gap-2">
+              <ShieldCheck className="h-4 w-4 text-[#d7b35f]" />
+              <h3 className={styles.controlLabel}>Stored source analysis</h3>
+            </div>
+            <div className={styles.detailGrid}>
+              {analysisScores.map(([axis, score]) => (
+                <div key={axis} className={styles.detailCard}>
+                  <div className={styles.microLabel}>{humanize(axis)}</div>
+                  <div className={styles.detailValue}>{score} / 5</div>
+                </div>
+              ))}
+            </div>
+          </section>
+        ) : null}
+
         <section>
           <div className="flex items-center gap-2">
             <ShieldCheck className="h-4 w-4 text-[#d7b35f]" />

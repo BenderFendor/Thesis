@@ -29,7 +29,7 @@ type ButtonProps = SharedProps & {
 type SidebarNavigationItemProps = LinkProps | ButtonProps
 
 const itemClassName =
-  "group/item relative flex min-h-11 w-full items-center gap-3 overflow-hidden rounded-lg border border-transparent px-3 text-left text-xs font-mono uppercase tracking-[0.16em] transition-[background-color,border-color,color,transform] duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--news-bg-secondary)]"
+  "group/item relative flex min-h-11 w-full items-center overflow-hidden rounded-lg border border-transparent text-left text-xs font-mono uppercase tracking-[0.16em] transition-[background-color,border-color,color,transform] duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--news-bg-secondary)]"
 
 export function SidebarNavigationItem({
   active = false,
@@ -52,8 +52,10 @@ export function SidebarNavigationItem({
       </span>
       <span
         className={cn(
-          "min-w-0 flex-1 whitespace-nowrap transition-[opacity,transform] duration-200",
-          expanded ? "translate-x-0 opacity-100" : "pointer-events-none -translate-x-1 opacity-0",
+          "min-w-0 whitespace-nowrap transition-[width,opacity,transform] duration-200",
+          expanded
+            ? "flex-1 translate-x-0 opacity-100"
+            : "pointer-events-none w-0 flex-none -translate-x-1 opacity-0",
         )}
       >
         <span className="block truncate">{label}</span>
@@ -66,9 +68,9 @@ export function SidebarNavigationItem({
 
   const className = cn(
     itemClassName,
-    expanded ? "justify-start" : "justify-center px-0",
+    expanded ? "justify-start gap-3 px-3" : "justify-center gap-0 px-0",
     active
-      ? "border-primary/25 bg-primary/10 text-primary shadow-[inset_3px_0_0_var(--primary)]"
+      ? "border-primary/35 bg-primary/[0.12] text-primary"
       : "text-muted-foreground hover:border-white/10 hover:bg-white/[0.05] hover:text-foreground",
   )
 

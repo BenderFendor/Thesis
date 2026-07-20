@@ -1,5 +1,19 @@
 # Learnings
 
+## 2026-07-20 — Bounded Atlas ranking must be cross-entity
+
+Context:
+- The Atlas included reporter nodes in its schema but ranked every organization and source ahead of every reporter before applying the 350-node bound.
+
+What worked:
+- Rank selected and highly connected records before using entity type as a tie-breaker.
+- Derive coauthor and shared-outlet edges from the same persisted `ArticleAuthor` observations used by reporter dossiers.
+- Keep the full entity index and semantic list available while the visual overview reveals labels by salience, hover, focus, and zoom.
+
+Future agents should:
+- Test bounded mixed-entity responses, not only unbounded projections or single-type filters.
+- Treat an enum value in the API contract as incomplete until the projection emits and tests that relationship.
+
 ## 2026-07-19 — Durable debug evidence needs bounds and redaction at write time
 
 Context:

@@ -1,4 +1,5 @@
 import type { Metadata } from 'next'
+import Script from 'next/script'
 import { GeistMono } from 'geist/font/mono'
 import { Instrument_Serif, Outfit } from 'next/font/google'
 import './globals.css'
@@ -33,6 +34,15 @@ export default function RootLayout({
 }) {
   return (
     <html lang="en" suppressHydrationWarning>
+      <head>
+        {process.env.NODE_ENV === 'development' ? (
+          <Script
+            src="https://unpkg.com/react-grab@0.1.48/dist/index.global.js"
+            crossOrigin="anonymous"
+            strategy="beforeInteractive"
+          />
+        ) : null}
+      </head>
       <body
         className={`font-sans text-foreground antialiased ${GeistMono.variable} ${outfit.variable} ${instrumentSerif.variable}`}
         suppressHydrationWarning

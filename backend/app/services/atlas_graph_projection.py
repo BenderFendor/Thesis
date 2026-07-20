@@ -11,8 +11,10 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import (
     Article,
+    ArticleAuthor,
     Organization,
     Reporter,
+    SourceAnalysisScore,
     SourceClaim,
     SourceClaimEvidence,
     SourceMetadata,
@@ -49,6 +51,7 @@ async def _load_graph_projection(
     catalog = _catalog_sources()
     orgs = list((await db.execute(select(Organization))).scalars().all())
     metadata = list((await db.execute(select(SourceMetadata))).scalars().all())
+    score_rows = list((await db.execute(select(SourceAnalysisScore))).scalars().all())
     claims = list(
         (await db.execute(select(SourceClaim).where(SourceClaim.is_current.is_(True))))
         .scalars()
@@ -109,6 +112,11 @@ async def _load_graph_projection(
     metadata_by_source = {
         normalize_entity_label(cast(str, row.source_name)): row for row in metadata
     }
+    scores_by_source: dict[str, dict[str, int]] = defaultdict(dict)
+    for score_row in score_rows:
+        scores_by_source[normalize_entity_label(cast(str, score_row.source_name))][
+            cast(str, score_row.axis_name)
+        ] = cast(int, score_row.score)
     evidence_by_claim: dict[int, list[AtlasEvidenceRef]] = defaultdict(list)
     for row in evidence_rows:
         evidence_by_claim[cast(int, row.claim_id)].append(_evidence_ref(row))
@@ -166,6 +174,7 @@ async def _load_graph_projection(
                     (meta.factual_rating if meta else None) or config.get("factual_reporting"),
                 ),
                 credibility_score=cast(float | None, meta.credibility_score if meta else None),
+                analysis_scores=scores_by_source.get(normalized, {}),
                 article_count=article_count,
                 status=status.status if status else None,
                 confidence_tier=confidence_tier(
@@ -218,6 +227,141 @@ async def _load_graph_projection(
                 updated_at=(status.last_indexed_at if status else None) or reporter.updated_at,
             )
         )
+
+    reporter_ids = [cast(int, reporter.id) for reporter in reporters]
+    if reporter_ids:
+        author_rows = (
+            await db.execute(
+                select(
+                    ArticleAuthor.article_id,
+                    ArticleAuthor.reporter_id,
+                    Article.source,
+                    Article.url,
+                    Article.title,
+                    Article.updated_at,
+                )
+                .join(Article, Article.id == ArticleAuthor.article_id)
+                .where(ArticleAuthor.reporter_id.in_(reporter_ids))
+            )
+        ).all()
+        article_reporters: dict[int, set[int]] = defaultdict(set)
+        source_reporters: dict[str, set[int]] = defaultdict(set)
+        article_evidence: dict[int, AtlasEvidenceRef] = {}
+        for article_id, reporter_id, source_name, url, title, updated_at in author_rows:
+            article_pk = int(article_id)
+            reporter_pk = int(reporter_id)
+            article_reporters[article_pk].add(reporter_pk)
+            if source_name:
+                source_reporters[cast(str, source_name)].add(reporter_pk)
+            if filters.include_evidence_preview:
+                article_evidence.setdefault(
+                    article_pk,
+                    AtlasEvidenceRef(
+                        id=f"article:{article_pk}",
+                        source_type="article_byline",
+                        source_name=cast(str | None, source_name),
+                        source_url=cast(str | None, url),
+                        retrieved_at=cast(datetime | None, updated_at),
+                        excerpt=cast(str | None, title),
+                    ),
+                )
+
+        coauthor_weights: Counter[tuple[int, int]] = Counter()
+        coauthor_articles: dict[tuple[int, int], list[int]] = defaultdict(list)
+        for article_id, reporter_set in article_reporters.items():
+            article_reporter_ids = sorted(reporter_set)
+            for index, reporter_id in enumerate(article_reporter_ids):
+                for peer_id in article_reporter_ids[index + 1 :]:
+                    pair = (reporter_id, peer_id)
+                    coauthor_weights[pair] += 1
+                    if len(coauthor_articles[pair]) < 3:
+                        coauthor_articles[pair].append(article_id)
+
+        shared_outlet_weights: Counter[tuple[int, int]] = Counter()
+        shared_outlet_names: dict[tuple[int, int], list[str]] = defaultdict(list)
+        for source_name, reporter_set in source_reporters.items():
+            source_reporter_ids = sorted(reporter_set)
+            for index, reporter_id in enumerate(source_reporter_ids):
+                for peer_id in source_reporter_ids[index + 1 :]:
+                    pair = (reporter_id, peer_id)
+                    if pair in coauthor_weights:
+                        continue
+                    shared_outlet_weights[pair] += 1
+                    if len(shared_outlet_names[pair]) < 3:
+                        shared_outlet_names[pair].append(source_name)
+
+        network_edges: list[AtlasEdge] = []
+        for (reporter_id, peer_id), weight in coauthor_weights.items():
+            confidence = min(0.65 + (weight - 1) * 0.1, 0.95)
+            evidence = [
+                article_evidence[article_id]
+                for article_id in coauthor_articles[(reporter_id, peer_id)]
+                if article_id in article_evidence
+            ]
+            network_edges.append(
+                AtlasEdge(
+                    id=_edge_id(
+                        f"reporter:{reporter_id}",
+                        f"reporter:{peer_id}",
+                        "coauthor",
+                        str(weight),
+                    ),
+                    source_id=f"reporter:{reporter_id}",
+                    target_id=f"reporter:{peer_id}",
+                    relation_type="coauthor",
+                    direction="undirected",
+                    weight=float(weight),
+                    confidence=confidence,
+                    confidence_tier=confidence_tier(confidence),
+                    evidence_count=weight,
+                    evidence_preview=evidence,
+                    last_verified_at=max(
+                        (item.retrieved_at for item in evidence if item.retrieved_at),
+                        default=None,
+                    ),
+                    raw_relation_type="article_author_cooccurrence",
+                )
+            )
+
+        for (reporter_id, peer_id), weight in shared_outlet_weights.items():
+            confidence = min(0.55 + (weight - 1) * 0.08, 0.82)
+            outlet_names = shared_outlet_names[(reporter_id, peer_id)]
+            network_edges.append(
+                AtlasEdge(
+                    id=_edge_id(
+                        f"reporter:{reporter_id}",
+                        f"reporter:{peer_id}",
+                        "shared_outlet",
+                        "|".join(outlet_names),
+                    ),
+                    source_id=f"reporter:{reporter_id}",
+                    target_id=f"reporter:{peer_id}",
+                    relation_type="shared_outlet",
+                    direction="undirected",
+                    weight=float(weight),
+                    confidence=confidence,
+                    confidence_tier=confidence_tier(confidence),
+                    evidence_count=weight,
+                    evidence_preview=[
+                        AtlasEvidenceRef(
+                            id=f"shared-outlet:{reporter_id}:{peer_id}:{normalize_entity_label(name)}",
+                            source_type="article_byline_corpus",
+                            source_name=name,
+                            excerpt="Both reporters have observed article bylines at this outlet.",
+                        )
+                        for name in outlet_names
+                    ]
+                    if filters.include_evidence_preview
+                    else [],
+                    is_inferred=True,
+                    raw_relation_type="shared_article_source",
+                )
+            )
+
+        network_edges.sort(
+            key=lambda edge: (-edge.weight, edge.relation_type, edge.source_id, edge.target_id)
+        )
+        edges.extend(network_edges[: filters.limit_edges])
 
     # Organization-to-organization links are exact ID or exact normalized alias links.
     for org in orgs:

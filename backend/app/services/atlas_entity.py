@@ -16,6 +16,7 @@ from app.database import (
     Reporter,
     SourceClaim,
     SourceClaimEvidence,
+    SourceAnalysisScore,
     SourceMetadata,
 )
 from app.models.atlas import (
@@ -229,6 +230,20 @@ async def get_atlas_entity(db: AsyncSession, entity_id: str) -> AtlasEntityRecor
                 }
                 for claim in claims
             ],
+            "analysis_scores": {
+                cast(str, score_row.axis_name): cast(int, score_row.score)
+                for score_row in (
+                    (
+                        await db.execute(
+                            select(SourceAnalysisScore).where(
+                                SourceAnalysisScore.source_name == source_name
+                            )
+                        )
+                    )
+                    .scalars()
+                    .all()
+                )
+            },
         }
         if claim_evidence:
             last_verified_at = max(

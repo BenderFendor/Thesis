@@ -80,9 +80,9 @@ def _rank_nodes(
     ranked.sort(
         key=lambda node: (
             0 if node.id == selected else 1,
-            type_priority[node.entity_type],
             -node.connection_count,
             -node.article_count,
+            type_priority[node.entity_type],
             node.label.casefold(),
         )
     )

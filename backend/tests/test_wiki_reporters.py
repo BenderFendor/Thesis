@@ -60,15 +60,17 @@ class TestListWikiReporters:
         assert jane["article_count"] == 42
         assert jane["wikipedia_url"] is not None
 
-    async def test_reporter_graph_route(self, client: AsyncClient):
-        resp = await client.get("/api/wiki/reporters/graph")
+    async def test_atlas_includes_reporter_network(self, client: AsyncClient):
+        resp = await client.get(
+            "/api/wiki/atlas/graph?entity_types=reporter&relation_types=coauthor,shared_outlet"
+        )
         assert resp.status_code == 200
         data = resp.json()
         node_ids = {node["id"] for node in data["nodes"]}
         assert {"reporter:1", "reporter:2"}.issubset(node_ids)
         assert isinstance(data["edges"], list)
 
-    async def test_reporter_graph_respects_edge_limit(
+    async def test_atlas_reporter_network_respects_edge_limit(
         self, client: AsyncClient, db_session: AsyncSession
     ):
         now = datetime.now(UTC).replace(tzinfo=None)
@@ -104,7 +106,11 @@ class TestListWikiReporters:
         )
         await db_session.commit()
 
-        resp = await client.get("/api/wiki/reporters/graph?limit=20&edge_limit=2")
+        resp = await client.get(
+            "/api/wiki/atlas/graph"
+            "?entity_types=reporter&relation_types=coauthor,shared_outlet"
+            "&limit_nodes=20&limit_edges=2"
+        )
 
         assert resp.status_code == 200
         assert len(resp.json()["edges"]) <= 2

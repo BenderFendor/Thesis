@@ -7089,66 +7089,6 @@
         }
       }
     },
-    "/api/wiki/reporters/graph": {
-      "get": {
-        "tags": [
-          "wiki"
-        ],
-        "summary": "Get Reporter Graph",
-        "description": "Get reporter network graph data for force-directed visualization.",
-        "operationId": "get_reporter_graph_api_wiki_reporters_graph_get",
-        "parameters": [
-          {
-            "name": "limit",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "type": "integer",
-              "maximum": 1000,
-              "minimum": 1,
-              "default": 200,
-              "title": "Limit"
-            }
-          },
-          {
-            "name": "edge_limit",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "type": "integer",
-              "maximum": 10000,
-              "minimum": 0,
-              "description": "Maximum number of graph edges to return.",
-              "default": 3000,
-              "title": "Edge Limit"
-            },
-            "description": "Maximum number of graph edges to return."
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ReporterGraphResponse"
-                }
-              }
-            }
-          },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
     "/api/wiki/reporters/{reporter_id}": {
       "get": {
         "tags": [
@@ -7465,6 +7405,598 @@
                   "additionalProperties": true,
                   "title": "Response Trigger Reporter Index Api Wiki Index Reporters Post"
                 }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/wiki/atlas/graph": {
+      "get": {
+        "tags": [
+          "wiki-atlas"
+        ],
+        "summary": "Get Atlas Graph",
+        "description": "Return a bounded graph for the requested Atlas filters.",
+        "operationId": "get_atlas_graph_api_wiki_atlas_graph_get",
+        "parameters": [
+          {
+            "name": "q",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "maxLength": 200
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Q"
+            }
+          },
+          {
+            "name": "entity_types",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Entity Types"
+            }
+          },
+          {
+            "name": "relation_types",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Relation Types"
+            }
+          },
+          {
+            "name": "country",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Country"
+            }
+          },
+          {
+            "name": "funding",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Funding"
+            }
+          },
+          {
+            "name": "bias",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Bias"
+            }
+          },
+          {
+            "name": "min_confidence",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "number",
+              "maximum": 1.0,
+              "minimum": 0.0,
+              "default": 0.0,
+              "title": "Min Confidence"
+            }
+          },
+          {
+            "name": "selected",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "maxLength": 160
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Selected"
+            }
+          },
+          {
+            "name": "neighbors",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 2,
+              "minimum": 0,
+              "default": 0,
+              "title": "Neighbors"
+            }
+          },
+          {
+            "name": "limit_nodes",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 600,
+              "minimum": 1,
+              "default": 350,
+              "title": "Limit Nodes"
+            }
+          },
+          {
+            "name": "limit_edges",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 2500,
+              "minimum": 1,
+              "default": 1500,
+              "title": "Limit Edges"
+            }
+          },
+          {
+            "name": "layout",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "enum": [
+                "clustered",
+                "ownership",
+                "geography",
+                "radial"
+              ],
+              "type": "string",
+              "default": "clustered",
+              "title": "Layout"
+            }
+          },
+          {
+            "name": "include_evidence_preview",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "boolean",
+              "default": true,
+              "title": "Include Evidence Preview"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AtlasGraphResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/wiki/atlas/stats": {
+      "get": {
+        "tags": [
+          "wiki-atlas"
+        ],
+        "summary": "Get Atlas Stats",
+        "description": "Return graph coverage and indexing status.",
+        "operationId": "get_atlas_stats_api_wiki_atlas_stats_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AtlasStatsResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/wiki/atlas/search": {
+      "get": {
+        "tags": [
+          "wiki-atlas"
+        ],
+        "summary": "Search Atlas Entities",
+        "description": "Search Atlas entities and group matches by entity type.",
+        "operationId": "search_atlas_entities_api_wiki_atlas_search_get",
+        "parameters": [
+          {
+            "name": "q",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 200,
+              "title": "Q"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 20,
+              "minimum": 1,
+              "default": 8,
+              "title": "Limit"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AtlasSearchResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/wiki/atlas/entities/{entity_id}": {
+      "get": {
+        "tags": [
+          "wiki-atlas"
+        ],
+        "summary": "Get Atlas Entity Record",
+        "description": "Return one Atlas entity with evidence and connections.",
+        "operationId": "get_atlas_entity_record_api_wiki_atlas_entities__entity_id__get",
+        "parameters": [
+          {
+            "name": "entity_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Entity Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AtlasEntityRecord"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/wiki/atlas/entities/{entity_id}/connections": {
+      "get": {
+        "tags": [
+          "wiki-atlas"
+        ],
+        "summary": "Get Atlas Entity Connections",
+        "description": "Return the relationships connected to one Atlas entity.",
+        "operationId": "get_atlas_entity_connections_api_wiki_atlas_entities__entity_id__connections_get",
+        "parameters": [
+          {
+            "name": "entity_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Entity Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/AtlasConnectionRecord"
+                  },
+                  "title": "Response Get Atlas Entity Connections Api Wiki Atlas Entities  Entity Id  Connections Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/wiki/atlas/index": {
+      "get": {
+        "tags": [
+          "wiki-atlas"
+        ],
+        "summary": "Get Atlas Index",
+        "description": "Return one filtered and sorted page of the Atlas entity index.",
+        "operationId": "get_atlas_index_api_wiki_atlas_index_get",
+        "parameters": [
+          {
+            "name": "entity_types",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Entity Types"
+            }
+          },
+          {
+            "name": "q",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "maxLength": 200
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Q"
+            }
+          },
+          {
+            "name": "country",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Country"
+            }
+          },
+          {
+            "name": "funding",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Funding"
+            }
+          },
+          {
+            "name": "bias",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Bias"
+            }
+          },
+          {
+            "name": "sort",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "enum": [
+                "name",
+                "most_connected",
+                "most_articles",
+                "recently_indexed",
+                "lowest_confidence"
+              ],
+              "type": "string",
+              "default": "name",
+              "title": "Sort"
+            }
+          },
+          {
+            "name": "cursor",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "maxLength": 100
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Cursor"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 100,
+              "minimum": 1,
+              "default": 60,
+              "title": "Limit"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AtlasIndexResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/wiki/atlas/export": {
+      "post": {
+        "tags": [
+          "wiki-atlas"
+        ],
+        "summary": "Export Atlas",
+        "description": "Export the requested Atlas graph as versioned JSON or CSV.",
+        "operationId": "export_atlas_api_wiki_atlas_export_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AtlasExportRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
               }
             }
           },
@@ -8012,6 +8544,1086 @@
         ],
         "title": "ArticleAnalysisResponse",
         "description": "Article Analysis Response."
+      },
+      "AtlasConnectionRecord": {
+        "properties": {
+          "edge": {
+            "$ref": "#/components/schemas/AtlasEdge"
+          },
+          "entity": {
+            "$ref": "#/components/schemas/AtlasNode"
+          }
+        },
+        "type": "object",
+        "required": [
+          "edge",
+          "entity"
+        ],
+        "title": "AtlasConnectionRecord",
+        "description": "A relationship paired with the entity on its other end."
+      },
+      "AtlasCoverageMetric": {
+        "properties": {
+          "numerator": {
+            "type": "integer",
+            "title": "Numerator",
+            "default": 0
+          },
+          "denominator": {
+            "type": "integer",
+            "title": "Denominator",
+            "default": 0
+          }
+        },
+        "type": "object",
+        "title": "AtlasCoverageMetric",
+        "description": "A numerator and denominator for an Atlas coverage measure."
+      },
+      "AtlasEdge": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "source_id": {
+            "type": "string",
+            "title": "Source Id"
+          },
+          "target_id": {
+            "type": "string",
+            "title": "Target Id"
+          },
+          "relation_type": {
+            "type": "string",
+            "enum": [
+              "ownership",
+              "owned_by",
+              "parent_org",
+              "part_of",
+              "publishes",
+              "employed_by",
+              "current_outlet",
+              "coauthor",
+              "shared_outlet"
+            ],
+            "title": "Relation Type"
+          },
+          "direction": {
+            "type": "string",
+            "enum": [
+              "directed",
+              "undirected"
+            ],
+            "title": "Direction",
+            "default": "directed"
+          },
+          "weight": {
+            "type": "number",
+            "title": "Weight",
+            "default": 1.0
+          },
+          "ownership_percentage": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ownership Percentage"
+          },
+          "confidence": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Confidence"
+          },
+          "confidence_tier": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "verified",
+                  "strong",
+                  "likely",
+                  "unresolved",
+                  "conflicting",
+                  "stale"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Confidence Tier"
+          },
+          "evidence_count": {
+            "type": "integer",
+            "title": "Evidence Count",
+            "default": 0
+          },
+          "evidence_preview": {
+            "items": {
+              "$ref": "#/components/schemas/AtlasEvidenceRef"
+            },
+            "type": "array",
+            "title": "Evidence Preview"
+          },
+          "valid_from": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Valid From"
+          },
+          "valid_to": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Valid To"
+          },
+          "last_verified_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Verified At"
+          },
+          "is_inferred": {
+            "type": "boolean",
+            "title": "Is Inferred",
+            "default": false
+          },
+          "raw_relation_type": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Raw Relation Type"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "source_id",
+          "target_id",
+          "relation_type"
+        ],
+        "title": "AtlasEdge",
+        "description": "A typed, evidence-aware Atlas relationship."
+      },
+      "AtlasEntityRecord": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "entity_type": {
+            "type": "string",
+            "enum": [
+              "source",
+              "organization",
+              "reporter"
+            ],
+            "title": "Entity Type"
+          },
+          "label": {
+            "type": "string",
+            "title": "Label"
+          },
+          "subtitle": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Subtitle"
+          },
+          "country_code": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Country Code"
+          },
+          "status": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Status"
+          },
+          "confidence_tier": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "verified",
+                  "strong",
+                  "likely",
+                  "unresolved",
+                  "conflicting",
+                  "stale"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Confidence Tier"
+          },
+          "last_verified_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Verified At"
+          },
+          "profile_path": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Profile Path"
+          },
+          "details": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Details"
+          },
+          "evidence": {
+            "items": {
+              "$ref": "#/components/schemas/AtlasEvidenceRef"
+            },
+            "type": "array",
+            "title": "Evidence"
+          },
+          "connections": {
+            "items": {
+              "$ref": "#/components/schemas/AtlasConnectionRecord"
+            },
+            "type": "array",
+            "title": "Connections"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "entity_type",
+          "label"
+        ],
+        "title": "AtlasEntityRecord",
+        "description": "Detailed evidence and connections for one Atlas entity."
+      },
+      "AtlasEvidenceRef": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "source_type": {
+            "type": "string",
+            "title": "Source Type"
+          },
+          "source_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Source Name"
+          },
+          "source_url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Source Url"
+          },
+          "retrieved_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Retrieved At"
+          },
+          "excerpt": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Excerpt"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "source_type"
+        ],
+        "title": "AtlasEvidenceRef",
+        "description": "Small evidence record safe to include in graph responses."
+      },
+      "AtlasExportRequest": {
+        "properties": {
+          "filters": {
+            "$ref": "#/components/schemas/AtlasGraphFilters"
+          },
+          "selected_entity": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Selected Entity"
+          },
+          "format": {
+            "type": "string",
+            "enum": [
+              "json",
+              "csv_nodes",
+              "csv_relationships",
+              "csv_evidence"
+            ],
+            "title": "Format",
+            "default": "json"
+          },
+          "include_evidence": {
+            "type": "boolean",
+            "title": "Include Evidence",
+            "default": true
+          },
+          "visible_layout_positions": {
+            "anyOf": [
+              {
+                "additionalProperties": {
+                  "additionalProperties": {
+                    "type": "number"
+                  },
+                  "type": "object"
+                },
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Visible Layout Positions"
+          }
+        },
+        "type": "object",
+        "title": "AtlasExportRequest",
+        "description": "Requested Atlas export format, scope, and optional layout data."
+      },
+      "AtlasGraphFilters": {
+        "properties": {
+          "q": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Q"
+          },
+          "entity_types": {
+            "items": {
+              "type": "string",
+              "enum": [
+                "source",
+                "organization",
+                "reporter"
+              ]
+            },
+            "type": "array",
+            "title": "Entity Types"
+          },
+          "relation_types": {
+            "items": {
+              "type": "string",
+              "enum": [
+                "ownership",
+                "owned_by",
+                "parent_org",
+                "part_of",
+                "publishes",
+                "employed_by",
+                "current_outlet",
+                "coauthor",
+                "shared_outlet"
+              ]
+            },
+            "type": "array",
+            "title": "Relation Types"
+          },
+          "country": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Country"
+          },
+          "funding": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Funding"
+          },
+          "bias": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Bias"
+          },
+          "min_confidence": {
+            "type": "number",
+            "maximum": 1.0,
+            "minimum": 0.0,
+            "title": "Min Confidence",
+            "default": 0.0
+          },
+          "selected": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Selected"
+          },
+          "neighbors": {
+            "type": "integer",
+            "maximum": 2.0,
+            "minimum": 0.0,
+            "title": "Neighbors",
+            "default": 0
+          },
+          "layout": {
+            "type": "string",
+            "enum": [
+              "clustered",
+              "ownership",
+              "geography",
+              "radial"
+            ],
+            "title": "Layout",
+            "default": "clustered"
+          },
+          "limit_nodes": {
+            "type": "integer",
+            "maximum": 600.0,
+            "minimum": 1.0,
+            "title": "Limit Nodes",
+            "default": 350
+          },
+          "limit_edges": {
+            "type": "integer",
+            "maximum": 2500.0,
+            "minimum": 1.0,
+            "title": "Limit Edges",
+            "default": 1500
+          },
+          "include_evidence_preview": {
+            "type": "boolean",
+            "title": "Include Evidence Preview",
+            "default": true
+          }
+        },
+        "type": "object",
+        "title": "AtlasGraphFilters",
+        "description": "Validated filters and bounds for an Atlas graph request."
+      },
+      "AtlasGraphResponse": {
+        "properties": {
+          "graph_version": {
+            "type": "string",
+            "title": "Graph Version"
+          },
+          "generated_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Generated At"
+          },
+          "nodes": {
+            "items": {
+              "$ref": "#/components/schemas/AtlasNode"
+            },
+            "type": "array",
+            "title": "Nodes"
+          },
+          "edges": {
+            "items": {
+              "$ref": "#/components/schemas/AtlasEdge"
+            },
+            "type": "array",
+            "title": "Edges"
+          },
+          "stats": {
+            "$ref": "#/components/schemas/AtlasGraphStats"
+          },
+          "applied_filters": {
+            "$ref": "#/components/schemas/AtlasGraphFilters"
+          },
+          "truncated": {
+            "type": "boolean",
+            "title": "Truncated",
+            "default": false
+          },
+          "truncation_reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Truncation Reason"
+          },
+          "next_expansion_token": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Next Expansion Token"
+          }
+        },
+        "type": "object",
+        "required": [
+          "graph_version",
+          "generated_at",
+          "stats",
+          "applied_filters"
+        ],
+        "title": "AtlasGraphResponse",
+        "description": "A bounded Atlas graph projection and its request metadata."
+      },
+      "AtlasGraphStats": {
+        "properties": {
+          "total_sources": {
+            "type": "integer",
+            "title": "Total Sources",
+            "default": 0
+          },
+          "total_organizations": {
+            "type": "integer",
+            "title": "Total Organizations",
+            "default": 0
+          },
+          "total_reporters": {
+            "type": "integer",
+            "title": "Total Reporters",
+            "default": 0
+          },
+          "visible_sources": {
+            "type": "integer",
+            "title": "Visible Sources",
+            "default": 0
+          },
+          "visible_organizations": {
+            "type": "integer",
+            "title": "Visible Organizations",
+            "default": 0
+          },
+          "visible_reporters": {
+            "type": "integer",
+            "title": "Visible Reporters",
+            "default": 0
+          },
+          "visible_relationships": {
+            "type": "integer",
+            "title": "Visible Relationships",
+            "default": 0
+          },
+          "current_relationships": {
+            "type": "integer",
+            "title": "Current Relationships",
+            "default": 0
+          },
+          "ownership_coverage": {
+            "$ref": "#/components/schemas/AtlasCoverageMetric"
+          },
+          "evidence_coverage": {
+            "$ref": "#/components/schemas/AtlasCoverageMetric"
+          },
+          "unresolved_source_links": {
+            "type": "integer",
+            "title": "Unresolved Source Links",
+            "default": 0
+          }
+        },
+        "type": "object",
+        "title": "AtlasGraphStats",
+        "description": "Aggregate counts for the full and currently visible Atlas graph."
+      },
+      "AtlasIndexResponse": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/AtlasNode"
+            },
+            "type": "array",
+            "title": "Items"
+          },
+          "total": {
+            "type": "integer",
+            "title": "Total",
+            "default": 0
+          },
+          "next_cursor": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Next Cursor"
+          },
+          "facets": {
+            "additionalProperties": {
+              "additionalProperties": {
+                "type": "integer"
+              },
+              "type": "object"
+            },
+            "type": "object",
+            "title": "Facets"
+          }
+        },
+        "type": "object",
+        "title": "AtlasIndexResponse",
+        "description": "One cursor-based page from the Atlas entity index."
+      },
+      "AtlasNode": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "entity_type": {
+            "type": "string",
+            "enum": [
+              "source",
+              "organization",
+              "reporter"
+            ],
+            "title": "Entity Type"
+          },
+          "label": {
+            "type": "string",
+            "title": "Label"
+          },
+          "subtitle": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Subtitle"
+          },
+          "country_code": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Country Code"
+          },
+          "funding_type": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Funding Type"
+          },
+          "bias_rating": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Bias Rating"
+          },
+          "factual_reporting": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Factual Reporting"
+          },
+          "credibility_score": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Credibility Score"
+          },
+          "analysis_scores": {
+            "additionalProperties": {
+              "type": "integer"
+            },
+            "type": "object",
+            "title": "Analysis Scores"
+          },
+          "article_count": {
+            "type": "integer",
+            "title": "Article Count",
+            "default": 0
+          },
+          "connection_count": {
+            "type": "integer",
+            "title": "Connection Count",
+            "default": 0
+          },
+          "ownership_connection_count": {
+            "type": "integer",
+            "title": "Ownership Connection Count",
+            "default": 0
+          },
+          "status": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Status"
+          },
+          "confidence_tier": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "verified",
+                  "strong",
+                  "likely",
+                  "unresolved",
+                  "conflicting",
+                  "stale"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Confidence Tier"
+          },
+          "profile_path": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Profile Path"
+          },
+          "updated_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Updated At"
+          },
+          "flags": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Flags"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "entity_type",
+          "label"
+        ],
+        "title": "AtlasNode",
+        "description": "A stable Atlas entity node."
+      },
+      "AtlasSearchItem": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "entity_type": {
+            "type": "string",
+            "enum": [
+              "source",
+              "organization",
+              "reporter"
+            ],
+            "title": "Entity Type"
+          },
+          "label": {
+            "type": "string",
+            "title": "Label"
+          },
+          "subtitle": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Subtitle"
+          },
+          "country_code": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Country Code"
+          },
+          "confidence_tier": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "verified",
+                  "strong",
+                  "likely",
+                  "unresolved",
+                  "conflicting",
+                  "stale"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Confidence Tier"
+          },
+          "profile_path": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Profile Path"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "entity_type",
+          "label"
+        ],
+        "title": "AtlasSearchItem",
+        "description": "A compact entity search result."
+      },
+      "AtlasSearchResponse": {
+        "properties": {
+          "query": {
+            "type": "string",
+            "title": "Query"
+          },
+          "sources": {
+            "items": {
+              "$ref": "#/components/schemas/AtlasSearchItem"
+            },
+            "type": "array",
+            "title": "Sources"
+          },
+          "organizations": {
+            "items": {
+              "$ref": "#/components/schemas/AtlasSearchItem"
+            },
+            "type": "array",
+            "title": "Organizations"
+          },
+          "reporters": {
+            "items": {
+              "$ref": "#/components/schemas/AtlasSearchItem"
+            },
+            "type": "array",
+            "title": "Reporters"
+          }
+        },
+        "type": "object",
+        "required": [
+          "query"
+        ],
+        "title": "AtlasSearchResponse",
+        "description": "Entity search results grouped by type."
+      },
+      "AtlasStatsResponse": {
+        "properties": {
+          "graph_version": {
+            "type": "string",
+            "title": "Graph Version"
+          },
+          "generated_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Generated At"
+          },
+          "stats": {
+            "$ref": "#/components/schemas/AtlasGraphStats"
+          },
+          "by_entity_type": {
+            "additionalProperties": {
+              "type": "integer"
+            },
+            "type": "object",
+            "title": "By Entity Type"
+          },
+          "by_relation_type": {
+            "additionalProperties": {
+              "type": "integer"
+            },
+            "type": "object",
+            "title": "By Relation Type"
+          },
+          "by_index_status": {
+            "additionalProperties": {
+              "type": "integer"
+            },
+            "type": "object",
+            "title": "By Index Status"
+          },
+          "last_indexed_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Indexed At"
+          },
+          "indexing_active": {
+            "type": "boolean",
+            "title": "Indexing Active",
+            "default": false
+          }
+        },
+        "type": "object",
+        "required": [
+          "graph_version",
+          "generated_at",
+          "stats"
+        ],
+        "title": "AtlasStatsResponse",
+        "description": "Atlas graph and indexing statistics."
       },
       "BlindspotCardResponse": {
         "properties": {
@@ -12065,31 +13677,6 @@
         ],
         "title": "ReporterDossierResponse",
         "description": "Full reporter dossier for the wiki page."
-      },
-      "ReporterGraphResponse": {
-        "properties": {
-          "nodes": {
-            "items": {
-              "additionalProperties": true,
-              "type": "object"
-            },
-            "type": "array",
-            "title": "Nodes",
-            "default": []
-          },
-          "edges": {
-            "items": {
-              "additionalProperties": true,
-              "type": "object"
-            },
-            "type": "array",
-            "title": "Edges",
-            "default": []
-          }
-        },
-        "type": "object",
-        "title": "ReporterGraphResponse",
-        "description": "Reporter Graph Response."
       },
       "ReporterProfileRequest": {
         "properties": {

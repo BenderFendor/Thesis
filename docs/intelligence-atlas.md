@@ -1,6 +1,6 @@
 # SCOOP Intelligence Atlas
 
-`/wiki/ownership` is the canonical investigation workspace for source, organization, reporter, and evidence relationships. The Atlas replaces the former always-visible three-column operations dashboard with a graph-first research surface while retaining the existing operator tools in a separate sheet.
+`/wiki/ownership` is the only media intelligence workspace. It combines the former source directory and Reporter Graph with source, organization, reporter, and evidence relationships. Source and reporter dossiers remain detail records opened from the Atlas. The operator tools remain in a separate sheet.
 
 ## Route state
 
@@ -23,9 +23,11 @@ The legacy `/api/wiki/organizations/graph` remains available during migration.
 
 The Atlas does not create ownership links through substring containment. Source-to-organization links come from current source claims, explicit source metadata, or exact canonical identity matches. Ambiguous candidates remain unresolved. Reporter verification requires person-level profile evidence; repeated bylines can support an outlet observation but do not independently verify identity.
 
+Reporter network edges are derived from persisted article-author observations. `coauthor` links count shared articles and include article evidence previews. `shared_outlet` links count outlets where both reporters have observed bylines and remain marked as inferred. Stored source-analysis scores appear in the entity index and source inspector.
+
 ## Rendering and accessibility
 
-The default graph is bounded to 350 nodes and 1,500 relationships. Layout runs in a Web Worker and is deterministic for a graph version and layout mode. SVG is retained for the bounded production view. A synchronized semantic entity list, roving node focus, Enter/Space selection, arrow navigation, pointer pan, pointer-centered zoom, touch-safe pointer events, and reduced-motion behavior keep the graph operable without hover or a mouse.
+The default graph is bounded to 350 nodes and 1,500 relationships. Layout runs in a Web Worker and is deterministic for a graph version and layout mode. SVG is retained for the bounded production view. The fitted overview labels the 28 highest-salience records; hovering or focusing exposes one record and its neighborhood, and zooming reveals every label. The complete entity set remains available through the synchronized semantic list and entity index. Roving node focus, Enter/Space selection, arrow navigation, pointer pan, pointer-centered zoom, touch-safe pointer events, and reduced-motion behavior keep the graph operable without hover or a mouse.
 
 ## Relationship backfill
 

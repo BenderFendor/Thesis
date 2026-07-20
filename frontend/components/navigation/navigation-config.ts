@@ -1,6 +1,5 @@
 import {
   ArrowRightLeft,
-  BookOpen,
   Bookmark,
   Globe,
   Grid3X3,
@@ -8,7 +7,6 @@ import {
   Radio,
   ScrollText,
   SlidersHorizontal,
-  UsersRound,
   type LucideIcon,
 } from "lucide-react"
 
@@ -39,28 +37,11 @@ export const VIEW_NAVIGATION: readonly ViewNavigationItem[] = [
 
 export const WIKI_NAVIGATION: readonly RouteNavigationItem[] = [
   {
-    href: "/wiki",
-    label: "Media Wiki",
-    description: "Research outlets, reporters, and institutions",
-    icon: BookOpen,
-    match: (pathname) =>
-      pathname.startsWith("/wiki") &&
-      !pathname.includes("/ownership") &&
-      !pathname.includes("/reporter-graph"),
-  },
-  {
     href: "/wiki/ownership",
     label: "Intelligence Atlas",
-    description: "Trace ownership, publishing, reporter, and evidence relationships",
+    description: "Research media records, ownership, reporter networks, and evidence",
     icon: Network,
-    match: (pathname) => pathname.includes("/ownership"),
-  },
-  {
-    href: "/wiki/reporter-graph",
-    label: "Reporter Graph",
-    description: "Explore reporter and publication networks",
-    icon: UsersRound,
-    match: (pathname) => pathname.includes("/reporter-graph"),
+    match: (pathname) => pathname.startsWith("/wiki"),
   },
 ]
 

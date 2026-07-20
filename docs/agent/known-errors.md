@@ -1,5 +1,24 @@
 # Known Errors
 
+## Atlas shows a raw datetime validation error instead of the graph
+
+Symptom:
+
+```txt
+Invalid datetime at edges.*.valid_from, edges.*.last_verified_at, or evidence_preview.*.retrieved_at
+```
+
+Cause:
+
+- PostgreSQL stores UTC datetimes without timezone data in this project.
+- FastAPI serializes those values as ISO strings without a trailing offset, while the original Atlas Zod schema required an explicit offset.
+
+Fix:
+
+- Parse Atlas dates through `AtlasDateSchema` in `frontend/features/intelligence-atlas/lib/atlas-schema.ts`.
+- Preserve explicit offsets and append `Z` only when a valid ISO datetime has no offset.
+- Keep the regression case in `frontend/features/intelligence-atlas/tests/atlas-schema.test.ts`.
+
 ## Runtime evidence fills local storage
 
 Symptom:
