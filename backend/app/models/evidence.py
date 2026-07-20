@@ -393,30 +393,6 @@ class CalculationTrace(Base):
     created_at = Column(DateTime, nullable=False, default=get_utc_now)
 
 
-class EvidencePolicyRow(Base):
-    """A durable record of a predicate acceptance policy version.
-
-    Not currently read by `app.services.evidence_policy`, which is the sole
-    source of truth for active policies (see `evidence_policy.POLICIES`).
-    This table exists for future policy history/versioning but is unwired --
-    see docs/agents/traces/review-pr-8-evidence-spine.md.
-    """
-
-    __tablename__ = "evidence_policy_rows"
-    id = Column(Integer, primary_key=True)
-    predicate = Column(String(96), nullable=False, index=True)
-    version = Column(String(64), nullable=False)
-    allowed_evidence_classes = Column(JSON, nullable=False, default=list)
-    minimum_independent_roots = Column(Integer, nullable=False, default=1)
-    requires_complete_path = Column(Boolean, nullable=False, default=False)
-    permits_catalog_only = Column(Boolean, nullable=False, default=False)
-    active = Column(Boolean, nullable=False, default=True, index=True)
-    created_at = Column(DateTime, nullable=False, default=get_utc_now)
-    __table_args__ = (
-        UniqueConstraint("predicate", "version", name="uq_evidence_policy_predicate_version"),
-    )
-
-
 class ExternalMaterialEvent(Base):
     """A material corporate event (merger, rename, ...) from an external registry."""
 
@@ -544,7 +520,6 @@ EVIDENCE_SPINE_TABLES = (
     "source_lineage",
     "adjudication_items",
     "calculation_traces",
-    "evidence_policy_rows",
     "external_material_events",
     "preregistrations",
     "measurement_validation_cards",
@@ -566,7 +541,6 @@ __all__ = [
     "EvidenceDocument",
     "EvidenceEntity",
     "EvidenceObservation",
-    "EvidencePolicyRow",
     "EVIDENCE_SPINE_TABLES",
     "ExternalMaterialEvent",
     "MeasurementValidationCard",

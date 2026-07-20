@@ -18,12 +18,14 @@ from app.models.evidence_api import (
     AcceptedRelationshipRecord,
     EvidenceClaimRecord,
     EvidencePolicyRecord,
+    OwnershipInterestResponse,
     RelationshipQueryResponse,
 )
 from app.services.evidence_export import ProofBundleError, build_relationship_proof_bundle
 from app.services.evidence_policy import serialize_policies
 from app.services.evidence_spine import (
     EvidenceSpineError,
+    compute_ownership_interest,
     evaluate_claim_by_id,
     get_claim_record,
     list_relationships,
@@ -135,6 +137,25 @@ async def materialize_evidence_claim(
         raise EvidenceSpineError("materialized relationship could not be reloaded")
     except EvidenceSpineError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
+
+
+@router.get("/interest", response_model=OwnershipInterestResponse)
+async def get_ownership_interest(
+    owner_id: str = Query(..., max_length=128),
+    target_id: str = Query(..., max_length=128),
+    interest_type: str = Query("economic", max_length=32),
+    security_class: str | None = Query(None, max_length=64),
+    db: AsyncSession = Depends(get_db),
+) -> OwnershipInterestResponse:
+    """Serve an owner's aggregate interest in a target across the accepted ownership graph."""
+    result = await compute_ownership_interest(
+        db,
+        owner_id=owner_id,
+        target_id=target_id,
+        interest_type=interest_type,
+        security_class=security_class,
+    )
+    return OwnershipInterestResponse.model_validate(result)
 
 
 @router.get("/relationships", response_model=RelationshipQueryResponse)

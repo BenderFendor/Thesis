@@ -119,6 +119,29 @@ class ProofBundleManifest(BaseModel):
     calculation_trace_ids: list[str]
 
 
+class OwnershipInterestPath(BaseModel):
+    """One enumerated owner-to-target chain contributing to an interest calculation."""
+
+    entity_ids: list[str]
+    claim_ids: list[str]
+    interest: dict[str, float]
+    disjoint_group: str | None = None
+
+
+class OwnershipInterestResponse(BaseModel):
+    """An owner's aggregate interest in a target, computed across the accepted graph."""
+
+    owner_id: str
+    target_id: str
+    interest_type: str
+    security_class: str | None = None
+    aggregate: dict[str, float] | None = None
+    possibly_overlapping: bool
+    cross_holding_unresolved: bool
+    algorithm_version: str
+    paths: list[OwnershipInterestPath] = Field(default_factory=list)
+
+
 class ContradictionRecord(BaseModel):
     """A pairwise claim-comparison result and its normalized classification."""
 

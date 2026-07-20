@@ -2,6 +2,18 @@
 
 Candidate claims may render, but only a positive decision from this module can
 materialize an accepted relationship.
+
+`POLICIES` (keyed by predicate) plus `POLICY_VERSION` is the sole, versioned
+source of truth for active acceptance policy -- there is no separate
+DB-backed policy table. An earlier `EvidencePolicyRow` model existed for this
+but was never read; it was removed rather than wired up (see
+docs/agents/traces/review-pr-8-evidence-spine.md and
+alembic/versions/20260720_0003_drop_evidence_policy_rows.py) to avoid two
+unsynchronized copies of policy state. Every `AcceptedRelationship` still
+records the `POLICY_VERSION` string that accepted it
+(`acceptance_policy_version`), so which rule accepted a given fact remains
+reproducible from history -- bump `POLICY_VERSION` whenever `POLICIES`
+changes in a way that could flip a past decision.
 """
 
 from __future__ import annotations

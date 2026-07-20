@@ -85,3 +85,5 @@ The public registry deliberately names benchmark cases and their failure modes b
 ## Deliberate non-claims
 
 This PR creates the general evidence and evaluation machinery. It does **not** claim that all 20 benchmark truth bundles, five hidden cases, or the random 250-relationship gold set have already been captured and human-reviewed. Those require actual filing snapshots and reviewer signatures; the code now enforces the format and clean-room rules they must satisfy.
+
+`app.proof_suite.runner.evaluate_case_against_database` can now run a case's 15 assertions against what the pipeline actually materialized for a given truth bundle (not just check the truth bundle's own shape, which is all `assert_snapshot_pinned_truth` does) -- but running it for real still needs the same missing pieces: retrieved snapshots for the 20 public cases, a human-reviewed truth bundle pinned from them, and the 5 hidden cases commissioned from a reviewer who didn't write the adapters. See docs/agents/traces/fix-evidence-spine-issues-10-11-12-13.md for what changed and what remains blocked on that human step.
