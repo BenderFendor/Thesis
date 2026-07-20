@@ -7,7 +7,7 @@ and its module docstring). Dropping the table instead of wiring it up avoids
 a second, unsynchronized copy of policy state that nothing keeps consistent.
 
 Revision ID: 20260720_0003
-Revises: 20260720_0001
+Revises: 20260720_0002
 Create Date: 2026-07-20
 """
 
@@ -17,7 +17,7 @@ from alembic import op
 import sqlalchemy as sa
 
 revision = "20260720_0003"
-down_revision = "20260720_0001"
+down_revision = "20260720_0002"
 branch_labels = None
 depends_on = None
 
