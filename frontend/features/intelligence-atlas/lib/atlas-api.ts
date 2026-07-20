@@ -36,6 +36,9 @@ export function atlasGraphQueryString(filters: AtlasGraphFilters): string {
   params.set("limit_nodes", String(filters.limit_nodes));
   params.set("limit_edges", String(filters.limit_edges));
   params.set("include_evidence_preview", String(filters.include_evidence_preview));
+  if (filters.as_of) params.set("as_of", filters.as_of);
+  if (filters.known_at) params.set("known_at", filters.known_at);
+  if (filters.accepted_only) params.set("accepted_only", "true");
   return params.toString();
 }
 

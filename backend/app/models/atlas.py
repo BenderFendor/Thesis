@@ -27,10 +27,11 @@ AtlasConfidenceTier = Literal[
     "conflicting",
     "stale",
 ]
+AtlasFactStatus = Literal["candidate", "accepted", "disputed", "rejected", "superseded"]
 
 
 class AtlasEvidenceRef(BaseModel):
-    """Small evidence record safe to include in graph responses."""
+    """A single evidence citation attached to an Atlas node or edge."""
 
     id: str
     source_type: str
@@ -38,10 +39,13 @@ class AtlasEvidenceRef(BaseModel):
     source_url: str | None = None
     retrieved_at: datetime | None = None
     excerpt: str | None = None
+    snapshot_sha256: str | None = None
+    locator: dict[str, Any] = Field(default_factory=dict)
+    entailment: str | None = None
 
 
 class AtlasNode(BaseModel):
-    """A stable Atlas entity node."""
+    """A single entity (source, organization, or reporter) in the Atlas graph."""
 
     id: str
     entity_type: AtlasEntityType
@@ -63,7 +67,7 @@ class AtlasNode(BaseModel):
 
 
 class AtlasEdge(BaseModel):
-    """A typed, evidence-aware Atlas relationship."""
+    """A relationship between two Atlas nodes, candidate or accepted."""
 
     id: str
     source_id: str
@@ -81,24 +85,32 @@ class AtlasEdge(BaseModel):
     last_verified_at: datetime | None = None
     is_inferred: bool = False
     raw_relation_type: str | None = None
+    fact_status: AtlasFactStatus = "candidate"
+    accepted_fact: bool = False
+    qualifiers: dict[str, Any] = Field(default_factory=dict)
+    claim_ids: list[str] = Field(default_factory=list)
+    recorded_at: datetime | None = None
+    retracted_at: datetime | None = None
+    acceptance_policy_version: str | None = None
+    evidence_root_count: int = 0
 
 
 class AtlasCoverageMetric(BaseModel):
-    """A numerator and denominator for an Atlas coverage measure."""
+    """A numerator/denominator pair reported as a rounded percentage."""
 
     numerator: int = 0
     denominator: int = 0
 
     @property
     def percentage(self) -> float:
-        """Return the coverage percentage, or zero for an empty population."""
+        """Return the coverage ratio as a percentage, 0 when there is no denominator."""
         if self.denominator <= 0:
             return 0.0
         return round((self.numerator / self.denominator) * 100, 1)
 
 
 class AtlasGraphStats(BaseModel):
-    """Aggregate counts for the full and currently visible Atlas graph."""
+    """Aggregate node/edge counts and coverage metrics for a graph response."""
 
     total_sources: int = 0
     total_organizations: int = 0
@@ -108,13 +120,16 @@ class AtlasGraphStats(BaseModel):
     visible_reporters: int = 0
     visible_relationships: int = 0
     current_relationships: int = 0
+    accepted_relationships: int = 0
+    candidate_relationships: int = 0
+    disputed_relationships: int = 0
     ownership_coverage: AtlasCoverageMetric = Field(default_factory=AtlasCoverageMetric)
     evidence_coverage: AtlasCoverageMetric = Field(default_factory=AtlasCoverageMetric)
     unresolved_source_links: int = 0
 
 
 class AtlasGraphFilters(BaseModel):
-    """Validated filters and bounds for an Atlas graph request."""
+    """Query parameters that select and shape a requested Atlas graph view."""
 
     q: str | None = None
     entity_types: list[AtlasEntityType] = Field(default_factory=list)
@@ -129,10 +144,13 @@ class AtlasGraphFilters(BaseModel):
     limit_nodes: int = Field(default=350, ge=1, le=600)
     limit_edges: int = Field(default=1500, ge=1, le=2500)
     include_evidence_preview: bool = True
+    as_of: datetime | None = None
+    known_at: datetime | None = None
+    accepted_only: bool = False
 
 
 class AtlasGraphResponse(BaseModel):
-    """A bounded Atlas graph projection and its request metadata."""
+    """The full node/edge payload returned by the Atlas graph endpoint."""
 
     graph_version: str
     generated_at: datetime
@@ -146,7 +164,7 @@ class AtlasGraphResponse(BaseModel):
 
 
 class AtlasStatsResponse(BaseModel):
-    """Atlas graph and indexing statistics."""
+    """Summary statistics for the Atlas graph, without node/edge payloads."""
 
     graph_version: str
     generated_at: datetime
@@ -159,7 +177,7 @@ class AtlasStatsResponse(BaseModel):
 
 
 class AtlasSearchItem(BaseModel):
-    """A compact entity search result."""
+    """A single search-result row for one Atlas entity."""
 
     id: str
     entity_type: AtlasEntityType
@@ -171,7 +189,7 @@ class AtlasSearchItem(BaseModel):
 
 
 class AtlasSearchResponse(BaseModel):
-    """Entity search results grouped by type."""
+    """Search results grouped by entity type."""
 
     query: str
     sources: list[AtlasSearchItem] = Field(default_factory=list)
@@ -180,14 +198,14 @@ class AtlasSearchResponse(BaseModel):
 
 
 class AtlasConnectionRecord(BaseModel):
-    """A relationship paired with the entity on its other end."""
+    """One neighboring entity and the edge connecting it to the queried entity."""
 
     edge: AtlasEdge
     entity: AtlasNode
 
 
 class AtlasEntityRecord(BaseModel):
-    """Detailed evidence and connections for one Atlas entity."""
+    """The full inspector payload for a single Atlas entity."""
 
     id: str
     entity_type: AtlasEntityType
@@ -204,7 +222,7 @@ class AtlasEntityRecord(BaseModel):
 
 
 class AtlasIndexResponse(BaseModel):
-    """One cursor-based page from the Atlas entity index."""
+    """A paginated, faceted listing of Atlas entities."""
 
     items: list[AtlasNode] = Field(default_factory=list)
     total: int = 0
@@ -213,7 +231,7 @@ class AtlasIndexResponse(BaseModel):
 
 
 class AtlasExportRequest(BaseModel):
-    """Requested Atlas export format, scope, and optional layout data."""
+    """Parameters selecting what slice of the Atlas graph to export and in what format."""
 
     filters: AtlasGraphFilters = Field(default_factory=AtlasGraphFilters)
     selected_entity: str | None = None

@@ -27,19 +27,20 @@ uc-micro-py==1.0.3
 asyncpg>=0.29.0
 sqlalchemy>=2.0.35
 psycopg2-binary>=2.9.9
+alembic>=1.13.0
 
 # Vector database dependencies
 numpy<2
 chromadb==0.5.23
 sentence-transformers>=2.7.0
 
-# Optional: System resource monitoring (improves RSS ingestion performance tuning)
+# Optional: System resource monitoring
 psutil>=5.9.0
 types-psutil>=7.0.0
 
-# Algorithm dependencies for Phase 1 lightweight improvements
-rank_bm25>=0.2.2  # BM25 keyword search (pure algorithm, CPU)
-hdbscan>=0.8.33   # Density-based clustering (C++ backend, fast)
+# Algorithm dependencies
+rank_bm25>=0.2.2
+hdbscan>=0.8.33
 
 # Build helpers for the Rust RSS parser
 maturin>=1.10.0
