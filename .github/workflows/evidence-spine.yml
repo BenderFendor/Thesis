@@ -23,6 +23,7 @@ on:
       - "backend/alembic/**"
       - "frontend/features/intelligence-atlas/lib/atlas-schema.ts"
       - "frontend/features/intelligence-atlas/lib/atlas-api.ts"
+      - "frontend/types/**"
       - ".github/workflows/evidence-spine.yml"
   push:
     branches: [main]
@@ -47,6 +48,7 @@ on:
       - "backend/alembic/**"
       - "frontend/features/intelligence-atlas/lib/atlas-schema.ts"
       - "frontend/features/intelligence-atlas/lib/atlas-api.ts"
+      - "frontend/types/**"
       - ".github/workflows/evidence-spine.yml"
 
 permissions:
