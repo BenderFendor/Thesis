@@ -1,35 +1,40 @@
-"""Tracing."""
+"""OpenTelemetry tracing with local JSONL export for debug bundles."""
 
 from __future__ import annotations
 
 import logging
-from typing import Any, cast
+import os
+from typing import Any
 
 from fastapi import FastAPI
 
 from app.core.config import settings
 
 TRACER_NAME = "scoop-backend"
-
 _logger = logging.getLogger("app.tracing")
 
 
 def _tracer_provider_configured() -> bool:
     try:
+        from opentelemetry import trace
         from opentelemetry.sdk.trace import TracerProvider
 
-        return isinstance(
-            cast(Any, __import__("opentelemetry.trace").trace).get_tracer_provider(),
-            TracerProvider,
-        )
+        return isinstance(trace.get_tracer_provider(), TracerProvider)
     except Exception:
         return False
 
 
 def setup_tracing(app: FastAPI) -> None:
-    """Setup Tracing."""
+    """Configure tracing when OTEL_ENABLED is set."""
     if not settings.otel_enabled:
         _logger.info("OpenTelemetry tracing is disabled (OTEL_ENABLED=0)")
+        return
+
+    if _tracer_provider_configured():
+        _logger.info("OpenTelemetry tracer provider is already configured")
+        _instrument_fastapi(app)
+        _instrument_httpx()
+        _instrument_sqlalchemy()
         return
 
     try:
@@ -41,22 +46,35 @@ def setup_tracing(app: FastAPI) -> None:
             ConsoleSpanExporter,
         )
         from opentelemetry.sdk.trace.sampling import TraceIdRatioBased
+
+        from app.core.file_trace_exporter import JsonlSpanExporter
     except ImportError as exc:
-        _logger.warning("OpenTelemetry dependencies not installed: %s; tracing disabled", exc)
+        _logger.warning(
+            "OpenTelemetry dependencies not installed: %s; tracing disabled", exc
+        )
         return
 
     sample_rate = max(0.0, min(1.0, settings.otel_sample_rate))
+    service_name = os.getenv("THESIS_SERVICE_NAME", TRACER_NAME)
 
-    resource = Resource.create({"service.name": TRACER_NAME})
-
+    resource = Resource.create(
+        {
+            "service.name": service_name,
+            "service.version": settings.app_version,
+            "deployment.environment": settings.environment,
+        }
+    )
     provider = TracerProvider(
         resource=resource,
         sampler=TraceIdRatioBased(sample_rate),
     )
 
-    console_exporter = ConsoleSpanExporter()
-    processor = BatchSpanProcessor(console_exporter)
-    provider.add_span_processor(processor)
+    file_exporter = JsonlSpanExporter(service_name=service_name)
+    provider.add_span_processor(BatchSpanProcessor(file_exporter))
+    _logger.info("Local trace export configured at %s", file_exporter.path)
+
+    if os.getenv("OTEL_CONSOLE_EXPORT", "0") not in {"0", "false", "False", ""}:
+        provider.add_span_processor(BatchSpanProcessor(ConsoleSpanExporter()))
 
     if settings.otel_exporter_endpoint:
         try:
@@ -64,14 +82,18 @@ def setup_tracing(app: FastAPI) -> None:
                 OTLPSpanExporter,
             )
 
-            otlp_exporter = OTLPSpanExporter(
-                endpoint=settings.otel_exporter_endpoint,
+            provider.add_span_processor(
+                BatchSpanProcessor(
+                    OTLPSpanExporter(endpoint=settings.otel_exporter_endpoint)
+                )
             )
-            otlp_processor = BatchSpanProcessor(otlp_exporter)
-            provider.add_span_processor(otlp_processor)
-            _logger.info("OTLP exporter configured at %s", settings.otel_exporter_endpoint)
+            _logger.info(
+                "OTLP exporter configured at %s", settings.otel_exporter_endpoint
+            )
         except ImportError:
-            _logger.warning("OTLP exporter not installed; only console export active")
+            _logger.warning(
+                "OTLP exporter not installed; local file export remains active"
+            )
         except Exception as exc:
             _logger.warning("Failed to configure OTLP exporter: %s", exc)
 
@@ -83,13 +105,13 @@ def setup_tracing(app: FastAPI) -> None:
 
     _logger.info(
         "OpenTelemetry tracing enabled (service=%s sample_rate=%.2f)",
-        TRACER_NAME,
+        service_name,
         sample_rate,
     )
 
 
 def get_tracer(name: str = TRACER_NAME) -> Any:
-    """Get Tracer."""
+    """Return an OpenTelemetry tracer or a no-op fallback."""
     if not settings.otel_enabled:
         return _NoOpTracer()
 
@@ -103,41 +125,34 @@ def get_tracer(name: str = TRACER_NAME) -> Any:
 
 class _NoOpTracer:
     def start_as_current_span(self, name: str, *args: Any, **kwargs: Any) -> Any:
-        """Start As Current Span."""
+        """Return a no-op span context manager."""
         return _NoOpSpan()
 
     def start_span(self, name: str, *args: Any, **kwargs: Any) -> Any:
-        """Start Span."""
+        """Return a no-op span."""
         return _NoOpSpan()
 
 
 class _NoOpSpan:
     def __enter__(self) -> _NoOpSpan:
-        """Context manager enter."""
         return self
 
     def __exit__(self, *args: Any) -> None:
-        """Context manager exit."""
-        pass
+        return None
 
     def set_attribute(self, key: str, value: Any) -> None:
-        """Set Attribute."""
-        pass
+        return None
 
     def set_status(self, status: Any, description: str | None = None) -> None:
-        """Set Status."""
-        pass
+        return None
 
     def record_exception(self, exception: Exception) -> None:
-        """Record Exception."""
-        pass
+        return None
 
     def add_event(self, name: str, attributes: Any = None) -> None:
-        """Add Event."""
-        pass
+        return None
 
     def get_span_context(self) -> Any:
-        """Get Span Context."""
         return _NoOpSpanContext()
 
 
@@ -153,7 +168,7 @@ def _instrument_fastapi(app: FastAPI) -> None:
 
         FastAPIInstrumentor.instrument_app(
             app,
-            excluded_urls="/health,/favicon.ico,/static/*",
+            excluded_urls="/health,/favicon.ico,/static/*,/debug/observability/health",
         )
         _logger.info("FastAPI instrumentation applied")
     except Exception as exc:
@@ -172,9 +187,7 @@ def _instrument_httpx() -> None:
 
 def _instrument_sqlalchemy() -> None:
     try:
-        from opentelemetry.instrumentation.sqlalchemy import (
-            SQLAlchemyInstrumentor,
-        )
+        from opentelemetry.instrumentation.sqlalchemy import SQLAlchemyInstrumentor
 
         SQLAlchemyInstrumentor().instrument(
             enable_commenter=True,

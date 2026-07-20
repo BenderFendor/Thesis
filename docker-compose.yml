@@ -58,6 +58,14 @@ services:
     environment:
       - PYTHONPATH=/app
       - PYTHONUNBUFFERED=1
+      - THESIS_RUNTIME_DIR=/runtime-data
+      - THESIS_SERVICE_NAME=embedding-worker
+      - THESIS_OBSERVABILITY_ENABLED=1
+      - THESIS_PERFORMANCE_SAMPLE_SECONDS=5
+      - DEBUG_LOG_DIR=/runtime-data/logs/embedding-worker
+      - LOG_DIR=/runtime-data/logs/embedding-worker/sessions
+    volumes:
+      - ./runtime-data:/runtime-data
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8002/health"]
       interval: 10s
@@ -68,7 +76,7 @@ services:
       - thesis_network
 
   backend:
-    build: 
+    build:
       context: .
       dockerfile: backend/Dockerfile
     ports:
@@ -82,8 +90,18 @@ services:
       - EMBEDDING_SERVICE_URL=http://embedding-worker:8002
       - CORS_ORIGINS=http://localhost:3000,http://localhost:3001,https://test.jordandgreen.com
       - CORS_ORIGIN_REGEX=^https://([a-z0-9-]+\.)?jordandgreen\.com$
+      - THESIS_RUNTIME_DIR=/runtime-data
+      - THESIS_SERVICE_NAME=backend
+      - THESIS_OBSERVABILITY_ENABLED=1
+      - THESIS_PERFORMANCE_SAMPLE_SECONDS=5
+      - DEBUG_LOG_DIR=/runtime-data/logs/backend
+      - LOG_DIR=/runtime-data/logs/backend/sessions
+      - OTEL_ENABLED=1
+      - OTEL_SAMPLE_RATE=1.0
+      - OTEL_CONSOLE_EXPORT=0
     volumes:
       - ./backend:/app
+      - ./runtime-data:/runtime-data
       - backend_cache:/app/.venv
     command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
     restart: unless-stopped
