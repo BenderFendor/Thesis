@@ -55,6 +55,10 @@ class Settings:
 
     app_title: str = "Global News Aggregation API"
     app_version: str = "1.0.0"
+    # Shared operator secret required to materialize evidence claims into accepted
+    # facts or to download proof bundles for privacy-scoped entities. Unset by
+    # default so the endpoint fails closed until an operator deliberately enables it.
+    scoop_materialize_token: str | None = os.getenv("SCOOP_MATERIALIZE_TOKEN")
     gemini_api_key: str | None = os.getenv("GEMINI_API_KEY")
     open_router_api_key: str | None = os.getenv("OPEN_ROUTER_API_KEY")
     open_router_model: str = os.getenv("OPEN_ROUTER_MODEL", "z-ai/glm-4.5-air:free")

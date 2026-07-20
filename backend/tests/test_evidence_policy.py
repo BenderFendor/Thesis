@@ -4,7 +4,8 @@ from app.services.evidence_policy import ObservationEvidence, evaluate_acceptanc
 def evidence(
     evidence_class: str, root: str, entailment: str = "reviewed_yes"
 ) -> ObservationEvidence:
-    return ObservationEvidence("obs", evidence_class, root, entailment)
+    reviewed_by = "reviewer@test" if entailment == "reviewed_yes" else None
+    return ObservationEvidence("obs", evidence_class, root, entailment, reviewed_by)
 
 
 def test_catalog_only_never_accepts_direct_ownership() -> None:
@@ -30,6 +31,22 @@ def test_quote_presence_without_reviewed_entailment_is_not_enough() -> None:
     )
     assert not decision.accepted
     assert "no reviewed evidence entails the claim" in decision.reasons
+
+
+def test_reviewed_yes_without_a_recorded_reviewer_does_not_qualify() -> None:
+    """`entailment='reviewed_yes'` with no `reviewed_by` means the flag was set
+    without a real review action behind it -- it must not be enough to accept
+    a claim (see PR #8 review, issue #9)."""
+    unattributed = ObservationEvidence("obs", "registry_filing", "filing-1", "reviewed_yes", None)
+    decision = evaluate_acceptance(predicate="directly_owns", evidence=[unattributed])
+    assert not decision.accepted
+    assert any("recorded reviewer" in reason for reason in decision.reasons)
+
+    attributed = ObservationEvidence(
+        "obs", "registry_filing", "filing-1", "reviewed_yes", "reviewer@test"
+    )
+    decision = evaluate_acceptance(predicate="directly_owns", evidence=[attributed])
+    assert decision.accepted
 
 
 def test_ultimate_control_requires_complete_path() -> None:

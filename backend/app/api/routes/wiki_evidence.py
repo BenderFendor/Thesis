@@ -2,13 +2,16 @@
 
 from __future__ import annotations
 
+import logging
 import os
 from datetime import UTC, datetime
 
-from fastapi import APIRouter, Depends, HTTPException, Query, Response
+from fastapi import APIRouter, Depends, Header, HTTPException, Query, Response
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.config import settings
 from app.database import get_db
+from app.models.evidence import AcceptedRelationship, EvidenceEntity
 from app.models.evidence_api import (
     AcceptanceEvaluationRequest,
     AcceptanceEvaluationResponse,
@@ -28,6 +31,23 @@ from app.services.evidence_spine import (
 )
 
 router = APIRouter(prefix="/api/wiki/evidence", tags=["wiki-evidence"])
+logger = logging.getLogger(__name__)
+
+
+def _require_materialize_token(token: str | None) -> None:
+    """Gate materialization and restricted-proof downloads behind an operator secret.
+
+    The endpoint fails closed (503) if SCOOP_MATERIALIZE_TOKEN is not configured,
+    rather than defaulting to open access.
+    """
+    configured = settings.scoop_materialize_token
+    if not configured:
+        raise HTTPException(
+            status_code=503,
+            detail="materialization is disabled: SCOOP_MATERIALIZE_TOKEN is not configured",
+        )
+    if not token or token != configured:
+        raise HTTPException(status_code=401, detail="missing or invalid materialize token")
 
 
 def _utc_naive(value: datetime | None) -> datetime:
@@ -77,15 +97,32 @@ async def materialize_evidence_claim(
     claim_id: str,
     complete_control_path: bool = Query(False),
     db: AsyncSession = Depends(get_db),
+    reviewer: str = Header(..., alias="X-Scoop-Reviewer"),
+    materialize_token: str | None = Header(None, alias="X-Scoop-Materialize-Token"),
 ) -> AcceptedRelationshipRecord:
-    """Materialize a qualifying claim into an accepted relationship."""
+    """Materialize a qualifying claim into an accepted relationship.
+
+    Requires an operator secret (``X-Scoop-Materialize-Token``) and a non-empty
+    reviewer identity (``X-Scoop-Reviewer``) — this endpoint mutates accepted
+    research facts, so it cannot be left open to unauthenticated callers.
+    """
+    _require_materialize_token(materialize_token)
+    if not reviewer.strip():
+        raise HTTPException(status_code=422, detail="X-Scoop-Reviewer must not be empty")
     try:
         relationship = await materialize_claim(
             db,
             claim_id,
             complete_control_path=complete_control_path,
+            reviewer=reviewer,
         )
         await db.flush()
+        logger.info(
+            "evidence claim %s materialized by %r as relationship %s",
+            claim_id,
+            reviewer,
+            relationship.id,
+        )
         query = await list_relationships(
             db,
             as_of=datetime.now(UTC).replace(tzinfo=None),
@@ -126,8 +163,24 @@ async def download_relationship_proof(
     as_of: datetime | None = Query(None),
     known_at: datetime | None = Query(None),
     dataset_snapshot: str = Query("working-tree", max_length=128),
+    materialize_token: str | None = Header(None, alias="X-Scoop-Materialize-Token"),
 ) -> Response:
-    """Download the zipped proof bundle for an accepted relationship."""
+    """Download the zipped proof bundle for an accepted relationship.
+
+    Proofs for relationships involving a non-public (privacy-scoped) entity
+    require the same operator token as materialization — public-outlet
+    ownership proofs stay freely downloadable, but proofs touching restricted
+    entities must not be exposed to anonymous callers.
+    """
+    relationship = await db.get(AcceptedRelationship, relationship_id)
+    if relationship is None:
+        raise HTTPException(status_code=404, detail="relationship not found")
+    endpoint_entities = [
+        await db.get(EvidenceEntity, relationship.subject_entity_id),
+        await db.get(EvidenceEntity, relationship.object_entity_id),
+    ]
+    if any(entity is not None and entity.privacy_scope != "public" for entity in endpoint_entities):
+        _require_materialize_token(materialize_token)
     try:
         content = await build_relationship_proof_bundle(
             db,

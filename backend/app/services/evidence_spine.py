@@ -173,6 +173,7 @@ async def evaluate_claim_by_id(
                 ),
                 root_id=roots.get(document_id, document_id),
                 entailment=cast(str, observation.entailment),
+                reviewed_by=observation.reviewed_by,
             )
         )
     decision = evaluate_acceptance(
@@ -191,9 +192,17 @@ async def evaluate_claim_by_id(
 
 
 async def materialize_claim(
-    db: AsyncSession, claim_id: str, *, complete_control_path: bool = False
+    db: AsyncSession, claim_id: str, *, complete_control_path: bool = False, reviewer: str
 ) -> AcceptedRelationship:
-    """Accept a qualifying claim into an `AcceptedRelationship`, idempotently."""
+    """Accept a qualifying claim into an `AcceptedRelationship`, idempotently.
+
+    `reviewer` records who is accepting the claim and is required on every call —
+    it is the audit trail for what would otherwise be an anonymous fact-acceptance
+    action.
+    """
+    reviewer = reviewer.strip()
+    if not reviewer:
+        raise EvidenceSpineError("materialization requires a non-empty reviewer identity")
     claim = await db.get(EvidenceClaim, claim_id)
     if claim is None:
         raise EvidenceSpineError(f"claim {claim_id!r} does not exist")
@@ -245,6 +254,7 @@ async def materialize_claim(
         valid_to=claim.valid_to,
         recorded_at=claim.recorded_at,
         materialized_at=datetime.now(UTC).replace(tzinfo=None),
+        materialized_by=reviewer,
         acceptance_policy_version=evaluation.policy_version,
         status="accepted",
         relationship_hash=digest,
@@ -315,6 +325,7 @@ async def list_relationships(
                 recorded_at=cast(datetime, relationship.recorded_at),
                 retracted_at=relationship.retracted_at,
                 materialized_at=cast(datetime, relationship.materialized_at),
+                materialized_by=relationship.materialized_by,
                 acceptance_policy_version=cast(str, relationship.acceptance_policy_version),
                 status=cast(Any, relationship.status),
                 claim_ids=claim_ids,

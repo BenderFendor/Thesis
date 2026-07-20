@@ -111,6 +111,7 @@ async def _seed_observation(
         extractor="test-extractor",
         extractor_version="1.0",
         entailment=entailment,
+        reviewed_by="reviewer@test" if entailment == "reviewed_yes" else None,
     )
     db.add(observation)
     await db.flush()
@@ -161,7 +162,84 @@ async def test_catalog_metadata_alone_is_rejected(db: AsyncSession) -> None:
     evaluation = await evaluate_claim_by_id(db, claim.id)
     assert evaluation.accepted is False
     with pytest.raises(EvidenceSpineError):
-        await materialize_claim(db, claim.id)
+        await materialize_claim(db, claim.id, reviewer="reviewer@test")
+
+
+@pytest.mark.asyncio
+async def test_materialize_requires_non_empty_reviewer(db: AsyncSession) -> None:
+    """Regression: `materialize_claim` used to accept no reviewer at all, leaving
+    accepted relationships with no record of who accepted them."""
+    publication, owner = await _seed_entities(db)
+    _, snapshot = await _seed_registry_document(db)
+    observation = await _seed_observation(
+        db, snapshot, obs_id="obs_no_reviewer", entailment="reviewed_yes"
+    )
+    claim = await _seed_claim(
+        db,
+        publication,
+        owner,
+        claim_id="claim_no_reviewer",
+        evidence_class="registry_filing",
+        observation=observation,
+    )
+    with pytest.raises(EvidenceSpineError, match="reviewer"):
+        await materialize_claim(db, claim.id, reviewer="")
+    with pytest.raises(EvidenceSpineError, match="reviewer"):
+        await materialize_claim(db, claim.id, reviewer="   ")
+
+
+@pytest.mark.asyncio
+async def test_materialized_relationship_records_reviewer_identity(db: AsyncSession) -> None:
+    """Regression: the accepted relationship must record who materialized it
+    (the audit trail this endpoint previously had none of)."""
+    publication, owner = await _seed_entities(db)
+    _, snapshot = await _seed_registry_document(db)
+    observation = await _seed_observation(
+        db, snapshot, obs_id="obs_audit", entailment="reviewed_yes"
+    )
+    claim = await _seed_claim(
+        db,
+        publication,
+        owner,
+        claim_id="claim_audit",
+        evidence_class="registry_filing",
+        observation=observation,
+    )
+    relationship = await materialize_claim(db, claim.id, reviewer="  alice@newsroom.test  ")
+    await db.flush()
+    assert relationship.materialized_by == "alice@newsroom.test"
+
+    query = await list_relationships(db, as_of=NOW, known_at=NOW, entity_id=publication.id)
+    assert query.relationships[0].materialized_by == "alice@newsroom.test"
+
+
+@pytest.mark.asyncio
+async def test_reviewed_yes_without_recorded_reviewer_is_rejected_at_the_db_layer(
+    db: AsyncSession,
+) -> None:
+    """Regression: an observation could previously carry entailment='reviewed_yes'
+    with no `reviewed_by` set, which would let a claim materialize without any
+    real review action behind it. The DB now enforces this invariant directly
+    (see `ck_evidence_observation_reviewed_yes_has_reviewer`); the equivalent
+    application-level guard is covered by
+    tests/test_evidence_policy.py::test_reviewed_yes_without_a_recorded_reviewer_does_not_qualify
+    for callers that bypass the ORM/DB constraint."""
+    from sqlalchemy.exc import IntegrityError
+
+    _, snapshot = await _seed_registry_document(db)
+    observation = EvidenceObservation(
+        id="obs_unattributed",
+        snapshot_id=snapshot.id,
+        locator={"page": 1, "field": "beneficial_owner"},
+        quoted_text="Example Holdings LLC holds 100% of Example Daily.",
+        extractor="test-extractor",
+        extractor_version="1.0",
+        entailment="reviewed_yes",
+        reviewed_by=None,
+    )
+    db.add(observation)
+    with pytest.raises(IntegrityError):
+        await db.flush()
 
 
 @pytest.mark.asyncio
@@ -204,7 +282,7 @@ async def test_reviewed_yes_with_permitted_class_succeeds_and_materializes(
     assert evaluation.accepted is True
     assert evaluation.independent_root_count == 1
 
-    relationship = await materialize_claim(db, claim.id)
+    relationship = await materialize_claim(db, claim.id, reviewer="reviewer@test")
     await db.flush()
     assert relationship.status == "accepted"
     assert relationship.acceptance_policy_version == evaluation.policy_version
@@ -234,7 +312,7 @@ async def test_relationship_cannot_materialize_before_qualifying_evidence(db: As
         observation=None,
     )
     with pytest.raises(EvidenceSpineError):
-        await materialize_claim(db, claim.id)
+        await materialize_claim(db, claim.id, reviewer="reviewer@test")
     query = await list_relationships(db, as_of=NOW, known_at=NOW, entity_id=publication.id)
     assert query.relationships == []
 
@@ -255,9 +333,9 @@ async def test_duplicate_materialization_is_idempotent_and_keeps_supporting_link
         observation=observation,
     )
 
-    first = await materialize_claim(db, claim.id)
+    first = await materialize_claim(db, claim.id, reviewer="reviewer@test")
     await db.flush()
-    second = await materialize_claim(db, claim.id)
+    second = await materialize_claim(db, claim.id, reviewer="reviewer@test")
     await db.flush()
     assert first.id == second.id
 
@@ -290,7 +368,7 @@ async def test_accepted_only_query_returns_the_accepted_edge(db: AsyncSession) -
         evidence_class="registry_filing",
         observation=observation,
     )
-    await materialize_claim(db, claim.id)
+    await materialize_claim(db, claim.id, reviewer="reviewer@test")
     await db.flush()
 
     query = await list_relationships(db, as_of=NOW, known_at=NOW)
@@ -355,7 +433,7 @@ async def test_atlas_root_count_matches_evidence_api_root_count_for_mirrored_fil
     )
     await db.flush()
 
-    relationship = await materialize_claim(db, claim.id)
+    relationship = await materialize_claim(db, claim.id, reviewer="reviewer@test")
     await db.flush()
 
     api_root_count = await count_relationship_evidence_roots(db, [claim.id])
@@ -386,7 +464,7 @@ async def test_proof_bundle_never_leaks_local_storage_path(db: AsyncSession) -> 
         evidence_class="registry_filing",
         observation=observation,
     )
-    relationship = await materialize_claim(db, claim.id)
+    relationship = await materialize_claim(db, claim.id, reviewer="reviewer@test")
     await db.flush()
 
     bundle_bytes = await build_relationship_proof_bundle(
