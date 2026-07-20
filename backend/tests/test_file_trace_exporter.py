@@ -11,9 +11,7 @@ from app.core.file_trace_exporter import JsonlSpanExporter
 
 
 def test_jsonl_span_exporter_persists_correlation_attributes(tmp_path: Path) -> None:
-    provider = TracerProvider(
-        resource=Resource.create({"service.name": "test-service"})
-    )
+    provider = TracerProvider(resource=Resource.create({"service.name": "test-service"}))
     exporter = JsonlSpanExporter(service_name="test-service", log_dir=tmp_path)
     provider.add_span_processor(SimpleSpanProcessor(exporter))
     tracer = provider.get_tracer("test")

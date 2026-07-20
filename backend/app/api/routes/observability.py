@@ -7,20 +7,16 @@ import contextlib
 import os
 import platform
 import sys
+from collections.abc import AsyncIterator
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import Any
 
-from fastapi import APIRouter, Query
+from fastapi import APIRouter, FastAPI, Query
 
 from app.core.logging import get_runtime_data_dir, get_runtime_log_dir
 from app.services.resource_monitor import read_jsonl_records, resource_monitor
 
-router = APIRouter(
-    prefix="/debug/observability",
-    tags=["debug", "observability"],
-    include_in_schema=False,
-)
 _event_loop_task: asyncio.Task[None] | None = None
 
 
@@ -35,7 +31,6 @@ async def _sample_event_loop_lag() -> None:
         expected = now + interval
 
 
-@router.on_event("startup")
 async def start_observability() -> None:
     """Start low-overhead resource and event-loop sampling."""
     global _event_loop_task
@@ -47,7 +42,6 @@ async def start_observability() -> None:
         )
 
 
-@router.on_event("shutdown")
 async def stop_observability() -> None:
     """Stop observability tasks without delaying application shutdown."""
     global _event_loop_task
@@ -59,10 +53,28 @@ async def stop_observability() -> None:
     resource_monitor.stop()
 
 
+@contextlib.asynccontextmanager
+async def observability_lifespan(_app: FastAPI) -> AsyncIterator[None]:
+    """Own the sampler and event-loop probe for the router lifetime."""
+    await start_observability()
+    try:
+        yield
+    finally:
+        await stop_observability()
+
+
+router = APIRouter(
+    prefix="/debug/observability",
+    tags=["debug", "observability"],
+    include_in_schema=False,
+    lifespan=observability_lifespan,
+)
+
+
 @router.get("/resources")
 async def get_resource_snapshot() -> dict[str, Any]:
     """Return a current CPU, memory, disk, network, process, and GPU snapshot."""
-    return resource_monitor.collect_snapshot()
+    return await asyncio.to_thread(resource_monitor.collect_snapshot)
 
 
 @router.get("/performance")
@@ -74,7 +86,12 @@ async def get_recent_performance_samples(
     log_dir = get_runtime_log_dir()
     paths = sorted(log_dir.rglob("performance_*.jsonl"))
     since = datetime.now(UTC) - timedelta(minutes=since_minutes)
-    records = read_jsonl_records(paths, limit=limit, since=since)
+    records = await asyncio.to_thread(
+        read_jsonl_records,
+        paths,
+        limit=limit,
+        since=since,
+    )
     return {
         "generated_at": datetime.now(UTC).isoformat(),
         "since_minutes": since_minutes,
@@ -110,9 +127,7 @@ async def get_runtime_context() -> dict[str, Any]:
             {
                 "path": str(path),
                 "size_bytes": path.stat().st_size,
-                "modified_at": datetime.fromtimestamp(
-                    path.stat().st_mtime, tz=UTC
-                ).isoformat(),
+                "modified_at": datetime.fromtimestamp(path.stat().st_mtime, tz=UTC).isoformat(),
             }
             for path in sorted(log_dir.rglob("*.jsonl"))
             if path.is_file()
@@ -129,5 +144,5 @@ async def get_observability_health() -> dict[str, Any]:
         "monitor_running": resource_monitor.running,
         "performance_log_exists": log_path.exists(),
         "performance_log_path": str(log_path),
-        "latest_sample": resource_monitor.latest_snapshot(),
+        "latest_sample": await asyncio.to_thread(resource_monitor.latest_snapshot),
     }

@@ -57,6 +57,8 @@ THESIS_OBSERVABILITY_ENABLED=1
 THESIS_PERFORMANCE_SAMPLE_SECONDS=5
 THESIS_RUNTIME_DIR=/path/to/runtime-data
 THESIS_SERVICE_NAME=backend
+THESIS_LOG_MAX_BYTES=26214400
+THESIS_LOG_BACKUP_COUNT=3
 OTEL_ENABLED=1
 OTEL_SAMPLE_RATE=1.0
 OTEL_CONSOLE_EXPORT=0
@@ -70,6 +72,7 @@ OpenTelemetry remains optional. Resource sampling and structured request events 
 - Browser telemetry records the pathname, not URL query strings.
 - Embedding text is never logged.
 - The bundle collector whitelists configuration keys and redacts secrets and database passwords.
+- Runtime JSONL files rotate at 25 MiB by default and retain three backups. Override the cap and backup count with `THESIS_LOG_MAX_BYTES` and `THESIS_LOG_BACKUP_COUNT`.
 - Generated runtime data and bundles are ignored by Git.
 
 Use `py-spy`, `tracemalloc`, Playwright traces, or `EXPLAIN ANALYZE` only after the lightweight evidence identifies which service or operation needs deeper profiling.

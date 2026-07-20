@@ -2,17 +2,18 @@
 
 from __future__ import annotations
 
-import json
 import os
 import threading
+from collections.abc import Sequence
 from datetime import UTC, datetime
 from pathlib import Path
-from typing import Any, Sequence
+from typing import Any
 
 from opentelemetry.sdk.trace import ReadableSpan
 from opentelemetry.sdk.trace.export import SpanExportResult, SpanExporter
 from opentelemetry.trace import format_span_id, format_trace_id
 
+from app.core.jsonl import append_jsonl
 from app.core.logging import get_runtime_log_dir
 
 
@@ -36,6 +37,7 @@ class JsonlSpanExporter(SpanExporter):
     """Persist completed spans in a format both humans and agents can inspect."""
 
     def __init__(self, *, service_name: str, log_dir: Path | None = None) -> None:
+        """Create a bounded file exporter for one service process."""
         safe_service = "".join(
             character if character.isalnum() or character in {"-", "_"} else "_"
             for character in service_name
@@ -47,12 +49,13 @@ class JsonlSpanExporter(SpanExporter):
 
     @property
     def path(self) -> Path:
+        """Return the active JSONL path."""
         return self._path
 
     def export(self, spans: Sequence[ReadableSpan]) -> SpanExportResult:
-        self._path.parent.mkdir(parents=True, exist_ok=True)
+        """Append completed spans to the bounded local trace log."""
         try:
-            with self._lock, self._path.open("a", encoding="utf-8") as handle:
+            with self._lock:
                 for span in spans:
                     context = span.context
                     parent = span.parent
@@ -64,24 +67,19 @@ class JsonlSpanExporter(SpanExporter):
                         else None
                     )
                     payload = {
-                        "timestamp": _iso_from_ns(end_ns)
-                        or datetime.now(UTC).isoformat(),
+                        "timestamp": _iso_from_ns(end_ns) or datetime.now(UTC).isoformat(),
                         "kind": "trace_span",
                         "service": span.resource.attributes.get("service.name"),
                         "trace_id": format_trace_id(context.trace_id),
                         "span_id": format_span_id(context.span_id),
-                        "parent_span_id": format_span_id(parent.span_id)
-                        if parent
-                        else None,
+                        "parent_span_id": format_span_id(parent.span_id) if parent else None,
                         "operation": span.name,
                         "span_kind": span.kind.name,
                         "status": span.status.status_code.name,
                         "status_description": span.status.description,
                         "start_time": _iso_from_ns(start_ns),
                         "end_time": _iso_from_ns(end_ns),
-                        "duration_ms": round(duration_ms, 3)
-                        if duration_ms is not None
-                        else None,
+                        "duration_ms": round(duration_ms, 3) if duration_ms is not None else None,
                         "attributes": _json_safe(dict(span.attributes or {})),
                         "events": [
                             {
@@ -92,15 +90,15 @@ class JsonlSpanExporter(SpanExporter):
                             for event in span.events
                         ],
                     }
-                    handle.write(
-                        json.dumps(payload, separators=(",", ":"), default=str) + "\n"
-                    )
+                    append_jsonl(self._path, payload)
         except OSError:
             return SpanExportResult.FAILURE
         return SpanExportResult.SUCCESS
 
     def shutdown(self) -> None:
+        """Release exporter resources; writes do not keep an open handle."""
         return None
 
     def force_flush(self, timeout_millis: int = 30_000) -> bool:
+        """Report success because every export is flushed on append."""
         return True

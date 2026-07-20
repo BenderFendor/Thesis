@@ -49,9 +49,7 @@ def setup_tracing(app: FastAPI) -> None:
 
         from app.core.file_trace_exporter import JsonlSpanExporter
     except ImportError as exc:
-        _logger.warning(
-            "OpenTelemetry dependencies not installed: %s; tracing disabled", exc
-        )
+        _logger.warning("OpenTelemetry dependencies not installed: %s; tracing disabled", exc)
         return
 
     sample_rate = max(0.0, min(1.0, settings.otel_sample_rate))
@@ -83,17 +81,11 @@ def setup_tracing(app: FastAPI) -> None:
             )
 
             provider.add_span_processor(
-                BatchSpanProcessor(
-                    OTLPSpanExporter(endpoint=settings.otel_exporter_endpoint)
-                )
+                BatchSpanProcessor(OTLPSpanExporter(endpoint=settings.otel_exporter_endpoint))
             )
-            _logger.info(
-                "OTLP exporter configured at %s", settings.otel_exporter_endpoint
-            )
+            _logger.info("OTLP exporter configured at %s", settings.otel_exporter_endpoint)
         except ImportError:
-            _logger.warning(
-                "OTLP exporter not installed; local file export remains active"
-            )
+            _logger.warning("OTLP exporter not installed; local file export remains active")
         except Exception as exc:
             _logger.warning("Failed to configure OTLP exporter: %s", exc)
 

@@ -1,5 +1,21 @@
 # Learnings
 
+## 2026-07-19 — Durable debug evidence needs bounds and redaction at write time
+
+Context:
+- Resource samples, trace spans, and existing debug events moved from temporary or in-memory storage into `runtime-data/`.
+- Bundle-only config redaction did not protect secret fields or URL values already persisted inside JSONL records.
+
+What worked:
+- Route every runtime JSONL writer through one size-bounded, recursive-redaction helper.
+- Include the process ID in worker log names and rotate backups with a `.jsonl` suffix so bundle discovery still finds them.
+- Keep recent-sample memory bounded to the API limit and move disk scans plus GPU collection off the request event loop.
+
+Future agents should:
+- Treat retention and record-level redaction as acceptance criteria for any new persistent logging path.
+- Test nested secret keys, URL credentials, query values, rotation, multi-file ordering, and degraded bundle collection.
+- Use router lifespan handlers for new FastAPI startup and shutdown work instead of deprecated event decorators.
+
 ## 2026-07-19 — Article readiness must not wait for enrichment
 
 Context:

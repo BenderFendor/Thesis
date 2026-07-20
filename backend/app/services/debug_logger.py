@@ -30,6 +30,7 @@ from pathlib import Path
 from typing import Any
 from collections.abc import Iterator
 
+from app.core.jsonl import append_jsonl
 from app.core.logging import get_logger
 
 logger = get_logger("debug_logger")
@@ -198,11 +199,12 @@ class DebugLoggerService:
     def __init__(self) -> None:
         """Initialize."""
         self._lock = threading.Lock()
+        self._file_lock = threading.Lock()
         self._events: deque[DebugEvent] = deque(maxlen=MAX_IN_MEMORY_EVENTS)
         self._active_requests: dict[str, RequestTrace] = {}
         self._active_streams: dict[str, StreamTrace] = {}
         self._log_file: Path | None = None
-        self._session_id = datetime.now(UTC).strftime("%Y%m%d_%H%M%S")
+        self._session_id = f"{datetime.now(UTC):%Y%m%d_%H%M%S}_{os.getpid()}"
         self._event_counter = 0
         self._frontend_reports: deque[dict[str, Any]] = deque(maxlen=20)
 
@@ -229,7 +231,8 @@ class DebugLoggerService:
             "timestamp": datetime.now(UTC).isoformat(),
             "thresholds": THRESHOLDS,
         }
-        self._log_file.open("w").write(json.dumps(header) + "\n")
+        self._log_file.unlink(missing_ok=True)
+        append_jsonl(self._log_file, header)
 
     def _generate_event_id(self) -> str:
         """Generate a unique event ID."""
@@ -241,7 +244,8 @@ class DebugLoggerService:
         """Write event to log file."""
         if self._log_file:
             try:
-                self._log_file.open("a").write(event.to_json() + "\n")
+                with self._file_lock:
+                    append_jsonl(self._log_file, event.to_dict())
             except Exception as e:
                 if isinstance(e, OSError) and e.errno == 24:
                     logger.error(

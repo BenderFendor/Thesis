@@ -71,6 +71,7 @@ Common variables:
 | `NEXT_PUBLIC_API_URL` | Overrides the browser API base URL when needed. |
 | `THESIS_RUNTIME_DIR` | Stores local structured logs, resource samples, and traces. |
 | `THESIS_OBSERVABILITY_ENABLED` | Enables lightweight resource sampling; defaults to enabled. |
+| `THESIS_LOG_MAX_BYTES` / `THESIS_LOG_BACKUP_COUNT` | Bounds each runtime JSONL file; defaults to 25 MiB plus three backups. |
 | `OTEL_ENABLED` | Enables local JSONL OpenTelemetry trace export. |
 
 Restart the backend after changing `backend/.env`.

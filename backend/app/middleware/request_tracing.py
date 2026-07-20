@@ -44,9 +44,8 @@ class RequestTracingMiddleware(BaseHTTPMiddleware):
         request: Request,
         call_next: Callable[[Request], Awaitable[Response]],
     ) -> Response:
-        request_id = (
-            request.headers.get("X-Request-ID") or f"req_{uuid.uuid4().hex[:12]}"
-        )
+        """Trace one request and attach correlation and timing headers."""
+        request_id = request.headers.get("X-Request-ID") or f"req_{uuid.uuid4().hex[:12]}"
         request.state.request_id = request_id
 
         path = request.url.path

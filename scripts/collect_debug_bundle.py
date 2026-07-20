@@ -19,8 +19,16 @@ from pathlib import Path
 from typing import Any
 
 SENSITIVE_KEY = re.compile(
-    r"(key|token|secret|password|cookie|authorization)", re.IGNORECASE
+    r"(?:^|[_-])(?:api[_-]?key|key|token|secret|password|cookie|authorization)"
+    r"(?:$|[_-])",
+    re.IGNORECASE,
 )
+SENSITIVE_ASSIGNMENT = re.compile(
+    r"(?i)\b(api[_-]?key|token|secret|password|cookie|authorization)\b"
+    r"(\s*[:=]\s*)([^\s,;]+)"
+)
+URL_QUERY_VALUE = re.compile(r"([?&][^=\s&#]+)=([^&#\s]*)")
+URL_PASSWORD = re.compile(r"(\b[a-z][a-z0-9+.-]*://[^:/\s@]+):([^@\s/]+)@", re.I)
 CONFIG_ENV_NAMES = (
     "ENVIRONMENT",
     "DEBUG",
@@ -37,6 +45,8 @@ CONFIG_ENV_NAMES = (
     "THESIS_PERFORMANCE_SAMPLE_SECONDS",
     "THESIS_RUNTIME_DIR",
     "THESIS_SERVICE_NAME",
+    "THESIS_LOG_MAX_BYTES",
+    "THESIS_LOG_BACKUP_COUNT",
     "OTEL_ENABLED",
     "OTEL_SAMPLE_RATE",
     "OTEL_EXPORTER_ENDPOINT",
@@ -80,11 +90,31 @@ def parse_timestamp(value: object) -> datetime | None:
     return parsed.astimezone(UTC)
 
 
+def sanitize_text(value: str) -> str:
+    """Redact common secret forms and URL values embedded in free-form text."""
+    value = URL_PASSWORD.sub(r"\1:<redacted>@", value)
+    value = URL_QUERY_VALUE.sub(r"\1=<redacted>", value)
+    return SENSITIVE_ASSIGNMENT.sub(r"\1\2<redacted>", value)
+
+
 def sanitize_value(key: str, value: object) -> object:
     if key.upper() == "DATABASE_URL" and isinstance(value, str):
-        return re.sub(r"//([^:/]+):([^@]+)@", r"//\1:<redacted>@", value)
+        return URL_PASSWORD.sub(r"\1:<redacted>@", value)
     if SENSITIVE_KEY.search(key):
         return "<redacted>"
+    return sanitize_record(value)
+
+
+def sanitize_record(value: object) -> object:
+    """Recursively redact sensitive fields before evidence leaves runtime data."""
+    if isinstance(value, dict):
+        return {str(key): sanitize_value(str(key), item) for key, item in value.items()}
+    if isinstance(value, list):
+        return [sanitize_record(item) for item in value]
+    if isinstance(value, tuple):
+        return [sanitize_record(item) for item in value]
+    if isinstance(value, str):
+        return sanitize_text(value)
     return value
 
 
@@ -117,7 +147,11 @@ def fetch_json(base_url: str, path: str, timeout: float = 5.0) -> dict[str, obje
     try:
         with urllib.request.urlopen(request, timeout=timeout) as response:
             payload = json.loads(response.read().decode("utf-8"))
-        return {"available": True, "url": url, "payload": payload}
+        return {
+            "available": True,
+            "url": sanitize_text(url),
+            "payload": sanitize_record(payload),
+        }
     except (urllib.error.URLError, TimeoutError, json.JSONDecodeError, OSError) as exc:
         return {"available": False, "url": url, "error": str(exc)}
 
@@ -148,7 +182,10 @@ def filter_jsonl(source: Path, destination: Path, since: datetime) -> dict[str, 
             timestamp = parse_timestamp(record.get("timestamp"))
             if timestamp is not None and timestamp < since:
                 continue
-            output.write(json.dumps(record, default=str, separators=(",", ":")) + "\n")
+            output.write(
+                json.dumps(sanitize_record(record), default=str, separators=(",", ":"))
+                + "\n"
+            )
             kept += 1
 
     if kept == 0:
@@ -190,7 +227,10 @@ def collect_logs(
 
 def write_json(path: Path, value: object) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(json.dumps(value, indent=2, default=str) + "\n", encoding="utf-8")
+    path.write_text(
+        json.dumps(sanitize_record(value), indent=2, default=str) + "\n",
+        encoding="utf-8",
+    )
 
 
 def read_jsonl(path: Path) -> list[dict[str, Any]]:

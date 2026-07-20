@@ -85,3 +85,26 @@ def test_read_jsonl_records_filters_by_time(tmp_path: Path) -> None:
         since=datetime.now(UTC) - timedelta(minutes=30),
     )
     assert [record["value"] for record in records] == ["recent"]
+
+
+def test_read_jsonl_records_keeps_only_latest_limit(tmp_path: Path) -> None:
+    first = tmp_path / "performance_a.jsonl"
+    second = tmp_path / "performance_b.jsonl"
+    first.write_text(
+        "\n".join(
+            json.dumps({"timestamp": f"2026-01-01T00:00:0{index}+00:00", "value": index})
+            for index in (1, 3)
+        )
+        + "\n"
+    )
+    second.write_text(
+        "\n".join(
+            json.dumps({"timestamp": f"2026-01-01T00:00:0{index}+00:00", "value": index})
+            for index in (2, 4)
+        )
+        + "\n"
+    )
+
+    records = read_jsonl_records([first, second], limit=2)
+
+    assert [record["value"] for record in records] == [3, 4]

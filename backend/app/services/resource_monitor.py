@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import heapq
 import json
 import os
 import shutil
@@ -15,6 +16,7 @@ from typing import Any
 
 import psutil
 
+from app.core.jsonl import append_jsonl
 from app.core.logging import get_logger, get_runtime_log_dir
 
 logger = get_logger("resource_monitor")
@@ -68,9 +70,7 @@ def _parse_gpu_rows(output: str) -> list[dict[str, Any]]:
                 "index": int(index) if index.isdigit() else index,
                 "name": name,
                 "utilization_percent": as_float(utilization),
-                "memory_used_bytes": int(used_mib * 1024 * 1024)
-                if used_mib is not None
-                else None,
+                "memory_used_bytes": int(used_mib * 1024 * 1024) if used_mib is not None else None,
                 "memory_total_bytes": int(total_mib * 1024 * 1024)
                 if total_mib is not None
                 else None,
@@ -87,9 +87,7 @@ def collect_gpu_snapshot(timeout_seconds: float = 1.5) -> list[dict[str, Any]]:
     if executable is None:
         return []
 
-    query = (
-        "index,name,utilization.gpu,memory.used,memory.total,temperature.gpu,power.draw"
-    )
+    query = "index,name,utilization.gpu,memory.used,memory.total,temperature.gpu,power.draw"
     try:
         result = subprocess.run(
             [
@@ -114,7 +112,10 @@ def read_jsonl_records(
     since: datetime | None = None,
 ) -> list[dict[str, Any]]:
     """Read and time-sort JSONL records from one or more files."""
-    records: list[dict[str, Any]] = []
+    if limit <= 0:
+        return []
+    records: list[tuple[str, int, dict[str, Any]]] = []
+    sequence = 0
     for path in paths:
         if not path.exists() or not path.is_file():
             continue
@@ -132,9 +133,7 @@ def read_jsonl_records(
                     timestamp = value.get("timestamp")
                     if since is not None and isinstance(timestamp, str):
                         try:
-                            parsed = datetime.fromisoformat(
-                                timestamp.replace("Z", "+00:00")
-                            )
+                            parsed = datetime.fromisoformat(timestamp.replace("Z", "+00:00"))
                         except ValueError:
                             parsed = None
                         if parsed is not None:
@@ -142,12 +141,17 @@ def read_jsonl_records(
                                 parsed = parsed.replace(tzinfo=UTC)
                             if parsed < since:
                                 continue
-                    records.append(value)
+                    entry = (str(value.get("timestamp", "")), sequence, value)
+                    sequence += 1
+                    if len(records) < limit:
+                        heapq.heappush(records, entry)
+                    elif entry > records[0]:
+                        heapq.heapreplace(records, entry)
         except OSError:
             continue
 
-    records.sort(key=lambda item: str(item.get("timestamp", "")))
-    return records[-limit:]
+    records.sort()
+    return [record for _, _, record in records]
 
 
 class ResourceMonitor:
@@ -160,7 +164,9 @@ class ResourceMonitor:
         interval_seconds: float | None = None,
         log_dir: Path | None = None,
     ) -> None:
-        self.service_name = service_name or os.getenv("THESIS_SERVICE_NAME", "backend")
+        """Configure one process-local sampler and its bounded JSONL path."""
+        resolved_service_name = service_name or os.environ.get("THESIS_SERVICE_NAME") or "backend"
+        self.service_name: str = resolved_service_name
         raw_interval = interval_seconds or float(
             os.getenv("THESIS_PERFORMANCE_SAMPLE_SECONDS", "5")
         )
@@ -188,9 +194,11 @@ class ResourceMonitor:
 
     @property
     def running(self) -> bool:
+        """Return whether the sampler thread is active."""
         return self._thread is not None and self._thread.is_alive()
 
     def set_event_loop_lag(self, lag_ms: float) -> None:
+        """Store the most recent event-loop delay for the next sample."""
         with self._state_lock:
             self._event_loop_lag_ms = max(0.0, lag_ms)
 
@@ -228,9 +236,7 @@ class ResourceMonitor:
                 "cpu_percent": psutil.cpu_percent(interval=None),
                 "cpu_count_logical": psutil.cpu_count(logical=True),
                 "cpu_count_physical": psutil.cpu_count(logical=False),
-                "load_average": list(os.getloadavg())
-                if hasattr(os, "getloadavg")
-                else None,
+                "load_average": list(os.getloadavg()) if hasattr(os, "getloadavg") else None,
                 "memory_total_bytes": virtual_memory.total,
                 "memory_available_bytes": virtual_memory.available,
                 "memory_used_percent": virtual_memory.percent,
@@ -260,20 +266,18 @@ class ResourceMonitor:
         return snapshot
 
     def latest_snapshot(self) -> dict[str, Any]:
+        """Return the most recent sample or collect one when none exists."""
         with self._state_lock:
             latest = self._latest
         return latest or self.collect_snapshot()
 
     def _append(self, snapshot: dict[str, Any]) -> None:
         self.log_dir.mkdir(parents=True, exist_ok=True)
-        serialized = json.dumps(snapshot, separators=(",", ":"), default=str)
         try:
-            with self._write_lock, self.log_path.open("a", encoding="utf-8") as handle:
-                handle.write(serialized + "\n")
+            with self._write_lock:
+                append_jsonl(self.log_path, snapshot)
         except OSError as exc:
-            logger.warning(
-                "Could not write performance sample to %s: %s", self.log_path, exc
-            )
+            logger.warning("Could not write performance sample to %s: %s", self.log_path, exc)
 
     def record_operation(
         self,

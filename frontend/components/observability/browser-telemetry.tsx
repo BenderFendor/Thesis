@@ -3,7 +3,7 @@
 import { useEffect } from "react"
 import { API_BASE_URL } from "@/lib/api"
 
-type BrowserEvidence = {
+interface BrowserEvidence {
   timestamp: string
   type: string
   message: string

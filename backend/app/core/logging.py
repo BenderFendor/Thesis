@@ -8,14 +8,10 @@ from datetime import datetime
 from logging.handlers import RotatingFileHandler
 from pathlib import Path
 
-_LOG_FORMAT = (
-    "%(asctime)s - %(name)s - %(levelname)s - [%(funcName)s:%(lineno)d] - %(message)s"
-)
+_LOG_FORMAT = "%(asctime)s - %(name)s - %(levelname)s - [%(funcName)s:%(lineno)d] - %(message)s"
 
 REPO_ROOT = Path(__file__).resolve().parents[3]
-RUNTIME_DATA_DIR = Path(
-    os.environ.get("THESIS_RUNTIME_DIR", REPO_ROOT / "runtime-data")
-)
+RUNTIME_DATA_DIR = Path(os.environ.get("THESIS_RUNTIME_DIR", REPO_ROOT / "runtime-data"))
 RUNTIME_LOG_DIR = RUNTIME_DATA_DIR / "logs"
 
 # Keep the existing structured debug logger, but point it at durable project data
@@ -34,9 +30,7 @@ class ConsoleSummaryFilter(logging.Filter):
 
     def filter(self, record: logging.LogRecord) -> bool:
         """Return whether a record belongs in the operational console."""
-        return record.levelno >= logging.WARNING or bool(
-            getattr(record, "console_summary", False)
-        )
+        return record.levelno >= logging.WARNING or bool(getattr(record, "console_summary", False))
 
 
 class ConsoleSummaryFormatter(logging.Formatter):
@@ -74,7 +68,7 @@ def get_session_dir() -> Path:
     """Return the current plain-text application-log session directory."""
     global _session_dir
     if _session_dir is None:
-        session_name = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
+        session_name = f"{datetime.now():%Y-%m-%d_%H-%M-%S}_{os.getpid()}"
         _session_dir = LOG_DIR / session_name
         _session_dir.mkdir(parents=True, exist_ok=True)
     return _session_dir
