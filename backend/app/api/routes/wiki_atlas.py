@@ -17,13 +17,16 @@ from app.models.atlas import (
     AtlasRelationType,
     AtlasSearchResponse,
     AtlasStatsResponse,
+    FundingBiasAnalysisResponse,
 )
 from app.services.atlas_entity import get_atlas_entity, list_atlas_index, search_atlas
 from app.services.atlas_export import build_atlas_export
 from app.services.atlas_graph import build_atlas_graph, build_atlas_stats
+from app.services.atlas_graph_helpers import normalize_entity_id_alias, normalize_entity_type_alias
+from app.services.funding_bias_analysis import get_funding_bias_analysis_response
 
 router = APIRouter(prefix="/api/wiki/atlas", tags=["wiki-atlas"])
-_ENTITY_TYPES = {"source", "organization", "reporter"}
+_ENTITY_TYPES = {"outlet", "organization", "person", "reporter"}
 _RELATION_TYPES = {
     "ownership",
     "owned_by",
@@ -34,6 +37,8 @@ _RELATION_TYPES = {
     "current_outlet",
     "coauthor",
     "shared_outlet",
+    "founded_by",
+    "sibling_via_owner",
 }
 
 
@@ -42,7 +47,9 @@ def _split_csv(value: str | None) -> list[str]:
 
 
 def _validated_entity_types(value: str | None) -> list[AtlasEntityType]:
-    values = _split_csv(value)
+    # Legacy alias: old clients/bookmarks may still send "source" for what is
+    # now the "outlet" entity type -- accept it, normalize it, never emit it.
+    values = [normalize_entity_type_alias(item) for item in _split_csv(value)]
     unsupported = sorted(set(values) - _ENTITY_TYPES)
     if unsupported:
         raise HTTPException(
@@ -92,7 +99,7 @@ async def get_atlas_graph(
             funding=_split_csv(funding),
             bias=_split_csv(bias),
             min_confidence=min_confidence,
-            selected=selected,
+            selected=normalize_entity_id_alias(selected) if selected else selected,
             neighbors=neighbors,
             limit_nodes=limit_nodes,
             limit_edges=limit_edges,
@@ -169,6 +176,19 @@ async def get_atlas_index(
         cursor=cursor,
         limit=limit,
     )
+
+
+@router.get("/analysis/funding-bias", response_model=FundingBiasAnalysisResponse)
+async def get_funding_bias_analysis(
+    db: AsyncSession = Depends(get_db),
+) -> FundingBiasAnalysisResponse:
+    """Return the latest pre-registered funding-vs-bias correlation trace.
+
+    Read-only -- `available=False` (not a 404/500) when
+    `app.scripts.run_funding_bias_analysis` has never run against this
+    database.
+    """
+    return await get_funding_bias_analysis_response(db)
 
 
 @router.post("/export")

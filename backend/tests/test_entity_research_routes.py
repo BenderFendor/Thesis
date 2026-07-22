@@ -219,3 +219,94 @@ async def test_source_profile_response_exposes_ad_supply_transparency(
     assert data["sellers_json"]["systems"][0]["sellers_json_url"] == (
         "https://google.com/sellers.json"
     )
+
+
+@pytest.mark.asyncio
+async def test_organization_research_preserves_complete_profile_in_cache(
+    client: AsyncClient,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from app.api.routes import entity_research
+
+    class _Researcher:
+        async def research_organization(
+            self, name: str, website: str | None = None
+        ) -> dict[str, object]:
+            return {
+                "name": name,
+                "normalized_name": "completeness news",
+                "org_type": "parent company",
+                "parent_org": "Example Holdings",
+                "ownership_percentage": "100%",
+                "funding_type": "commercial",
+                "funding_sources": ["subscriptions", "advertising"],
+                "major_advertisers": ["Example Advertiser"],
+                "ein": "123456789",
+                "annual_revenue": "$100M",
+                "top_donors": [],
+                "media_bias_rating": "center",
+                "factual_reporting": "high",
+                "website": website,
+                "wikipedia_url": "https://en.wikipedia.org/wiki/Example",
+                "owned_by": ["Example Holdings"],
+                "parent_orgs": ["Example Holdings"],
+                "part_of": ["Example Group"],
+                "subsidiaries": ["Example News"],
+                "headquarters": ["New York City"],
+                "inception": "2020-01-01",
+                "official_website": website,
+                "cik": "0000123456",
+                "conflict_flags": [],
+                "research_sources": ["sec_edgar", "wikidata"],
+                "research_confidence": "high",
+            }
+
+    monkeypatch.setattr(entity_research, "get_funding_researcher", lambda: _Researcher())
+    request = {
+        "name": "Completeness News",
+        "website": "https://completeness.example",
+    }
+
+    fresh_response = await client.post(
+        "/research/entity/organization/research?force_refresh=true",
+        json=request,
+    )
+    refreshed_response = await client.post(
+        "/research/entity/organization/research?force_refresh=true",
+        json=request,
+    )
+    cached_response = await client.post(
+        "/research/entity/organization/research",
+        json=request,
+    )
+
+    assert fresh_response.status_code == 200
+    assert cached_response.status_code == 200
+    assert refreshed_response.status_code == 200
+    fresh = fresh_response.json()
+    refreshed = refreshed_response.json()
+    cached = cached_response.json()
+    for field in (
+        "org_type",
+        "parent_org",
+        "ownership_percentage",
+        "funding_type",
+        "funding_sources",
+        "major_advertisers",
+        "ein",
+        "annual_revenue",
+        "top_donors",
+        "website",
+        "owned_by",
+        "parent_orgs",
+        "part_of",
+        "subsidiaries",
+        "headquarters",
+        "inception",
+        "official_website",
+        "cik",
+    ):
+        assert cached[field] == fresh[field]
+    assert refreshed["id"] == fresh["id"]
+    assert fresh["cached"] is False
+    assert cached["cached"] is True

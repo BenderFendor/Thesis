@@ -67,7 +67,7 @@ export function AtlasInspector({ record, loading, error, onSelectConnection }: A
       <div className={styles.emptyState}>
         <div>
           <div className={styles.brandTitle}>Select an entity</div>
-          <p className={styles.contextCopy}>Choose a source, organization, or reporter to inspect its evidence and connections.</p>
+          <p className={styles.contextCopy}>Choose an outlet, organization, person, or reporter to inspect its evidence and connections.</p>
         </div>
       </div>
     );

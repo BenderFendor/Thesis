@@ -1,11 +1,35 @@
-"""Project accepted evidence-spine records into the Intelligence Atlas."""
+"""Project the evidence spine's organizations, people, and ownership into Atlas.
+
+Organization and person nodes come from `EvidenceEntity` (`legal_entity`/
+`organization_without_legal_identity` -> organization, `person` -> person).
+Every ownership-flavored edge -- accepted (`AcceptedRelationship`) and
+candidate (un-materialized `EvidenceClaim`) -- for the `directly_owns`,
+`owns_equity_in`, `controls`, and `founded_by` predicates is built here too,
+fully populated with evidence citations, `fact_status`, `accepted_fact`,
+`claim_ids`, and `acceptance_policy_version`. A candidate edge is
+`is_inferred=True`/`accepted_fact=False`; the generic `accepted_only` filter
+in `atlas_graph_helpers._edge_matches` excludes it when requested.
+
+`sibling_via_owner` is a precomputed, undirected rollup: every accepted
+direct/equity ownership edge is walked upward from each outlet to its
+ultimate root owner (the entity with no further accepted owner above it,
+cycle-guarded); outlets sharing a root are pairwise linked.
+
+Outlet-side edge endpoints resolve through `atlas_entity_resolution.
+outlet_node_ids` so they land on the exact same "outlet:<digest>" ids
+`atlas_graph_projection.py` emits nodes for.
+"""
 
 from __future__ import annotations
-from collections import Counter, defaultdict
+
+from collections import defaultdict
 from datetime import UTC, datetime
+from itertools import combinations
 from typing import Any, cast
+
 from sqlalchemy import or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
+
 from app.models.atlas import (
     AtlasEdge,
     AtlasEvidenceRef,
@@ -15,56 +39,39 @@ from app.models.atlas import (
 )
 from app.models.evidence import (
     AcceptedRelationship,
+    CalculationTrace,
     ClaimEvidence,
     DocumentSnapshot,
+    EvidenceClaim,
     EvidenceDocument,
-    EvidenceEntity,
     EvidenceObservation,
     RelationshipClaim,
 )
+from app.services.atlas_entity_resolution import (
+    canonical_entity_id,
+    entity_survivor_map,
+    live_entities_by_kind,
+    outlet_node_ids,
+)
+from app.services.atlas_graph_helpers import _edge_id
 from app.services.evidence_spine import count_relationship_evidence_roots
 
-
-def _atlas_entity_type(record_kind: str) -> str | None:
-    if record_kind in {"publication", "digital_property", "feed"}:
-        return "source"
-    if record_kind in {"legal_entity", "organization_without_legal_identity"}:
-        return "organization"
-    if record_kind == "person":
-        return "reporter"
-    return None
-
-
-def _canonical_relation(predicate: str) -> AtlasRelationType:
-    if predicate in {
-        "owns_equity_in",
-        "directly_owns",
-        "controls",
-        "ultimate_control",
-        "accounting_consolidated_by",
-    }:
-        return "ownership"
-    if predicate in {"brand_of", "operated_by", "licensee", "state_chartered_independent"}:
-        return "publishes"
-    if predicate in {"employed_by", "board_member_of"}:
-        return "employed_by"
-    if predicate in {"formerly_known_as", "successor_of"}:
-        return "parent_org"
-    return "part_of"
+_ORGANIZATION_KINDS = ("legal_entity", "organization_without_legal_identity")
+_PUBLICATION_KINDS = ("publication", "digital_property", "feed")
+_OWNERSHIP_PREDICATES = ("directly_owns", "owns_equity_in", "controls", "founded_by")
+_INTEREST_PREDICATES = ("directly_owns", "owns_equity_in")
+# "controls" is included alongside the equity predicates for the downward
+# "who else does this owner control" rollup -- broader than the upward
+# ownership-chain/sibling walk, which stays interest-predicate-only so its
+# percentages mean equity ownership specifically. "founded_by" is excluded:
+# founding an org is not the same claim as controlling it.
+_CONTROL_PREDICATES = (*_INTEREST_PREDICATES, "controls")
 
 
-def _atlas_endpoints(predicate: str, subject_id: str, object_id: str) -> tuple[str, str]:
-    if predicate in {
-        "owned_by",
-        "brand_of",
-        "operated_by",
-        "accounting_consolidated_by",
-        "parent_org",
-        "licensee",
-        "state_chartered_independent",
-    }:
-        return object_id, subject_id
-    return subject_id, object_id
+def _relation_type(predicate: str) -> AtlasRelationType:
+    if predicate == "founded_by":
+        return "founded_by"
+    return "ownership"
 
 
 def _as_naive(value: datetime | None) -> datetime:
@@ -75,82 +82,46 @@ def _as_naive(value: datetime | None) -> datetime:
     return value.astimezone(UTC).replace(tzinfo=None)
 
 
-async def load_evidence_atlas_projection(
-    db: AsyncSession, filters: AtlasGraphFilters
-) -> tuple[list[AtlasNode], list[AtlasEdge]]:
-    """Project accepted evidence-spine relationships into Atlas nodes and edges."""
-    as_of = _as_naive(filters.as_of)
-    known_at = _as_naive(filters.known_at)
-    relationships = list(
-        (
-            await db.execute(
-                select(AcceptedRelationship).where(
-                    or_(
-                        AcceptedRelationship.valid_from.is_(None),
-                        AcceptedRelationship.valid_from <= as_of,
-                    ),
-                    or_(
-                        AcceptedRelationship.valid_to.is_(None),
-                        AcceptedRelationship.valid_to >= as_of,
-                    ),
-                    AcceptedRelationship.recorded_at <= known_at,
-                    or_(
-                        AcceptedRelationship.retracted_at.is_(None),
-                        AcceptedRelationship.retracted_at > known_at,
-                    ),
-                )
-            )
-        )
-        .scalars()
-        .all()
-    )
-    if not relationships:
-        return [], []
+async def _endpoint_id_map(
+    db: AsyncSession, survivors: dict[str, str]
+) -> tuple[dict[str, str], dict[str, str]]:
+    """Return (entity_id -> atlas node id, entity_id -> entity_type) for edge endpoints."""
+    organizations = await live_entities_by_kind(db, _ORGANIZATION_KINDS, survivors)
+    people = await live_entities_by_kind(db, ("person",), survivors)
+    publications = await live_entities_by_kind(db, _PUBLICATION_KINDS, survivors)
+    outlet_ids = await outlet_node_ids(db, publications)
 
-    entity_ids = {
-        cast(str, value)
-        for row in relationships
-        for value in (row.subject_entity_id, row.object_entity_id)
-    }
-    entities = list(
-        (await db.execute(select(EvidenceEntity).where(EvidenceEntity.id.in_(entity_ids))))
-        .scalars()
-        .all()
-    )
-    relationship_ids = [cast(str, row.id) for row in relationships]
+    node_id_by_entity: dict[str, str] = {}
+    kind_by_entity: dict[str, str] = {}
+    for entity in organizations:
+        entity_id = cast(str, entity.id)
+        node_id_by_entity[entity_id] = f"organization:{entity_id}"
+        kind_by_entity[entity_id] = "organization"
+    for entity in people:
+        entity_id = cast(str, entity.id)
+        node_id_by_entity[entity_id] = f"person:{entity_id}"
+        kind_by_entity[entity_id] = "person"
+    for entity in publications:
+        entity_id = cast(str, entity.id)
+        node_id_by_entity[entity_id] = outlet_ids[entity_id]
+        kind_by_entity[entity_id] = "outlet"
+    return node_id_by_entity, kind_by_entity
+
+
+async def evidence_refs_for_claims(
+    db: AsyncSession, claim_ids: list[str]
+) -> dict[str, list[AtlasEvidenceRef]]:
+    """Bulk-load evidence citations for a set of claims, keyed by claim id."""
+    if not claim_ids:
+        return {}
     links = list(
-        (
-            await db.execute(
-                select(RelationshipClaim).where(
-                    RelationshipClaim.relationship_id.in_(relationship_ids)
-                )
-            )
-        )
+        (await db.execute(select(ClaimEvidence).where(ClaimEvidence.claim_id.in_(claim_ids))))
         .scalars()
         .all()
-    )
-    claim_ids_by_relationship: dict[str, list[str]] = defaultdict(list)
-    for relationship_link in links:
-        claim_ids_by_relationship[cast(str, relationship_link.relationship_id)].append(
-            cast(str, relationship_link.claim_id)
-        )
-    claim_ids = sorted(
-        {claim_id for values in claim_ids_by_relationship.values() for claim_id in values}
-    )
-    evidence_links = (
-        list(
-            (await db.execute(select(ClaimEvidence).where(ClaimEvidence.claim_id.in_(claim_ids))))
-            .scalars()
-            .all()
-        )
-        if claim_ids
-        else []
     )
     observation_ids_by_claim: dict[str, list[str]] = defaultdict(list)
-    for evidence_link in evidence_links:
-        observation_ids_by_claim[cast(str, evidence_link.claim_id)].append(
-            cast(str, evidence_link.observation_id)
-        )
+    for link in links:
+        observation_ids_by_claim[cast(str, link.claim_id)].append(cast(str, link.observation_id))
     observation_ids = sorted(
         {value for values in observation_ids_by_claim.values() for value in values}
     )
@@ -199,55 +170,16 @@ async def load_evidence_atlas_projection(
     )
     document_by_id = {cast(str, row.id): row for row in documents}
 
-    degree = Counter[str]()
-    for relationship in relationships:
-        degree[cast(str, relationship.subject_entity_id)] += 1
-        degree[cast(str, relationship.object_entity_id)] += 1
-    nodes = []
-    for entity in entities:
-        entity_type = _atlas_entity_type(cast(str, entity.record_kind))
-        if entity_type is None:
-            continue
-        entity_id = cast(str, entity.id)
-        nodes.append(
-            AtlasNode(
-                id=f"evidence:{entity_id}",
-                entity_type=cast(Any, entity_type),
-                label=cast(str, entity.canonical_name),
-                subtitle=cast(str, entity.record_kind).replace("_", " "),
-                status=cast(str, entity.status),
-                confidence_tier="verified" if entity.status == "accepted" else "unresolved",
-                connection_count=degree[entity_id],
-                profile_path=f"/wiki/ownership?selected=evidence:{entity_id}",
-                updated_at=entity.updated_at,
-                flags=[] if entity.status == "accepted" else ["candidate-entity"],
-            )
-        )
-
-    visible_entity_ids = {node.id.removeprefix("evidence:") for node in nodes}
-    edges = []
-    for relationship in relationships:
-        subject_id, object_id = (
-            cast(str, relationship.subject_entity_id),
-            cast(str, relationship.object_entity_id),
-        )
-        if subject_id not in visible_entity_ids or object_id not in visible_entity_ids:
-            continue
-        relationship_id = cast(str, relationship.id)
-        claim_ids_for_relationship = sorted(claim_ids_by_relationship.get(relationship_id, []))
-        observation_ids_for_relationship = {
-            value
-            for claim_id in claim_ids_for_relationship
-            for value in observation_ids_by_claim.get(claim_id, [])
-        }
-        evidence_refs = []
-        for observation_id in sorted(observation_ids_for_relationship):
+    result: dict[str, list[AtlasEvidenceRef]] = {}
+    for claim_id in claim_ids:
+        refs: list[AtlasEvidenceRef] = []
+        for observation_id in sorted(observation_ids_by_claim.get(claim_id, [])):
             observation = observation_by_id.get(observation_id)
             if observation is None:
                 continue
             snapshot = snapshot_by_id.get(cast(str, observation.snapshot_id))
             document = document_by_id.get(cast(str, snapshot.document_id)) if snapshot else None
-            evidence_refs.append(
+            refs.append(
                 AtlasEvidenceRef(
                     id=f"evidence-observation:{observation_id}",
                     source_type=cast(str, document.source_class if document else "snapshot"),
@@ -260,28 +192,112 @@ async def load_evidence_atlas_projection(
                     entailment=cast(str, observation.entailment),
                 )
             )
+        result[claim_id] = refs
+    return result
+
+
+async def _accepted_ownership_edges(
+    db: AsyncSession,
+    filters: AtlasGraphFilters,
+    node_id_by_entity: dict[str, str],
+    survivors: dict[str, str],
+) -> list[AtlasEdge]:
+    """Build edges for materialized `AcceptedRelationship` ownership facts."""
+    as_of = _as_naive(filters.as_of)
+    known_at = _as_naive(filters.known_at)
+    relationships = list(
+        (
+            await db.execute(
+                select(AcceptedRelationship).where(
+                    AcceptedRelationship.predicate.in_(_OWNERSHIP_PREDICATES),
+                    or_(
+                        AcceptedRelationship.valid_from.is_(None),
+                        AcceptedRelationship.valid_from <= as_of,
+                    ),
+                    or_(
+                        AcceptedRelationship.valid_to.is_(None),
+                        AcceptedRelationship.valid_to >= as_of,
+                    ),
+                    AcceptedRelationship.recorded_at <= known_at,
+                    or_(
+                        AcceptedRelationship.retracted_at.is_(None),
+                        AcceptedRelationship.retracted_at > known_at,
+                    ),
+                )
+            )
+        )
+        .scalars()
+        .all()
+    )
+    if not relationships:
+        return []
+
+    relationship_ids = [cast(str, row.id) for row in relationships]
+    links = list(
+        (
+            await db.execute(
+                select(RelationshipClaim).where(
+                    RelationshipClaim.relationship_id.in_(relationship_ids)
+                )
+            )
+        )
+        .scalars()
+        .all()
+    )
+    claim_ids_by_relationship: dict[str, list[str]] = defaultdict(list)
+    for link in links:
+        claim_ids_by_relationship[cast(str, link.relationship_id)].append(cast(str, link.claim_id))
+    all_claim_ids = sorted({cid for values in claim_ids_by_relationship.values() for cid in values})
+    evidence_by_claim = await evidence_refs_for_claims(db, all_claim_ids)
+
+    traces = list(
+        (
+            await db.execute(
+                select(CalculationTrace).where(
+                    CalculationTrace.relationship_id.in_(relationship_ids),
+                    CalculationTrace.measurement_name == "ownership_interest",
+                )
+            )
+        )
+        .scalars()
+        .all()
+    )
+    trace_by_relationship = {cast(str, row.relationship_id): row for row in traces}
+
+    edges: list[AtlasEdge] = []
+    for relationship in relationships:
+        subject_entity = canonical_entity_id(cast(str, relationship.subject_entity_id), survivors)
+        object_entity = canonical_entity_id(cast(str, relationship.object_entity_id), survivors)
+        source_node = node_id_by_entity.get(object_entity)
+        target_node = node_id_by_entity.get(subject_entity)
+        if source_node is None or target_node is None:
+            continue
+        predicate = cast(str, relationship.predicate)
+        claim_ids = sorted(claim_ids_by_relationship.get(cast(str, relationship.id), []))
+        evidence_refs = [
+            ref for claim_id in claim_ids for ref in evidence_by_claim.get(claim_id, [])
+        ]
         qualifiers = dict(cast(dict[str, Any], relationship.qualifiers or {}))
-        pct = qualifiers.get("pct")
-        source_id, target_id = _atlas_endpoints(
-            cast(str, relationship.predicate), subject_id, object_id
-        )
-        # Use the same lineage-resolved root count the evidence-spine API uses
-        # (see evidence_spine.count_relationship_evidence_roots), not a raw
-        # count of distinct snapshot hashes. Mirrored/copied filings that
-        # share a SourceLineage parent must collapse to one root here just as
-        # they do in `GET /api/wiki/evidence/relationships`, otherwise the
-        # Atlas graph and the evidence API disagree about source-lineage
-        # independence for the same relationship.
-        evidence_root_count = await count_relationship_evidence_roots(
-            db, claim_ids_for_relationship
-        )
+        ownership_percentage: float | None = None
+        if isinstance(qualifiers.get("pct"), (int, float)):
+            ownership_percentage = float(qualifiers["pct"])
+        trace = trace_by_relationship.get(cast(str, relationship.id))
+        if trace is not None:
+            aggregate = cast(
+                dict[str, Any] | None, cast(dict[str, Any], trace.result).get("aggregate")
+            )
+            if aggregate:
+                lower, upper = float(aggregate["lower"]), float(aggregate["upper"])
+                ownership_percentage = round((lower + upper) / 2, 4)
+                qualifiers["pct_range"] = {"lower": lower, "upper": upper}
+        evidence_root_count = await count_relationship_evidence_roots(db, claim_ids)
         edges.append(
             AtlasEdge(
-                id=f"evidence-edge:{relationship_id}",
-                source_id=f"evidence:{source_id}",
-                target_id=f"evidence:{target_id}",
-                relation_type=_canonical_relation(cast(str, relationship.predicate)),
-                ownership_percentage=float(pct) if isinstance(pct, (int, float)) else None,
+                id=f"evidence-edge:{relationship.id}",
+                source_id=source_node,
+                target_id=target_node,
+                relation_type=_relation_type(predicate),
+                ownership_percentage=ownership_percentage,
                 confidence=1.0,
                 confidence_tier="verified",
                 evidence_count=len(evidence_refs),
@@ -292,15 +308,286 @@ async def load_evidence_atlas_projection(
                     (item.retrieved_at for item in evidence_refs if item.retrieved_at),
                     default=relationship.materialized_at,
                 ),
-                raw_relation_type=cast(str, relationship.predicate),
+                raw_relation_type=predicate,
                 fact_status="accepted",
                 accepted_fact=True,
                 qualifiers=qualifiers,
-                claim_ids=claim_ids_for_relationship,
+                claim_ids=claim_ids,
                 recorded_at=relationship.recorded_at,
                 retracted_at=relationship.retracted_at,
                 acceptance_policy_version=cast(str, relationship.acceptance_policy_version),
                 evidence_root_count=evidence_root_count,
             )
         )
-    return nodes, edges
+    return edges
+
+
+async def _candidate_ownership_edges(
+    db: AsyncSession,
+    filters: AtlasGraphFilters,
+    node_id_by_entity: dict[str, str],
+    survivors: dict[str, str],
+) -> list[AtlasEdge]:
+    """Build edges for un-materialized candidate ownership claims."""
+    as_of = _as_naive(filters.as_of)
+    known_at = _as_naive(filters.known_at)
+    claims = list(
+        (
+            await db.execute(
+                select(EvidenceClaim).where(
+                    EvidenceClaim.predicate.in_(_OWNERSHIP_PREDICATES),
+                    EvidenceClaim.status == "candidate",
+                    EvidenceClaim.object_entity_id.is_not(None),
+                    or_(EvidenceClaim.valid_from.is_(None), EvidenceClaim.valid_from <= as_of),
+                    or_(EvidenceClaim.valid_to.is_(None), EvidenceClaim.valid_to >= as_of),
+                    EvidenceClaim.recorded_at <= known_at,
+                    or_(
+                        EvidenceClaim.retracted_at.is_(None), EvidenceClaim.retracted_at > known_at
+                    ),
+                )
+            )
+        )
+        .scalars()
+        .all()
+    )
+    if not claims:
+        return []
+
+    claim_ids = [cast(str, claim.id) for claim in claims]
+    evidence_by_claim = await evidence_refs_for_claims(db, claim_ids)
+
+    edges: list[AtlasEdge] = []
+    for claim in claims:
+        subject_entity = canonical_entity_id(cast(str, claim.subject_entity_id), survivors)
+        object_entity = canonical_entity_id(cast(str, claim.object_entity_id), survivors)
+        source_node = node_id_by_entity.get(object_entity)
+        target_node = node_id_by_entity.get(subject_entity)
+        if source_node is None or target_node is None:
+            continue
+        predicate = cast(str, claim.predicate)
+        evidence_refs = evidence_by_claim.get(cast(str, claim.id), [])
+        qualifiers = dict(cast(dict[str, Any], claim.qualifiers or {}))
+        ownership_percentage = (
+            float(qualifiers["pct"]) if isinstance(qualifiers.get("pct"), (int, float)) else None
+        )
+        edges.append(
+            AtlasEdge(
+                id=f"evidence-candidate-edge:{claim.id}",
+                source_id=source_node,
+                target_id=target_node,
+                relation_type=_relation_type(predicate),
+                ownership_percentage=ownership_percentage,
+                confidence=None,
+                confidence_tier="unresolved",
+                evidence_count=len(evidence_refs),
+                evidence_preview=evidence_refs[:3] if filters.include_evidence_preview else [],
+                valid_from=claim.valid_from,
+                valid_to=claim.valid_to,
+                last_verified_at=max(
+                    (item.retrieved_at for item in evidence_refs if item.retrieved_at),
+                    default=None,
+                ),
+                raw_relation_type=predicate,
+                fact_status="candidate",
+                accepted_fact=False,
+                qualifiers=qualifiers,
+                claim_ids=[cast(str, claim.id)],
+                recorded_at=claim.recorded_at,
+                retracted_at=claim.retracted_at,
+                acceptance_policy_version=None,
+                evidence_root_count=await count_relationship_evidence_roots(
+                    db, [cast(str, claim.id)]
+                ),
+                is_inferred=True,
+            )
+        )
+    return edges
+
+
+def build_interest_edge_index(edges: list[AtlasEdge]) -> dict[str, AtlasEdge]:
+    """Map owned-entity atlas node id -> the accepted direct/equity edge to its owner.
+
+    Restricted to `_INTEREST_PREDICATES` (direct/equity ownership only, not
+    `controls`/`founded_by`) so the percentages this index carries always
+    mean equity ownership. Shared by the upward ownership-chain walk (Phase
+    3, `atlas_entity.py`) and the `sibling_via_owner` root walk below --
+    both need "who owns this entity" resolved identically. When more than
+    one accepted interest edge targets the same owned node, the one with
+    the higher recorded percentage wins.
+    """
+    index: dict[str, AtlasEdge] = {}
+    for edge in edges:
+        if not edge.accepted_fact or edge.raw_relation_type not in _INTEREST_PREDICATES:
+            continue
+        existing = index.get(edge.target_id)
+        if existing is None or (edge.ownership_percentage or 0) > (
+            existing.ownership_percentage or 0
+        ):
+            index[edge.target_id] = edge
+    return index
+
+
+def walk_ownership_chain(
+    start_node_id: str, edge_by_owned: dict[str, AtlasEdge], max_depth: int = 12
+) -> list[AtlasEdge]:
+    """Walk upward from `start_node_id` through accepted interest-ownership edges.
+
+    Cycle-guarded (stops the instant a node would repeat) and depth-capped
+    so cyclic or malformed ownership data can never hang this walk. Returns
+    the ordered list of edges from the starting entity to its ultimate
+    accepted owner (the root); empty if the entity has no recorded owner.
+    """
+    chain: list[AtlasEdge] = []
+    current = start_node_id
+    seen = {current}
+    while current in edge_by_owned and len(chain) < max_depth:
+        edge = edge_by_owned[current]
+        if edge.source_id in seen:
+            break
+        chain.append(edge)
+        current = edge.source_id
+        seen.add(current)
+    return chain
+
+
+def build_controls_index(edges: list[AtlasEdge]) -> dict[str, list[AtlasEdge]]:
+    """Map owner atlas node id -> its outgoing accepted `_CONTROL_PREDICATES` edges.
+
+    The downward counterpart to `build_interest_edge_index`: used to answer
+    "who else does this owner control" (Phase 3 `controls` rollup) by BFS
+    from an owner through this index.
+    """
+    index: dict[str, list[AtlasEdge]] = defaultdict(list)
+    for edge in edges:
+        if not edge.accepted_fact or edge.raw_relation_type not in _CONTROL_PREDICATES:
+            continue
+        index[edge.source_id].append(edge)
+    return dict(index)
+
+
+def walk_controls_downward(
+    start_node_id: str, controls_index: dict[str, list[AtlasEdge]], max_depth: int = 6
+) -> list[AtlasEdge]:
+    """BFS downward from an owner through accepted control/ownership edges.
+
+    Cycle-guarded (a node is never visited twice) and depth-capped. Returns
+    every edge on the frontier of the walk, in breadth-first order; the
+    caller reads each edge's `target_id` for the controlled entity.
+    """
+    visited = {start_node_id}
+    frontier = [start_node_id]
+    collected: list[AtlasEdge] = []
+    depth = 0
+    while frontier and depth < max_depth:
+        next_frontier: list[str] = []
+        for node_id in frontier:
+            for edge in controls_index.get(node_id, []):
+                if edge.target_id in visited:
+                    continue
+                visited.add(edge.target_id)
+                collected.append(edge)
+                next_frontier.append(edge.target_id)
+        frontier = next_frontier
+        depth += 1
+    return collected
+
+
+def _sibling_via_owner_edges(
+    outlet_ids: set[str], edge_by_owned: dict[str, AtlasEdge]
+) -> list[AtlasEdge]:
+    """Roll outlets up to their ultimate accepted owner and link siblings pairwise."""
+
+    def root_and_claims(node_id: str) -> tuple[str, list[str]]:
+        chain = walk_ownership_chain(node_id, edge_by_owned)
+        if not chain:
+            return node_id, []
+        root = chain[-1].source_id
+        claim_ids = [claim_id for edge in chain for claim_id in edge.claim_ids]
+        return root, claim_ids
+
+    groups: dict[str, list[tuple[str, list[str]]]] = defaultdict(list)
+    for outlet_id in outlet_ids:
+        if outlet_id not in edge_by_owned:
+            continue
+        root, claim_ids = root_and_claims(outlet_id)
+        groups[root].append((outlet_id, claim_ids))
+
+    edges: list[AtlasEdge] = []
+    for root, members in groups.items():
+        if len(members) < 2:
+            continue
+        for (left_id, left_claims), (right_id, right_claims) in combinations(sorted(members), 2):
+            claim_ids = sorted({*left_claims, *right_claims})
+            edges.append(
+                AtlasEdge(
+                    id=_edge_id(left_id, right_id, "sibling_via_owner", root),
+                    source_id=left_id,
+                    target_id=right_id,
+                    relation_type="sibling_via_owner",
+                    direction="undirected",
+                    confidence=0.75,
+                    confidence_tier="strong",
+                    evidence_count=len(claim_ids),
+                    is_inferred=True,
+                    raw_relation_type="sibling_via_owner_rollup",
+                    fact_status="candidate",
+                    accepted_fact=False,
+                    qualifiers={"ultimate_owner_id": root},
+                    claim_ids=claim_ids,
+                )
+            )
+    return edges
+
+
+async def load_evidence_atlas_projection(
+    db: AsyncSession, filters: AtlasGraphFilters
+) -> tuple[list[AtlasNode], list[AtlasEdge]]:
+    """Project organization/person nodes and every ownership edge into the Atlas."""
+    survivors = await entity_survivor_map(db)
+    organizations = await live_entities_by_kind(db, _ORGANIZATION_KINDS, survivors)
+    people = await live_entities_by_kind(db, ("person",), survivors)
+    if not organizations and not people:
+        return [], []
+
+    nodes: list[AtlasNode] = []
+    for entity in organizations:
+        entity_id = cast(str, entity.id)
+        nodes.append(
+            AtlasNode(
+                id=f"organization:{entity_id}",
+                entity_type="organization",
+                label=cast(str, entity.canonical_name),
+                subtitle=cast(str, entity.record_kind).replace("_", " "),
+                status=cast(str, entity.status),
+                confidence_tier="verified" if entity.status == "accepted" else "unresolved",
+                profile_path=f"/wiki/organization/{entity_id}",
+                updated_at=entity.updated_at,
+                flags=[] if entity.status == "accepted" else ["candidate-entity"],
+            )
+        )
+    for entity in people:
+        entity_id = cast(str, entity.id)
+        nodes.append(
+            AtlasNode(
+                id=f"person:{entity_id}",
+                entity_type="person",
+                label=cast(str, entity.canonical_name),
+                subtitle="Person",
+                status=cast(str, entity.status),
+                confidence_tier="verified" if entity.status == "accepted" else "unresolved",
+                profile_path=f"/wiki/person/{entity_id}",
+                updated_at=entity.updated_at,
+                flags=[] if entity.status == "accepted" else ["candidate-entity"],
+            )
+        )
+
+    node_id_by_entity, _kind_by_entity = await _endpoint_id_map(db, survivors)
+    accepted_edges = await _accepted_ownership_edges(db, filters, node_id_by_entity, survivors)
+    candidate_edges = await _candidate_ownership_edges(db, filters, node_id_by_entity, survivors)
+
+    publications = await live_entities_by_kind(db, _PUBLICATION_KINDS, survivors)
+    outlet_ids = set((await outlet_node_ids(db, publications)).values())
+    edge_by_owned = build_interest_edge_index(accepted_edges)
+    sibling_edges = _sibling_via_owner_edges(outlet_ids, edge_by_owned)
+
+    return nodes, [*accepted_edges, *candidate_edges, *sibling_edges]

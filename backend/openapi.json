@@ -7265,28 +7265,6 @@
         }
       }
     },
-    "/api/wiki/organizations/graph": {
-      "get": {
-        "tags": [
-          "wiki"
-        ],
-        "summary": "Get Ownership Graph",
-        "description": "Get the full ownership graph for force-directed visualization.\n\nReturns nodes (sources + organizations + reporters) and edges (ownership,\npublishes, employed_by relationships).",
-        "operationId": "get_ownership_graph_api_wiki_organizations_graph_get",
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/OwnershipGraphResponse"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
     "/api/wiki/index/status": {
       "get": {
         "tags": [
@@ -7427,7 +7405,7 @@
           "wiki-atlas"
         ],
         "summary": "Get Atlas Graph",
-        "description": "Return a bounded graph for the requested Atlas filters.",
+        "description": "Return the filtered Atlas graph (nodes, edges, stats) for the given view.",
         "operationId": "get_atlas_graph_api_wiki_atlas_graph_get",
         "parameters": [
           {
@@ -7617,6 +7595,50 @@
               "default": true,
               "title": "Include Evidence Preview"
             }
+          },
+          {
+            "name": "as_of",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "date-time"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "As Of"
+            }
+          },
+          {
+            "name": "known_at",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "date-time"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Known At"
+            }
+          },
+          {
+            "name": "accepted_only",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "boolean",
+              "default": false,
+              "title": "Accepted Only"
+            }
           }
         ],
         "responses": {
@@ -7649,7 +7671,7 @@
           "wiki-atlas"
         ],
         "summary": "Get Atlas Stats",
-        "description": "Return graph coverage and indexing status.",
+        "description": "Return aggregate Atlas graph statistics without node/edge payloads.",
         "operationId": "get_atlas_stats_api_wiki_atlas_stats_get",
         "responses": {
           "200": {
@@ -7671,7 +7693,7 @@
           "wiki-atlas"
         ],
         "summary": "Search Atlas Entities",
-        "description": "Search Atlas entities and group matches by entity type.",
+        "description": "Search Atlas entities by label, grouped by entity type.",
         "operationId": "search_atlas_entities_api_wiki_atlas_search_get",
         "parameters": [
           {
@@ -7728,7 +7750,7 @@
           "wiki-atlas"
         ],
         "summary": "Get Atlas Entity Record",
-        "description": "Return one Atlas entity with evidence and connections.",
+        "description": "Return the full inspector record for one Atlas entity.",
         "operationId": "get_atlas_entity_record_api_wiki_atlas_entities__entity_id__get",
         "parameters": [
           {
@@ -7771,7 +7793,7 @@
           "wiki-atlas"
         ],
         "summary": "Get Atlas Entity Connections",
-        "description": "Return the relationships connected to one Atlas entity.",
+        "description": "Return the neighboring entities and edges connected to this entity.",
         "operationId": "get_atlas_entity_connections_api_wiki_atlas_entities__entity_id__connections_get",
         "parameters": [
           {
@@ -7818,7 +7840,7 @@
           "wiki-atlas"
         ],
         "summary": "Get Atlas Index",
-        "description": "Return one filtered and sorted page of the Atlas entity index.",
+        "description": "Return a paginated, faceted listing of Atlas entities.",
         "operationId": "get_atlas_index_api_wiki_atlas_index_get",
         "parameters": [
           {
@@ -7973,13 +7995,35 @@
         }
       }
     },
+    "/api/wiki/atlas/analysis/funding-bias": {
+      "get": {
+        "tags": [
+          "wiki-atlas"
+        ],
+        "summary": "Get Funding Bias Analysis",
+        "description": "Return the latest pre-registered funding-vs-bias correlation trace.\n\nRead-only -- `available=False` (not a 404/500) when\n`app.scripts.run_funding_bias_analysis` has never run against this\ndatabase.",
+        "operationId": "get_funding_bias_analysis_api_wiki_atlas_analysis_funding_bias_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FundingBiasAnalysisResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/wiki/atlas/export": {
       "post": {
         "tags": [
           "wiki-atlas"
         ],
         "summary": "Export Atlas",
-        "description": "Export the requested Atlas graph as versioned JSON or CSV.",
+        "description": "Export the requested Atlas slice as JSON or CSV.",
         "operationId": "export_atlas_api_wiki_atlas_export_post",
         "requestBody": {
           "content": {
@@ -8012,10 +8056,666 @@
           }
         }
       }
+    },
+    "/api/wiki/evidence/policies": {
+      "get": {
+        "tags": [
+          "wiki-evidence"
+        ],
+        "summary": "Get Evidence Policies",
+        "description": "Return the active acceptance policy for every predicate.",
+        "operationId": "get_evidence_policies_api_wiki_evidence_policies_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/EvidencePolicyRecord"
+                  },
+                  "type": "array",
+                  "title": "Response Get Evidence Policies Api Wiki Evidence Policies Get"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/wiki/evidence/claims/{claim_id}": {
+      "get": {
+        "tags": [
+          "wiki-evidence"
+        ],
+        "summary": "Get Evidence Claim",
+        "description": "Return a single evidence claim with its linked observations.",
+        "operationId": "get_evidence_claim_api_wiki_evidence_claims__claim_id__get",
+        "parameters": [
+          {
+            "name": "claim_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Claim Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EvidenceClaimRecord"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/wiki/evidence/claims/evaluate": {
+      "post": {
+        "tags": [
+          "wiki-evidence"
+        ],
+        "summary": "Evaluate Evidence Claim",
+        "description": "Evaluate whether a claim currently qualifies for acceptance, without mutating it.",
+        "operationId": "evaluate_evidence_claim_api_wiki_evidence_claims_evaluate_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AcceptanceEvaluationRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AcceptanceEvaluationResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/wiki/evidence/claims/{claim_id}/materialize": {
+      "post": {
+        "tags": [
+          "wiki-evidence"
+        ],
+        "summary": "Materialize Evidence Claim",
+        "description": "Materialize a qualifying claim into an accepted relationship.\n\nRequires an operator secret (``X-Scoop-Materialize-Token``) and a non-empty\nreviewer identity (``X-Scoop-Reviewer``) \u2014 this endpoint mutates accepted\nresearch facts, so it cannot be left open to unauthenticated callers.",
+        "operationId": "materialize_evidence_claim_api_wiki_evidence_claims__claim_id__materialize_post",
+        "parameters": [
+          {
+            "name": "claim_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Claim Id"
+            }
+          },
+          {
+            "name": "complete_control_path",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "boolean",
+              "default": false,
+              "title": "Complete Control Path"
+            }
+          },
+          {
+            "name": "X-Scoop-Reviewer",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "X-Scoop-Reviewer"
+            }
+          },
+          {
+            "name": "X-Scoop-Materialize-Token",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Scoop-Materialize-Token"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AcceptedRelationshipRecord"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/wiki/evidence/interest": {
+      "get": {
+        "tags": [
+          "wiki-evidence"
+        ],
+        "summary": "Get Ownership Interest",
+        "description": "Serve an owner's aggregate interest in a target across the accepted ownership graph.",
+        "operationId": "get_ownership_interest_api_wiki_evidence_interest_get",
+        "parameters": [
+          {
+            "name": "owner_id",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "maxLength": 128,
+              "title": "Owner Id"
+            }
+          },
+          {
+            "name": "target_id",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "maxLength": 128,
+              "title": "Target Id"
+            }
+          },
+          {
+            "name": "interest_type",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "maxLength": 32,
+              "default": "economic",
+              "title": "Interest Type"
+            }
+          },
+          {
+            "name": "security_class",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "maxLength": 64
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Security Class"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OwnershipInterestResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/wiki/evidence/relationships": {
+      "get": {
+        "tags": [
+          "wiki-evidence"
+        ],
+        "summary": "Get Evidence Relationships",
+        "description": "Query accepted relationships as of the given valid/known time.",
+        "operationId": "get_evidence_relationships_api_wiki_evidence_relationships_get",
+        "parameters": [
+          {
+            "name": "as_of",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "date-time"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "As Of"
+            }
+          },
+          {
+            "name": "known_at",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "date-time"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Known At"
+            }
+          },
+          {
+            "name": "predicates",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "maxLength": 500
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Predicates"
+            }
+          },
+          {
+            "name": "entity_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "maxLength": 128
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Entity Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RelationshipQueryResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/wiki/evidence/relationships/{relationship_id}/proof": {
+      "get": {
+        "tags": [
+          "wiki-evidence"
+        ],
+        "summary": "Download Relationship Proof",
+        "description": "Download the zipped proof bundle for an accepted relationship.\n\nProofs for relationships involving a non-public (privacy-scoped) entity\nrequire the same operator token as materialization \u2014 public-outlet\nownership proofs stay freely downloadable, but proofs touching restricted\nentities must not be exposed to anonymous callers.",
+        "operationId": "download_relationship_proof_api_wiki_evidence_relationships__relationship_id__proof_get",
+        "parameters": [
+          {
+            "name": "relationship_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Relationship Id"
+            }
+          },
+          {
+            "name": "as_of",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "date-time"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "As Of"
+            }
+          },
+          {
+            "name": "known_at",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "date-time"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Known At"
+            }
+          },
+          {
+            "name": "dataset_snapshot",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "maxLength": 128,
+              "default": "working-tree",
+              "title": "Dataset Snapshot"
+            }
+          },
+          {
+            "name": "X-Scoop-Materialize-Token",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Scoop-Materialize-Token"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
     }
   },
   "components": {
     "schemas": {
+      "AcceptanceEvaluationRequest": {
+        "properties": {
+          "claim_id": {
+            "type": "string",
+            "title": "Claim Id"
+          },
+          "complete_control_path": {
+            "type": "boolean",
+            "title": "Complete Control Path",
+            "default": false
+          }
+        },
+        "type": "object",
+        "required": [
+          "claim_id"
+        ],
+        "title": "AcceptanceEvaluationRequest",
+        "description": "A request to evaluate whether a claim currently qualifies for acceptance."
+      },
+      "AcceptanceEvaluationResponse": {
+        "properties": {
+          "claim_id": {
+            "type": "string",
+            "title": "Claim Id"
+          },
+          "accepted": {
+            "type": "boolean",
+            "title": "Accepted"
+          },
+          "policy_version": {
+            "type": "string",
+            "title": "Policy Version"
+          },
+          "reasons": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Reasons"
+          },
+          "independent_root_count": {
+            "type": "integer",
+            "title": "Independent Root Count",
+            "default": 0
+          },
+          "qualifying_observation_count": {
+            "type": "integer",
+            "title": "Qualifying Observation Count",
+            "default": 0
+          }
+        },
+        "type": "object",
+        "required": [
+          "claim_id",
+          "accepted",
+          "policy_version"
+        ],
+        "title": "AcceptanceEvaluationResponse",
+        "description": "The result of evaluating a claim against its predicate's acceptance policy."
+      },
+      "AcceptedRelationshipRecord": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "subject_entity_id": {
+            "type": "string",
+            "title": "Subject Entity Id"
+          },
+          "predicate": {
+            "type": "string",
+            "title": "Predicate"
+          },
+          "object_entity_id": {
+            "type": "string",
+            "title": "Object Entity Id"
+          },
+          "qualifiers": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Qualifiers"
+          },
+          "valid_from": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Valid From"
+          },
+          "valid_to": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Valid To"
+          },
+          "recorded_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Recorded At"
+          },
+          "retracted_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Retracted At"
+          },
+          "materialized_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Materialized At"
+          },
+          "materialized_by": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Materialized By"
+          },
+          "acceptance_policy_version": {
+            "type": "string",
+            "title": "Acceptance Policy Version"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "accepted",
+              "historical",
+              "disputed",
+              "retracted"
+            ],
+            "title": "Status"
+          },
+          "claim_ids": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Claim Ids"
+          },
+          "evidence_root_count": {
+            "type": "integer",
+            "title": "Evidence Root Count",
+            "default": 0
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "subject_entity_id",
+          "predicate",
+          "object_entity_id",
+          "recorded_at",
+          "materialized_at",
+          "acceptance_policy_version",
+          "status"
+        ],
+        "title": "AcceptedRelationshipRecord",
+        "description": "An accepted relationship, its supporting claims, and root count."
+      },
       "AddRssRequest": {
         "properties": {
           "url": {
@@ -8560,7 +9260,7 @@
           "entity"
         ],
         "title": "AtlasConnectionRecord",
-        "description": "A relationship paired with the entity on its other end."
+        "description": "One neighboring entity and the edge connecting it to the queried entity."
       },
       "AtlasCoverageMetric": {
         "properties": {
@@ -8577,7 +9277,7 @@
         },
         "type": "object",
         "title": "AtlasCoverageMetric",
-        "description": "A numerator and denominator for an Atlas coverage measure."
+        "description": "A numerator/denominator pair reported as a rounded percentage."
       },
       "AtlasEdge": {
         "properties": {
@@ -8604,7 +9304,9 @@
               "employed_by",
               "current_outlet",
               "coauthor",
-              "shared_outlet"
+              "shared_outlet",
+              "founded_by",
+              "sibling_via_owner"
             ],
             "title": "Relation Type"
           },
@@ -8726,6 +9428,75 @@
               }
             ],
             "title": "Raw Relation Type"
+          },
+          "fact_status": {
+            "type": "string",
+            "enum": [
+              "candidate",
+              "accepted",
+              "disputed",
+              "rejected",
+              "superseded"
+            ],
+            "title": "Fact Status",
+            "default": "candidate"
+          },
+          "accepted_fact": {
+            "type": "boolean",
+            "title": "Accepted Fact",
+            "default": false
+          },
+          "qualifiers": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Qualifiers"
+          },
+          "claim_ids": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Claim Ids"
+          },
+          "recorded_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Recorded At"
+          },
+          "retracted_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Retracted At"
+          },
+          "acceptance_policy_version": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Acceptance Policy Version"
+          },
+          "evidence_root_count": {
+            "type": "integer",
+            "title": "Evidence Root Count",
+            "default": 0
           }
         },
         "type": "object",
@@ -8736,7 +9507,7 @@
           "relation_type"
         ],
         "title": "AtlasEdge",
-        "description": "A typed, evidence-aware Atlas relationship."
+        "description": "A relationship between two Atlas nodes, candidate or accepted."
       },
       "AtlasEntityRecord": {
         "properties": {
@@ -8747,8 +9518,9 @@
           "entity_type": {
             "type": "string",
             "enum": [
-              "source",
+              "outlet",
               "organization",
+              "person",
               "reporter"
             ],
             "title": "Entity Type"
@@ -8859,7 +9631,7 @@
           "label"
         ],
         "title": "AtlasEntityRecord",
-        "description": "Detailed evidence and connections for one Atlas entity."
+        "description": "The full inspector payload for a single Atlas entity."
       },
       "AtlasEvidenceRef": {
         "properties": {
@@ -8915,6 +9687,33 @@
               }
             ],
             "title": "Excerpt"
+          },
+          "snapshot_sha256": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Snapshot Sha256"
+          },
+          "locator": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Locator"
+          },
+          "entailment": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Entailment"
           }
         },
         "type": "object",
@@ -8923,7 +9722,7 @@
           "source_type"
         ],
         "title": "AtlasEvidenceRef",
-        "description": "Small evidence record safe to include in graph responses."
+        "description": "A single evidence citation attached to an Atlas node or edge."
       },
       "AtlasExportRequest": {
         "properties": {
@@ -8977,7 +9776,7 @@
         },
         "type": "object",
         "title": "AtlasExportRequest",
-        "description": "Requested Atlas export format, scope, and optional layout data."
+        "description": "Parameters selecting what slice of the Atlas graph to export and in what format."
       },
       "AtlasGraphFilters": {
         "properties": {
@@ -8996,8 +9795,9 @@
             "items": {
               "type": "string",
               "enum": [
-                "source",
+                "outlet",
                 "organization",
+                "person",
                 "reporter"
               ]
             },
@@ -9016,7 +9816,9 @@
                 "employed_by",
                 "current_outlet",
                 "coauthor",
-                "shared_outlet"
+                "shared_outlet",
+                "founded_by",
+                "sibling_via_owner"
               ]
             },
             "type": "array",
@@ -9097,11 +9899,40 @@
             "type": "boolean",
             "title": "Include Evidence Preview",
             "default": true
+          },
+          "as_of": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "As Of"
+          },
+          "known_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Known At"
+          },
+          "accepted_only": {
+            "type": "boolean",
+            "title": "Accepted Only",
+            "default": false
           }
         },
         "type": "object",
         "title": "AtlasGraphFilters",
-        "description": "Validated filters and bounds for an Atlas graph request."
+        "description": "Query parameters that select and shape a requested Atlas graph view."
       },
       "AtlasGraphResponse": {
         "properties": {
@@ -9170,13 +10001,13 @@
           "applied_filters"
         ],
         "title": "AtlasGraphResponse",
-        "description": "A bounded Atlas graph projection and its request metadata."
+        "description": "The full node/edge payload returned by the Atlas graph endpoint."
       },
       "AtlasGraphStats": {
         "properties": {
-          "total_sources": {
+          "total_outlets": {
             "type": "integer",
-            "title": "Total Sources",
+            "title": "Total Outlets",
             "default": 0
           },
           "total_organizations": {
@@ -9184,19 +10015,29 @@
             "title": "Total Organizations",
             "default": 0
           },
+          "total_people": {
+            "type": "integer",
+            "title": "Total People",
+            "default": 0
+          },
           "total_reporters": {
             "type": "integer",
             "title": "Total Reporters",
             "default": 0
           },
-          "visible_sources": {
+          "visible_outlets": {
             "type": "integer",
-            "title": "Visible Sources",
+            "title": "Visible Outlets",
             "default": 0
           },
           "visible_organizations": {
             "type": "integer",
             "title": "Visible Organizations",
+            "default": 0
+          },
+          "visible_people": {
+            "type": "integer",
+            "title": "Visible People",
             "default": 0
           },
           "visible_reporters": {
@@ -9214,6 +10055,21 @@
             "title": "Current Relationships",
             "default": 0
           },
+          "accepted_relationships": {
+            "type": "integer",
+            "title": "Accepted Relationships",
+            "default": 0
+          },
+          "candidate_relationships": {
+            "type": "integer",
+            "title": "Candidate Relationships",
+            "default": 0
+          },
+          "disputed_relationships": {
+            "type": "integer",
+            "title": "Disputed Relationships",
+            "default": 0
+          },
           "ownership_coverage": {
             "$ref": "#/components/schemas/AtlasCoverageMetric"
           },
@@ -9228,7 +10084,7 @@
         },
         "type": "object",
         "title": "AtlasGraphStats",
-        "description": "Aggregate counts for the full and currently visible Atlas graph."
+        "description": "Aggregate node/edge counts and coverage metrics for a graph response."
       },
       "AtlasIndexResponse": {
         "properties": {
@@ -9268,7 +10124,7 @@
         },
         "type": "object",
         "title": "AtlasIndexResponse",
-        "description": "One cursor-based page from the Atlas entity index."
+        "description": "A paginated, faceted listing of Atlas entities."
       },
       "AtlasNode": {
         "properties": {
@@ -9279,8 +10135,9 @@
           "entity_type": {
             "type": "string",
             "enum": [
-              "source",
+              "outlet",
               "organization",
+              "person",
               "reporter"
             ],
             "title": "Entity Type"
@@ -9445,7 +10302,7 @@
           "label"
         ],
         "title": "AtlasNode",
-        "description": "A stable Atlas entity node."
+        "description": "A single entity (source, organization, or reporter) in the Atlas graph."
       },
       "AtlasSearchItem": {
         "properties": {
@@ -9456,8 +10313,9 @@
           "entity_type": {
             "type": "string",
             "enum": [
-              "source",
+              "outlet",
               "organization",
+              "person",
               "reporter"
             ],
             "title": "Entity Type"
@@ -9526,7 +10384,7 @@
           "label"
         ],
         "title": "AtlasSearchItem",
-        "description": "A compact entity search result."
+        "description": "A single search-result row for one Atlas entity."
       },
       "AtlasSearchResponse": {
         "properties": {
@@ -9534,12 +10392,12 @@
             "type": "string",
             "title": "Query"
           },
-          "sources": {
+          "outlets": {
             "items": {
               "$ref": "#/components/schemas/AtlasSearchItem"
             },
             "type": "array",
-            "title": "Sources"
+            "title": "Outlets"
           },
           "organizations": {
             "items": {
@@ -9547,6 +10405,13 @@
             },
             "type": "array",
             "title": "Organizations"
+          },
+          "people": {
+            "items": {
+              "$ref": "#/components/schemas/AtlasSearchItem"
+            },
+            "type": "array",
+            "title": "People"
           },
           "reporters": {
             "items": {
@@ -9561,7 +10426,7 @@
           "query"
         ],
         "title": "AtlasSearchResponse",
-        "description": "Entity search results grouped by type."
+        "description": "Search results grouped by entity type."
       },
       "AtlasStatsResponse": {
         "properties": {
@@ -9623,7 +10488,7 @@
           "stats"
         ],
         "title": "AtlasStatsResponse",
-        "description": "Atlas graph and indexing statistics."
+        "description": "Summary statistics for the Atlas graph, without node/edge payloads."
       },
       "BlindspotCardResponse": {
         "properties": {
@@ -10797,6 +11662,283 @@
         "title": "CreateShelfRequest",
         "description": "Create Shelf Request."
       },
+      "EvidenceClaimRecord": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "subject_entity_id": {
+            "type": "string",
+            "title": "Subject Entity Id"
+          },
+          "predicate": {
+            "type": "string",
+            "title": "Predicate"
+          },
+          "object_entity_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Object Entity Id"
+          },
+          "object_value": {
+            "anyOf": [
+              {},
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Object Value"
+          },
+          "qualifiers": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Qualifiers"
+          },
+          "valid_from": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Valid From"
+          },
+          "valid_to": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Valid To"
+          },
+          "date_precision": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Date Precision"
+          },
+          "recorded_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Recorded At"
+          },
+          "retracted_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Retracted At"
+          },
+          "asserted_by": {
+            "type": "string",
+            "title": "Asserted By"
+          },
+          "evidence_class": {
+            "type": "string",
+            "title": "Evidence Class"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "candidate",
+              "accepted",
+              "disputed",
+              "rejected",
+              "superseded"
+            ],
+            "title": "Status"
+          },
+          "method_version": {
+            "type": "string",
+            "title": "Method Version"
+          },
+          "evidence": {
+            "items": {
+              "$ref": "#/components/schemas/EvidenceObservationRecord"
+            },
+            "type": "array",
+            "title": "Evidence"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "subject_entity_id",
+          "predicate",
+          "recorded_at",
+          "asserted_by",
+          "evidence_class",
+          "status",
+          "method_version"
+        ],
+        "title": "EvidenceClaimRecord",
+        "description": "A claim with its linked evidence observations, as returned by the API."
+      },
+      "EvidenceObservationRecord": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "snapshot_id": {
+            "type": "string",
+            "title": "Snapshot Id"
+          },
+          "locator": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Locator"
+          },
+          "quoted_text": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Quoted Text"
+          },
+          "structured_value": {
+            "anyOf": [
+              {},
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Structured Value"
+          },
+          "context_before": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Context Before"
+          },
+          "context_after": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Context After"
+          },
+          "entailment": {
+            "type": "string",
+            "enum": [
+              "reviewed_yes",
+              "reviewed_no",
+              "model_suggested",
+              "unevaluated"
+            ],
+            "title": "Entailment"
+          },
+          "extractor": {
+            "type": "string",
+            "title": "Extractor"
+          },
+          "extractor_version": {
+            "type": "string",
+            "title": "Extractor Version"
+          },
+          "ocr_confidence": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ocr Confidence"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "snapshot_id",
+          "locator",
+          "entailment",
+          "extractor",
+          "extractor_version"
+        ],
+        "title": "EvidenceObservationRecord",
+        "description": "A single locator-backed excerpt or value, as returned by the API."
+      },
+      "EvidencePolicyRecord": {
+        "properties": {
+          "predicate": {
+            "type": "string",
+            "title": "Predicate"
+          },
+          "version": {
+            "type": "string",
+            "title": "Version"
+          },
+          "allowed_evidence_classes": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Allowed Evidence Classes"
+          },
+          "minimum_independent_roots": {
+            "type": "integer",
+            "title": "Minimum Independent Roots"
+          },
+          "requires_complete_path": {
+            "type": "boolean",
+            "title": "Requires Complete Path",
+            "default": false
+          },
+          "permits_catalog_only": {
+            "type": "boolean",
+            "title": "Permits Catalog Only",
+            "default": false
+          }
+        },
+        "type": "object",
+        "required": [
+          "predicate",
+          "version",
+          "allowed_evidence_classes",
+          "minimum_independent_roots"
+        ],
+        "title": "EvidencePolicyRecord",
+        "description": "The serialized acceptance policy for one predicate."
+      },
       "FrontendDebugReport": {
         "properties": {
           "session_id": {
@@ -10889,6 +12031,220 @@
         ],
         "title": "FrontendDebugReport",
         "description": "Frontend Debug Report."
+      },
+      "FundingBiasAnalysisResponse": {
+        "properties": {
+          "available": {
+            "type": "boolean",
+            "title": "Available",
+            "default": false
+          },
+          "methodology": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/FundingBiasMethodology"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "statistic": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/FundingBiasStatistic"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "trace_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Trace Id"
+          },
+          "algorithm_version": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Algorithm Version"
+          },
+          "computed_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Computed At"
+          },
+          "population_size": {
+            "type": "integer",
+            "title": "Population Size",
+            "default": 0
+          },
+          "validation_card_skip_reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Validation Card Skip Reason"
+          }
+        },
+        "type": "object",
+        "title": "FundingBiasAnalysisResponse",
+        "description": "Catalog-wide funding-type vs. bias-rating correlation, as last computed.\n\n`available=False` (an otherwise-empty response, not a 404/500) is the\nhonest state before `app.scripts.run_funding_bias_analysis` has ever\nrun against this database."
+      },
+      "FundingBiasMethodology": {
+        "properties": {
+          "preregistration_id": {
+            "type": "string",
+            "title": "Preregistration Id"
+          },
+          "title": {
+            "type": "string",
+            "title": "Title"
+          },
+          "locked_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Locked At"
+          },
+          "specification": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Specification"
+          },
+          "deviations": {
+            "items": {},
+            "type": "array",
+            "title": "Deviations"
+          }
+        },
+        "type": "object",
+        "required": [
+          "preregistration_id",
+          "title",
+          "locked_at",
+          "specification"
+        ],
+        "title": "FundingBiasMethodology",
+        "description": "The locked, pre-registered methodology for the funding-vs-bias measurement."
+      },
+      "FundingBiasStatistic": {
+        "properties": {
+          "n": {
+            "type": "integer",
+            "title": "N"
+          },
+          "rows": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Rows"
+          },
+          "cols": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Cols"
+          },
+          "table": {
+            "items": {
+              "items": {
+                "type": "integer"
+              },
+              "type": "array"
+            },
+            "type": "array",
+            "title": "Table"
+          },
+          "chi_square": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Chi Square"
+          },
+          "degrees_of_freedom": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Degrees Of Freedom"
+          },
+          "cramers_v": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Cramers V"
+          },
+          "interpretation": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Interpretation"
+          },
+          "note": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Note"
+          }
+        },
+        "type": "object",
+        "required": [
+          "n",
+          "rows",
+          "cols",
+          "table"
+        ],
+        "title": "FundingBiasStatistic",
+        "description": "The contingency table and Cramer's V association statistic over it."
       },
       "GDELTContext": {
         "properties": {
@@ -12298,6 +13654,17 @@
             ],
             "title": "Parent Org"
           },
+          "ownership_percentage": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ownership Percentage"
+          },
           "funding_type": {
             "anyOf": [
               {
@@ -12310,18 +13677,20 @@
             "title": "Funding Type"
           },
           "funding_sources": {
-            "anyOf": [
-              {
-                "items": {
-                  "type": "string"
-                },
-                "type": "array"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Funding Sources"
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Funding Sources",
+            "default": []
+          },
+          "major_advertisers": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Major Advertisers",
+            "default": []
           },
           "ein": {
             "anyOf": [
@@ -12344,6 +13713,14 @@
               }
             ],
             "title": "Annual Revenue"
+          },
+          "top_donors": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Top Donors",
+            "default": []
           },
           "media_bias_rating": {
             "anyOf": [
@@ -12377,6 +13754,99 @@
               }
             ],
             "title": "Wikipedia Url"
+          },
+          "website": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Website"
+          },
+          "owned_by": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Owned By",
+            "default": []
+          },
+          "parent_orgs": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Parent Orgs",
+            "default": []
+          },
+          "part_of": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Part Of",
+            "default": []
+          },
+          "subsidiaries": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Subsidiaries",
+            "default": []
+          },
+          "headquarters": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Headquarters",
+            "default": []
+          },
+          "inception": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Inception"
+          },
+          "official_website": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Official Website"
+          },
+          "cik": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Cik"
+          },
+          "conflict_flags": {
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "type": "array",
+            "title": "Conflict Flags",
+            "default": []
           },
           "research_sources": {
             "anyOf": [
@@ -12444,30 +13914,120 @@
         "title": "OwnershipChainResponse",
         "description": "Ownership Chain Response."
       },
-      "OwnershipGraphResponse": {
+      "OwnershipInterestPath": {
         "properties": {
-          "nodes": {
+          "entity_ids": {
             "items": {
-              "additionalProperties": true,
-              "type": "object"
+              "type": "string"
             },
             "type": "array",
-            "title": "Nodes",
-            "default": []
+            "title": "Entity Ids"
           },
-          "edges": {
+          "claim_ids": {
             "items": {
-              "additionalProperties": true,
-              "type": "object"
+              "type": "string"
             },
             "type": "array",
-            "title": "Edges",
-            "default": []
+            "title": "Claim Ids"
+          },
+          "interest": {
+            "additionalProperties": {
+              "type": "number"
+            },
+            "type": "object",
+            "title": "Interest"
+          },
+          "disjoint_group": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Disjoint Group"
           }
         },
         "type": "object",
-        "title": "OwnershipGraphResponse",
-        "description": "Graph data for force-directed ownership visualization."
+        "required": [
+          "entity_ids",
+          "claim_ids",
+          "interest"
+        ],
+        "title": "OwnershipInterestPath",
+        "description": "One enumerated owner-to-target chain contributing to an interest calculation."
+      },
+      "OwnershipInterestResponse": {
+        "properties": {
+          "owner_id": {
+            "type": "string",
+            "title": "Owner Id"
+          },
+          "target_id": {
+            "type": "string",
+            "title": "Target Id"
+          },
+          "interest_type": {
+            "type": "string",
+            "title": "Interest Type"
+          },
+          "security_class": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Security Class"
+          },
+          "aggregate": {
+            "anyOf": [
+              {
+                "additionalProperties": {
+                  "type": "number"
+                },
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Aggregate"
+          },
+          "possibly_overlapping": {
+            "type": "boolean",
+            "title": "Possibly Overlapping"
+          },
+          "cross_holding_unresolved": {
+            "type": "boolean",
+            "title": "Cross Holding Unresolved"
+          },
+          "algorithm_version": {
+            "type": "string",
+            "title": "Algorithm Version"
+          },
+          "paths": {
+            "items": {
+              "$ref": "#/components/schemas/OwnershipInterestPath"
+            },
+            "type": "array",
+            "title": "Paths"
+          }
+        },
+        "type": "object",
+        "required": [
+          "owner_id",
+          "target_id",
+          "interest_type",
+          "possibly_overlapping",
+          "cross_holding_unresolved",
+          "algorithm_version"
+        ],
+        "title": "OwnershipInterestResponse",
+        "description": "An owner's aggregate interest in a target, computed across the accepted graph."
       },
       "PaginatedResponse": {
         "properties": {
@@ -13123,6 +14683,34 @@
         "title": "RecentPageResponse",
         "description": "Lightweight response for recent articles without total counts."
       },
+      "RelationshipQueryResponse": {
+        "properties": {
+          "as_of": {
+            "type": "string",
+            "format": "date-time",
+            "title": "As Of"
+          },
+          "known_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Known At"
+          },
+          "relationships": {
+            "items": {
+              "$ref": "#/components/schemas/AcceptedRelationshipRecord"
+            },
+            "type": "array",
+            "title": "Relationships"
+          }
+        },
+        "type": "object",
+        "required": [
+          "as_of",
+          "known_at"
+        ],
+        "title": "RelationshipQueryResponse",
+        "description": "Accepted relationships current as of the requested valid/known time."
+      },
       "ReporterCardResponse": {
         "properties": {
           "id": {
@@ -13594,6 +15182,18 @@
               }
             ],
             "title": "Coverage Comparison"
+          },
+          "career_timeline": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Career Timeline"
           },
           "article_count": {
             "type": "integer",
@@ -14600,6 +16200,17 @@
       },
       "SourceResearchValue": {
         "properties": {
+          "label": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Label"
+          },
           "value": {
             "type": "string",
             "title": "Value"
@@ -15873,5 +17484,12 @@
         "description": "Metadata for a single supporting or conflicting source."
       }
     }
-  }
+  },
+  "x-scoop-websockets": [
+    {
+      "operationId": "websocket_endpoint_ws_ws",
+      "path": "/ws",
+      "summary": "Accept WebSocket connections for real-time news push to the frontend."
+    }
+  ]
 }

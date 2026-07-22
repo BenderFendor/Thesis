@@ -1441,6 +1441,26 @@ async def build_source_profile(name: str, website: str | None = None) -> dict[st
                 "sources": _unique_strings(cast(list[str | None], citation_candidates)),
             }
         )
+    funding_sources = cast(list[str], org_data.get("funding_sources") or [])
+    if funding_sources:
+        fields["funding"].append(
+            {
+                "label": "Funding sources",
+                "value": ", ".join(funding_sources),
+                "sources": _unique_strings(cast(list[str | None], citation_candidates)),
+            }
+        )
+
+    if ads_txt:
+        authorized_sellers = int(ads_txt.get("authorized_sellers") or 0)
+        if authorized_sellers:
+            fields["funding"].append(
+                {
+                    "label": "Ad supply evidence",
+                    "value": f"{authorized_sellers} authorized ad sellers",
+                    "sources": _unique_strings([cast(str | None, ads_txt.get("url"))]),
+                }
+            )
     if org_data.get("media_bias_rating"):
         fields["public_records"].append(
             {
@@ -1457,14 +1477,25 @@ async def build_source_profile(name: str, website: str | None = None) -> dict[st
                 "sources": _unique_strings(cast(list[str | None], citation_candidates)),
             }
         )
-    for value in _unique_strings(
-        [cast(str | None, org_data.get("parent_org"))]
-        + cast(list[str | None], org_data.get("owned_by") or [])
+    if org_data.get("org_type"):
+        fields["public_records"].append(
+            {
+                "label": "Organization type",
+                "value": org_data["org_type"],
+                "sources": _unique_strings(cast(list[str | None], citation_candidates)),
+            }
+        )
+    current_parent = cast(str | None, org_data.get("parent_org"))
+    ownership_values = (
+        [current_parent]
+        if current_parent
+        else cast(list[str | None], org_data.get("owned_by") or [])
         + cast(list[str | None], org_data.get("parent_orgs") or [])
-    ):
+    )
+    for value in _unique_strings(ownership_values):
         fields["ownership"].append(
             {
-                "label": "Owner",
+                "label": "Current parent" if current_parent else "Owner",
                 "value": value,
                 "sources": _unique_strings(
                     [

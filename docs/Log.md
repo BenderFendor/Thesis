@@ -1,5 +1,52 @@
 # Log
 
+## 2026-07-21: Deterministic media investigation profiles
+
+- Added curated `scoop investigate organization|ownership|source|reporter` commands that compose generated OpenAPI operations.
+- Made organization research deterministic by default. Current ownership, legal type, subsidiaries, ownership percentages, CIK, EIN, and annual revenue now come from structured Wikipedia, Wikidata, nonprofit, and SEC data.
+- Fixed SEC annual revenue selection to use the latest reporting period instead of a repeated prior-year value in the newest 10-K. Warner Bros. Discovery now returns FY2025 revenue of `37296000000`.
+- Added direct subsidiary persistence and cache-complete organization responses. Forced refreshes update the existing normalized organization record.
+- Added labeled source-profile values for organization type, funding data, current parent, and ads.txt supply evidence. ads.txt sellers remain separate from named advertisers.
+- Added source filtering to the reporter directory and preserved the selected outlet in reporter cards.
+- Prevented a same-name nonprofit, such as The Larry Ellison Foundation, from assigning nonprofit funding and tax data to a Wikidata human profile.
+
+Verification:
+
+- Backend focused tests: 131 passed.
+- CLI typecheck and 10 transport/workflow tests: passed.
+- Full `scripts/self-test`: 601 backend tests passed, 3 deselected; frontend lint, TypeScript, Jest, build, Rust checks, OpenAPI drift, and CLI gates passed.
+- Live CLI checks: CNN resolved to Warner Bros. Discovery; WBD returned eight direct Wikidata subsidiaries; The New York Times Company resolved as a public company with SEC CIK, EIN, and FY2025 revenue; Anderson Cooper resolved with CNN career history; Larry Ellison remained a human profile with no foundation EIN or revenue.
+
+## 2026-07-21 — OpenAPI-generated backend parity CLI
+
+- Added `./scripts/scoop`, a dependency-free TypeScript CLI that derives all HTTP commands from `backend/openapi.json` at runtime. It supports operation discovery, schema inspection, typed path/query/header/cookie parameters, JSON request bodies, streamed responses, raw calls, and reusable status/JSON-pointer smoke assertions.
+- Added generated WebSocket metadata through the `x-scoop-websockets` OpenAPI extension and `scoop ws list|listen`, covering the frontend's real-time news update transport without adding CLI-only product logic.
+- Added `scoop schema check|export|refresh`, a deterministic schema drift gate, strict CLI typechecking, transport tests against a real HTTP server, and backend tests proving every schema-visible HTTP route plus every WebSocket route is represented.
+- Fixed two frontend/backend parity defects found during the audit: source credibility now calls `/sources/{domain}/credibility`, and the Atlas feed tester now calls `/debug/parser/test/rss`.
+
+Verification:
+
+- `npm run cli:typecheck`: passed.
+- `npm run cli:test`: 4 passed against a real local HTTP server.
+- `backend/.venv/bin/pytest backend/tests/test_openapi_cli_contract.py -q`: 2 passed.
+- Live FastAPI smoke: `health_check_health_get` returned 200 with `status=healthy`; `websocket_endpoint_ws_ws` connected successfully through the CLI.
+
+## 2026-07-20 — Atlas Phase 6: directory-first UI restructure and cleanup
+
+- Made the entity directory (search, All/Outlets/Organizations/People/Reporters tabs, country/funding/bias facets, sortable virtualized rows) the default landing surface at `/wiki/ownership`, replacing the graph canvas. Rows navigate straight to the entity's profile page.
+- Extracted the list/table core out of the `AtlasIndexSheet` modal into a reusable `AtlasEntityList` component; retired the modal (it was fully superseded by the directory becoming the primary surface).
+- Demoted the force-directed graph to an "Explore graph" tab within the same workspace; added a "view" query-state field (`directory`/`graph`, default `directory`) with legacy-deep-link fallback so old `selected=`/`panel=index` bookmarks still resolve without crashing.
+- Added a compact "Explore neighborhood" link from outlet/organization/person profile pages into the pre-focused graph view (`buildAtlasNeighborhoodHref`), without embedding the graph canvas on profile pages.
+- Deleted dead code left over from the pre-rebuild graph workspace: `frontend/app/wiki/ownership/graph/page.tsx`, `source-intelligence-workspace.tsx` (912 lines), `ownership-graph-canvas.tsx`, `graph-utils.ts`; the backend `GET /api/wiki/organizations/graph` route and `OwnershipGraphResponse` model; the frontend `fetchWikiOwnershipGraph`/`WikiOwnershipGraph` caller; three orphaned helpers in `atlas_graph_helpers.py` (`_parse_percentage`, `_evidence_ref`); dead `MetricCard`/`FilterButton`/`Field`/`buildProcessedGraph` from `source-intelligence-support.tsx`.
+- Marked the legacy `Organization.parent_org_id`/`ownership_percentage`/`owned_by`/`parent_orgs`/`part_of` columns as read-path-deprecated in `database.py` (evidence spine is now the read path; columns not dropped, some still written/read by non-Atlas code).
+- Rewrote `docs/intelligence-atlas.md` for the evidence-spine architecture, the directory-first UI, and the three ingestion CLIs (`backfill_entities`, `ingest_evidence`, `run_funding_bias_analysis`).
+
+Verification:
+
+- Backend: `pytest tests -m "not slow" -q` — 551 passed, 3 deselected. `mypy --strict` and `ruff check` clean.
+- Frontend: `tsc --noEmit`, `eslint .` (0 errors, 1 pre-existing TanStack Virtual compiler warning), `next build` all clean. `jest` — 126 passed, 3 pre-existing failures unrelated to this change (`blindspot-view.test.tsx` x2, `search-inline-edit.test.tsx` x1).
+- `grep -rn "source-intelligence-workspace|ownership-graph-canvas|organizations/graph" frontend/app frontend/features frontend/lib frontend/components backend/app backend/tests` returns nothing.
+
 ## 2026-07-20 — Unified Intelligence Atlas
 
 - Removed the separate Media Wiki page, Reporter Graph page, client, and API endpoint. The Intelligence Atlas at `/wiki/ownership` is now the only media intelligence workspace.

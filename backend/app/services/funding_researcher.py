@@ -15,13 +15,14 @@ Uses a layered source strategy:
 5. ProPublica Nonprofit Explorer (990 data)
 """
 
+import asyncio
+import inspect
 import json
 import re
-import inspect
-import asyncio
-from datetime import datetime, UTC
-from typing import Any, cast
 from collections.abc import Iterable
+from datetime import UTC, datetime
+from decimal import Decimal, InvalidOperation
+from typing import Any, cast
 from urllib.parse import quote
 
 import httpx
@@ -45,8 +46,10 @@ _external_semaphore = asyncio.Semaphore(5)
 KNOWN_ORGS: dict[str, dict[str, Any]] = {
     "bbc": {
         "name": "BBC",
+        "org_type": "public broadcaster",
         "funding_type": "public",
         "parent": None,
+        "funding_sources": ["license fee", "government grant"],
         "description": "British Broadcasting Corporation, UK public broadcaster",
         "media_bias_rating": "center",
         "factual_reporting": "high",
@@ -54,6 +57,7 @@ KNOWN_ORGS: dict[str, dict[str, Any]] = {
     },
     "cnn": {
         "name": "CNN",
+        "org_type": "cable news channel",
         "funding_type": "commercial",
         "parent": "Warner Bros. Discovery",
         "description": "Cable News Network, American news channel",
@@ -72,8 +76,10 @@ KNOWN_ORGS: dict[str, dict[str, Any]] = {
     },
     "new york times": {
         "name": "The New York Times",
+        "org_type": "publisher",
         "funding_type": "commercial",
         "parent": "The New York Times Company",
+        "cik": "0000071691",
         "description": "American newspaper of record",
         "media_bias_rating": "center-left",
         "factual_reporting": "high",
@@ -90,8 +96,10 @@ KNOWN_ORGS: dict[str, dict[str, Any]] = {
     },
     "npr": {
         "name": "NPR",
+        "org_type": "nonprofit",
         "funding_type": "non-profit",
         "parent": None,
+        "funding_sources": ["corporate sponsorships", "member station dues", "grants"],
         "description": "National Public Radio, American non-profit media organization",
         "media_bias_rating": "center-left",
         "factual_reporting": "very-high",
@@ -225,8 +233,10 @@ KNOWN_ORGS: dict[str, dict[str, Any]] = {
     },
     "national geographic": {
         "name": "National Geographic",
+        "org_type": "media brand",
         "funding_type": "commercial",
         "parent": "National Geographic Partners (Disney 73%)",
+        "ownership_percentage": "73%",
         "description": "American magazine and media brand",
         "media_bias_rating": "center",
         "factual_reporting": "very-high",
@@ -340,7 +350,26 @@ KNOWN_ORGS: dict[str, dict[str, Any]] = {
         "factual_reporting": "mixed",
         "confidence": "high",
     },
+    "warner bros. discovery": {
+        "name": "Warner Bros. Discovery",
+        "org_type": "public company",
+        "funding_type": "commercial",
+        "description": "American multinational media conglomerate",
+        "media_bias_rating": None,
+        "confidence": "high",
+    },
 }
+
+
+def normalize_organization_name(name: str) -> str:
+    """Normalize an organization name for matching across public registries."""
+    name = re.sub(
+        r"\b(Inc|LLC|Corp|Corporation|Company|Co|Ltd|Limited)\b\.?",
+        "",
+        name,
+        flags=re.IGNORECASE,
+    )
+    return re.sub(r"\s+", " ", re.sub(r"[,.;:]+", " ", name.casefold())).strip()
 
 
 class FundingResearcher:
@@ -360,14 +389,14 @@ class FundingResearcher:
         self.propublica_base = "https://projects.propublica.org/nonprofits/api/v2"
 
     async def research_organization(
-        self, name: str, website: str | None = None, use_ai: bool = True
+        self, name: str, website: str | None = None, use_ai: bool = False
     ) -> dict[str, Any]:
         """Research an organization's funding and ownership.
 
         Args:
             name: Organization name
             website: Optional website URL
-            use_ai: Whether to use AI for research
+            use_ai: Opt in to non-authoritative narrative enrichment
 
         Returns:
             Organization data dict with ownership, funding, etc.
@@ -438,15 +467,8 @@ class FundingResearcher:
         return org_data
 
     def _normalize_name(self, name: str) -> str:
-        """Normalize organization name for matching."""
-        # Remove common suffixes
-        name = re.sub(
-            r"\b(Inc|LLC|Corp|Corporation|Co|Ltd|Limited)\b\.?",
-            "",
-            name,
-            flags=re.IGNORECASE,
-        )
-        return name.lower().strip()
+        """Retain the existing instance-level normalization interface."""
+        return normalize_organization_name(name)
 
     @staticmethod
     def _name_overlap(a: str, b: str) -> float:
@@ -510,7 +532,15 @@ class FundingResearcher:
             if not search_results:
                 return {}
 
-            page_title = search_results[0]["title"]
+            normalized_name = self._normalize_name(name)
+            page_title = next(
+                (
+                    result["title"]
+                    for result in search_results
+                    if self._normalize_name(result.get("title", "")) == normalized_name
+                ),
+                search_results[0]["title"],
+            )
             extract_params = httpx.QueryParams(
                 {
                     "action": "query",
@@ -544,6 +574,7 @@ class FundingResearcher:
                     "source": "wikipedia",
                     "title": page_info.get("title"),
                     "description": extract[:500],
+                    "recent_ownership_changes": self._extract_ownership_changes(extract),
                     "url": page_info.get("fullurl"),
                     "ownership": ownership_info,
                     "page_title": page_info.get("title"),
@@ -584,6 +615,26 @@ class FundingResearcher:
             ownership["funding_type"] = "state-funded"
 
         return ownership if ownership else None
+
+    @staticmethod
+    def _extract_ownership_changes(text: str) -> str | None:
+        """Extract source-grounded merger and acquisition sentences."""
+        keywords = (
+            "acquired",
+            "acquisition",
+            "agreed to be sold",
+            "merged",
+            "merger",
+            "spin-off",
+            "spun off",
+        )
+        sentences = re.split(r"(?<=[.!?])\s+", text)
+        matches = [
+            sentence.strip()
+            for sentence in sentences
+            if any(keyword in sentence.casefold() for keyword in keywords)
+        ]
+        return " ".join(matches[:3]) or None
 
     async def _search_propublica_nonprofit(self, name: str) -> dict[str, Any]:
         """Search ProPublica Nonprofit Explorer for 990 data."""
@@ -699,7 +750,19 @@ class FundingResearcher:
             parent_ids = _extract_wikidata_item_ids(claims, "P749")
             part_of_ids = _extract_wikidata_item_ids(claims, "P361")
             headquarters_ids = _extract_wikidata_item_ids(claims, "P159")
-            item_ids.extend(ownership_ids + parent_ids + part_of_ids + headquarters_ids)
+            subsidiary_ids = _extract_wikidata_item_ids(claims, "P355")
+            org_type_ids = _extract_wikidata_item_ids(claims, "P1454")
+            org_type_ids += _extract_wikidata_item_ids(claims, "P31")
+            owned_with_proportion = _extract_wikidata_items_with_proportion(claims, "P127")
+            parent_with_proportion = _extract_wikidata_items_with_proportion(claims, "P749")
+            item_ids.extend(
+                ownership_ids
+                + parent_ids
+                + part_of_ids
+                + headquarters_ids
+                + subsidiary_ids
+                + org_type_ids
+            )
 
             labels = await self._resolve_wikidata_labels(item_ids)
 
@@ -716,6 +779,22 @@ class FundingResearcher:
                 "part_of": [labels.get(item_id) for item_id in part_of_ids if labels.get(item_id)],
                 "headquarters": [
                     labels.get(item_id) for item_id in headquarters_ids if labels.get(item_id)
+                ],
+                "subsidiaries": [
+                    labels.get(item_id) for item_id in subsidiary_ids if labels.get(item_id)
+                ],
+                "org_types": [
+                    labels.get(item_id) for item_id in org_type_ids if labels.get(item_id)
+                ],
+                "owned_with_proportion": [
+                    (labels.get(item_id), percentage)
+                    for item_id, percentage in owned_with_proportion
+                    if labels.get(item_id)
+                ],
+                "parent_with_proportion": [
+                    (labels.get(item_id), percentage)
+                    for item_id, percentage in parent_with_proportion
+                    if labels.get(item_id)
                 ],
                 "inception": _extract_wikidata_time(claims, "P571"),
                 "official_website": _extract_wikidata_url(claims, "P856"),
@@ -767,9 +846,8 @@ class FundingResearcher:
         """Return known data for major news organizations."""
         normalized = self._normalize_name(name)
 
-        # Check for exact or partial matches
         for key, data in KNOWN_ORGS.items():
-            if key in normalized or normalized in key:
+            if self._normalize_name(key) == normalized:
                 return {"source": "known_data", **data}
 
         return {}
@@ -791,9 +869,10 @@ class FundingResearcher:
             "name": name,
             "normalized_name": normalized_name,
             "description": None,
-            "org_type": "publisher",
+            "org_type": None,
             "parent_org": None,
             "ownership_percentage": None,
+            "recent_ownership_changes": None,
             "funding_type": None,
             "funding_sources": [],
             "major_advertisers": [],
@@ -811,6 +890,7 @@ class FundingResearcher:
             "headquarters": [],
             "inception": None,
             "official_website": None,
+            "subsidiaries": [],
             "wikipedia_url": None,
             "littlesis_url": None,
             "opensecrets_url": None,
@@ -826,6 +906,16 @@ class FundingResearcher:
             org["funding_type"] = known.get("funding_type") or org["funding_type"]
             org["parent_org"] = known.get("parent") or org["parent_org"]
             org["description"] = known.get("description") or org["description"]
+            org["org_type"] = known.get("org_type") or org["org_type"]
+            org["cik"] = known.get("cik") or org["cik"]
+            if not org["ein"] and known.get("ein"):
+                org["ein"] = str(known["ein"])
+            if not org["annual_revenue"] and known.get("annual_revenue"):
+                org["annual_revenue"] = known["annual_revenue"]
+            if not org["ownership_percentage"] and known.get("ownership_percentage"):
+                org["ownership_percentage"] = known["ownership_percentage"]
+            if not org["funding_sources"] and known.get("funding_sources"):
+                org["funding_sources"] = known["funding_sources"]
             org["media_bias_rating"] = known.get("media_bias_rating")
             org["factual_reporting"] = known.get("factual_reporting")
             org["research_sources"].append("known_data")
@@ -840,6 +930,7 @@ class FundingResearcher:
                 org["funding_type"] = wiki_ownership["funding_type"]
             if not org["description"]:
                 org["description"] = wikipedia.get("description")
+            org["recent_ownership_changes"] = wikipedia.get("recent_ownership_changes")
             org["wikipedia_url"] = wikipedia.get("url")
             org["research_sources"].append("wikipedia")
             if org["research_confidence"] == "low":
@@ -853,12 +944,27 @@ class FundingResearcher:
             org["parent_orgs"] = wikidata.get("parent_orgs") or []
             org["part_of"] = wikidata.get("part_of") or []
             org["headquarters"] = wikidata.get("headquarters") or []
+            org["subsidiaries"] = wikidata.get("subsidiaries") or []
+            if not org["org_type"]:
+                org["org_type"] = _select_organization_type(
+                    cast(list[str], wikidata.get("org_types") or [])
+                )
             org["inception"] = wikidata.get("inception")
             org["official_website"] = wikidata.get("official_website")
             if not org["parent_org"] and org["parent_orgs"]:
                 org["parent_org"] = org["parent_orgs"][0]
             if not org["website"] and org["official_website"]:
                 org["website"] = org["official_website"]
+
+            # Extract ownership_percentage from Wikidata proportion qualifiers (P1107)
+            if not org.get("ownership_percentage"):
+                wiki_owned_proportion = wikidata.get("owned_with_proportion") or []
+                wiki_parent_proportion = wikidata.get("parent_with_proportion") or []
+                for _name, pct in wiki_owned_proportion + wiki_parent_proportion:
+                    if pct is not None:
+                        org["ownership_percentage"] = pct
+                        break
+
             org["research_sources"].append("wikidata")
             if org["research_confidence"] == "low":
                 org["research_confidence"] = "medium"
@@ -873,10 +979,26 @@ class FundingResearcher:
                 org["owned_by"] = wikidata_sparql["owned_by"]
             if wikidata_sparql.get("parent_orgs"):
                 org["parent_orgs"] = wikidata_sparql["parent_orgs"]
+                if not org["parent_org"]:
+                    org["parent_org"] = org["parent_orgs"][0]
             if wikidata_sparql.get("part_of"):
                 org["part_of"] = wikidata_sparql["part_of"]
             if wikidata_sparql.get("headquarters"):
                 org["headquarters"] = wikidata_sparql["headquarters"]
+            if wikidata_sparql.get("subsidiaries"):
+                org["subsidiaries"] = wikidata_sparql["subsidiaries"]
+            if not org["org_type"]:
+                org["org_type"] = _select_organization_type(
+                    cast(list[str], wikidata_sparql.get("org_types") or [])
+                )
+            if not org["ownership_percentage"]:
+                proportions = (wikidata_sparql.get("owned_with_proportion") or []) + (
+                    wikidata_sparql.get("parent_with_proportion") or []
+                )
+                org["ownership_percentage"] = next(
+                    (percentage for _owner, percentage in proportions if percentage is not None),
+                    None,
+                )
             if wikidata_sparql.get("inception"):
                 org["inception"] = wikidata_sparql["inception"]
             if wikidata_sparql.get("official_website"):
@@ -891,7 +1013,8 @@ class FundingResearcher:
         # for foundations and charities whose names overlap with commercial media
         # brands, so commercial identity should win completely.
         known_commercial = str(org.get("funding_type") or "").lower() == "commercial"
-        if nonprofit and not known_commercial:
+        is_person = str(org.get("org_type") or "").casefold() in {"human", "person"}
+        if nonprofit and not known_commercial and not is_person:
             nonprofit_ein = nonprofit.get("ein")
             org["ein"] = str(nonprofit_ein) if nonprofit_ein is not None else None
             org["annual_revenue"] = nonprofit.get("annual_revenue")
@@ -904,6 +1027,12 @@ class FundingResearcher:
         # Merge SEC EDGAR data
         if sec:
             org["cik"] = sec.get("cik")
+            if sec.get("ein"):
+                org["ein"] = org["ein"] or str(sec["ein"])
+            if sec.get("tickers") and not org.get("funding_type"):
+                org["funding_type"] = "commercial"
+            if sec.get("tickers") and not org.get("org_type"):
+                org["org_type"] = "public company"
             if sec.get("revenue"):
                 org["annual_revenue"] = org["annual_revenue"] or sec["revenue"]
             if sec.get("total_assets"):
@@ -974,7 +1103,25 @@ class FundingResearcher:
             if not cik:
                 return {}
 
-            # Try Company Facts API first (deterministic, no search overhead)
+            sec_data: dict[str, Any] = {
+                "source": "sec_edgar",
+                "cik": cik,
+                "confidence": "medium",
+            }
+
+            submissions_url = f"https://data.sec.gov/submissions/CIK{cik}.json"
+            async with _external_semaphore:
+                submissions_response = await self.http_client.get(
+                    submissions_url, headers=_EDGAR_HEADERS
+                )
+            if submissions_response.status_code == 200:
+                submissions = submissions_response.json()
+                sec_data["ein"] = submissions.get("ein")
+                sec_data["sic_description"] = submissions.get("sicDescription")
+                sec_data["tickers"] = submissions.get("tickers") or []
+                sec_data["exchanges"] = submissions.get("exchanges") or []
+                sec_data["confidence"] = "high"
+
             facts_url = f"https://data.sec.gov/api/xbrl/companyfacts/CIK{cik}.json"
             async with _external_semaphore:
                 facts_response = await self.http_client.get(facts_url, headers=_EDGAR_HEADERS)
@@ -984,46 +1131,56 @@ class FundingResearcher:
                 us_gaap = facts_data.get("us-gaap", {})
 
                 def _latest_fact_value(tag: str) -> str | None:
+                    """Return the latest annual (10-K) fact value for a GAAP tag.
+
+                    Selects the latest reporting period, then the latest filed
+                    revision for that period. A single 10-K repeats prior-year
+                    comparatives with the current fiscal-year label.
+                    """
                     tag_data = us_gaap.get(tag, {})
                     units = tag_data.get("units", {})
                     usd_entries = units.get("USD", [])
                     if not usd_entries:
                         return None
-                    usd_entries.sort(key=lambda x: x.get("end", ""), reverse=True)
-                    val = usd_entries[0].get("val")
-                    if val is not None:
-                        return str(val)
-                    return None
+                    # Filter to 10-K filings only (annual)
+                    annual = [e for e in usd_entries if e.get("form") == "10-K"]
+                    if not annual:
+                        annual = usd_entries
+                    entries_with_period = [entry for entry in annual if entry.get("end")]
+                    candidates = entries_with_period or annual
+                    latest = max(
+                        candidates,
+                        key=lambda entry: (
+                            str(entry.get("end") or ""),
+                            str(entry.get("filed") or ""),
+                        ),
+                    )
+                    value = latest.get("val")
+                    return str(value) if value is not None else None
 
-                revenue = _latest_fact_value("Revenues")
-                total_assets = _latest_fact_value("Assets")
+                # Probe revenue tags in priority order (ASC 606 first)
+                revenue = (
+                    _latest_fact_value("RevenueFromContractWithCustomerExcludingAssessedTax")
+                    or _latest_fact_value("Revenues")
+                    or _latest_fact_value("SalesRevenueNet")
+                )
+                sec_data["revenue"] = revenue
+                sec_data["total_assets"] = _latest_fact_value("Assets")
+                sec_data["confidence"] = "high"
 
-                return {
-                    "source": "sec_edgar",
-                    "cik": cik,
-                    "revenue": revenue,
-                    "total_assets": total_assets,
-                    "confidence": "high",
-                }
+            if len(sec_data) > 3:
+                return sec_data
 
-            # Fallback: search EDGAR full-text for 10-K filings
             query = quote(name)
             search_url = (
                 f"https://efts.sec.gov/LATEST/search-index?q={query}&categories=form-type=10-K"
             )
             async with _external_semaphore:
                 search_response = await self.http_client.get(search_url, headers=_EDGAR_HEADERS)
-            if search_response.status_code != 200:
-                return {}
-
-            search_data = search_response.json()
-            hits = search_data.get("hits", {}).get("hits", [])
-            if hits:
-                return {
-                    "source": "sec_edgar",
-                    "cik": cik,
-                    "confidence": "medium",
-                }
+            if search_response.status_code == 200:
+                search_data = search_response.json()
+                if search_data.get("hits", {}).get("hits", []):
+                    return sec_data
 
             return {}
 
@@ -1135,6 +1292,7 @@ class FundingResearcher:
                 )
             if response.status_code != 200:
                 return {}
+            raw_response_text = response.text
             data = response.json()
             entities = data.get("entities", {})
             entity = entities.get(qid) if isinstance(entities, dict) else None
@@ -1147,7 +1305,30 @@ class FundingResearcher:
             parent_ids = _extract_wikidata_item_ids(claims, "P749")
             part_of_ids = _extract_wikidata_item_ids(claims, "P361")
             headquarters_ids = _extract_wikidata_item_ids(claims, "P159")
-            item_ids.extend(ownership_ids + parent_ids + part_of_ids + headquarters_ids)
+            founder_ids = _extract_wikidata_item_ids(claims, "P112")
+            ceo_ids = _extract_wikidata_item_ids(claims, "P169")
+            subsidiary_ids = _extract_wikidata_item_ids(claims, "P355")
+            org_type_ids = _extract_wikidata_item_ids(claims, "P1454")
+            org_type_ids += _extract_wikidata_item_ids(claims, "P31")
+
+            # Extract ownership proportion (P1107) from P127 and P749
+            owned_with_proportion = _extract_wikidata_items_with_proportion(claims, "P127")
+            parent_with_proportion = _extract_wikidata_items_with_proportion(claims, "P749")
+            owned_proportion_ids = [iid for iid, _ in owned_with_proportion]
+            parent_proportion_ids = [iid for iid, _ in parent_with_proportion]
+
+            item_ids.extend(
+                ownership_ids
+                + parent_ids
+                + part_of_ids
+                + headquarters_ids
+                + founder_ids
+                + ceo_ids
+                + subsidiary_ids
+                + owned_proportion_ids
+                + parent_proportion_ids
+                + org_type_ids
+            )
 
             labels = await self._resolve_wikidata_labels(item_ids)
 
@@ -1159,9 +1340,29 @@ class FundingResearcher:
                 "parent_orgs": [labels.get(iid) for iid in parent_ids if labels.get(iid)],
                 "part_of": [labels.get(iid) for iid in part_of_ids if labels.get(iid)],
                 "headquarters": [labels.get(iid) for iid in headquarters_ids if labels.get(iid)],
+                "founders": [labels.get(iid) for iid in founder_ids if labels.get(iid)],
+                "ceos": [labels.get(iid) for iid in ceo_ids if labels.get(iid)],
+                "subsidiaries": [labels.get(iid) for iid in subsidiary_ids if labels.get(iid)],
+                "org_types": [labels.get(iid) for iid in org_type_ids if labels.get(iid)],
                 "inception": _extract_wikidata_time(claims, "P571"),
                 "official_website": _extract_wikidata_url(claims, "P856"),
                 "confidence": "medium",
+                # Proportion-qualified ownership data from P127/P749+P1107
+                "owned_with_proportion": [
+                    (labels.get(iid), pct) for iid, pct in owned_with_proportion if labels.get(iid)
+                ],
+                "parent_with_proportion": [
+                    (labels.get(iid), pct) for iid, pct in parent_with_proportion if labels.get(iid)
+                ],
+                # Full raw claims dict (mainsnak + qualifiers + references per
+                # statement) -- evidence_ingest.py's ownership ingestor reads
+                # this directly for per-statement reference/quantity data that
+                # the flattened label lists above lose. Kept private-ish (not
+                # documented for other callers) to avoid growing this method's
+                # public contract; see app/services/evidence_ingest.py.
+                "raw_claims": claims,
+                "labels": labels,
+                "raw_response_text": raw_response_text,
             }
         except Exception as exc:
             logger.warning("Wikidata fetch by QID %s failed: %s", qid, exc)
@@ -1285,24 +1486,20 @@ class FundingResearcher:
             except Exception as e:
                 logger.warning("KNOWN_ORGS staleness check failed: %s", e)
 
-        # Skip if known data is high confidence and not flagged as stale
-        if (
-            org.get("research_confidence") == "high"
-            and "known_data" in org.get("research_sources", [])
-            and not staleness_flags
-        ):
-            return org
-
         try:
-            missing_fields = []
-            if not org.get("funding_type"):
-                missing_fields.append("funding_type")
-            if not org.get("parent_org"):
-                missing_fields.append("parent_org")
-            if not org.get("media_bias_rating"):
-                missing_fields.append("media_bias_rating")
-            if not org.get("factual_reporting"):
-                missing_fields.append("factual_reporting")
+            missing_fields = [
+                field
+                for field in (
+                    "org_type",
+                    "parent_org",
+                    "ownership_percentage",
+                    "funding_type",
+                    "annual_revenue",
+                    "media_bias_rating",
+                    "factual_reporting",
+                )
+                if not org.get(field)
+            ]
             if missing_fields or staleness_flags:
                 pass
             else:
@@ -1320,33 +1517,41 @@ Known Data:
 - Bias Rating: {org.get("media_bias_rating", "Unknown")}
 - Factual Reporting: {org.get("factual_reporting", "Unknown")}
 - Annual Revenue: {org.get("annual_revenue", "Unknown")}
+- Current Source Description: {org.get("description", "Unknown")}
 
 {staleness_note}
 
-Based on your knowledge, provide detailed information about this organization. Fill in these missing/uncertain fields: {missing_desc}.
+Based on your knowledge, fill these missing or uncertain fields: {missing_desc}.
+Use only relationships completed as of today for parent_org and
+ownership_percentage. Put pending or proposed transactions only in
+recent_ownership_changes. Return null or an empty list when a value is not
+publicly supported. Do not guess advertiser names, donors, or ownership stakes.
 
-Additionally, provide:
-1. What type of funding does this organization have? (commercial, public, non-profit, state-funded, independent, trust-owned)
-2. Who owns or controls this organization? (be specific about ultimate parent)
-3. What is their general media bias? (left, center-left, center, center-right, right)
-4. How factual is their reporting? (very-high, high, mixed, low, very-low)
-5. Estimated annual revenue range (with citation/source hint)
-6. Known major donors or grant funders (list up to 5)
-7. Known major advertisers (list up to 5)
-8. Recent ownership changes (any in last 5 years)
-9. Funding transparency level (transparent, partial, opaque, unknown)
-10. Does the organization have a paywall?
+Provide:
+1. Organization type (publisher, media conglomerate, parent company, nonprofit, public broadcaster, or state media)
+2. Funding type (commercial, public, non-profit, state-funded, independent, trust-owned)
+3. Current parent or controlling owner and ownership percentage
+4. Material funding sources or revenue streams
+5. General media bias and factual-reporting rating
+6. Estimated annual revenue range and source hint
+7. Publicly documented major donors or grant funders
+8. Publicly documented major advertisers
+9. Recent ownership changes in the last five years
+10. Funding transparency and paywall status
 
 Respond in JSON:
 {{
+  "org_type": "media conglomerate",
   "funding_type": "commercial",
-  "parent_org": "Parent Company Name" or null,
+  "funding_sources": ["advertising", "subscriptions"],
+  "parent_org": "Current Parent Company" or null,
+  "ownership_percentage": "100%" or null,
   "media_bias_rating": "center",
   "factual_reporting": "high",
   "estimated_revenue": "e.g. $50M-$100M",
-  "revenue_citation": "e.g. 2023 annual report",
-  "major_donors": ["Donor 1", "Donor 2"],
-  "major_advertisers": ["Advertiser 1", "Advertiser 2"],
+  "revenue_citation": "e.g. 2025 annual report",
+  "major_donors": [],
+  "major_advertisers": [],
   "recent_ownership_changes": "Description or null",
   "funding_transparency": "transparent",
   "has_paywall": false,
@@ -1363,8 +1568,9 @@ Respond in JSON:
                     Iterable[ChatCompletionMessageParam],
                     [{"role": "user", "content": prompt}],
                 ),
-                max_tokens=600,
-                temperature=0.3,
+                max_tokens=1200,
+                temperature=0.1,
+                response_format={"type": "json_object"},
             )
 
             content = response.choices[0].message.content
@@ -1376,38 +1582,31 @@ Respond in JSON:
             if json_match:
                 ai_data = json.loads(json_match.group())
 
-                if not org.get("funding_type"):
-                    org["funding_type"] = ai_data.get("funding_type")
-                if not org.get("parent_org"):
-                    org["parent_org"] = ai_data.get("parent_org")
-                if not org.get("media_bias_rating"):
-                    org["media_bias_rating"] = ai_data.get("media_bias_rating")
-                if not org.get("factual_reporting"):
-                    org["factual_reporting"] = ai_data.get("factual_reporting")
-                if not org.get("annual_revenue") and ai_data.get("estimated_revenue"):
-                    org["annual_revenue"] = ai_data["estimated_revenue"]
-
-                # New fields from expanded prompt
-                donors = ai_data.get("major_donors", [])
-                if donors and not org.get("top_donors"):
-                    org["top_donors"] = donors
-                advertisers = ai_data.get("major_advertisers", [])
-                if advertisers:
-                    existing_ads: list[str] = list(org.get("major_advertisers", []) or [])
-                    for ad in advertisers:
-                        if ad not in existing_ads:
-                            existing_ads.append(ad)
-                    org["major_advertisers"] = existing_ads
+                outlet_types = {
+                    "news organization",
+                    "nonprofit",
+                    "public broadcaster",
+                    "publisher",
+                    "state media",
+                }
+                if str(org.get("org_type") or "").casefold() in outlet_types:
+                    if not org.get("media_bias_rating"):
+                        org["media_bias_rating"] = ai_data.get("media_bias_rating")
+                    if not org.get("factual_reporting"):
+                        org["factual_reporting"] = ai_data.get("factual_reporting")
 
                 if ai_data.get("funding_transparency"):
                     org["funding_transparency"] = ai_data["funding_transparency"]
-                if ai_data.get("has_paywall") is not None:
+                if (
+                    str(org.get("org_type") or "").casefold() == "publisher"
+                    and ai_data.get("has_paywall") is not None
+                ):
                     org["has_paywall"] = bool(ai_data["has_paywall"])
-                if ai_data.get("recent_ownership_changes"):
-                    org["recent_ownership_changes"] = ai_data["recent_ownership_changes"]
 
                 if "ai_inference" not in org.get("research_sources", []):
                     org["research_sources"].append("ai_inference")
+            else:
+                logger.warning("AI returned no JSON object for org %s", org_name)
 
         except json.JSONDecodeError as e:
             logger.error("Failed to parse AI enhancement JSON for %s: %s", org_name, e)
@@ -1491,3 +1690,75 @@ def _extract_wikidata_url(claims: dict[str, Any], prop: str) -> str | None:
         if isinstance(value, str):
             return value
     return None
+
+
+def _select_organization_type(org_types: list[str]) -> str | None:
+    """Select the most specific deterministic organization classification."""
+    priorities = (
+        "public company",
+        "private company",
+        "nonprofit organization",
+        "non-profit organization",
+        "state-owned enterprise",
+        "public broadcaster",
+        "media conglomerate",
+        "media company",
+        "publisher",
+        "organization",
+        "business",
+        "enterprise",
+    )
+    by_casefold = {value.casefold(): value for value in org_types}
+    for priority in priorities:
+        if priority in by_casefold:
+            return by_casefold[priority]
+    return org_types[0] if org_types else None
+
+
+def _format_wikidata_proportion(amount: object) -> str | None:
+    """Convert Wikidata's decimal P1107 quantity into a display percentage."""
+    try:
+        proportion = Decimal(str(amount))
+    except (InvalidOperation, ValueError):
+        return None
+    if not proportion.is_finite():
+        return None
+    percentage = proportion * 100 if proportion <= 1 else proportion
+    if percentage < 0 or percentage > 100:
+        return None
+    formatted = format(percentage.normalize(), "f")
+    return f"{formatted}%"
+
+
+def _extract_wikidata_items_with_proportion(
+    claims: dict[str, Any], prop: str
+) -> list[tuple[str, str | None]]:
+    """Extract (item_id, proportion) pairs from a Wikidata claim property.
+
+    Reads the proportion qualifier (P1107) on each statement to determine
+    ownership or voting percentage. Returns None for proportion when no
+    qualifier is present or the qualifier value is not numeric.
+    """
+    results: list[tuple[str, str | None]] = []
+    for claim in claims.get(prop, []):
+        mainsnak = claim.get("mainsnak") or {}
+        datavalue = mainsnak.get("datavalue") or {}
+        value = datavalue.get("value") or {}
+        if not isinstance(value, dict):
+            continue
+        item_id = value.get("id")
+        if not item_id:
+            continue
+
+        # Check qualifiers for proportion (P1107)
+        proportion: str | None = None
+        qualifiers = claim.get("qualifiers") or {}
+        for qual_claim in qualifiers.get("P1107", []):
+            qual_snak = qual_claim.get("datavalue") or {}
+            qual_value = qual_snak.get("value")
+            if isinstance(qual_value, dict):
+                proportion = _format_wikidata_proportion(qual_value.get("amount"))
+            elif isinstance(qual_value, (int, float, str)):
+                proportion = _format_wikidata_proportion(qual_value)
+        results.append((item_id, proportion))
+    return results

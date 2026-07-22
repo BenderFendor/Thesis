@@ -11,6 +11,7 @@ import {
 } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { Compass, Network } from "lucide-react";
 
 import type { WorkspaceTab } from "@/app/wiki/ownership/source-intelligence-support";
 import { GlobalNavigation } from "@/components/global-navigation";
@@ -22,7 +23,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 
-import { AtlasIndexSheet } from "./atlas-index-sheet";
+import { AtlasEntityList } from "./atlas-entity-list";
 import { AtlasInspector } from "./atlas-inspector";
 import { AtlasOperationsSheet } from "./atlas-operations-sheet";
 import { AtlasStageShell } from "./atlas-stage-shell";
@@ -39,6 +40,7 @@ import {
   serializeAtlasQueryState,
   type AtlasPanel,
   type AtlasQueryState,
+  type AtlasView,
 } from "./lib/atlas-query-state";
 import {
   metricPercentage,
@@ -52,6 +54,11 @@ import styles from "./atlas.module.css";
 function isWorkspaceTab(value: string): value is WorkspaceTab {
   return ["ingestion", "storage", "parser", "llm", "errors", "performance", "media"].includes(value);
 }
+
+const VIEW_TABS: Array<{ value: AtlasView; label: string; icon: typeof Compass }> = [
+  { value: "directory", label: "Directory", icon: Compass },
+  { value: "graph", label: "Explore graph", icon: Network },
+];
 
 export function IntelligenceAtlasWorkspace() {
   const currentPathname = usePathname();
@@ -71,6 +78,7 @@ export function IntelligenceAtlasWorkspace() {
   const [recentIds, setRecentIds] = useState<string[]>([]);
   const [exporting, setExporting] = useState(false);
   const searchInputRef = useRef<HTMLInputElement>(null);
+  const isGraphView = parsedState.view === "graph";
 
   const writeState = useCallback(
     (patch: Partial<AtlasQueryState>, mode: "push" | "replace" = "push") => {
@@ -111,11 +119,14 @@ export function IntelligenceAtlasWorkspace() {
     [parsedState],
   );
 
+  // The graph canvas is demoted to a secondary "Explore graph" view, so its
+  // (comparatively expensive) query only runs while that view is visible.
   const graphQuery = useQuery({
     queryKey: ["atlas", "graph", graphFilters],
     queryFn: ({ signal }) => fetchAtlasGraph(graphFilters, signal),
     staleTime: 60_000,
     placeholderData: (previous) => previous,
+    enabled: isGraphView,
     retry: 1,
   });
   const statsQuery = useQuery({
@@ -141,8 +152,9 @@ export function IntelligenceAtlasWorkspace() {
 
   const searchItems = useMemo(
     () => [
-      ...(searchQuery.data?.sources ?? []),
+      ...(searchQuery.data?.outlets ?? []),
       ...(searchQuery.data?.organizations ?? []),
+      ...(searchQuery.data?.people ?? []),
       ...(searchQuery.data?.reporters ?? []),
     ],
     [searchQuery.data],
@@ -217,6 +229,22 @@ export function IntelligenceAtlasWorkspace() {
     }
   }
 
+  /**
+   * A directory row navigates straight to the entity's own profile page
+   * (outlet/organization/person/reporter) rather than opening the inspector
+   * dialog -- the directory is now the primary landing surface, and profile
+   * pages are the destination. Entities without a `profile_path` (shouldn't
+   * happen for catalog entity types, but defensively handled) fall back to
+   * selecting the entity in the graph view instead of a dead click.
+   */
+  function openDirectoryRow(node: AtlasNode) {
+    if (node.profile_path) {
+      push(node.profile_path);
+      return;
+    }
+    writeState({ view: "graph", selected: node.id, entities: [node.entity_type], neighbors: 1, panel: "inspector" });
+  }
+
   async function refreshData() {
     await Promise.all([
       queryClient.invalidateQueries({ queryKey: ["atlas", "graph"] }),
@@ -241,9 +269,9 @@ export function IntelligenceAtlasWorkspace() {
   const operationsTab: WorkspaceTab = isWorkspaceTab(parsedState.tab) ? parsedState.tab : "ingestion";
   const totalStats = statsQuery.data?.stats ?? graphQuery.data?.stats;
   const coverage = totalStats ? metricPercentage(totalStats.ownership_coverage) : 0;
-  const selectedSourceName = entityQuery.data?.entity_type === "source"
+  const selectedSourceName = entityQuery.data?.entity_type === "outlet"
     ? entityQuery.data.label
-    : selectedNode?.entity_type === "source" ? selectedNode.label : null;
+    : selectedNode?.entity_type === "outlet" ? selectedNode.label : null;
 
   return (
     <main className={styles.atlas}>
@@ -275,23 +303,55 @@ export function IntelligenceAtlasWorkspace() {
             onExport={() => void handleExport()}
             onRefresh={() => void refreshData()}
           />
-          <AtlasStageShell
-            state={parsedState}
-            graph={graphQuery.data}
-            graphVersion={graphQuery.data?.graph_version ?? "loading"}
-            loading={graphQuery.isLoading}
-            fetching={graphQuery.isFetching}
-            error={graphQuery.error instanceof Error ? graphQuery.error : null}
-            selectedNode={selectedNode}
-            dockNodes={dockNodes}
-            totalStats={totalStats}
-            ownershipCoverage={coverage}
-            onStateChange={(patch) => writeState(patch)}
-            onSelect={selectEntity}
-            onOpenIndex={() => setPanel("index")}
-            onOpenOperations={() => setPanel("operations")}
-            onRetry={() => void graphQuery.refetch()}
-          />
+
+          <nav className="flex items-center gap-2 border-b border-white/10 px-5 py-2" aria-label="Atlas view">
+            {VIEW_TABS.map((tab) => {
+              const Icon = tab.icon;
+              return (
+                <button
+                  key={tab.value}
+                  type="button"
+                  className={styles.pillButton}
+                  data-active={parsedState.view === tab.value}
+                  aria-current={parsedState.view === tab.value ? "page" : undefined}
+                  onClick={() => writeState({ view: tab.value })}
+                >
+                  <Icon className="h-3.5 w-3.5" /> {tab.label}
+                </button>
+              );
+            })}
+          </nav>
+
+          {isGraphView ? (
+            <AtlasStageShell
+              state={parsedState}
+              graph={graphQuery.data}
+              graphVersion={graphQuery.data?.graph_version ?? "loading"}
+              loading={graphQuery.isLoading}
+              fetching={graphQuery.isFetching}
+              error={graphQuery.error instanceof Error ? graphQuery.error : null}
+              selectedNode={selectedNode}
+              dockNodes={dockNodes}
+              totalStats={totalStats}
+              ownershipCoverage={coverage}
+              onStateChange={(patch) => writeState(patch)}
+              onSelect={selectEntity}
+              onOpenIndex={() => writeState({ view: "directory" })}
+              onOpenOperations={() => setPanel("operations")}
+              onRetry={() => void graphQuery.refetch()}
+            />
+          ) : (
+            <AtlasEntityList
+              entityTypes={parsedState.entities}
+              country={parsedState.country}
+              funding={parsedState.funding}
+              bias={parsedState.bias}
+              onFiltersChange={(filters) => writeState(filters, "replace")}
+              onSelect={openDirectoryRow}
+              variant="page"
+              active={!isGraphView}
+            />
+          )}
         </section>
       </div>
 
@@ -309,16 +369,6 @@ export function IntelligenceAtlasWorkspace() {
           />
         </DialogContent>
       </Dialog>
-      <AtlasIndexSheet
-        open={parsedState.panel === "index"}
-        onOpenChange={(open) => setPanel(open ? "index" : "none")}
-        entityTypes={parsedState.entities}
-        country={parsedState.country}
-        funding={parsedState.funding}
-        bias={parsedState.bias}
-        onFiltersChange={(filters) => writeState(filters, "replace")}
-        onSelect={(entityId) => selectEntity(entityId, nodesById.get(entityId)?.entity_type)}
-      />
       <AtlasOperationsSheet
         open={parsedState.panel === "operations"}
         onOpenChange={(open) => setPanel(open ? "operations" : "none")}

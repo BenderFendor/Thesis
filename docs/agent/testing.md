@@ -28,6 +28,14 @@
 - build command
   - Frontend: `npm --prefix frontend run build`
 
+- CLI parity commands
+  - Typecheck: `npm run cli:typecheck`
+  - Transport tests: `npm run cli:test`
+  - Backend schema drift: `npm run cli:schema:check`
+  - Real endpoint smoke: `./scripts/scoop api smoke <operation_id> --base-url http://127.0.0.1:8000`
+  - WebSocket connect smoke: `./scripts/scoop ws listen <operation_id> --count 0`
+  - Media investigation smoke: `./scripts/scoop investigate ownership CNN --max-depth 10`
+
 - e2e command
   - TODO: no stable repo-local e2e command documented yet.
 

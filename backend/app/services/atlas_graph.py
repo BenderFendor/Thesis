@@ -76,7 +76,12 @@ def _rank_nodes(
         )
         for node in nodes
     ]
-    type_priority: dict[AtlasEntityType, int] = {"organization": 0, "source": 1, "reporter": 2}
+    type_priority: dict[AtlasEntityType, int] = {
+        "organization": 0,
+        "outlet": 1,
+        "person": 2,
+        "reporter": 3,
+    }
     ranked.sort(
         key=lambda node: (
             0 if node.id == selected else 1,
@@ -111,12 +116,11 @@ def _graph_version(nodes: list[AtlasNode], edges: list[AtlasEdge]) -> str:
 
 
 async def build_atlas_graph(db: AsyncSession, filters: AtlasGraphFilters) -> AtlasGraphResponse:
-    """Merge legacy catalog and accepted evidence-spine data into one Atlas graph."""
+    """Merge the outlet/reporter and organization/person/ownership projections."""
     generated_at = datetime.now(UTC)
     (
         legacy_nodes,
         legacy_edges,
-        unresolved,
         _index_counts,
         _last_indexed,
         _indexing,
@@ -166,26 +170,28 @@ async def build_atlas_graph(db: AsyncSession, filters: AtlasGraphFilters) -> Atl
             ),
         )[: filters.limit_edges]
 
-    source_nodes = [node for node in all_nodes if node.entity_type == "source"]
-    source_node_ids = {node.id for node in source_nodes}
+    outlet_nodes = [node for node in all_nodes if node.entity_type == "outlet"]
+    outlet_node_ids = {node.id for node in outlet_nodes}
     ownership_edges = [
         edge for edge in all_edges if edge.relation_type in {"ownership", "owned_by", "parent_org"}
     ]
-    sources_with_owner = {
+    outlets_with_owner = {
         edge.target_id
         for edge in ownership_edges
-        if edge.target_id in source_node_ids
+        if edge.target_id in outlet_node_ids
         and edge.valid_to is None
         and edge.retracted_at is None
         and (edge.accepted_fact or not filters.accepted_only)
     }
     evidence_count = sum(edge.evidence_count > 0 for edge in edge_filtered)
     stats = AtlasGraphStats(
-        total_sources=len(source_nodes),
+        total_outlets=len(outlet_nodes),
         total_organizations=sum(node.entity_type == "organization" for node in all_nodes),
+        total_people=sum(node.entity_type == "person" for node in all_nodes),
         total_reporters=sum(node.entity_type == "reporter" for node in all_nodes),
-        visible_sources=sum(node.entity_type == "source" for node in ranked_nodes),
+        visible_outlets=sum(node.entity_type == "outlet" for node in ranked_nodes),
         visible_organizations=sum(node.entity_type == "organization" for node in ranked_nodes),
+        visible_people=sum(node.entity_type == "person" for node in ranked_nodes),
         visible_reporters=sum(node.entity_type == "reporter" for node in ranked_nodes),
         visible_relationships=len(edge_filtered),
         current_relationships=sum(
@@ -195,12 +201,12 @@ async def build_atlas_graph(db: AsyncSession, filters: AtlasGraphFilters) -> Atl
         candidate_relationships=sum(edge.fact_status == "candidate" for edge in all_edges),
         disputed_relationships=sum(edge.fact_status == "disputed" for edge in all_edges),
         ownership_coverage=AtlasCoverageMetric(
-            numerator=len(sources_with_owner), denominator=len(source_nodes)
+            numerator=len(outlets_with_owner), denominator=len(outlet_nodes)
         ),
         evidence_coverage=AtlasCoverageMetric(
             numerator=evidence_count, denominator=len(edge_filtered)
         ),
-        unresolved_source_links=unresolved,
+        unresolved_source_links=len(outlet_nodes) - len(outlets_with_owner),
     )
     return AtlasGraphResponse(
         graph_version=_graph_version(all_nodes, all_edges),
@@ -220,7 +226,7 @@ async def build_atlas_stats(db: AsyncSession) -> AtlasStatsResponse:
     graph = await build_atlas_graph(
         db,
         AtlasGraphFilters(
-            entity_types=["source", "organization", "reporter"],
+            entity_types=["outlet", "organization", "person", "reporter"],
             limit_nodes=600,
             limit_edges=2500,
             include_evidence_preview=False,
@@ -237,8 +243,9 @@ async def build_atlas_stats(db: AsyncSession) -> AtlasStatsResponse:
         generated_at=graph.generated_at,
         stats=graph.stats,
         by_entity_type={
-            "source": graph.stats.total_sources,
+            "outlet": graph.stats.total_outlets,
             "organization": graph.stats.total_organizations,
+            "person": graph.stats.total_people,
             "reporter": graph.stats.total_reporters,
         },
         by_relation_type={str(key): value for key, value in relation_counts.items()},

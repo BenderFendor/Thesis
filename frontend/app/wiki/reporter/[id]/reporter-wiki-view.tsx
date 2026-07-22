@@ -12,8 +12,13 @@ import {
   UserRound,
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
-import { fetchWikiReporter, type WikiReporterDossier } from "@/lib/api";
+import {
+  fetchWikiReporter,
+  parseReporterCareerTimeline,
+  type WikiReporterDossier,
+} from "@/lib/api";
 import { GlobalNavigation } from "@/components/global-navigation";
+import { CareerTimeline } from "./career-timeline";
 
 export function ReporterWikiView({ reporterId }: { reporterId: number }) {
   const { data, isLoading, error } = useQuery<WikiReporterDossier>({
@@ -53,6 +58,7 @@ export function ReporterWikiView({ reporterId }: { reporterId: number }) {
   }
 
   const activity = data.activity_summary;
+  const careerTimeline = parseReporterCareerTimeline(data.career_timeline);
 
   return (
     <div className="flex bg-background min-h-screen text-foreground overflow-hidden">
@@ -256,6 +262,12 @@ export function ReporterWikiView({ reporterId }: { reporterId: number }) {
                     )}
                   </div>
                 </div>
+              </Panel>
+            )}
+
+            {careerTimeline && careerTimeline.timeline.length > 0 && (
+              <Panel title="Career Timeline" eyebrow="Bylines and affiliations, merged chronologically">
+                <CareerTimeline data={careerTimeline} />
               </Panel>
             )}
 

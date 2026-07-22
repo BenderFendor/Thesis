@@ -50,6 +50,39 @@ Open:
 - Frontend: <http://localhost:3000>
 - Backend API docs: <http://localhost:8000/docs>
 
+## Backend parity CLI
+
+The TypeScript CLI reads `backend/openapi.json` at runtime, so every documented backend operation is available without separate command implementations:
+
+```bash
+./scripts/scoop api list
+./scripts/scoop api describe health_check_health_get
+./scripts/scoop api call health_check_health_get
+./scripts/scoop api smoke health_check_health_get --expect-json /status=healthy
+```
+
+For media research, use the curated commands. They compose generated OpenAPI operations and accept arbitrary entity names:
+
+```bash
+./scripts/scoop investigate organization "Warner Bros. Discovery" --refresh
+./scripts/scoop investigate ownership CNN --max-depth 10
+./scripts/scoop investigate source CNN --website https://www.cnn.com
+./scripts/scoop investigate reporter "Anderson Cooper" --organization CNN
+```
+
+Use `--param name=value` for OpenAPI path, query, header, and cookie parameters. Use `--body '{"key":"value"}'` for JSON bodies and `--stream` for streamed HTTP responses. WebSocket routes omitted by OpenAPI are published through `x-scoop-websockets`:
+
+```bash
+./scripts/scoop ws list
+./scripts/scoop ws listen websocket_endpoint_ws_ws
+```
+
+Regenerate the shared contract and frontend types after changing backend routes:
+
+```bash
+./scripts/scoop schema refresh
+```
+
 ## Configuration
 
 Create `backend/.env` from the example file:

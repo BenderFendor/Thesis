@@ -1,8 +1,13 @@
 {
+  "type": "module",
   "scripts": {
-    "openapi:export": "cd backend && UV_CACHE_DIR=../.uv-cache uv run python -c \"import json; from pathlib import Path; from app.main import app; Path('openapi.json').write_text(json.dumps(app.openapi(), indent=2) + '\\n')\"",
+    "openapi:export": "cd backend && UV_CACHE_DIR=../.uv-cache uv run python -m scripts.export_openapi",
     "openapi:types": "npm --prefix frontend run openapi:types",
     "openapi:refresh": "npm run openapi:export && npm run openapi:types",
+    "cli": "./scripts/scoop",
+    "cli:test": "node --test scripts/tests/scoop.test.ts",
+    "cli:typecheck": "frontend/node_modules/.bin/tsc -p scripts/tsconfig.json",
+    "cli:schema:check": "./scripts/scoop schema check",
     "deps:cycles": "bash ./scripts/check-cycles"
   },
   "devDependencies": {

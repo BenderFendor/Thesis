@@ -124,7 +124,7 @@ export function SourceIntelligenceOperations({
     setTestingFeed(true);
     setRssResult(null);
     try {
-      const response = await fetch(`${API_BASE_URL}/debug/parser/test/feed?url=${encodeURIComponent(rssUrl)}`, {
+      const response = await fetch(`${API_BASE_URL}/debug/parser/test/rss?url=${encodeURIComponent(rssUrl)}`, {
         method: "POST",
       });
       setRssResult(await response.json());

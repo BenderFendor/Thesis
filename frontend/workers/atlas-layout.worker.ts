@@ -141,8 +141,11 @@ function runLayout(request: AtlasLayoutRequest): void {
       if (request.layout === "ownership" && node.entity_type === "organization") {
         targetX = request.width * 0.42;
         targetY = request.height * 0.48;
-      } else if (request.layout === "ownership" && node.entity_type === "source") {
+      } else if (request.layout === "ownership" && node.entity_type === "outlet") {
         targetX = request.width * 0.64;
+      } else if (request.layout === "ownership" && node.entity_type === "person") {
+        targetX = request.width * 0.28;
+        targetY = request.height * 0.32;
       }
 
       force.x += (targetX - position.x) * 0.0035 * alpha;

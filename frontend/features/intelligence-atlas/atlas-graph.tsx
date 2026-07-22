@@ -37,7 +37,8 @@ interface Transform {
 
 const ENTITY_FILL: Record<AtlasNode["entity_type"], string> = {
   organization: "#d7b35f",
-  source: "#f0ede4",
+  outlet: "#f0ede4",
+  person: "#e08a5f",
   reporter: "#88a9ff",
 };
 
@@ -51,21 +52,26 @@ const EDGE_STROKE: Record<AtlasEdge["relation_type"], string> = {
   current_outlet: "#88a9ff",
   coauthor: "#88a9ff",
   shared_outlet: "#6f86bd",
+  founded_by: "#e08a5f",
+  sibling_via_owner: "#7d6f5a",
 };
 
 function nodeRadius(node: AtlasNode): number {
-  const base = node.entity_type === "organization" ? 12 : node.entity_type === "source" ? 9 : 8;
+  const base = node.entity_type === "organization" ? 12 : node.entity_type === "outlet" ? 9 : node.entity_type === "person" ? 8 : 8;
   const degree = Math.min(Math.log2(1 + node.connection_count) * 1.4, 8);
   const articles = Math.min(Math.log10(1 + node.article_count) * 0.8, 3);
   return base + degree + articles;
 }
 
 function nodeShape(node: AtlasNode, radius: number) {
-  if (node.entity_type === "source") {
+  if (node.entity_type === "outlet") {
     return <rect x={-radius} y={-radius} width={radius * 2} height={radius * 2} rx={radius * 0.35} />;
   }
   if (node.entity_type === "reporter") {
     return <path d={`M 0 ${-radius} C ${radius} ${-radius} ${radius} ${radius * 0.55} 0 ${radius} C ${-radius} ${radius * 0.55} ${-radius} ${-radius} 0 ${-radius} Z`} />;
+  }
+  if (node.entity_type === "person") {
+    return <path d={`M 0 ${-radius} L ${radius} 0 L 0 ${radius} L ${-radius} 0 Z`} />;
   }
   return <circle r={radius} />;
 }
@@ -261,7 +267,7 @@ export function AtlasGraph({
       <div ref={containerRef} className={styles.emptyState}>
         <div>
           <div className={styles.brandTitle}>No entities match this view.</div>
-          <p className={styles.contextCopy}>Clear a filter or search for a different source, organization, or reporter.</p>
+          <p className={styles.contextCopy}>Clear a filter or search for a different outlet, organization, or reporter.</p>
         </div>
       </div>
     );
@@ -419,8 +425,9 @@ export function AtlasGraph({
         </button>
       </div>
       <div className={styles.graphLegend} aria-hidden="true">
-        <span><span className="text-[#f0ede4]">■</span> source</span>
+        <span><span className="text-[#f0ede4]">■</span> outlet</span>
         <span><span className="text-[#d7b35f]">●</span> organization</span>
+        <span><span className="text-[#e08a5f]">◆</span> person</span>
         <span><span className="text-[#88a9ff]">◆</span> reporter</span>
         <span>Zoom for all labels</span>
       </div>

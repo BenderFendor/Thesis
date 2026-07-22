@@ -271,3 +271,13 @@ class TestGetSourceReporters:
         resp = await client.get("/api/wiki/sources/Independent%20Wire/reporters")
         assert resp.status_code == 200
         assert resp.json() == []
+
+
+@pytest.mark.asyncio
+async def test_reporter_directory_filters_by_source(client: AsyncClient):
+    response = await client.get("/api/wiki/reporters?source=Test%20News")
+
+    assert response.status_code == 200
+    reporters = response.json()
+    assert any(reporter["name"] == "Jane Doe" for reporter in reporters)
+    assert all(reporter["current_outlet"] == "Test News" for reporter in reporters)

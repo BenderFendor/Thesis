@@ -7,7 +7,7 @@ from typing import Any, Literal
 
 from pydantic import BaseModel, Field
 
-AtlasEntityType = Literal["source", "organization", "reporter"]
+AtlasEntityType = Literal["outlet", "organization", "person", "reporter"]
 AtlasRelationType = Literal[
     "ownership",
     "owned_by",
@@ -18,6 +18,8 @@ AtlasRelationType = Literal[
     "current_outlet",
     "coauthor",
     "shared_outlet",
+    "founded_by",
+    "sibling_via_owner",
 ]
 AtlasConfidenceTier = Literal[
     "verified",
@@ -113,11 +115,13 @@ class AtlasCoverageMetric(BaseModel):
 class AtlasGraphStats(BaseModel):
     """Aggregate node/edge counts and coverage metrics for a graph response."""
 
-    total_sources: int = 0
+    total_outlets: int = 0
     total_organizations: int = 0
+    total_people: int = 0
     total_reporters: int = 0
-    visible_sources: int = 0
+    visible_outlets: int = 0
     visible_organizations: int = 0
+    visible_people: int = 0
     visible_reporters: int = 0
     visible_relationships: int = 0
     current_relationships: int = 0
@@ -193,8 +197,9 @@ class AtlasSearchResponse(BaseModel):
     """Search results grouped by entity type."""
 
     query: str
-    sources: list[AtlasSearchItem] = Field(default_factory=list)
+    outlets: list[AtlasSearchItem] = Field(default_factory=list)
     organizations: list[AtlasSearchItem] = Field(default_factory=list)
+    people: list[AtlasSearchItem] = Field(default_factory=list)
     reporters: list[AtlasSearchItem] = Field(default_factory=list)
 
 
@@ -229,6 +234,48 @@ class AtlasIndexResponse(BaseModel):
     total: int = 0
     next_cursor: str | None = None
     facets: dict[str, dict[str, int]] = Field(default_factory=dict)
+
+
+class FundingBiasMethodology(BaseModel):
+    """The locked, pre-registered methodology for the funding-vs-bias measurement."""
+
+    preregistration_id: str
+    title: str
+    locked_at: datetime
+    specification: dict[str, Any]
+    deviations: list[Any] = Field(default_factory=list)
+
+
+class FundingBiasStatistic(BaseModel):
+    """The contingency table and Cramer's V association statistic over it."""
+
+    n: int
+    rows: list[str]
+    cols: list[str]
+    table: list[list[int]]
+    chi_square: float | None = None
+    degrees_of_freedom: int | None = None
+    cramers_v: float | None = None
+    interpretation: str | None = None
+    note: str | None = None
+
+
+class FundingBiasAnalysisResponse(BaseModel):
+    """Catalog-wide funding-type vs. bias-rating correlation, as last computed.
+
+    `available=False` (an otherwise-empty response, not a 404/500) is the
+    honest state before `app.scripts.run_funding_bias_analysis` has ever
+    run against this database.
+    """
+
+    available: bool = False
+    methodology: FundingBiasMethodology | None = None
+    statistic: FundingBiasStatistic | None = None
+    trace_id: str | None = None
+    algorithm_version: str | None = None
+    computed_at: datetime | None = None
+    population_size: int = 0
+    validation_card_skip_reason: str | None = None
 
 
 class AtlasExportRequest(BaseModel):

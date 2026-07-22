@@ -6,6 +6,7 @@ import {
   AtlasIndexResponseSchema,
   AtlasSearchResponseSchema,
   AtlasStatsResponseSchema,
+  FundingBiasAnalysisResponseSchema,
   type AtlasGraphFilters,
 } from "./atlas-schema";
 
@@ -62,6 +63,11 @@ export async function searchAtlas(query: string, signal?: AbortSignal) {
 export async function fetchAtlasEntity(entityId: string, signal?: AbortSignal) {
   const response = await fetch(`${API_BASE_URL}/api/wiki/atlas/entities/${encodeURIComponent(entityId)}`, { signal });
   return parseResponse(response, AtlasEntityRecordSchema);
+}
+
+export async function fetchFundingBiasAnalysis(signal?: AbortSignal) {
+  const response = await fetch(`${API_BASE_URL}/api/wiki/atlas/analysis/funding-bias`, { signal });
+  return parseResponse(response, FundingBiasAnalysisResponseSchema);
 }
 
 export async function fetchAtlasIndex(

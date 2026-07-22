@@ -86,6 +86,11 @@ class Settings:
     enable_vector_store: bool = _env_enabled("ENABLE_VECTOR_STORE")
     enable_database: bool = _env_enabled("ENABLE_DATABASE")
     enable_incremental_cache: bool = _env_enabled("ENABLE_INCREMENTAL_CACHE", "1")
+    # Atlas data pipelines (entity backfill, evidence ingestion, funding-bias
+    # analysis) run automatically on startup -- see app.services.auto_ingest.
+    # Disable for tests/CI with SCOOP_AUTO_INGEST=0.
+    auto_ingest_enabled: bool = _env_enabled("SCOOP_AUTO_INGEST")
+    auto_ingest_interval_hours: int = int(os.getenv("SCOOP_AUTO_INGEST_INTERVAL_HOURS", "24"))
     news_cache_max_articles: int = int(os.getenv("NEWS_CACHE_MAX_ARTICLES", "0"))
     news_cache_max_per_source: int = int(os.getenv("NEWS_CACHE_MAX_PER_SOURCE", "0"))
     startup_cache_article_limit: int = int(os.getenv("STARTUP_CACHE_ARTICLE_LIMIT", "10000"))

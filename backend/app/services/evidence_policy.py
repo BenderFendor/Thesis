@@ -74,6 +74,15 @@ REGISTRY_CLASSES = frozenset(
         "government_record",
         "audited_statement",
         "charter_or_statute",
+        # A Wikidata statement that carries an explicit citation (a
+        # `references` block on the statement, not just an unsourced
+        # community edit) -- per the Atlas rebuild plan's user decision #2,
+        # "referenced Wikidata claims auto-materialize as accepted facts with
+        # provenance." Distinct from `third_party_assessment` (used for
+        # unreferenced Wikidata statements and other uncited third-party
+        # data), which stays outside REGISTRY_CLASSES so those claims cannot
+        # auto-accept for ownership/control predicates.
+        "wikidata_referenced_statement",
     }
 )
 
@@ -154,6 +163,30 @@ POLICIES: dict[str, PredicatePolicy] = {
     ),
     "member_of": PredicatePolicy(
         "member_of", frozenset({"own_site", "registry_filing", "membership_record"})
+    ),
+    "founded_by": PredicatePolicy(
+        "founded_by",
+        frozenset(
+            {
+                "registry_filing",
+                "own_site",
+                "article_structured_data",
+                "wikidata_referenced_statement",
+            }
+        ),
+    ),
+    # MBFC bias/factuality labels are the outlet's own published assessment,
+    # not an asserted ground-truth fact -- attributed to MBFC and gated to the
+    # "third_party_assessment" evidence class (see CATALOG_ONLY_CLASSES).
+    # `permits_catalog_only=True` is what lets that class alone accept the
+    # claim; every other predicate in this table explicitly withholds that
+    # permission because catalog/third-party assessments are too weak to
+    # establish e.g. an ownership fact.
+    "bias_rating": PredicatePolicy(
+        "bias_rating", frozenset({"third_party_assessment"}), permits_catalog_only=True
+    ),
+    "factual_reporting": PredicatePolicy(
+        "factual_reporting", frozenset({"third_party_assessment"}), permits_catalog_only=True
     ),
 }
 

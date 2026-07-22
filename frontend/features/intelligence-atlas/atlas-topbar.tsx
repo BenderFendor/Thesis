@@ -21,6 +21,11 @@ function humanize(value: string): string {
   return value.replaceAll("_", " ").replace(/\b\w/g, (letter) => letter.toUpperCase());
 }
 
+function pluralGroupLabel(type: string): string {
+  if (type === "person") return "People";
+  return `${humanize(type)}s`;
+}
+
 function dateDistance(value?: string | null): string {
   if (!value) return "Not indexed";
   const timestamp = new Date(value).getTime();
@@ -95,7 +100,7 @@ export function AtlasTopbar({
           className={styles.searchInput}
           id="atlas-search"
           name="atlas-search"
-          placeholder="Search sources, owners, reporters, countries, or IDs"
+          placeholder="Search outlets, owners, reporters, countries, or IDs"
           aria-label="Search Intelligence Atlas"
           aria-expanded={searchOpen}
           aria-controls="atlas-search-results"
@@ -110,12 +115,12 @@ export function AtlasTopbar({
                 <Loader2 className="h-4 w-4 animate-spin" /> Searching indexed entities
               </div>
             ) : searchItems.length > 0 ? (
-              (["source", "organization", "reporter"] as const).map((type) => {
+              (["outlet", "organization", "person", "reporter"] as const).map((type) => {
                 const items = searchItems.filter((item) => item.entity_type === type);
                 if (items.length === 0) return null;
                 return (
                   <div key={type} className={styles.searchGroup}>
-                    <div className={`${styles.microLabel} px-2 pb-2`}>{humanize(type)}s</div>
+                    <div className={`${styles.microLabel} px-2 pb-2`}>{pluralGroupLabel(type)}</div>
                     {items.map((item) => {
                       const index = searchItems.findIndex((candidate) => candidate.id === item.id);
                       return (

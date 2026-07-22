@@ -10,16 +10,17 @@ describe("Atlas query state", () => {
     const state: AtlasQueryState = {
       ...DEFAULT_ATLAS_QUERY_STATE,
       q: "Reuters",
-      entities: ["source", "organization", "reporter"],
+      entities: ["outlet", "organization", "person", "reporter"],
       relations: ["ownership", "employed_by"],
       country: ["GB", "US"],
       funding: ["commercial"],
       minConfidence: 0.65,
-      selected: "source:abc",
+      selected: "outlet:abc",
       neighbors: 2,
       focus: true,
       layout: "radial",
       panel: "inspector",
+      view: "graph",
     };
 
     const parsed = parseAtlasQueryState(serializeAtlasQueryState(state));
@@ -35,6 +36,29 @@ describe("Atlas query state", () => {
     expect(parsed.neighbors).toBe(2);
     expect(parsed.layout).toBe("clustered");
     expect(parsed.minConfidence).toBe(1);
+  });
+
+  it("defaults to the directory view when no state is present", () => {
+    const parsed = parseAtlasQueryState(new URLSearchParams(""));
+    expect(parsed.view).toBe("directory");
+  });
+
+  it("infers the graph view for legacy selected-entity deep-links with no view param", () => {
+    const parsed = parseAtlasQueryState(new URLSearchParams("selected=outlet:abc"));
+    expect(parsed.view).toBe("graph");
+  });
+
+  it("does not crash on an unknown legacy view value", () => {
+    const parsed = parseAtlasQueryState(new URLSearchParams("view=canvas"));
+    expect(parsed.view).toBe("directory");
+  });
+
+  it("normalizes the legacy 'source' entity type and id prefix on read", () => {
+    const parsed = parseAtlasQueryState(
+      new URLSearchParams("entities=source,organization&selected=source:abc"),
+    );
+    expect(parsed.entities).toEqual(["outlet", "organization"]);
+    expect(parsed.selected).toBe("outlet:abc");
   });
 
   it("keeps a selected entity while explicitly closing the inspector", () => {

@@ -15,8 +15,9 @@ import styles from "./atlas.module.css";
 type AtlasGraphStats = AtlasGraphResponse["stats"];
 
 const ENTITY_OPTIONS: Array<{ value: AtlasEntityType; label: string }> = [
-  { value: "source", label: "Sources" },
+  { value: "outlet", label: "Outlets" },
   { value: "organization", label: "Organizations" },
+  { value: "person", label: "People" },
   { value: "reporter", label: "Reporters" },
 ];
 const RELATION_OPTIONS: Array<{ value: AtlasRelationType; label: string }> = [
@@ -28,6 +29,8 @@ const RELATION_OPTIONS: Array<{ value: AtlasRelationType; label: string }> = [
   { value: "current_outlet", label: "Current outlet" },
   { value: "coauthor", label: "Coauthor" },
   { value: "shared_outlet", label: "Shared outlet" },
+  { value: "founded_by", label: "Founded by" },
+  { value: "sibling_via_owner", label: "Common ownership" },
 ];
 const LAYOUT_OPTIONS: Array<{ value: AtlasLayoutMode; label: string }> = [
   { value: "clustered", label: "Clustered" },
@@ -93,8 +96,9 @@ export function AtlasStageShell({
               : "Every visible relationship is typed. Inferred and evidence-backed links remain distinguishable, and bounded results declare truncation."}
           </p>
           <div className={styles.metrics}>
-            <Metric label="Sources" value={currentStats?.visible_sources ?? totalStats?.total_sources ?? 0} />
+            <Metric label="Outlets" value={currentStats?.visible_outlets ?? totalStats?.total_outlets ?? 0} />
             <Metric label="Organizations" value={currentStats?.visible_organizations ?? totalStats?.total_organizations ?? 0} />
+            <Metric label="People" value={currentStats?.visible_people ?? totalStats?.total_people ?? 0} />
             <Metric label="Reporters" value={currentStats?.visible_reporters ?? totalStats?.total_reporters ?? 0} />
             <Metric label="Relationships" value={currentStats?.visible_relationships ?? 0} />
             <Metric label="Ownership coverage" value={`${ownershipCoverage}%`} />
@@ -112,7 +116,7 @@ export function AtlasStageShell({
                 data-active={state.entities.includes(option.value)}
                 onClick={() => {
                   const values = toggleValue(state.entities, option.value);
-                  if (values.length > 0) onStateChange({ entities: values, selected: values.includes(selectedNode?.entity_type ?? "source") ? state.selected : null });
+                  if (values.length > 0) onStateChange({ entities: values, selected: values.includes(selectedNode?.entity_type ?? "outlet") ? state.selected : null });
                 }}
               >
                 {option.label}

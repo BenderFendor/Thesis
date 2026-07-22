@@ -12,7 +12,12 @@ import httpx
 import pytest
 from hypothesis import given, strategies as st
 
-from app.services.funding_researcher import FundingResearcher, KNOWN_ORGS
+from app.services.funding_researcher import (
+    KNOWN_ORGS,
+    FundingResearcher,
+    _format_wikidata_proportion,
+    _select_organization_type,
+)
 
 
 def _make_httpx_response(status_code: int, json_data: dict) -> httpx.Response:
@@ -78,9 +83,69 @@ class TestNormalizeName:
         r = FundingResearcher.__new__(FundingResearcher)
         assert r._normalize_name("Vice Media LLC") == "vice media"
 
+    def test_strips_company(self):
+        r = FundingResearcher.__new__(FundingResearcher)
+        assert r._normalize_name("The New York Times Company") == "the new york times"
+
     def test_lowercase_and_strip(self):
         r = FundingResearcher.__new__(FundingResearcher)
         assert r._normalize_name("  BBC  ") == "bbc"
+
+    def test_strips_registry_punctuation(self):
+        r = FundingResearcher.__new__(FundingResearcher)
+        assert r._normalize_name("Warner Bros. Discovery, Inc.") == ("warner bros discovery")
+
+    def test_extracts_source_grounded_ownership_changes(self):
+        text = (
+            "Example Media was formed in 2020. "
+            "It agreed to be sold to Buyer Corp in 2026, subject to approval. "
+            "The company operates three networks."
+        )
+
+        assert FundingResearcher._extract_ownership_changes(text) == (
+            "It agreed to be sold to Buyer Corp in 2026, subject to approval."
+        )
+
+
+@pytest.mark.asyncio
+async def test_wikipedia_search_prefers_exact_organization_title(researcher):
+    search_response = _make_httpx_response(
+        200,
+        {
+            "query": {
+                "search": [
+                    {
+                        "title": (
+                            "Proposed acquisition of Warner Bros. Discovery by Paramount Skydance"
+                        )
+                    },
+                    {"title": "List of assets owned by Warner Bros. Discovery"},
+                    {"title": "Warner Bros. Discovery"},
+                ]
+            }
+        },
+    )
+    extract_response = _make_httpx_response(
+        200,
+        {
+            "query": {
+                "pages": {
+                    "67824355": {
+                        "title": "Warner Bros. Discovery",
+                        "extract": "Warner Bros. Discovery is a media company.",
+                        "fullurl": "https://en.wikipedia.org/wiki/Warner_Bros._Discovery",
+                    }
+                }
+            }
+        },
+    )
+    researcher.http_client.get = AsyncMock(side_effect=[search_response, extract_response])
+
+    result = await researcher._search_wikipedia("Warner Bros. Discovery")
+
+    assert result["page_title"] == "Warner Bros. Discovery"
+    extract_params = researcher.http_client.get.await_args_list[1].kwargs["params"]
+    assert extract_params["titles"] == "Warner Bros. Discovery"
 
 
 # ── _search_propublica_nonprofit ──────────────────────────────
@@ -415,6 +480,36 @@ class TestMergeOrgData:
         )
         assert result["funding_type"] == "non-profit"
 
+    def test_propublica_does_not_classify_a_person_as_a_nonprofit(self):
+        """A same-name foundation must not overwrite a Wikidata human profile."""
+        r = self._make_researcher()
+        result = r._merge_org_data(
+            name="Larry Ellison",
+            normalized_name="larry ellison",
+            website=None,
+            wikipedia={},
+            wikidata={
+                "qid": "Q92749",
+                "org_types": ["human"],
+                "owned_by": [],
+                "parent_orgs": [],
+                "part_of": [],
+                "headquarters": [],
+            },
+            nonprofit={
+                "ein": "943269827",
+                "funding_type": "non-profit",
+                "annual_revenue": "179381252",
+            },
+            known={},
+        )
+
+        assert result["org_type"] == "human"
+        assert result["funding_type"] is None
+        assert result["ein"] is None
+        assert result["annual_revenue"] is None
+        assert "propublica" not in result["research_sources"]
+
     def test_wikipedia_ownership_none_does_not_crash(self):
         """Wikipedia data with ownership=None should not raise AttributeError."""
         r = self._make_researcher()
@@ -585,6 +680,67 @@ class TestMergeOrgData:
         assert "propublica" not in result["research_sources"]
 
 
+@pytest.mark.asyncio
+async def test_ai_enrichment_does_not_fill_source_grounded_fields(researcher):
+    response = MagicMock()
+    response.choices = [
+        MagicMock(
+            message=MagicMock(
+                content="""{
+                    "org_type": "media conglomerate",
+                    "funding_type": "commercial",
+                    "funding_sources": ["advertising", "subscriptions"],
+                    "parent_org": null,
+                    "ownership_percentage": null,
+                    "media_bias_rating": "center",
+                    "factual_reporting": "high",
+                    "estimated_revenue": "$40B-$45B",
+                    "major_donors": [],
+                    "major_advertisers": [],
+                    "recent_ownership_changes": "A proposed acquisition is pending.",
+                    "funding_transparency": "transparent",
+                    "has_paywall": false
+                }"""
+            )
+        )
+    ]
+    researcher.client = MagicMock()
+    researcher.client.chat.completions.create.return_value = response
+    org = {
+        "name": "Warner Bros. Discovery",
+        "org_type": None,
+        "parent_org": None,
+        "ownership_percentage": None,
+        "funding_type": None,
+        "funding_sources": [],
+        "major_advertisers": [],
+        "annual_revenue": None,
+        "top_donors": [],
+        "media_bias_rating": None,
+        "factual_reporting": None,
+        "research_sources": ["wikipedia"],
+        "research_confidence": "medium",
+    }
+
+    result = await researcher._ai_enhance_org_data(org)
+
+    # Structured facts stay empty without source-grounded evidence.
+    assert result["org_type"] is None
+    assert result["funding_type"] is None
+    assert result["parent_org"] is None
+    assert result["ownership_percentage"] is None
+    assert result["annual_revenue"] is None
+    assert result.get("recent_ownership_changes") is None
+    assert "ai_inference" in result["research_sources"]
+    # AI does not set funding sources, advertisers, or donors.
+    assert result["funding_sources"] == []
+    assert result["major_advertisers"] == []
+    assert result["top_donors"] == []
+    call_kwargs = researcher.client.chat.completions.create.call_args.kwargs
+    assert call_kwargs["response_format"] == {"type": "json_object"}
+    assert call_kwargs["max_tokens"] == 1200
+
+
 # ── User-Agent header ────────────────────────────────────────
 
 
@@ -716,6 +872,12 @@ class TestKnownOrgsExpanded:
         )
         assert result["parent_org"] == expected_parent
 
+    @pytest.mark.asyncio
+    async def test_known_outlet_does_not_match_its_parent_company(self):
+        r = self._make_researcher()
+        result = await r._get_known_org_data("The New York Times Company")
+        assert result == {}
+
     def test_known_orgs_override_propublica_for_bloomberg(self):
         """Bloomberg should be commercial even when ProPublica says non-profit."""
         r = self._make_researcher()
@@ -743,3 +905,459 @@ def test_normalize_name_never_crashes(name: str):
     researcher = FundingResearcher.__new__(FundingResearcher)
     normalized = researcher._normalize_name(name)
     assert isinstance(normalized, str)
+
+
+# ── Deterministic generalized field extraction ───────────────
+
+
+class TestSubsidiariesFromWikidata:
+    """P355 subsidiary labels populate merge output when Wikidata provides them."""
+
+    def _make_researcher(self):
+        return FundingResearcher.__new__(FundingResearcher)
+
+    def test_subsidiaries_extracted_from_wikidata(self):
+        r = self._make_researcher()
+        result = r._merge_org_data(
+            name="ParentCo",
+            normalized_name="parentco",
+            website=None,
+            wikipedia={},
+            wikidata={
+                "subsidiaries": ["Sub A", "Sub B", "Sub C"],
+                "owned_by": [],
+                "parent_orgs": [],
+                "part_of": [],
+                "headquarters": [],
+            },
+            nonprofit={},
+            known={},
+        )
+        assert result["subsidiaries"] == ["Sub A", "Sub B", "Sub C"]
+
+    def test_no_subsidiaries_defaults_to_empty(self):
+        r = self._make_researcher()
+        result = r._merge_org_data(
+            name="Solo Org",
+            normalized_name="solo org",
+            website=None,
+            wikipedia={},
+            wikidata={
+                "owned_by": [],
+                "parent_orgs": [],
+                "part_of": [],
+                "headquarters": [],
+            },
+            nonprofit={},
+            known={},
+        )
+        assert result["subsidiaries"] == []
+
+
+class TestOwnershipPercentageFromWikidata:
+    """P1107 proportion qualifier on P127/P749 should populate ownership_percentage."""
+
+    def _make_researcher(self):
+        return FundingResearcher.__new__(FundingResearcher)
+
+    def test_proportion_from_owned_by(self):
+        r = self._make_researcher()
+        result = r._merge_org_data(
+            name="HeldCo",
+            normalized_name="heldco",
+            website=None,
+            wikipedia={},
+            wikidata={
+                "owned_with_proportion": [("Big Owner", "85%")],
+                "owned_by": [],
+                "parent_orgs": [],
+                "part_of": [],
+                "headquarters": [],
+            },
+            nonprofit={},
+            known={},
+        )
+        assert result["ownership_percentage"] == "85%"
+
+    def test_proportion_from_parent(self):
+        r = self._make_researcher()
+        result = r._merge_org_data(
+            name="ChildCo",
+            normalized_name="childco",
+            website=None,
+            wikipedia={},
+            wikidata={
+                "parent_with_proportion": [("Parent Holdings", "100%")],
+                "owned_by": [],
+                "parent_orgs": [],
+                "part_of": [],
+                "headquarters": [],
+            },
+            nonprofit={},
+            known={},
+        )
+        assert result["ownership_percentage"] == "100%"
+
+    def test_no_proportion_leaves_null(self):
+        r = self._make_researcher()
+        result = r._merge_org_data(
+            name="Standalone",
+            normalized_name="standalone",
+            website=None,
+            wikipedia={},
+            wikidata={
+                "owned_with_proportion": [("Holder", None)],
+                "owned_by": [],
+                "parent_orgs": [],
+                "part_of": [],
+                "headquarters": [],
+            },
+            nonprofit={},
+            known={},
+        )
+        assert result["ownership_percentage"] is None
+
+    @pytest.mark.parametrize(
+        ("amount", "expected"),
+        [("+0.85", "85%"), ("1", "100%"), ("25", "25%"), ("invalid", None)],
+    )
+    def test_raw_wikidata_proportion_is_display_percentage(
+        self, amount: str, expected: str | None
+    ) -> None:
+        assert _format_wikidata_proportion(amount) == expected
+
+
+def test_wikidata_org_type_prefers_specific_legal_form() -> None:
+    assert (
+        _select_organization_type(["business", "enterprise", "public company"]) == "public company"
+    )
+
+
+class TestKnownOrgTypeExtraction:
+    """org_type should be populated from KNOWN_ORGS and SEC data."""
+
+    def _make_researcher(self):
+        return FundingResearcher.__new__(FundingResearcher)
+
+    def test_org_type_from_known_data(self):
+        r = self._make_researcher()
+        result = r._merge_org_data(
+            name="BBC",
+            normalized_name="bbc",
+            website=None,
+            wikipedia={},
+            wikidata={},
+            nonprofit={},
+            known={"org_type": "public broadcaster", "funding_type": "public"},
+        )
+        assert result["org_type"] == "public broadcaster"
+
+    def test_org_type_from_sec_tickers(self):
+        """SEC tickers should set org_type to public company when KNOWN_ORGS has none."""
+        r = self._make_researcher()
+        result = r._merge_org_data(
+            name="Unknown Public Co",
+            normalized_name="unknown public co",
+            website=None,
+            wikipedia={},
+            wikidata={},
+            nonprofit={},
+            known={},
+            sec={"cik": "0012345678", "tickers": ["XXX"]},
+        )
+        assert result["org_type"] == "public company"
+
+    def test_known_org_type_not_overridden_by_sec(self):
+        """KNOWN_ORGS org_type should not be overridden by SEC's ticker inference."""
+        r = self._make_researcher()
+        result = r._merge_org_data(
+            name="NPR",
+            normalized_name="npr",
+            website=None,
+            wikipedia={},
+            wikidata={},
+            nonprofit={},
+            known={"org_type": "nonprofit", "funding_type": "non-profit"},
+            sec={"cik": "0000000001", "tickers": ["X"]},
+        )
+        assert result["org_type"] == "nonprofit"
+
+
+class TestFundingSourcesFromKnown:
+    """funding_sources should only come from KNOWN_ORGS, never from AI."""
+
+    def _make_researcher(self):
+        return FundingResearcher.__new__(FundingResearcher)
+
+    def test_funding_sources_from_known(self):
+        r = self._make_researcher()
+        result = r._merge_org_data(
+            name="BBC",
+            normalized_name="bbc",
+            website=None,
+            wikipedia={},
+            wikidata={},
+            nonprofit={},
+            known={
+                "org_type": "public broadcaster",
+                "funding_type": "public",
+                "funding_sources": ["license fee", "government grant"],
+            },
+        )
+        assert result["funding_sources"] == ["license fee", "government grant"]
+
+    def test_no_funding_sources_stays_empty(self):
+        r = self._make_researcher()
+        result = r._merge_org_data(
+            name="Empty Co",
+            normalized_name="empty co",
+            website=None,
+            wikipedia={},
+            wikidata={},
+            nonprofit={},
+            known={},
+        )
+        assert result["funding_sources"] == []
+
+    def test_major_advertisers_always_empty_unless_source_given(self):
+        """major_advertisers cannot be populated by AI or inference."""
+        r = self._make_researcher()
+        result = r._merge_org_data(
+            name="Any Co",
+            normalized_name="any co",
+            website=None,
+            wikipedia={},
+            wikidata={},
+            nonprofit={},
+            known={},
+        )
+        assert result["major_advertisers"] == []
+
+
+class TestWBDPendingAcquisition:
+    """Pending Paramount Skydance acquisition must live in recent_ownership_changes,
+    never in parent_org."""
+
+    def _make_researcher(self):
+        return FundingResearcher.__new__(FundingResearcher)
+
+    def test_known_wbd_has_no_parent(self):
+        """WBD as public company has parent=None."""
+        known = KNOWN_ORGS.get("warner bros. discovery", {})
+        assert known.get("parent") is None
+        assert known.get("org_type") == "public company"
+
+    def test_merger_in_recent_ownership_changes_not_parent(self):
+        """Wikipedia text with pending acquisition should populate
+        recent_ownership_changes, not parent_org."""
+        r = self._make_researcher()
+        text = (
+            "Warner Bros. Discovery is an American media conglomerate. "
+            "It agreed to be sold to Paramount Skydance in 2026, subject to regulatory approval. "
+            "The company operates many networks."
+        )
+        changes = FundingResearcher._extract_ownership_changes(text)
+        assert changes is not None
+        assert "agreed to be sold" in changes
+
+        result = r._merge_org_data(
+            name="Warner Bros. Discovery",
+            normalized_name="warner bros. discovery",
+            website=None,
+            wikipedia={
+                "recent_ownership_changes": changes,
+                "url": "https://en.wikipedia.org/wiki/Warner_Bros._Discovery",
+            },
+            wikidata={},
+            nonprofit={},
+            known={},
+        )
+        assert result["parent_org"] is None
+        assert "agreed to be sold" in (result["recent_ownership_changes"] or "")
+
+    def test_known_wbd_contains_only_stable_classification(self):
+        known = KNOWN_ORGS.get("warner bros. discovery", {})
+        assert known.get("org_type") == "public company"
+        assert known.get("parent") is None
+        assert "annual_revenue" not in known
+        assert "recent_ownership_changes" not in known
+
+
+class TestGeneralization:
+    """Prove the extractor is not name-specific — works for arbitrary orgs."""
+
+    def _make_researcher(self):
+        return FundingResearcher.__new__(FundingResearcher)
+
+    def test_non_known_org_gets_fields_from_sec_and_wikidata(self):
+        """An org not in KNOWN_ORGS should still populate from structured sources."""
+        r = self._make_researcher()
+        result = r._merge_org_data(
+            name="Acme Media Group",
+            normalized_name="acme media group",
+            website=None,
+            wikipedia={
+                "url": "https://en.wikipedia.org/wiki/Acme_Media_Group",
+                "ownership": {"parent": "Big Corp"},
+                "description": "A test media company",
+            },
+            wikidata={
+                "qid": "Q999999",
+                "owned_by": ["Big Corp"],
+                "parent_orgs": ["Big Corp"],
+                "part_of": [],
+                "headquarters": ["Springfield"],
+                "subsidiaries": ["Sub Inc"],
+                "inception": "2020-01-01",
+            },
+            nonprofit={},
+            known={},
+            sec={
+                "cik": "0001234567",
+                "ein": "12-3456789",
+                "tickers": ["ACM"],
+                "revenue": "500000000",
+            },
+        )
+        assert result["name"] == "Acme Media Group"
+        assert result["parent_org"] == "Big Corp"
+        assert result["org_type"] == "public company"  # from SEC tickers
+        assert result["cik"] == "0001234567"
+        assert result["ein"] == "12-3456789"
+        assert result["annual_revenue"] == "500000000"
+        assert result["subsidiaries"] == ["Sub Inc"]
+        # Fields requiring KNOWN_ORGS or source grounding remain empty for unknown orgs
+        assert result["funding_sources"] == []
+        assert result["major_advertisers"] == []
+        assert result["ownership_percentage"] is None
+        assert "known_data" not in result["research_sources"]
+        assert "sec_edgar" in result["research_sources"]
+        assert "wikidata" in result["research_sources"]
+        assert "wikipedia" in result["research_sources"]
+
+
+@pytest.mark.asyncio
+async def test_wbd_sec_data_mocked(researcher):
+    """WBD identity via SEC: mocked CIK, EIN, tickers, and revenue."""
+    cik_resp = _make_httpx_response(
+        200,
+        {"0": {"cik_str": 1437107, "ticker": "WBD", "title": "Warner Bros. Discovery, Inc."}},
+    )
+    sec_data = {
+        "name": "Warner Bros. Discovery, Inc.",
+        "ein": 352333914,
+        "sicDescription": "Cable & Other Pay Television Services",
+        "tickers": ["WBD"],
+        "exchanges": ["Nasdaq"],
+    }
+    facts_data = {
+        "facts": {
+            "us-gaap": {
+                "RevenueFromContractWithCustomerExcludingAssessedTax": {
+                    "units": {
+                        "USD": [
+                            {
+                                "val": 41321000000,
+                                "end": "2024-12-31",
+                                "fy": 2025,
+                                "form": "10-K",
+                                "filed": "2026-02-27",
+                            },
+                            {
+                                "val": 37296000000,
+                                "end": "2025-12-31",
+                                "fy": 2025,
+                                "form": "10-K",
+                                "filed": "2026-02-27",
+                            },
+                        ]
+                    }
+                }
+            }
+        }
+    }
+    researcher.http_client.get = AsyncMock(
+        side_effect=[
+            cik_resp,
+            _make_httpx_response(200, sec_data),
+            _make_httpx_response(200, facts_data),
+        ]
+    )
+    result = await researcher._search_sec_edgar("Warner Bros. Discovery")
+    assert result["cik"] == "0001437107"
+    assert result["ein"] == 352333914
+    assert result["tickers"] == ["WBD"]
+    assert result["revenue"] == "37296000000"  # FY2025, deduplicated
+    assert "sec_edgar" in result.get("source", "")
+
+
+@pytest.mark.asyncio
+async def test_wbd_research_organization_full_flow(researcher):
+    """Full mocked research_organization flow for WBD regression.
+    Verify: parent_org null, org_type public company, cik set,
+    pending acquisition in recent_ownership_changes, advertisers empty."""
+
+    wikipedia_result = {
+        "source": "wikipedia",
+        "title": "Warner Bros. Discovery",
+        "page_title": "Warner Bros. Discovery",
+        "description": "Warner Bros. Discovery is an American media conglomerate.",
+        "url": "https://en.wikipedia.org/wiki/Warner_Bros._Discovery",
+        "recent_ownership_changes": (
+            "It agreed to be sold to Paramount Skydance in 2026, subject to regulatory approval."
+        ),
+        "ownership": {"parent": None},
+        "confidence": "high",
+    }
+    wikidata_result = {
+        "source": "wikidata",
+        "qid": "Q107374193",
+        "wikidata_url": "https://www.wikidata.org/wiki/Q107374193",
+        "owned_by": [],
+        "parent_orgs": [],
+        "part_of": [],
+        "headquarters": [],
+        "subsidiaries": [],
+        "inception": "2022-04-08",
+        "confidence": "medium",
+    }
+    sec_result = {
+        "source": "sec_edgar",
+        "cik": "0001437107",
+        "ein": 352333914,
+        "tickers": ["WBD"],
+        "exchanges": ["Nasdaq"],
+        "revenue": "37296000000",
+        "confidence": "high",
+    }
+
+    researcher._search_wikipedia = AsyncMock(return_value=wikipedia_result)
+    researcher._search_propublica_nonprofit = AsyncMock(return_value={})
+    researcher._get_known_org_data = AsyncMock(return_value=KNOWN_ORGS["warner bros. discovery"])
+    researcher._search_sec_edgar = AsyncMock(return_value=sec_result)
+    researcher._resolve_org_wikidata_sparql = AsyncMock(return_value={})
+    researcher._fetch_wikidata = AsyncMock(return_value=wikidata_result)
+
+    result = await researcher.research_organization("Warner Bros. Discovery", use_ai=False)
+
+    # Core assertions
+    assert result["parent_org"] is None
+    assert result["org_type"] == "public company"  # from KNOWN_ORGS
+    assert result["cik"] == "0001437107"
+    assert result["ein"] == "352333914"
+    assert result["annual_revenue"] == "37296000000"
+    # Pending acquisition in recent_ownership_changes, NOT parent_org
+    assert result["recent_ownership_changes"] is not None
+    assert "Paramount" not in (result["parent_org"] or "")
+    # Fields that must remain empty without source grounding
+    assert result["major_advertisers"] == []
+    assert result["funding_sources"] == []
+    assert result["ownership_percentage"] is None
+    # Research sources tracked
+    assert "known_data" in result["research_sources"]
+    assert "sec_edgar" in result["research_sources"]
+    assert "wikipedia" in result["research_sources"]
+    assert "wikidata" in result["research_sources"]
+    # Verify methods were called
+    researcher._search_wikipedia.assert_awaited_once_with("Warner Bros. Discovery")
+    researcher._search_sec_edgar.assert_awaited_once_with("Warner Bros. Discovery")

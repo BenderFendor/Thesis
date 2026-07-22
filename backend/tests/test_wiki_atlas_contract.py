@@ -17,7 +17,7 @@ def test_graph_contract_rejects_unbounded_filter_values() -> None:
 
 
 def test_graph_contract_keeps_stable_endpoint_ids() -> None:
-    node = AtlasNode(id="source:abc", entity_type="source", label="Example")
+    node = AtlasNode(id="outlet:abc", entity_type="outlet", label="Example")
     edge = AtlasEdge(
         id="edge:1",
         source_id="organization:1",

@@ -3171,29 +3171,6 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/wiki/organizations/graph": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * Get Ownership Graph
-         * @description Get the full ownership graph for force-directed visualization.
-         *
-         *     Returns nodes (sources + organizations + reporters) and edges (ownership,
-         *     publishes, employed_by relationships).
-         */
-        get: operations["get_ownership_graph_api_wiki_organizations_graph_get"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
     "/api/wiki/index/status": {
         parameters: {
             query?: never;
@@ -3267,7 +3244,7 @@ export interface paths {
         };
         /**
          * Get Atlas Graph
-         * @description Return a bounded graph for the requested Atlas filters.
+         * @description Return the filtered Atlas graph (nodes, edges, stats) for the given view.
          */
         get: operations["get_atlas_graph_api_wiki_atlas_graph_get"];
         put?: never;
@@ -3287,7 +3264,7 @@ export interface paths {
         };
         /**
          * Get Atlas Stats
-         * @description Return graph coverage and indexing status.
+         * @description Return aggregate Atlas graph statistics without node/edge payloads.
          */
         get: operations["get_atlas_stats_api_wiki_atlas_stats_get"];
         put?: never;
@@ -3307,7 +3284,7 @@ export interface paths {
         };
         /**
          * Search Atlas Entities
-         * @description Search Atlas entities and group matches by entity type.
+         * @description Search Atlas entities by label, grouped by entity type.
          */
         get: operations["search_atlas_entities_api_wiki_atlas_search_get"];
         put?: never;
@@ -3327,7 +3304,7 @@ export interface paths {
         };
         /**
          * Get Atlas Entity Record
-         * @description Return one Atlas entity with evidence and connections.
+         * @description Return the full inspector record for one Atlas entity.
          */
         get: operations["get_atlas_entity_record_api_wiki_atlas_entities__entity_id__get"];
         put?: never;
@@ -3347,7 +3324,7 @@ export interface paths {
         };
         /**
          * Get Atlas Entity Connections
-         * @description Return the relationships connected to one Atlas entity.
+         * @description Return the neighboring entities and edges connected to this entity.
          */
         get: operations["get_atlas_entity_connections_api_wiki_atlas_entities__entity_id__connections_get"];
         put?: never;
@@ -3367,9 +3344,33 @@ export interface paths {
         };
         /**
          * Get Atlas Index
-         * @description Return one filtered and sorted page of the Atlas entity index.
+         * @description Return a paginated, faceted listing of Atlas entities.
          */
         get: operations["get_atlas_index_api_wiki_atlas_index_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/wiki/atlas/analysis/funding-bias": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Funding Bias Analysis
+         * @description Return the latest pre-registered funding-vs-bias correlation trace.
+         *
+         *     Read-only -- `available=False` (not a 404/500) when
+         *     `app.scripts.run_funding_bias_analysis` has never run against this
+         *     database.
+         */
+        get: operations["get_funding_bias_analysis_api_wiki_atlas_analysis_funding_bias_get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -3389,9 +3390,158 @@ export interface paths {
         put?: never;
         /**
          * Export Atlas
-         * @description Export the requested Atlas graph as versioned JSON or CSV.
+         * @description Export the requested Atlas slice as JSON or CSV.
          */
         post: operations["export_atlas_api_wiki_atlas_export_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/wiki/evidence/policies": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Evidence Policies
+         * @description Return the active acceptance policy for every predicate.
+         */
+        get: operations["get_evidence_policies_api_wiki_evidence_policies_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/wiki/evidence/claims/{claim_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Evidence Claim
+         * @description Return a single evidence claim with its linked observations.
+         */
+        get: operations["get_evidence_claim_api_wiki_evidence_claims__claim_id__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/wiki/evidence/claims/evaluate": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Evaluate Evidence Claim
+         * @description Evaluate whether a claim currently qualifies for acceptance, without mutating it.
+         */
+        post: operations["evaluate_evidence_claim_api_wiki_evidence_claims_evaluate_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/wiki/evidence/claims/{claim_id}/materialize": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Materialize Evidence Claim
+         * @description Materialize a qualifying claim into an accepted relationship.
+         *
+         *     Requires an operator secret (``X-Scoop-Materialize-Token``) and a non-empty
+         *     reviewer identity (``X-Scoop-Reviewer``) — this endpoint mutates accepted
+         *     research facts, so it cannot be left open to unauthenticated callers.
+         */
+        post: operations["materialize_evidence_claim_api_wiki_evidence_claims__claim_id__materialize_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/wiki/evidence/interest": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Ownership Interest
+         * @description Serve an owner's aggregate interest in a target across the accepted ownership graph.
+         */
+        get: operations["get_ownership_interest_api_wiki_evidence_interest_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/wiki/evidence/relationships": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Evidence Relationships
+         * @description Query accepted relationships as of the given valid/known time.
+         */
+        get: operations["get_evidence_relationships_api_wiki_evidence_relationships_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/wiki/evidence/relationships/{relationship_id}/proof": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Download Relationship Proof
+         * @description Download the zipped proof bundle for an accepted relationship.
+         *
+         *     Proofs for relationships involving a non-public (privacy-scoped) entity
+         *     require the same operator token as materialization — public-outlet
+         *     ownership proofs stay freely downloadable, but proofs touching restricted
+         *     entities must not be exposed to anonymous callers.
+         */
+        get: operations["download_relationship_proof_api_wiki_evidence_relationships__relationship_id__proof_get"];
+        put?: never;
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -3402,6 +3552,93 @@ export interface paths {
 export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
+        /**
+         * AcceptanceEvaluationRequest
+         * @description A request to evaluate whether a claim currently qualifies for acceptance.
+         */
+        AcceptanceEvaluationRequest: {
+            /** Claim Id */
+            claim_id: string;
+            /**
+             * Complete Control Path
+             * @default false
+             */
+            complete_control_path: boolean;
+        };
+        /**
+         * AcceptanceEvaluationResponse
+         * @description The result of evaluating a claim against its predicate's acceptance policy.
+         */
+        AcceptanceEvaluationResponse: {
+            /** Claim Id */
+            claim_id: string;
+            /** Accepted */
+            accepted: boolean;
+            /** Policy Version */
+            policy_version: string;
+            /** Reasons */
+            reasons?: string[];
+            /**
+             * Independent Root Count
+             * @default 0
+             */
+            independent_root_count: number;
+            /**
+             * Qualifying Observation Count
+             * @default 0
+             */
+            qualifying_observation_count: number;
+        };
+        /**
+         * AcceptedRelationshipRecord
+         * @description An accepted relationship, its supporting claims, and root count.
+         */
+        AcceptedRelationshipRecord: {
+            /** Id */
+            id: string;
+            /** Subject Entity Id */
+            subject_entity_id: string;
+            /** Predicate */
+            predicate: string;
+            /** Object Entity Id */
+            object_entity_id: string;
+            /** Qualifiers */
+            qualifiers?: {
+                [key: string]: unknown;
+            };
+            /** Valid From */
+            valid_from?: string | null;
+            /** Valid To */
+            valid_to?: string | null;
+            /**
+             * Recorded At
+             * Format: date-time
+             */
+            recorded_at: string;
+            /** Retracted At */
+            retracted_at?: string | null;
+            /**
+             * Materialized At
+             * Format: date-time
+             */
+            materialized_at: string;
+            /** Materialized By */
+            materialized_by?: string | null;
+            /** Acceptance Policy Version */
+            acceptance_policy_version: string;
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "accepted" | "historical" | "disputed" | "retracted";
+            /** Claim Ids */
+            claim_ids?: string[];
+            /**
+             * Evidence Root Count
+             * @default 0
+             */
+            evidence_root_count: number;
+        };
         /**
          * AddRssRequest
          * @description Add Rss Request.
@@ -3566,7 +3803,7 @@ export interface components {
         };
         /**
          * AtlasConnectionRecord
-         * @description A relationship paired with the entity on its other end.
+         * @description One neighboring entity and the edge connecting it to the queried entity.
          */
         AtlasConnectionRecord: {
             edge: components["schemas"]["AtlasEdge"];
@@ -3574,7 +3811,7 @@ export interface components {
         };
         /**
          * AtlasCoverageMetric
-         * @description A numerator and denominator for an Atlas coverage measure.
+         * @description A numerator/denominator pair reported as a rounded percentage.
          */
         AtlasCoverageMetric: {
             /**
@@ -3590,7 +3827,7 @@ export interface components {
         };
         /**
          * AtlasEdge
-         * @description A typed, evidence-aware Atlas relationship.
+         * @description A relationship between two Atlas nodes, candidate or accepted.
          */
         AtlasEdge: {
             /** Id */
@@ -3603,7 +3840,7 @@ export interface components {
              * Relation Type
              * @enum {string}
              */
-            relation_type: "ownership" | "owned_by" | "parent_org" | "part_of" | "publishes" | "employed_by" | "current_outlet" | "coauthor" | "shared_outlet";
+            relation_type: "ownership" | "owned_by" | "parent_org" | "part_of" | "publishes" | "employed_by" | "current_outlet" | "coauthor" | "shared_outlet" | "founded_by" | "sibling_via_owner";
             /**
              * Direction
              * @default directed
@@ -3641,10 +3878,38 @@ export interface components {
             is_inferred: boolean;
             /** Raw Relation Type */
             raw_relation_type?: string | null;
+            /**
+             * Fact Status
+             * @default candidate
+             * @enum {string}
+             */
+            fact_status: "candidate" | "accepted" | "disputed" | "rejected" | "superseded";
+            /**
+             * Accepted Fact
+             * @default false
+             */
+            accepted_fact: boolean;
+            /** Qualifiers */
+            qualifiers?: {
+                [key: string]: unknown;
+            };
+            /** Claim Ids */
+            claim_ids?: string[];
+            /** Recorded At */
+            recorded_at?: string | null;
+            /** Retracted At */
+            retracted_at?: string | null;
+            /** Acceptance Policy Version */
+            acceptance_policy_version?: string | null;
+            /**
+             * Evidence Root Count
+             * @default 0
+             */
+            evidence_root_count: number;
         };
         /**
          * AtlasEntityRecord
-         * @description Detailed evidence and connections for one Atlas entity.
+         * @description The full inspector payload for a single Atlas entity.
          */
         AtlasEntityRecord: {
             /** Id */
@@ -3653,7 +3918,7 @@ export interface components {
              * Entity Type
              * @enum {string}
              */
-            entity_type: "source" | "organization" | "reporter";
+            entity_type: "outlet" | "organization" | "person" | "reporter";
             /** Label */
             label: string;
             /** Subtitle */
@@ -3679,7 +3944,7 @@ export interface components {
         };
         /**
          * AtlasEvidenceRef
-         * @description Small evidence record safe to include in graph responses.
+         * @description A single evidence citation attached to an Atlas node or edge.
          */
         AtlasEvidenceRef: {
             /** Id */
@@ -3694,10 +3959,18 @@ export interface components {
             retrieved_at?: string | null;
             /** Excerpt */
             excerpt?: string | null;
+            /** Snapshot Sha256 */
+            snapshot_sha256?: string | null;
+            /** Locator */
+            locator?: {
+                [key: string]: unknown;
+            };
+            /** Entailment */
+            entailment?: string | null;
         };
         /**
          * AtlasExportRequest
-         * @description Requested Atlas export format, scope, and optional layout data.
+         * @description Parameters selecting what slice of the Atlas graph to export and in what format.
          */
         AtlasExportRequest: {
             filters?: components["schemas"]["AtlasGraphFilters"];
@@ -3723,15 +3996,15 @@ export interface components {
         };
         /**
          * AtlasGraphFilters
-         * @description Validated filters and bounds for an Atlas graph request.
+         * @description Query parameters that select and shape a requested Atlas graph view.
          */
         AtlasGraphFilters: {
             /** Q */
             q?: string | null;
             /** Entity Types */
-            entity_types?: ("source" | "organization" | "reporter")[];
+            entity_types?: ("outlet" | "organization" | "person" | "reporter")[];
             /** Relation Types */
-            relation_types?: ("ownership" | "owned_by" | "parent_org" | "part_of" | "publishes" | "employed_by" | "current_outlet" | "coauthor" | "shared_outlet")[];
+            relation_types?: ("ownership" | "owned_by" | "parent_org" | "part_of" | "publishes" | "employed_by" | "current_outlet" | "coauthor" | "shared_outlet" | "founded_by" | "sibling_via_owner")[];
             /** Country */
             country?: string[];
             /** Funding */
@@ -3771,10 +4044,19 @@ export interface components {
              * @default true
              */
             include_evidence_preview: boolean;
+            /** As Of */
+            as_of?: string | null;
+            /** Known At */
+            known_at?: string | null;
+            /**
+             * Accepted Only
+             * @default false
+             */
+            accepted_only: boolean;
         };
         /**
          * AtlasGraphResponse
-         * @description A bounded Atlas graph projection and its request metadata.
+         * @description The full node/edge payload returned by the Atlas graph endpoint.
          */
         AtlasGraphResponse: {
             /** Graph Version */
@@ -3802,34 +4084,44 @@ export interface components {
         };
         /**
          * AtlasGraphStats
-         * @description Aggregate counts for the full and currently visible Atlas graph.
+         * @description Aggregate node/edge counts and coverage metrics for a graph response.
          */
         AtlasGraphStats: {
             /**
-             * Total Sources
+             * Total Outlets
              * @default 0
              */
-            total_sources: number;
+            total_outlets: number;
             /**
              * Total Organizations
              * @default 0
              */
             total_organizations: number;
             /**
+             * Total People
+             * @default 0
+             */
+            total_people: number;
+            /**
              * Total Reporters
              * @default 0
              */
             total_reporters: number;
             /**
-             * Visible Sources
+             * Visible Outlets
              * @default 0
              */
-            visible_sources: number;
+            visible_outlets: number;
             /**
              * Visible Organizations
              * @default 0
              */
             visible_organizations: number;
+            /**
+             * Visible People
+             * @default 0
+             */
+            visible_people: number;
             /**
              * Visible Reporters
              * @default 0
@@ -3845,6 +4137,21 @@ export interface components {
              * @default 0
              */
             current_relationships: number;
+            /**
+             * Accepted Relationships
+             * @default 0
+             */
+            accepted_relationships: number;
+            /**
+             * Candidate Relationships
+             * @default 0
+             */
+            candidate_relationships: number;
+            /**
+             * Disputed Relationships
+             * @default 0
+             */
+            disputed_relationships: number;
             ownership_coverage?: components["schemas"]["AtlasCoverageMetric"];
             evidence_coverage?: components["schemas"]["AtlasCoverageMetric"];
             /**
@@ -3855,7 +4162,7 @@ export interface components {
         };
         /**
          * AtlasIndexResponse
-         * @description One cursor-based page from the Atlas entity index.
+         * @description A paginated, faceted listing of Atlas entities.
          */
         AtlasIndexResponse: {
             /** Items */
@@ -3876,7 +4183,7 @@ export interface components {
         };
         /**
          * AtlasNode
-         * @description A stable Atlas entity node.
+         * @description A single entity (source, organization, or reporter) in the Atlas graph.
          */
         AtlasNode: {
             /** Id */
@@ -3885,7 +4192,7 @@ export interface components {
              * Entity Type
              * @enum {string}
              */
-            entity_type: "source" | "organization" | "reporter";
+            entity_type: "outlet" | "organization" | "person" | "reporter";
             /** Label */
             label: string;
             /** Subtitle */
@@ -3932,7 +4239,7 @@ export interface components {
         };
         /**
          * AtlasSearchItem
-         * @description A compact entity search result.
+         * @description A single search-result row for one Atlas entity.
          */
         AtlasSearchItem: {
             /** Id */
@@ -3941,7 +4248,7 @@ export interface components {
              * Entity Type
              * @enum {string}
              */
-            entity_type: "source" | "organization" | "reporter";
+            entity_type: "outlet" | "organization" | "person" | "reporter";
             /** Label */
             label: string;
             /** Subtitle */
@@ -3955,21 +4262,23 @@ export interface components {
         };
         /**
          * AtlasSearchResponse
-         * @description Entity search results grouped by type.
+         * @description Search results grouped by entity type.
          */
         AtlasSearchResponse: {
             /** Query */
             query: string;
-            /** Sources */
-            sources?: components["schemas"]["AtlasSearchItem"][];
+            /** Outlets */
+            outlets?: components["schemas"]["AtlasSearchItem"][];
             /** Organizations */
             organizations?: components["schemas"]["AtlasSearchItem"][];
+            /** People */
+            people?: components["schemas"]["AtlasSearchItem"][];
             /** Reporters */
             reporters?: components["schemas"]["AtlasSearchItem"][];
         };
         /**
          * AtlasStatsResponse
-         * @description Atlas graph and indexing statistics.
+         * @description Summary statistics for the Atlas graph, without node/edge payloads.
          */
         AtlasStatsResponse: {
             /** Graph Version */
@@ -4453,6 +4762,109 @@ export interface components {
             description?: string | null;
         };
         /**
+         * EvidenceClaimRecord
+         * @description A claim with its linked evidence observations, as returned by the API.
+         */
+        EvidenceClaimRecord: {
+            /** Id */
+            id: string;
+            /** Subject Entity Id */
+            subject_entity_id: string;
+            /** Predicate */
+            predicate: string;
+            /** Object Entity Id */
+            object_entity_id?: string | null;
+            /** Object Value */
+            object_value?: unknown | null;
+            /** Qualifiers */
+            qualifiers?: {
+                [key: string]: unknown;
+            };
+            /** Valid From */
+            valid_from?: string | null;
+            /** Valid To */
+            valid_to?: string | null;
+            /** Date Precision */
+            date_precision?: string | null;
+            /**
+             * Recorded At
+             * Format: date-time
+             */
+            recorded_at: string;
+            /** Retracted At */
+            retracted_at?: string | null;
+            /** Asserted By */
+            asserted_by: string;
+            /** Evidence Class */
+            evidence_class: string;
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "candidate" | "accepted" | "disputed" | "rejected" | "superseded";
+            /** Method Version */
+            method_version: string;
+            /** Evidence */
+            evidence?: components["schemas"]["EvidenceObservationRecord"][];
+        };
+        /**
+         * EvidenceObservationRecord
+         * @description A single locator-backed excerpt or value, as returned by the API.
+         */
+        EvidenceObservationRecord: {
+            /** Id */
+            id: string;
+            /** Snapshot Id */
+            snapshot_id: string;
+            /** Locator */
+            locator: {
+                [key: string]: unknown;
+            };
+            /** Quoted Text */
+            quoted_text?: string | null;
+            /** Structured Value */
+            structured_value?: unknown | null;
+            /** Context Before */
+            context_before?: string | null;
+            /** Context After */
+            context_after?: string | null;
+            /**
+             * Entailment
+             * @enum {string}
+             */
+            entailment: "reviewed_yes" | "reviewed_no" | "model_suggested" | "unevaluated";
+            /** Extractor */
+            extractor: string;
+            /** Extractor Version */
+            extractor_version: string;
+            /** Ocr Confidence */
+            ocr_confidence?: number | null;
+        };
+        /**
+         * EvidencePolicyRecord
+         * @description The serialized acceptance policy for one predicate.
+         */
+        EvidencePolicyRecord: {
+            /** Predicate */
+            predicate: string;
+            /** Version */
+            version: string;
+            /** Allowed Evidence Classes */
+            allowed_evidence_classes: string[];
+            /** Minimum Independent Roots */
+            minimum_independent_roots: number;
+            /**
+             * Requires Complete Path
+             * @default false
+             */
+            requires_complete_path: boolean;
+            /**
+             * Permits Catalog Only
+             * @default false
+             */
+            permits_catalog_only: boolean;
+        };
+        /**
          * FrontendDebugReport
          * @description Frontend Debug Report.
          */
@@ -4497,6 +4909,81 @@ export interface components {
             user_agent?: string | null;
             /** Generated At */
             generated_at?: string | null;
+        };
+        /**
+         * FundingBiasAnalysisResponse
+         * @description Catalog-wide funding-type vs. bias-rating correlation, as last computed.
+         *
+         *     `available=False` (an otherwise-empty response, not a 404/500) is the
+         *     honest state before `app.scripts.run_funding_bias_analysis` has ever
+         *     run against this database.
+         */
+        FundingBiasAnalysisResponse: {
+            /**
+             * Available
+             * @default false
+             */
+            available: boolean;
+            methodology?: components["schemas"]["FundingBiasMethodology"] | null;
+            statistic?: components["schemas"]["FundingBiasStatistic"] | null;
+            /** Trace Id */
+            trace_id?: string | null;
+            /** Algorithm Version */
+            algorithm_version?: string | null;
+            /** Computed At */
+            computed_at?: string | null;
+            /**
+             * Population Size
+             * @default 0
+             */
+            population_size: number;
+            /** Validation Card Skip Reason */
+            validation_card_skip_reason?: string | null;
+        };
+        /**
+         * FundingBiasMethodology
+         * @description The locked, pre-registered methodology for the funding-vs-bias measurement.
+         */
+        FundingBiasMethodology: {
+            /** Preregistration Id */
+            preregistration_id: string;
+            /** Title */
+            title: string;
+            /**
+             * Locked At
+             * Format: date-time
+             */
+            locked_at: string;
+            /** Specification */
+            specification: {
+                [key: string]: unknown;
+            };
+            /** Deviations */
+            deviations?: unknown[];
+        };
+        /**
+         * FundingBiasStatistic
+         * @description The contingency table and Cramer's V association statistic over it.
+         */
+        FundingBiasStatistic: {
+            /** N */
+            n: number;
+            /** Rows */
+            rows: string[];
+            /** Cols */
+            cols: string[];
+            /** Table */
+            table: number[][];
+            /** Chi Square */
+            chi_square?: number | null;
+            /** Degrees Of Freedom */
+            degrees_of_freedom?: number | null;
+            /** Cramers V */
+            cramers_v?: number | null;
+            /** Interpretation */
+            interpretation?: string | null;
+            /** Note */
+            note?: string | null;
         };
         /**
          * GDELTContext
@@ -4985,20 +5472,75 @@ export interface components {
             org_type?: string | null;
             /** Parent Org */
             parent_org?: string | null;
+            /** Ownership Percentage */
+            ownership_percentage?: string | null;
             /** Funding Type */
             funding_type?: string | null;
-            /** Funding Sources */
-            funding_sources?: string[] | null;
+            /**
+             * Funding Sources
+             * @default []
+             */
+            funding_sources: string[];
+            /**
+             * Major Advertisers
+             * @default []
+             */
+            major_advertisers: string[];
             /** Ein */
             ein?: string | null;
             /** Annual Revenue */
             annual_revenue?: string | null;
+            /**
+             * Top Donors
+             * @default []
+             */
+            top_donors: string[];
             /** Media Bias Rating */
             media_bias_rating?: string | null;
             /** Factual Reporting */
             factual_reporting?: string | null;
             /** Wikipedia Url */
             wikipedia_url?: string | null;
+            /** Website */
+            website?: string | null;
+            /**
+             * Owned By
+             * @default []
+             */
+            owned_by: string[];
+            /**
+             * Parent Orgs
+             * @default []
+             */
+            parent_orgs: string[];
+            /**
+             * Part Of
+             * @default []
+             */
+            part_of: string[];
+            /**
+             * Subsidiaries
+             * @default []
+             */
+            subsidiaries: string[];
+            /**
+             * Headquarters
+             * @default []
+             */
+            headquarters: string[];
+            /** Inception */
+            inception?: string | null;
+            /** Official Website */
+            official_website?: string | null;
+            /** Cik */
+            cik?: string | null;
+            /**
+             * Conflict Flags
+             * @default []
+             */
+            conflict_flags: {
+                [key: string]: unknown;
+            }[];
             /** Research Sources */
             research_sources?: string[] | null;
             /** Research Confidence */
@@ -5024,24 +5566,46 @@ export interface components {
             depth: number;
         };
         /**
-         * OwnershipGraphResponse
-         * @description Graph data for force-directed ownership visualization.
+         * OwnershipInterestPath
+         * @description One enumerated owner-to-target chain contributing to an interest calculation.
          */
-        OwnershipGraphResponse: {
-            /**
-             * Nodes
-             * @default []
-             */
-            nodes: {
-                [key: string]: unknown;
-            }[];
-            /**
-             * Edges
-             * @default []
-             */
-            edges: {
-                [key: string]: unknown;
-            }[];
+        OwnershipInterestPath: {
+            /** Entity Ids */
+            entity_ids: string[];
+            /** Claim Ids */
+            claim_ids: string[];
+            /** Interest */
+            interest: {
+                [key: string]: number;
+            };
+            /** Disjoint Group */
+            disjoint_group?: string | null;
+        };
+        /**
+         * OwnershipInterestResponse
+         * @description An owner's aggregate interest in a target, computed across the accepted graph.
+         */
+        OwnershipInterestResponse: {
+            /** Owner Id */
+            owner_id: string;
+            /** Target Id */
+            target_id: string;
+            /** Interest Type */
+            interest_type: string;
+            /** Security Class */
+            security_class?: string | null;
+            /** Aggregate */
+            aggregate?: {
+                [key: string]: number;
+            } | null;
+            /** Possibly Overlapping */
+            possibly_overlapping: boolean;
+            /** Cross Holding Unresolved */
+            cross_holding_unresolved: boolean;
+            /** Algorithm Version */
+            algorithm_version: string;
+            /** Paths */
+            paths?: components["schemas"]["OwnershipInterestPath"][];
         };
         /**
          * PaginatedResponse
@@ -5330,6 +5894,24 @@ export interface components {
             has_more: boolean;
         };
         /**
+         * RelationshipQueryResponse
+         * @description Accepted relationships current as of the requested valid/known time.
+         */
+        RelationshipQueryResponse: {
+            /**
+             * As Of
+             * Format: date-time
+             */
+            as_of: string;
+            /**
+             * Known At
+             * Format: date-time
+             */
+            known_at: string;
+            /** Relationships */
+            relationships?: components["schemas"]["AcceptedRelationshipRecord"][];
+        };
+        /**
          * ReporterCardResponse
          * @description Compact reporter card for the directory.
          */
@@ -5455,6 +6037,10 @@ export interface components {
             }[] | null;
             /** Coverage Comparison */
             coverage_comparison?: {
+                [key: string]: unknown;
+            } | null;
+            /** Career Timeline */
+            career_timeline?: {
                 [key: string]: unknown;
             } | null;
             /**
@@ -5785,6 +6371,8 @@ export interface components {
          * @description Source Research Value.
          */
         SourceResearchValue: {
+            /** Label */
+            label?: string | null;
             /** Value */
             value: string;
             /** Sources */
@@ -10926,26 +11514,6 @@ export interface operations {
             };
         };
     };
-    get_ownership_graph_api_wiki_organizations_graph_get: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["OwnershipGraphResponse"];
-                };
-            };
-        };
-    };
     get_wiki_index_status_api_wiki_index_status_get: {
         parameters: {
             query?: never;
@@ -11050,6 +11618,9 @@ export interface operations {
                 limit_edges?: number;
                 layout?: "clustered" | "ownership" | "geography" | "radial";
                 include_evidence_preview?: boolean;
+                as_of?: string | null;
+                known_at?: string | null;
+                accepted_only?: boolean;
             };
             header?: never;
             path?: never;
@@ -11229,6 +11800,26 @@ export interface operations {
             };
         };
     };
+    get_funding_bias_analysis_api_wiki_atlas_analysis_funding_bias_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["FundingBiasAnalysisResponse"];
+                };
+            };
+        };
+    };
     export_atlas_api_wiki_atlas_export_post: {
         parameters: {
             query?: never;
@@ -11241,6 +11832,231 @@ export interface operations {
                 "application/json": components["schemas"]["AtlasExportRequest"];
             };
         };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_evidence_policies_api_wiki_evidence_policies_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["EvidencePolicyRecord"][];
+                };
+            };
+        };
+    };
+    get_evidence_claim_api_wiki_evidence_claims__claim_id__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                claim_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["EvidenceClaimRecord"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    evaluate_evidence_claim_api_wiki_evidence_claims_evaluate_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AcceptanceEvaluationRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AcceptanceEvaluationResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    materialize_evidence_claim_api_wiki_evidence_claims__claim_id__materialize_post: {
+        parameters: {
+            query?: {
+                complete_control_path?: boolean;
+            };
+            header: {
+                "X-Scoop-Reviewer": string;
+                "X-Scoop-Materialize-Token"?: string | null;
+            };
+            path: {
+                claim_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AcceptedRelationshipRecord"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_ownership_interest_api_wiki_evidence_interest_get: {
+        parameters: {
+            query: {
+                owner_id: string;
+                target_id: string;
+                interest_type?: string;
+                security_class?: string | null;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OwnershipInterestResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_evidence_relationships_api_wiki_evidence_relationships_get: {
+        parameters: {
+            query?: {
+                as_of?: string | null;
+                known_at?: string | null;
+                predicates?: string | null;
+                entity_id?: string | null;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RelationshipQueryResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    download_relationship_proof_api_wiki_evidence_relationships__relationship_id__proof_get: {
+        parameters: {
+            query?: {
+                as_of?: string | null;
+                known_at?: string | null;
+                dataset_snapshot?: string;
+            };
+            header?: {
+                "X-Scoop-Materialize-Token"?: string | null;
+            };
+            path: {
+                relationship_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
         responses: {
             /** @description Successful Response */
             200: {

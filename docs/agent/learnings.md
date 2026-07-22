@@ -1,5 +1,41 @@
 # Learnings
 
+## 2026-07-21: Media profiles need dated, source-specific semantics
+
+Context:
+- SEC company facts repeat prior-year comparative values in the newest 10-K under the same fiscal-year label.
+- Wikidata separates current parents, owners, subsidiaries, and optional P1107 ownership proportions.
+- ads.txt lists authorized inventory sellers, not advertiser customers.
+- Registry name search can return a person's same-name foundation.
+
+What worked:
+- Select SEC facts by latest reporting-period end date, then latest filing date.
+- Keep proposed acquisitions in dated change text. Do not write them into current parent fields.
+- Return P1107 as a percentage only when it qualifies a P127 or P749 statement.
+- Show ads.txt as ad-supply evidence and keep unsupported advertiser names empty.
+- Reject organization registry data after a higher-priority structured source identifies the subject as a person.
+
+Future agents should:
+- Test public parents, subsidiaries, nonprofits, unrelated public companies, pending deals, and unknown cases.
+- Cache real registry responses in tests and assert the source path used for each field.
+- Prefer null or an empty list over an inferred structured fact.
+
+## 2026-07-21 — Backend parity needs protocol coverage and live transport smokes
+
+Context:
+- OpenAPI described all 175 schema-visible HTTP operations but omitted the `/ws` WebSocket used by the frontend.
+- Two handwritten frontend URLs had drifted from their FastAPI routes even though generated OpenAPI types were current.
+
+What worked:
+- Derive CLI HTTP operations directly from the canonical schema instead of maintaining a second command table.
+- Publish WebSocket routes through a generated `x-scoop-websockets` extension.
+- Run smoke assertions through the real FastAPI process and the same endpoint operation used by the frontend.
+
+Future agents should:
+- Run `./scripts/scoop schema check` after backend route changes.
+- Use `./scripts/scoop api smoke <operation_id>` for feature-level backend verification.
+- Treat generated types, handwritten frontend URLs, HTTP streams, and WebSockets as separate parity surfaces.
+
 ## 2026-07-20 — Bounded Atlas ranking must be cross-entity
 
 Context:

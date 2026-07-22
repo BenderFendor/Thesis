@@ -1832,7 +1832,7 @@ export interface SourceCredibilityProfile {
 }
 
 export async function fetchSourceCredibility(domain: string): Promise<SourceCredibilityProfile> {
-  const response = await fetch(`${API_BASE_URL}/api/source/${encodeURIComponent(domain)}/credibility`)
+  const response = await fetch(`${API_BASE_URL}/sources/${encodeURIComponent(domain)}/credibility`)
   if (!response.ok) {
     throw new Error(`Failed to fetch source credibility (${response.status})`)
   }
@@ -5463,6 +5463,8 @@ export interface WikiReporterDossier extends WikiReporterCard {
   controversies?: Array<Record<string, unknown>>;
   institutional_affiliations?: Array<Record<string, unknown>>;
   coverage_comparison?: Record<string, unknown>;
+  /** Loosely typed on the wire; parse with `parseReporterCareerTimeline`. */
+  career_timeline?: Record<string, unknown> | null;
   last_article_at?: string;
   recent_articles: Array<{
     id?: number;
@@ -5488,23 +5490,56 @@ export interface WikiReporterDossier extends WikiReporterCard {
   research_sources?: string[];
 }
 
-export interface WikiOwnershipGraph {
-  nodes: Array<{
-    id: string;
-    label: string;
-    type?: string;
-    bias?: string;
-    funding?: string;
-    country?: string;
-    [key: string]: unknown;
-  }>;
-  edges: Array<{
-    source: string;
-    target: string;
-    type?: string;
-    percentage?: number;
-    [key: string]: unknown;
-  }>;
+/**
+ * Career timeline (Atlas Phase 4): defensive Zod parsing for
+ * `WikiReporterDossier.career_timeline`, mirroring how the Intelligence
+ * Atlas feature parses its loosely-typed `details` bag rather than widening
+ * the base contract (see `features/intelligence-atlas/lib/atlas-schema.ts`).
+ */
+const ReporterTimelineEntrySchema = z.object({
+  source: z.enum(["byline", "affiliation"]),
+  outlet: z.string(),
+  start_date: z.string().nullable().optional(),
+  end_date: z.string().nullable().optional(),
+  article_count: z.number().nullable().optional(),
+  role: z.string().nullable().optional(),
+  evidence_url: z.string().nullable().optional(),
+});
+
+export type ReporterTimelineEntry = z.infer<typeof ReporterTimelineEntrySchema>;
+
+const ReporterOwnershipRefSchema = z.object({
+  entity_id: z.string(),
+  label: z.string(),
+  entity_type: z.string().nullable().optional(),
+  profile_path: z.string().nullable().optional(),
+});
+
+export type ReporterOwnershipRef = z.infer<typeof ReporterOwnershipRefSchema>;
+
+const ReporterSharedOwnerFindingSchema = z.object({
+  owner: ReporterOwnershipRefSchema,
+  outlets: z.array(ReporterOwnershipRefSchema),
+  evidence_count: z.number(),
+  claim_ids: z.array(z.string()),
+});
+
+export type ReporterSharedOwnerFinding = z.infer<typeof ReporterSharedOwnerFindingSchema>;
+
+const ReporterCareerTimelineSchema = z.object({
+  timeline: z.array(ReporterTimelineEntrySchema),
+  shared_owner_findings: z.array(ReporterSharedOwnerFindingSchema),
+});
+
+export type ReporterCareerTimeline = z.infer<typeof ReporterCareerTimelineSchema>;
+
+/** Defensively parses `career_timeline`; returns null on any shape mismatch. */
+export function parseReporterCareerTimeline(
+  value: Record<string, unknown> | null | undefined,
+): ReporterCareerTimeline | null {
+  if (!value) return null;
+  const result = ReporterCareerTimelineSchema.safeParse(value);
+  return result.success ? result.data : null;
 }
 
 export interface WikiIndexStatus {
@@ -5627,15 +5662,6 @@ export async function fetchWikiReporterArticles(reporterId: number): Promise<
   const response = await fetch(
     `${API_BASE_URL}/api/wiki/reporters/${reporterId}/articles`,
   );
-  if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
-  return response.json();
-}
-
-/**
- * Fetch the ownership graph for the force-directed visualization
- */
-export async function fetchWikiOwnershipGraph(): Promise<WikiOwnershipGraph> {
-  const response = await fetch(`${API_BASE_URL}/api/wiki/organizations/graph`);
   if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
   return response.json();
 }

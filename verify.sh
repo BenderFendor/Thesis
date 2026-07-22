@@ -6,6 +6,11 @@ npm --prefix frontend exec -- tsc -p frontend/tsconfig.json --noEmit
 npm --prefix frontend run build
 npm --prefix frontend run lint
 
+echo "--- OpenAPI CLI Parity ---"
+npm run cli:typecheck
+npm run cli:test
+npm run cli:schema:check
+
 echo "--- Python / Backend ---"
 bash -lc 'cd backend && MYPYPATH=. .venv/bin/mypy --explicit-package-bases app --strict'
 uvx ruff check backend/ --fix

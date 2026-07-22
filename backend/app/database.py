@@ -420,7 +420,23 @@ class Reporter(Base):
 
 
 class Organization(Base):
-    """Stores research data about news organizations and their ownership."""
+    """Stores research data about news organizations and their ownership.
+
+    DEPRECATED ownership fields: `parent_org_id`, `ownership_percentage`,
+    `owned_by`, `parent_orgs`, and `part_of` (below) are the pre-evidence-spine
+    ownership representation. The Intelligence Atlas graph projection and
+    ownership-chain UI (`atlas_evidence_projection.py`, `ownership_math.py`)
+    read ownership exclusively from the evidence spine
+    (`EvidenceEntity`/`AcceptedRelationship`/`EvidenceClaim` in
+    `app/models/evidence.py`), populated by `backfill_entities.py` and
+    `ingest_evidence.py` -- these columns are not part of that read path.
+    They are not fully dead: `wiki_indexer.py` still writes
+    `parent_org_id`, and `source_credibility.py` and the plain
+    `/api/wiki/organizations` list endpoint still read `parent_org_id`/
+    `parent_orgs`. No migration has dropped them (see Atlas rebuild plan,
+    Phase 6); new ownership-facing code should read the evidence spine
+    instead of these columns.
+    """
 
     __tablename__ = "organizations"
 
@@ -432,6 +448,10 @@ class Organization(Base):
     org_type = Column(String)  # publisher, parent_company, owner, funder, advertiser
 
     # Ownership structure
+    # DEPRECATED for Atlas/ownership purposes: superseded by the
+    # evidence-spine ownership chain (see class docstring). `parent_org_id`
+    # is still written by `wiki_indexer.py`; `ownership_percentage` has no
+    # current writer. Neither is read by the Atlas ownership graph/UI.
     parent_org_id = Column(Integer, index=True)  # Self-referential for ownership chain
     ownership_percentage = Column(String)  # If known
 
@@ -461,9 +481,13 @@ class Organization(Base):
     research_confidence = Column(String)
 
     # Wikidata structured ownership fields (Plan 34)
+    # DEPRECATED: superseded by the evidence-spine ownership chain (see class
+    # docstring). Kept for backward read compatibility only; not written to
+    # by any current ingestion path.
     owned_by = Column(JSON, default=list)
     parent_orgs = Column(JSON, default=list)
     part_of = Column(JSON, default=list)
+    subsidiaries = Column(JSON, default=list)
     headquarters = Column(JSON, default=list)
     inception = Column(String, nullable=True)
     official_website = Column(String, nullable=True)

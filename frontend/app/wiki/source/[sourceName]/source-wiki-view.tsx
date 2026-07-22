@@ -8,6 +8,7 @@ import {
   ChevronLeft,
   ExternalLink,
   Loader2,
+  Network,
   RefreshCw,
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
@@ -18,6 +19,11 @@ import {
   type WikiAnalysisAxis,
   type WikiSourceProfile,
 } from "@/lib/api";
+import { fetchAtlasEntity, searchAtlas } from "@/features/intelligence-atlas/lib/atlas-api";
+import { parseFundingAndBias, parseOwnershipChain } from "@/features/intelligence-atlas/lib/atlas-schema";
+import { buildAtlasNeighborhoodHref } from "@/features/intelligence-atlas/lib/atlas-query-state";
+import { FundingBiasPanel } from "@/features/intelligence-atlas/funding-bias-panel";
+import { OwnershipChain } from "@/features/intelligence-atlas/ownership-chain";
 
 const ANALYSIS_META: Record<string, { label: string; description: string }> = {
   funding: { label: "Funding", description: "Funding and structural dependency." },
@@ -48,6 +54,30 @@ export function SourceWikiView({ sourceName }: { sourceName: string }) {
     queryFn: () => fetchWikiSource(sourceName),
     retry: 1,
   });
+
+  const { data: atlasSearch } = useQuery({
+    queryKey: ["wiki-source-atlas-search", sourceName],
+    queryFn: () => searchAtlas(sourceName),
+    enabled: Boolean(sourceName),
+    retry: 1,
+  });
+  const outletEntityId = atlasSearch?.outlets.find(
+    (item) => item.label.toLowerCase() === sourceName.toLowerCase(),
+  )?.id ?? atlasSearch?.outlets[0]?.id;
+  const { data: outletAtlasEntity } = useQuery({
+    queryKey: ["wiki-source-atlas-entity", outletEntityId],
+    queryFn: () => fetchAtlasEntity(outletEntityId as string),
+    enabled: Boolean(outletEntityId),
+    retry: 1,
+  });
+  const ownershipChain = useMemo(
+    () => (outletAtlasEntity ? parseOwnershipChain(outletAtlasEntity.details) : []),
+    [outletAtlasEntity],
+  );
+  const fundingAndBias = useMemo(
+    () => (outletAtlasEntity ? parseFundingAndBias(outletAtlasEntity.details) : null),
+    [outletAtlasEntity],
+  );
 
   const avgScore = useMemo(() => {
     if (!data?.analysis_axes?.length) return null;
@@ -130,6 +160,15 @@ export function SourceWikiView({ sourceName }: { sourceName: string }) {
                 {data.funding_type && <Badge variant="outline" className="font-mono text-[10px] tracking-widest">{data.funding_type}</Badge>}
                 {data.is_state_media && <Badge variant="outline" className="font-mono text-[10px] tracking-widest">State media</Badge>}
               </div>
+              {outletEntityId ? (
+                <Link
+                  href={buildAtlasNeighborhoodHref(outletEntityId)}
+                  className="mt-3 inline-flex items-center gap-1.5 font-mono text-[10px] uppercase tracking-widest text-muted-foreground transition-colors hover:text-foreground"
+                >
+                  <Network className="h-3 w-3" />
+                  Explore neighborhood
+                </Link>
+              ) : null}
             </div>
 
             <SidebarCard title="Quick Facts">
@@ -372,6 +411,22 @@ export function SourceWikiView({ sourceName }: { sourceName: string }) {
                       <ExternalLink className="h-3.5 w-3.5 group-hover:opacity-100" />
                     </Link>
                   </div>
+                </div>
+              </Panel>
+            )}
+
+            {fundingAndBias && (
+              <Panel title="Funding & Bias" eyebrow="Funding type beside cited bias/factuality ratings">
+                <div className="rounded-2xl bg-black/20 border border-white/5 p-5">
+                  <FundingBiasPanel block={fundingAndBias} />
+                </div>
+              </Panel>
+            )}
+
+            {ownershipChain.length > 1 && outletEntityId && (
+              <Panel title="Ownership Chain" eyebrow="Evidence-backed ownership, from this outlet to its ultimate owner">
+                <div className="rounded-2xl bg-black/20 border border-white/5 p-5">
+                  <OwnershipChain chain={ownershipChain} currentEntityId={outletEntityId} />
                 </div>
               </Panel>
             )}

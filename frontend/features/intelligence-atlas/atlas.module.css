@@ -44,7 +44,8 @@
   display: grid;
   min-width: 0;
   flex: 1;
-  grid-template-rows: auto minmax(0, 1fr) auto;
+  /* topbar / view tabs / main content (stage or directory) / graph dock footer */
+  grid-template-rows: auto auto minmax(0, 1fr) auto;
   height: 100vh;
 }
 
@@ -479,9 +480,14 @@
   color: var(--atlas-accent);
 }
 
-.entityMark[data-type="source"] {
+.entityMark[data-type="outlet"] {
   color: var(--atlas-paper);
   border-radius: 8px;
+}
+
+.entityMark[data-type="person"] {
+  color: var(--atlas-person, #e08a5f);
+  border-radius: 20%;
 }
 
 .entityMark[data-type="reporter"] {

@@ -34,6 +34,7 @@ from app.core.process_limits import (
 from app.core.profiling import ProfilingMiddleware
 from app.database import init_db, AsyncSessionLocal, fetch_all_articles
 from app.middleware.request_tracing import RequestTracingMiddleware
+from app.openapi_contract import add_protocol_extensions
 from app.models.news import NewsArticle
 from app.services.cache import news_cache
 from app.services.chroma_sync import chroma_sync_worker
@@ -55,6 +56,7 @@ from app.services.scheduler import (
     periodic_blind_spots_update,
 )
 from app.services.wiki_indexer import periodic_wiki_refresh
+from app.services.auto_ingest import run_auto_ingest
 from app.services.source_credibility import run_credibility_scoring_scheduler
 from app.services.startup_metrics import startup_metrics
 from app.services.websocket_manager import manager
@@ -317,6 +319,16 @@ async def _maybe_migrate_cached_articles() -> None:
         startup_metrics.add_note("cache_age_error", str(exc))
 
 
+async def _start_auto_ingest() -> None:
+    """Launch the Atlas auto-ingest pipelines shortly after startup (leader only).
+
+    `run_auto_ingest` itself checks SCOOP_AUTO_INGEST and never raises --
+    see app.services.auto_ingest for the stage registry and interval guard.
+    """
+    await asyncio.sleep(10)
+    await run_auto_ingest()
+
+
 async def _initial_reporter_index() -> None:
     """Run initial reporter seeding on startup (non-blocking, best-effort)."""
     import time as time_mod
@@ -521,6 +533,10 @@ async def on_startup() -> None:
         )
         _register_background_task(reporter_index_task)
 
+        auto_ingest_task = asyncio.create_task(_start_auto_ingest(), name="auto_ingest_pipeline")
+        _register_background_task(auto_ingest_task)
+        startup_metrics.add_note("auto_ingest_task", auto_ingest_task.get_name())
+
     # Start credibility scoring scheduler (daily)
     if settings.enable_database and is_leader:
         credibility_task = asyncio.create_task(
@@ -576,3 +592,6 @@ async def websocket_endpoint(websocket: WebSocket) -> None:
     except Exception as exc:  # pragma: no cover - defensive logging
         logger.error("WebSocket connection error: %s", exc, exc_info=True)
         manager.disconnect(websocket)
+
+
+add_protocol_extensions(app)
