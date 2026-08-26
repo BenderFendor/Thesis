@@ -13,7 +13,19 @@ Active thesis project. The app runs locally with `runlocal.sh` or Docker Compose
 - A unified Intelligence Atlas for source profiles, ownership, reporter networks, and public-source evidence.
 - Research agents for article search, source context, and verification workflows.
 - Semantic search through ChromaDB with lexical fallback paths.
+- An appearance settings page (`/settings`) for editing the design tokens live: colors, typography scale and weights, spacing and density, corner radius, shadows, and motion, with local persistence, reset, and JSON import/export.
 - Operator/debug surfaces for cache status, source health, logs, wiki indexing, resource use, and agent-readable debug bundles.
+
+## Stack
+
+| Layer | Technology |
+| --- | --- |
+| Frontend | Next.js 16, React 19, TypeScript, Tailwind CSS 4, TanStack Query and Virtual, Radix UI, three.js globe |
+| Backend | Python 3.11+, FastAPI, Pydantic 2, LangChain and LangGraph for agentic search |
+| Ingestion | Rust RSS parser in `backend/rss_parser_rust` behind Python bindings |
+| Storage | PostgreSQL with Alembic migrations, ChromaDB for semantic search |
+| CLI | TypeScript `scripts/scoop`, generated from the backend OpenAPI contract |
+| Tooling | npm, uv, Docker Compose, `runlocal.sh` |
 
 ## Requirements
 
@@ -25,13 +37,17 @@ Active thesis project. The app runs locally with `runlocal.sh` or Docker Compose
   - `OPEN_ROUTER_API_KEY`
   - `GEMINI_API_KEY`
 
-## Quick Start
+## Install
 
-From the repo root, run the local setup once:
+Clone the repo, then run the one-time local setup:
 
 ```bash
+git clone https://github.com/BenderFendor/Thesis
+cd Thesis
 ./runlocal.sh setup
 ```
+
+## Run
 
 Start the backend, frontend, PostgreSQL, and ChromaDB locally:
 
@@ -68,7 +84,10 @@ For media research, use the curated commands. They compose generated OpenAPI ope
 ./scripts/scoop investigate ownership CNN --max-depth 10
 ./scripts/scoop investigate source CNN --website https://www.cnn.com
 ./scripts/scoop investigate reporter "Anderson Cooper" --organization CNN
+./scripts/scoop evidence replay
 ```
+
+`evidence replay` verifies the 20 pinned primary-source captures and reviewed expectations before it starts. It then creates a private temporary PostgreSQL cluster, runs the real migrations, disables network access, and exercises adapters, policy, materialization, measurements, dossier APIs, and assertions. It refuses to run until every case has an independent signoff and never connects to or clears the configured development database.
 
 Use `--param name=value` for OpenAPI path, query, header, and cookie parameters. Use `--body '{"key":"value"}'` for JSON bodies and `--stream` for streamed HTTP responses. WebSocket routes omitted by OpenAPI are published through `x-scoop-websockets`:
 
@@ -96,6 +115,8 @@ Common variables:
 | Variable | Purpose |
 | --- | --- |
 | `OPEN_ROUTER_API_KEY` | Enables OpenRouter-backed research and analysis. |
+| `LLM_BACKEND` | Selects the LLM provider: `openrouter` (default), `llamacpp`, or `opencode` (OpenCode Zen free models). |
+| `OPENCODE_API_KEY` | Enables OpenCode Zen research when `LLM_BACKEND=opencode`; model via `OPENCODE_MODEL`. |
 | `GEMINI_API_KEY` | Enables Gemini-backed research and analysis. |
 | `DATABASE_URL` | Overrides the default PostgreSQL connection string. |
 | `STARTUP_CACHE_ARTICLE_LIMIT` | Sets how many recent database articles each API worker loads at startup. Default: `10000`. |
@@ -109,7 +130,7 @@ Common variables:
 
 Restart the backend after changing `backend/.env`.
 
-## Development
+## Testing
 
 Run the repo verifier:
 
@@ -145,11 +166,24 @@ Collect an agent-readable debug bundle after reproducing a problem:
 
 See [Evidence-based debugging](docs/agent-debugging.md) for the file layout, correlation fields, privacy rules, endpoints, and optional deeper profilers.
 
-## Frontend architecture
+## Architecture
+
+Repo layout: `backend/` holds the FastAPI app, Alembic migrations, and the Rust RSS parser. `frontend/` is the Next.js app. `scripts/` holds the scoop CLI and repo tooling. `docs/` holds developer and agent-facing docs.
 
 The frontend uses route files for page-level orchestration and reusable components for shared interactions. The workspace navigation is decomposed under `frontend/components/navigation` into configuration, state helpers, accessible navigation items, sections, and search behavior. View selections are synchronized with the URL so links from wiki and research routes open the intended home view.
 
 See [Frontend architecture and interaction rules](docs/frontend-architecture.md) for component boundaries, accessibility requirements, and the frontend verification checklist.
+
+## Known limits
+
+- Local-first by design. One operator, no production deployment, no multi-user auth.
+- AI-backed research features need at least one provider key; without one, those features are unavailable.
+- ChromaDB local state can be incompatible across runtime upgrades; the fix in Troubleshooting resets it.
+- The codebase changes quickly and internals move without notice.
+
+## License
+
+No license chosen yet. Deciding between MIT and Apache-2.0.
 
 ## Documentation
 
