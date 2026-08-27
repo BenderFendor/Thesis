@@ -1,7 +1,7 @@
 # Complexity groups
 
-Hard violations: 485
-Files with hard violations: 194
+Hard violations: 477
+Files with hard violations: 192
 
 | file | violations | max CC | max cognitive |
 |---|---:|---:|---:|
@@ -33,10 +33,8 @@ Files with hard violations: 194
 | `frontend/components/cluster-detail-modal.tsx` | 5 | 22 | 29 |
 | `frontend/app/wiki/ownership/source-intelligence-operations.tsx` | 5 | 20 | 13 |
 | `backend/app/services/evidence_ingest.py` | 5 | 18 | 39 |
-| `backend/app/services/reporter_confidence_scorer.py` | 4 | 42 | 42 |
 | `backend/app/api/routes/debug.py` | 4 | 26 | 32 |
 | `frontend/tools/oxlint/thesis/index.mjs` | 4 | 23 | 15 |
-| `backend/app/services/littlesis_integration.py` | 4 | 21 | 64 |
 | `frontend/app/page.tsx` | 4 | 21 | 22 |
 | `backend/app/api/routes/wiki.py` | 4 | 17 | 22 |
 | `backend/app/services/source_research.py` | 4 | 16 | 26 |
@@ -130,7 +128,6 @@ Files with hard violations: 194
 | `frontend/components/source-sidebar.tsx` | 1 | 19 | 27 |
 | `frontend/features/intelligence-atlas/atlas-inspector.tsx` | 1 | 19 | 19 |
 | `backend/app/api/routes/sources.py` | 1 | 18 | 24 |
-| `backend/scripts/check_import_cycles.py` | 1 | 18 | 59 |
 | `frontend/__tests__/source-groups.test.ts` | 1 | 18 | 17 |
 | `frontend/app/wiki/analysis/funding-bias/funding-bias-analysis-view.tsx` | 1 | 18 | 27 |
 | `frontend/hooks/useScrollPersonalization.ts` | 1 | 18 | 23 |
@@ -180,6 +177,7 @@ Files with hard violations: 194
 | `backend/app/core/file_trace_exporter.py` | 1 | 11 | 14 |
 | `backend/app/core/process_limits.py` | 1 | 11 | 18 |
 | `backend/app/services/material_interest.py` | 1 | 11 | 16 |
+| `backend/app/services/reporter_confidence_scorer.py` | 1 | 11 | 11 |
 | `backend/app/services/reporter_profiler.py` | 1 | 11 | 17 |
 | `backend/app/services/scheduler.py` | 1 | 11 | 17 |
 | `backend/rss_parser_rust/src/algorithms.rs` | 1 | 11 | 17 |
@@ -559,15 +557,6 @@ Files with hard violations: 194
 | 1082 | `ingest_edgar_subsidiaries` | 13 | 20 |
 | 1027 | `_parse_exhibit_21` | 12 | 15 |
 
-### `backend/app/services/reporter_confidence_scorer.py`
-
-| line | function | CC | cognitive |
-|---:|---|---:|---:|
-| 270 | `compute_confidence_tier` | 42 | 42 |
-| 171 | `is_author_profile_url` | 14 | 14 |
-| 200 | `has_verified_author_page_citation` | 14 | 16 |
-| 99 | `_has_clean_local_byline_identity` | 12 | 16 |
-
 ### `backend/app/api/routes/debug.py`
 
 | line | function | CC | cognitive |
@@ -585,15 +574,6 @@ Files with hard violations: 194
 | 57 | `hasDescendantElement` | 13 | 15 |
 | 95 | `isMapCallback` | 11 | 2 |
 | 119 | `isFragileMapKeyExpression` | 11 | 4 |
-
-### `backend/app/services/littlesis_integration.py`
-
-| line | function | CC | cognitive |
-|---:|---|---:|---:|
-| 99 | `_iter_json_records` | 21 | 64 |
-| 377 | `extract_affiliations_from_relationships` | 14 | 27 |
-| 454 | `get_littlesis_affiliations_for_reporter` | 16 | 21 |
-| 319 | `cross_reference_entities_with_reporters` | 9 | 18 |
 
 ### `frontend/app/page.tsx`
 
@@ -1243,12 +1223,6 @@ Files with hard violations: 194
 |---:|---|---:|---:|
 | 70 | `_validate_rss_feed` | 18 | 24 |
 
-### `backend/scripts/check_import_cycles.py`
-
-| line | function | CC | cognitive |
-|---:|---|---:|---:|
-| 47 | `build_graph` | 18 | 59 |
-
 ### `frontend/__tests__/source-groups.test.ts`
 
 | line | function | CC | cognitive |
@@ -1542,6 +1516,12 @@ Files with hard violations: 194
 | line | function | CC | cognitive |
 |---:|---|---:|---:|
 | 508 | `analyze_material_context` | 11 | 16 |
+
+### `backend/app/services/reporter_confidence_scorer.py`
+
+| line | function | CC | cognitive |
+|---:|---|---:|---:|
+| 292 | `_load_confidence_context` | 11 | 11 |
 
 ### `backend/app/services/reporter_profiler.py`
 
