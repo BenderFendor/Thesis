@@ -1,7 +1,7 @@
 # Complexity groups
 
-Hard violations: 468
-Files with hard violations: 191
+Hard violations: 462
+Files with hard violations: 188
 
 | file | violations | max CC | max cognitive |
 |---|---:|---:|---:|
@@ -45,7 +45,6 @@ Files with hard violations: 191
 | `backend/app/services/atlas_evidence_projection.py` | 3 | 26 | 41 |
 | `backend/scripts/enrich_local_reporter_author_pages.py` | 3 | 25 | 48 |
 | `frontend/features/intelligence-atlas/atlas-graph.tsx` | 3 | 25 | 24 |
-| `backend/app/services/verification_agent.py` | 3 | 23 | 58 |
 | `backend/app/services/ad_supply_transparency.py` | 3 | 22 | 34 |
 | `backend/app/services/atlas_graph_projection.py` | 3 | 19 | 27 |
 | `scripts/scoop.ts` | 3 | 19 | 19 |
@@ -56,7 +55,6 @@ Files with hard violations: 191
 | `backend/app/services/wiki_indexer.py` | 3 | 15 | 21 |
 | `frontend/components/reading-queue-sidebar.tsx` | 3 | 14 | 15 |
 | `backend/app/vector_store.py` | 3 | 12 | 14 |
-| `backend/scripts/validate_rss_sources.py` | 2 | 45 | 62 |
 | `frontend/app/sources/[source]/debug/page.tsx` | 2 | 38 | 26 |
 | `frontend/components/highlight-toolbar.tsx` | 2 | 34 | 24 |
 | `backend/app/services/persistence.py` | 2 | 31 | 46 |
@@ -97,7 +95,6 @@ Files with hard violations: 191
 | `frontend/components/feed-view.tsx` | 2 | 13 | 12 |
 | `frontend/lib/performance-logger.ts` | 2 | 13 | 19 |
 | `backend/app/core/profiling.py` | 2 | 12 | 19 |
-| `backend/app/api/routes/stream.py` | 1 | 36 | 66 |
 | `backend/app/services/atlas_export.py` | 1 | 32 | 57 |
 | `frontend/features/intelligence-atlas/atlas-stage-shell.tsx` | 1 | 32 | 12 |
 | `backend/scripts/backfill_rss_ownership_labels.py` | 1 | 30 | 47 |
@@ -653,14 +650,6 @@ Files with hard violations: 191
 | 79 | `AtlasGraph` | 18 | 16 |
 | 299 | `<anonymous>` | 18 | 16 |
 
-### `backend/app/services/verification_agent.py`
-
-| line | function | CC | cognitive |
-|---:|---|---:|---:|
-| 420 | `_search_internal_sources` | 23 | 58 |
-| 263 | `_verify_single_claim` | 10 | 19 |
-| 319 | `_check_cache` | 11 | 12 |
-
 ### `backend/app/services/ad_supply_transparency.py`
 
 | line | function | CC | cognitive |
@@ -740,13 +729,6 @@ Files with hard violations: 191
 | 755 | `search_hybrid` | 12 | 14 |
 | 544 | `batch_add_articles` | 11 | 11 |
 | 943 | `get_vector_store` | 11 | 12 |
-
-### `backend/scripts/validate_rss_sources.py`
-
-| line | function | CC | cognitive |
-|---:|---|---:|---:|
-| 153 | `validate_sources` | 45 | 62 |
-| 90 | `_first_article_domain` | 19 | 29 |
 
 ### `frontend/app/sources/[source]/debug/page.tsx`
 
@@ -1027,12 +1009,6 @@ Files with hard violations: 191
 |---:|---|---:|---:|
 | 477 | `get_bottleneck_summary` | 11 | 19 |
 | 267 | `get_summary` | 12 | 16 |
-
-### `backend/app/api/routes/stream.py`
-
-| line | function | CC | cognitive |
-|---:|---|---:|---:|
-| 84 | `event_generator` | 36 | 66 |
 
 ### `backend/app/services/atlas_export.py`
 
