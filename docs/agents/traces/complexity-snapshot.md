@@ -1,14 +1,14 @@
 # Complexity Snapshot
 
-Commit: `1db342604282bfc7f5522318ae7697d28432564e`
+Commit: `b9d004418c48ed74919287ac4c7f2e7f105f5c3b`
 
 Files: 567
-Functions: 7674
+Functions: 7701
 Parse errors: 0
 CC max/p95: 56 / 11
-Cognitive max/p95: 64 / 13
-Hard violations: 446
-Warning-only: 179
+Cognitive max/p95: 64 / 12
+Hard violations: 442
+Warning-only: 178
 
 ## Hard violations
 
@@ -16,8 +16,6 @@ Warning-only: 179
 |---|---|---:|---:|
 | `frontend/app/debug/page.tsx:306` | `SystemStatusSection` | 56 | 19 |
 | `backend/app/services/rss_ingestion.py:499` | `_refresh_news_cache_with_rust` | 33 | 64 |
-| `backend/app/services/verification_agent.py:420` | `_search_internal_sources` | 23 | 58 |
-| `backend/app/services/atlas_export.py:15` | `build_atlas_export` | 32 | 57 |
 | `frontend/app/sources/[source]/debug/page.tsx:18` | `SourceDebugPage` | 38 | 26 |
 | `backend/app/services/source_analysis_scorer.py:174` | `_score_funding` | 37 | 44 |
 | `backend/app/api/routes/news.py:337` | `get_news_paginated` | 27 | 52 |
@@ -329,7 +327,6 @@ Warning-only: 179
 | `backend/app/services/reporter_indexer.py:1283` | `seed_reporters_from_wikidata` | 12 | 19 |
 | `backend/app/core/profiling.py:477` | `get_bottleneck_summary` | 11 | 19 |
 | `backend/app/services/chroma_sync.py:110` | `chroma_sync_worker` | 11 | 19 |
-| `backend/app/services/verification_agent.py:263` | `_verify_single_claim` | 10 | 19 |
 | `backend/app/services/chroma_topics.py:156` | `_clusters_from_ids_batches` | 9 | 19 |
 | `backend/scripts/verify_and_promote_reporters.py:398` | `_split_creator` | 9 | 19 |
 | `backend/app/services/debug_logger.py:720` | `_generate_recommendations` | 12 | 18 |
@@ -418,7 +415,6 @@ Warning-only: 179
 | `backend/app/services/entity_wiki_service.py:1059` | `build_reporter_dossier` | 11 | 13 |
 | `backend/app/services/primary_source_adapters.py:923` | `ingest_fcc_records` | 11 | 13 |
 | `backend/app/services/primary_source_adapters.py:1043` | `ingest_article_records` | 11 | 12 |
-| `backend/app/services/verification_agent.py:319` | `_check_cache` | 11 | 12 |
 | `backend/app/vector_store.py:943` | `get_vector_store` | 11 | 12 |
 | `backend/scripts/reporter_source_verifier.py:385` | `discover_author_pages` | 11 | 12 |
 | `backend/scripts/wayback_verify_reporters.py:388` | `_get_likely_reporters` | 11 | 12 |
@@ -471,7 +467,6 @@ Warning-only: 179
 | `backend/app/services/evidence_ingest.py:484` | `_handle_ownership_property` | 10 | 15 |
 | `backend/app/services/gdelt_integration.py:56` | `fetch_recent_events` | 10 | 15 |
 | `backend/app/services/reporter_indexer.py:644` | `_build_social_items` | 10 | 15 |
-| `backend/app/services/verification_agent.py:541` | `_search_external_sources` | 10 | 15 |
 | `backend/scripts/enrich_local_reporter_author_pages.py:569` | `repair_verified_author_page_citations` | 10 | 15 |
 | `frontend/lib/verification.ts:88` | `streamVerification` | 10 | 15 |
 | `backend/app/api/routes/debug.py:84` | `_read_jsonl_tail` | 10 | 14 |
@@ -498,7 +493,6 @@ Warning-only: 179
 | `backend/app/services/mbfc_integration.py:251` | `get_rss_mbfc_crosswalk` | 9 | 13 |
 | `backend/app/services/reporter_indexer.py:1176` | `_fetch_wikidata_journalist_pairs` | 9 | 13 |
 | `backend/app/services/source_url_guard.py:80` | `normalize_site_url` | 9 | 13 |
-| `backend/app/services/verification_agent.py:386` | `_search_sources` | 8 | 14 |
 | `backend/scripts/verify_and_promote_reporters.py:607` | `_apply_direct_cffi_match` | 10 | 12 |
 | `frontend/lib/api.ts:2162` | `<anonymous>` | 9 | 13 |
 | `backend/app/api/routes/similarity.py:20` | `get_related_articles` | 10 | 11 |
@@ -543,6 +537,7 @@ Warning-only: 179
 | `backend/app/services/source_credibility.py:846` | `calculate_claim_confidence` | 9 | 11 |
 | `backend/app/services/source_research.py:526` | `_map_research_sources` | 9 | 11 |
 | `backend/app/services/story_lineage.py:122` | `_claim_candidates` | 9 | 11 |
+| `backend/app/services/verification_agent.py:245` | `_claim_from_cache` | 9 | 11 |
 | `backend/app/services/verification_output.py:141` | `format_json_response` | 9 | 11 |
 | `backend/news_research_agent.py:905` | `news_search` | 10 | 10 |
 | `backend/scripts/capture_evidence_corpus.py:43` | `run` | 9 | 11 |
